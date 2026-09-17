@@ -16,13 +16,15 @@
 use super::{
     WriteExitProvider, continuation_unit_call_plan, edge_id, edge_owned_cleanup_plan, identity,
     machine_id, operation_id, promote_x86_cleanup_to_scalar, scalar_three_leaf_cleanup_plan,
-    stored_dynamic_call_plan, structural_call_scalar_return_plan, windows_foreign_call_plan,
+    stored_dynamic_call_plan, structural_call_scalar_return_plan, two_function_plan,
+    windows_foreign_call_plan,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use image_emission::{
-    InstallationError, InstallationRecord, InstalledFunction, build_installation_record,
+    InstallationError, InstallationRecord, InstalledFunction, ObjectCodeAttribution,
+    ObjectUnitStack, build_installation_record,
     build_installation_record_with_selected_provider_plans_and_evidence, build_object_artifact,
     decode_installation_record, emit_executable_image, encode_installation_record,
     installation_fingerprint, validate_installation_record,
@@ -725,6 +727,239 @@ fn affine_scalar_record_custody_plan() -> MachineCodePlan {
                 structural_return: None,
             },
         ],
+    }
+}
+
+/// The retained record custody of one attached Unit entry function holding
+/// two fixed-width immediate stores into one write-only-borrowed structural
+/// parameter's staged stack home. Each store joins its destination
+/// declaration to the parameter and home rosters, its immediate to an earlier
+/// integer-constant row, and its bounded path, field, home offsets, ordering,
+/// and exact emitted bytes to the semantic attribution. The shared home
+/// source uses a decodable stack placement so the retained record round-trips
+/// through the installation codec.
+///
+/// This is a fabrication source, not an emitted plan: image emission requires
+/// common-pipeline replay evidence for borrowed structural destinations, so
+/// no `build_object_artifact` artifact can carry these rows into an image.
+/// The test below stages the same rows on an appended `InstalledFunction`
+/// and authenticates them against the canonical record shape.
+fn structural_store_custody_plan() -> MachineCodePlan {
+    let parameter_shape = ValueShape::integer(8, 8);
+    let home_source = ValuePlacement {
+        shape: parameter_shape,
+        locations: vec![ValueLocation::Stack {
+            stack_byte_offset: 4,
+            value_byte_offset: 0,
+            byte_size: 8,
+            alignment: 8,
+        }],
+    };
+    let destination = || terminal_psi::StructuralParameterDeclaration {
+        place: place_id(1),
+        position: 0,
+        is_self: false,
+        structural_type: structural_type(1),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::WriteOnlyBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let constant =
+        |operation: u64, source: u64, value: i64, ordinal: usize| UnitIntegerConstantRecord {
+            defining_operation: operation_id(operation),
+            source_value: value_id(source),
+            scalar_type: i32_integer(),
+            value: IntegerValue::Signed(i128::from(value)),
+            operation_ordinal: ordinal,
+        };
+    // movabs r11, <imm64>; mov dword ptr [rsp + stack_offset], r11d — the
+    // exact x86-64 emission `expected_store_bytes` regenerates for a
+    // non-indirect staged stack home.
+    let store_bytes = |value: u64, stack_offset: u8| {
+        [0x49, 0xbb]
+            .into_iter()
+            .chain(value.to_le_bytes())
+            .chain([0x44, 0x89, 0x5c, 0x24, stack_offset])
+            .collect::<Vec<u8>>()
+    };
+    let store = |operation: u64,
+                 path: Vec<StructuralPathSegment>,
+                 field: u64,
+                 field_byte_offset: u32,
+                 defining_operation: u64,
+                 source_value: u64,
+                 value: i64,
+                 ordinal: usize,
+                 code_offset: usize,
+                 bytes: Vec<u8>| {
+        machine_code::UnitStructuralScalarFieldStoreRecord {
+            psi_operation: operation_id(operation),
+            destination: destination(),
+            path,
+            field: field_id(field),
+            destination_placement: home_source.clone(),
+            field_byte_offset,
+            source: machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                defining_operation: operation_id(defining_operation),
+                source_value: value_id(source_value),
+                scalar_type: i32_integer(),
+                value: IntegerValue::Signed(i128::from(value)),
+            },
+            parameter_home_byte_offset: 4,
+            parameter_home_indirect: false,
+            operation_ordinal: ordinal,
+            code_offset,
+            byte_count: bytes.len(),
+            bytes,
+        }
+    };
+    let store_one = store(
+        3,
+        vec![StructuralPathSegment::Field("cell".to_string())],
+        1,
+        0,
+        1,
+        51,
+        7,
+        1,
+        0,
+        store_bytes(7, 4),
+    );
+    let store_two = store(
+        4,
+        vec![
+            StructuralPathSegment::Field("slot".to_string()),
+            StructuralPathSegment::FixedIndex(0),
+        ],
+        2,
+        4,
+        2,
+        52,
+        9,
+        3,
+        15,
+        store_bytes(9, 8),
+    );
+    let function_bytes = store_one
+        .bytes
+        .iter()
+        .chain(&store_two.bytes)
+        .copied()
+        .chain([0xc3])
+        .collect::<Vec<u8>>();
+    MachineCodePlan {
+        psi: identity(),
+        target: NativeTarget::linux_x64(),
+        entry: machine_id(1),
+        functions: vec![MachineCodeFunction {
+            scalar_abi: None,
+            mixed_structural_scalar_abi: None,
+            structural_call_scalar_return: None,
+            parameter_abi: None,
+            internal_unit_scalar_calls: Vec::new(),
+            installed_provider_unit_scalar_calls: Vec::new(),
+            dynamic_calls: Vec::new(),
+            stored_dynamic_calls: Vec::new(),
+            dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_parameter_calls: Vec::new(),
+            forwarded_dynamic_descriptor_calls: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: vec![constant(1, 51, 7, 0), constant(2, 52, 9, 2)],
+            unit_affine_scalar_records: Vec::new(),
+            unit_structural_scalar_field_stores: vec![store_one, store_two],
+            unit_write_only_primitive_stores: Vec::new(),
+            scalar_structural_scalar_field_stores: Vec::new(),
+            machine: machine_id(1),
+            attachment: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![
+                    operation_id(1),
+                    operation_id(2),
+                    operation_id(3),
+                    operation_id(4),
+                ],
+                edges: vec![edge_id(1)],
+            },
+            bytes: function_bytes,
+            x86_scalar_fma: Vec::new(),
+            x86_scalar_fma_occurrences: Vec::new(),
+            x86_floating_control: None,
+            unit_stack: Some(UnitStackEvidence {
+                frame: None,
+                aarch64_return_link: None,
+                stack_alignment: 16,
+            }),
+            unit_parameter_homes: vec![UnitParameterHomeRecord {
+                place: place_id(1),
+                structural_type: structural_type(1),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::WriteOnlyBorrow,
+                shape: parameter_shape,
+                source: home_source,
+                location: machine_code::StructuralSourceLocation::Stack { byte_offset: 4 },
+                indirect: false,
+            }],
+            unit_parameters: vec![UnitParameterRecord {
+                place: place_id(1),
+                structural_type: structural_type(1),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::WriteOnlyBorrow,
+                shape: parameter_shape,
+            }],
+            scalar_stack: None,
+            internal_calls: Vec::new(),
+            foreign_calls: Vec::new(),
+            internal_unit_calls: Vec::new(),
+            unit_continuations: Vec::new(),
+            unit_affine_cleanup: Some(UnitAffineCleanupRecord {
+                structural_types: Vec::new().into(),
+                psi_edge: edge_id(1),
+                locals: Vec::new(),
+                actions: Vec::new(),
+                code_offset: 30,
+                byte_count: 1,
+            }),
+            semantic_code_attribution: vec![
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(operation_id(1)),
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 0,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(operation_id(3)),
+                    operation_ordinal: 1,
+                    code_offset: 0,
+                    byte_count: 15,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(operation_id(2)),
+                    operation_ordinal: 2,
+                    code_offset: 15,
+                    byte_count: 0,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(operation_id(4)),
+                    operation_ordinal: 3,
+                    code_offset: 15,
+                    byte_count: 15,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(edge_id(1)),
+                    operation_ordinal: 4,
+                    code_offset: 30,
+                    byte_count: 1,
+                },
+            ],
+            port_effects: Vec::new(),
+            boundary_settlements: Vec::new(),
+            scalar_affine_cleanup: None,
+            scalar_control_affine_cleanups: Vec::new(),
+            scalar_structural_parameters: Vec::new(),
+            scalar_structural_parameter_homes: Vec::new(),
+            structural_return: None,
+        }],
     }
 }
 
@@ -1826,6 +2061,660 @@ fn installation_function_store_rows_reject_every_one_field_substitution() {
                 .push(scalar_field_store());
         },
     );
+}
+
+/// The retained structural-store roster authenticates every field against the
+/// canonical record shape: each fixed-width immediate store joins its
+/// destination declaration to the parameter and home rosters, its immediate
+/// source to an earlier integer-constant row, and its home offsets, interval,
+/// and exact emitted bytes to the semantic attribution.
+///
+/// No `build_object_artifact` image can carry these rows: emission requires
+/// retained common-pipeline replay evidence for borrowed structural
+/// destinations, which only `build_function_fragment_object_artifact` admits.
+/// The test therefore stages the retained custody on an appended
+/// `InstalledFunction` — record-shape canonicalization applies the same joins
+/// the emitted custody would face — and authenticates it against an emitted
+/// image: the fields no record-shape join reads (the projected field
+/// identity, the bounded carrier path's spelling, the destination
+/// qualifications, and roster membership) still encode, recompute a distinct
+/// installation identity, and are rejected by independent replay of the
+/// mutated record. Every join into the parameter, home, constant, or
+/// attribution rosters and every non-canonical path or source shape is
+/// rejected at canonical encoding.
+#[test]
+fn installation_function_structural_store_rows_reject_every_one_field_substitution() {
+    let plan = two_function_plan();
+    let artifact = build_object_artifact(&plan).expect("two-function artifact");
+    let image = emit_executable_image(&artifact, 3).expect("two-function image");
+    let mut record =
+        build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+            .expect("two-function installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+
+    // Stage the retained custody on an appended function row: the record is
+    // canonical on its own, and independent replay rejects it because the
+    // unchanged image carries no such function.
+    let mut staged = structural_store_custody_plan().functions;
+    let source = staged.remove(0);
+    let index = record.functions().len();
+    let text_offset = record.image_sections().text_byte_count;
+    let byte_count = source.bytes.len();
+    record.functions_mut_for_test().push(InstalledFunction {
+        machine: machine_id(9),
+        attachment: source.attachment,
+        scalar_abi: source.scalar_abi,
+        mixed_structural_scalar_abi: source.mixed_structural_scalar_abi,
+        parameter_abi: source.parameter_abi,
+        structural_call_scalar_return: source.structural_call_scalar_return,
+        text_offset,
+        byte_count,
+        unit_stack: source.unit_stack.map(|stack| ObjectUnitStack {
+            frame_bytes: stack.frame.map_or(0, |frame| frame.byte_size),
+            local_peak_bytes: stack.frame.map_or(0, |frame| frame.byte_size),
+            stack_alignment: stack.stack_alignment,
+        }),
+        scalar_stack: None,
+        unit_call_stacks: Vec::new(),
+        scalar_call_stacks: Vec::new(),
+        foreign_call_stacks: Vec::new(),
+        unit_body: true,
+        unit_parameters: source.unit_parameters,
+        unit_parameter_homes: source.unit_parameter_homes,
+        unit_scalar_homes: source.unit_scalar_homes,
+        unit_integer_constants: source.unit_integer_constants,
+        unit_affine_scalar_records: source.unit_affine_scalar_records,
+        unit_structural_scalar_field_stores: source.unit_structural_scalar_field_stores,
+        unit_write_only_primitive_stores: source.unit_write_only_primitive_stores,
+        scalar_structural_scalar_field_stores: source.scalar_structural_scalar_field_stores,
+        unit_continuations: source.unit_continuations,
+        unit_affine_cleanup: source.unit_affine_cleanup,
+        scalar_affine_cleanup: source.scalar_affine_cleanup,
+        scalar_control_affine_cleanups: Vec::new(),
+        scalar_structural_parameters: source.scalar_structural_parameters,
+        scalar_structural_parameter_homes: source.scalar_structural_parameter_homes,
+    });
+    record.semantic_code_attribution_mut_for_test().extend(
+        source
+            .semantic_code_attribution
+            .into_iter()
+            .map(|attribution| ObjectCodeAttribution {
+                machine: machine_id(9),
+                text_offset: text_offset + attribution.code_offset,
+                attribution,
+            }),
+    );
+    record.image_sections_mut_for_test().text_byte_count += byte_count;
+    record.image_sections_mut_for_test().final_text_byte_count += byte_count;
+
+    // The staged roster is fully wire-decodable, so the staged record
+    // round-trips and recomputes its own identity before any substitution
+    // below; independent replay rejects it because the emitted image carries
+    // none of these rows.
+    let canonical = encode_installation_record(&record).expect("canonical encoding");
+    assert_eq!(
+        decode_installation_record(&canonical).expect("canonical decoding"),
+        record
+    );
+    assert_eq!(
+        validate_installation_record(&record, &image),
+        Err(InstallationError::ImageBindingMismatch),
+        "independent replay rejects the staged store custody"
+    );
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = record.functions()[index].clone();
+    assert_eq!(authentic.unit_structural_scalar_field_stores.len(), 2);
+    assert_eq!(authentic.unit_integer_constants.len(), 2);
+    assert_eq!(authentic.unit_parameters.len(), 1);
+    assert_eq!(authentic.unit_parameter_homes.len(), 1);
+
+    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
+        // The projected field identity is authenticated by the emitted image
+        // alone: no record-shape join reads it.
+        (
+            "unit_structural_scalar_field_stores[0].field",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].field = field_id(9);
+            }),
+        ),
+        // Every field-only or singly-indexed carrier path is inside the
+        // bounded store grammar, so its spelling is authenticated by the
+        // emitted image alone.
+        (
+            "unit_structural_scalar_field_stores[0].path::renamed",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].path =
+                    vec![StructuralPathSegment::Field("renamed".to_string())];
+            }),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].path::empty",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].path = Vec::new();
+            }),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].path::indexed",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].path = vec![
+                    StructuralPathSegment::Field("cell".to_string()),
+                    StructuralPathSegment::FixedIndex(1),
+                ];
+            }),
+        ),
+        // The destination declaration's qualification rosters are not part of
+        // the parameter/home join; the image comparison owns them.
+        (
+            "unit_structural_scalar_field_stores[0].destination.qualifications",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0]
+                    .destination
+                    .qualifications
+                    .push(domain_id(3));
+            }),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].destination.projected_qualifications",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0]
+                    .destination
+                    .projected_qualifications
+                    .push(StructuralPathQualification {
+                        path: vec![StructuralPathSegment::Field("gate".to_string())],
+                        domain: domain_id(3),
+                    });
+            }),
+        ),
+        (
+            "unit_structural_scalar_field_stores::drop",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores.pop();
+            }),
+        ),
+    ];
+    for (field, mutate) in still_encodes {
+        assert_substitution_rejected_by_replay(
+            field,
+            &record,
+            &image,
+            &authentic_fingerprint,
+            index,
+            mutate,
+        );
+    }
+
+    let store_error = || InstallationError::InvalidUnitStructuralScalarFieldStore(machine_id(9));
+    let cleanup_error = || InstallationError::InvalidUnitAffineCleanup(machine_id(9));
+    let rejected: Vec<(
+        &'static str,
+        Box<dyn Fn(&mut InstalledFunction)>,
+        InstallationError,
+    )> = vec![
+        // The producer identity must name the operation the exact-attribution
+        // join is bound to.
+        (
+            "unit_structural_scalar_field_stores[0].psi_operation",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].psi_operation = operation_id(9);
+            }),
+            store_error(),
+        ),
+        // Every destination-declaration axis is joined pairwise to the
+        // parameter and home rosters.
+        (
+            "unit_structural_scalar_field_stores[0].destination.place",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].destination.place = place_id(9);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].destination.position",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0]
+                    .destination
+                    .position = 1;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].destination.is_self",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0]
+                    .destination
+                    .is_self = true;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].destination.structural_type",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0]
+                    .destination
+                    .structural_type = structural_type(9);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].destination.multiplicity",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0]
+                    .destination
+                    .multiplicity = StructuralMultiplicity::Affine;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].destination.access",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0]
+                    .destination
+                    .access = StructuralAccess::MutableBorrow;
+            }),
+            store_error(),
+        ),
+        // An unbounded carrier path is not representable in the store grammar.
+        (
+            "unit_structural_scalar_field_stores[0].path::referent",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].path =
+                    vec![StructuralPathSegment::Referent];
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].path::empty-field",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].path =
+                    vec![StructuralPathSegment::Field(String::new())];
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].path::double-index",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].path = vec![
+                    StructuralPathSegment::FixedIndex(0),
+                    StructuralPathSegment::FixedIndex(1),
+                ];
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].destination_placement",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].destination_placement =
+                    register_placement();
+            }),
+            store_error(),
+        ),
+        // In-bounds or not, a changed field offset recomputes different bytes
+        // or violates the parameter shape.
+        (
+            "unit_structural_scalar_field_stores[0].field_byte_offset::within-bounds",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].field_byte_offset = 4;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].field_byte_offset::out-of-bounds",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].field_byte_offset = 8;
+            }),
+            store_error(),
+        ),
+        // Each immediate-source field is joined to the retained integer
+        // constant row.
+        (
+            "unit_structural_scalar_field_stores[0].source.defining_operation",
+            Box::new(|row| {
+                let machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                    defining_operation,
+                    ..
+                } = &mut row.unit_structural_scalar_field_stores[0].source
+                else {
+                    unreachable!()
+                };
+                *defining_operation = operation_id(9);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].source.source_value",
+            Box::new(|row| {
+                let machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                    source_value,
+                    ..
+                } = &mut row.unit_structural_scalar_field_stores[0].source
+                else {
+                    unreachable!()
+                };
+                *source_value = value_id(9);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].source.scalar_type",
+            Box::new(|row| {
+                let machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                    scalar_type,
+                    ..
+                } = &mut row.unit_structural_scalar_field_stores[0].source
+                else {
+                    unreachable!()
+                };
+                *scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].source.value",
+            Box::new(|row| {
+                let machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                    value,
+                    ..
+                } = &mut row.unit_structural_scalar_field_stores[0].source
+                else {
+                    unreachable!()
+                };
+                *value = IntegerValue::Signed(8);
+            }),
+            store_error(),
+        ),
+        // Each remaining source variant is representable but cannot be joined
+        // to this function's retained custody.
+        (
+            "unit_structural_scalar_field_stores[0].source::boolean",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].source =
+                    machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                        defining_operation: operation_id(1),
+                        source_value: value_id(51),
+                        value: true,
+                        definition_ordinal: 0,
+                    };
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].source::parameter",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].source =
+                    machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                        parameter_index: 0,
+                        source_value: value_id(51),
+                        scalar_type: i32_scalar(),
+                        location: machine_code::UnitScalarParameterLocationRecord::Register(
+                            calling_conventions::MachineRegister::X86Rax,
+                        ),
+                    };
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].source::home",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].source =
+                    machine_code::InternalUnitScalarArgumentSourceRecord::Home(
+                        machine_code::UnitScalarHomeRecord {
+                            defining_operation: operation_id(1),
+                            source_value: value_id(51),
+                            scalar_type: i32_scalar(),
+                            shape: ValueShape::integer(4, 4),
+                            byte_offset: 0,
+                        },
+                    );
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].parameter_home_byte_offset",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].parameter_home_byte_offset = 0;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].parameter_home_indirect",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].parameter_home_indirect = true;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].operation_ordinal",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].operation_ordinal += 1;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].code_offset",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].code_offset += 1;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].byte_count",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].byte_count += 1;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].bytes::content",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].bytes[2] = 0x11;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores[0].bytes::truncate",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores[0].bytes.pop();
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores::swap",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores.swap(0, 1);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores::insert-duplicate",
+            Box::new(|row| {
+                let duplicate = row.unit_structural_scalar_field_stores[0].clone();
+                row.unit_structural_scalar_field_stores.push(duplicate);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_structural_scalar_field_stores::insert-fabricated",
+            Box::new(|row| {
+                row.unit_structural_scalar_field_stores
+                    .push(structural_field_store());
+            }),
+            store_error(),
+        ),
+        // The parameter and home rosters are joined pairwise; the shared
+        // declaration axes surface the cleanup-facts error while the
+        // home-only location, source placement, and indirection surface the
+        // store join.
+        (
+            "unit_parameters[0].place",
+            Box::new(|row| {
+                row.unit_parameters[0].place = place_id(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters[0].structural_type",
+            Box::new(|row| {
+                row.unit_parameters[0].structural_type = structural_type(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters[0].multiplicity",
+            Box::new(|row| {
+                row.unit_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters[0].access",
+            Box::new(|row| {
+                row.unit_parameters[0].access = StructuralAccess::MutableBorrow;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters[0].shape",
+            Box::new(|row| {
+                row.unit_parameters[0].shape = ValueShape::integer(4, 4);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameters::drop",
+            Box::new(|row| {
+                row.unit_parameters.pop();
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].place",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].place = place_id(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].structural_type",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].structural_type = structural_type(9);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].multiplicity",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].multiplicity = StructuralMultiplicity::Affine;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].access",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].access = StructuralAccess::MutableBorrow;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].shape",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].shape = ValueShape::integer(4, 4);
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes[0].source",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].source = register_placement();
+            }),
+            store_error(),
+        ),
+        (
+            "unit_parameter_homes[0].location",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].location =
+                    machine_code::StructuralSourceLocation::Stack { byte_offset: 8 };
+            }),
+            store_error(),
+        ),
+        (
+            "unit_parameter_homes[0].indirect",
+            Box::new(|row| {
+                row.unit_parameter_homes[0].indirect = true;
+            }),
+            store_error(),
+        ),
+        (
+            "unit_parameter_homes::drop",
+            Box::new(|row| {
+                row.unit_parameter_homes.pop();
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_parameter_homes::insert-duplicate",
+            Box::new(|row| {
+                let home = row.unit_parameter_homes[0].clone();
+                row.unit_parameter_homes.push(home);
+            }),
+            cleanup_error(),
+        ),
+        // The immediate source's retained constant row must still join every
+        // field.
+        (
+            "unit_integer_constants[0].defining_operation",
+            Box::new(|row| {
+                row.unit_integer_constants[0].defining_operation = operation_id(9);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_integer_constants[0].source_value",
+            Box::new(|row| {
+                row.unit_integer_constants[0].source_value = value_id(9);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_integer_constants[0].scalar_type",
+            Box::new(|row| {
+                row.unit_integer_constants[0].scalar_type =
+                    IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+            }),
+            store_error(),
+        ),
+        (
+            "unit_integer_constants[0].value",
+            Box::new(|row| {
+                row.unit_integer_constants[0].value = IntegerValue::Signed(8);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_integer_constants[0].operation_ordinal",
+            Box::new(|row| {
+                row.unit_integer_constants[0].operation_ordinal = 5;
+            }),
+            cleanup_error(),
+        ),
+        (
+            "unit_integer_constants::drop",
+            Box::new(|row| {
+                row.unit_integer_constants.remove(0);
+            }),
+            store_error(),
+        ),
+        (
+            "unit_integer_constants::insert-duplicate",
+            Box::new(|row| {
+                let duplicate = row.unit_integer_constants[0];
+                row.unit_integer_constants.push(duplicate);
+            }),
+            cleanup_error(),
+        ),
+    ];
+    for (field, mutate, expected) in rejected {
+        assert_substitution_rejected_at_encoding(field, &record, index, mutate, expected);
+    }
 }
 
 /// The affine scalar-record roster authenticates every field against an
