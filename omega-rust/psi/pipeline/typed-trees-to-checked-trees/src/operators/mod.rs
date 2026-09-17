@@ -22,6 +22,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 mod applications;
 mod receiver;
+mod requirement_uses;
 mod selection;
 mod token_bound_machine_calls;
 
@@ -62,6 +63,9 @@ pub(crate) fn build_operator_facts(
     }
 
     CheckedOperatorFacts::with_roots(uses, named_uses, candidates)
+        .with_named_requirement_uses(requirement_uses::collect_named_requirement_uses(
+            program, values,
+        ))
         .with_operator_crash_contracts(derive_checked_operator_crash_contracts(program))
         .with_operator_realization_contracts(derive_checked_operator_realization_contracts(program))
 }
@@ -795,7 +799,7 @@ fn named_operator_use_fact(
     })
 }
 
-fn named_float_policy_adapter(
+pub(super) fn named_float_policy_adapter(
     program: &TypedTrees,
     call: &TableCallExpression,
     origin: CheckedValueOrigin,

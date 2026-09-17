@@ -183,6 +183,24 @@ pub struct CheckedNamedOperatorUseFact {
     pub provider_plan_commitment: CheckedProviderPlanCommitment,
 }
 
+/// One direct call to a public receiver-free top-level `boundary requirement`
+/// retained as checked evidence: the requirement's checked identity plus the
+/// arithmetic-policy result adapter its arguments select. Provider planning
+/// stamps the selected ProviderPlan onto the fact exactly as it does for a
+/// named boundary-operator use, so the compiler-intrinsic execution bridge
+/// resolves both use kinds through one requirement view.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CheckedNamedRequirementUseFact {
+    pub expression: ExpressionHandle,
+    pub origin: CheckedValueOrigin,
+    /// The requirement machine's symbol (its declaration, not its entry
+    /// state, which is what the typed call targets).
+    pub requirement_symbol: SymbolHandle,
+    pub policy_adapter: CheckedArithmeticPolicyAdapter,
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: CheckedProviderPlanCommitment,
+}
+
 /// One checked boundary-operator application at one exact use. The empty
 /// argument vector is the canonical monomorphic application.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -548,6 +566,9 @@ pub struct CheckedOperatorFacts {
     /// Source classification alone never populates this roster.
     pub selected_float_comparisons: Arena<CheckedSelectedFloatComparisonExecution>,
     pub named_uses: Arena<CheckedNamedOperatorUseFact>,
+    /// Direct calls to public receiver-free top-level boundary requirements,
+    /// the requirement-spelling twin of `named_uses`.
+    pub named_requirement_uses: Arena<CheckedNamedRequirementUseFact>,
     pub candidates: Arena<CheckedOperatorCandidateFact>,
     pub operator_crash_contracts: Vec<CheckedOperatorCrashContract>,
     pub operator_realization_contracts: Vec<CheckedOperatorRealizationContract>,
@@ -676,6 +697,7 @@ impl CheckedOperatorFacts {
             uses,
             selected_float_comparisons: Arena::new(),
             named_uses,
+            named_requirement_uses: Arena::new(),
             candidates,
             operator_crash_contracts: Vec::new(),
             operator_realization_contracts: Vec::new(),
@@ -736,6 +758,20 @@ impl CheckedOperatorFacts {
 
     pub fn named_uses(&self) -> impl Iterator<Item = &CheckedNamedOperatorUseFact> {
         self.named_uses.iter().map(|(_, operator_use)| operator_use)
+    }
+
+    pub fn with_named_requirement_uses(
+        mut self,
+        named_requirement_uses: Arena<CheckedNamedRequirementUseFact>,
+    ) -> Self {
+        self.named_requirement_uses = named_requirement_uses;
+        self
+    }
+
+    pub fn named_requirement_uses(&self) -> impl Iterator<Item = &CheckedNamedRequirementUseFact> {
+        self.named_requirement_uses
+            .iter()
+            .map(|(_, requirement_use)| requirement_use)
     }
 
     pub fn named_expression_use_in_origin(
