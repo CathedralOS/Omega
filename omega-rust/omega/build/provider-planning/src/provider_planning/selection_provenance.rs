@@ -185,6 +185,7 @@ pub fn selected_provider_plan_facts_with_independent_components(
         .map(target::TargetProfile::target_name)
         .unwrap_or_default();
     let mut independent_join = IndependentComponentJoin::new(independent_components);
+    diagnostics.extend(replay_operator_family_selections(typed, &selected));
     for selected_plan in &selected {
         let plan = &selected_plan.derived.plan;
         let provenance = &selected_plan.derived.provenance;
@@ -283,6 +284,88 @@ pub fn selected_provider_plan_facts_with_independent_components(
         })
         .collect();
     Ok((facts, provenance))
+}
+
+fn authored_selection_declarations(
+    provenance: &ProviderSelectionProvenance,
+) -> &[crate::ProviderSelection] {
+    match provenance {
+        ProviderSelectionProvenance::BuildOverride(declarations)
+        | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
+        ProviderSelectionProvenance::UniqueCoveringCandidate => &[],
+    }
+}
+
+fn same_family_declaration(
+    left: &crate::ProviderSelection,
+    right: &crate::ProviderSelection,
+) -> bool {
+    left.subject.same_declaration_as(&right.subject)
+        && left.provider_type.symbol == right.provider_type.symbol
+}
+
+/// Atomic family replay. Selection resolved each coordinate as its own slot
+/// without the typed program, so a retained family row that is partial,
+/// padded, stale, or substituted could otherwise select its satisfiable
+/// subset while the omitted coordinate falls to the unique covering
+/// candidate. Here every family declaration is replayed once against the
+/// canonical roster the typed program derives now, and every coordinate must
+/// be realized by exactly one selected plan of the declared provider.
+fn replay_operator_family_selections(
+    typed: &TypedTrees,
+    selected: &[SelectedProviderPlanWithProvenance],
+) -> Vec<diagnostics::Diagnostic> {
+    let mut families: Vec<&crate::ProviderSelection> = Vec::new();
+    for selected_plan in selected {
+        for declaration in authored_selection_declarations(&selected_plan.selected_by) {
+            if matches!(
+                declaration.subject,
+                crate::ProviderSelectionSubject::BoundaryOperatorFamily(_)
+            ) && !families
+                .iter()
+                .any(|existing| same_family_declaration(existing, declaration))
+            {
+                families.push(declaration);
+            }
+        }
+    }
+    let mut diagnostics = Vec::new();
+    for declaration in families {
+        let crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) = &declaration.subject
+        else {
+            continue;
+        };
+        diagnostics.extend(
+            family
+                .replay_against_typed(typed)
+                .into_iter()
+                .map(diagnostics::Diagnostic::error),
+        );
+        for coordinate in family.coordinates() {
+            let realized = selected
+                .iter()
+                .filter(|selected_plan| {
+                    selected_plan.derived.provenance.schema.symbol() == coordinate.symbol
+                        && selected_plan.derived.plan.schema.trait_name
+                            == coordinate.requirement_identity
+                        && selected_plan.derived.provenance.provider_type
+                            == Some(declaration.provider_type.symbol)
+                        && authored_selection_declarations(&selected_plan.selected_by)
+                            .iter()
+                            .any(|retained| same_family_declaration(retained, declaration))
+                })
+                .count();
+            if realized != 1 {
+                diagnostics.push(diagnostics::Diagnostic::error(format!(
+                    "boundary-operator family `{}` selection resolves coordinate `{}` to {realized} selected plans of provider `{}`; every coordinate is realized by exactly one",
+                    family.authored_path,
+                    coordinate.requirement_identity,
+                    declaration.provider_type.authored_path,
+                )));
+            }
+        }
+    }
+    diagnostics
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

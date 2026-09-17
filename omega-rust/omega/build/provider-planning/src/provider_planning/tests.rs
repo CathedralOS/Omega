@@ -61,6 +61,30 @@ fn typed_fixture(source: &str) -> TypedTrees {
         .expect("type provider fixture")
 }
 
+/// Like [`typed_fixture`], but parsed under a registered source so
+/// selecting-machine provenance spans survive for provenance replay.
+fn typed_fixture_with_source(file_name: &str, source: &str) -> TypedTrees {
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add(std::path::PathBuf::from(file_name), source.to_owned())
+        .source_id;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize provider fixture");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+        .expect("parse provider fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .expect("resolve provider fixture");
+    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type provider fixture")
+}
+
 fn operator_symbol_at_path(typed: &TypedTrees, path: &str) -> symbols::SymbolHandle {
     typed
         .operators()
@@ -77,6 +101,56 @@ fn operator_symbol_at_path(typed: &TypedTrees, path: &str) -> symbols::SymbolHan
         .unwrap_or_else(|| panic!("missing typed operator `{path}`"))
         .symbol
 }
+
+fn data_symbol(typed: &TypedTrees, name: &str) -> symbols::SymbolHandle {
+    typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == name)
+        .unwrap_or_else(|| panic!("missing typed data `{name}`"))
+        .symbol
+}
+
+/// One build-authored family selection as `harvest_provider_selections`
+/// would retain it: the roster derived from the resolved operator symbol,
+/// the provider data symbol, and the selecting machine's authored span.
+fn family_selection_from_typed(
+    typed: &TypedTrees,
+    family_path: &str,
+    provider_type: &str,
+    selecting_machine: &str,
+) -> crate::ProviderSelection {
+    let selecting_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == selecting_machine)
+        .unwrap_or_else(|| panic!("missing selecting machine `{selecting_machine}`"))
+        .symbol;
+    let source_span = typed
+        .symbols
+        .symbol_provenance_source_span(selecting_machine)
+        .expect("selecting machine retains its authored span");
+    crate::ProviderSelection {
+        subject: crate::ProviderSelectionSubject::BoundaryOperatorFamily(
+            crate::ProviderOperatorFamilySelection::derive(
+                typed,
+                operator_symbol_at_path(typed, family_path),
+                family_path.to_owned(),
+            )
+            .expect("family roster derives from one resolved overload"),
+        ),
+        provider_type: crate::ProviderSelectionIdentity {
+            symbol: data_symbol(typed, provider_type),
+            package: None,
+            canonical_path: provider_type.to_owned(),
+            authored_path: provider_type.to_owned(),
+        },
+        composition_mode: crate::CompositionMode::Fused,
+        selecting_machine,
+        source_span,
+    }
+}
+
 fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
     let typed = typed_fixture(source);
     let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
