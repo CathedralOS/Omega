@@ -1,0 +1,31 @@
+// PASS CANARY. `slots` forwards `bulk`, a mutable array view whose entry role
+// is not a premise carrier, and `self.entries` is machine storage. Both
+// indexed stores produce complete write frames (`slots`, `self.entries`)
+// disjoint from the premise carriers `pending` and `step`, so the
+// entry-relative ranking is preserved and the loop still has to prove the
+// strict decrease of `pending`.
+data Main {
+    entries: [u64; 4];
+    cells: [u64; 4];
+}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.walk(5, 1, &mut self.cells) }
+}
+
+machine Main::walk(&mut self, remaining: u64 [0..=5], step: u64 [1..=2], bulk: &mut [u64; 4])
+terminates by remaining in 0..=5;
+-> u64 {
+    transition remaining >= step {
+        true -> iterate(remaining, step, bulk)
+        false -> remaining
+    }
+    state iterate(&mut self, pending: u64 [0..=5], step: u64 [1..=2], slots: &mut [u64; 4]) -> u64 {
+        slots[0] = pending;
+        self.entries[1] = step;
+        transition pending >= step {
+            true -> iterate(pending - step, step, slots)
+            false -> pending
+        }
+    }
+}

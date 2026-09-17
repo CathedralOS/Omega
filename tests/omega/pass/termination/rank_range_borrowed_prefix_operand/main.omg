@@ -1,0 +1,25 @@
+// PASS CANARY. `let shadow: &u64 = &pending` only forms a reference to the
+// premise carrier; it performs no write, so `pending` keeps denoting its
+// arrival value. A later store through the alias would be a separate
+// statement whose write frame is closed over `pending` by the frame owner.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.walk(5, 1) }
+}
+
+machine Main::walk(&mut self, remaining: u64 [0..=5], step: u64 [1..=2])
+terminates by remaining in 0..=5;
+-> u64 {
+    transition remaining >= step {
+        true -> iterate(remaining, step)
+        false -> remaining
+    }
+    state iterate(&mut self, pending: u64 [0..=5], step: u64 [1..=2]) -> u64 {
+        let shadow: &u64 = &pending;
+        transition pending >= step {
+            true -> iterate(pending - step, step)
+            false -> pending
+        }
+    }
+}

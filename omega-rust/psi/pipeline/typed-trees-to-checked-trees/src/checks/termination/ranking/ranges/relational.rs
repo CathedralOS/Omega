@@ -253,8 +253,8 @@ fn preserved_entry_prefix<'program>(
             // them preserves every hypothesis, whatever it stores into an
             // unprotected mutable input; the frame and the operand evaluation
             // must both be known before reusing them.
-            let preserved = inert_store_target(program, assignment.target, 0)
-                && pure_guard(program, assignment.value, 0)
+            let preserved = inert_store_target(program, machine, state, assignment.target, 0)
+                && pure_guard(program, machine, state, assignment.value, 0)
                 && frames.is_some_and(|frames| {
                     frames
                         .assignment_write_frame(machine, statement)
@@ -284,7 +284,7 @@ fn preserved_entry_prefix<'program>(
                     .state_parameters(state)
                     .iter()
                     .any(|parameter| parameter.symbol == local.symbol)
-                && pure_guard(program, local.initial_value, 0)
+                && pure_guard(program, machine, state, local.initial_value, 0)
                 && frames.is_some_and(|frames| {
                     frames
                         .expression_write_frame(machine, local.initial_value)
@@ -303,7 +303,7 @@ fn preserved_entry_prefix<'program>(
         match transition.guard {
             TransitionGuardNode::Always => {}
             TransitionGuardNode::When(guard) => {
-                if !pure_guard(program, guard, 0) {
+                if !pure_guard(program, machine, state, guard, 0) {
                     return None;
                 }
                 evaluated.push(guard);
@@ -313,8 +313,18 @@ fn preserved_entry_prefix<'program>(
     Some(evaluated)
 }
 
+/// A store target must be a place whose own evaluation performs no call:
+/// the direct-store write frame covers only the store itself, never an
+/// operation hiding inside the target. `Name`/`Member`/`Borrow` spines are
+/// structural places; an `Indexed` place is admitted only with builtin
+/// coordinates (no authored `[]` selection), a builtin index operand, and an
+/// inert collection spine. The operand checks stay structural because bound
+/// meaning deliberately treats calls as symbolic leaves, so
+/// `entries[next()]` would otherwise pass `place_has_builtin_coordinates`.
 fn inert_store_target(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &State,
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
@@ -323,31 +333,121 @@ fn inert_store_target(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) => true,
-        ExpressionNode::Member(member) => inert_store_target(program, member.receiver, depth + 1),
+        ExpressionNode::Member(member) => {
+            inert_store_target(program, machine, state, member.receiver, depth + 1)
+        }
+        ExpressionNode::Borrow(borrow) => {
+            inert_store_target(program, machine, state, borrow.target, depth + 1)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            inert_store_target(program, machine, state, indexed.collection, depth + 1)
+                && pure_guard(program, machine, state, indexed.index, depth + 1)
+                && validation::place_has_builtin_coordinates(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+        }
         _ => false,
     }
 }
 
+/// An operand is inert when its evaluation cannot perform a write: every
+/// reachable call or authored operator is rejected, while builtin place
+/// expressions (members, borrows, builtin indexing or subslicing) and builtin
+/// value forms are write-free by construction. Meaning and membership of an
+/// admitted expression are still proved separately by the range owner.
 fn pure_guard(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &State,
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
+    let inert = |expression| pure_guard(program, machine, state, expression, depth + 1);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
-        ExpressionNode::Atomic(atomic) => pure_guard(program, atomic.value, depth + 1),
-        ExpressionNode::Unary(unary) => pure_guard(program, unary.operand, depth + 1),
+        ExpressionNode::Name(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => true,
+        ExpressionNode::Atomic(atomic) => inert(atomic.value),
+        ExpressionNode::Unary(unary) => inert(unary.operand),
+        ExpressionNode::Cast(cast) => inert(cast.value),
         ExpressionNode::Member(member) => {
             // Projection identity and selected arithmetic meaning are checked
             // by the range owner. A member with a pure receiver performs no call.
-            pure_guard(program, member.receiver, depth + 1)
+            inert(member.receiver)
         }
         ExpressionNode::Binary(binary) => {
-            pure_guard(program, binary.left, depth + 1)
-                && pure_guard(program, binary.right, depth + 1)
+            // An authored operator application can hide a write the
+            // direct-store frame does not see; only a builtin spelling is inert.
+            validation::has_builtin_binary_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) && inert(binary.left)
+                && inert(binary.right)
+        }
+        ExpressionNode::Borrow(borrow) => {
+            // Forming a reference writes nothing. A later store through the
+            // alias is a separate statement whose write frame is closed over
+            // the referent's origins by the frame owner.
+            inert(borrow.target)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            // A builtin element read or subslice is a pure projection of its
+            // collection. An authored `[]` selection can run arbitrary code,
+            // and the index operands must be inert as well.
+            let index_inert = match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Range(range) => [range.start, range.end]
+                    .into_iter()
+                    .all(|endpoint| !endpoint.is_valid() || inert(endpoint)),
+                _ => inert(indexed.index),
+            };
+            index_inert
+                && inert(indexed.collection)
+                && (validation::place_has_builtin_coordinates(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                ) || validation::has_builtin_subslice_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                ))
+        }
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .all(|field| inert(field.value)),
+        ExpressionNode::ArrayLiteral(items) => program
+            .expression_table
+            .expression_handles(*items)
+            .iter()
+            .all(|item| inert(*item)),
+        ExpressionNode::Match(dispatch) => {
+            inert(dispatch.subject)
+                && program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .all(|arm| {
+                        let pattern_inert = match arm.pattern {
+                            typed_trees::expression::MatchPattern::Value(pattern) => inert(pattern),
+                            typed_trees::expression::MatchPattern::Wildcard => true,
+                        };
+                        pattern_inert && inert(arm.value)
+                    })
         }
         _ => false,
     }
