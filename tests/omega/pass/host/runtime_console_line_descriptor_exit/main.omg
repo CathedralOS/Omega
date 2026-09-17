@@ -8,6 +8,6 @@ data Main {
 machine Main::main(&mut self)
 reaches Console
 {
-    _ = self.console.read_line(&mut self.line);
+    _ = block self.console.read_line(&mut self.line);
     self.console.exit_process(70);
 }

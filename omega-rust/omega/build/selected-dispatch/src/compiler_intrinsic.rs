@@ -19,10 +19,12 @@ use typed_trees::types::TypeReferenceNode;
 ///
 /// Boundary-operator rows preserve the established float catalog. Console
 /// entries bind the exact requirement and realization on each supported target.
-/// Byte output and exit support Linux and macOS; input remains Linux-only. The source
-/// leaf is bodyless boundary supply without an authored payload-free `via`;
-/// toolchain custody or one settled ordinary-package consumer binding must
-/// additionally own that row.
+/// Byte input publishes its honest hosted envelope (`blocks;` plus an
+/// unconditional `crashes Trap` route) on the requirement and realization
+/// alike; byte output and exit keep their nonblocking, crash-free ceiling.
+/// The source leaf is bodyless boundary supply without an authored
+/// payload-free `via`; toolchain custody or one settled ordinary-package
+/// consumer binding must additionally own that row.
 pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
@@ -721,6 +723,17 @@ fn boundary_row_shape(
     let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
         unreachable!("caller already admitted only compiler-intrinsic rows");
     };
+    // The realization's published envelope must spell the same honest shape
+    // as its requirement: the hosted byte-input leaf may occupy the worker
+    // while it waits and traps on a failed read; byte output and process
+    // exit keep their nonblocking, crash-free ceiling on this leg.
+    let expect_blocking_trap = matches!(shape, ConsoleIntrinsicShape::UnitToByteRead);
+    if realization.suspends
+        || realization.blocks != expect_blocking_trap
+        || !exact_realization_contracts(typed, realization, expect_blocking_trap)
+    {
+        return Ok(false);
+    }
     if realization.name.as_str() != realization_name
         || machine != &realization_identity
         || !realization.lifetime_parameters.is_empty()
@@ -810,13 +823,15 @@ fn exact_console_signature(
         || !typed.state_signature_type_parameters(signature).is_empty()
         || !signature.native_callback_parameters.is_empty()
         || signature.suspends
-        || signature.blocks
     {
         return false;
     }
     match shape {
         ConsoleIntrinsicShape::I32ToUnit => {
-            exact_i32_parameter(typed, typed.state_signature_parameters(signature))
+            // Hosted byte output and process exit still publish a nonblocking,
+            // non-crashing ceiling; this leg does not widen their envelope.
+            !signature.blocks
+                && exact_i32_parameter(typed, typed.state_signature_parameters(signature))
                 && matches!(
                     typed
                         .type_reference_table
@@ -825,10 +840,61 @@ fn exact_console_signature(
                 )
         }
         ConsoleIntrinsicShape::UnitToByteRead => {
-            typed.state_signature_parameters(signature).is_empty()
+            // Hosted input may occupy the worker while it waits for a byte and
+            // traps on a failed host read: the exact `read_byte` identity is the
+            // requirement that publishes `blocks;` plus one unconditional
+            // `crashes Trap` route. Omitting either still closes nothing here;
+            // callers keep acknowledging `block` and covering `Trap` honestly.
+            signature.blocks
+                && exact_unconditional_trap_crash_contract(typed, signature)
+                && typed.state_signature_parameters(signature).is_empty()
                 && exact_byte_read_type(typed, signature.return_type, trait_symbol)
         }
     }
+}
+
+/// The realization publishes the same envelope as its requirement: exactly
+/// one unconditional `crashes Trap` contract on the hosted byte-input leaf and
+/// no contracts at all on the nonblocking output/exit leaves.
+fn exact_realization_contracts(
+    typed: &typed_trees::TypedTrees,
+    realization: &typed_trees::machine::Machine,
+    expect_unconditional_trap: bool,
+) -> bool {
+    let contracts = typed.machine_contracts(realization);
+    if !expect_unconditional_trap {
+        return contracts.is_empty();
+    }
+    let [contract] = contracts else {
+        return false;
+    };
+    matches!(
+        contract.kind,
+        typed_trees::signature::SignatureContractKind::Crashes {
+            cause: typed_trees::signature::CrashCause::Trap,
+        }
+    ) && contract.facts.is_empty()
+        && contract.binding.is_none()
+}
+
+/// The hosted byte-input failure contract is exactly one `crashes Trap` clause
+/// whose route list is empty (the published `true` route), and no other
+/// requires/ensures/crash contract on the signature.
+fn exact_unconditional_trap_crash_contract(
+    typed: &typed_trees::TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+) -> bool {
+    let contracts = typed.state_signature_contracts(signature);
+    let [contract] = contracts else {
+        return false;
+    };
+    matches!(
+        contract.kind,
+        typed_trees::signature::SignatureContractKind::Crashes {
+            cause: typed_trees::signature::CrashCause::Trap,
+        }
+    ) && contract.facts.is_empty()
+        && contract.binding.is_none()
 }
 
 fn exact_console_state(

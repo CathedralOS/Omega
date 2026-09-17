@@ -7,7 +7,7 @@ pub boundary trait Console {
     machine write_line(text: &[u8]) reaches Console;
     machine write(text: &[u8]) reaches Console;
     machine read_line(out_line: &mut [u8]) reaches Console;
-    machine read_byte() -> ByteRead reaches Console;
+    machine read_byte() -> ByteRead reaches Console blocks; crashes Trap;
     machine write_byte(byte: i32) reaches Console;
     machine exit_process(return_code: i32) reaches Console;
 }
@@ -28,7 +28,9 @@ via Binding::CompilerIntrinsic;
 
 linux_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
 satisfies Console::read_byte
-via Binding::CompilerIntrinsic;
+via Binding::CompilerIntrinsic
+crashes Trap
+blocks;
 
 linux_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
 satisfies Console::write_byte
@@ -51,7 +53,9 @@ via Binding::CompilerIntrinsic;
 
 windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
 satisfies Console::read_byte
-via Binding::CompilerIntrinsic;
+via Binding::CompilerIntrinsic
+crashes Trap
+blocks;
 
 windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
 satisfies Console::write_byte

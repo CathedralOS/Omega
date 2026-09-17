@@ -16,12 +16,14 @@ pub data ParserHarness {
 pub machine ParserHarness::main(&mut self)
 reaches Console
 invokes Console;
+crashes Trap
+blocks;
 {
     self.lexer.initialize(1);
     transition { _ -> read() }
 
     state read(&mut self) {
-        let input: ByteRead = self.console.read_byte();
+        let input: ByteRead = block self.console.read_byte();
         transition input {
             ByteRead::Byte { value } -> retain(value)
             _ -> tokenize()

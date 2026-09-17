@@ -121,7 +121,10 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
                     .is_empty()
                 && requirement.native_callback_parameters.is_empty()
                 && !requirement.suspends
-                && !requirement.blocks
+                // The hosted byte-input leaf publishes `blocks;` honestly:
+                // it may occupy the worker while it waits for input. Every
+                // other intrinsic boundary leaf must stay nonblocking.
+                && byte_result.is_some() == requirement.blocks
                 && ((byte_result.is_none()
                     && exact_direct_intrinsic_signature(
                         program,

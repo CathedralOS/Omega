@@ -7,5 +7,5 @@ data Main {
 machine Main::main(&mut self)
 reaches Console
 {
-    let observed: ByteRead = self.console.read_byte();
+    let observed: ByteRead = block self.console.read_byte();
 }

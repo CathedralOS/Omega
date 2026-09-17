@@ -42,6 +42,6 @@ machine Main::main(&mut self) reaches Console {
     let checksum: i32 = self.frame.sum(full[1..4], 0) as i32;
     self.console.write_line("result: the payload checksum, 60 for this frame (the exit code)");
     self.console.write_line("[press Enter to close]");
-    _ = self.console.read_line(&mut self.pause);
+    _ = block self.console.read_line(&mut self.pause);
     self.console.exit_process(checksum);
 }

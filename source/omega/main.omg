@@ -17,7 +17,7 @@ machine Main::main(&mut self) {
     transition { _ -> read() }
 
     state read(&mut self) {
-        let input: ByteRead = self.console.read_byte();
+        let input: ByteRead = block self.console.read_byte();
         transition input {
             ByteRead::Byte { value } -> retain(value)
             _ -> tokenize()

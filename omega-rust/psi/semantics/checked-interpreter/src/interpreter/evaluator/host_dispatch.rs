@@ -331,16 +331,17 @@ mod tests {
     fn direct_console_byte_input_preserves_octets_eof_and_host_backstops() {
         let source = "pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
             pub boundary trait Console {
-                machine read_byte() -> ByteRead reaches Console;
+                machine read_byte() -> ByteRead reaches Console blocks; crashes Trap;
                 machine write_byte(byte: i32) reaches Console;
             }
             pub data ConsoleNativeProvider {}
             machine ConsoleNativeProvider::read_byte() -> ByteRead
-                satisfies Console::read_byte via Binding::CompilerIntrinsic;
+                satisfies Console::read_byte via Binding::CompilerIntrinsic
+                crashes Trap blocks;
             boundary machine ConsoleNativeProvider::write_byte(byte: i32)
                 satisfies Console::write_byte;
             machine main() reaches Console {
-                let observed: ByteRead = ConsoleNativeProvider::read_byte();
+                let observed: ByteRead = block ConsoleNativeProvider::read_byte();
                 transition observed {
                     ByteRead::Byte { value } -> emit(value)
                     ByteRead::Eof -> done()
@@ -349,8 +350,8 @@ mod tests {
                 state done() {}
             }";
         let guarded = source.replace(
-            "let observed: ByteRead = ConsoleNativeProvider::read_byte();\n                transition observed {\n                    ByteRead::Byte { value } -> emit(value)\n                    ByteRead::Eof -> done()",
-            "transition ConsoleNativeProvider::read_byte() {\n                    ByteRead::Eof -> done()\n                    ByteRead::Byte { value } -> emit(value)",
+            "let observed: ByteRead = block ConsoleNativeProvider::read_byte();\n                transition observed {\n                    ByteRead::Byte { value } -> emit(value)\n                    ByteRead::Eof -> done()",
+            "transition block ConsoleNativeProvider::read_byte() {\n                    ByteRead::Eof -> done()\n                    ByteRead::Byte { value } -> emit(value)",
         );
         for source in [source.to_owned(), guarded] {
             let checked = checked(&source);
@@ -384,16 +385,17 @@ mod tests {
         let checked = checked(
             "pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
             pub boundary trait Console {
-                machine read_byte() -> ByteRead reaches Console;
+                machine read_byte() -> ByteRead reaches Console blocks; crashes Trap;
                 machine write_byte(byte: i32) reaches Console;
             }
             pub data ConsoleNativeProvider {}
             machine ConsoleNativeProvider::read_byte() -> ByteRead
-                satisfies Console::read_byte via Binding::CompilerIntrinsic;
+                satisfies Console::read_byte via Binding::CompilerIntrinsic
+                crashes Trap blocks;
             boundary machine ConsoleNativeProvider::write_byte(byte: i32)
                 satisfies Console::write_byte;
             machine sample() -> i32 reaches Console {
-                transition ConsoleNativeProvider::read_byte() {
+                transition block ConsoleNativeProvider::read_byte() {
                     ByteRead::Eof -> end()
                     ByteRead::Byte { value } -> found(value)
                 }
@@ -401,8 +403,8 @@ mod tests {
                 state found(value: i32) -> i32 { value }
             }
             machine main() reaches Console {
-                transition sample() == 0 {
-                    true -> emit(sample())
+                transition block sample() == 0 {
+                    true -> emit(block sample())
                     false -> emit(99)
                 }
                 state emit(value: i32) { ConsoleNativeProvider::write_byte(value); }

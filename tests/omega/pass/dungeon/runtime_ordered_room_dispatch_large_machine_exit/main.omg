@@ -127,7 +127,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state read_command(&mut self) {
-        let observed: LineReadResult = self.console.read_line(&mut self.input);
+        let observed: LineReadResult = block self.console.read_line(&mut self.input);
         transition observed {
             LineReadResult::LineComplete { count } -> bounded_input(count, true)
             LineReadResult::EndOfInput { count } -> bounded_input(count, false)

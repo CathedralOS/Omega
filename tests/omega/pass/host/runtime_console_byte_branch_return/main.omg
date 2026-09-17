@@ -8,7 +8,7 @@ data Main {
 machine Main::main(&mut self)
 reaches Console
 {
-    let first: ByteRead = self.console.read_byte();
+    let first: ByteRead = block self.console.read_byte();
     transition first {
         ByteRead::Byte { value } -> byte(value)
         ByteRead::Eof -> eof()
@@ -16,10 +16,10 @@ reaches Console
 
     state byte(&mut self, value: i32) {
         self.console.write_byte(value);
-        let second: ByteRead = self.console.read_byte();
+        let second: ByteRead = block self.console.read_byte();
     }
 
     state eof(&mut self) {
-        let second: ByteRead = self.console.read_byte();
+        let second: ByteRead = block self.console.read_byte();
     }
 }

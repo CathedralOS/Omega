@@ -9,7 +9,7 @@ data Main {
 machine Main::main(&mut self)
 reaches Console
 {
-    let r: ByteRead = self.console.read_byte();
+    let r: ByteRead = block self.console.read_byte();
     transition r {
         ByteRead::Byte { value } -> byte(value)
         ByteRead::Eof -> eof()
