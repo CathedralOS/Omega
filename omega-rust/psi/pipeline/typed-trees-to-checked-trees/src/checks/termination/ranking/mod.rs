@@ -679,6 +679,7 @@ fn state_has_proven_supported_self_loop(
         }
         (
             RankingOrder::CustomStructView {
+                path,
                 field,
                 field_symbol,
                 owner,
@@ -690,6 +691,7 @@ fn state_has_proven_supported_self_loop(
             machine,
             state,
             decreases,
+            path,
             field,
             *field_symbol,
             *owner,

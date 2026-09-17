@@ -266,6 +266,16 @@ A declared identity measure with the same bare `u8`, `u16`, `u32`, or `u64`
 parameter/result carrier shares scalar range proofs only when its body names
 its exact resolved parameter and its subject has that carrier. This does not
 widen a value or discharge qualifications on measure parameters/results.
+A struct view may project a nested path (`{ card.stats.power }`): every
+record-typed step is an exact resolved field of the exact record before it,
+the self-loop prover rebuilds the literal chain step by step down to the
+ranked field, and the ranked path through every step must stay unwritten. The
+subject may reach its record through a reference (`card: &Card`, rebuilt as
+`&Card { .. }`), with the binding kept unwritten like any input path. The
+relational range route still binds one direct field of an owned record, so
+nested or borrowed views keep the static membership tier
+(`pass/termination/measure_nested_projection_rank`,
+`measure_borrowed_projection`).
 A declared scalar view whose body computes over its parameter with `+` and
 `*` (`{ value * 2 }`, `{ value * value + 3 }`) is admitted through validation's
 `declared_scalar_view` only when every operator has builtin meaning and the

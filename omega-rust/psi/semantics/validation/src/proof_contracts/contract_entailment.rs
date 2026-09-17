@@ -113,8 +113,8 @@ pub(crate) use proof_integer::{
 };
 pub use ranking_range::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
-    ScalarViewComputation, computation_body_shape, declared_identity_view, declared_scalar_view,
-    find_declared_measure, identity_subject_matches, measure_body_shape,
+    ProjectionStep, ScalarViewComputation, computation_body_shape, declared_identity_view,
+    declared_scalar_view, find_declared_measure, identity_subject_matches, measure_body_shape,
     measure_constraints_cover_subject, unwrap_constraint_shells,
 };
 pub(crate) use ranking_range::{

@@ -1,0 +1,14 @@
+// PASS CANARY. The subject reaches its record through a reference: the view
+// reads the referent's field, the self edge rebuilds a borrow of the new
+// literal, and the binding stays unwritten before the transition.
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+
+machine walk(card: &Card)
+terminates by card -> Card::PowerOrder;
+-> u64 {
+    transition card.power > 0 {
+        true -> walk(&Card { power: card.power - 1 })
+        false -> card.power
+    }
+}

@@ -25,8 +25,8 @@ pub use telescope::{discover_state_entry_mappings, discover_state_entry_mappings
 mod identity_views;
 pub use identity_views::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
-    ScalarViewComputation, computation_body_shape, declared_identity_view, declared_scalar_view,
-    find_declared_measure, identity_subject_matches, measure_body_shape,
+    ProjectionStep, ScalarViewComputation, computation_body_shape, declared_identity_view,
+    declared_scalar_view, find_declared_measure, identity_subject_matches, measure_body_shape,
     measure_constraints_cover_subject, unwrap_constraint_shells,
 };
 

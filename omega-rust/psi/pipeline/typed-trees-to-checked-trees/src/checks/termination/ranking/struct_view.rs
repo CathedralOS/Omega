@@ -5,18 +5,25 @@ use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
-use validation::CallFrameResolver;
+use validation::{CallFrameResolver, ProjectionStep};
 
 use super::patterns;
 use super::write_preservation::prefix_preserves_path;
 
+#[cfg(test)]
+mod tests;
+
 /// Every self-edge rebuilds the exact ranked field with a positive subtraction.
 /// Range formation and construction remain obligations of ordinary checking.
+/// A nested `path` is rebuilt literal by literal down to the ranked field; a
+/// borrowed subject arrives as a borrow of that literal, and the ranked path
+/// through the binding must stay unwritten like any other input path.
 pub(super) fn state_has_proven_self_loop(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     decreases: ExpressionHandle,
+    path: &[ProjectionStep],
     field: &Identifier,
     field_symbol: SymbolHandle,
     owner: SymbolHandle,
@@ -39,7 +46,13 @@ pub(super) fn state_has_proven_self_loop(
     else {
         return false;
     };
-    let rank_path = format!("{}.{}", parameter.name.as_str(), field.as_str());
+    let mut rank_path = parameter.name.as_str().to_owned();
+    for step in path {
+        rank_path.push('.');
+        rank_path.push_str(step.field.as_str());
+    }
+    rank_path.push('.');
+    rank_path.push_str(field.as_str());
     let statements = program.statement_table.statements(state.statement_nodes);
     let edges = patterns::edges_to_state(program, state, state.symbol);
     !edges.is_empty()
@@ -47,40 +60,47 @@ pub(super) fn state_has_proven_self_loop(
             let Some(argument) = edge.arguments.get(argument_index).copied() else {
                 return false;
             };
-            let ExpressionNode::StructLiteral(literal) =
-                program.expression_table.expression(argument)
+            // A borrowed subject is rebuilt as a borrow of the new literal.
+            let argument = match program.expression_table.expression(argument) {
+                ExpressionNode::Borrow(borrow) => borrow.target,
+                _ => argument,
+            };
+            // Walk the literal chain: each record-typed step must be rebuilt
+            // as a literal of the next exact record, and the final literal
+            // carries the ranked field.
+            let mut literal_owner = path.first().map_or(owner, |step| step.owner);
+            let mut current = argument;
+            for step in path {
+                let Some(value) = unique_literal_field(
+                    program,
+                    current,
+                    literal_owner,
+                    step.field_symbol,
+                    &step.field,
+                ) else {
+                    return false;
+                };
+                current = value;
+                literal_owner = path
+                    .iter()
+                    .skip_while(|candidate| candidate.field_symbol != step.field_symbol)
+                    .nth(1)
+                    .map_or(owner, |next| next.owner);
+            }
+            let Some(value) = unique_literal_field(program, current, owner, field_symbol, field)
             else {
                 return false;
             };
-            if literal.type_symbol != owner
-                || literal.case_symbol.is_some()
-                || literal.case_name.is_some()
-            {
-                return false;
-            }
-            let mut fields = program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .filter(|candidate| {
-                    candidate.field_symbol == field_symbol && candidate.name == *field
-                });
-            let Some(value) = fields.next() else {
-                return false;
-            };
-            if fields.next().is_some() {
-                return false;
-            }
-            let ExpressionNode::Binary(subtraction) =
-                program.expression_table.expression(value.value)
+            let ExpressionNode::Binary(subtraction) = program.expression_table.expression(value)
             else {
                 return false;
             };
             if subtraction.operator != BinaryOperator::Subtract
-                || !exact_member(
+                || !exact_projection(
                     program,
                     subtraction.left,
                     subject.symbol,
+                    path,
                     field_symbol,
                     field,
                 )
@@ -88,18 +108,18 @@ pub(super) fn state_has_proven_self_loop(
                     program,
                     machine,
                     Some(state),
-                    value.value,
+                    value,
                 )
             {
                 return false;
             }
             let prefix = &statements[..=edge.statement_ordinal];
             let Some((minimum_step, maximum_step)) =
-                preserved_bounds(program, machine, state, subtraction.right, &frames, prefix)
+                preserved_bounds(program, machine, state, subtraction.right, frames, prefix)
             else {
                 return false;
             };
-            if minimum_step <= 0 || !prefix_preserves_path(&frames, machine, prefix, &rank_path) {
+            if minimum_step <= 0 || !prefix_preserves_path(frames, machine, prefix, &rank_path) {
                 return false;
             }
             edge.guards.iter().any(|guard| {
@@ -116,12 +136,26 @@ pub(super) fn state_has_proven_self_loop(
                 };
                 let (bound, strict) = match operator {
                     BinaryOperator::Greater | BinaryOperator::GreaterOrEqual
-                        if exact_member(program, left, subject.symbol, field_symbol, field) =>
+                        if exact_projection(
+                            program,
+                            left,
+                            subject.symbol,
+                            path,
+                            field_symbol,
+                            field,
+                        ) =>
                     {
                         (right, operator == BinaryOperator::Greater)
                     }
                     BinaryOperator::Less | BinaryOperator::LessOrEqual
-                        if exact_member(program, right, subject.symbol, field_symbol, field) =>
+                        if exact_projection(
+                            program,
+                            right,
+                            subject.symbol,
+                            path,
+                            field_symbol,
+                            field,
+                        ) =>
                     {
                         (left, operator == BinaryOperator::Less)
                     }
@@ -135,7 +169,7 @@ pub(super) fn state_has_proven_self_loop(
                 {
                     return true;
                 }
-                preserved_bounds(program, machine, state, bound, &frames, prefix).is_some_and(
+                preserved_bounds(program, machine, state, bound, frames, prefix).is_some_and(
                     |(minimum_bound, _)| {
                         i128::from(minimum_bound) + i128::from(strict) >= i128::from(maximum_step)
                     },
@@ -154,16 +188,63 @@ fn exact_parameter(
             && program.expression_table.name_path_members(path.members).len() == 1)
 }
 
-fn exact_member(
+/// `subject.path[0]. ... .path[n].field`: the exact member chain of the ranked
+/// projection, every step by resolved field symbol and spelling, rooted at
+/// the exact subject parameter (owned or borrowed).
+fn exact_projection(
     program: &TypedTrees,
     expression: ExpressionHandle,
     subject: SymbolHandle,
+    path: &[ProjectionStep],
     field: SymbolHandle,
     name: &Identifier,
 ) -> bool {
-    matches!(program.expression_table.expression(expression), ExpressionNode::Member(member)
-        if field.is_valid() && member.member_symbol == field && member.member == *name && member.case_variant.is_none()
-            && exact_parameter(program, member.receiver, subject))
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if !field.is_valid()
+        || member.member_symbol != field
+        || member.member != *name
+        || member.case_variant.is_some()
+    {
+        return false;
+    }
+    match path.split_last() {
+        None => exact_parameter(program, member.receiver, subject),
+        Some((last, outer)) => exact_projection(
+            program,
+            member.receiver,
+            subject,
+            outer,
+            last.field_symbol,
+            &last.field,
+        ),
+    }
+}
+
+/// The value of the unique `field` entry of a plain literal of exactly `owner`.
+fn unique_literal_field(
+    program: &TypedTrees,
+    literal: ExpressionHandle,
+    owner: SymbolHandle,
+    field_symbol: SymbolHandle,
+    field: &Identifier,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(literal)
+    else {
+        return None;
+    };
+    if literal.type_symbol != owner || literal.case_symbol.is_some() || literal.case_name.is_some()
+    {
+        return None;
+    }
+    let mut fields = program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .filter(|candidate| candidate.field_symbol == field_symbol && candidate.name == *field);
+    let value = fields.next()?;
+    fields.next().is_none().then_some(value.value)
 }
 
 /// Declared bounds remain valid only while every input path survives the prefix.

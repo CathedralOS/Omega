@@ -170,7 +170,9 @@ roots for metadata binding without constructing source expressions. Direct-field
 transport currently covers root self-edges and direct or computed field/scalar
 endpoints with independent formation and supported normalization. Mere membership
 in a changed endpoint does not prove pinning. References, nested projections,
-and named-state field mappings remain unbound. This is source automation, not
+and named-state field mappings remain unbound here; `identity_views.rs`
+classifies a nested projection path and the checked struct-view prover
+handles nested and borrowed subjects outside this relational route. This is source automation, not
 a Terminal custom-view certificate.
 
 `ranking_range/telescope.rs` owns the entry-role discovery shared by the
