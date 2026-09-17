@@ -1570,7 +1570,12 @@ Owners include
   image entry; that route (placed-access "Establishment and retirement")
   is the next dependency, and `tests/architecture/layering.rs` pins the
   `VerifiedNativeArtifactInput as NativeRealizationInput` alias any
-  plumbing must preserve.
+  plumbing must preserve. Artifact interpretation joins the same custody
+  gate: `TerminalExecution::start_verified_module` now rejects a nonempty
+  roster with `PlacedViewInputsRequireCustody`, since no scalar,
+  structural, or byte-sequence input channel can lend the referent a
+  placed row declares, so the entry machine no longer executes with that
+  declared input silently unbound.
 
 - **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
   and its target-dependent realization. Preserve exact paths and bounds until
