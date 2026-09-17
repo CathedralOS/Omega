@@ -6,7 +6,7 @@
 //! route realizes. Both replay the canonical semantic and proof sections
 //! under the request admission profile before anything downstream sees them.
 
-use crate::{application_coverage, float_comparisons, native_proposal};
+use crate::{application_coverage, float_comparisons, float_fma, native_proposal};
 use assembled_syntax_to_checked_compilation::{CheckedCompilation, OptimizationRollback};
 use diagnostics::Diagnostic;
 
@@ -165,11 +165,21 @@ pub struct ProgramEntryTerminalArtifact {
     checked_boundary_operator_scope:
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+    ieee_float_fma_occurrences: Vec<compilation_report::TerminalIeeeFloatFmaOccurrenceProposal>,
 }
 
 impl ProgramEntryTerminalArtifact {
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
+    }
+
+    /// Every selected nearest fused multiply-add the artifact executes,
+    /// rejoined to its exact selected plan (and x86 deployment admission)
+    /// before the direct native route realizes the operation.
+    pub fn ieee_float_fma_occurrences(
+        &self,
+    ) -> &[compilation_report::TerminalIeeeFloatFmaOccurrenceProposal] {
+        &self.ieee_float_fma_occurrences
     }
 
     /// The artifact, its checked program-entry receipt, the checked
@@ -248,11 +258,17 @@ pub fn produce_program_entry_terminal_artifact(
         checked.selected_provider_provenance(),
         &selected_ieee_float_comparison_occurrences,
     )?;
-    if !selected_ieee_float_fma_occurrences.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "optimized direct native realization does not yet consume retained IEEE-FMA occurrence custody",
-        )]);
-    }
+    // The direct route carries the same nearest-FMA custody the retained
+    // product's proposal carries: each Terminal occurrence rejoins exactly one
+    // selected plan that binds its requirement, so realizing the operation
+    // never drops the provider the checked program selected.
+    let native_target = checked.selected_native_target().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "native-artifact production requires one selected native target",
+        )]
+    })?;
+    let ieee_float_fma_occurrences =
+        float_fma::associate(checked, native_target, &selected_ieee_float_fma_occurrences)?;
     let boundary_application_coverage =
         application_coverage::project_terminal_boundary_application_coverage(
             checked,
@@ -264,5 +280,6 @@ pub fn produce_program_entry_terminal_artifact(
         checked_program_entry,
         checked_boundary_operator_scope,
         boundary_application_coverage,
+        ieee_float_fma_occurrences,
     })
 }

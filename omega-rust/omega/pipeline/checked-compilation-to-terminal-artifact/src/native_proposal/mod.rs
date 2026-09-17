@@ -101,72 +101,8 @@ pub(crate) fn project_terminal_native_realization_proposal(
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    let ieee_float_fma_occurrences = selected_ieee_float_fma_occurrences
-        .iter()
-        .map(|occurrence| {
-            let matching_plan_indices = checked
-                .selected_provider_plans()
-                .plans()
-                .iter()
-                .enumerate()
-                .filter(|(_, plan)| {
-                    plan.report_fingerprint() == occurrence.provider_plan_report_fingerprint
-                        && plan.identity_digest().as_bytes()
-                            == occurrence.provider_plan_commitment.as_bytes()
-                })
-                .map(|(index, _)| index)
-                .collect::<Vec<_>>();
-            let [provider_plan_index] = matching_plan_indices.as_slice() else {
-                return Err(vec![Diagnostic::error(format!(
-                    "Terminal nearest-FMA operation {} rejoins {} exact selected plans; expected one",
-                    occurrence.terminal_operation.get(),
-                    matching_plan_indices.len(),
-                ))]);
-            };
-            let x86_admission = if native_target.architecture
-                == target::Architecture::X86_64
-            {
-                let Some(provider) = checked.x86_scalar_fma_provider() else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "Terminal nearest-FMA operation {} lacks an admitted x86 deployment provider",
-                        occurrence.terminal_operation.get(),
-                    ))]);
-                };
-                let matching = checked
-                    .x86_scalar_fma_plan_associations()
-                    .iter()
-                    .filter(|association| {
-                        association.matches_lowered_occurrence(
-                            occurrence,
-                            checked.selected_provider_plans(),
-                            provider,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let [association] = matching.as_slice() else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "Terminal nearest-FMA operation {} rejoins {} admitted x86 plan associations; expected one",
-                        occurrence.terminal_operation.get(),
-                        matching.len(),
-                    ))]);
-                };
-                Some(compilation_report::TerminalX86ScalarFmaAdmission::new(
-                    association.slot(),
-                    association.admitted_provider(),
-                ))
-            } else {
-                None
-            };
-            Ok(
-                compilation_report::TerminalIeeeFloatFmaOccurrenceProposal::new(
-                    occurrence.terminal_operation,
-                    *provider_plan_index,
-                    occurrence.format,
-                    x86_admission,
-                ),
-            )
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let ieee_float_fma_occurrences =
+        crate::float_fma::associate(checked, native_target, selected_ieee_float_fma_occurrences)?;
     let ieee_float_comparison_occurrences = float_comparisons::associate(
         checked,
         &terminal_module,
