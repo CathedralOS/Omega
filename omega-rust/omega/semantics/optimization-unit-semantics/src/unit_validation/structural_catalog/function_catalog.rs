@@ -151,6 +151,11 @@ pub(crate) fn validate_function_structural_catalog(
                                     result,
                                     ..
                                 }
+                                | O::EstablishReference {
+                                    psi_operation,
+                                    result,
+                                    ..
+                                }
                                 | O::CallStructural { psi_operation, result, .. }
                                 | O::BoundaryCall {
                                     psi_operation,
@@ -191,9 +196,11 @@ pub(crate) fn validate_function_structural_catalog(
             return Err(mismatch());
         }
     }
+    // `reference_sources` stays part of the checked result contract; the
+    // reference-custody validator independently decides when it may be
+    // nonempty, so this layer only requires place, kind, and known type.
     if let Some(result) = function.result.structural()
         && (places.get(&result.place) != Some(&StructuralPlaceKind::Result)
-            || !result.reference_sources.is_empty()
             || !types.contains_key(&result.structural_type)
             || !structural_qualifications_match(
                 result.structural_type,
@@ -265,6 +272,11 @@ pub(crate) fn validate_function_structural_catalog(
                 ..
             }
             | O::EstablishRecord {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::EstablishReference {
                 psi_operation,
                 result,
                 ..

@@ -384,6 +384,15 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         place: PlaceId,
     },
+    /// The replayed loan set rejected an establishment, release, transfer,
+    /// discard, or completed frontier. `node` is present when the violation
+    /// belongs to one operation row rather than an edge or block exit.
+    CurrentReferenceCustodyViolation {
+        machine: MachineId,
+        block: BlockId,
+        node: Option<u32>,
+        reason: &'static str,
+    },
     TerminalIdentityMismatch,
     ProofFingerprintMismatch,
     AcceptedObligationMismatch(semantic_vocabulary::ObligationId),

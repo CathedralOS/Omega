@@ -101,6 +101,20 @@ pub(super) fn validate_unit_cleanup_actions(
         {
             return Err(mismatch());
         }
+        // Whole-root discards release their carrier leaves; the residual root
+        // itself may hold none once partial custody moved its leaves.
+        for place in &roots {
+            super::references::discard_owned(
+                function,
+                structural_types,
+                block,
+                &mut remaining.live_references,
+                *place,
+            )?;
+        }
+        if !remaining.live_references.is_empty() {
+            return Err(mismatch());
+        }
         // Result-root cleanup currently has one remaining owner. Do not let
         // the parameter/local discard roster hide a second live call result.
         if !function
@@ -139,6 +153,7 @@ pub(super) fn validate_unit_cleanup_actions(
         if !remaining.partial_custody_paths.is_empty()
             || !remaining.claims.is_empty()
             || !remaining.owned_places.is_empty()
+            || !remaining.live_references.is_empty()
         {
             return Err(mismatch());
         }
@@ -160,7 +175,17 @@ pub(super) fn validate_unit_cleanup_actions(
     {
         return Err(mismatch());
     }
-    Ok(())
+    let mut live_references = frontier.live_references.clone();
+    for place in &roots {
+        super::references::discard_owned(
+            function,
+            structural_types,
+            block,
+            &mut live_references,
+            *place,
+        )?;
+    }
+    super::references::require_no_references(function, block, &live_references)
 }
 
 pub(super) fn validate_scalar_cleanup_actions(
@@ -179,7 +204,9 @@ pub(super) fn validate_scalar_cleanup_actions(
     let mut actions = actions.iter();
 
     // Completed affine results are cleaned before locals and parameters, in
-    // the same reverse establishment order as unit and structural exits.
+    // the same reverse establishment order as unit and structural exits. A
+    // root that still owns live carrier leaves joins the same early sweep so
+    // its discard ends those loans.
     for place in expected_trivial_affine_discards(function, &remaining) {
         if !function.structural_places.iter().any(|declared| {
             declared.id == place
@@ -187,7 +214,11 @@ pub(super) fn validate_scalar_cleanup_actions(
                     declared.kind,
                     semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
                 )
-        }) {
+        }) && !remaining
+            .live_references
+            .iter()
+            .any(|reference| reference.carrier == place)
+        {
             continue;
         }
         if remaining.partial_custody_paths.contains_key(&place)
@@ -195,6 +226,13 @@ pub(super) fn validate_scalar_cleanup_actions(
         {
             return Err(mismatch());
         }
+        super::references::discard_owned(
+            function,
+            structural_types,
+            block,
+            &mut remaining.live_references,
+            place,
+        )?;
         remaining.owned_places.remove(&place);
     }
 
@@ -285,6 +323,7 @@ pub(super) fn validate_scalar_cleanup_actions(
     if actions.next().is_some()
         || !remaining.owned_places.is_empty()
         || !remaining.partial_custody_paths.is_empty()
+        || !remaining.live_references.is_empty()
     {
         return Err(mismatch());
     }

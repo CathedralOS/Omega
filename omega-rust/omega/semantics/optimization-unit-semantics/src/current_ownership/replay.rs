@@ -52,6 +52,20 @@ pub(super) fn validate_current_ownership_cfg(
             let node_index =
                 u32::try_from(node_index).expect("optimization-unit node position fits u32");
 
+            // Loan replay runs inside the same operation transaction as the
+            // owned-place checks below: establishment, release, record
+            // relocation, call transfer, and suspended-root access all settle
+            // before the ordinary custody roster is consumed.
+            super::references::apply_operation(
+                function,
+                functions,
+                structural_types,
+                block_id,
+                node_index,
+                &node.operation,
+                &mut frontier.live_references,
+            )?;
+
             if let O::StructuralCase { source, .. }
             | O::StructuralCaseMembership { source, .. }
             | O::IntegerStructuralField { source, .. }
@@ -189,7 +203,7 @@ pub(super) fn validate_current_ownership_cfg(
                     .collect(),
                 _ => Vec::new(),
             };
-            let consumed_places = structural_arguments
+            let mut consumed_places = structural_arguments
                 .iter()
                 .zip(&parameter_multiplicities)
                 .filter_map(|(argument, multiplicity)| {
@@ -199,6 +213,11 @@ pub(super) fn validate_current_ownership_cfg(
                         .then_some(argument.place)
                 })
                 .collect::<Vec<_>>();
+            // Releasing a reference consumes its carrier place; the referent
+            // keeps its original home and is never disposed here.
+            if let O::ReleaseReference { source, .. } = &node.operation {
+                consumed_places.push(*source);
+            }
             for place in &consumed_places {
                 if frontier.partial_custody_paths.contains_key(place) {
                     return Err(
@@ -360,6 +379,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
+                | O::EstablishReference { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -430,6 +450,15 @@ pub(super) fn validate_current_ownership_cfg(
                     trivial_affine_discards,
                     ..
                 } => {
+                    // A returned carrier transfers its loans to the caller's
+                    // checked result roster; the frame-local rows end here.
+                    super::references::transfer_return(
+                        function,
+                        structural_types,
+                        block_id,
+                        *source,
+                        &mut frontier.live_references,
+                    )?;
                     if frontier.partial_custody_paths.contains_key(source) {
                         return Err(
                             OptimizationUnitValidationError::CurrentStructuralReturnSourcePartiallyMoved {
@@ -478,6 +507,22 @@ pub(super) fn validate_current_ownership_cfg(
                             block: block_id,
                         });
                     }
+                    // The returned carrier's rows already transferred; every
+                    // remaining leaf must end with its owner's discard.
+                    for place in trivial_affine_discards {
+                        super::references::discard_owned(
+                            function,
+                            structural_types,
+                            block_id,
+                            &mut frontier.live_references,
+                            *place,
+                        )?;
+                    }
+                    super::references::require_no_references(
+                        function,
+                        block_id,
+                        &frontier.live_references,
+                    )?;
                     if let Some(claim) = frontier.claims.keys().next().copied() {
                         return Err(
                             OptimizationUnitValidationError::CurrentClaimLiveAfterStructuralReturn {
@@ -538,6 +583,7 @@ pub(super) fn validate_current_ownership_cfg(
             }
             apply_edge_trivial_affine_discards(
                 function,
+                structural_types,
                 block_id,
                 &mut outgoing,
                 &edge.trivial_affine_discards,
@@ -558,6 +604,7 @@ pub(super) fn validate_current_ownership_cfg(
                 }
                 if existing.owned_places != outgoing.owned_places
                     || existing.partial_custody_paths != outgoing.partial_custody_paths
+                    || existing.live_references != outgoing.live_references
                 {
                     return Err(
                         OptimizationUnitValidationError::CurrentOwnedPlaceJoinMismatch {

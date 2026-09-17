@@ -273,6 +273,8 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
+        | O::EstablishReference { .. }
+        | O::ReleaseReference { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => {}

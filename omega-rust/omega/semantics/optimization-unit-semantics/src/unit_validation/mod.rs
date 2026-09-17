@@ -4,6 +4,7 @@ mod core;
 mod derived_metadata;
 mod function_structure;
 mod operation_contracts;
+mod references;
 mod services;
 mod structural_catalog;
 
@@ -16,5 +17,6 @@ pub(crate) use core::{valid_edge_affine_transition, valid_hidden_affine_establis
 pub(crate) use derived_metadata::*;
 pub(crate) use function_structure::*;
 pub(crate) use operation_contracts::*;
+pub(crate) use references::*;
 pub(crate) use services::*;
 pub(crate) use structural_catalog::*;

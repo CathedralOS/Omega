@@ -27,9 +27,20 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
-        OperationKind::EstablishReference { .. } | OperationKind::ReleaseReference { .. } => {
-            Err(LoweringError::UnsupportedReferenceCustody(operation.id))
+        OperationKind::EstablishReference { source } => {
+            let Some(result) = operation.result.structural().cloned() else {
+                return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
+            };
+            Ok(AbstractOperation::EstablishReference {
+                psi_operation: operation.id,
+                result,
+                source: source.clone(),
+            })
         }
+        OperationKind::ReleaseReference { source } => Ok(AbstractOperation::ReleaseReference {
+            psi_operation: operation.id,
+            source: *source,
+        }),
         OperationKind::StructuralCaseMembership { source, path, case } => {
             let result = operation
                 .result

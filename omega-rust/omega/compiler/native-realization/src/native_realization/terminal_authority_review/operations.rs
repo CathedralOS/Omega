@@ -80,6 +80,10 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::EstablishByteSequenceLiteral { .. }
         | AbstractOperation::EstablishTrivialAffineLocal { .. }
         | AbstractOperation::EstablishRecord { .. }
+        // Reference establishment/release are compile-time custody markers;
+        // they carry no call, boundary, or physical edge of their own.
+        | AbstractOperation::EstablishReference { .. }
+        | AbstractOperation::ReleaseReference { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
         | AbstractOperation::IeeeFloatCompare { .. }

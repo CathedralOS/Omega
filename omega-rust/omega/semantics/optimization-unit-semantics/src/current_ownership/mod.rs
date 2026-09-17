@@ -23,6 +23,7 @@ mod cleanup;
 mod continuation;
 mod model;
 mod mutations;
+mod references;
 mod replay;
 mod residuals;
 mod structural;
@@ -34,6 +35,7 @@ pub(crate) use continuation::valid_partial_continuation_complement;
 use continuation::{apply_edge_partial_affine_discards, validate_partial_continuation_roster};
 use model::*;
 use mutations::*;
+use references::*;
 use residuals::*;
 use structural::*;
 
@@ -48,7 +50,7 @@ pub(super) fn validate_current_ownership_frontier(
     >,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let entry = model::reconstruct_entry_ownership(function);
+    let entry = model::reconstruct_entry_ownership(function, structural_types)?;
     replay::validate_current_ownership_cfg(
         function,
         blocks,

@@ -1,10 +1,14 @@
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
+use crate::current_ownership::discard_owned;
 use crate::current_ownership::parameter_establishment_order;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::BlockId;
 use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::BTreeMap;
 use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralTypeDeclaration;
 
 pub(super) fn insert_owned_result(
     function: &PsiOptimizationFunction,
@@ -116,6 +120,7 @@ pub(super) fn expected_trivial_affine_discards(
 
 pub(super) fn apply_edge_trivial_affine_discards(
     function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     frontier: &mut CurrentOwnership,
     discards: &[PlaceId],
@@ -138,6 +143,15 @@ pub(super) fn apply_edge_trivial_affine_discards(
         });
     }
     for place in discards {
+        // Discarding an owned root ends every carrier leaf it still owns, in
+        // the declared reverse order; suspended children keep it illegal.
+        discard_owned(
+            function,
+            structural_types,
+            block,
+            &mut frontier.live_references,
+            *place,
+        )?;
         frontier.owned_places.remove(place);
     }
     Ok(())

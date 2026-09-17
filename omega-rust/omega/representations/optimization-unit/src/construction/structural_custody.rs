@@ -67,6 +67,13 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         } => {
             places.insert(result.place);
         }
+        O::EstablishReference { result, source, .. } => {
+            places.insert(result.place);
+            places.insert(source.place);
+        }
+        O::ReleaseReference { source, .. } => {
+            places.insert(*source);
+        }
         O::StructuralByteSequenceFieldStore {
             destination,
             source,
@@ -188,6 +195,11 @@ pub(super) fn collect_operation_structural_places(
             ..
         }
         | AbstractOperation::EstablishRecord {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::EstablishReference {
             psi_operation,
             result,
             ..
