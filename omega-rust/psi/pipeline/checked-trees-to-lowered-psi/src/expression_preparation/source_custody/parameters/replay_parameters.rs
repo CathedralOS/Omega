@@ -20,7 +20,13 @@ pub(crate) fn parameter_storage<'checked>(
     }
     owned::validate(checked, machine, state, &graph.structural_parameters)?;
     let parameters = checked.state_parameters(state);
-    if parameters.len() != graph.parameter_types.len() + graph.structural_parameters.len()
+    // An `[erased]` binding occurrence owns neither a scalar nor a structural
+    // entry; the retained arity is reconstructed from the typed relevance.
+    let retained_parameters = parameters
+        .iter()
+        .filter(|parameter| !parameter.relevance.is_erased())
+        .count();
+    if retained_parameters != graph.parameter_types.len() + graph.structural_parameters.len()
         || graph.scalar_parameters.len() != graph.parameter_types.len()
     {
         return unsupported("scalar parameter storage disagrees with its entry arity");
@@ -46,6 +52,12 @@ pub(crate) fn parameter_storage<'checked>(
             || parameter.is_const
         {
             return unsupported("scalar parameter storage disagrees with its authored signature");
+        }
+        if parameter.relevance.is_erased() {
+            if parameter.is_mutable {
+                return unsupported("erased scalar parameter cannot own mutable entry storage");
+            }
+            continue;
         }
         let Some(primitive) = checked.primitive_type_reference(parameter.type_reference) else {
             let retained = structural.next().ok_or(LoweringError::Unsupported(

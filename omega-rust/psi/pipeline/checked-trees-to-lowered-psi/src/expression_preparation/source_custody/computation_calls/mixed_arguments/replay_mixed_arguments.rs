@@ -245,6 +245,16 @@ pub(crate) fn rejoin_computation_call_arguments(
         .zip(authored.iter().copied())
         .enumerate()
     {
+        // An `[erased]` formal consumes its authored actual as proof material
+        // only (contracts.md#explicit-erased-bindings): no scalar operand, no
+        // structural argument, and no custody row. The typed relevance
+        // decides this; the operand rosters being validated do not.
+        if parameter.relevance.is_erased() {
+            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+                return unsupported("computed invocation erases a self, const, or mutable formal");
+            }
+            continue;
+        }
         if parameter.is_self
             || parameter.is_const
             || !checked.expression_table.expression_is_valid(expression)

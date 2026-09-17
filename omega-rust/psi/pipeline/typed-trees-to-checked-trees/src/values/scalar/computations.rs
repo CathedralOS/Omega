@@ -95,9 +95,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 .state_parameters(state)
                 .iter()
                 .filter(|parameter| {
-                    program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_some()
+                    crate::values::scalar::occupies_scalar_position(program, parameter)
                 })
                 .cloned()
                 .collect::<Vec<_>>();

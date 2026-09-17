@@ -80,13 +80,21 @@ retained parameter to `state_parameters(state)[position]` for its type, symbol
 and custody, so renumbering densely would bind the wrong source parameter.
 Arity checks count `abi_parameter_count`, not `state_parameters(state).len()`,
 and `strips_erased_parameter` decides which bindings may be stripped at all.
-The consumer, checked-trees-to-lowered-psi, still reconstructs the scalar
-partition from every typed parameter (unit/attached_unit/parameters.rs,
-expression_preparation/qualifications.rs and source_custody/parameters,
-source_custody/direct_calls.rs), so it rejects a stripped plan until it skips
-erased bindings the same way; that is the open half of
-PROOF-RELEVANCE-MIGRATION, pinned by the canary_suite layouts_and_pending
-erased_parameter_* checked-plan tests.
+The dense scalar value namespace that `CheckedScalarExpression::Parameter`
+indexes is the same partition: `values::scalar::occupies_scalar_position`
+excludes erased bindings there, so a body reading a retained parameter after
+an erased one gets the shifted position and a runtime read of the erased one
+finds no position. The consumer, checked-trees-to-lowered-psi, reconstructs
+every one of these partitions independently from the typed relevance
+(unit/attached_unit/parameters.rs, expression_preparation/qualifications.rs,
+source_custody/{parameters,direct_calls,replay_source,storage_reads,
+successors,computation_calls}, scalar_graph/scalar_computations/calls.rs)
+and never trusts the plan's counts. What remains open is a contract that
+names an erased binding (`requires n < bound`): Terminal contract
+propositions have no proof-only value for it, so
+pass/relevance/erased_parameter_proof_only stays a checked-only canary while
+its two RUN siblings execute natively (canary_suite layouts_and_pending
+erased_parameter_* tests).
 */
 
 use std::collections::{BTreeMap, BTreeSet};

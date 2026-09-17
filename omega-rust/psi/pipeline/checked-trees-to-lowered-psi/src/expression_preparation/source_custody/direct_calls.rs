@@ -8,8 +8,13 @@ pub(super) struct DirectCall<'a> {
     source: SourceRoot,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
-    pub arguments: &'a [ExpressionHandle],
-    pub parameters: &'a [checked_trees::signature::StateParameter],
+    /// The retained authored actuals, in dense argument-ordinal order. An
+    /// `[erased]` parameter's actual is proof material with no `CallArgument`
+    /// role (contracts.md#explicit-erased-bindings), so it is absent here,
+    /// decided from the typed relevance rather than the producer's count.
+    pub arguments: Vec<ExpressionHandle>,
+    /// The retained typed parameters, parallel to `arguments`.
+    pub parameters: Vec<&'a checked_trees::signature::StateParameter>,
 }
 
 pub(super) fn locate(
@@ -47,24 +52,32 @@ pub(super) fn locate(
     if targets.next().is_some() {
         return unsupported("direct scalar binding has ambiguous authored callee ownership");
     }
-    let parameters = program.state_parameters(entry);
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.len() != parameters.len()
-        || parameters.iter().any(|parameter| {
+    let authored_parameters = program.state_parameters(entry);
+    let authored_arguments = program.expression_table.expression_handles(call.arguments);
+    if authored_arguments.len() != authored_parameters.len()
+        || authored_parameters.iter().any(|parameter| {
             parameter.is_self
                 || parameter.is_const
                 || (parameter.is_mutable
-                    && !program
+                    && (parameter.relevance.is_erased()
+                        || !program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some_and(super::supported_mutable_parameter)))
+                || (!parameter.relevance.is_erased()
+                    && program
                         .primitive_type_reference(parameter.type_reference)
-                        .is_some_and(super::supported_mutable_parameter))
-                || program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
+                        .is_none())
         })
         || program.primitive_type_reference(entry.return_type) != Some(source.primitive_type)
     {
         return unsupported("direct scalar binding disagrees with its authored callee signature");
     }
+    let (arguments, parameters) = authored_arguments
+        .iter()
+        .zip(authored_parameters)
+        .filter(|(_, parameter)| !parameter.relevance.is_erased())
+        .map(|(argument, parameter)| (*argument, parameter))
+        .unzip();
     Ok(DirectCall {
         source,
         target_machine: machine.symbol,

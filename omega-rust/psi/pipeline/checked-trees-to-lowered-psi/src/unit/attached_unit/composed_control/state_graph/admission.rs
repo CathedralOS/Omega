@@ -141,8 +141,13 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             return unsupported("Unit graph scalar signature disagrees with source");
         }
         let source_parameters = checked.state_parameters(source);
-        if state.structural_parameters.len() + state.scalar_parameters.len()
-            != source_parameters.len()
+        // `[erased]` bindings own no plan entry; count the retained ones by
+        // their typed relevance.
+        let retained_parameters = source_parameters
+            .iter()
+            .filter(|parameter| !parameter.relevance.is_erased())
+            .count();
+        if state.structural_parameters.len() + state.scalar_parameters.len() != retained_parameters
             || state
                 .structural_parameters
                 .windows(2)

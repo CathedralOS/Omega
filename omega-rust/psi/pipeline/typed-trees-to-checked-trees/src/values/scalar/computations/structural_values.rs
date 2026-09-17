@@ -674,7 +674,9 @@ impl Builder<'_, '_> {
             .authored_parameters
             .iter()
             .filter(|parameter| {
+                // An `[erased]` binding owns no structural position either.
                 !parameter.is_const
+                    && !parameter.relevance.is_erased()
                     && self
                         .program
                         .primitive_type_reference(parameter.type_reference)

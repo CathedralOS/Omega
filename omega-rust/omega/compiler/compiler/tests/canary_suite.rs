@@ -852,15 +852,13 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "wire/wire_compatibility_migration_same_named_eras",
     "wire/wire_compatibility_migration_retired_identity_fresh",
     "wire/wire_codec_qualified_schema_calls",
-    // Occurrence-level `[erased]` on a signature parameter: checked semantics
-    // admits the proof-only use and the checked calling plan strips the
-    // erased position (layouts_and_pending::erased_parameter_* pin both call
-    // sides), but `checked-trees-to-lowered-psi` still rejoins the scalar
-    // partition against every typed parameter, so Terminal production rejects
-    // the stripped plan and these stay Check (PROOF-RELEVANCE-MIGRATION).
+    // Occurrence-level `[erased]` on a signature parameter whose only use is
+    // a `requires` clause: the checked calling plan strips the position and
+    // Terminal lowering accepts the stripped signature (its two RUN siblings
+    // in layouts_and_pending run natively), but a Terminal contract
+    // proposition has no proof-only value for the erased binding, so this
+    // stays Check (PROOF-RELEVANCE-MIGRATION).
     "relevance/erased_parameter_proof_only",
-    "relevance/erased_parameter_between_runtime_values_exit",
-    "relevance/erased_proof_only_typed_parameter_exit",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
@@ -2033,6 +2031,8 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "calls/runtime_dispatch_float_terminal_exit",
     "calls/runtime_dispatch_slice_element_terminal_exit",
     "calls/runtime_let_local_nested_state_arg_exit",
+    "relevance/erased_parameter_between_runtime_values_exit",
+    "relevance/erased_proof_only_typed_parameter_exit",
     "calls/runtime_multiarm_texteq_local_exit",
     "calls/runtime_nested_inline_chain_result_exit",
     "calls/runtime_nonentry_inline_second_receiver_exit",
@@ -3604,6 +3604,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_dispatch_float_terminal_exit",
     "calls/runtime_dispatch_slice_element_terminal_exit",
     "calls/runtime_let_local_nested_state_arg_exit",
+    "relevance/erased_parameter_between_runtime_values_exit",
+    "relevance/erased_proof_only_typed_parameter_exit",
     "calls/runtime_multiarm_texteq_local_exit",
     "calls/runtime_nested_inline_chain_result_exit",
     "calls/runtime_nonentry_inline_second_receiver_exit",

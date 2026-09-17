@@ -551,9 +551,11 @@ pub(crate) fn validate_namespace(
         .state_parameters(state)
         .iter()
         .filter(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
+            // An `[erased]` binding occupies no position in this namespace.
+            !parameter.relevance.is_erased()
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
         })
         .map(|parameter| parameter.symbol)
         .chain(preceding.iter().filter_map(|statement| {

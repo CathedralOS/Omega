@@ -237,6 +237,11 @@ pub(crate) fn checked_scalar_source_parameters(
         .state_parameters(state)
         .iter()
         .enumerate()
+        // An `[erased]` binding occurrence owns no scalar position
+        // (contracts.md#explicit-erased-bindings); the retained ones keep
+        // their authored `position`, decided from the typed relevance here
+        // rather than from the plan being validated.
+        .filter(|(_, source)| !source.relevance.is_erased())
         .filter_map(|(position, source)| {
             checked
                 .primitive_type_reference(source.type_reference)
