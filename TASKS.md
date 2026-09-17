@@ -834,9 +834,19 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   (`InvalidUnitMachinePlan`, so the corpus routes the verdict through a
   scalar helper), boundary requirements carrying a crash contract are
   refused by native lowering (`UnsupportedBoundaryCrashContract` blocks the
-  passing composition's native product), and the Console rows have no
-  service-exclusion authoring surface (`Build::exclude_crash` only), so
-  they remain covered by build-evaluation unit tests alone.
+  passing composition's native product). `builder.exclude_service<Trait>()`
+  landed across psi (c28bec23eb parser/validation/intrinsic/interpreter,
+  fb19ed98a3 symbol binding of the type path) and build (4fb56304c6:
+  harvest into `AuthoredBehaviorExclusionKind::Service`, per-module
+  `ServiceId` resolution on both product routes, and `BoundaryServiceOwners`
+  so a boundary call counts its owning service and parent closure). The
+  service rows are witnessed on the `logger-kit`/`quiet-logger-app`/
+  `sink-app` corpus: a silent ordinary logger passes the exclusion while a
+  real invocation behind a silent provider is prohibited with the call
+  site and the authored marker spanned. The passing quiet-logger native
+  product then stops at `RootConcreteServiceReachMismatch` (a root
+  declaring reach it never exercises), reproduced without any exclusion,
+  so it is a native-pipeline limit rather than an exclusion verdict.
 
 - **BUILD-EXCLUSION-REALIZATION.** Extend the existing receiving-policy and native
   admission route in `omega-rust/omega/build/`, `omega-rust/omega/semantics/` and
