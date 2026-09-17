@@ -1961,14 +1961,25 @@ Owners include
   ProviderPlan, so the checked use carries an empty
   `provider_plan_commitment` and lowering refuses to emit an unprovided
   selected comparison); `wrapper` still rejects at `direct scalar call
-  crash continuation lacks a checked scalar term`. The next slice supplies
-  the provider evidence for the integer boundary comparison on the Omega
-  side (a selected ProviderPlan or an explicit builtin-realization
-  commitment for `Comparison::equal(i32, i32)`, then an Omega consumer that
-  rejoins `selected_integer_comparison_occurrences` the way
-  `float_comparisons::associate` does, plus the terminal-stage replay into
-  `checked_boundary_operator_scope`) so `may_crash` reaches the
-  producer-written row; the float operator route still has no structured
+  crash continuation lacks a checked scalar term`. The terminal stage now
+  replays the integer roster into `checked_boundary_operator_scope`
+  (`lowered-psi-to-terminal-psi/src/boundary_operator_custody/integer_comparisons.rs`,
+  keyed by the same checked `operator_use` as the float replay: exact
+  application site, requirement operator, non-empty provider commitment,
+  authored-order comparison and operand type, one exact Terminal operation
+  over operands of that type, one exact checked application; a stale,
+  duplicated or foreign row rejects, and because builtin integer comparisons
+  emit the same three operation kinds the artifact cannot count which were
+  selected, so a crash-qualified use without a row stays the producer's
+  fail-closed rejection). Regression: `cargo nextest run -p
+  checked-trees-to-lowered-psi --lib integer_comparison_replay` (4). The
+  next slice supplies the provider evidence for the integer boundary
+  comparison on the Omega side (a selected ProviderPlan or an explicit
+  builtin-realization commitment for `Comparison::equal(i32, i32)`, then an
+  Omega consumer that rejoins `selected_integer_comparison_occurrences` the
+  way `float_comparisons::associate` does and lifts
+  `checked-compilation-to-terminal-artifact`'s nonempty-roster refusal) so
+  `may_crash` reaches the producer-written row; the float operator route still has no structured
   form (`CheckedBooleanExpression` has no IEEE ordering over scalar float
   formals), and `wrapper`'s direct-call continuation is the separate
   checked-scalar-term gap.

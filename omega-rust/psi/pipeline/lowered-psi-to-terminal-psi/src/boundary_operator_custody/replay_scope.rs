@@ -2,6 +2,8 @@
 
 #[path = "float_comparisons.rs"]
 mod float_comparisons;
+#[path = "integer_comparisons.rs"]
+mod integer_comparisons;
 #[path = "local_initializers.rs"]
 mod local_initializers;
 #[path = "structural_returns.rs"]
@@ -100,6 +102,7 @@ fn checked_boundary_operator_occurrences(
     let matched_ieee_float_fmas = local_initializers::replay(checked, lowered, &mut occurrences)?;
     structural_returns::replay(checked, lowered, &mut occurrences)?;
     float_comparisons::replay(checked, lowered, &mut occurrences)?;
+    integer_comparisons::replay(checked, lowered, &mut occurrences)?;
     occurrences.sort_by_key(|occurrence| occurrence.terminal_operation.get());
     let application_indices = occurrences
         .iter()
