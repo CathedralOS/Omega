@@ -364,3 +364,33 @@ fn top_level_requirement_preserves_a_generic_static_telescope() {
     checked_source(source)
         .expect("the provider should preserve the requirement's generic static telescope");
 }
+
+#[test]
+fn top_level_requirement_external_leaf_satisfier_states_no_contract_of_its_own() {
+    // A compiler-intrinsic (or other `via`) satisfier is an external leaf:
+    // the requirement's contract stays the public contract and the binding's
+    // sealed catalog carries the realization, exactly as for a boundary
+    // operator satisfier. Only a checked body refines the contract.
+    let source = r#"
+        pub data Negation [copy] {}
+        pub boundary requirement Negation::flip(value: f32) -> f32
+        ensures result == result;
+
+        pub data NegationProvider {}
+        machine NegationProvider::flip32(value: f32) -> f32
+            satisfies Negation::flip
+            via Binding::CompilerIntrinsic;
+    "#;
+    checked_source(source).expect("an external leaf satisfier restates no guarantee");
+    let checked_body = source.replace(
+        "via Binding::CompilerIntrinsic;",
+        "{ transition { _ -> (value) } }",
+    );
+    let diagnostics = checked_source(&checked_body)
+        .expect_err("a checked body without the guarantee is not a refinement");
+    let text = diagnostic_text(&diagnostics);
+    assert!(
+        text.contains("Negation::flip") && text.contains("conservative refinement"),
+        "unexpected diagnostics: {text}"
+    );
+}
