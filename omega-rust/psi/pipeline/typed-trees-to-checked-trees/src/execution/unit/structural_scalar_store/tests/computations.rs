@@ -121,6 +121,7 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         &[],
         0,
         None,
+        &control::LocalConstructionTrace::default(),
     )
     .expect("retain ordered statement sequence");
     build_checked_machine(

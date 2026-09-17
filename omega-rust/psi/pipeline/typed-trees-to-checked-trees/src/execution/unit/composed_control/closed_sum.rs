@@ -466,6 +466,7 @@ fn build_leaf(
         &[],
         0,
         call_frames,
+        &super::super::control::LocalConstructionTrace::default(),
     )?;
     for operation in &sequence.operations {
         match operation {

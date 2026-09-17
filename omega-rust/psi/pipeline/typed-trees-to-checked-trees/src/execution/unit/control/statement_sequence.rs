@@ -16,6 +16,7 @@ use super::{
     StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::bind_scalar_call_result;
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;
@@ -213,6 +214,20 @@ pub(super) fn has_structural_result(
     })
 }
 
+/// The trace phase for one statement kind in the shared sequence, so an
+/// omission names which statement family stopped local construction.
+fn statement_phase(statement: &StatementNode) -> &'static str {
+    match statement {
+        StatementNode::Assignment(_) => "statement sequence: assignment",
+        StatementNode::LocalData(_) => "statement sequence: local data",
+        StatementNode::Call(_) => "statement sequence: call",
+        StatementNode::Expression(_) => "statement sequence: expression",
+        StatementNode::RootBinding(_) => "statement sequence: root binding",
+        StatementNode::AssemblyFact(_) => "statement sequence: assembly fact",
+        StatementNode::Transition(_) => "statement sequence: transition",
+    }
+}
+
 pub(super) fn has_statement_shape(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -285,6 +300,7 @@ pub(in crate::execution::terminal_unit) fn build(
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     construction_statement_count: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
     let scalar_control = scalar_control(program, facts, machine, state).map(|(control, _)| control);
     if scalar_control.is_some()
@@ -349,6 +365,8 @@ pub(in crate::execution::terminal_unit) fn build(
         })
     {
         let statement_index = u32::try_from(index).ok()?;
+        trace.phase(statement_phase(statement));
+        trace.statement(Some(statement_index));
         append_reference_releases(facts, machine.symbol, state.symbol, statement_index, &mut operations)?;
         let completes_machine = matches!(statement, StatementNode::Expression(_))
             && !is_unit(program, state.return_type);
