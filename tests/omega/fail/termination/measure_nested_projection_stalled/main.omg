@@ -1,0 +1,14 @@
+// FAIL CANARY. Forwarding the inner record keeps the nested ranked field
+// unchanged: no literal rebuilds it, so the self edge proves no decrease.
+data Inner { remaining: u64; }
+data Countdown { label: u64; inner: Inner; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown)
+terminates by countdown -> Countdown::Remaining;
+-> u64 {
+    transition countdown.inner.remaining > 0 {
+        true -> walk(Countdown { label: countdown.label, inner: countdown.inner })
+        false -> countdown.inner.remaining
+    }
+}

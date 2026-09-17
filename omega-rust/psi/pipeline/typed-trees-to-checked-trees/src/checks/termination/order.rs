@@ -8,8 +8,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 
 use validation::{
-    MeasureBodyShape, declared_scalar_view, find_declared_measure, identity_subject_matches,
-    measure_body_shape, measure_constraints_cover_subject, unwrap_constraint_shells,
+    MeasureBodyShape, ProjectionStep, declared_scalar_view, find_declared_measure,
+    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
+    unwrap_constraint_shells,
 };
 
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
@@ -50,9 +51,13 @@ pub(super) enum RankingOrder {
         carrier: symbols::BuiltinTypeAtom,
     },
     /// A declared `measure` whose body projects a field of a struct parameter,
-    /// e.g. `measure Card::PowerOrder(card: Card) -> u64 { card.power }`. The
-    /// stored field type retains its exact declaration's range constraints.
+    /// e.g. `measure Card::PowerOrder(card: Card) -> u64 { card.power }`, or a
+    /// nested path `{ card.stats.power }` whose record-typed steps `path` lead
+    /// from the parameter's record to `owner`, the record declaring `field`.
+    /// The subject is that root record, owned or reached through a reference;
+    /// the stored field type retains its exact declaration's range constraints.
     CustomStructView {
+        path: Vec<ProjectionStep>,
         field: typed_trees::name::Identifier,
         field_type: typed_trees::types::TypeReferenceHandle,
         field_symbol: symbols::SymbolHandle,
@@ -231,6 +236,7 @@ impl RankingOrder {
                 }
             }
             MeasureBodyShape::FieldProjection {
+                path,
                 field,
                 owner,
                 field_type,
@@ -238,23 +244,34 @@ impl RankingOrder {
             } => {
                 // Applying the projection requires the exact nominal carrier,
                 // not another declaration with the same displayed type name.
-                let ExpressionNode::Name(path) = program.expression_table.expression(decreases)
+                // The subject may reach that record through a reference: the
+                // view reads the referent's fields, and the self-loop prover
+                // separately keeps the binding and the ranked path unwritten.
+                let ExpressionNode::Name(subject_path) =
+                    program.expression_table.expression(decreases)
                 else {
                     return None;
                 };
                 let subject = program.state_parameters(state).iter().find(|parameter| {
                     !parameter.is_self
                         && parameter.symbol.is_valid()
-                        && parameter.symbol == path.symbol
-                        && path.head_symbol == path.symbol
+                        && parameter.symbol == subject_path.symbol
+                        && subject_path.head_symbol == subject_path.symbol
                 })?;
-                if !matches!(program.type_reference_table.type_reference(
-                    unwrap_constraint_shells(program, subject.type_reference)),
-                    typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == owner)
+                let root = path.first().map_or(owner, |step| step.owner);
+                let mut reference = unwrap_constraint_shells(program, subject.type_reference);
+                if let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
+                    program.type_reference_table.type_reference(reference)
+                {
+                    reference = unwrap_constraint_shells(program, *referee);
+                }
+                if !matches!(program.type_reference_table.type_reference(reference),
+                    typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == root)
                 {
                     return None;
                 }
                 Some(Self::CustomStructView {
+                    path,
                     field,
                     field_type,
                     field_symbol,

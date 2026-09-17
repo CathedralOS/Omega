@@ -1,0 +1,15 @@
+// PASS CANARY. A store-enforced range on the nested field bounds the produced
+// rank, so the authored `in 0..=5` holds statically while the struct-view
+// prover establishes the strict decrease of the rebuilt inner literal.
+data Inner { remaining: u64 [0..=5]; }
+data Countdown { label: u64; inner: Inner; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown)
+terminates by countdown -> Countdown::Remaining in 0..=5;
+-> u64 {
+    transition countdown.inner.remaining > 0 {
+        true -> walk(Countdown { label: countdown.label, inner: Inner { remaining: countdown.inner.remaining - 1 } })
+        false -> countdown.inner.remaining
+    }
+}

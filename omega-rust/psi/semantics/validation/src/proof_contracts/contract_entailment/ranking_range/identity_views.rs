@@ -26,12 +26,27 @@ pub enum MeasureBodyShape {
         /// each one before the forward can be selected.
         constraints: Vec<(ExpressionHandle, ExpressionHandle, bool)>,
     },
+    /// `{ parameter.a.b.field }`: `path` holds the record-typed steps from
+    /// the parameter's own record down to `owner`, the record declaring the
+    /// final `u64` `field` (empty for a direct projection, where `owner` is
+    /// the parameter's record). Every step is an exact resolved field of the
+    /// exact nominal record before it.
     FieldProjection {
+        path: Vec<ProjectionStep>,
         field: Identifier,
         owner: SymbolHandle,
         field_type: TypeReferenceHandle,
         field_symbol: SymbolHandle,
     },
+}
+
+/// One record-typed step of a nested measure projection: `field` of `owner`,
+/// whose declared type is the next step's (or the final field's) record.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectionStep {
+    pub field: Identifier,
+    pub field_symbol: SymbolHandle,
+    pub owner: SymbolHandle,
 }
 
 /// A declared identity view applied to one exact subject: the measure whose
@@ -340,58 +355,109 @@ pub fn measure_body_shape(
             constraints,
         });
     }
-    let ExpressionNode::Member(member) = program.expression_table.expression(*body) else {
-        return None;
-    };
-    if !is_parameter(program, member.receiver, parameter.symbol)
-        || !member.member_symbol.is_valid()
-        || member.case_variant.is_some()
-    {
-        return None;
+    // The body is a member chain rooted at the parameter: collect it from the
+    // parameter outward, then resolve each step against the exact record the
+    // previous step declared.
+    let mut chain = Vec::new();
+    let mut cursor = *body;
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) => {
+                if !member.member_symbol.is_valid() || member.case_variant.is_some() {
+                    return None;
+                }
+                chain.push(member);
+                cursor = member.receiver;
+            }
+            _ if is_parameter(program, cursor, parameter.symbol) => break,
+            _ => return None,
+        }
+        if chain.len() > 128 {
+            return None;
+        }
     }
-    let TypeReferenceNode::Named { symbol: owner, .. } = program
+    chain.reverse();
+    let (last, steps) = chain.split_last()?;
+    let TypeReferenceNode::Named { symbol: root, .. } = program
         .type_reference_table
         .type_reference(parameter.type_reference)
     else {
         return None;
     };
+    let mut owner = *root;
+    let mut path = Vec::with_capacity(steps.len());
+    for step in steps {
+        let field = exact_record_field(program, owner, step.member_symbol, &step.member)?;
+        // An intermediate step must itself be an exact declared record so the
+        // next member resolves against one nominal owner.
+        let TypeReferenceNode::Named { symbol: next, .. } = program
+            .type_reference_table
+            .type_reference(unwrap_constraint_shells(program, field.type_reference))
+        else {
+            return None;
+        };
+        if !program
+            .data_definitions()
+            .iter()
+            .any(|data| data.symbol == *next)
+        {
+            return None;
+        }
+        path.push(ProjectionStep {
+            field: field.name.clone(),
+            field_symbol: field.symbol,
+            owner,
+        });
+        owner = *next;
+    }
+    let field = exact_record_field(program, owner, last.member_symbol, &last.member)?;
+    // Returning a field with another carrier does not establish a u64 measure.
+    // Field constraints narrow its values without changing that carrier.
+    let field_type = unwrap_constraint_shells(program, field.type_reference);
+    if ![field_type, measure.return_type]
+        .into_iter()
+        .all(|reference| {
+            matches!(program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { symbol, .. }
+                if program.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::U64))
+        })
+    {
+        return None;
+    }
+    Some(MeasureBodyShape::FieldProjection {
+        path,
+        field: field.name.clone(),
+        owner,
+        field_type: field.type_reference,
+        field_symbol: field.symbol,
+    })
+}
+
+/// The unique field `symbol` named `name` declared by the exact record
+/// `owner`; a same-named field of another record is not a projection of it.
+fn exact_record_field<'program>(
+    program: &'program TypedTrees,
+    owner: SymbolHandle,
+    symbol: SymbolHandle,
+    name: &Identifier,
+) -> Option<&'program typed_trees::data::DataField> {
     let declaration = program
         .data_definitions()
         .iter()
-        .find(|data| owner.is_valid() && data.symbol == *owner)?;
-    let field_symbol = program.symbols.get(member.member_symbol);
-    if field_symbol.kind != SymbolKind::Field || field_symbol.parent != *owner {
+        .find(|data| owner.is_valid() && data.symbol == owner)?;
+    let field_symbol = program.symbols.get(symbol);
+    if field_symbol.kind != SymbolKind::Field || field_symbol.parent != owner {
         return None;
     }
     let mut fields = program
         .data_members(declaration)
         .iter()
         .filter_map(|member_definition| match member_definition {
-            DataMember::Field(field) if field.symbol == member.member_symbol => Some(field),
+            DataMember::Field(field) if field.symbol == symbol => Some(field),
             _ => None,
         });
     let field = fields.next()?;
-    // Returning a field with another carrier does not establish a u64 measure.
-    // Field constraints narrow its values without changing that carrier.
-    let field_type = unwrap_constraint_shells(program, field.type_reference);
-    if fields.next().is_some()
-        || field.name != member.member
-        || ![field_type, measure.return_type]
-            .into_iter()
-            .all(|reference| {
-                matches!(program.type_reference_table.type_reference(reference),
-                TypeReferenceNode::Named { symbol, .. }
-                    if program.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::U64))
-            })
-    {
-        return None;
-    }
-    Some(MeasureBodyShape::FieldProjection {
-        field: field.name.clone(),
-        owner: *owner,
-        field_type: field.type_reference,
-        field_symbol: field.symbol,
-    })
+    (fields.next().is_none() && field.name == *name).then_some(field)
 }
 
 /// The unique declared measure spelled by `order` (`["Owner", "Name"]`).

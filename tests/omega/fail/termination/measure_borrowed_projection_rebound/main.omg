@@ -1,0 +1,13 @@
+// FAIL CANARY. Rebinding the borrowed subject before the transition writes
+// the ranked path, so the arrival premise no longer describes the edge.
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+
+machine walk(mut card: &Card)
+terminates by card -> Card::PowerOrder;
+-> u64 {
+    card = card; transition card.power > 0 {
+        true -> walk(&Card { power: card.power - 1 })
+        false -> card.power
+    }
+}

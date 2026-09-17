@@ -1,0 +1,14 @@
+// FAIL CANARY. Decreasing the outer `label` while the nested ranked field is
+// rebuilt unchanged is not a decrease of the selected projection.
+data Inner { remaining: u64; }
+data Countdown { label: u64; inner: Inner; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown)
+terminates by countdown -> Countdown::Remaining;
+-> u64 {
+    transition countdown.inner.remaining > 0 {
+        true -> walk(Countdown { label: countdown.label - 1, inner: Inner { remaining: countdown.inner.remaining } })
+        false -> countdown.inner.remaining
+    }
+}

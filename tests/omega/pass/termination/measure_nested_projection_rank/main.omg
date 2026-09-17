@@ -1,0 +1,16 @@
+// PASS CANARY. The measure projects the nested path `countdown.inner.remaining`.
+// Each record-typed step is an exact field of the record before it, and the
+// self edge rebuilds the literal chain down to the ranked field with a
+// positive subtraction under a guard on that same projection.
+data Inner { remaining: u64; }
+data Countdown { label: u64; inner: Inner; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown)
+terminates by countdown -> Countdown::Remaining;
+-> u64 {
+    transition countdown.inner.remaining > 0 {
+        true -> walk(Countdown { label: countdown.label, inner: Inner { remaining: countdown.inner.remaining - 1 } })
+        false -> countdown.inner.remaining
+    }
+}
