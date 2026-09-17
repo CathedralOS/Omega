@@ -147,10 +147,11 @@ pub use platform_bringup::uefi_bootstrap::{
     prepare_uefi_loaded_image_handle_protocol_invocation, project_uefi_application_boot_services,
 };
 pub use program_local::program_local_extents::{
-    ProgramLocalExtentMaterializationError, ProgramLocalExtentRegistry,
-    ProgramLocalExtentRetirementError, ReleasedRetainedForeignArgument, RetainedForeignAccess,
-    RetainedForeignArgument, RetainedForeignArgumentDisposition, RetainedForeignArgumentError,
-    RetainedForeignArgumentId, RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
+    ProgramLocalExtentAggregateRetirementError, ProgramLocalExtentMaterializationError,
+    ProgramLocalExtentRegistry, ProgramLocalExtentRetirementError, ReleasedRetainedForeignArgument,
+    RetainedForeignAccess, RetainedForeignArgument, RetainedForeignArgumentDisposition,
+    RetainedForeignArgumentError, RetainedForeignArgumentId, RetainedForeignArgumentRequest,
+    RetiredProgramLocalExtent,
 };
 pub use program_local::program_local_roots::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,

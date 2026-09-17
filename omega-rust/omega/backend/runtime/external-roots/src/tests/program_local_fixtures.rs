@@ -222,6 +222,62 @@ pub(super) fn program_local_two_schema_module() -> TerminalModule {
     module
 }
 
+/// The two-schema module with the interval-set Extent algebra on both
+/// introductions: one epoch cohort carries two single-member aggregate
+/// groups, which is what cross-group membership rejections need.
+pub(super) fn program_local_two_schema_extent_module() -> TerminalModule {
+    let mut module = program_local_two_schema_module();
+    let algebra = semantic_vocabulary::ContentAlgebra {
+        kind: semantic_vocabulary::ContentAlgebraKind::IntervalSet,
+        parameter: "Nat".into(),
+    };
+    let capacity = semantic_vocabulary::ContentProjectionExpression::IntervalSet(vec![(
+        semantic_vocabulary::ContentProjectionScalar::SubjectField(vec!["base".into()]),
+        semantic_vocabulary::ContentProjectionScalar::Add(
+            Box::new(semantic_vocabulary::ContentProjectionScalar::SubjectField(
+                vec!["base".into()],
+            )),
+            Box::new(semantic_vocabulary::ContentProjectionScalar::SubjectField(
+                vec!["length".into()],
+            )),
+        ),
+    )]);
+    let fingerprint =
+        language_semantics::content::terminal_projection_report_fingerprint(&algebra, &capacity);
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &mut module.structural_types[0].shape
+    else {
+        panic!("program-local test carrier is a record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: semantic_vocabulary::StructuralFieldId::new(2).expect("base field identity"),
+        identity: "base".into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 type"),
+        )),
+    });
+    for schema in &mut module.boundary_machines[0].program_local_root_introductions {
+        schema.algebra = algebra.clone();
+        schema.capacity = capacity.clone();
+        schema.projection.projection_report_fingerprint = fingerprint;
+        schema.compatibility_report_identity =
+            program_local_root_introduction_compatibility_report_identity(
+                "TestRoot::entry",
+                "Region::Owned",
+                "Region",
+                schema,
+            );
+    }
+    module.structural_domains[0].content_projection = Some(StructuralContentProjection {
+        identity: module.boundary_machines[0].program_local_root_introductions[0].projection,
+        algebra,
+        expression: capacity,
+    });
+    module
+}
+
 pub(super) fn program_local_extent_module() -> TerminalModule {
     let mut module = program_local_root_module();
     let algebra = semantic_vocabulary::ContentAlgebra {
@@ -472,11 +528,25 @@ pub(super) fn program_local_extent_subject<'root, 'code>(
     base: u64,
     length: u64,
 ) -> InstalledProgramLocalRootSubject<'root, 'code> {
+    program_local_extent_subject_at(root, activation, subject_place, 0, 0, base, length)
+}
+
+/// The interval-set Extent subject at an exact argument index and source
+/// parameter position: one introduction schema's member subject.
+pub(super) fn program_local_extent_subject_at<'root, 'code>(
+    root: &'root InstalledExternalRoot<'code>,
+    activation: &ProgramLocalEntryActivation,
+    subject_place: u64,
+    argument_index: u32,
+    source_parameter_position: u32,
+    base: u64,
+    length: u64,
+) -> InstalledProgramLocalRootSubject<'root, 'code> {
     InstalledProgramLocalRootSubject::from_generated_entry(
         root,
         activation,
-        0,
-        0,
+        argument_index,
+        source_parameter_position,
         "Region::Owned",
         "Region",
         ProgramLocalRootSubjectPlaceId::from_normalized_identity(subject_place)

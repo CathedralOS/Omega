@@ -48,10 +48,11 @@ pub(crate) use interrupt_and_progress_fixtures::{
 use program_local_fixtures::{
     installed_backing_extent, join_program_local, program_local_activation, program_local_claim,
     program_local_claim_at, program_local_epoch_lease, program_local_extent_module,
-    program_local_extent_subject, program_local_lifecycle, program_local_root_catalog,
-    program_local_root_module, program_local_subject, program_local_subject_at,
-    program_local_terminal_object, program_local_two_schema_module, publish_program_local_era,
-    sole_rejected_cohort_lease,
+    program_local_extent_subject, program_local_extent_subject_at, program_local_lifecycle,
+    program_local_root_catalog, program_local_root_module, program_local_subject,
+    program_local_subject_at, program_local_terminal_object,
+    program_local_two_schema_extent_module, program_local_two_schema_module,
+    publish_program_local_era, sole_rejected_cohort_lease,
 };
 pub(crate) use root_installation_fixtures::install_test_root;
 use root_installation_fixtures::{
