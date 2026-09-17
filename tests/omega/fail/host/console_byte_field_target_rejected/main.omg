@@ -1,4 +1,4 @@
-// FAIL canary: `self.r = self.console.read_byte()` (a FIELD assignment
+// FAIL canary: `self.r = block self.console.read_byte()` (a FIELD assignment
 // target) is outside read_byte's served shape -- the composite owns the
 // whole ByteRead result and serves the `let r: ByteRead = ...` LOCAL slot
 // only today. The emission blocker must refuse LOUDLY (selection emits
@@ -12,7 +12,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.r = self.console.read_byte();
+    self.r = block self.console.read_byte();
     transition self.r {
         ByteRead::Byte { value } -> got(value)
         _ -> fin()

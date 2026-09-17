@@ -28,7 +28,7 @@ machine Main::main(&mut self) {
     transition { _ -> rd() }
 
     state rd(&mut self) {
-        let r: ByteRead = self.console.read_byte();
+        let r: ByteRead = block self.console.read_byte();
         transition r {
             ByteRead::Byte { value } -> acc(value)
             _ -> fin()

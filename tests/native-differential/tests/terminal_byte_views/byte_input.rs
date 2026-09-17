@@ -19,7 +19,10 @@ fn reader() -> lowered_psi::LoweredPsi {
     lower_reader(include_str!("byte_input.omg"), "classify_bytes")
 }
 
-fn lower_reader(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
+fn try_lower_reader(
+    source: &str,
+    machine: &str,
+) -> Result<lowered_psi::LoweredPsi, checked_trees_to_lowered_psi::LoweringError> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
@@ -31,7 +34,11 @@ fn lower_reader(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine)
+    checked_trees_to_lowered_psi::lower_machine(&checked, machine)
+}
+
+fn lower_reader(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
+    let lowered = try_lower_reader(source, machine)
         .expect("read result and guarded destination share the ordinary state graph");
     terminal_verifier::verify_module(
         &lowered.semantic_module,

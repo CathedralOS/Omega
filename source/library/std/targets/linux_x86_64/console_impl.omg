@@ -6,7 +6,9 @@
 // normalized signature, package custody, and selected target.
 linux_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
-    via Binding::CompilerIntrinsic;
+    via Binding::CompilerIntrinsic
+    crashes Trap
+    blocks;
 linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte;
 linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)

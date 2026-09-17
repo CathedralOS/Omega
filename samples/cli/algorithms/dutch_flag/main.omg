@@ -181,12 +181,12 @@ machine Main::main(&mut self) reaches Console {
     }
     state report(&mut self, code: i32) {
         self.console.write_line("[press Enter to close]");
-        _ = self.console.read_line(&mut self.pause);
+        _ = block self.console.read_line(&mut self.pause);
         self.console.exit_process(code);
     }
     state report_bad(&mut self, code: i32) {
         self.console.write_line("[press Enter to close]");
-        _ = self.console.read_line(&mut self.pause);
+        _ = block self.console.read_line(&mut self.pause);
         self.console.exit_process(code);
     }
 }

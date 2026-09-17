@@ -4,18 +4,19 @@ use super::{Evaluator, Value};
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
-fn source(declaration: &str, target: &str) -> String {
+fn source(declaration: &str, target: &str, callee_blocks: bool) -> String {
+    let acknowledgement = if callee_blocks { "block " } else { "" };
     format!(
         "pub data Decoy {{ case Eof; case Byte(value: i32 [0..=255]); }}
         pub data ByteRead {{ case Eof; case Byte(value: i32 [0..=255]); }}
-        pub boundary trait Console {{ machine read_byte() -> ByteRead reaches Console; }}
+        pub boundary trait Console {{ machine read_byte() -> ByteRead reaches Console blocks; crashes Trap; }}
         pub data ConsoleNativeProvider {{}}
         pub data OtherProvider {{}}
         {declaration}
         machine decoy() -> Decoy {{ Decoy::Eof }}
         machine wide(value: i64) {{}}
         machine main() reaches Console {{
-            let observed: ByteRead = {target}();
+            let observed: ByteRead = {acknowledgement}{target}();
             transition observed {{
                 ByteRead::Eof -> done()
                 ByteRead::Byte {{ value }} -> consumed(value)
@@ -29,8 +30,10 @@ fn source(declaration: &str, target: &str) -> String {
 fn canonical() -> CheckedTrees {
     checked(&source(
         "machine ConsoleNativeProvider::read_byte() -> ByteRead
-            satisfies Console::read_byte via Binding::CompilerIntrinsic;",
+            satisfies Console::read_byte via Binding::CompilerIntrinsic
+            crashes Trap blocks;",
         "ConsoleNativeProvider::read_byte",
+        true,
     ))
 }
 
@@ -246,24 +249,27 @@ fn byte_input_result_uses_requirement_symbol_not_first_matching_name() {
 
 #[test]
 fn concrete_byte_input_lookalikes_do_not_gain_host_authority() {
-    for (label, declaration, target) in [
+    for (label, declaration, target, callee_blocks) in [
         (
             "other provider",
-            "machine OtherProvider::read_byte() -> ByteRead satisfies Console::read_byte via Binding::CompilerIntrinsic;",
+            "machine OtherProvider::read_byte() -> ByteRead satisfies Console::read_byte via Binding::CompilerIntrinsic crashes Trap blocks;",
             "OtherProvider::read_byte",
+            true,
         ),
         (
             "foreign binding",
-            "machine ConsoleNativeProvider::read_byte() -> ByteRead satisfies Console::read_byte via Binding::Syscall(60);",
+            "machine ConsoleNativeProvider::read_byte() -> ByteRead satisfies Console::read_byte via Binding::Syscall(60) crashes Trap blocks;",
             "ConsoleNativeProvider::read_byte",
+            true,
         ),
         (
             "authored body",
             "machine ConsoleNativeProvider::read_byte() -> ByteRead satisfies Console::read_byte { ByteRead::Eof }",
             "ConsoleNativeProvider::read_byte",
+            false,
         ),
     ] {
-        let program = checked(&source(declaration, target));
+        let program = checked(&source(declaration, target, callee_blocks));
         let machine = program
             .machines()
             .iter()

@@ -49,7 +49,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    let observed: LineReadResult = self.console.read_line(&mut self.line);
+    let observed: LineReadResult = block self.console.read_line(&mut self.line);
     transition observed {
         LineReadResult::LineComplete { count } -> bounded_input(count, true)
         LineReadResult::EndOfInput { count } -> bounded_input(count, false)

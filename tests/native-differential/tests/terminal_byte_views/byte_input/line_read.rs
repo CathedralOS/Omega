@@ -8,9 +8,17 @@
     all(target_os = "macos", target_arch = "aarch64")
 ))]
 use super::native_function;
-use super::{NativeTarget, lower_reader, publish_reader};
+use super::{NativeTarget, lower_reader, publish_reader, try_lower_reader};
+
+/// The hosted byte-input leaf publishes `blocks;` plus an unconditional
+/// `crashes Trap` route honestly. A `ConsoleNativeProvider::read_byte`
+/// compiler intrinsic satisfying this fixture's pre-envelope nonblocking
+/// requirement is therefore no longer the exact toolchain leaf: its caller
+/// loses intrinsic source custody, so composed-control construction admits
+/// no body for `read_line` at all. The refusal is the honest outcome — the
+/// stale spelling must not rejoin the byte-input authority it names.
 #[test]
-fn concrete_byte_leaf_line_reader_preserves_source_custody_and_native_outcomes() {
+fn a_byte_leaf_without_the_honest_envelope_loses_intrinsic_custody() {
     let source = format!(
         "{}\npub data ConsoleNativeProvider {{}}\n\
         machine ConsoleNativeProvider::read_byte() -> ByteRead\n\
@@ -18,33 +26,14 @@ fn concrete_byte_leaf_line_reader_preserves_source_custody_and_native_outcomes()
         include_str!("../read_line.omg")
             .replace("Console::read_byte()", "ConsoleNativeProvider::read_byte()",),
     );
-    let targets = [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-    ];
-    for target in targets {
-        let lowered = lower_reader(&source, "read_line");
-        let (image, _entry_offset) = publish_reader(target, lowered);
-        assert!(!image.output().final_text_bytes.is_empty());
-        #[cfg(any(
-            all(
-                target_os = "linux",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            ),
-            all(target_os = "macos", target_arch = "aarch64"),
-        ))]
-        if target == NativeTarget::host() {
-            native_function::assert_c_text(
-                &image.output().final_text_bytes,
-                _entry_offset,
-                include_str!("../read_line.c"),
-            );
-        }
-    }
-    if !targets.contains(&NativeTarget::host()) {
-        eprintln!("SKIP: concrete byte-leaf runtime requires a supported matching hosted target");
-    }
+    let error = try_lower_reader(&source, "read_line")
+        .expect_err("a nonblocking-requirement byte leaf must not keep intrinsic custody");
+    let message = format!("{error:?}");
+    assert!(
+        message.contains("read_line") && message.contains("no admitted body"),
+        "the stale leaf leaves its caller unplanned rather than rejoining host \
+         authority: {message}"
+    );
 }
 
 #[test]
