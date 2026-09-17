@@ -56,7 +56,7 @@ fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstructi
 /// the terminator's end can be observed by a reader at the head of any of
 /// them; the edge's own transports move registers and storage slots, never
 /// condition-state units.
-fn successors(block: &SelectedBlock) -> impl Iterator<Item = &SelectedSuccessor> {
+pub(super) fn successors(block: &SelectedBlock) -> impl Iterator<Item = &SelectedSuccessor> {
     match &block.terminator {
         SelectedTerminator::Jump { successor, .. } => [Some(successor), None].into_iter().flatten(),
         SelectedTerminator::ConditionalBranch {
@@ -83,7 +83,7 @@ fn successors(block: &SelectedBlock) -> impl Iterator<Item = &SelectedSuccessor>
 /// Whether `kind` is one of the three flag publishers whose whole effect is
 /// the condition-state surface it defines, with the operand arity the
 /// emitted form carries.
-fn compare_operand_arity(kind: SelectedInstructionKind) -> Option<usize> {
+pub(super) fn compare_operand_arity(kind: SelectedInstructionKind) -> Option<usize> {
     match kind {
         SelectedInstructionKind::CompareI64 => Some(2),
         SelectedInstructionKind::CompareI64Immediate { .. }

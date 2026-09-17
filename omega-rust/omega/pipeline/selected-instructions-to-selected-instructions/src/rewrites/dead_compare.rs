@@ -34,6 +34,11 @@
 //! walk needs no transport audit. The compare itself may not be named by a
 //! call contract or memory-access row.
 //!
+//! The sibling [`redundant`] family removes a compare whose publication is
+//! observed but adds nothing: every published unit already carries the same
+//! flag state from an earlier flag-equivalent compare in the same block, so
+//! the removal leaves every reader observing identical values.
+//!
 //! Removing the compare shortens its block's instruction vector, so
 //! boundary settlements positioned after it shift one ordinal earlier;
 //! positions at or before it are untouched, and the compare's register
@@ -47,6 +52,7 @@
 //! roster row, call, and settlement included.
 
 mod admission;
+mod redundant;
 mod rewrite;
 mod validation;
 
@@ -56,6 +62,10 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
+pub use redundant::{
+    RedundantCompareError, RedundantCompareReceipt, ValidatedRedundantCompare,
+    remove_redundant_compare, validate_redundant_compare,
+};
 pub use rewrite::remove_dead_compare;
 pub use validation::validate_dead_compare;
 
