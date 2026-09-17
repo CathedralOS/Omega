@@ -128,16 +128,47 @@ fn missing_formal_symbols_do_not_fall_back_to_spelling() {
 }
 
 #[test]
-fn formal_predicates_reject_selected_operators_and_nonliteral_arithmetic() {
-    for source in [
+fn formal_predicates_reject_selected_operators_and_carry_exact_arithmetic() {
+    // A comparison whose spelling selects a declared operator is not builtin
+    // vocabulary; exact `+` arithmetic over a formal and a literal is.
+    let program = typed(
         "boundary operator < Meaning::before(left: u16, right: u16) -> bool; machine value(input: u16) -> u16\nrequires input < 256u16\nensures result < input\n{ input }",
+    );
+    let selected = plan(&program);
+    assert_eq!(selected.requires(), &[None]);
+    assert_eq!(selected.ensures(), &[None]);
+
+    let program = typed(
         "machine value(input: u16) -> u16\nrequires input + 1u16 < 256u16\nensures result == input + 1u16\n{ input }",
-    ] {
-        let program = typed(source);
-        let plan = plan(&program);
-        assert_eq!(plan.requires(), &[None]);
-        assert_eq!(plan.ensures(), &[None]);
-    }
+    );
+    let arithmetic = plan(&program);
+    let [
+        Some(ClosedScalarContractValue::Predicate(CheckedBooleanExpression::IntegerComparison {
+            left,
+            ..
+        })),
+    ] = arithmetic.requires()
+    else {
+        panic!("{:?}", arithmetic.requires());
+    };
+    assert!(matches!(
+        left.as_ref(),
+        checked_trees::CheckedScalarExpression::IntegerBinary {
+            kind: checked_trees::CheckedIntegerBinaryKind::ExactAdd,
+            ..
+        }
+    ));
+    assert!(matches!(
+        arithmetic.ensures(),
+        [Some(ClosedScalarContractValue::Predicate(
+            CheckedBooleanExpression::IntegerComparison { .. }
+        ))]
+    ));
+    // A bitwise operand stays outside the closed language.
+    let program = typed(
+        "machine value(input: u16) -> u16\nrequires input & 1u16 < 256u16\nensures result == input\n{ input }",
+    );
+    assert_eq!(plan(&program).requires(), &[None]);
 }
 
 #[test]
