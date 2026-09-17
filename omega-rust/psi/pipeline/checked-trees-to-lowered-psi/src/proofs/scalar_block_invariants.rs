@@ -20,6 +20,7 @@ use crate::lowering_error::LoweringError;
 use crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 use lowered_psi::LoweredPsi;
 
+mod cyclic_guarantees;
 mod entry_ranges;
 mod field_bounds;
 mod joins;
@@ -30,10 +31,18 @@ mod retained_evidence;
 mod tests;
 
 pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
-    let module = &mut lowered.semantic_module;
-    if !module.scalar_block_invariants.is_empty() {
+    if !lowered.semantic_module.scalar_block_invariants.is_empty() {
         return Ok(());
     }
+    retain_provable_roster(lowered)?;
+    // A cyclic machine's guarantee may still be open once the ordinary
+    // roster is retained; its strengthening is a separate all-or-nothing
+    // transaction that leaves this roster unchanged when it cannot help.
+    cyclic_guarantees::strengthen(lowered)
+}
+
+fn retain_provable_roster(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
+    let module = &mut lowered.semantic_module;
     let original = terminal_verifier::reconstruct_terminal_obligations(module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     let mut remaining = 4096usize;
@@ -91,29 +100,7 @@ pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
                 .ok_or(LoweringError::Unsupported(
                     "invariant candidate lost its machine",
                 ))?;
-            let mut edges = Vec::new();
-            for block in &machine.blocks {
-                match &block.terminator {
-                    Terminator::Jump { edge, target, .. } if *target == candidate.header => {
-                        edges.push(*edge);
-                    }
-                    Terminator::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => {
-                        edges.extend(
-                            [when_true, when_false]
-                                .into_iter()
-                                .filter(|successor| successor.target == candidate.header)
-                                .map(|successor| successor.edge),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-            edges.sort();
-            for edge in edges {
+            for edge in header_arrival_edges(machine, candidate.header) {
                 let Some(fresh) = next.checked_add(1) else {
                     if !restore_seeds(&mut module.scalar_block_invariants, &mut seeds) {
                         module.scalar_block_invariants.clear();
@@ -230,6 +217,33 @@ pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
         // A surviving proof may have used a removed candidate. Reconstruct and
         // prove again under only the remaining hypotheses before retaining it.
     }
+}
+
+/// Every actual edge into `header`, in canonical order: one arrival
+/// obligation each, whichever pass proposed the row.
+pub(super) fn header_arrival_edges(
+    machine: &terminal_psi::TerminalMachine,
+    header: semantic_vocabulary::BlockId,
+) -> Vec<semantic_vocabulary::EdgeId> {
+    let mut edges = Vec::new();
+    for block in &machine.blocks {
+        match &block.terminator {
+            Terminator::Jump { edge, target, .. } if *target == header => edges.push(*edge),
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => edges.extend(
+                [when_true, when_false]
+                    .into_iter()
+                    .filter(|successor| successor.target == header)
+                    .map(|successor| successor.edge),
+            ),
+            _ => {}
+        }
+    }
+    edges.sort();
+    edges
 }
 
 fn restore_seeds(

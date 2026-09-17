@@ -215,7 +215,7 @@ pub(super) fn candidates(
     candidates
 }
 
-fn uses_header(predicate: &Proposition, header: &terminal_psi::Block) -> bool {
+pub(super) fn uses_header(predicate: &Proposition, header: &terminal_psi::Block) -> bool {
     let mut uses_header = false;
     predicate.visit_value_ids(|value| {
         uses_header |= header
@@ -226,7 +226,7 @@ fn uses_header(predicate: &Proposition, header: &terminal_psi::Block) -> bool {
     uses_header
 }
 
-fn scoped_goal(
+pub(super) fn scoped_goal(
     goal: &Proposition,
     arrival: &ArrivalEquations<'_>,
     allowed: &BTreeSet<ValueId>,
@@ -288,13 +288,13 @@ fn scoped_goal(
 /// The goal and its path guards share one arrival's defining equations. Build
 /// their index once; neither conditional implications nor alternative branches
 /// become unconditional definitions.
-struct ArrivalEquations<'input> {
+pub(super) struct ArrivalEquations<'input> {
     definitions: BTreeMap<ValueId, &'input Proposition>,
     reversed: BTreeMap<ValueId, Proposition>,
 }
 
 impl<'input> ArrivalEquations<'input> {
-    fn new(axioms: &'input [Proposition], remaining: &mut usize) -> Option<Self> {
+    pub(super) fn new(axioms: &'input [Proposition], remaining: &mut usize) -> Option<Self> {
         if axioms.len() > *remaining {
             return None;
         }
