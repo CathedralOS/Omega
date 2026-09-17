@@ -2552,10 +2552,24 @@ Owners include
   (`syntax-trees-to-symbol-resolved-trees/src/lowering/machine/token_bindings.rs`;
   distinct shapes overload, distinct owners and tokens never collide). A
   token-bearing machine still lowers and executes exactly like its named
-  form. Next frontier: operand-directed selection at use sites consuming
-  `Machine::spelling`, cross-package closed-family semantic-home ownership
-  (the current check is owner-local within one program; the unqualified
-  operand-tuple home needs typing), the token joining canonical machine
+  form. At 735d4638bf/648f10c57e use sites select `machine + Owner::name`
+  declarations by operand type through a typed operator-signature view
+  under the machine's own symbol (`TypedTreeRoots::machine_token_bindings`,
+  `lower_token_binding_view`), and resolution rejects a binding whose
+  operand tuple omits its semantic home (the attached data, or any
+  declared type/domain for a free machine) before the duplicate check
+  (`expressions/token_bound_machine_{operand_selection,
+  duplicate_shape_rejected,foreign_family_rejected}`, checked-only because
+  body supply for the selected machine still runs through satisfier search
+  in `monomorphization/selected_operator_providers.rs` and build-time
+  `selected_operators.rs`). A mixed `Wrapped + u64` operand with only a
+  `(Wrapped, Wrapped)` binding reports a builtin overflow obligation
+  instead of "no operator" because
+  `value_custody/expression_types/operator_validation.rs` asks the
+  receiver-only spelling query. Next frontier: body supply for the
+  selected token-bearing machine, cross-package closed-family
+  semantic-home ownership (the current check is owner-local within one
+  program; the unqualified operand-tuple home needs typing), the token joining canonical machine
   signature identity in package-review evidence capture
   (`review/evidence/src/capture/semantics/types/identity.rs`, which reads
   neither the machine nor the trait `StateSignature` spelling although a
