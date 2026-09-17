@@ -38,7 +38,6 @@ fn token_bearing_machines_retain_their_spelling_and_named_machines_have_none() {
         [
             ("Vec2::add".to_owned(), Some(OperatorSpelling::Add)),
             ("Vec2::at".to_owned(), Some(OperatorSpelling::Index)),
-            ("Vec2::equal".to_owned(), Some(OperatorSpelling::Equal)),
             ("subtract".to_owned(), Some(OperatorSpelling::Subtract)),
             ("Vec2::length".to_owned(), None),
             ("ordinary".to_owned(), None),
@@ -57,13 +56,24 @@ fn token_bearing_machines_retain_their_spelling_and_named_machines_have_none() {
         };
         assert!(symbol.is_valid(), "{}", parameter.name);
     }
-    // A boundary requirement keeps its supply mode; the token adds no body.
-    let equal = program.machines.iter().nth(2).expect("boundary machine");
+    // A bodyless token-bearing `boundary machine` is the required operator
+    // slot itself, not a machine: it lowers to the boundary operator
+    // declaration every provider route is keyed on.
+    let equal = program
+        .operators
+        .iter()
+        .next()
+        .expect("boundary operator slot");
+    assert!(equal.is_boundary);
+    assert_eq!(equal.spelling, Some(OperatorSpelling::Equal));
     assert_eq!(
-        equal.supply_mode,
-        language_semantics::MachineSupplyMode::Boundary
+        program
+            .operator_path_members(equal.name)
+            .iter()
+            .map(|member| member.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        ["Vec2", "equal"]
     );
-    assert!(!equal.body_is_present);
 }
 
 #[test]
@@ -305,6 +315,60 @@ fn generic_domain_binding_homes_through_qualified_operands_and_index_arguments_s
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
             "`Quantity::add_kilometers` binds the fixed operator token `+` already bound by `Quantity::add_meters`"
+        )),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn token_bearing_boundary_signature_is_the_operator_slot_of_the_operator_spelling() {
+    let operator_form = "data CheckedMath {}
+         boundary operator - CheckedMath::select_left(left: i32, right: i32) -> i32
+         requires left >= right;
+         data Provider {}
+         machine Provider::select_left_impl(left: i32, right: i32) -> i32
+         satisfies CheckedMath::select_left
+         { transition { _ -> left } }";
+    let machine_form = operator_form.replace(
+        "boundary operator - CheckedMath::select_left",
+        "boundary machine - CheckedMath::select_left",
+    );
+    let operator_program = resolve_source(operator_form).expect("operator spelling resolves");
+    let machine_program = resolve_source(&machine_form).expect("machine spelling resolves");
+    let mut operator_snapshot = operator_program.snapshot();
+    let mut machine_snapshot = machine_program.snapshot();
+    // The machine head has no operator token count; everything else about
+    // the slot, its realization, and the rest of the program is identical.
+    for snapshot in [&mut operator_snapshot, &mut machine_snapshot] {
+        for operator in &mut snapshot.roots.operators {
+            operator.token_count = 0;
+        }
+    }
+    assert_eq!(operator_snapshot, machine_snapshot);
+    assert_eq!(machine_program.operators.iter().count(), 1);
+    assert_eq!(machine_program.machines.iter().count(), 1);
+    let slot = machine_program.operators.iter().next().expect("slot");
+    assert!(slot.is_boundary);
+    assert_eq!(slot.spelling, Some(OperatorSpelling::Subtract));
+    assert_eq!(
+        machine_program
+            .operator_path_members(slot.name)
+            .iter()
+            .map(|member| member.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        ["CheckedMath", "select_left"]
+    );
+
+    let diagnostics = resolve_source(
+        "data CheckedMath {}
+         boundary trait Host {}
+         boundary machine - CheckedMath::select_left(left: i32, right: i32) -> i32
+         reaches Host;",
+    )
+    .expect_err("machine-only clauses do not belong to a token-bearing boundary signature");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "`CheckedMath::select_left` is a token-bearing boundary signature and declares only its signature and contracts; `reaches` belongs to a named `boundary requirement`"
         )),
         "{diagnostics:?}"
     );
