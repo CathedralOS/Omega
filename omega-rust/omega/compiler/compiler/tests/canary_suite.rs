@@ -1468,6 +1468,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "float/named_float_to_integer_wrapping_rejected",
     "float/named_float_to_integer_no_context_unproven",
     "float/named_float_to_integer_implicit_discard_rejected",
+    "float/float_meaning_lookalike_grants_no_primitive",
     "arithmetic/exact_integer_cast_unproven",
     "arithmetic/authored_boolean_wrapper_bound",
     "arithmetic/authored_requires_numeric_bound",

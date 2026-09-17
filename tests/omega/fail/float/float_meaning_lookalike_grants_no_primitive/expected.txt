@@ -1,0 +1,1 @@
+merely naming a declaration `Float::meaning32` grants no primitive
