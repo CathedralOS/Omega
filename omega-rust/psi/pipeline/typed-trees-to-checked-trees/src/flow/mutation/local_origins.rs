@@ -330,7 +330,7 @@ pub(super) fn rebase_local_write_places(
     Some(projected)
 }
 
-pub(super) fn place_from_origin_path(
+pub(crate) fn place_from_origin_path(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     statement_index: usize,
