@@ -2,6 +2,7 @@ use crate::facts::field_domain::declared_result_field_domain_paths;
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_call_boundary_edges;
+use crate::flow::append_call_referent_field_domain_facts;
 use crate::flow::append_constraint_ref;
 use crate::flow::apply_call_invalidations;
 use crate::flow::build_call_entry_contexts;
@@ -84,6 +85,17 @@ pub(super) fn build_call_flow_fact(
         &mut exit,
     );
     append_call_result_field_domain_facts(
+        program,
+        semantic,
+        ctx,
+        machine,
+        state,
+        borrow_call,
+        &mut exit,
+    );
+    // Every readable `&mut` referent comes back satisfying the field facts
+    // the callee re-proved at its return (checks/contracts/exits).
+    append_call_referent_field_domain_facts(
         program,
         semantic,
         ctx,
