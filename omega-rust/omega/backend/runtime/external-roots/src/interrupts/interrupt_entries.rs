@@ -879,6 +879,17 @@ pub struct InterruptEntryStartError {
 }
 
 impl InterruptEntryStartError {
+    /// A dispatch-edge rejection that never reached the ledger's retained
+    /// evidence — for example an arrival the published interrupt table does
+    /// not arm. The receipt still comes back so the caller keeps its
+    /// provider-evidence custody.
+    pub(crate) fn unrouted(receipt: InterruptEntryReceipt, diagnostic: impl Into<String>) -> Self {
+        Self {
+            receipt,
+            diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+        }
+    }
+
     pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
         &self.diagnostic
     }
