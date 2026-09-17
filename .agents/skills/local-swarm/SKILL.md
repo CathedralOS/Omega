@@ -110,7 +110,10 @@ and renders a resume prompt — reuse the same manifest to continue.
 
 When the user says wrap up: stop backfilling, let running agents finish, then
 sweep — release remaining claim tickets, WIP-commit any dirty worktree worth
-keeping (never delete one with uncommitted work), remove clean worktrees and
-landed branches, verify `git status` clean on the main checkout, and report
-the wave tally: commits landed per slot, verified-closed items, WIP branches
+keeping (never delete one with uncommitted work), record each parked WIP
+branch and its covered slice in the item's board evidence when the item
+stays open, remove clean worktrees and landed branches, verify `git status`
+clean on the main checkout, and save the wave tally to
+`tools/swarm/waves/<wave>.outcomes.json` (result, commits, `item_closed` per
+slot): commits landed per slot, verified-closed items, WIP branches
 retained, and friction worth feeding back to the README runbook.

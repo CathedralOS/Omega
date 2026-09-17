@@ -113,7 +113,10 @@ keeps changing); treat claim presence alone as "assigned", not "running".
 A local wave runs the same protocol from one machine without Devin sessions:
 the coordinator spawns one agent per `.codex/worktrees/<wave>-<task>` worktree
 and each agent claims, works, lands, and releases exactly like a cloud session.
-`worktree_status.py` is the local wave's `status`/`report` equivalent.
+`worktree_status.py` is the local wave's `status`/`report` equivalent. At
+drain, write the per-slot tally (result, commits, `item_closed`) to
+`tools/swarm/waves/<wave>.outcomes.json` so local waves stay measurable the
+same way cloud waves do.
 
 ### Launching
 
@@ -190,7 +193,10 @@ coordinator-side:
 3. Preserve dirty worktrees before removing them:
    `git -C <wt> add -A && git -C <wt> commit -m "wip(...): interrupted"` keeps
    the work on the branch. Clean worktrees and landed branches can be removed
-   outright.
+   outright. When the item stays open, record the parked branch ref and the
+   slice it covers in the item's board evidence so the coordinator can merge
+   it to main through the landing queue — a successor on another machine
+   cannot see an unmerged local branch.
 4. Relaunch continuations onto the same branches (fresh worktree per branch)
    and have them reclaim the item; the wave loses no work.
 
@@ -216,6 +222,10 @@ Pick items that are:
   live claim (`python tools/claims.py status`),
 - named in a board the launcher knows (`TASKS.md`, `TASKS_BOOTSTRAP.md`,
   `TASKS_OPTIMIZER.md`), with the item present as `**<item>.**`.
+- still unimplemented: board "next slice" text can lag landed code — check
+  the item's named machinery against recent history before manifesting it
+  (the Sept board-history screen confirmed stale or duplicate assignments
+  in 4 of 11 reviewed flags),
 - ready to attempt on the assigned host: `host_gates` are environment/access and
   prerequisite checks that must pass before assignment. Keep the expected-red
   customer reproduction in the board acceptance or `suggested_first_slice`, not
