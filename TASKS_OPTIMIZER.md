@@ -726,7 +726,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   geometry — while the same program stays an ordinary committed frame on
   every other admitted ABI, a suppressed or invented resident extent
   replays false, and the artifact still publishes as an ordinary callable
-  on all four targets
+  on all five admitted targets
   (`red_zone_resident_frame::resident_leaf_spill_frame_publishes_through_ordinary_callable_entry`).
   Stable-address loans are landed: a caller that establishes a `Pair`
   record in activation-local storage and calls its borrowed `total`
@@ -739,7 +739,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   materialized activation-local address resolves only through a
   rostered slot's committed coordinates; an omitted, invented,
   reordered, or misattributed loan fails closed, and the artifact still
-  reaches ordinary callable publication on all four targets
+  reaches ordinary callable publication on all five admitted targets
   (`stable_address_loans::loaned_local_addresses_replay_through_ordinary_callable_entry`).
   Unwind information is landed: the validated layout records each
   frame's exact unwind roster — the ordered view restorations the
