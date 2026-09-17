@@ -21,11 +21,11 @@ pub use component_description::{
     OutgoingEvidence, RetainedProvider, component_description_identity,
     decode_component_description, describe_component, describe_component_facts,
     description_subject, encode_component_description, port_mechanism_assumption,
-    requirement_contract_identity,
+    requirement_contract_identity, requirement_export_identity,
 };
 pub use component_verification::{
-    ComponentVerificationRejection, ComponentVerificationRequest, VerifiedComponent,
-    verify_component,
+    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
+    VerifiedComponent, verify_component,
 };
 pub use native_artifact::{
     NativeArtifact, NativeArtifactParts, NativeProviderExecution,

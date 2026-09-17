@@ -3,15 +3,16 @@
 use std::collections::BTreeSet;
 
 use super::{
-    ComponentVerificationRejection, ComponentVerificationRequest, VerifiedComponent,
-    verify_component,
+    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
+    VerifiedComponent, verify_component,
 };
 use crate::component_description::{
     COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescription, ComponentDescriptionFacts,
     ComponentEntry, ComponentEntryKind, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
-    DescriptionFrontier, EntryEvidence, ImportSlot, InstallationObligation, MAX_IDENTITY_BYTES,
-    ObligationKind, OutgoingAuthorityClass, OutgoingEvidence, component_description_identity,
-    decode_component_description, encode_component_description, requirement_contract_identity,
+    DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot, InstallationObligation,
+    MAX_IDENTITY_BYTES, ObligationKind, OutgoingAuthorityClass, OutgoingEvidence,
+    component_description_identity, decode_component_description, encode_component_description,
+    requirement_contract_identity, requirement_export_identity,
 };
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
@@ -19,14 +20,16 @@ use effects::provider_plan::{
 };
 use language_semantics::CarryPolicy;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, SuspensionCrossingId,
+    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, StructuralTypeId,
+    SuspensionCrossingId,
 };
 use terminal_psi::ProofBundle;
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, MachineContract, Operation,
-    OperationKind, OperationResult, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
-    Terminator, VocabularyMarker,
+    OperationKind, OperationResult, ProviderCandidateConformance, ProviderRefinement,
+    ProviderSignature, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
+    TerminalSuspensionCallTarget, Terminator, VocabularyMarker,
 };
 
 fn machine_id(raw: u64) -> MachineId {
@@ -128,6 +131,66 @@ fn boundary_module() -> TerminalModule {
             completion_receipts: Vec::new(),
         },
     });
+    module
+}
+
+/// A provider component: it declares the Unit boundary requirement
+/// `IndexedRequirement::apply` and retains one checked candidate machine
+/// (`IndexedProvider::apply`, machine 2) realizing it, without calling it.
+/// This is the closure a consumer's `Independent` selection of
+/// `IndexedProvider` for that slot must join to.
+fn provider_module() -> TerminalModule {
+    let mut module = minimal_module();
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: BoundaryMachineId::new(1).expect("boundary identity"),
+        identity: "IndexedRequirement::apply".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        crash_routes: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        published_service_ceiling: Vec::new(),
+    });
+    // A checked candidate is an attached machine: the Terminal verifier
+    // requires its provider type to be a declared structural type.
+    let provider_type = StructuralTypeId::new(1).expect("structural type identity");
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: provider_type,
+        identity: "IndexedProvider".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let mut candidate = module.machines[0].clone();
+    candidate.id = machine_id(2);
+    candidate.attachment = Some(provider_type);
+    candidate.contract.id = ContractId::new(2).expect("contract identity");
+    candidate.entry = BlockId::new(2).expect("block identity");
+    candidate.blocks[0].id = candidate.entry;
+    candidate.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: EdgeId::new(2).expect("edge identity"),
+        trivial_affine_discards: Vec::new(),
+    };
+    module.machines.push(candidate);
+    module
+        .provider_candidates
+        .push(ProviderCandidateConformance {
+            boundary: BoundaryMachineId::new(1).expect("boundary identity"),
+            requirement_identity: "IndexedRequirement::apply".into(),
+            provider_identity: "IndexedProvider".into(),
+            candidate_identity: "IndexedProvider::apply".into(),
+            candidate: machine_id(2),
+            signature: ProviderSignature {
+                parameters: Vec::new(),
+            },
+            refinement: ProviderRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        });
     module
 }
 
@@ -254,6 +317,166 @@ fn verifies_a_sealed_boundary_requirement() {
             .iter()
             .any(|obligation| obligation.kind == ObligationKind::ProviderOccurrence),
         "a retained provider stays a per-occurrence installation obligation"
+    );
+}
+
+#[test]
+fn exports_checked_realizations_and_joins_the_selected_plan() {
+    let module = provider_module();
+    let description = describe(&module, &empty_selection());
+    let export = requirement_export_identity(
+        "IndexedRequirement::apply",
+        "IndexedProvider",
+        "IndexedProvider::apply",
+    );
+    assert!(
+        description
+            .exports
+            .iter()
+            .any(|surface| surface.identity == export),
+        "the retained checked candidate is an exported realization: {:?}",
+        description.exports
+    );
+    assert!(
+        description.imports.is_empty() && description.outgoing.is_empty(),
+        "an uncalled realization demands nothing outgoing"
+    );
+    let request = request_for(&module, BTreeSet::new());
+    let verified = verify(&description, &request).expect("provider component verifies");
+    verified
+        .realizes_selected_plan(&selected_plan())
+        .expect("the selected plan joins its exact exported realization");
+}
+
+#[test]
+fn rejects_omitted_and_forged_realization_exports() {
+    let module = provider_module();
+    let request = request_for(&module, BTreeSet::new());
+
+    let mut omitted = describe(&module, &empty_selection());
+    omitted
+        .exports
+        .retain(|surface| !surface.identity.starts_with("export:requirement:"));
+    assert!(matches!(
+        verify(&omitted, &request),
+        Err(ComponentVerificationRejection::MissingExport(_))
+    ));
+
+    let mut forged = describe(&module, &empty_selection());
+    forged.exports.push(ExportSurface {
+        identity: requirement_export_identity(
+            "IndexedRequirement::apply",
+            "ForgedProvider",
+            "ForgedProvider::apply",
+        ),
+    });
+    assert!(matches!(
+        verify(&forged, &request),
+        Err(ComponentVerificationRejection::UnexpectedDerivedExport(_))
+    ));
+
+    // A description for another subject cannot stand in for the provider
+    // component even when it carries the same export spelling.
+    let other = minimal_module();
+    let mut substituted = describe(&other, &empty_selection());
+    substituted.exports.push(ExportSurface {
+        identity: requirement_export_identity(
+            "IndexedRequirement::apply",
+            "IndexedProvider",
+            "IndexedProvider::apply",
+        ),
+    });
+    assert!(matches!(
+        verify(&substituted, &request),
+        Err(ComponentVerificationRejection::WrongSubject { .. })
+    ));
+}
+
+#[test]
+fn selected_plan_join_rejects_every_substitution() {
+    let module = provider_module();
+    let description = describe(&module, &empty_selection());
+    let request = request_for(&module, BTreeSet::new());
+    let verified = verify(&description, &request).expect("provider component verifies");
+
+    let mut other_provider = selected_plan();
+    other_provider.provider_type = "OtherProvider".into();
+    assert_eq!(
+        verified.realizes_selected_plan(&other_provider),
+        Err(IndependentRealizationMismatch::ProviderTypeMismatch {
+            requirement_identity: "IndexedRequirement::apply".into(),
+            selected_provider: "OtherProvider".into(),
+        })
+    );
+
+    let mut other_machine = selected_plan();
+    other_machine.rows[0].binding = ProviderBinding::CheckedAdapter {
+        machine_identity: "IndexedProvider::other".into(),
+        machine_package_identity: None,
+    };
+    assert_eq!(
+        verified.realizes_selected_plan(&other_machine),
+        Err(IndependentRealizationMismatch::MachineMismatch {
+            requirement_identity: "IndexedRequirement::apply".into(),
+            selected_machine: "IndexedProvider::other".into(),
+        })
+    );
+
+    let mut other_requirement = selected_plan();
+    other_requirement.schema.methods[0].requirement_identity = "Other::apply".into();
+    other_requirement.rows[0].requirement_identity = "Other::apply".into();
+    assert_eq!(
+        verified.realizes_selected_plan(&other_requirement),
+        Err(IndependentRealizationMismatch::MissingRealization {
+            requirement_identity: "Other::apply".into(),
+        })
+    );
+
+    let mut unchecked = selected_plan();
+    unchecked.rows[0].binding = ProviderBinding::Syscall { number: 60 };
+    assert_eq!(
+        verified.realizes_selected_plan(&unchecked),
+        Err(IndependentRealizationMismatch::UncheckedRow {
+            requirement_identity: "IndexedRequirement::apply".into(),
+        })
+    );
+
+    let mut drifted_package = selected_plan();
+    drifted_package.rows[0].binding = ProviderBinding::CheckedAdapter {
+        machine_identity: "IndexedProvider::apply".into(),
+        machine_package_identity: semantic_vocabulary::PackageKeyIdentity::from_digest([3u8; 32]),
+    };
+    assert!(matches!(
+        verified.realizes_selected_plan(&drifted_package),
+        Err(IndependentRealizationMismatch::InvalidPlan { .. })
+    ));
+
+    let mut nameless = selected_plan();
+    nameless.provider_type = String::new();
+    assert_eq!(
+        verified.realizes_selected_plan(&nameless),
+        Err(IndependentRealizationMismatch::EmptyProviderType {
+            plan: "SelectedIndexedProvider".into(),
+        })
+    );
+
+    let mut partial = selected_plan();
+    partial.rows.clear();
+    assert!(matches!(
+        verified.realizes_selected_plan(&partial),
+        Err(IndependentRealizationMismatch::InvalidPlan { .. })
+    ));
+
+    // A verified component of another subject realizes nothing for the plan.
+    let bare = minimal_module();
+    let bare_description = describe(&bare, &empty_selection());
+    let bare_verified = verify(&bare_description, &request_for(&bare, BTreeSet::new()))
+        .expect("bare component verifies");
+    assert_eq!(
+        bare_verified.realizes_selected_plan(&selected_plan()),
+        Err(IndependentRealizationMismatch::MissingRealization {
+            requirement_identity: "IndexedRequirement::apply".into(),
+        })
     );
 }
 
