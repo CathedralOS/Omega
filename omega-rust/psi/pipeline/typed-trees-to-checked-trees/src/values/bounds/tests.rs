@@ -399,6 +399,63 @@ fn casts_meet_flow_bounds_with_their_exact_destination_contract() {
 }
 
 #[test]
+fn byte_length_uses_the_carrier_snapshot_or_keeps_u64_carrier_bounds() {
+    let expression = CheckedScalarExpression::StructuralParameterByteLength {
+        parameter_position: 0,
+        path: vec![CheckedStructuralPredicatePathSegment::Field("out".into())],
+    };
+    // A source with no whole-carrier snapshot keeps the full `u64` carrier.
+    assert_eq!(
+        evaluate(&expression, &mut Bounds(Vec::new())),
+        Some(range(0, i128::from(u64::MAX)))
+    );
+
+    struct CarrierLength(IntegerRange);
+    impl IntegerBoundsSource for CarrierLength {
+        fn binding(&mut self, _: usize, _: PrimitiveType) -> Option<IntegerRange> {
+            None
+        }
+        fn storage(&mut self, _: SymbolHandle, _: PrimitiveType) -> Option<IntegerRange> {
+            None
+        }
+        fn structural_field(
+            &mut self,
+            _: u32,
+            _: &[CheckedStructuralPredicatePathSegment],
+        ) -> Option<IntegerRange> {
+            None
+        }
+        fn indexed_field(
+            &mut self,
+            _: u32,
+            _: &[CheckedStructuralPredicatePathSegment],
+            _: Option<&IntegerRange>,
+        ) -> Option<IntegerRange> {
+            None
+        }
+        fn byte_length(
+            &mut self,
+            _: u32,
+            _: &[CheckedStructuralPredicatePathSegment],
+        ) -> Option<IntegerRange> {
+            Some(self.0.clone())
+        }
+    }
+    assert_eq!(
+        evaluate(&expression, &mut CarrierLength(range(3, 3))),
+        Some(range(3, 3))
+    );
+    // A snapshot interval outside the `u64` carrier cannot denote a length.
+    assert_eq!(
+        evaluate(
+            &expression,
+            &mut CarrierLength(range(i128::from(u64::MAX), i128::from(u64::MAX) + 1))
+        ),
+        None
+    );
+}
+
+#[test]
 fn selected_operand_carriers_and_unserved_operations_cannot_supply_bounds() {
     let mut expression = operation(CheckedIntegerBinaryKind::ExactAdd, PrimitiveType::U8);
     let CheckedScalarExpression::IntegerBinary { right, .. } = &mut expression else {

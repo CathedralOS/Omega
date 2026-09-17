@@ -145,6 +145,21 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
     ) -> Option<IntegerRange> {
         let (place, reference, frozen) = self.field(position, path)?;
         self.bounds(&place).or_else(|| {
+            // A constant index below a byte carrier is the same read the
+            // dynamic indexed plan serves: when no snapshot sits at the
+            // indexed place itself, a live whole-carrier literal supplies the
+            // element. Static capacity and later writes never substitute.
+            if let Some((CheckedStructuralPredicatePathSegment::FixedIndex(index), parent)) =
+                path.split_last()
+            {
+                let index = IntegerRange {
+                    minimum: BigInt::from_u64(*index),
+                    maximum: BigInt::from_u64(*index),
+                };
+                if let Some(bounds) = self.indexed_field(position, parent, Some(&index)) {
+                    return Some(bounds);
+                }
+            }
             // An exact typed structural field keeps its declared storage
             // invariant when no narrower value snapshot is live, then its
             // complete carrier. Mutable storage can be reborrowed through a
@@ -159,6 +174,38 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
             }
             .or_else(|| primitive_range(primitive_type))
         })
+    }
+
+    fn byte_length(
+        &mut self,
+        position: u32,
+        path: &[CheckedStructuralPredicatePathSegment],
+    ) -> Option<IntegerRange> {
+        let length = self.field(position, path).and_then(|(place, _, _)| {
+            let literal = crate::values::literal_at_place(
+                self.program,
+                self.semantic,
+                self.contexts
+                    .iter()
+                    .map(|context| self.semantic.contexts.get(*context)),
+                &place,
+            )?;
+            let ExpressionNode::String(bytes) = self.program.expression_table.expression(literal)
+            else {
+                return None;
+            };
+            u64::try_from(bytes.len()).ok().map(BigInt::from_u64)
+        });
+        // A completed whole-carrier literal is the live length snapshot: it
+        // names neither static capacity nor a declared bound, and storage
+        // invalidation retires it under the same writes as the carrier's
+        // value. Any weaker observation keeps the `u64` carrier bounds.
+        length
+            .map(|length| IntegerRange {
+                minimum: length.clone(),
+                maximum: length,
+            })
+            .or_else(|| primitive_range(PrimitiveType::U64))
     }
 
     fn indexed_field(

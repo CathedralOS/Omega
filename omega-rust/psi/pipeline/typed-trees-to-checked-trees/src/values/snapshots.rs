@@ -76,6 +76,17 @@ pub(crate) fn scalar_value_at_place<'a>(
                     _ => None,
                 }
             }
+            // A singleton interval is the completed observation itself: the
+            // captured bounds assert the place held exactly this endpoint at
+            // the fact's program point. A wider interval remains evidence
+            // against an exact read and still blocks it.
+            FactPayload::AssignedIntegerBounds { bounds }
+                if semantic.integer_ranges.is_valid(bounds) =>
+            {
+                let bounds = semantic.integer_ranges.get(bounds);
+                (bounds.minimum == bounds.maximum)
+                    .then(|| ScalarValue::Integer(bounds.minimum.clone()))
+            }
             _ => None,
         }?;
         if retained
@@ -343,6 +354,82 @@ mod tests {
             assert_eq!(
                 range.map(|range| (range.minimum.to_u64(), range.maximum.to_u64())),
                 (!corrupt).then_some((Some(65), Some(80)))
+            );
+        }
+    }
+
+    #[test]
+    fn singleton_bounds_are_the_completed_scalar_observation() {
+        let program = TypedTrees::default();
+        let symbol = symbols::SymbolHandle::from_arena_index(1);
+        let subject = canonical_place_from_symbol(symbol).expect("symbol place");
+        let integer = |value: u64| ScalarValue::Integer(numerics::bignum::BigInt::from_u64(value));
+        for (endpoints, expected) in [((7, 7), Some(integer(7))), ((7, 8), None), ((8, 7), None)] {
+            let mut semantic = FactPlan::default();
+            let place = semantic.append_symbol_place(symbol);
+            let mut references = Default::default();
+            let bounds = semantic.integer_ranges.append(facts::IntegerRange {
+                minimum: numerics::bignum::BigInt::from_u64(endpoints.0),
+                maximum: numerics::bignum::BigInt::from_u64(endpoints.1),
+            });
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point: ProgramPoint::default(),
+                origin: FactOrigin::StatementTransfer,
+                evidence: Default::default(),
+                payload: FactPayload::AssignedIntegerBounds { bounds },
+            });
+            semantic.append_ref(&mut references, fact);
+            let context = semantic.append_context(ProgramPoint::default(), references);
+            assert_eq!(
+                scalar_value_at_place(
+                    &program,
+                    &semantic,
+                    [semantic.contexts.get(context)],
+                    &subject
+                ),
+                expected,
+                "{endpoints:?}"
+            );
+        }
+
+        // A bounds-precision snapshot must agree with any scalar observation
+        // of the same place; conflicting singletons keep blocking the read.
+        for (other, accepted) in [(integer(7), true), (integer(8), false)] {
+            let mut semantic = FactPlan::default();
+            let place = semantic.append_symbol_place(symbol);
+            let mut references = Default::default();
+            let value = semantic.scalar_values.append(other);
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point: ProgramPoint::default(),
+                origin: FactOrigin::StatementTransfer,
+                evidence: Default::default(),
+                payload: FactPayload::AssignedScalarValue { value },
+            });
+            semantic.append_ref(&mut references, fact);
+            let bounds = semantic.integer_ranges.append(facts::IntegerRange {
+                minimum: numerics::bignum::BigInt::from_u64(7),
+                maximum: numerics::bignum::BigInt::from_u64(7),
+            });
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point: ProgramPoint::default(),
+                origin: FactOrigin::StatementTransfer,
+                evidence: Default::default(),
+                payload: FactPayload::AssignedIntegerBounds { bounds },
+            });
+            semantic.append_ref(&mut references, fact);
+            let context = semantic.append_context(ProgramPoint::default(), references);
+            assert_eq!(
+                scalar_value_at_place(
+                    &program,
+                    &semantic,
+                    [semantic.contexts.get(context)],
+                    &subject
+                )
+                .is_some(),
+                accepted
             );
         }
     }

@@ -1019,6 +1019,130 @@ fn checked_scalar_plan_retains_guard_proved_exact_left_shift() {
     );
 }
 
+/// The value captured on `observed` at `done`'s entry, read straight from the
+/// semantic contexts appended for that state point.
+#[cfg(test)]
+fn entry_scalar_values(
+    checked: &checked_trees::CheckedTrees,
+    state_name: &str,
+    parameter_name: &str,
+) -> Vec<facts::ScalarValue> {
+    let machine = &checked.machines()[0];
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .find(|state| checked.symbols.name(state.symbol) == state_name)
+        .unwrap_or_else(|| panic!("state {state_name}"));
+    let parameter = checked
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| !parameter.is_self && parameter.name.as_str() == parameter_name)
+        .unwrap_or_else(|| panic!("parameter {parameter_name}"));
+    let semantic = &checked.facts.semantic;
+    semantic
+        .contexts
+        .iter()
+        .filter(|(_, context)| {
+            context.point
+                == facts::ProgramPoint::State {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                }
+        })
+        .flat_map(|(_, context)| {
+            semantic.context_view(context).facts().filter_map(|fact| {
+                let facts::FactPayload::AssignedScalarValue { value } = fact.payload else {
+                    return None;
+                };
+                let facts::FactPlace::Place(place) = fact.place else {
+                    return None;
+                };
+                (semantic.places.get(place).root == facts::PlaceRoot::Symbol(parameter.symbol))
+                    .then(|| semantic.scalar_values.get(value).clone())
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn saved_argument_reads_a_bounds_precision_snapshot() {
+    // `self.out[0]` captures only the bounds-precision snapshot [88, 88] on
+    // `byte`: the indexed-read plan keeps bounds, not an exact scalar. The
+    // transition argument must still read that exact observation back.
+    let checked = lower_typed_trees(typed_trees(
+        r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record { out: [u8;3] in Utf8; }
+        machine Record::measure(&mut self) {
+            self.out = "XXX";
+            let byte: u8 = self.out[0];
+            transition { _ -> done(byte) }
+            state done(&mut self, observed: u8) {}
+        }
+    "#,
+    ))
+    .expect("indexed read checks");
+    assert!(
+        entry_scalar_values(&checked, "done", "observed").contains(&facts::ScalarValue::Integer(
+            numerics::bignum::BigInt::from_u64(88)
+        )),
+        "a singleton bounds snapshot is the completed entry observation"
+    );
+}
+
+#[test]
+fn byte_carrier_live_length_reaches_the_saved_state_argument() {
+    // `self.out.len` is the live length of a bounded byte carrier: an exact
+    // u64 observation of the caller's "XXX" entry snapshot, not a carrier-wide
+    // u64 guess.
+    let checked = lower_typed_trees(typed_trees(
+        r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record { out: [u8;3] in Utf8; }
+        machine Record::measure(&mut self) {
+            self.out = "XXX";
+            let n: u64 = self.out.len;
+            transition { _ -> done(n) }
+            state done(&mut self, count: u64) {}
+        }
+    "#,
+    ))
+    .expect("live length checks");
+    assert!(
+        entry_scalar_values(&checked, "done", "count").contains(&facts::ScalarValue::Integer(
+            numerics::bignum::BigInt::from_u64(3)
+        )),
+        "the literal byte carrier's live length must reach the saved argument"
+    );
+}
+
+#[test]
+fn retired_byte_carrier_literal_supplies_no_live_length() {
+    // The element write retires the whole-carrier literal before the `.len`
+    // read, so neither the retired snapshot nor the static capacity may
+    // stand in as the live length at the saved argument.
+    let checked = lower_typed_trees(typed_trees(
+        r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record { out: [u8;3] in Utf8; }
+        machine Record::measure(&mut self) {
+            self.out = "XXX";
+            self.out[0] = 90;
+            let n: u64 = self.out.len;
+            transition { _ -> done(n) }
+            state done(&mut self, count: u64) {}
+        }
+    "#,
+    ))
+    .expect("retired carrier checks");
+    assert!(
+        entry_scalar_values(&checked, "done", "count")
+            .iter()
+            .all(|value| !matches!(value, facts::ScalarValue::Integer(_))),
+        "a retired byte-carrier snapshot must not supply a live length"
+    );
+}
+
 fn typed_trees(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

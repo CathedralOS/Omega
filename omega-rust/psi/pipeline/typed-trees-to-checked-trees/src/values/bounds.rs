@@ -31,6 +31,16 @@ pub(crate) trait IntegerBoundsSource {
         path: &[CheckedStructuralPredicatePathSegment],
         index: Option<&IntegerRange>,
     ) -> Option<IntegerRange>;
+    /// The live byte length of a resolved structural byte carrier. Only a
+    /// completed whole-carrier snapshot supplies it; a source with no such
+    /// snapshot keeps the full `u64` carrier, which bounds every length.
+    fn byte_length(
+        &mut self,
+        _position: u32,
+        _path: &[CheckedStructuralPredicatePathSegment],
+    ) -> Option<IntegerRange> {
+        primitive_range(PrimitiveType::U64)
+    }
 }
 
 pub(crate) fn evaluate(
@@ -46,9 +56,13 @@ fn integer(
 ) -> Option<(PrimitiveType, IntegerRange)> {
     use CheckedScalarExpression as Expression;
     let (primitive, bounds) = match expression {
-        Expression::StructuralParameterByteLength { .. } => {
-            (PrimitiveType::U64, primitive_range(PrimitiveType::U64)?)
-        }
+        Expression::StructuralParameterByteLength {
+            parameter_position,
+            path,
+        } => (
+            PrimitiveType::U64,
+            source.byte_length(*parameter_position, path)?,
+        ),
         Expression::Parameter {
             position,
             primitive_type,
