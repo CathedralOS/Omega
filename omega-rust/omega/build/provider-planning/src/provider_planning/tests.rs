@@ -47,7 +47,7 @@ fn normalized_machine_identity(typed: &TypedTrees, name: &str) -> String {
         .identity()
 }
 
-fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
+fn typed_fixture(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("tokenize provider fixture");
@@ -57,8 +57,28 @@ fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
     )
     .expect("resolve provider fixture");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type provider fixture");
+    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type provider fixture")
+}
+
+fn operator_symbol_at_path(typed: &TypedTrees, path: &str) -> symbols::SymbolHandle {
+    typed
+        .operators()
+        .iter()
+        .find(|operator| {
+            typed
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+                == path
+        })
+        .unwrap_or_else(|| panic!("missing typed operator `{path}`"))
+        .symbol
+}
+fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
+    let typed = typed_fixture(source);
     let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
         .into_iter()
         .map(|derived| derived.plan)
