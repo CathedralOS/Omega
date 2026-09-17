@@ -231,18 +231,46 @@ fn plain_local_owner_selection(
                     .iter()
                     .all(|arm| plain_local_owner_selection(program, machine, state, arm.value))
         }
-        ExpressionNode::StructLiteral(_) => {
-            declared_value_type(program, machine, state, expression)
-                .is_some_and(|reference| crate::has_plain_owned_contents(program, reference))
-                && !result_needs_custody_join(program, machine, state, expression)
+        ExpressionNode::StructLiteral(literal) => {
+            let Some(reference) = declared_value_type(program, machine, state, expression) else {
+                return false;
+            };
+            if crate::has_plain_owned_contents(program, reference) {
+                return !result_needs_custody_join(program, machine, state, expression);
+            }
+            // A fresh linear construction establishes its own claim at the
+            // destination on that edge only; its fields must carry no custody
+            // join of their own.
+            program.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
+                && crate::has_linear_owned_contents(program, reference)
+                && program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .all(|field| !result_needs_custody_join(program, machine, state, field.value))
         }
         ExpressionNode::Name(path) => {
             let Some(reference) = declared_value_type(program, machine, state, expression) else {
                 return false;
             };
-            program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
-                && crate::plain_owned_value_source(program, expression, reference) == Some(path.symbol)
-                && crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+            // A whole linear local or parameter joins the same way a plain
+            // affine source does; the multiplicity pass, not this predicate,
+            // enforces that the identical place moves on every reachable arm.
+            let admitted_source = match program.type_multiplicity(reference) {
+                language_semantics::Multiplicity::Affine => {
+                    crate::plain_owned_value_source(program, expression, reference)
+                        == Some(path.symbol)
+                        && crate::has_plain_owned_contents_with_numeric_constraints(
+                            program, reference,
+                        )
+                }
+                language_semantics::Multiplicity::Linear => {
+                    crate::linear_owned_value_source(program, expression, reference)
+                        == Some(path.symbol)
+                }
+                _ => false,
+            };
+            admitted_source
                 && (program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
                     matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
                         if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
@@ -259,21 +287,95 @@ fn plain_local_owner_selection(
         // plain-local transfer at a projected boundary: the root carries the
         // ownership event while the untouched residual siblings die on the
         // selected edge. Multiplicity checking replays the exact root, path,
-        // and type from the owned-selection transfer evidence.
+        // and type from the owned-selection transfer evidence. A linear child
+        // follows the same route except its residual claims stay live; the
+        // uniform-consumption rule keeps the join's frontier identical on
+        // every edge.
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             projected_plain_owned_source(program, machine, state, expression)
+                || projected_linear_owned_source(program, machine, state, expression)
         }
         // A call's structural product is a fresh independently-owned arm
         // value: its declared return type carries the plain-affine custody the
         // selection join consumes at the destination. Any owned input the
         // call would move stays rejected by the branch-local transfer check
-        // above and by owned-selection receipt construction.
+        // above and by owned-selection receipt construction. A linear product
+        // is equally fresh at the result boundary.
         ExpressionNode::Call(_) => declared_value_type(program, machine, state, expression)
             .is_some_and(|reference| {
-                program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
-                    && crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+                (program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
+                    && crate::has_plain_owned_contents_with_numeric_constraints(program, reference))
+                    || (program.type_multiplicity(reference)
+                        == language_semantics::Multiplicity::Linear
+                        && crate::has_linear_owned_contents(program, reference))
             }),
         _ => false,
+    }
+}
+
+/// Walk an exact projection chain to its whole local root when the leaf is a
+/// linear claim. The root must stay affine: a linear root keeps its claim at
+/// the whole place, which a projected path cannot split. Residual linear
+/// siblings stay live on every edge, so their contents still satisfy the
+/// linear-tolerant carrier rule rather than plain-owned storage.
+fn projected_linear_owned_source(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(reference) = declared_value_type(program, machine, state, expression) else {
+        return false;
+    };
+    if program.type_multiplicity(reference) != language_semantics::Multiplicity::Linear
+        || !crate::has_linear_owned_contents(program, reference)
+    {
+        return false;
+    }
+    let mut cursor = expression;
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                if !matches!(
+                    program.expression_table.expression(indexed.index),
+                    ExpressionNode::Integer(_)
+                ) {
+                    return false;
+                }
+                cursor = indexed.collection;
+            }
+            ExpressionNode::Name(path) => {
+                let Some(root_reference) = declared_value_type(program, machine, state, cursor)
+                else {
+                    return false;
+                };
+                return program.type_multiplicity(root_reference)
+                    == language_semantics::Multiplicity::Affine
+                    && crate::has_linear_owned_contents(program, root_reference)
+                    && crate::value_custody::owned_value_source::whole_owned_value_source(
+                        program,
+                        cursor,
+                        root_reference,
+                    ) == Some(path.symbol)
+                    && (program.statement_table.statements(state.statement_nodes).iter().any(
+                        |statement| {
+                            matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
+                                if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
+                        },
+                    ) || program.state_parameters(state).iter().any(|parameter| {
+                        parameter.symbol == path.symbol
+                            && !parameter.is_self
+                            && !parameter.is_const
+                            && !parameter.is_mutable
+                    }));
+            }
+            // A call's structural product is a temporary: an affine residual
+            // may die with it, but a linear residual sibling has no named
+            // place to preserve its claim, so no projected linear child may
+            // leave a temporary root.
+            _ => return false,
+        }
     }
 }
 

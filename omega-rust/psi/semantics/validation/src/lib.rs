@@ -30,7 +30,7 @@ pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
 };
 pub use proof_contracts::domains::{scalar_state_contracts_are_qualifications, scalar_type_tags};
-pub use value_custody::owned_value_source::plain_owned_value_source;
+pub use value_custody::owned_value_source::{linear_owned_value_source, plain_owned_value_source};
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::record_local_disposition::record_local_disposition;
 pub use value_custody::scalar_case_constructor::{
@@ -39,8 +39,9 @@ pub use value_custody::scalar_case_constructor::{
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::storage_contents::{
-    has_plain_owned_contents, has_plain_owned_contents_with_numeric_constraints,
-    has_plain_owned_contents_with_substitutions, has_stable_observable_contents,
+    has_linear_owned_contents, has_plain_owned_contents,
+    has_plain_owned_contents_with_numeric_constraints, has_plain_owned_contents_with_substitutions,
+    has_stable_observable_contents,
 };
 
 pub use value_custody::locals::receiver_allows_mutation;

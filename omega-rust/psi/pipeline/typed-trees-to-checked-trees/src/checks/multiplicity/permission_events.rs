@@ -194,11 +194,8 @@ pub(crate) fn record_permission_events_with_incoming_guards(
     }
 
     append_borrow_permission_events(facts, &mut permission_events, &mut claim_identities);
-    let claim_outcome_maps = reconcile_state_call_result_origins(
-        program,
-        &facts.flow.ownership.segments,
-        &mut permission_events,
-    );
+    let claim_outcome_maps =
+        reconcile_state_call_result_origins(program, &facts.flow.ownership, &mut permission_events);
 
     facts.flow.ownership.permissions = arena::Arena::default();
     facts
@@ -276,7 +273,12 @@ fn record_crash_frontier_lower_bounds(
                 .ownership
                 .owned_selection_at(state.symbol, statement_index as u32)
             {
-                owned_selection::apply_availability(&facts.flow.ownership, receipt, &mut places);
+                owned_selection::apply_availability(
+                    program,
+                    &facts.flow.ownership,
+                    receipt,
+                    &mut places,
+                );
                 continue;
             }
             apply_recorded_statement_events(
@@ -671,21 +673,22 @@ pub(crate) fn exclude_case_alternative(
 /// calls remain conservative until they publish an explicit result mapping.
 fn reconcile_state_call_result_origins(
     program: &typed_trees::TypedTrees,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &mut [FlowPermissionEventFact],
 ) -> Vec<CheckedClaimOutcomeMap> {
+    let segments = &ownership.segments;
     let iteration_limit = permission_events.len().saturating_add(1);
     for _ in 0..iteration_limit {
-        let maps = derive_checked_claim_outcome_maps(program, segments, permission_events);
+        let maps = derive_checked_claim_outcome_maps(program, ownership, permission_events);
         let rewrites = call_result_origin_rewrites(program, segments, permission_events, &maps);
         let origins_changed = apply_claim_origin_rewrites(permission_events, &rewrites);
         let liveness_changed =
             apply_statically_inactive_call_results(program, segments, permission_events, &maps);
         if !origins_changed && !liveness_changed {
-            return derive_checked_claim_outcome_maps(program, segments, permission_events);
+            return derive_checked_claim_outcome_maps(program, ownership, permission_events);
         }
     }
-    derive_checked_claim_outcome_maps(program, segments, permission_events)
+    derive_checked_claim_outcome_maps(program, ownership, permission_events)
 }
 
 fn apply_statically_inactive_call_results(

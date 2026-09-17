@@ -14,6 +14,32 @@ pub fn plain_owned_value_source(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
+    whole_owned_value_source(program, expression, reference)
+        .filter(|_| crate::has_plain_owned_contents(program, reference))
+}
+
+/// The same whole-place resolution for a linear carrier: the named storage is
+/// the whole value, and the caller's claim accounting (not this predicate)
+/// decides whether the move is available on every path that needs it.
+pub fn linear_owned_value_source(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    whole_owned_value_source(program, expression, reference).filter(|_| {
+        program.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
+            && crate::has_linear_owned_contents(program, reference)
+    })
+}
+
+/// A whole local or parameter name whose declared type is exactly `reference`.
+/// Contents and multiplicity remain the caller's question: a shared borrow,
+/// a linear claim, and a plain affine value all resolve to the same place.
+pub(crate) fn whole_owned_value_source(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -27,7 +53,6 @@ pub fn plain_owned_value_source(
             program.symbols.get(path.symbol).kind,
             SymbolKind::Local | SymbolKind::Parameter
         )
-        || !crate::has_plain_owned_contents(program, reference)
     {
         return None;
     }

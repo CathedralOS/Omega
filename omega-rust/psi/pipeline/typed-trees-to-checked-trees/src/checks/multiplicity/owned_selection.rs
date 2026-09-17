@@ -42,19 +42,43 @@ pub(super) fn record_statement(
             receipt.state == state.symbol && (receipt.statement_ordinal as usize) < statement_index
         })
     {
+        // A linear join consumes one exact claim place, named on every
+        // transfer; the rest of the source root's frontier is residual
+        // custody that stays live and consumable. Only a use reaching the
+        // consumed claim (or a place containing it) sees a dead place.
+        let linear_receipt =
+            program.type_multiplicity(receipt.type_reference) == Multiplicity::Linear;
         for source in facts
             .flow
             .ownership
             .selection_sources
             .span_or_empty(receipt.sources)
         {
-            if expressions
-                .iter()
-                .any(|expression| names_symbol(program, *expression, source.symbol))
-                || matches!(statement, StatementNode::Call(call) if call.receiver_root_symbol == source.symbol)
-            {
+            if !linear_receipt {
+                if expressions
+                    .iter()
+                    .any(|expression| names_symbol(program, *expression, source.symbol))
+                    || matches!(statement, StatementNode::Call(call) if call.receiver_root_symbol == source.symbol)
+                {
+                    return Err(Diagnostic::error(
+                        "owned value may have been transferred by an earlier match; it cannot be used here",
+                    ));
+                }
+                continue;
+            }
+            if linear_source_use_conflicts(
+                program,
+                facts,
+                machine,
+                state,
+                statement_index,
+                statement,
+                &expressions,
+                receipt,
+                source.symbol,
+            ) {
                 return Err(Diagnostic::error(
-                    "owned value may have been transferred by an earlier match; it cannot be used here",
+                    "linear match transfer consumed this exact claim on every edge; it cannot be used here",
                 ));
             }
         }
@@ -82,10 +106,17 @@ pub(super) fn record_statement(
         }
         _ => return Err(unsupported()),
     };
-    if !selected.contains(&expression)
-        || !validation::has_plain_owned_contents_with_numeric_constraints(program, type_reference)
-        || program.type_multiplicity(type_reference) != Multiplicity::Affine
-    {
+    let linear_result = program.type_multiplicity(type_reference) == Multiplicity::Linear;
+    let destination_ok = if linear_result {
+        validation::has_linear_owned_contents(program, type_reference)
+    } else {
+        program.type_multiplicity(type_reference) == Multiplicity::Affine
+            && validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                type_reference,
+            )
+    };
+    if !selected.contains(&expression) || !destination_ok {
         return Err(unsupported());
     }
     // The source destination owns one carrier on every selected path. Nested
@@ -103,6 +134,33 @@ pub(super) fn record_statement(
     )?;
     if leaves.is_empty() {
         return Err(unsupported());
+    }
+    // A linear join may not drop custody: every predecessor edge must agree on
+    // the live ownership frontier, so every reachable arm has to move the same
+    // tracked place into the result. Distinct sources, a source on only some
+    // arms, or different projected paths under one root leave an obligation
+    // live on one edge and dead on another, which the join cannot reconcile.
+    // Fresh per-edge products carry no tracked place and join vacuously.
+    if linear_result {
+        let terminals = terminal_arm_values(program, expression);
+        let mut consumed: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> = Vec::new();
+        let mut symbol_leaves = 0usize;
+        for (_, _, root, path) in &leaves {
+            let facts::PlaceRoot::Symbol(symbol) = root else {
+                continue;
+            };
+            symbol_leaves += 1;
+            if !consumed.iter().any(|(candidate, candidate_path)| {
+                *candidate == *symbol && *candidate_path == *path
+            }) {
+                consumed.push((*symbol, path.clone()));
+            }
+        }
+        if consumed.len() > 1 || (!consumed.is_empty() && symbol_leaves != terminals) {
+            return Err(Diagnostic::error(
+                "linear match custody requires every reachable arm to move the same live source place; a distinct source, a fresh arm, or a different projected path leaves an obligation live on only some edges",
+            ));
+        }
     }
     let mut sources = Vec::new();
     for (_, _, root, _) in &leaves {
@@ -178,21 +236,37 @@ pub(super) fn record_statement(
                 origin_selection,
             )
         };
+        // The roster still roots at the whole place symbol, but a linear
+        // selection consumes the exact claim path the uniform leaves name: a
+        // whole source moves its root claim while a projected leaf moves the
+        // child claim and leaves the residual frontier live on every edge.
+        let consumed_path: &[facts::PlaceSegment] = if linear_result {
+            leaves
+                .iter()
+                .find_map(|(_, _, leaf_root, path)| {
+                    (*leaf_root == facts::PlaceRoot::Symbol(symbol)).then_some(path.as_slice())
+                })
+                .unwrap_or(&[])
+        } else {
+            &[]
+        };
         let place = places
             .iter()
-            .find(|place| place.symbol == symbol && place.path.is_empty())
+            .find(|place| place.symbol == symbol && place.path == consumed_path)
             .ok_or_else(unsupported)?;
-        if !place.live
-            || !place.ever_established
-            || place.multiplicity != Multiplicity::Affine
-            || place.conditional
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                source_reference,
-            )
-        {
+        let source_ok = if linear_result {
+            place.multiplicity == Multiplicity::Linear
+                && validation::has_linear_owned_contents(program, source_reference)
+        } else {
+            place.multiplicity == Multiplicity::Affine
+                && validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    source_reference,
+                )
+        };
+        if !place.live || !place.ever_established || !source_ok || place.conditional {
             return Err(Diagnostic::error(
-                "owned match source must be an available whole immutable plain-affine local of the exact result type",
+                "owned match source must be an available immutable owned local or parameter claim of the exact result type",
             ));
         }
         // A whole-leaf source is selected at its root boundary, so its local
@@ -304,12 +378,13 @@ pub(super) fn record_statement(
         transfers,
         death: PermissionEventSource::StateExit,
     };
-    apply_availability(&facts.flow.ownership, &receipt, places);
+    apply_availability(program, &facts.flow.ownership, &receipt, places);
     facts.flow.ownership.owned_selections.append(receipt);
     Ok(true)
 }
 
 pub(super) fn apply_availability(
+    program: &typed_trees::TypedTrees,
     ownership: &checked_trees::FlowOwnershipFacts,
     receipt: &FlowOwnedSelectionReceipt,
     places: &mut [LinearPlace],
@@ -324,15 +399,177 @@ pub(super) fn apply_availability(
             place.live = false;
         }
     }
+    // A linear receipt's transfers name the exact consumed claim on each edge.
+    // Uniform selection means that claim is gone on every path, so the precise
+    // `(symbol, path)` place is dead even when the source root survives as
+    // residual custody — the affine root lookup above only covers whole-place
+    // sources.
+    for transfer in ownership
+        .selection_transfers
+        .span_or_empty(receipt.transfers)
+    {
+        if !transfer.source.is_valid() {
+            continue;
+        }
+        let source = ownership.selection_sources.get(transfer.source);
+        let path = ownership.segments.span_or_empty(transfer.path);
+        if let Some(place) = places
+            .iter_mut()
+            .find(|place| place.symbol == source.symbol && place.path == path)
+        {
+            place.live = false;
+        }
+    }
+    // A linear join whose edges all move the same consumed claim hands that
+    // claim itself to the destination: its identity and provenance survive
+    // the transfer. A fresh-per-edge product leaves both edge-dependent.
+    let inherited = (program.type_multiplicity(receipt.type_reference) == Multiplicity::Linear)
+        .then(|| {
+            ownership
+                .selection_transfers
+                .span_or_empty(receipt.transfers)
+                .iter()
+                .find_map(|transfer| {
+                    if !transfer.source.is_valid() {
+                        return None;
+                    }
+                    let source = ownership.selection_sources.get(transfer.source);
+                    let path = ownership.segments.span_or_empty(transfer.path);
+                    places
+                        .iter()
+                        .find(|place| place.symbol == source.symbol && place.path == path)
+                        .map(|place| (place.claim_identity, place.provenance))
+                })
+        })
+        .flatten();
     if let Some(place) = places
         .iter_mut()
         .find(|place| place.symbol == receipt.destination && place.path.is_empty())
     {
         place.live = true;
         place.ever_established = true;
-        place.provenance = Some(PermissionProvenance::Unknown);
-        place.claim_identity = Some(PermissionClaimIdentity::Unknown);
+        place.provenance = Some(
+            inherited
+                .and_then(|(_, provenance)| provenance)
+                .unwrap_or(PermissionProvenance::Unknown),
+        );
+        place.claim_identity = Some(
+            inherited
+                .and_then(|(identity, _)| identity)
+                .unwrap_or(PermissionClaimIdentity::Unknown),
+        );
     }
+}
+
+/// Whether a statement touches a claim an earlier linear selection already
+/// consumed on every edge. The consumed place is the roster source plus the
+/// exact transfer path; residual siblings of the source root stay live and
+/// consumable, so only overlapping maximal use paths conflict. An
+/// unresolvable call receiver conservatively counts as a whole-source use.
+#[allow(clippy::too_many_arguments)]
+fn linear_source_use_conflicts(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &StatementNode,
+    expressions: &[ExpressionHandle],
+    receipt: &FlowOwnedSelectionReceipt,
+    source_symbol: SymbolHandle,
+) -> bool {
+    let consumed_paths = facts
+        .flow
+        .ownership
+        .selection_transfers
+        .span_or_empty(receipt.transfers)
+        .iter()
+        .filter(|transfer| transfer.source.is_valid())
+        .filter(|transfer| {
+            facts
+                .flow
+                .ownership
+                .selection_sources
+                .get(transfer.source)
+                .symbol
+                == source_symbol
+        })
+        .map(|transfer| {
+            facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(transfer.path)
+                .to_vec()
+        })
+        .collect::<Vec<_>>();
+    if consumed_paths.is_empty() {
+        return false;
+    }
+    let mut used_paths: Vec<Vec<facts::PlaceSegment>> = expressions
+        .iter()
+        .filter_map(|expression| {
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                *expression,
+            )
+        })
+        .filter(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
+        .map(|place| place.segments)
+        .collect();
+    if let StatementNode::Call(call) = statement
+        && call.receiver_root_symbol == source_symbol
+    {
+        match crate::flow::canonical_receiver_place_for_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            &crate::semantic_calls::CallSite::Statement(call),
+        ) {
+            Some(place) if place.root == facts::PlaceRoot::Symbol(source_symbol) => {
+                used_paths.push(place.segments)
+            }
+            _ => return true,
+        }
+    }
+    // The inner `Name` nodes of a projection are strict prefixes of the
+    // outermost use; keep only maximal touched paths so reading a residual
+    // sibling does not count as using the consumed whole.
+    let used_paths: Vec<Vec<facts::PlaceSegment>> = used_paths
+        .iter()
+        .filter(|path| {
+            !used_paths
+                .iter()
+                .any(|other| other.len() > path.len() && other.starts_with(path.as_slice()))
+        })
+        .cloned()
+        .collect();
+    used_paths.iter().any(|used| {
+        consumed_paths
+            .iter()
+            .any(|consumed| place_paths_overlap(used, consumed))
+    })
+}
+
+/// Two canonical paths overlap when one reaches inside the other or both
+/// name the same place; a dynamic index cannot be statically excluded from a
+/// fixed element claim, so it conflicts on the element axis.
+pub(super) fn place_paths_overlap(
+    used: &[facts::PlaceSegment],
+    consumed: &[facts::PlaceSegment],
+) -> bool {
+    used.iter().zip(consumed.iter()).all(|(used, consumed)| {
+        used == consumed
+            || (matches!(used, facts::PlaceSegment::Index { .. })
+                && matches!(
+                    consumed,
+                    facts::PlaceSegment::FixedIndex { .. }
+                        | facts::PlaceSegment::Index { .. }
+                        | facts::PlaceSegment::FixedRange { .. }
+                ))
+    })
 }
 
 /// Whether an owned match source still owes loan-closure evidence: either a
@@ -394,7 +631,7 @@ fn source_needs_loan_closure(
 
 fn unsupported() -> Diagnostic {
     Diagnostic::error(
-        "owned match requires one existing whole plain-affine local per path and an immutable local or return destination; projections, calls and borrowed/linear custody require additional ownership evidence",
+        "owned match requires one existing whole plain-affine or linear-owned local per path and an immutable local or return destination; projections, calls and borrowed custody require additional ownership evidence",
     )
 }
 
@@ -413,8 +650,12 @@ fn has_owned_leaf(
             validation::expression_result_type_reference(program, machine, state, expression)
                 .is_some_and(|reference| {
                     program.type_multiplicity(reference) != Multiplicity::Unrestricted
-                        && validation::plain_owned_value_source(program, expression, reference)
+                        && (validation::plain_owned_value_source(program, expression, reference)
                             .is_some()
+                            || validation::linear_owned_value_source(
+                                program, expression, reference,
+                            )
+                            .is_some())
                 })
         }
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
@@ -481,7 +722,39 @@ fn projected_leaf_source(
             ) => {}
         _ => return None,
     }
-    let plain_affine = |segments: &[facts::PlaceSegment]| {
+    // The leaf admits either an affine plain-owned child (the original rule)
+    // or a linear child under an affine root: the moved claim then keeps its
+    // exact path while the root's residual frontier stays live on every edge.
+    // A linear root would put the claim at the whole place, which a projected
+    // path cannot split, so the root itself must be affine.
+    let leaf_reference = crate::flow::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement_index,
+        &place,
+    )?;
+    let leaf_multiplicity = type_multiplicity(program, leaf_reference);
+    if !matches!(
+        leaf_multiplicity,
+        Multiplicity::Affine | Multiplicity::Linear
+    ) {
+        return None;
+    }
+    let linear_leaf = leaf_multiplicity == Multiplicity::Linear;
+    // A temporary root (a call's structural product) can drop an affine
+    // residual sibling, but a linear residual has no surviving owner place;
+    // a projected linear child may only leave a named local or parameter.
+    if linear_leaf && !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+        return None;
+    }
+    let contents_ok = |type_reference| {
+        if linear_leaf {
+            validation::has_linear_owned_contents(program, type_reference)
+        } else {
+            validation::has_plain_owned_contents(program, type_reference)
+        }
+    };
+    let place_type_ok = |segments: &[facts::PlaceSegment], expected: Multiplicity| {
         crate::flow::canonical_place_type_reference(
             program,
             state.symbol,
@@ -497,11 +770,13 @@ fn projected_leaf_source(
                 TypeReferenceNode::Named { .. }
                     | TypeReferenceNode::Generic { .. }
                     | TypeReferenceNode::FixedArray { .. }
-            ) && type_multiplicity(program, type_reference) == Multiplicity::Affine
-                && validation::has_plain_owned_contents(program, type_reference)
+            ) && type_multiplicity(program, type_reference) == expected
+                && contents_ok(type_reference)
         })
     };
-    if !plain_affine(&place.segments) || !plain_affine(&[]) {
+    if !place_type_ok(&place.segments, leaf_multiplicity)
+        || !place_type_ok(&[], Multiplicity::Affine)
+    {
         return None;
     }
     // Root and every proper prefix must be owned, never a reference: moving a
@@ -540,7 +815,9 @@ fn collect_leaves(
 ) -> Result<(), Diagnostic> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) if source_arm.is_valid() => {
-            match validation::plain_owned_value_source(program, expression, type_reference) {
+            match validation::plain_owned_value_source(program, expression, type_reference).or_else(
+                || validation::linear_owned_value_source(program, expression, type_reference),
+            ) {
                 Some(symbol) => {
                     leaves.push((
                         expression,
@@ -695,7 +972,12 @@ fn fresh_leaf(
         } else {
             return Err(unsupported());
         };
-    if !validation::has_plain_owned_contents(program, reference)
+    let contents_ok = if program.type_multiplicity(type_reference) == Multiplicity::Linear {
+        validation::has_linear_owned_contents(program, reference)
+    } else {
+        validation::has_plain_owned_contents(program, reference)
+    };
+    if !contents_ok
         || program.normalized_type_identity(reference)
             != program.normalized_type_identity(type_reference)
     {
@@ -916,6 +1198,18 @@ fn expression_nodes(
         }
     }
     nodes
+}
+
+/// Count the reachable complete arm paths through nested selections: every
+/// non-`match` arm value is one edge the linear frontier must agree on.
+fn terminal_arm_values(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> usize {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => reachable_arms(program, dispatch.arms)
+            .iter()
+            .map(|(_, arm)| terminal_arm_values(program, arm.value))
+            .sum(),
+        _ => 1,
+    }
 }
 
 /// Ordered first-match reachability. The source type checker still visits all
