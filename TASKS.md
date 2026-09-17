@@ -3557,6 +3557,9 @@ Owners include
   dependency rejects its imports/provider selections; name, alias, path, or
   same-spelled declarations cannot restore it, and stale or substituted
   semantic bindings reject without relying on accepted-lock replay.
+  `repository_build_declarations.rs` pins that every wire, arithmetic, calls,
+  traits, and float pass root declares exactly the std edge its sources
+  import, with no standalone compatibility roster left.
 
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
   while keeping deployment/update policy in runtime packages or Cathedral. Componentization must

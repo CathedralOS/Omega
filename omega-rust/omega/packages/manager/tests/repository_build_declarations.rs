@@ -327,13 +327,11 @@ fn assert_mixed_canary_category_standard_library_edges(
     cases: &Path,
     expected_roots: usize,
     expected_standard_library_consumers: usize,
-    compatibility_roots: &[&str],
 ) {
     assert_mixed_canary_category_standard_library_edges_with_build_consumers(
         cases,
         expected_roots,
         expected_standard_library_consumers,
-        compatibility_roots,
         &[],
     );
 }
@@ -342,7 +340,6 @@ fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
     cases: &Path,
     expected_roots: usize,
     expected_standard_library_consumers: usize,
-    compatibility_roots: &[&str],
     build_only_standard_library_consumers: &[&str],
 ) {
     let mut roots = Vec::new();
@@ -359,25 +356,11 @@ fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
         location: "../../../../../source/library/std".to_owned(),
     };
     let mut standard_library_consumers = 0;
-    let mut retained_compatibility = Vec::new();
     for root in roots {
         let name = root
             .file_name()
             .and_then(|name| name.to_str())
             .expect("canary root name");
-        if compatibility_roots.contains(&name) {
-            let projection = extract_build_dependency_projection(&root).unwrap();
-            assert!(
-                projection.product_dependencies().is_empty(),
-                "compatibility canary {} must not claim a migrated std edge",
-                root.display()
-            );
-            let source = fs::read_to_string(root.join("main.omg")).expect("compatibility source");
-            assert!(source.contains("omega::language::std::console"));
-            assert!(!source.contains("omega_language_std"));
-            retained_compatibility.push(name.to_owned());
-            continue;
-        }
         let mut uses_dependency_alias = false;
         for source in fs::read_dir(&root)
             .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
@@ -422,51 +405,6 @@ fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
         "unexpected std-consuming canary population in {}",
         cases.display()
     );
-    retained_compatibility.sort();
-    let mut expected = compatibility_roots
-        .iter()
-        .map(|name| (*name).to_owned())
-        .collect::<Vec<_>>();
-    expected.sort();
-    assert_eq!(retained_compatibility, expected);
-}
-
-fn assert_partial_canary_category_standard_library_migration(
-    cases: &Path,
-    expected_roots: usize,
-    compatibility_roots: &[&str],
-) {
-    let mut roots = Vec::new();
-    collect_build_roots(cases, &mut roots);
-    assert_eq!(roots.len(), expected_roots);
-    let mut retained_compatibility = Vec::new();
-    for root in roots {
-        let name = root
-            .file_name()
-            .and_then(|name| name.to_str())
-            .expect("canary root name");
-        if !compatibility_roots.contains(&name) {
-            assert_canary_declares_ordinary_standard_library_edge(&root);
-            continue;
-        }
-        let projection = extract_build_dependency_projection(&root).unwrap();
-        assert!(
-            projection.product_dependencies().is_empty(),
-            "compatibility canary {} must not claim a migrated std edge",
-            root.display()
-        );
-        let source = fs::read_to_string(root.join("main.omg")).expect("compatibility source");
-        assert!(source.contains("omega::language::std::console"));
-        assert!(!source.contains("omega_language_std"));
-        retained_compatibility.push(name.to_owned());
-    }
-    retained_compatibility.sort();
-    let mut expected = compatibility_roots
-        .iter()
-        .map(|name| (*name).to_owned())
-        .collect::<Vec<_>>();
-    expected.sort();
-    assert_eq!(retained_compatibility, expected);
 }
 
 #[test]
@@ -517,7 +455,6 @@ fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
         &repository_root().join("tests/omega/pass/slices"),
         69,
         41,
-        &[],
     );
 }
 
@@ -525,16 +462,8 @@ fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
 fn wire_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/wire"),
-        32,
-        24,
-        &[
-            "runtime_wire_decode_rejects_bad_nested_length_exit",
-            "runtime_wire_encode_repeated_then_string_exit",
-            "runtime_wire_policy_authored_nested_exit",
-            "runtime_wire_roundtrip_nested_and_repeated_exit",
-            "runtime_wire_roundtrip_nested_exit",
-            "runtime_wire_roundtrip_repeated_exit",
-        ],
+        44,
+        37,
     );
 }
 
@@ -544,7 +473,6 @@ fn text_canaries_declare_only_their_consumed_standard_library_edges() {
         &repository_root().join("tests/omega/pass/text"),
         79,
         72,
-        &[],
     );
 }
 
@@ -554,7 +482,6 @@ fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
         &repository_root().join("tests/omega/pass/collections"),
         94,
         93,
-        &[],
     );
 }
 
@@ -562,13 +489,8 @@ fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
 fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/arithmetic"),
-        135,
-        131,
-        &[
-            "runtime_float_min_max_abs_clamp_exit",
-            "runtime_float_running_min_max_fold_exit",
-            "runtime_sqrt_builtin_exit",
-        ],
+        139,
+        138,
     );
 }
 
@@ -576,13 +498,8 @@ fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
 fn call_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/calls"),
+        174,
         172,
-        166,
-        &[
-            "runtime_guarded_effectful_transition_argument_exit",
-            "runtime_inline_subslice_length_exit",
-            "runtime_looping_cast_return_exit",
-        ],
     );
 }
 
@@ -595,34 +512,25 @@ fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_e
             &repository_root().join("tests/omega/pass").join(category),
             expected_roots,
             expected_consumers,
-            &[],
         );
     }
 }
 
 #[test]
-fn float_canaries_retain_only_the_known_compiler_compatibility_seams() {
-    assert_partial_canary_category_standard_library_migration(
+fn float_canaries_declare_only_their_consumed_standard_library_edges() {
+    assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/float"),
+        38,
         37,
-        &[
-            "build_runtime_semantics_twins_windows_x64",
-            "build_runtime_semantics_twins_x86_baseline",
-        ],
     );
 }
 
 #[test]
-fn trait_canaries_retain_only_the_known_compiler_compatibility_seams() {
+fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/traits"),
-        30,
-        25,
-        &[
-            "runtime_generic_trait_default_exit",
-            "runtime_inherited_trait_default_exit",
-            "runtime_local_named_dyn_devirtualized_exit",
-        ],
+        32,
+        29,
     );
 }
 
@@ -678,7 +586,6 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
             &repository_root().join("tests/omega/pass").join(category),
             expected_roots,
             expected_standard_library_consumers,
-            &[],
         );
     }
 
@@ -686,7 +593,6 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         &repository_root().join("tests/omega/pass/providers"),
         28,
         17,
-        &[],
         &[
             "specialized_mixed_structural_fixed_operator_hosted_native",
             "specialized_mixed_structural_result_operator_hosted_native",
