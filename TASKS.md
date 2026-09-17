@@ -4518,30 +4518,63 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   and production pipeline, passes the shared product suite, and publishes a
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
-  Resume (macOS ARM64, 2632fdf8b7): `source/psi` `lex`, `source` and
-  `tokens` now forward entry parameters explicitly into their named
-  states (the d405dd087c rule that states consume only their explicit
-  value bindings; `pass/control_flow/entry_parameter_explicit_state_forwarding`
-  pins the three product shapes) and `Main::main` declares
-  `reaches Console`, so `omega --check source/omega/main.omg` completes
-  in 239.8 s at 19ac2d1527 (it was killed at 45 minutes before: the
-  permuted-cycle solver in `write_frames/permuted_cycle_frames.rs` built
-  one frame equation per reachable state before its parameter-count
-  permutation check, and every prefix-walk visit rebuilt the doomed
-  system, so the 126-state `parse_data` and 39-state `parse` cycles
-  never converged; the solver now declines from transition topology, SCC
-  edges whose parameter counts cannot permute, before building
-  equations, with every compared frame byte-identical on cli_mvp,
-  nqueens and a stubbed variant) and stops on one real diagnostic:
+  Resume (macOS ARM64, 442cf5c018 on 8564df08b7): the product parser no
+  longer owns a second `TokenStream`; `Parser::parse(&mut self, input:
+  &TokenStream)` observes the lexer's stream through a shared borrow
+  forwarded along the state edges that read a token (28/38 `parse`,
+  91/125 `parse_data`, 4/5 `skip_trivia` states), which retires the
   `cannot transfer a non-copy value out of borrowed storage without
-  replacing its owner in Main::main, state parse (statement 0)`. The
-  parser SCC frames stay opaque because copy enums such as `KeywordKind`
-  count as write-capable roots in the permutation law (an R5 precision
-  decision). `source/psi/gates/parser/build.omg`
-  also imports `psi::parse::harness` through a product `depend_as` edge
-  and needs a `build_depend_as` edge before
+  replacing its owner in Main::main, state parse (statement 0)`
+  diagnostic (239.96 s before). The checker admits no owner-replacement
+  route today: `pass/ownership/move_keyword_field_assignment`, on the
+  checked-only pass roster, is rejected with the same diagnostic at
+  8564df08b7, so that fixture and `projected_affine.rs` disagree. The
+  parser gate moved its harness into its own package
+  (`source/psi/gates/parser/harness.omg`, imported as `use harness;`)
+  because `roots.bind` admission is lexical per package
+  (`admission/selection/root_bindings.rs`) and the build-scope import of
+  `psi::parse::harness` was dead (entry operands resolve in the product
+  context, entry_roots.md); a `build_depend_as` edge would have made the
+  harness a file imported by both scopes. The full gate check still does
+  not finish: killed at 3340 s wall (2837 s user) inside
+  `validate_default_domain_writes -> walk_state_write_prefix ->
+  permuted_cycle_frames::summarize_transition_target_written_paths` on
+  the harness's `write_parse_observation` cycles, which carry copy data
+  such as `RootItem` and `DataItem` as write-capable roots (the R5
+  precision decision), so
   `command_line::routed_production_entry_roots_pass_real_package_resolution`
-  can pass.
+  stays red on the gate leg. `omega --check source/omega/main.omg` now
+  runs the complete checked stage and stops in build-time admission of
+  the std calling policy: `build-time evaluation of calling policy
+  MacosArm64::plan failed: ... unresolved authored MemberAccess selection
+  first_field (CheckedMember); package authority must be known before
+  compiler execution` (1002.96 s wall, 598.11 s user beside a concurrent
+  check; the reported `source-unit 15, bytes 12636..12643` points past
+  the pattern into the file's trailing trait line). This is a compiler
+  precision bug, not a source error: a twelve-line program declaring
+  `data Item { first_field: u64; field_count: u64; }` beside std console
+  reproduces it in 142.9 s, renaming `first_field` alone moves the
+  rejection to `field_count`, and renaming both passes in 291.1 s.
+  `selection_authority.rs::unresolved_spelling_is_confined` treats every
+  member symbol in the program spelled like the std pattern binding
+  `ValueClass::Record { first_field, field_count }` as a candidate for
+  that late-bound `CheckedMember`, so any user package that declares a
+  `first_field` or `field_count` member (the psi `DataItem` does) makes
+  the macOS and Linux x86-64 calling policies inadmissible; the path
+  is under TOP-LEVEL-BOUNDARY-REQUIREMENTS' claim and the precise fix
+  needs the pre-specialization exact-owner member resolution that
+  `typed-trees-to-checked-trees/src/authored_selections/contexts.rs`
+  already performs. A scratch copy with those two psi members renamed
+  passes the whole checked stage in 422.2 s and stops on the next real
+  diagnostic, `root slot alpha_bootstrap::ProgramEntry belongs to unknown
+  target profile alpha_bootstrap` from `source/omega/build.omg`: the row
+  is required by bootstrap/CONTRACT.md (D compiles C for the ordinary
+  `alpha_bootstrap` target) while the Rust comparator's target catalog
+  (`representations/target/src/lib.rs`) does not know that profile;
+  whether unknown-profile rows are unselected rather than rejected
+  (entry_roots.md, "only rows owned by the selected profile enter the
+  durable child projection") or `alpha_bootstrap` must be catalogued
+  without a realization is an owner decision.
 
 ## Platform-gated verification
 
