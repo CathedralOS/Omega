@@ -192,8 +192,12 @@ fn mutually_recursive_generic_instances_reuse_exact_tuples_without_changing_temp
     );
     let original = program.clone();
     let mut nominal_uses = Vec::new();
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut nominal_uses)
-        .expect("mutual recursion closes both concrete tuples");
+    monomorphize_generic_machine_value_calls_with_nominal_uses(
+        &mut program,
+        &mut nominal_uses,
+        true,
+    )
+    .expect("mutual recursion closes both concrete tuples");
     assert_eq!(program.machine_specializations.len(), 4);
     for name in ["ping", "pong"] {
         assert_template_unchanged(&original, &program, name);
@@ -237,8 +241,12 @@ fn mutually_recursive_generic_instances_reuse_exact_tuples_without_changing_temp
         .iter()
         .map(|receipt| receipt.instance)
         .collect::<Vec<_>>();
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut nominal_uses)
-        .expect("repeated specialization is a fixed point");
+    monomorphize_generic_machine_value_calls_with_nominal_uses(
+        &mut program,
+        &mut nominal_uses,
+        true,
+    )
+    .expect("repeated specialization is a fixed point");
     assert_eq!(
         program
             .machine_specializations
@@ -261,7 +269,7 @@ fn nested_generic_reference_forwarding_only_specializes_the_closed_caller() {
     "#,
     );
     let original = program.clone();
-    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new())
+    monomorphize_generic_machine_value_calls_with_nominal_uses(&mut program, &mut Vec::new(), true)
         .expect("nested reference argument closes in the cloned caller");
     assert_template_unchanged(&original, &program, "relay");
     assert_template_unchanged(&original, &program, "inspect");
