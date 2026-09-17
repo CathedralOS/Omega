@@ -1,5 +1,6 @@
 //! Selected IEEE float fused multiply-add unit applications.
 
+use crate::selected_dispatch::float_intrinsic::intrinsic_resolution::SelectedIntrinsicUse;
 use crate::selected_dispatch::float_intrinsic::{NamedFloatRealization, StagedNamedFloatRewrite};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
@@ -21,26 +22,34 @@ pub(crate) fn selected_ieee_float_fma_unit_applications(
             }
             _ => continue,
         };
+        // Both spellings retain the use as a checked fact; the FMA application
+        // keys on the requirement symbol either fact carries.
         let uses = checked
             .facts
             .operators
-            .named_uses
-            .iter()
-            .map(|(_, operator_use)| operator_use)
-            .filter(|operator_use| operator_use.expression == rewrite.expression)
+            .named_uses()
+            .map(SelectedIntrinsicUse::from)
+            .chain(
+                checked
+                    .facts
+                    .operators
+                    .named_requirement_uses()
+                    .map(SelectedIntrinsicUse::from),
+            )
+            .filter(|selected_use| selected_use.expression == rewrite.expression)
             .collect::<Vec<_>>();
-        let Some(operator_use) = uses.first().copied() else {
+        let Some(selected_use) = uses.first().copied() else {
             return Err(Diagnostic::error(format!(
                 "selected nearest FMA expression {:?} retains no checked named use",
                 rewrite.expression,
             )));
         };
         if uses.iter().any(|candidate| {
-            candidate.selected_operator_symbol != operator_use.selected_operator_symbol
-                || candidate.policy_adapter != operator_use.policy_adapter
+            candidate.requirement_symbol != selected_use.requirement_symbol
+                || candidate.policy_adapter != selected_use.policy_adapter
                 || candidate.provider_plan_report_fingerprint
-                    != operator_use.provider_plan_report_fingerprint
-                || candidate.provider_plan_commitment != operator_use.provider_plan_commitment
+                    != selected_use.provider_plan_report_fingerprint
+                || candidate.provider_plan_commitment != selected_use.provider_plan_commitment
         }) {
             return Err(Diagnostic::error(format!(
                 "selected nearest FMA expression {:?} carries contradictory checked named-use custody",
@@ -85,9 +94,9 @@ pub(crate) fn selected_ieee_float_fma_unit_applications(
             typed_trees_to_checked_trees::SelectedIeeeFloatFmaUnitApplication {
                 expression: rewrite.expression,
                 origin,
-                requirement_operator: operator_use.selected_operator_symbol,
-                provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
-                provider_plan_commitment: operator_use.provider_plan_commitment,
+                requirement_operator: selected_use.requirement_symbol,
+                provider_plan_report_fingerprint: selected_use.provider_plan_report_fingerprint,
+                provider_plan_commitment: selected_use.provider_plan_commitment,
                 format,
                 operands: checked
                     .typed
