@@ -3652,9 +3652,14 @@ Owners include
   `standard_library_package_resolution.rs` pins that removing a Console
   consumer's std path dependency rejects it and that re-declaring std under
   another alias or path spelling does not restore the `omega_language_std`
-  import. Remaining gap: the undeclared import is reported as an unresolvable
-  root-relative `omega_language_std/console.omg` source path rather than a
-  named missing dependency edge, and the Console provider selection gets no
+  import. The rejection names the missing dependency edge rather than an
+  unresolvable root-relative source path: the `omega_language_std` alias the
+  import spelled, the `omega-language-std` package it names (bundled or in
+  the closure), the importing `main.omg`, and the root
+  `builder.depend(...)`/`depend_as("omega_language_std", ...)` declaration
+  that would add the edge (witnessed by
+  `removing_the_standard_library_dependency_rejects_the_console_consumer` on
+  macOS ARM64). Remaining gap: the Console provider selection gets no
   diagnostic of its own because source assembly stops at the import (a
   selection without the import is not a checkable shape).
 

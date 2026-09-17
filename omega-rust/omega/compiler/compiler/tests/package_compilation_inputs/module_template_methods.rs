@@ -166,7 +166,9 @@ fn instantiated_methods_keep_each_package_use_authority() {
                     .any(|diagnostic| diagnostic.message.contains(if direct {
                         "private"
                     } else {
-                        "failed to resolve"
+                        // `leaf` is in the closure but the root declares no
+                        // edge to it: the missing edge is named, not a path.
+                        "declares no product dependency under that alias"
                     })),
                 "{diagnostics:?}"
             );
