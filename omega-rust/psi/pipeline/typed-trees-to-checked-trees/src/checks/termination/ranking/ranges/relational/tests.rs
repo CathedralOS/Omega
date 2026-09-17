@@ -96,6 +96,101 @@ fn named_state_prefix_store_into_a_slot_carrying_a_premise_role_rejects() {
     reject(&SCRATCH_ARRIVAL.replace("count = pending;", "pending = 4;"));
 }
 
+const AUDIT: &str = r#"
+data Main {}
+machine Main::audit(&mut self, value: u32) -> u32 { value }
+machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    self.audit(remaining);
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}
+"#;
+
+#[test]
+fn prefix_call_with_a_write_frame_disjoint_from_the_premises_preserves_the_ranking() {
+    prove(AUDIT);
+    // The callee may write its own storage; only premise carriers matter.
+    prove(
+        &AUDIT
+            .replace("data Main {}", "data Main { calls: u32 }")
+            .replace("{ value }", "{ self.calls = self.calls + 1; value }"),
+    );
+    // The same call keeps a named state's telescope protection.
+    prove(
+        r#"
+data Main {}
+machine Main::audit(&mut self, value: u32) -> u32 { value }
+machine Main::walk(&mut self, remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> hold(remaining) }
+    state hold(pending: u32 [0..=5]) {
+        self.audit(pending);
+        transition pending > 0 {
+            true -> hold(pending - 1)
+            false -> pending
+        }
+    }
+}
+"#,
+    );
+    // A mutable input carrying no premise role may be lent to the call.
+    prove(
+        &AUDIT
+            .replace("value: u32", "value: &mut u32")
+            .replace("{ value }", "{ value = value + 1; 0 }")
+            .replace(
+                "remaining: u32, ceiling",
+                "remaining: u32, mut scratch: u32, ceiling",
+            )
+            .replace("self.audit(remaining);", "self.audit(&mut scratch);")
+            .replace(
+                "walk(remaining - 1, ceiling)",
+                "walk(remaining - 1, scratch, ceiling)",
+            ),
+    );
+}
+
+#[test]
+fn prefix_call_writing_a_premise_carrier_invalidates_the_ranking() {
+    for carrier in ["remaining", "ceiling"] {
+        let written = AUDIT
+            .replace("value: u32", "value: &mut u32")
+            .replace("{ value }", "{ value = value + 1; 0 }")
+            .replace(&format!("{carrier}: u32"), &format!("mut {carrier}: u32"))
+            .replace(
+                "self.audit(remaining);",
+                &format!("self.audit(&mut {carrier});"),
+            );
+        assert_ne!(written, AUDIT);
+        reject(&written);
+    }
+    // An argument hiding an authored operator has no frame evidence at all.
+    reject(&format!(
+        "operator - u32::sub(left: u32, right: u32) -> u32; {}",
+        AUDIT.replace("self.audit(remaining);", "self.audit(remaining - 1);")
+    ));
+    // A boundary callee's signature state has no body to summarize: its
+    // exclusive-argument reach must not be assumed empty.
+    reject(&format!(
+        "boundary machine reset(value: &mut u32) -> u32 [1..=2]; {}",
+        AUDIT
+            .replace("ceiling: u32", "mut ceiling: u32")
+            .replace("self.audit(remaining);", "reset(&mut ceiling);")
+    ));
+    reject(&format!(
+        "boundary machine reset(value: &mut u32) -> u32 [1..=2]; {}",
+        AUDIT
+            .replace("remaining: u32,", "mut remaining: u32,")
+            .replace("self.audit(remaining);", "reset(&mut remaining);"),
+    ));
+}
+
 fn reject_unsupported(source: &str) {
     let diagnostics =
         crate::checks::termination::check_machine_termination(&typed(source)).expect_err(source);

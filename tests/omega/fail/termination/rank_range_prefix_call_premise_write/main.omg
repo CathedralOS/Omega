@@ -1,0 +1,24 @@
+// FAIL CANARY. `walk` lends its ranked subject `remaining` to `bump`, a
+// checked-body callee that writes through the exclusive borrow. The call's
+// complete write frame reaches a premise carrier, so the arrival hypotheses
+// no longer describe the transition actuals and the range proof must fail.
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.walk(4, 9) }
+}
+
+machine Main::bump(&mut self, value: &mut u32) {
+    value = 0;
+}
+
+machine Main::walk(&mut self, mut remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    self.bump(&mut remaining);
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}

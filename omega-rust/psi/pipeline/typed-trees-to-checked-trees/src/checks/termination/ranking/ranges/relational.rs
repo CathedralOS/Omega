@@ -1,5 +1,5 @@
 //! Exact range custody and occurrence guards enter the shared arithmetic owner.
-use super::super::{ExpressionHandle, ExpressionNode};
+use super::super::{ExpressionHandle, ExpressionNode, write_preservation};
 use crate::checks::termination::graph;
 use crate::checks::termination::ranking::DecreaseMeasure;
 use crate::checks::termination::ranking::RankingOrder;
@@ -295,6 +295,56 @@ fn preserved_entry_prefix<'program>(
                 return None;
             }
             evaluated.push(local.initial_value);
+            continue;
+        }
+        if let StatementNode::Call(call) = statement {
+            // A statement-position call preserves the entry telescope only
+            // with complete write-frame evidence: its own caller-relative
+            // frame and the aggregated frame of any value calls nested in
+            // its arguments must each be known and disjoint from every
+            // premise carrier. The arguments stay inert the way transition
+            // actuals are -- an authored operator or index selection could
+            // hide a write no frame sees. The discarded result establishes
+            // no hypothesis, so nothing is pushed to `evaluated`.
+            //
+            // Only a checked-body callee's frame is admitted: boundary,
+            // requirement, and admitted declarations resolve a signature
+            // state whose empty body summary would claim an exclusive
+            // argument write never happened.
+            let callee_machine = program.symbols.get(call.target_symbol).parent;
+            let checked_body_callee = program.machines().iter().any(|candidate| {
+                (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
+                    && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            });
+            let preserved = checked_body_callee
+                && program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .all(|argument| pure_guard(program, machine, state, *argument, 0))
+                && frames.is_some_and(|frames| {
+                    protected.iter().all(|input| {
+                        write_preservation::frame_preserves_path(
+                            frames.may_write_frame(machine, call),
+                            input,
+                        ) && write_preservation::frame_preserves_path(
+                            frames.statement_value_write_frame(machine, statement),
+                            input,
+                        )
+                    })
+                });
+            if !preserved {
+                return None;
+            }
+            continue;
+        }
+        if let StatementNode::Expression(expression) = statement {
+            // A bare evaluated expression writes nothing only while it stays
+            // inert; nested calls and authored operators keep failing closed
+            // rather than borrowing the discarded value as a hypothesis.
+            if !pure_guard(program, machine, state, *expression, 0) {
+                return None;
+            }
             continue;
         }
         let StatementNode::Transition(transition) = statement else {

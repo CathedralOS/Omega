@@ -1,0 +1,25 @@
+// PASS CANARY. `walk` issues `self.audit(remaining)` before its recursive
+// edge. The checked-body callee's complete write frame covers only
+// `self.audits`, disjoint from every premise carrier (`remaining` and the
+// pinned `ceiling`), so the entry-relative rank still describes the
+// transition actuals.
+data Main { audits: u64 }
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.walk(4, 9) }
+}
+
+machine Main::audit(&mut self, value: u32) {
+    self.audits = 0;
+}
+
+machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    self.audit(remaining);
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}
