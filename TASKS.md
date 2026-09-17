@@ -2877,11 +2877,10 @@ Owners include
   pin the selection and each distinct rejection). Still open there:
   recovering a type binder from a range-shell equation (rejects asking for
   an explicit argument), omitted-binder applications nested inside other
-  templates, runtime `Value` binders, and two defects beside the route:
+  templates, runtime `Value` binders, and one defect beside the route:
   `lowering/type_reference.rs::lower_child_type_references` panics ("arena
   span append must be contiguous") on two range-shell arguments to one
-  generic, and `backend/layout/src/packing.rs` overflows on a full-width
-  capacity instead of rejecting placement. Record and case-payload endpoint calls resolve in
+  generic. Record and case-payload endpoint calls resolve in
   their declaration scope before folding; local bounded record construction and
   field reads retain range obligations through canonical Terminal execution.
   Generic-data range arguments retain structured interval observations from
