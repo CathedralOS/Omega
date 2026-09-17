@@ -1,14 +1,18 @@
 //! Shared admission for constant condition materialization: locate the
 //! named `MaterializeBoolean*`, confirm its clean `[def result]` shape,
-//! resolve every implicit flag unit it reads to the same in-block compare
-//! definition, and prove that compare's operands compile-time constant so
-//! the observed predicate is decidable.
+//! resolve every implicit flag unit it reads to the same compare
+//! definition — in-block or across predecessor edges — and prove that
+//! compare's operands compile-time constant so the observed predicate is
+//! decidable.
+use std::collections::{BTreeSet, VecDeque};
+
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
-    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedTerminator, VirtualRegisterId,
+    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
+    VirtualRegisterId,
 };
 use semantic_vocabulary::IntegerValue;
 
@@ -198,23 +202,176 @@ fn predicate_outcome(kind: SelectedInstructionKind, left: u64, right: u64) -> Op
     }
 }
 
-/// Resolve one implicit flag use to its reaching event: the nearest
-/// earlier in-block instruction whose implicit definitions or clobbers
-/// name `unit`. A definition there is the value the materialization
-/// observes; a clobber leaves the unit unknown; no in-block event means
-/// the unit reaches in from a predecessor — outside this family's bound —
-/// and refuses.
+/// A condition-state event located by block and instruction-stream
+/// position — `position == block.instructions.len()` names the
+/// terminator's carried instruction — so identity never relies on
+/// instruction-id uniqueness.
+type EventSite = (usize, usize);
+
+/// What one path's last observed condition-state event for a flag unit can
+/// be while the unit still reaches the materialization.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ReachingEvent {
+    /// The path carried no recorded event for the unit: only the entry
+    /// block seeds this, because condition state at function entry is not
+    /// the compare's.
+    Unknown,
+    /// The path's last event is the instruction at the site.
+    At(EventSite),
+}
+
+/// The instruction at `site` — a body instruction, or the terminator's
+/// carried instruction when the position is the stream's last.
+fn instruction_at(function: &SelectedFunction, site: EventSite) -> &SelectedInstruction {
+    let block = &function.blocks[site.0];
+    if site.1 == block.instructions.len() {
+        terminator_instruction(&block.terminator)
+    } else {
+        &block.instructions[site.1]
+    }
+}
+
+/// Every successor edge of `terminator`, whatever its role: condition
+/// state is physical, so a flag unit flows across semantic, edge-transfer,
+/// and case-dispatch continuations alike. Crossing an edge is transparent
+/// to it — a successor record's `bindings` move registers, its
+/// `structural_bindings` move storage slots, its `structural_case`
+/// payloads move registers or storage, and its `fuel` carries charge
+/// counts — no successor field can name a `RegisterUnitId`, so no edge
+/// transport or roster can add, drop, or alter a flag event.
+fn successor_edges(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
+    match terminator {
+        SelectedTerminator::Jump { successor, .. } => vec![successor],
+        SelectedTerminator::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+            ..
+        }
+        | SelectedTerminator::ConditionalBranchU64LessThan {
+            when_less: when_nonzero,
+            when_not_less: when_zero,
+            ..
+        }
+        | SelectedTerminator::ConditionalBranchI64LessThan {
+            when_less: when_nonzero,
+            when_not_less: when_zero,
+            ..
+        } => vec![when_nonzero, when_zero],
+        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
+            Vec::new()
+        }
+    }
+}
+
+/// The block-indexed predecessor and successor adjacency of `function`.
+/// An edge naming a block the function does not contain participates in
+/// neither: it cannot carry a path into any block the walk visits.
+fn adjacency(function: &SelectedFunction) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+    let block_index = |id: SelectedBlockId| function.blocks.iter().position(|block| block.id == id);
+    let successors: Vec<Vec<usize>> = function
+        .blocks
+        .iter()
+        .map(|block| {
+            successor_edges(&block.terminator)
+                .iter()
+                .filter_map(|successor| block_index(successor.block))
+                .collect()
+        })
+        .collect();
+    let mut predecessors = vec![Vec::new(); function.blocks.len()];
+    for (source, targets) in successors.iter().enumerate() {
+        for &target in targets {
+            predecessors[target].push(source);
+        }
+    }
+    (successors, predecessors)
+}
+
+/// Resolve one implicit flag use to the condition-state event every path
+/// reaching the materialization last observed, as a `(block, stream
+/// position)` site.
+///
+/// The in-block rule stands when an event precedes the materialization:
+/// linear body order makes it the last event on every path through the
+/// position. With no in-block event the resolution crosses block
+/// boundaries. A block's own last event — body or terminator-carried — is
+/// what its exit edges carry, while a block holding no event for the unit
+/// passes its entry set through; the entry block's set contains `Unknown`
+/// because the condition state there is not the compare's; and every other
+/// predecessorless block contributes nothing because no path reaches it.
+/// The set equations are union-monotone, so the walk iterates the least
+/// fixpoint over the backward-reachable cone and resolves only when the
+/// materialization block's entry set is the single compare event — a
+/// clobber, a different instruction's definition, `Unknown` among the
+/// reaching events, or an empty set all refuse.
 fn reaching_event(
-    block: &SelectedBlock,
-    before: usize,
+    function: &SelectedFunction,
+    entry: usize,
+    successors: &[Vec<usize>],
+    cone: &[bool],
+    block_index: usize,
+    materialization_index: usize,
     unit: RegisterUnitId,
-) -> Result<usize, ConstantBooleanError> {
-    block.instructions[..before]
+) -> Result<EventSite, ConstantBooleanError> {
+    let block = &function.blocks[block_index];
+    if let Some(position) = block.instructions[..materialization_index]
         .iter()
         .rposition(|instruction| {
             instruction.implicit_defs.contains(&unit) || instruction.clobbers.contains(&unit)
         })
-        .ok_or(ConstantBooleanError::UnsupportedUse)
+    {
+        return Ok((block_index, position));
+    }
+    // The last condition-state event for `unit` in each block's full
+    // stream — body then terminator — or none where the block leaves the
+    // unit untouched and passes its entry state through.
+    let last_event: Vec<Option<EventSite>> = function
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| {
+            block_instructions(block)
+                .enumerate()
+                .filter(|(_, instruction)| {
+                    instruction.implicit_defs.contains(&unit)
+                        || instruction.clobbers.contains(&unit)
+                })
+                .map(|(position, _)| (index, position))
+                .last()
+        })
+        .collect();
+    let mut entry_events = vec![BTreeSet::new(); function.blocks.len()];
+    entry_events[entry].insert(ReachingEvent::Unknown);
+    // Propagate each cone block's contribution — its own last event, or its
+    // entry set when it holds none — to its successors until the least
+    // fixpoint. A block's set holds at most one element per event site
+    // plus the unknown marker, so it requeues only while it still grows.
+    let mut pending: VecDeque<usize> = (0..function.blocks.len()).filter(|&b| cone[b]).collect();
+    while let Some(current) = pending.pop_front() {
+        let contribution = match last_event[current] {
+            Some(site) => BTreeSet::from([ReachingEvent::At(site)]),
+            None => entry_events[current].clone(),
+        };
+        if contribution.is_empty() {
+            continue;
+        }
+        for &successor in &successors[current] {
+            if !cone[successor] {
+                continue;
+            }
+            let before = entry_events[successor].len();
+            entry_events[successor].extend(contribution.iter().copied());
+            if entry_events[successor].len() != before {
+                pending.push_back(successor);
+            }
+        }
+    }
+    if entry_events[block_index].len() == 1
+        && let Some(&ReachingEvent::At(site)) = entry_events[block_index].iter().next()
+    {
+        return Ok(site);
+    }
+    Err(ConstantBooleanError::UnsupportedUse)
 }
 
 pub(super) fn admit<'source>(
@@ -273,22 +430,51 @@ pub(super) fn admit<'source>(
         .iter()
         .find(|entry| entry.id == result)
         .ok_or(ConstantBooleanError::UnsupportedUse)?;
-    let block = &function.blocks[block_index];
+    // The flag walk crosses block boundaries: build the block-indexed
+    // adjacency once, locate the entry block whose unseeded condition state
+    // bounds every path, and mark the cone of blocks that can reach the
+    // materialization's block — only their entry sets can feed the result.
+    let (successors, predecessors) = adjacency(function);
+    let entry = function
+        .blocks
+        .iter()
+        .position(|block| block.id == function.entry_block)
+        .ok_or(ConstantBooleanError::SourceMismatch)?;
+    let mut cone = vec![false; function.blocks.len()];
+    cone[block_index] = true;
+    let mut frontier = vec![block_index];
+    while let Some(current) = frontier.pop() {
+        for &predecessor in &predecessors[current] {
+            if !cone[predecessor] {
+                cone[predecessor] = true;
+                frontier.push(predecessor);
+            }
+        }
+    }
     // Every flag unit the materialization reads must reach from the same
-    // compare: the nearest earlier event for each used unit is that one
-    // instruction, and the unit is among its published definitions — a
-    // clobber there would leave the observed value unknown. Other readers
-    // of the same units are unaffected: the compare stays.
-    let mut compare_index = None;
+    // compare: on every execution path to the materialization, the last
+    // event touching each used unit is that one instruction, and the unit
+    // is among its published definitions — a clobber there would leave the
+    // observed value unknown. Other readers of the same units are
+    // unaffected: the compare stays.
+    let mut compare_site = None;
     for unit in &materialization_instruction.implicit_uses {
-        let event = reaching_event(block, materialization_index, *unit)?;
-        if compare_index.is_some_and(|index| index != event) {
+        let event = reaching_event(
+            function,
+            entry,
+            &successors,
+            &cone,
+            block_index,
+            materialization_index,
+            *unit,
+        )?;
+        if compare_site.is_some_and(|site| site != event) {
             return Err(ConstantBooleanError::UnsupportedUse);
         }
-        compare_index = Some(event);
+        compare_site = Some(event);
     }
-    let compare_index = compare_index.ok_or(ConstantBooleanError::UnsupportedUse)?;
-    let compare_instruction = &block.instructions[compare_index];
+    let compare_site = compare_site.ok_or(ConstantBooleanError::UnsupportedUse)?;
+    let compare_instruction = instruction_at(function, compare_site);
     if materialization_instruction
         .implicit_uses
         .iter()
@@ -327,11 +513,55 @@ pub(super) fn admit<'source>(
             total.checked_add(block.instructions.len())?.checked_add(1)
         })
         .ok_or(ConstantBooleanError::IdentityOverflow)?;
+    let edge_count = successors
+        .iter()
+        .try_fold(0usize, |total, targets| total.checked_add(targets.len()))
+        .ok_or(ConstantBooleanError::IdentityOverflow)?;
+    let block_count = function.blocks.len();
     // Producer scans walk the whole function once per compared register —
-    // two at most — and the flag-unit resolution walks the positions before
-    // the materialization once per used unit.
-    let reach_scan = materialization_index
-        .checked_mul(materialization_instruction.implicit_uses.len())
+    // two at most. The flag walk's shared setup resolves every edge's
+    // target index, fills the predecessor lists, and marks the backward
+    // cone. Each used unit then scans the materialization block's prefix
+    // and — on an in-block miss — every block's stream for its last event,
+    // after which entry-set propagation requeues a block only while its
+    // set grows: a set holds at most one element per event site plus the
+    // unknown marker, so pops stay under `blocks × (elements + 1)` and
+    // each pop visits its out-edges — no more than the widest terminator's
+    // — at a bounded union cost.
+    let elements = function_scan
+        .checked_add(1)
+        .ok_or(ConstantBooleanError::IdentityOverflow)?;
+    let pops = block_count
+        .checked_mul(
+            elements
+                .checked_add(1)
+                .ok_or(ConstantBooleanError::IdentityOverflow)?,
+        )
+        .ok_or(ConstantBooleanError::IdentityOverflow)?;
+    let widest_out = successors
+        .iter()
+        .map(|targets| targets.len())
+        .max()
+        .unwrap_or(0);
+    let per_unit = function_scan
+        .checked_add(block_count)
+        .and_then(|total| total.checked_add(pops))
+        .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
+        .ok_or(ConstantBooleanError::IdentityOverflow)?;
+    let walk_setup = edge_count
+        .checked_mul(
+            block_count
+                .checked_add(1)
+                .ok_or(ConstantBooleanError::IdentityOverflow)?,
+        )
+        .and_then(|total| total.checked_add(block_count))
+        .and_then(|total| total.checked_add(edge_count))
+        .ok_or(ConstantBooleanError::IdentityOverflow)?;
+    let reach_scan = materialization_instruction
+        .implicit_uses
+        .len()
+        .checked_mul(per_unit)
+        .and_then(|total| total.checked_add(walk_setup))
         .ok_or(ConstantBooleanError::IdentityOverflow)?;
     let steps = plan
         .functions

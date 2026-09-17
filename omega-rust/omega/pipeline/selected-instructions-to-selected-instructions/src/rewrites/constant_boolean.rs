@@ -36,19 +36,28 @@
 //! other reached readers still observe the same flag definitions, and
 //! producer elimination stays with the producer-elimination rules.
 //!
-//! The admission table is deliberately bounded. The flag walk resolves a
-//! used unit only to a definition or clobber in the materialization's own
-//! block before its position: a flag reaching in from a predecessor edge,
-//! or a unit with no in-block event, refuses — proving cross-block flag
-//! custody belongs to a later family. A used unit whose reaching event is
-//! a clobber, a non-compare definition, or a second compare refuses: the
-//! observed state is not provably constant. The compare's literal inputs
-//! need the same unique-producer guarantee the literal folds use — exactly
-//! one defining instruction in the function, a clean `[def]`
-//! `MaterializeI64` with no unit traffic — and each literal must fit the
-//! sixty-four-bit register pattern it publishes. Ordering predicates
-//! evaluate in the compare's own direction (`left - right`), so no swapped
-//! subtraction or consumer audit is needed.
+//! The admission table remains deliberately bounded. The flag walk
+//! resolves a used unit to the last condition-state event on every
+//! execution path reaching the materialization: the in-block rule stands
+//! when a definition or clobber precedes the materialization in its own
+//! block, and otherwise the unit's reaching set is the least fixpoint
+//! over predecessor edges. Every crossed edge is transparent — the
+//! successor record's register, storage, case-payload, and fuel fields
+//! cannot name a condition-state unit — each predecessor contributes its
+//! own last body-or-terminator event or recursively its entry set, and
+//! the entry block contributes the unknown marker because condition state
+//! at function entry is not the compare's. Admission holds only when the
+//! materialization block's entry set is exactly the compare: a path last
+//! touched by a clobber, a different instruction's definition, or no
+//! recorded event — and a used unit resolving differently than its
+//! siblings — all refuse, as does the flag-free boolean shape that has no
+//! condition to evaluate. The compare's literal inputs need the same
+//! unique-producer guarantee the literal folds use — exactly one defining
+//! instruction in the function, a clean `[def]` `MaterializeI64` with no
+//! unit traffic — and each literal must fit the sixty-four-bit register
+//! pattern it publishes. Ordering predicates evaluate in the compare's
+//! own direction (`left - right`), so no swapped subtraction or consumer
+//! audit is needed.
 //!
 //! Proposal and independent replay share only the admission predicates and
 //! the rewritten-instruction constructor. Validation re-derives the
@@ -122,10 +131,11 @@ pub enum ConstantBooleanError {
     SourceMismatch,
     UnsupportedInstruction,
     /// A flag observation the constant fold cannot reproduce: a used unit
-    /// whose nearest in-block event is a clobber, a non-compare definition,
-    /// or a different instruction than its siblings; a used unit with no
-    /// in-block reaching event; or the flag-free boolean shape that has no
-    /// condition to evaluate.
+    /// whose reaching event — in-block or through the predecessor walk —
+    /// is a clobber, a non-compare definition, or a different instruction
+    /// than its siblings; a used unit whose reaching set holds several
+    /// events, the entry unknown, or none at all; or the flag-free
+    /// boolean shape that has no condition to evaluate.
     UnsupportedUse,
     UnsupportedProducer,
     UnsupportedLiteral,
