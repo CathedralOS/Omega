@@ -1243,8 +1243,17 @@ other terminal services are not prerequisites.
   (`PreparedLocalProjectNativeRequest::with_receiving_terminal_authority_permission_policy`
   has no caller under `omega-rust/omega/src`) rather than test-owned
   acceptance (`package_commands console_exit_permission`,
-  `tests/fixtures/packages/console-exit-app`). Console output/input
-  permissions are not proposed yet. The surface that selects the receiving
+  `tests/fixtures/packages/console-exit-app`). At 30fbd45660 the same
+  discovery also proposes the `write_byte` (`process_output`) and
+  `read_byte` (`process_input`) rows the nominated Console provider
+  declares as compiler-intrinsic leaves, one blocking root-only decision
+  each at the selected provider's declared-row granularity (package review
+  carries service-level reach; final closure admission owns
+  demand-completeness): a provider declaring only the exit leaf proposes no
+  byte row (`review::candidate::compilation::tests::discovery_proposes_*`,
+  1 against 3 rows), and console-exit-app now writes a line, accepts 3 rows
+  into the lock and stops at the empty receiving policy for all three
+  (4121d83206). The surface that selects the receiving
   policy package is design-blocked on the `receiving-policy-selection`
   owner question. Open: the CLI receiving policy,
   remaining hosts' physical runs, root-return/task-custody survivor
