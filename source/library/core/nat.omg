@@ -1,18 +1,21 @@
 // Core natural-number ranking surface.
 //
 // `Nat::Descending` is the default well-founded ranking for unsigned natural
-// values in termination proofs. The checker still recognizes the name
-// internally today, but the semantic home should be browsable here alongside
-// other core rankings.
+// values in termination proofs. It is an exact compiler primitive: a bare
+// bodyless machine signature supplied by the closed ranking-view catalog
+// because this sealed toolchain source declares it with exactly this path and
+// shape, and the termination checker consults the declaration at this path
+// rather than the spelling alone. Merely naming a declaration
+// `Nat::Descending` elsewhere grants no primitive or ranking authority.
 //
-// Planned public surface:
+// Public surface:
 // - plain `terminates by value` resolves here when the value has an unambiguous
 //   natural-number ranking
 // - `terminates by value -> Nat::Descending` spells the ranking explicitly
-// - custom numeric-like domains can define their own named rankings instead of
-//   pretending every ordering belongs directly to the data type
+// - custom numeric-like domains define their own named `measure` rankings
+//   instead of pretending every ordering belongs directly to the data type
 
-operator Nat::Descending(value: u64) -> u64;
+machine Nat::Descending(value: u64) -> u64;
 
 // The core algebraic conformance surface: Nat EARNS ring canonicalization
 // (rearrange-mode) by conforming `CommutativeSemiring` machine-by-machine
