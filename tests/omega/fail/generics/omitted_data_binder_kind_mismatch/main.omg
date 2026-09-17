@@ -1,0 +1,15 @@
+// A type/value mixture rejects rather than converting a type to a value.
+data Wrong<Length, const Capacity: u64>
+where
+    Length == Capacity
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Main {
+    bytes: Wrong<u64[0..=256]>;
+}
+
+machine Main::main(&mut self) {
+}

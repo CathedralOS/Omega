@@ -1,0 +1,1 @@
+where equation binds `Capacity` to 256 but its explicit argument is 512

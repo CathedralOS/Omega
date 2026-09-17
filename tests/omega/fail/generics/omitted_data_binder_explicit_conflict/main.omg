@@ -1,0 +1,17 @@
+// An explicitly supplied argument is fixed. The equation requires Capacity to
+// equal the supplied range's endpoint exactly, so a larger explicit capacity
+// is a conflict, not a compatible containing bound.
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Main {
+    bytes: TinyBytes<u64[0..=256], 512>;
+}
+
+machine Main::main(&mut self) {
+}

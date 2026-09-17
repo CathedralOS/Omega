@@ -1,0 +1,15 @@
+// The occurs check rejects a binder defined through its own structure.
+data Loop<Length, const Capacity: u64>
+where
+    Length == Length[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Main {
+    bytes: Loop<u64[0..=256]>;
+}
+
+machine Main::main(&mut self) {
+}
