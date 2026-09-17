@@ -97,6 +97,8 @@ use crate::unit::attached_unit::{
 };
 
 pub(crate) mod attached_unit;
+pub(crate) mod plan_omissions;
+pub(crate) use plan_omissions::unit_plan_omission_explanation;
 pub(crate) mod dynamic_composed_unit;
 pub(crate) mod runtime_requirements;
 pub(crate) mod structural_unit_control;

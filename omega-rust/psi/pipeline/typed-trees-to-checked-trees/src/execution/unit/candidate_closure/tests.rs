@@ -168,7 +168,7 @@ fn deep_invalid_chain_and_cycles_close_without_recursive_or_round_replay() {
         SymbolHandle::invalid(),
         SymbolHandle::invalid(),
     );
-    assert!(closure.close().iter().all(|retained| !retained));
+    assert!(closure.close().0.iter().all(|retained| !retained));
 
     let mut cycle =
         CandidateClosure::new((0..BODY_COUNT).map(|ordinal| (symbol(ordinal), symbol(ordinal))));
@@ -176,7 +176,7 @@ fn deep_invalid_chain_and_cycles_close_without_recursive_or_round_replay() {
         let target = (caller + 1) % BODY_COUNT;
         cycle.require_entry(caller, symbol(target), symbol(target));
     }
-    assert!(cycle.close().iter().all(|retained| *retained));
+    assert!(cycle.close().0.iter().all(|retained| *retained));
 }
 
 #[test]
@@ -197,7 +197,7 @@ fn roster_preserves_generations_and_rejects_all_competing_entries() {
     closure.require_entry(0, old_machine, state);
     closure.require_entry(1, new_machine, state);
     closure.require_entry(2, SymbolHandle::from_parts(10, 3), state);
-    assert_eq!(closure.close(), [true, true, false, false, false]);
+    assert_eq!(closure.close().0, [true, true, false, false, false]);
 }
 
 #[test]

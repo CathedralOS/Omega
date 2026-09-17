@@ -497,7 +497,7 @@ fn mixed_member_integer_boolean_cleanup_remains_outside_the_supported_source_sha
         matches!(
             checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main"),
             Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-                machine, reason,
+                machine, reason, ..
             }) if machine == "Main::main"
                 && reason == "attached Unit closure is missing a checked transitive machine plan"
         ),

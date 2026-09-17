@@ -26,6 +26,10 @@ pub enum LoweringError {
     InvalidUnitMachinePlan {
         machine: String,
         reason: &'static str,
+        /// Why the checked stage left the named machine (or the machine its
+        /// closure reached) without a Unit plan, rendered from the checked
+        /// record's omission roster when that roster names it.
+        omission: Option<String>,
     },
     Unsupported(&'static str),
     InvalidPsiIntegerType,

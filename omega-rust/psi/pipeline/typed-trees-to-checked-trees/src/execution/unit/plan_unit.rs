@@ -25,9 +25,13 @@ own availability checks. Only after
 pruning do we retain the referenced structural types and their transitive shapes.
 
 When a downstream error says a checked transitive machine plan is missing,
-look for failure during local construction, receiver reconciliation, or this
-closure pruning before changing lowering. The current Option-based builders do
-not retain which local requirement failed; absence alone does not identify it.
+read the record's `omissions` roster first: every checked-body machine without
+a plan carries the stage that dropped it (local construction, receiver
+reconciliation, builder overlap, or closure pruning with the direct dependency
+that was unavailable). Following the closure rows reaches the machine whose own
+body failed local construction; the Option-based builders still do not retain
+which local requirement failed there, so that machine's body is where to look
+before changing lowering.
 */
 
 /*
@@ -92,13 +96,13 @@ use checked_trees::{
     CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
-    ContractProofFactOwner,
+    CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
 };
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -462,6 +466,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &boundary_machines,
         call_frames,
     );
+    let mut omissions = OmissionLedger::new(program, &candidates, &composed_machines);
     receiver_calls::reconcile(
         program,
         facts,
@@ -499,10 +504,15 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                     && plan.scalar_control.is_none()
             })
     });
+    omissions.record_dropped(
+        &candidates,
+        &composed_machines,
+        CheckedUnitPlanOmissionStage::ReceiverReconciliation,
+    );
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
-    candidate_closure::retain_available(
+    let closure_omissions = candidate_closure::retain_available(
         program,
         facts,
         scalar_callees,
@@ -510,6 +520,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &mut candidates,
         &mut composed_machines,
     );
+    omissions.record_closure(&candidates, &composed_machines, closure_omissions);
     let mut retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
@@ -739,6 +750,121 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         machines: candidates,
         dynamic_dispatch,
         composed_machines,
+        omissions: omissions.into_rows(),
+    }
+}
+
+/// Omission evidence gathered while the roster is built: which checked-body
+/// machines never received a body, and which admitted bodies each later stage
+/// dropped. Rows are diagnostic; they never reinstate a body.
+struct OmissionLedger {
+    rows: Vec<CheckedUnitPlanOmission>,
+    named: BTreeSet<(u32, u32)>,
+    admitted: BTreeSet<(u32, u32)>,
+}
+
+fn omission_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
+impl OmissionLedger {
+    fn new(
+        program: &TypedTrees,
+        candidates: &[CheckedUnitEffectMachinePlan],
+        composed_machines: &[CheckedComposedUnitControlMachinePlan],
+    ) -> Self {
+        let admitted = Self::planned(candidates, composed_machines);
+        let mut ledger = Self {
+            rows: Vec::new(),
+            named: BTreeSet::new(),
+            admitted,
+        };
+        let unplanned = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+            .filter(|machine| !ledger.admitted.contains(&omission_key(machine.symbol)))
+            .map(|machine| machine.symbol)
+            .collect::<Vec<_>>();
+        for machine in unplanned {
+            ledger.name(CheckedUnitPlanOmission {
+                machine,
+                stage: CheckedUnitPlanOmissionStage::LocalConstruction,
+            });
+        }
+        ledger
+    }
+
+    fn planned(
+        candidates: &[CheckedUnitEffectMachinePlan],
+        composed_machines: &[CheckedComposedUnitControlMachinePlan],
+    ) -> BTreeSet<(u32, u32)> {
+        candidates
+            .iter()
+            .map(|plan| omission_key(plan.machine))
+            .chain(
+                composed_machines
+                    .iter()
+                    .map(|plan| omission_key(plan.machine)),
+            )
+            .collect()
+    }
+
+    /// The first row for a machine wins; later stages cannot rename it.
+    fn name(&mut self, row: CheckedUnitPlanOmission) {
+        if self.named.insert(omission_key(row.machine)) {
+            self.rows.push(row);
+        }
+    }
+
+    /// Every previously admitted machine that no longer has a body left at
+    /// `stage`.
+    fn record_dropped(
+        &mut self,
+        candidates: &[CheckedUnitEffectMachinePlan],
+        composed_machines: &[CheckedComposedUnitControlMachinePlan],
+        stage: CheckedUnitPlanOmissionStage,
+    ) {
+        let planned = Self::planned(candidates, composed_machines);
+        let dropped = self
+            .admitted
+            .difference(&planned)
+            .copied()
+            .collect::<Vec<_>>();
+        for (arena_index, generation) in dropped {
+            self.name(CheckedUnitPlanOmission {
+                machine: SymbolHandle::from_parts(arena_index, generation),
+                stage,
+            });
+        }
+        self.admitted = planned;
+    }
+
+    /// Closure pruning reports its own rows; a machine it did not name but
+    /// that still vanished was one of two competing bodies for one entry.
+    fn record_closure(
+        &mut self,
+        candidates: &[CheckedUnitEffectMachinePlan],
+        composed_machines: &[CheckedComposedUnitControlMachinePlan],
+        closure_omissions: Vec<CheckedUnitPlanOmission>,
+    ) {
+        let planned = Self::planned(candidates, composed_machines);
+        for row in closure_omissions {
+            if !planned.contains(&omission_key(row.machine)) {
+                self.name(row);
+            }
+        }
+        self.record_dropped(
+            candidates,
+            composed_machines,
+            CheckedUnitPlanOmissionStage::CompetingCandidates,
+        );
+    }
+
+    fn into_rows(mut self) -> Vec<CheckedUnitPlanOmission> {
+        self.rows
+            .sort_by_key(|row| (row.machine.arena_index(), row.machine.generation()));
+        self.rows
     }
 }
 
