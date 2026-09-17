@@ -400,16 +400,23 @@ fn validate_machine_top_level_requirement_conformance(
         &label,
         diagnostics,
     );
-    crate::machine_calls::machine_parameters::validate_callable_contract_refinement(
-        program,
-        &label,
-        requirement_identity,
-        program.machine_contracts(requirement),
-        program.machine_contracts(machine),
-        required_parameters,
-        actual_parameters,
-        diagnostics,
-    );
+    // An external leaf (`via` binding or compiler intrinsic) states no checked
+    // contract of its own: the requirement's contract remains the public
+    // contract and the binding's sealed catalog or foreign policy carries the
+    // realization, exactly as for a boundary-operator satisfier. Only a
+    // checked body refines the requirement's contract.
+    if conformance.external_binding.is_none() && !conformance.via_expression.is_valid() {
+        crate::machine_calls::machine_parameters::validate_callable_contract_refinement(
+            program,
+            &label,
+            requirement_identity,
+            program.machine_contracts(requirement),
+            program.machine_contracts(machine),
+            required_parameters,
+            actual_parameters,
+            diagnostics,
+        );
+    }
 }
 
 /// Recheck one exact top-level requirement realization from retained typed
