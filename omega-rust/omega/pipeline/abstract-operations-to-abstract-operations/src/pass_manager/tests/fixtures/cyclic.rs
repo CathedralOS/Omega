@@ -36,6 +36,7 @@ pub(in crate::pass_manager::tests) fn verified_unranked_cycle_unit() -> Verified
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(501).unwrap(),
         structural_types: Vec::new(),

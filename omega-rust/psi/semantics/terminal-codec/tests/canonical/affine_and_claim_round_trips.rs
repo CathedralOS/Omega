@@ -241,6 +241,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         structural_types: vec![

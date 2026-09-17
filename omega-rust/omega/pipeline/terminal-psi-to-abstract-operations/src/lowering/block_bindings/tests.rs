@@ -29,6 +29,7 @@ fn fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: vec![StructuralTypeDeclaration {

@@ -26,6 +26,7 @@ fn module(
     terminal_psi::TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(machine).unwrap(),
         structural_types: Vec::new(),

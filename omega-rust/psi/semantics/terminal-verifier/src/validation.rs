@@ -946,6 +946,7 @@ fn validate_module_with_policy(
     for machine in &module.machines {
         machine::validate_machine(module, machine, &machines, &mut registry)?;
     }
+    crash::validate_operation_crash_contracts(module, &machines)?;
     scalar_qualifications::validate(module)?;
     scalar_block_invariants::validate(module, &machines, &mut registry)?;
     suspension_call_plan::validate_suspension_call_plans(module)?;

@@ -36,6 +36,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(40).expect("machine"),
         structural_types: Vec::new(),
@@ -249,6 +250,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
         let module = TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(50).expect("machine"),
             structural_types: Vec::new(),
@@ -454,6 +456,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
         let module = TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(60).expect("machine"),
             structural_types: Vec::new(),
@@ -609,6 +612,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(65).expect("machine"),
         structural_types: Vec::new(),
@@ -743,6 +747,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(68).expect("machine"),
         structural_types: Vec::new(),
@@ -905,6 +910,7 @@ fn preserves_address_carrier_identity() {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(168).expect("machine"),
         structural_types: Vec::new(),
@@ -991,6 +997,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(170).expect("machine"),
         structural_types: Vec::new(),
@@ -1125,6 +1132,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(180).expect("machine"),
         structural_types: Vec::new(),
@@ -1236,6 +1244,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(190).expect("machine"),
         structural_types: Vec::new(),
@@ -1350,6 +1359,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
     let mut module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(194).expect("machine"),
         structural_types: Vec::new(),

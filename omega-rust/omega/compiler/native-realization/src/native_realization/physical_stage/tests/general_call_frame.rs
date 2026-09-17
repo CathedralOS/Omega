@@ -143,6 +143,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(CALLER).unwrap(),
         structural_types: Vec::new(),

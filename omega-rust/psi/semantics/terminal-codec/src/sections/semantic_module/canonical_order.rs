@@ -38,6 +38,32 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     }
     if !strictly_increasing(
         module
+            .operation_crash_contracts
+            .iter()
+            .map(|contract| (contract.machine, contract.operation)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "operation crash contracts by machine and operation",
+        ));
+    }
+    for contract in &module.operation_crash_contracts {
+        if contract.published_routes.is_empty()
+            || !crash_routes_are_canonical(&contract.published_routes)
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "operation crash contract published route buckets",
+            ));
+        }
+        validate_crash_route_predicates(&contract.published_routes)?;
+        if !crash_routes_are_canonical(&contract.crash_continuations) {
+            return Err(CodecError::NonCanonicalOrder(
+                "operation crash contract continuation buckets",
+            ));
+        }
+        validate_crash_route_predicates(&contract.crash_continuations)?;
+    }
+    if !strictly_increasing(
+        module
             .suspension_call_sites
             .iter()
             .map(|site| (site.operation, site.crossing)),

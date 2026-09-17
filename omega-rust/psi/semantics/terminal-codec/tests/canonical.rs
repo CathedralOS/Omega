@@ -9,6 +9,8 @@ mod boundary_crashes;
 mod bounded_integer_fields;
 #[path = "canonical/contract_fields.rs"]
 mod contract_fields;
+#[path = "canonical/operation_crash_contracts.rs"]
+mod operation_crash_contracts;
 #[path = "canonical/owned_integer_fields.rs"]
 mod owned_integer_fields;
 #[path = "canonical/scalar_array_arguments.rs"]
@@ -125,6 +127,7 @@ fn partial_affine_fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![
@@ -399,6 +402,7 @@ fn nominal_affine_fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![
@@ -549,6 +553,7 @@ fn structural_effect_fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(100),
         structural_types: vec![
@@ -1130,6 +1135,7 @@ fn unit_fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(900),
         structural_types: Vec::new(),
@@ -1383,6 +1389,7 @@ fn fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -1551,6 +1558,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker,
         entry: machine_id(80),
         structural_types: Vec::new(),
@@ -1791,6 +1799,7 @@ fn call_fixture() -> TerminalModule {
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(100),
         structural_types: Vec::new(),

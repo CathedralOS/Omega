@@ -1097,6 +1097,27 @@ pub enum ModuleError {
         operation: OperationId,
         cause: CrashCause,
     },
+    NonCanonicalOperationCrashContracts,
+    InvalidOperationCrashContract {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    UnsupportedOperationCrashContractOperation {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    NonCanonicalOperationCrashContractRoutes {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    UnsupportedOperationCrashPredicate {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    OperationCrashContinuationsMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     CallTargetHasStructuralContract {
         operation: OperationId,
         callee: MachineId,

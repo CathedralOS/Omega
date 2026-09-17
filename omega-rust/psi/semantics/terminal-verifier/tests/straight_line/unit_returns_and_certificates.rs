@@ -612,6 +612,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(10).expect("machine"),
         structural_types: Vec::new(),
@@ -732,6 +733,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(20).expect("machine"),
         structural_types: Vec::new(),
@@ -979,6 +981,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
     let module = TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(30).expect("machine"),
         structural_types: Vec::new(),

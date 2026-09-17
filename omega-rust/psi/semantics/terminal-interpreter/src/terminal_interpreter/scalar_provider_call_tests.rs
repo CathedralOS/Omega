@@ -187,6 +187,7 @@ fn scalar_provider_module(
     TerminalModule {
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
         vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![StructuralTypeDeclaration {

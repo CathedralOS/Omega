@@ -89,6 +89,12 @@ pub struct TerminalModule {
     /// Every actual arrival owns an independently checked obligation;
     /// no first-arrival fact or ranking certificate establishes these implicitly.
     pub scalar_block_invariants: Vec<ScalarBlockInvariant>,
+    /// Crash contracts of selected operator invocations that lower to one
+    /// ordinary operation, ordered by machine and operation. Each row carries
+    /// the operator's published routes in its formal namespace beside the
+    /// exact continuations the verifier reconstructs from the operation's
+    /// operands; calls keep their own carriers.
+    pub operation_crash_contracts: Vec<TerminalOperationCrashContract>,
     /// Exact source-handle-free generic conformance applications used by the
     /// retained machine closure. Rows are owned by the concrete terminal
     /// machine whose specialization selected the application.

@@ -88,6 +88,7 @@ pub(super) fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationI
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -199,6 +200,7 @@ pub(super) fn saturating_add_module() -> (TerminalModule, Proposition, Obligatio
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -310,6 +312,7 @@ pub(super) fn wrapping_subtract_module() -> (TerminalModule, Proposition, Obliga
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -421,6 +424,7 @@ pub(super) fn saturating_subtract_module() -> (TerminalModule, Proposition, Obli
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -532,6 +536,7 @@ pub(super) fn wrapping_multiply_module() -> (TerminalModule, Proposition, Obliga
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
@@ -643,6 +648,7 @@ pub(super) fn saturating_multiply_module() -> (TerminalModule, Proposition, Obli
         TerminalModule {
             scalar_qualifications: Default::default(),
             scalar_block_invariants: Vec::new(),
+            operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types: Vec::new(),
