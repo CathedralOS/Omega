@@ -2,6 +2,7 @@ use super::{POLICY_SOURCE, corpus_source, write_cross_package_program, write_pro
 use crate::fixture_roster;
 use access_plans::{AccessExposure, ExternalRead, FieldAccess, ObservationModel};
 use build_time_evaluation::{compute_access_plan, compute_layout_plan, compute_placement_plan};
+use calling_conventions::{MachineRegister, ValueLocation};
 use checked_trees_to_lowered_psi::lower_machine;
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use language_core::ReferenceAccess;
@@ -1018,7 +1019,28 @@ machine Inspector::inspect(
         .expect("canonical artifact for the placed-view module")
     };
 
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    // The host leg below links the emitted fragment with a C driver, so it
+    // runs only where the harness can execute the selected target's bytes.
+    let host_target = if cfg!(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
+    )) {
+        Some(NativeTarget::host())
+    } else {
+        eprintln!(
+            "skip: native placed-view execution needs a Linux x86-64/aarch64 or macOS aarch64 host"
+        );
+        None
+    };
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let mut placed = codec_plan.clone();
         placed.plan = stage_optimized.plan().clone();
         placed.placed_view_inputs = stage_optimized
@@ -1213,12 +1235,41 @@ machine Inspector::inspect(
                 | Err(object_file::OptimizedObjectArtifactError::SemanticMismatch)
                 | Err(object_file::OptimizedObjectArtifactError::ProofMismatch)
         ));
+
+        // The derived placement is the target's first pointer argument, so a
+        // C caller using the platform convention supplies the same register
+        // the plan-laid ABI derived. Checking the register here ties the host
+        // leg to the derived placement instead of assuming the convention.
+        let expected_register = match target.architecture {
+            target::Architecture::X86_64 => MachineRegister::X86Rdi,
+            target::Architecture::Aarch64 => MachineRegister::Aarch64X(0),
+        };
+        assert_eq!(
+            placed_input.placement.locations,
+            vec![ValueLocation::Register {
+                register: expected_register,
+                value_byte_offset: 0,
+                byte_size: u16::try_from(target.pointer_size).expect("pointer width fits"),
+            }]
+        );
+
+        // End-to-end native placement on the host: the driver owns a referent
+        // of exactly the validated geometry and lends its address through the
+        // derived ABI. The fragment returns normally, the referent bytes and
+        // the guards around them survive both calls, and the address is never
+        // retained: the physical address exists only for the call and grants
+        // no ownership of the referent. Backing, range, access, and lifetime
+        // authority all stayed with the driver.
+        if Some(target) == host_target {
+            execute_placed_entry_with_host_referent(emit_object(), placed_input);
+        }
     }
 
-    // The image-emitting realization boundary stays fail-closed: it cannot
-    // yet bind the view pointer into an emitted entry shim, so executable
-    // realization rejects a nonempty roster instead of silently erasing the
-    // declared input.
+    // The image-emitting realization boundary stays fail-closed. The host leg
+    // above lends the referent from a C caller; an executable image's entry
+    // shim has no such caller, and no provider establishment route supplies
+    // the address yet, so executable realization rejects a nonempty roster
+    // instead of silently erasing the declared input.
     let realization_error = native_realization::prepare_native_realization_input(
         &canonical_artifact(),
         &profile,
@@ -1231,6 +1282,59 @@ machine Inspector::inspect(
             .contains("PlacedViewInputsRequireCustodyLowering")),
         "executable realization rejection names the custody boundary: {realization_error:?}"
     );
+}
+
+/// Link the emitted placed-entry fragment against a host driver that lends a
+/// referent of the validated geometry for the duration of each call.
+///
+/// The referent size and alignment come from the validated
+/// `TargetPlacedViewInput` row rather than from the source fixture, so the
+/// driver cannot agree with the fragment by accident: a substituted plan that
+/// survived to this point would change the geometry the driver allocates.
+fn execute_placed_entry_with_host_referent(
+    container: object_file::StagedOptimizedRelocationFreeObjectContainer,
+    placed_input: &target_operations::TargetPlacedViewInput,
+) {
+    let source = std::sync::Arc::new(container);
+    let object = image_emission::build_function_fragment_object_artifact(source.clone())
+        .expect("placed-entry fragment publishes as an object artifact");
+    image_emission::validate_function_fragment_object_artifact(&source, &object)
+        .expect("published placed-entry object replays its fragment source");
+    let entry_offset = object.entry_function().text_offset;
+    let size = placed_input.referent_byte_size;
+    let alignment = placed_input.referent_alignment;
+    let driver = format!(
+        r#"#include <stdint.h>
+#include <string.h>
+
+extern void omega_entry(void *view);
+
+int main(void) {{
+    struct {{
+        uint64_t before;
+        _Alignas({alignment}) uint8_t referent[{size}];
+        uint64_t after;
+    }} image;
+    uint8_t expected[{size}];
+    const uint64_t guard = UINT64_C(0x5a5a5a5a5a5a5a5a);
+    unsigned index;
+
+    for (index = 0; index < {size}; ++index) {{
+        expected[index] = (uint8_t)(0xc0 + index);
+    }}
+    image.before = guard;
+    image.after = guard;
+    memcpy(image.referent, expected, {size});
+    if (((uintptr_t)image.referent) % {alignment}) return 4;
+    omega_entry(image.referent);
+    omega_entry(image.referent);
+    if (memcmp(image.referent, expected, {size})) return 1;
+    if (image.before != guard || image.after != guard) return 2;
+    return 0;
+}}
+"#
+    );
+    crate::native_function::assert_c_text(object.text_bytes(), entry_offset, &driver);
 }
 
 #[test]
