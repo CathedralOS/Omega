@@ -345,19 +345,215 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
     assert_eq!(checked.callback_placements().len(), 2);
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
         .and_then(compiler::CompileOutcomes::into_single_report)
-        .expect_err("the admitted registrar must surface its next custody stage");
-    assert!(
-        !terminal.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("0 Terminal registrar occurrences")),
-        "the reachable registrar call must reach Terminal: {terminal:#?}",
+        .expect("the admitted registrar must close its thunk custody at Terminal");
+    let retained = terminal
+        .into_retained_terminal_artifact()
+        .expect("Terminal product owns the private callback sidecar");
+    let placements = retained.callback_placements();
+    let [first_placement, second_placement] = placements else {
+        panic!("both private callback placements must survive");
+    };
+    for placement in [first_placement, second_placement] {
+        let materialization = placement
+            .private_materialization
+            .as_ref()
+            .expect("private callback placement retains its materialization");
+        assert!(
+            matches!(
+                materialization.destination,
+                calling_conventions::NativePlace::Field { .. }
+            ),
+            "the specification slots materialize as private layout fields",
+        );
+        assert!(
+            materialization
+                .direct_registrar_parameter_application
+                .is_none(),
+            "a field destination's root parameter is not a callback argument",
+        );
+    }
+    // The private slots are compiler-owned layout rows, not authored fields:
+    // both live under the same registrar parameter and closed layout but name
+    // distinct slot paths, so neither can be reached as an ordinary field.
+    let (
+        calling_conventions::NativePlace::Field {
+            parameter: first_parameter,
+            layout: first_layout,
+            field_path: first_field_path,
+        },
+        calling_conventions::NativePlace::Field {
+            parameter: second_parameter,
+            layout: second_layout,
+            field_path: second_field_path,
+        },
+    ) = (
+        &first_placement
+            .private_materialization
+            .as_ref()
+            .expect("first materialization")
+            .destination,
+        &second_placement
+            .private_materialization
+            .as_ref()
+            .expect("second materialization")
+            .destination,
+    )
+    else {
+        unreachable!("checked above")
+    };
+    assert_eq!(first_parameter, second_parameter);
+    assert_eq!(first_layout, second_layout);
+    assert_ne!(first_field_path, second_field_path);
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("Terminal product retains its native realization proposal");
+    let occurrences = proposal.callback_occurrences();
+    let [first_occurrence, second_occurrence] = occurrences else {
+        panic!("one occurrence per private callback placement must be retained");
+    };
+    // One authored registrar call materializes both private slots, so both
+    // occurrences replay to the same canonical Terminal boundary call.
+    assert_eq!(
+        first_occurrence.terminal_operation(),
+        second_occurrence.terminal_operation()
     );
-    assert!(
-        terminal.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("callback thunk Terminal lowering failed")),
-        "unexpected diagnostics: {terminal:#?}",
+    assert!(first_occurrence.direct_parameter_application().is_none());
+    assert!(second_occurrence.direct_parameter_application().is_none());
+    let module = terminal_codec::decode_module(retained.artifact().semantic_bytes())
+        .expect("decode canonical Terminal semantics");
+    let matching = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == first_occurrence.terminal_operation())
+        .collect::<Vec<_>>();
+    let [operation] = matching.as_slice() else {
+        panic!("each occurrence must name one exact Terminal operation");
+    };
+    assert!(matches!(
+        operation.kind,
+        terminal_psi::OperationKind::BoundaryCall { .. }
+    ));
+    let u64_type =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .expect("u64 Terminal type");
+    for (position, occurrence) in occurrences.iter().enumerate() {
+        let placement = &placements[position];
+        assert_eq!(occurrence.placement_index(), position);
+        let callback_thunk_identity = occurrence.callback_thunk_identity();
+        assert_eq!(
+            callback_thunk_identity.callback_thunk_placement_index(),
+            Some(position)
+        );
+        let continuation = callback_thunk_identity.associated_source_continuation();
+        assert_eq!(continuation.machine, placement.selected_machine);
+        assert_eq!(continuation.state, placement.selected_entry);
+        assert_eq!(continuation.segment_index, 0);
+        assert_eq!(
+            Some(callback_thunk_identity),
+            backend_plan::canonical_callback_thunk_identity(position, placement)
+        );
+        let thunk = occurrence.callback_thunk_artifact();
+        assert_eq!(
+            thunk.private_symbol(),
+            &backend_plan::canonical_callback_private_symbol(placement)
+        );
+        let receipt = thunk.lowering_receipt();
+        assert_eq!(receipt.source_machine, placement.selected_machine);
+        assert_eq!(receipt.source_entry, placement.selected_entry);
+        // Both slots bind the same `u64 -> Unit` provider body: the thunk is
+        // one Terminal machine taking the authored message parameter and
+        // completing without a value.
+        let thunk_module = terminal_codec::decode_module(thunk.artifact().semantic_bytes())
+            .expect("decode canonical callback thunk semantics");
+        let [thunk_machine] = thunk_module.machines.as_slice() else {
+            panic!("the bounded callback thunk must contain one Terminal machine");
+        };
+        let ([thunk_parameter], [thunk_block]) = (
+            thunk_machine.parameters.as_slice(),
+            thunk_machine.blocks.as_slice(),
+        ) else {
+            panic!("the bounded callback thunk must retain one parameter and one block");
+        };
+        assert_eq!(thunk_module.entry, receipt.terminal_machine);
+        assert_eq!(thunk_machine.id, receipt.terminal_machine);
+        assert_eq!(thunk_machine.entry, receipt.terminal_entry);
+        assert_eq!(
+            thunk_parameter.scalar_type,
+            semantic_vocabulary::ScalarType::Integer(u64_type)
+        );
+        assert!(matches!(
+            thunk_machine.result,
+            terminal_psi::TerminalMachineResult::Unit
+        ));
+        assert!(thunk_block.parameters.is_empty());
+        assert!(thunk_block.operations.is_empty());
+        assert!(matches!(
+            &thunk_block.terminator,
+            terminal_psi::Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards.is_empty()
+        ));
+    }
+    assert_ne!(
+        first_occurrence.callback_thunk_identity(),
+        second_occurrence.callback_thunk_identity()
     );
+    assert_ne!(
+        first_occurrence.callback_thunk_artifact().private_symbol(),
+        second_occurrence.callback_thunk_artifact().private_symbol()
+    );
+    retained
+        .validate()
+        .expect("private callback occurrences replay against their artifact");
+
+    // Retained-product replay still binds every placement: a dropped
+    // occurrence leaves a placement uncovered and rejects.
+    let missing = compilation_report::TerminalNativeRealizationProposal::new(
+        retained.artifact(),
+        compilation_report::TerminalNativeRealizationInputs {
+            target_profile: proposal.target_profile(),
+            native_target: proposal.native_target(),
+            subsystem: proposal.subsystem(),
+            application_intent: proposal.application_intent(),
+            application_identifier: proposal.application_identifier().cloned(),
+            application_name: proposal.application_name().map(str::to_owned),
+            post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+            program_entry: proposal.program_entry().clone(),
+            checked_program_entry: proposal.checked_program_entry().clone(),
+            selected_provider_plans: proposal.selected_provider_plans().clone(),
+            external_binding_rows: proposal.external_binding_rows().to_vec(),
+            package_terminal_authority_permissions: proposal
+                .package_terminal_authority_permissions()
+                .to_vec(),
+            compiler_builtins: proposal.compiler_builtins().to_vec(),
+            callback_occurrences: vec![first_occurrence.clone()],
+            ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+            ieee_float_comparison_occurrences: proposal
+                .ieee_float_comparison_occurrences()
+                .to_vec(),
+            boundary_application_demands: proposal.boundary_application_demands().clone(),
+            boundary_application_realizations: proposal.boundary_application_realizations().clone(),
+            checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+            behavior_exclusions: proposal.behavior_exclusions().clone(),
+        },
+    )
+    .expect("artifact-local replay permits a partial occurrence catalog");
+    let (artifact, placements, _) = retained.into_parts();
+    assert!(
+        compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            artifact, placements, missing,
+        )
+        .is_err(),
+        "retained product replay requires one occurrence per callback placement",
+    );
+
+    let native = compile(fixture.request(RequestedCompileProduct::NativeArtifact, "native"))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect_err("native production remains fenced after private callback custody");
+    assert_custody_diagnostic(&native, "native-artifact", 2);
 }
 
 #[test]

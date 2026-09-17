@@ -431,18 +431,43 @@ fn validate_direct_callback_thunk_shape(
             "direct callback thunk currently requires exactly one Terminal machine",
         )]);
     };
-    let ([parameter], terminal_psi::TerminalMachineResult::Scalar(result), [block]) = (
-        machine.parameters.as_slice(),
-        &machine.result,
-        machine.blocks.as_slice(),
-    ) else {
+    let ([parameter], [block]) = (machine.parameters.as_slice(), machine.blocks.as_slice()) else {
         return Err(vec![Diagnostic::error(
-            "direct callback thunk currently requires one scalar parameter, one scalar result, and one block",
+            "direct callback thunk currently requires one scalar parameter and one block",
         )]);
     };
     let expected_type =
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
             .expect("u64 is a valid fixed integer type");
+    // The two admitted leaf cohorts mirror the two checked callback bodies the
+    // bounded lowering accepts: a `u64 -> u64` identity return, and a
+    // `u64 -> Unit` body that completes without producing a value. The
+    // evaluated boundary entry plan retains which of them the requirement
+    // signature declared, so the Terminal shape and the replayed signature
+    // must agree exactly.
+    let (exact_body, signature_result) = match (&machine.result, &block.terminator) {
+        (
+            terminal_psi::TerminalMachineResult::Scalar(result),
+            terminal_psi::Terminator::Return {
+                value,
+                cleanup_actions,
+                ..
+            },
+        ) => (
+            result.scalar_type == parameter.scalar_type
+                && *value == parameter.id
+                && cleanup_actions.is_empty(),
+            Some(calling_conventions::ValueShape::integer(8, 8)),
+        ),
+        (
+            terminal_psi::TerminalMachineResult::Unit,
+            terminal_psi::Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            },
+        ) => (trivial_affine_discards.is_empty(), None),
+        _ => (false, None),
+    };
     let is_exact_leaf = module.entry == machine.id
         && machine.entry == block.id
         && machine.structural_parameters.is_empty()
@@ -451,23 +476,15 @@ fn validate_direct_callback_thunk_shape(
         && block.parameters.is_empty()
         && block.operations.is_empty()
         && parameter.scalar_type == semantic_vocabulary::ScalarType::Integer(expected_type)
-        && result.scalar_type == parameter.scalar_type
-        && matches!(
-            &block.terminator,
-            terminal_psi::Terminator::Return {
-                value,
-                cleanup_actions,
-                ..
-            } if *value == parameter.id && cleanup_actions.is_empty()
-        );
+        && exact_body;
     if !is_exact_leaf {
         return Err(vec![Diagnostic::error(
-            "direct callback thunk currently admits only the exact u64-to-u64 identity leaf",
+            "direct callback thunk currently admits only the exact u64 identity or u64-to-Unit leaf",
         )]);
     }
     let signature = calling_conventions::CallSignature {
         parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
-        result: Some(calling_conventions::ValueShape::integer(8, 8)),
+        result: signature_result,
     };
     let validated = calling_conventions::validate_boundary_entry_plan(
         placement.boundary_entry_plan.clone(),
