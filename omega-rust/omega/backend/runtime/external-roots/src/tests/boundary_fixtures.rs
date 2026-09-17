@@ -295,6 +295,62 @@ pub(crate) fn stack_demand_input(
         .expect("test epoch evidence binding")
 }
 
+/// One member's bound epoch input with an explicit arrival-context roster:
+/// each `(context, epochs)` row admits that context whose epochs run on the
+/// resolved stack domain with the given `(stage, nesting)` dispositions.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stack_epoch_input(
+    root: ExternalRootId,
+    provider: RootProviderId,
+    boundary: &ValidatedBoundaryEntryPlan,
+    code: &InstalledCode,
+    entry: EntryStubId,
+    resolved_stack: EntryStack,
+    local_wcsu_bytes: u64,
+    contexts: &[(u64, &[(EntryStackStage, Preemption)])],
+) -> BoundEpochStackCompositionInput {
+    let active_domain = StackDomainRef::from(resolved_stack);
+    let realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: contexts
+            .iter()
+            .map(|(context, epochs)| ArrivalContextRealization {
+                context: ArrivalContextId::new(*context).expect("arrival context"),
+                epochs: epochs
+                    .iter()
+                    .map(|(stage, nesting)| EntryStackEpoch {
+                        stage: *stage,
+                        active_domain,
+                        occupancy_by_domain: Vec::new(),
+                        nesting: *nesting,
+                    })
+                    .collect(),
+            })
+            .collect(),
+    })
+    .expect("test epoch realization");
+    let summary = ProviderStackSummary::from_admitted_provider(
+        root,
+        provider,
+        boundary.plan().state.stack,
+        local_wcsu_bytes,
+        16,
+        root_id(49, StackValidationReceiptId::from_normalized_identity),
+    );
+    let admitted = admitted_arrival_contexts(
+        &summary,
+        boundary,
+        code,
+        entry,
+        &contexts
+            .iter()
+            .map(|(context, _)| *context)
+            .collect::<Vec<_>>(),
+        root_id(48, StackValidationReceiptId::from_normalized_identity),
+    );
+    bind_opaque_adapter_stack_realization(&summary, boundary, code, entry, realization, admitted)
+        .expect("test epoch evidence binding")
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stack_demand(
     root: ExternalRootId,

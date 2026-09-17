@@ -16,6 +16,7 @@ use crate::ProviderExecution;
 use crate::StackResourceColumn;
 use crate::ValidatedExternalRoot;
 use crate::identities::Fnv1a;
+use crate::interrupts::interrupt_entries::ActiveInterruptEntry;
 use crate::{
     AcknowledgementPolicyId, ExternalRootDiagnostic, ExternalRootId, InstalledProviderOccurrenceId,
     InterruptAcknowledgementId, InterruptInvocationId, NestingRelationId,
@@ -159,7 +160,12 @@ pub struct InstalledRootLedger {
     pub(crate) roots: BTreeMap<ExternalRootId, InstalledRootRecord>,
     pub(crate) root_evidence: BTreeMap<ExternalRootId, InstalledRootEvidence>,
     slots: BTreeSet<RootSlotId>,
-    pub(crate) active_interrupts: BTreeSet<(ExternalRootId, InterruptInvocationId)>,
+    /// Live interrupt entries keyed by their exact (root, invocation)
+    /// identity. Each entry retains the admitted arrival context, the live
+    /// nesting depth, and the invocation it preempted so a later nested
+    /// arrival rejoins the declared relation instead of a bare root pair.
+    pub(crate) active_interrupts:
+        BTreeMap<(ExternalRootId, InterruptInvocationId), ActiveInterruptEntry>,
     pub(crate) entered_interrupts: BTreeSet<(ProviderExecutionId, InterruptInvocationId)>,
     pub(crate) minted_acknowledgements: BTreeSet<(ProviderExecutionId, InterruptAcknowledgementId)>,
 }
@@ -189,7 +195,7 @@ impl InstalledRootLedger {
             roots: BTreeMap::new(),
             root_evidence: BTreeMap::new(),
             slots: BTreeSet::new(),
-            active_interrupts: BTreeSet::new(),
+            active_interrupts: BTreeMap::new(),
             entered_interrupts: BTreeSet::new(),
             minted_acknowledgements: BTreeSet::new(),
         })
@@ -451,7 +457,7 @@ impl InstalledRootLedger {
             && receipt.executions_quiesced
             && !self
                 .active_interrupts
-                .iter()
+                .keys()
                 .any(|(active_root, _)| *active_root == root.root);
         if !matches || !self.roots.contains_key(&root.root) {
             return Err(Box::new(RootRemovalError {
@@ -581,7 +587,7 @@ impl InstalledRootLedger {
             }
             if self
                 .active_interrupts
-                .iter()
+                .keys()
                 .any(|(active_root, _)| *active_root == root.root)
             {
                 return Err(ExternalRootDiagnostic(

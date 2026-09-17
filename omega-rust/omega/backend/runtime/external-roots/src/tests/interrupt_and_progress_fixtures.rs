@@ -11,14 +11,15 @@ use crate::{
     ExternalRootEntryClaim, ExternalRootResultClaim, InstalledExternalRoot,
     InstalledProviderOccurrenceId, InstalledRootLedger, InterruptAcknowledgementId,
     InterruptEntryReceipt, InterruptEntryReceiptId, InterruptInvocationId, InterruptMaskControlId,
-    InterruptMaskStateId, ProgressProfileEstablishmentAttestation,
+    InterruptMaskStateId, InterruptPreemptionReport, ProgressProfileEstablishmentAttestation,
     ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId,
     ProviderOccurrenceInstallationReceipt, ProviderOccurrenceInstallationReceiptId,
     ProviderOccurrencePlanBinding, ProviderPlanId, ResolvedRootServiceReach, StackNestingRelation,
     ValidatedExternalRoot, compose_bound_entry_stack_epochs, validate_external_root,
 };
 use calling_conventions::{
-    BoundaryEntryPlan, EntryControl, EntryStack, MachineRegister, ValidatedBoundaryEntryPlan,
+    ArrivalContextId, BoundaryEntryPlan, EntryControl, EntryStack, MachineRegister,
+    ValidatedBoundaryEntryPlan,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, MachineRegime, MachineState, MachineStateSet, Preemption,
@@ -44,6 +45,15 @@ pub(super) fn interrupt_boundary() -> ValidatedBoundaryEntryPlan {
 /// Interrupt-return boundary fixture arriving on `stack`. Table members use
 /// distinct dedicated classes; the ordinary interrupt tests keep class 1.
 pub(crate) fn interrupt_boundary_on(stack: EntryStack) -> ValidatedBoundaryEntryPlan {
+    interrupt_boundary_shaped(stack, Preemption::Masked)
+}
+
+/// Interrupt-return boundary fixture with a caller-chosen stack disposition
+/// and declared nesting ceiling.
+pub(crate) fn interrupt_boundary_shaped(
+    stack: EntryStack,
+    preemption: Preemption,
+) -> ValidatedBoundaryEntryPlan {
     let signature = CallSignature {
         parameters: vec![ValueShape::integer(8, 8)],
         result: None,
@@ -89,7 +99,7 @@ pub(crate) fn interrupt_boundary_on(stack: EntryStack) -> ValidatedBoundaryEntry
                     MachineState::Flags,
                 ]),
                 stack,
-                preemption: Preemption::Masked,
+                preemption,
             },
         },
         &signature,
@@ -255,6 +265,29 @@ pub(crate) fn interrupt_entry_receipt(
     acknowledgement_policy: Option<u64>,
     acknowledgement: Option<u64>,
 ) -> InterruptEntryReceipt {
+    interrupt_entry_receipt_in_context(
+        root,
+        // The fixture realizations admit arrival context 1 for every root.
+        ArrivalContextId::new(1).expect("fixture arrival context"),
+        None,
+        invocation,
+        acknowledgement_policy,
+        acknowledgement,
+    )
+}
+
+/// The full receipt shape: the provider reports the exact arrival context the
+/// invocation fired under and, for a nested arrival, the live invocation it
+/// preempts with that invocation's epoch stage.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn interrupt_entry_receipt_in_context(
+    root: &InstalledExternalRoot<'_>,
+    arrival_context: ArrivalContextId,
+    preemption: Option<InterruptPreemptionReport>,
+    invocation: u64,
+    acknowledgement_policy: Option<u64>,
+    acknowledgement: Option<u64>,
+) -> InterruptEntryReceipt {
     InterruptEntryReceipt::from_provider(
         root_id(
             60 + invocation,
@@ -262,6 +295,8 @@ pub(crate) fn interrupt_entry_receipt(
         ),
         root,
         root_id(invocation, InterruptInvocationId::from_normalized_identity),
+        arrival_context,
+        preemption,
         root_id(
             70 + invocation,
             InterruptMaskControlId::from_normalized_identity,

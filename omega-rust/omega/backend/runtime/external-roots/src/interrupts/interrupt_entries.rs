@@ -11,9 +11,65 @@ use crate::{
     InterruptInvocationId, InterruptMaskControl, InterruptMaskControlId, InterruptMaskStateId,
     ProviderExecutionId, ProviderPlanId, RootSlotId,
 };
-use calling_conventions::EntryControl;
+use calling_conventions::{
+    ArrivalContextId, EntryControl, EntryStackStage, Preemption, StackDomainRef,
+};
 use executable_installation::InstalledCodeId;
 use std::collections::BTreeSet;
+
+/// The provider's report of which live invocation one arriving entry
+/// preempts. A nested arrival is only admissible when the interrupted
+/// invocation is the innermost live entry, the artifact-wide nesting relation
+/// declares the edge, and the interrupted entry's reported arrival context
+/// permits one more live occurrence at the reported epoch stage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InterruptPreemptionReport {
+    interrupted_root: ExternalRootId,
+    interrupted_invocation: InterruptInvocationId,
+    interrupted_stage: EntryStackStage,
+}
+
+impl InterruptPreemptionReport {
+    pub const fn new(
+        interrupted_root: ExternalRootId,
+        interrupted_invocation: InterruptInvocationId,
+        interrupted_stage: EntryStackStage,
+    ) -> Self {
+        Self {
+            interrupted_root,
+            interrupted_invocation,
+            interrupted_stage,
+        }
+    }
+
+    pub const fn interrupted_root(&self) -> ExternalRootId {
+        self.interrupted_root
+    }
+
+    pub const fn interrupted_invocation(&self) -> InterruptInvocationId {
+        self.interrupted_invocation
+    }
+
+    /// The live epoch stage the provider reports for the interrupted
+    /// invocation. Every epoch of the interrupted context at this stage must
+    /// permit the nested depth; an unknown stage is an unresolved disposition.
+    pub const fn interrupted_stage(&self) -> EntryStackStage {
+        self.interrupted_stage
+    }
+}
+
+/// Ledger-visible state for one admitted, not yet settled interrupt entry.
+/// The retained arrival context and parent edge let a later nested arrival
+/// rejoin the exact epoch evidence the composition assumed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ActiveInterruptEntry {
+    pub(crate) arrival_context: ArrivalContextId,
+    /// Simultaneously live occurrences on this root lineage, including this
+    /// one. A top-level arrival is depth 1; a nested arrival is parent + 1.
+    pub(crate) depth: u16,
+    /// The live invocation this entry preempted, when nested.
+    pub(crate) interrupted: Option<(ExternalRootId, InterruptInvocationId)>,
+}
 
 /// Provider evidence for one concrete invocation of an installed interrupt
 /// root. The exact installed realization and acknowledgement policy are bound
@@ -27,6 +83,16 @@ pub struct InterruptEntryReceipt {
     installed_code: InstalledCodeId,
     provider_execution: ProviderExecutionId,
     invocation: InterruptInvocationId,
+    /// The arrival context this invocation fired under. It must be one of the
+    /// exact contexts the installed root's bound epoch realization admitted;
+    /// an unadmitted or foreign-root context is an unresolved or cross-context
+    /// disposition and rejects.
+    arrival_context: ArrivalContextId,
+    /// Which live invocation this entry preempts. Absent requires no live
+    /// interrupt on this ledger; present requires the named invocation to be
+    /// the innermost live entry under a declared nesting edge whose preempted
+    /// epoch stage permits the nested depth.
+    preemption: Option<InterruptPreemptionReport>,
     mask_control: InterruptMaskControlId,
     initial_mask_state: InterruptMaskStateId,
     acknowledgement_policy: Option<AcknowledgementPolicyId>,
@@ -38,6 +104,8 @@ pub(crate) struct InterruptInvocationEvidence {
     installed_root: InstalledRootEvidence,
     entry_receipt: InterruptEntryReceiptId,
     invocation: InterruptInvocationId,
+    arrival_context: ArrivalContextId,
+    preemption: Option<InterruptPreemptionReport>,
     mask_control: InterruptMaskControlId,
     initial_mask_state: InterruptMaskStateId,
     acknowledgement_policy: Option<AcknowledgementPolicyId>,
@@ -50,6 +118,8 @@ impl InterruptInvocationEvidence {
             installed_root: receipt.installed_root.clone(),
             entry_receipt: receipt.identity,
             invocation: receipt.invocation,
+            arrival_context: receipt.arrival_context,
+            preemption: receipt.preemption,
             mask_control: receipt.mask_control,
             initial_mask_state: receipt.initial_mask_state,
             acknowledgement_policy: receipt.acknowledgement_policy,
@@ -63,6 +133,8 @@ impl InterruptEntryReceipt {
         identity: InterruptEntryReceiptId,
         root: &InstalledExternalRoot<'_>,
         invocation: InterruptInvocationId,
+        arrival_context: ArrivalContextId,
+        preemption: Option<InterruptPreemptionReport>,
         mask_control: InterruptMaskControlId,
         initial_mask_state: InterruptMaskStateId,
         acknowledgement_policy: Option<AcknowledgementPolicyId>,
@@ -76,6 +148,8 @@ impl InterruptEntryReceipt {
             installed_code: root.installed_code.identity(),
             provider_execution: root.evidence.provider_execution.identity,
             invocation,
+            arrival_context,
+            preemption,
             mask_control,
             initial_mask_state,
             acknowledgement_policy,
@@ -99,6 +173,7 @@ pub struct PendingInterruptExit {
     installed_code: InstalledCodeId,
     provider_execution: ProviderExecutionId,
     invocation: InterruptInvocationId,
+    arrival_context: ArrivalContextId,
     mask_control: InterruptMaskControlId,
     initial_mask_state: InterruptMaskStateId,
     acknowledgement_policy: Option<AcknowledgementPolicyId>,
@@ -419,7 +494,43 @@ pub struct CompletedInterruptEntry {
     pub entry_receipt: InterruptEntryReceiptId,
     pub root: ExternalRootId,
     pub invocation: InterruptInvocationId,
+    /// The admitted arrival context the completed invocation fired under.
+    pub arrival_context: ArrivalContextId,
     pub acknowledgement_receipt: Option<InterruptAcknowledgementReceiptId>,
+}
+
+/// Whether the interrupted entry's retained arrival context permits one more
+/// live occurrence above `parent_depth` at the reported epoch stage. Every
+/// epoch of that context at the reported stage must carry a finite nestable
+/// allowance beyond the parent's live depth: the ledger cannot observe which
+/// epoch is live inside the stage, so a masked or unbounded sibling epoch is
+/// an unresolved disposition. A stage the context does not realize rejects.
+fn interrupted_epoch_permits_nesting(
+    parent_input: &crate::BoundEpochStackCompositionInput,
+    arrival_context: ArrivalContextId,
+    interrupted_stage: EntryStackStage,
+    parent_depth: u16,
+) -> bool {
+    let Some(context) = parent_input
+        .realization_evidence()
+        .realization()
+        .realization()
+        .contexts
+        .iter()
+        .find(|context| context.context == arrival_context)
+    else {
+        return false;
+    };
+    let stage_epochs = context
+        .epochs
+        .iter()
+        .filter(|epoch| epoch.stage == interrupted_stage)
+        .collect::<Vec<_>>();
+    !stage_epochs.is_empty()
+        && stage_epochs.iter().all(|epoch| {
+            matches!(epoch.nesting, Preemption::Nestable { maximum_depth }
+                if parent_depth < maximum_depth)
+        })
 }
 
 impl InstalledRootLedger {
@@ -428,6 +539,12 @@ impl InstalledRootLedger {
     /// receipt must match the exact installed root, selected execution, and
     /// acknowledgement policy. An invocation or acknowledgement identity can
     /// be admitted only once by a selected provider execution.
+    ///
+    /// The receipt's runtime context independently rejoins the retained bound
+    /// epoch evidence: the reported arrival context must be one this exact
+    /// installed root admitted with a resolved body-domain disposition, and a
+    /// nested arrival must name the innermost live invocation under a declared
+    /// nesting edge whose preempted epoch stage permits the depth.
     pub fn begin_interrupt_entry(
         &mut self,
         root: &InstalledExternalRoot<'_>,
@@ -487,12 +604,136 @@ impl InstalledRootLedger {
                 ),
             });
         }
+        // The reported arrival context must be one this exact installed root's
+        // bound epoch realization admitted, with its body-domain disposition
+        // resolved in the retained closure. A context absent from the roster —
+        // or realized only for a different root or installed occurrence — is
+        // an unresolved or cross-context disposition.
+        let runtime_context_matches =
+            record
+                .stack
+                .realization
+                .input(record.root)
+                .is_some_and(|input| {
+                    let evidence = input.realization_evidence();
+                    evidence.matches_installed_code_entry(root.installed_code, record.entry)
+                        && evidence
+                            .realization()
+                            .realization()
+                            .contexts
+                            .iter()
+                            .any(|context| context.context == receipt.arrival_context)
+                        && evidence.body_domains.contexts().iter().any(|closed| {
+                            closed.context == receipt.arrival_context
+                                && closed.domain != StackDomainRef::ProviderSelected
+                        })
+                });
+        if !runtime_context_matches {
+            return Err(InterruptEntryStartError {
+                receipt,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt entry reports an arrival context outside the exact installed root's admitted epoch realization"
+                        .into(),
+                ),
+            });
+        }
+        // A nested arrival rejoins the artifact-wide nesting relation and the
+        // finite depth bound the composition assumed: the reported parent must
+        // be the innermost live invocation, the relation must declare the
+        // edge, and every epoch of the parent's reported context at the
+        // reported stage must permit one more live occurrence.
+        let innermost = self
+            .active_interrupts
+            .iter()
+            .max_by_key(|(_, entry)| entry.depth);
+        let depth = match &receipt.preemption {
+            None => {
+                if !self.active_interrupts.is_empty() {
+                    return Err(InterruptEntryStartError {
+                        receipt,
+                        diagnostic: ExternalRootDiagnostic(
+                            "interrupt entry arrived while interrupt invocations are live without naming the preempted invocation"
+                                .into(),
+                        ),
+                    });
+                }
+                1
+            }
+            Some(report) => {
+                let parent_key = (report.interrupted_root, report.interrupted_invocation);
+                let Some(parent) = innermost
+                    .filter(|(key, _)| **key == parent_key)
+                    .map(|(_, entry)| *entry)
+                else {
+                    return Err(InterruptEntryStartError {
+                        receipt,
+                        diagnostic: ExternalRootDiagnostic(
+                            "interrupt entry names a preempted invocation that is not the innermost live interrupt"
+                                .into(),
+                        ),
+                    });
+                };
+                let edge_declared = record
+                    .stack
+                    .realization
+                    .relation()
+                    .edges
+                    .iter()
+                    .any(|edge| {
+                        edge.interrupted == report.interrupted_root && edge.preemptor == record.root
+                    });
+                if !edge_declared {
+                    return Err(InterruptEntryStartError {
+                        receipt,
+                        diagnostic: ExternalRootDiagnostic(
+                            "nested interrupt entry preempts a live invocation without a declared stack-nesting edge"
+                                .into(),
+                        ),
+                    });
+                }
+                let depth_permitted = self
+                    .roots
+                    .get(&report.interrupted_root)
+                    .and_then(|parent_record| {
+                        parent_record
+                            .stack
+                            .realization
+                            .input(report.interrupted_root)
+                    })
+                    .is_some_and(|parent_input| {
+                        interrupted_epoch_permits_nesting(
+                            parent_input,
+                            parent.arrival_context,
+                            report.interrupted_stage,
+                            parent.depth,
+                        )
+                    });
+                if !depth_permitted {
+                    return Err(InterruptEntryStartError {
+                        receipt,
+                        diagnostic: ExternalRootDiagnostic(
+                            "nested interrupt entry exceeds the finite nesting bound of the preempted invocation's reported epoch stage"
+                                .into(),
+                        ),
+                    });
+                }
+                parent.depth + 1
+            }
+        };
         self.entered_interrupts.insert(entry_key);
         if let Some(key) = acknowledgement_key {
             self.minted_acknowledgements.insert(key);
         }
-        self.active_interrupts
-            .insert((record.root, receipt.invocation));
+        self.active_interrupts.insert(
+            (record.root, receipt.invocation),
+            ActiveInterruptEntry {
+                arrival_context: receipt.arrival_context,
+                depth,
+                interrupted: receipt
+                    .preemption
+                    .map(|report| (report.interrupted_root, report.interrupted_invocation)),
+            },
+        );
 
         let invocation_evidence = InterruptInvocationEvidence::from_entry_receipt(&receipt);
         let acknowledgement = receipt.acknowledgement.map(|identity| {
@@ -535,6 +776,7 @@ impl InstalledRootLedger {
                 installed_code: record.installed_code,
                 provider_execution: record.provider_execution,
                 invocation: receipt.invocation,
+                arrival_context: receipt.arrival_context,
                 mask_control: receipt.mask_control,
                 initial_mask_state: receipt.initial_mask_state,
                 acknowledgement_policy: record.acknowledgement_policy,
@@ -596,17 +838,25 @@ impl InstalledRootLedger {
             && control.current_state == pending.initial_mask_state
             && control.live_guards.is_empty();
         let active_key = (pending.root, pending.invocation);
+        // A preempted invocation cannot settle while a nested entry is live:
+        // the ledger admitted the child only as the innermost occurrence of
+        // this exact invocation's chain.
+        let live_nested_child = self
+            .active_interrupts
+            .values()
+            .any(|entry| entry.interrupted == Some(active_key));
         if !record_matches
             || !control_matches
             || !acknowledgement_matches
-            || !self.active_interrupts.contains(&active_key)
+            || live_nested_child
+            || !self.active_interrupts.contains_key(&active_key)
         {
             return Err(Box::new(InterruptEntryFinishError {
                 pending,
                 control,
                 acknowledgement,
                 diagnostic: ExternalRootDiagnostic(
-                    "interrupt exit requires the exact restored mask state and completed acknowledgement"
+                    "interrupt exit requires the exact restored mask state and completed acknowledgement, with no nested invocation still live"
                         .into(),
                 ),
             }));
@@ -616,6 +866,7 @@ impl InstalledRootLedger {
             entry_receipt: pending.entry_receipt,
             root: pending.root,
             invocation: pending.invocation,
+            arrival_context: pending.arrival_context,
             acknowledgement_receipt: acknowledgement.map(|completed| completed.receipt),
         })
     }

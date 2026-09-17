@@ -25,7 +25,7 @@ use boundary_fixtures::{
 };
 pub(crate) use boundary_fixtures::{
     boundary, generated_program_storage_adapter_live_frame_demand, provider_execution,
-    provider_execution_for, stack_demand,
+    provider_execution_for, stack_demand, stack_epoch_input,
 };
 use installed_code_fixtures::{
     entry_id, fuel_schedule, installed_code_with_fill_and_installation_identity,
@@ -42,8 +42,8 @@ use interrupt_and_progress_fixtures::{
     progress_installation_fixture, provider_occurrence_binding,
 };
 pub(crate) use interrupt_and_progress_fixtures::{
-    interrupt_boundary_on, interrupt_candidate_shaped, interrupt_entry_receipt,
-    interrupt_table_candidates,
+    interrupt_boundary_on, interrupt_boundary_shaped, interrupt_candidate_shaped,
+    interrupt_entry_receipt, interrupt_entry_receipt_in_context, interrupt_table_candidates,
 };
 use program_local_fixtures::{
     installed_backing_extent, join_program_local, program_local_activation, program_local_claim,
