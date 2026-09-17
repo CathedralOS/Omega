@@ -231,6 +231,7 @@ fn loop_carried_u64_pressure_recovers_through_runtime_spill() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::windows_x64(),
+        target::NativeTarget::uefi_x64(),
         target::NativeTarget::linux_arm64(),
         target::NativeTarget::macos_arm64(),
     ] {
@@ -273,6 +274,7 @@ fn loop_carried_spill_frame_replays_private_accesses_through_callable_publicatio
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::windows_x64(),
+        target::NativeTarget::uefi_x64(),
         target::NativeTarget::linux_arm64(),
         target::NativeTarget::macos_arm64(),
     ] {
