@@ -65,6 +65,13 @@ impl BuildObservationSummary {
                 hash_bytes(&mut digest, profile.target_name().as_bytes());
             }
         }
+        match replay_activation.build_execution_profile() {
+            None => digest.update([0]),
+            Some(profile) => {
+                digest.update([1]);
+                hash_bytes(&mut digest, profile.target_name().as_bytes());
+            }
+        }
         match self.captured_source_inventory() {
             None => digest.update([0]),
             Some(inventory) => {
@@ -476,9 +483,9 @@ mod tests {
         assert_eq!(
             identity.digest(),
             [
-                0x3c, 0xab, 0x24, 0x3e, 0x28, 0x30, 0x59, 0x4d, 0xbf, 0x82, 0xb5, 0x59, 0x81, 0x85,
-                0x86, 0x46, 0x17, 0x7d, 0x1a, 0x21, 0x98, 0x5d, 0x12, 0x18, 0x43, 0x22, 0x91, 0x2e,
-                0xdc, 0x9b, 0xc1, 0x5d,
+                0x68, 0x6e, 0x24, 0xc5, 0xef, 0xbb, 0xbe, 0x7e, 0x6d, 0x44, 0x18, 0x67, 0x09, 0xd3,
+                0x6b, 0x2b, 0x9c, 0xc7, 0x68, 0xa5, 0xb1, 0xec, 0x61, 0xba, 0x07, 0xf0, 0xa1, 0x3a,
+                0xe0, 0x60, 0x71, 0x02,
             ],
             "the current package build-observation byte contract remains stable"
         );
@@ -520,6 +527,25 @@ mod tests {
             file_bytes: 7,
         });
         assert_ne!(baseline, changed.identity());
+
+        let mut changed = empty_summary();
+        changed.replay_activation = BuildReplayActivation {
+            selected_target_profile: Some(target::TargetProfile::LinuxX64),
+            ..BuildReplayActivation::default()
+        };
+        let selected_target_only = changed.identity();
+        assert_ne!(baseline, selected_target_only);
+
+        // The execution profile is its own activation member: binding the
+        // same profile there as the selected target still changes the digest.
+        let mut changed = empty_summary();
+        changed.replay_activation = BuildReplayActivation {
+            selected_target_profile: Some(target::TargetProfile::LinuxX64),
+            build_execution_profile: Some(target::TargetProfile::LinuxX64),
+            ..BuildReplayActivation::default()
+        };
+        assert_ne!(baseline, changed.identity());
+        assert_ne!(selected_target_only, changed.identity());
 
         let mut changed = empty_summary();
         changed.build_log = b"compiler-owned build log\n".to_vec();

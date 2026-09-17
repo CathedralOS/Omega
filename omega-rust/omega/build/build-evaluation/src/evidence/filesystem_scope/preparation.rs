@@ -17,9 +17,13 @@ static NEXT_CAPTURED_SOURCE_SNAPSHOT: AtomicU64 = AtomicU64::new(0);
 
 /// Reopen matching review evidence and bind the request's package/root staging
 /// scope before build admission. Replay remains review-only filesystem custody.
+/// `build_execution_profile` is the request's admitted profile for build-scope
+/// sources and the build machine; it joins the activation every replay record
+/// is bound to.
 pub fn prepare_filesystem_scope(
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
+    build_execution_profile: target::TargetProfile,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
     replay_record: Option<&ReviewOnlyBuildFilesystemReplayRecord>,
@@ -90,7 +94,8 @@ pub fn prepare_filesystem_scope(
         .with_package_activation(inputs.root(), inputs.root_role())
     } else {
         crate::BuildMachineFilesystemScope::for_root(root_path, build_dir, filesystem_sponsor)
-    };
+    }
+    .with_execution_profile(build_execution_profile);
     if let Some(build_snapshot) = build_snapshot {
         // One capture authority produces the immutable input inventory and
         // its canonical metadata index together; the scope rejects a captured

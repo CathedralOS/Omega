@@ -174,9 +174,10 @@ impl BuildCanonicalSourceMetadataIdentity {
 
 /// The exact admitted activation a retained build activation or replay claim
 /// stands in for. A build machine observes its selected target through
-/// `Build.target`, and its granted scope is bound to the root package
-/// occurrence and authored declaration role of the requesting compilation, so
-/// evidence produced under one activation is not interchangeable evidence for
+/// `Build.target`, executes under the request's admitted build execution
+/// profile, and its granted scope is bound to the root package occurrence
+/// and authored declaration role of the requesting compilation, so evidence
+/// produced under one activation is not interchangeable evidence for
 /// another. Each member is independently optional; a scope with no package
 /// occurrence or no bound replay records only the members it proved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -184,6 +185,7 @@ pub struct BuildReplayActivation {
     pub(crate) root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub(crate) root_role: Option<package_compilation::BuildDeclarationKind>,
     pub(crate) selected_target_profile: Option<target::TargetProfile>,
+    pub(crate) build_execution_profile: Option<target::TargetProfile>,
 }
 
 impl BuildReplayActivation {
@@ -201,6 +203,14 @@ impl BuildReplayActivation {
     /// Requested target the activation's build machine could observe.
     pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
         self.selected_target_profile
+    }
+
+    /// The admitted build execution profile the activation's build-scope
+    /// sources were checked for and its build machine executed under. This is
+    /// the request's admitted profile, not a value inferred from the compiler
+    /// process, and it is distinct from the selected product target.
+    pub const fn build_execution_profile(&self) -> Option<target::TargetProfile> {
+        self.build_execution_profile
     }
 }
 

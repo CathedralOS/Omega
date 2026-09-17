@@ -52,6 +52,7 @@ pub struct BuildMachineFilesystemScope {
     replay_activation: Option<BuildReplayActivation>,
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     root_role: Option<package_compilation::BuildDeclarationKind>,
+    build_execution_profile: Option<target::TargetProfile>,
     captured_source_input: Option<CapturedBuildSourceInput>,
     snapshot_dir: Option<PathBuf>,
     required_outputs: BTreeSet<Vec<u8>>,
@@ -98,6 +99,7 @@ impl BuildMachineFilesystemScope {
             replay_activation: None,
             root_package_identity: None,
             root_role: None,
+            build_execution_profile: None,
             captured_source_input: None,
             snapshot_dir: None,
             required_outputs: BTreeSet::new(),
@@ -121,6 +123,7 @@ impl BuildMachineFilesystemScope {
             replay_activation: None,
             root_package_identity: None,
             root_role: None,
+            build_execution_profile: None,
             captured_source_input: None,
             snapshot_dir: None,
             required_outputs: BTreeSet::new(),
@@ -141,10 +144,22 @@ impl BuildMachineFilesystemScope {
         self
     }
 
+    /// Bind the admitted build execution profile the requesting compilation
+    /// checks its build-scope sources for and runs its build machine under.
+    /// It is a request fact (the compiler host when the request names none),
+    /// never inferred here from the compiler process.
+    pub fn with_execution_profile(
+        mut self,
+        build_execution_profile: target::TargetProfile,
+    ) -> Self {
+        self.build_execution_profile = Some(build_execution_profile);
+        self
+    }
+
     /// Bind retained replay evidence and the activation it was captured
     /// under. The activation travels with the evidence so admission can
     /// reject a record replayed under a different root package, declaration
-    /// role, or selected target.
+    /// role, selected target, or build execution profile.
     pub fn with_replay(
         mut self,
         replay: checked_interpreter::FilesystemReplay,
@@ -259,7 +274,8 @@ impl BuildMachineFilesystemScope {
     }
 
     /// The activation this scope describes: the bound package occurrence
-    /// members plus the selected target the requesting compilation asked for.
+    /// members and admitted execution profile plus the selected target the
+    /// requesting compilation asked for.
     pub(crate) fn activation(
         &self,
         selected_target_profile: Option<target::TargetProfile>,
@@ -268,6 +284,7 @@ impl BuildMachineFilesystemScope {
             root_package_identity: self.root_package_identity,
             root_role: self.root_role,
             selected_target_profile,
+            build_execution_profile: self.build_execution_profile,
         }
     }
 
