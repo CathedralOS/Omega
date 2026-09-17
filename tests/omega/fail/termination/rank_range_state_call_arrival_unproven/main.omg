@@ -1,0 +1,36 @@
+// FAIL CANARY. The subordinate site consumes `outer`'s range invariant only
+// as the member's own proof. `hold(remaining, cap - 1)` moves the carried
+// ceiling at the arrival, so `outer`'s state-edge judgment cannot pin
+// `0..=cap` there: the invariant the site would read was never established,
+// and the member's own rank-range judgment rejects.
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(6, 4) }
+}
+
+machine Main::outer(&mut self, cap: u64, remaining: u64)
+requires remaining <= cap;
+terminates by remaining in 0..=cap;
+-> u64 {
+    transition remaining > 0 && cap > 0 {
+        true -> hold(remaining, cap - 1)
+        false -> remaining
+    }
+    state hold(pending: u64, bound: u64) {
+        transition pending > 0 {
+            true -> self.inner(pending, bound)
+            false -> pending
+        }
+    }
+}
+
+machine Main::inner(&mut self, n: u64, limit: u64)
+terminates by n;
+-> u64 {
+    transition n > 0 && n <= limit {
+        true -> self.outer(limit, n - 1)
+        false -> n
+    }
+}

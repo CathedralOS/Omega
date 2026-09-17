@@ -1,0 +1,37 @@
+// FAIL CANARY. `hold` stores into `bound`, the slot carrying the authored
+// ceiling `cap`, before its component call. The range invariant the site
+// consumes describes the arrival value of that carrier, so a write whose
+// frame overlaps it invalidates the entry-relative ranking even though the
+// stored expression keeps the same spelling.
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(6, 4) }
+}
+
+machine Main::outer(&mut self, cap: u64, remaining: u64)
+requires remaining <= cap;
+terminates by remaining in 0..=cap;
+-> u64 {
+    transition remaining > 0 {
+        true -> hold(remaining, cap)
+        false -> remaining
+    }
+    state hold(pending: u64, mut bound: u64) {
+        bound = bound;
+        transition pending > 0 {
+            true -> self.inner(pending, bound)
+            false -> pending
+        }
+    }
+}
+
+machine Main::inner(&mut self, n: u64, limit: u64)
+terminates by n;
+-> u64 {
+    transition n > 0 && n <= limit {
+        true -> self.outer(limit, n - 1)
+        false -> n
+    }
+}
