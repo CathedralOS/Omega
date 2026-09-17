@@ -64,7 +64,18 @@ pub(super) fn project_top_level_requirement_external_supply(
         requirement,
         conformance,
     )?;
-    if matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic) {
+    // A compiler-intrinsic leaf is reviewable exactly where the intrinsic
+    // catalog keys on the requirement: a public nongeneric receiver-free
+    // top-level requirement has the same requirement view a named boundary
+    // operator has, and the selected-provider row projects its closed
+    // execution through that view.
+    if matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
+        && provider_planning::IntrinsicRequirement::from_requirement(
+            &compilation.typed,
+            requirement,
+        )
+        .is_none()
+    {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{}` realizes top-level requirement `{}` through a compiler intrinsic whose closed execution is not yet represented by package review",
             machine.name, requirement.name
