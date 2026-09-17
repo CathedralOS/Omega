@@ -2759,11 +2759,21 @@ Owners include
   removal, supply-mode wiring, Terminal codec, and native call realization
   per the acceptance above. Retirement map (inventory at 36e670e3d0):
   349 `operator` declarations (81 token-bearing), all bodyless because
-  `parse_operator` requires `;`. By class: boundary requirements with or
-  without a token (175 library, 30 tests) need provider/build selection
-  and `satisfies` realization keyed on `boundary machine` slots instead
-  of `OperatorDefinition`, plus evidence `capture/callables/boundary_operators.rs`
-  and result-domain overload dispatch on machines; tokenless compiler
+  `parse_operator` requires `;`. By class: boundary requirements with a
+  token respell now, because at d3f038f029 a top-level bodyless
+  `boundary machine <token> Owner::name(...);` lowers to the same
+  resolved boundary-operator slot the introducer produces
+  (`lowering/operator.rs::lower_token_bearing_boundary_signature`;
+  machine-only clauses such as `reaches` reject on it), so `satisfies`,
+  provider selection, evidence and Terminal lowering are unchanged and
+  `providers/checked_fixed_operator_dispatch_exit` passes identically in
+  that spelling (2676523303); tokenless boundary requirements (155
+  library, 18 tests) wait on the named `boundary requirement`
+  provider/interpreter/Terminal route (TOP-LEVEL-BOUNDARY-REQUIREMENTS),
+  and the representation inversion (`SpelledOperator` wrapping machine
+  signatures directly) needs the provider-planning, build-time
+  `selected_operators.rs`, evidence `capture/callables/boundary_operators.rs`
+  and result-domain overload dispatch owners; tokenless compiler
   primitives (68 library, 28 tests: `Float::meaning32/64`,
   `Nat::Descending`, ranking orders) need the catalog keyed on exact
   declaration/signature identity; bodyless domain-family and
