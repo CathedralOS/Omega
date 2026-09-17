@@ -87,6 +87,28 @@ fn entry_operand_at(
                 )?),
             })
         }
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            // A shared borrow supplies access, not storage: every place a
+            // guard observes through the reference is a place of the
+            // referent, so the operand's entry identity is the referent's.
+            // The referent's own pristine-storage window already covers the
+            // containing statement — including this borrow expression — so a
+            // mutable referent keeps provenance only while nothing in that
+            // window could have disturbed it. Exclusive and write-only
+            // loans keep no entry identity: the loan itself ends the
+            // referent's bound-snapshot window, and an immutable referent
+            // cannot form one at all.
+            entry_operand_at(
+                program,
+                machine_symbol,
+                state_symbol,
+                before_statement,
+                borrow.target,
+                depth + 1,
+            )
+        }
         ExpressionNode::Member(member)
             if member.member_symbol.is_valid() && member.case_variant.is_none() =>
         {

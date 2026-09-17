@@ -300,6 +300,49 @@ fn mutable_entry_parameters_transport_the_invocation_actual() {
 }
 
 #[test]
+fn shared_borrow_transports_the_referents_entry_operand() {
+    // A guard observing through `cell` reads `flag`'s storage, so the
+    // operand's entry identity is `flag`'s bound value — the machine
+    // parameter's invocation actual.
+    let program = typed_program(
+        "machine sink(cell: &i32) -> bool { true }
+         machine value(flag: i32) -> bool { sink(&flag); flag }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, argument) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, argument),
+        Some(CrashPredicateExpression::Parameter(0)),
+    );
+}
+
+#[test]
+fn shared_borrow_of_a_written_referent_keeps_provenance_unknown() {
+    // `flag`'s bound snapshot ends at the write, so a borrow taken after it
+    // cannot claim the entry actual.
+    let program = typed_program(
+        "machine sink(cell: &i32) -> bool { true }
+         machine value(mut flag: i32) -> bool { flag = flag + 1; sink(&flag); flag }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, argument) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, argument),
+        None,
+    );
+}
+
+#[test]
 fn mutable_snapshots_end_at_writes_and_exclusive_borrows() {
     for source in [
         // A write before the read replaces the bound snapshot.

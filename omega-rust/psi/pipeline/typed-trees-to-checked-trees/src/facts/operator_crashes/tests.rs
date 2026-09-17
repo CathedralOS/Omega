@@ -130,6 +130,129 @@ fn named_call_keeps_a_route_whose_operand_lacks_entry_provenance() {
 }
 
 #[test]
+fn named_call_discharges_a_route_through_a_shared_borrow_operand() {
+    // `&rec` is a non-scalar carrier: the guard reads the referent's storage,
+    // and `rec`'s entry-proven binding keeps the statement-entry fact live
+    // through the invocation, so the route discharges.
+    let source = "pub data Rec { count: i32 }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine safe(rec: Rec) -> bool
+         requires rec.count >= 0 {
+             Ns::probe(&rec)
+         }";
+    check(source).expect("a shared borrow of an entry-proven referent discharges the route");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_discharges_a_route_across_multiple_operands() {
+    // A relation leaf touches both operands; each must carry entry
+    // provenance for the same statement-entry fact to falsify it.
+    let source = "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(left != right);
+         pub machine neq(a: i32, b: i32) -> bool
+         requires a != b {
+             Comparison::equal(a, b)
+         }";
+    check(source).expect("a fact covering both entry-proven operands discharges the route");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_retains_a_route_through_a_shared_borrow_without_a_covering_fact() {
+    // The referent is entry-proven, but nothing proves `rec.count >= 0` at
+    // statement entry, so the route stays.
+    let source = "pub data Rec { count: i32 }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine uncovered(rec: Rec) -> bool {
+             Ns::probe(&rec)
+         }";
+    let diagnostics = check(source).expect_err("an unproven named route cannot vanish");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_borrowed_referent_is_overwritten() {
+    // `rec` is mutable: the earlier write ends its bound-snapshot
+    // provenance, so `&rec` cannot carry the entry `rec.count >= 0` fact
+    // into the invocation and the route stays.
+    let source = "pub data Rec { count: i32 }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine drifted(mut rec: Rec) -> bool
+         requires rec.count >= 0 {
+             rec = Rec { count: 1 };
+             Ns::probe(&rec)
+         }";
+    let diagnostics = check(source).expect_err("a written referent cannot borrow its entry facts");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
+fn named_call_keeps_a_route_through_a_borrow_of_an_unproven_aggregate() {
+    // `p`'s immutable storage is stable, but its aggregate initializer has
+    // no entry operand and no statement-entry fact names `p.x`, so the route
+    // stays.
+    let source = "pub data Point { x: i32 }
+         boundary operator Ns::probe(cell: &Point) -> bool
+         crashes Trap !(cell.x >= 0);
+         pub machine uncovered(seed: i32) -> bool
+         requires seed >= 0 {
+             let p: Point = Point { x: seed };
+             Ns::probe(&p)
+         }";
+    let diagnostics = check(source).expect_err("an unproven aggregate keeps its route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
 fn named_call_keeps_a_route_after_the_operand_storage_is_overwritten() {
     // `value` is mutable: the earlier write both retires the statement-entry
     // fact about it and ends its bound-snapshot provenance, so nothing may
