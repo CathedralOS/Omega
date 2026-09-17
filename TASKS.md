@@ -2726,13 +2726,20 @@ Owners include
   `(Wrapped, Wrapped)` binding reports a builtin overflow obligation
   instead of "no operator" because
   `value_custody/expression_types/operator_validation.rs` asks the
-  receiver-only spelling query. Next frontier: cross-package closed-family
+  receiver-only spelling query. At ad9966541f the package-review callable
+  identity (`capture/semantics/conformances/policy_callables.rs`) wraps the
+  overload coordinate as `token-bound(...)` for a token-bearing machine
+  only, so a token-only revision reviews as differing policy and as
+  decision-requiring acceptance rows for token-bearing admission claims,
+  while tokenless identities stay byte-identical (`package-evidence`
+  `fixed_token_binding_joins_the_callable_identity_and_only_when_present`,
+  `package-manager` `token_binding_revision`); the Psi overload identity
+  stays token-blind because a token never distinguishes named overloads.
+  Still open there: the token in the review projection rows
+  (`CheckedPackageCallableReview`) and in trait `StateSignature`
+  identities, which need record/encoding extensions. Next frontier: cross-package closed-family
   semantic-home ownership (the current check is owner-local within one
-  program; the unqualified operand-tuple home needs typing), the token joining canonical machine
-  signature identity in package-review evidence capture
-  (`review/evidence/src/capture/semantics/types/identity.rs`, which reads
-  neither the machine nor the trait `StateSignature` spelling although a
-  changed binding is a breaking revision), then `operator` introducer
+  program; the unqualified operand-tuple home needs typing), then `operator` introducer
   removal, supply-mode wiring, Terminal codec, and native call realization
   per the acceptance above.
 
