@@ -2986,17 +2986,33 @@ Owners include
   through an exactly typed `let` and proves `view`/`retire_view`);
   `fail/contracts/proof_fact_indexed_domain_application_arity` pins the
   count rejection; a `|` alternative and a compiler carry permission still
-  reject an application by name. Remaining on this route: the write
-  discharge of a restating `let` initialized by a call
-  (`typed-trees-to-checked-trees/src/checks/contracts/writes.rs`,
-  `value_proves_domain` via `value_call_return_domain_implies`) joins the
-  callee's `ensures` membership by family symbol only, so `let placed:
-  Extent in Granted & Resident<OtherPlacement, Slot> = storage.place(..)`
-  is admitted where `place` ensured `Resident<SlotPlacement, Slot>`; the
-  identity is on the fact (`FactPayload::ContractDomainMembership
-  .semantic_domain`) and `checks/contracts/prover.rs` already compares it
-  at a call `requires`, so the write check needs the same instance
-  comparison before a mismatch fixture can pin it. Next
+  reject an application by name. A restating write of a call result now
+  joins the callee's `ensures` membership by exact instance (macOS ARM64):
+  `typed-trees-to-checked-trees/src/facts/index_compatibility.rs` reads the
+  typed `ProofMembershipFact` (`semantic_domain`, `domain_arguments`) on
+  the whole reserved `result` from the call's contract row
+  (`ProofFacts.contract_calls[..].ensures`) as the value's actual instance
+  beside its declared return type, so `let placed: Extent in Granted &
+  Resident<OtherPlacement, Slot> = storage.place(..)` where `place` ensured
+  `Resident<SlotPlacement, Slot>` is refused at the `let` as distinct
+  normalized instances even when `view`/`retire_view` are declared over the
+  restated index
+  (`fail/contracts/proof_fact_indexed_domain_application_mismatch`, to be
+  registered beside `_arity` in `canary_suite.rs`, which was under two
+  live claims when the fixture landed). The join could not live in
+  `checks/contracts/writes.rs` (`predicate_domain_constraint_identities`
+  keeps predicate domains only, so a bodyless family never reaches
+  `value_proves_domain`) nor on the semantic `ContractDomainMembership`
+  fact: `facts/qualification_evidence.rs::call_contract_evidence` drops an
+  `ensures result in D` membership at a boundary requirement without an
+  admitted `qualification_authorization`, so that promise never becomes a
+  caller fact and the pass fixture proves `view` from the `let`'s
+  declared-type seeding (`flow/transfers.rs`), not from the ensures.
+  Remaining on this route: for the same reason a restating `let` of a
+  bodyless indexed domain from a call whose `ensures` carries no instance
+  of that family is still admitted with no establishment evidence (`place`
+  ensuring only `result in Granted` while the caller restates
+  `Resident<SlotPlacement, Slot>` compiles). Next
   acceptance: a `Vec<T>`-style container over the chain, which still
   needs compiler-owned `Initialize`/placed-view establishment (plan
   evaluation of `P` over `T`, Stable-supply admission).

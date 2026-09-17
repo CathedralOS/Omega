@@ -188,7 +188,7 @@ pub(crate) fn build_check_facts(
             &validation_facts.exact_integer_casts,
         );
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
-        program, &operators, &semantic, &flow,
+        program, &operators, &semantic, &flow, &proof,
     )?;
     flow.terminal_scalar_graphs =
         crate::execution::terminal_scalar::build_checked_scalar_graph_plans_with_call_frames(
