@@ -3,6 +3,7 @@
 
 use crate::ProviderPlanDerivation;
 mod hosted_byte_supply;
+mod independent_components;
 mod provider_derivation;
 mod receipts_and_families;
 mod schemas_and_syscalls;

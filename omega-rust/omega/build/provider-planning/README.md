@@ -25,11 +25,15 @@ retain exact source joins, shape roots, application commitments, and explicit
 lifecycle/movement dispositions. Arena symbols are private join coordinates;
 canonical evidence uses package-qualified declarations, not arena identity.
 
-`provider_planning.rs` currently rejects selected Independent composition before checked
-product/review publication because component closure and the Service carrier are
-not yet constructed. Retaining a mode in provenance is not implementation of
-that mode, and the rejection must not become a Fused fallback. The consumer-side
-join now exists as `VerifiedComponent::realizes_selected_plan` in
-`component-candidate`, but this crate cannot consume it: the architecture test
-keeps `component-candidate` out of the ordinary compiler closure, and only the
-verifier-owned carrier may establish the join (a copied inventory cannot).
+`selection_provenance.rs` closes each selected Independent composition at the
+component-closure fence: `selected_provider_plan_facts_with_independent_components`
+requires exactly one verified component description
+(`component_description::VerifiedComponent::realizes_selected_plan`) per
+independently selected plan and one selected plan per supplied component;
+`independent_components.rs` owns that join. Only the verifier-owned carrier may
+establish it (a copied inventory cannot), which is why `component-description`
+sits below the architecture test's runtime quarantine while
+`component-candidate` stays outside this crate's closure. Routes that supply no
+verified components call `selected_provider_plan_facts`, where every
+Independent selection still rejects; the rejection never becomes a Fused
+fallback, and retaining a mode in provenance is not implementation of that mode.

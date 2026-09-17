@@ -521,7 +521,9 @@ fn ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners() {
 /// planning can consume verified components: its ordinary closure must stay
 /// free of image emission, the native artifact, and every quarantined runtime
 /// owner, while the native-realization producer in `component-candidate`
-/// keeps reaching it.
+/// and the provider-planning fence that joins `Independent` selections to
+/// verified components both reach it (rather than projecting the carrier's
+/// fields into a hand-authored inventory).
 #[test]
 fn component_description_stays_below_the_runtime_quarantine() {
     assert_normal_closure_excludes(
@@ -539,6 +541,7 @@ fn component_description_stays_below_the_runtime_quarantine() {
         ],
     );
     assert_normal_closure_includes("component-candidate", "component-description");
+    assert_normal_closure_includes("provider-planning", "component-description");
     let graph = load_graph();
     assert_eq!(graph["component-description"].layer, "backend");
     assert!(

@@ -1,7 +1,9 @@
 //! Provider selection keys, provenance, indices and slot resolution.
 
+use crate::provider_planning::independent_components::IndependentComponentJoin;
 use crate::provider_planning::provenance_replay::validate_derived_provider_plan_provenance;
 use crate::{DerivedProviderPlan, ProviderPlanProvenance};
+use component_description::VerifiedComponent;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
 use typed_trees::TypedTrees;
@@ -111,10 +113,41 @@ pub struct SelectedProviderReviewProvenance {
     pub row_compiler_intrinsic_executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
+/// Replay selected provider provenance on a route that supplies no verified
+/// component descriptions. Every `Independent` selection rejects at the
+/// component-closure fence; routes that admit verified components call
+/// [`selected_provider_plan_facts_with_independent_components`].
 pub fn selected_provider_plan_facts(
     typed: &TypedTrees,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
+    selected: Vec<SelectedProviderPlanWithProvenance>,
+) -> Result<
+    (
+        effects::SelectedProviderPlanFacts,
+        Vec<SelectedProviderReviewProvenance>,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
+    selected_provider_plan_facts_with_independent_components(
+        typed,
+        evaluated_bindings,
+        selected,
+        &[],
+    )
+}
+
+/// Replay selected provider provenance and close every `Independent`
+/// selection against the build's verified component descriptions.
+///
+/// Each independently composed plan must be realized by exactly one
+/// `independent_components` entry (`VerifiedComponent::realizes_selected_plan`),
+/// and each supplied component must realize one such plan; the selected
+/// facts publish only when that join is complete.
+pub fn selected_provider_plan_facts_with_independent_components(
+    typed: &TypedTrees,
+    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     mut selected: Vec<SelectedProviderPlanWithProvenance>,
+    independent_components: &[VerifiedComponent],
 ) -> Result<
     (
         effects::SelectedProviderPlanFacts,
@@ -151,6 +184,7 @@ pub fn selected_provider_plan_facts(
         .target()
         .map(target::TargetProfile::target_name)
         .unwrap_or_default();
+    let mut independent_join = IndependentComponentJoin::new(independent_components);
     for selected_plan in &selected {
         let plan = &selected_plan.derived.plan;
         let provenance = &selected_plan.derived.provenance;
@@ -161,22 +195,18 @@ pub fn selected_provider_plan_facts(
                 continue;
             }
         };
-        // Component-closure fence. Closing an `Independent` edge needs the
-        // consumer to join this plan to exactly one independently verified
-        // provider component (`component_candidate::VerifiedComponent::
-        // realizes_selected_plan`, which matches the selected provider type
-        // and every checked-adapter row against the verified module's
-        // provider-candidate catalog). That carrier cannot be named here:
-        // `tests/architecture/layering.rs` keeps `component-candidate` out of
-        // this crate's closure, and a projection of its fields would be the
-        // hand-authored inventory the publication contract forbids. Until the
-        // consumer moves below that quarantine, reject rather than fall back
-        // to Fused.
-        if composition_mode == crate::CompositionMode::Independent {
-            diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "selected provider plan `{}` retains independent composition, but its checked component closure and Service carrier have not yet been constructed; refusing to treat the edge as fused",
-                plan.name,
-            )));
+        // Component-closure fence. An `Independent` edge closes only when
+        // exactly one verified component description realizes this plan
+        // (`VerifiedComponent::realizes_selected_plan` matches the selected
+        // provider type and every checked-adapter row against the verified
+        // module's provider-candidate catalog). The join reads the verified
+        // carrier itself, never a projection of its fields; a missing,
+        // duplicated, or mismatched realization rejects here rather than
+        // falling back to Fused.
+        if composition_mode == crate::CompositionMode::Independent
+            && let Err(diagnostic) = independent_join.realize(plan)
+        {
+            diagnostics.push(diagnostic);
         }
         let schema_symbol = provenance.schema.symbol();
         if plan.target != retained_target {
@@ -221,6 +251,7 @@ pub fn selected_provider_plan_facts(
             }
         }
     }
+    diagnostics.extend(independent_join.finish());
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }

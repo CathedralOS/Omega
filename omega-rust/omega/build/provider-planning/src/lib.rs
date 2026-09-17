@@ -46,7 +46,8 @@ pub use provider_planning::{
     exact_checked_adapter, extract_external_binding_rows, extract_native_external_binding_rows,
     intrinsic_realization_matches_operator, primitive_float_binary_intrinsic_execution_identity,
     satisfied_requirement_identity, satisfies_plan_name, select_derived_provider_plans,
-    select_provider_plans, selected_provider_plan_facts, settle_external_binding_rows,
+    select_provider_plans, selected_provider_plan_facts,
+    selected_provider_plan_facts_with_independent_components, settle_external_binding_rows,
     validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
     validate_selected_synchronous_invocation_cycles,
 };
