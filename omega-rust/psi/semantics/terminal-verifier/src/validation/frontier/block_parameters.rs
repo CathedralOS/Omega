@@ -1,6 +1,6 @@
 //! Whole owned successor bindings consume the old roots before establishing new ones.
 
-use super::super::{StructuralArgument, resolve_structural_path};
+use super::super::{StructuralArgument, StructuralPlaceKind, resolve_structural_path};
 use super::{
     EdgeId, ModuleError, StructuralAccess, StructuralMultiplicity, StructuralOwnershipFrontier,
     StructuralParameterDeclaration, TerminalMachine, TerminalModule, partial_affine_root_type,
@@ -101,12 +101,30 @@ pub(super) fn consume(
 /// Phase two installs the target roots after every consumed source has left
 /// the frontier. Two-phase binding permits swaps and a self-loop without
 /// reviving a moved source or overwriting an independently live target
-/// obligation.
+/// obligation. A shared-borrow parameter is separately re-checked against
+/// the post-transfer frontier: the loan never moves custody itself, but its
+/// root must still be held — or be a place the frontier never tracks — and
+/// no consumed or residual evidence on this same edge may have retired it.
 pub(super) fn establish(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
     frontier: &mut StructuralOwnershipFrontier,
     edge: EdgeId,
     target: &terminal_psi::Block,
+    arguments: &[StructuralArgument],
 ) -> Result<(), ModuleError> {
+    for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
+        if parameter.access == StructuralAccess::SharedBorrow
+            && (frontier.partial_custody_paths.contains_key(&argument.place)
+                || (carries_owned_frontier(module, machine, argument.place)
+                    && !frontier.owned_places.contains_key(&argument.place)))
+        {
+            return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                edge,
+                place: argument.place,
+            });
+        }
+    }
     for parameter in &target.structural_parameters {
         if parameter.access == StructuralAccess::Owned
             && parameter.multiplicity == StructuralMultiplicity::Affine
@@ -122,6 +140,56 @@ pub(super) fn establish(
         }
     }
     Ok(())
+}
+
+/// Whether a live place sits in the frontier's owned map. Parameters and
+/// trivial locals carry their declared custody; an operation result enters
+/// the map exactly when its producer does not classify it as copyable or
+/// borrowed. Untracked places stay live by their binding and need no row.
+fn carries_owned_frontier(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: super::PlaceId,
+) -> bool {
+    if machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .any(|parameter| {
+            parameter.place == place
+                && parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        })
+    {
+        return true;
+    }
+    let Some(declaration) = machine
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)
+    else {
+        return false;
+    };
+    match declaration.kind {
+        StructuralPlaceKind::TrivialAffineLocal { .. } => true,
+        StructuralPlaceKind::OperationResult { .. } => {
+            super::super::byte_sequence_subslice::borrowed_result(machine, place).is_none()
+                && super::super::primitive_storage::local_result(machine, place).is_none()
+                && !super::super::scalar_array::plain_return_source(module, machine, place)
+                && !(super::super::structural_result_contracts::source_signature(machine, place)
+                    .is_some_and(|source| {
+                        source.multiplicity == StructuralMultiplicity::Unrestricted
+                    })
+                    && (super::super::scalar_case::plain_return_source(module, machine, place)
+                        || super::super::record::plain_return_source(module, machine, place)))
+        }
+        _ => false,
+    }
 }
 
 pub(super) fn disposal_order<'machine>(

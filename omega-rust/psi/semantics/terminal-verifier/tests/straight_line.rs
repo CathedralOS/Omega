@@ -31,6 +31,8 @@ mod proof_and_guard_modules;
 mod record;
 #[path = "straight_line/scalar_qualifications.rs"]
 mod scalar_qualifications;
+#[path = "straight_line/shared_record_loans.rs"]
+mod shared_record_loans;
 #[path = "straight_line/structural_byte_sequence_store.rs"]
 mod structural_byte_sequence_store;
 #[path = "straight_line/unit_returns_and_certificates.rs"]

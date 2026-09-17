@@ -199,7 +199,8 @@ impl TerminalExecution {
                 || !parameter.projected_qualifications.is_empty()
                 || argument.access != parameter.access
                 || (!argument.path.is_empty()
-                    && !(allow_projected && parameter.access == StructuralAccess::Owned))
+                    && !(parameter.access == StructuralAccess::SharedBorrow
+                        || (allow_projected && parameter.access == StructuralAccess::Owned)))
                 || self.live_claims.values().any(|claim| {
                     claim.place == Some(argument.place) || claim.place == Some(parameter.place)
                 })
@@ -211,8 +212,10 @@ impl TerminalExecution {
             match (value, case) {
                 (Some(value), None)
                     if value.qualifications.is_empty()
-                        && (parameter.access == StructuralAccess::MutableBorrow
-                            || value.path.is_empty()) => {}
+                        && (matches!(
+                            parameter.access,
+                            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+                        ) || value.path.is_empty()) => {}
                 (None, Some(case))
                     if parameter.access == StructuralAccess::Owned
                         && argument.path.is_empty()
@@ -341,7 +344,62 @@ impl TerminalExecution {
                         projected_value = Some(view);
                     }
                 }
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow => {
+                StructuralAccess::SharedBorrow => {
+                    if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                        || self
+                            .live_affine_frontier
+                            .iter()
+                            .any(|entry| entry.place == parameter.place)
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    if matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
+                        if declaration.shape == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView))
+                    {
+                        // Borrowed byte views join whole: the argument names
+                        // an untracked view root with no projection.
+                        if !argument.path.is_empty()
+                            || self
+                                .live_affine_frontier
+                                .iter()
+                                .any(|entry| entry.place == argument.place)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                    } else if self.plain_record_type(parameter.structural_type) {
+                        // A shared record loan binds the exact projected
+                        // view: the argument path extends the root's stored
+                        // path and must resolve to the parameter's declared
+                        // referent type. The loan moves no custody — the
+                        // root either stays untracked or is still held as
+                        // one whole frontier entry.
+                        let view = resolve_structural_arguments(
+                            &self.structural_types,
+                            &self.structural_values,
+                            std::slice::from_ref(argument),
+                        )?
+                        .pop()
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        if view.structural_type != parameter.structural_type {
+                            return Err(TerminalInterpretError::StructuralArgumentType {
+                                place: parameter.place,
+                                expected: parameter.structural_type,
+                                actual: view.structural_type,
+                            });
+                        }
+                        if self
+                            .live_affine_frontier
+                            .iter()
+                            .any(|entry| entry.place == argument.place && !entry.path.is_empty())
+                        {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                        projected_value = Some(view);
+                    } else {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                }
+                StructuralAccess::MutableBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
                             if declaration.shape == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView))
@@ -351,9 +409,7 @@ impl TerminalExecution {
                     {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
-                    if parameter.access == StructuralAccess::MutableBorrow {
-                        self.mutable_byte_sequence_storage(argument.place)?;
-                    }
+                    self.mutable_byte_sequence_storage(argument.place)?;
                 }
                 _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
             }

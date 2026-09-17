@@ -113,7 +113,14 @@ fn close_jump(
         *edge,
         trivial_affine_discards,
     )?;
-    super::block_parameters::establish(&mut frontier, *edge, blocks[target])?;
+    super::block_parameters::establish(
+        module,
+        machine,
+        &mut frontier,
+        *edge,
+        blocks[target],
+        structural_arguments,
+    )?;
     snapshots.edge_exits.insert(*edge, frontier.snapshot());
     incoming.entry(*target).or_default().push(frontier);
     Ok(())
@@ -161,9 +168,12 @@ fn close_conditional(
         &when_true.trivial_affine_discards,
     )?;
     super::block_parameters::establish(
+        module,
+        machine,
         &mut true_frontier,
         when_true.edge,
         blocks[&when_true.target],
+        &when_true.structural_arguments,
     )?;
     snapshots
         .edge_exits
@@ -189,7 +199,14 @@ fn close_conditional(
         when_false.edge,
         &when_false.trivial_affine_discards,
     )?;
-    super::block_parameters::establish(&mut frontier, when_false.edge, blocks[&when_false.target])?;
+    super::block_parameters::establish(
+        module,
+        machine,
+        &mut frontier,
+        when_false.edge,
+        blocks[&when_false.target],
+        &when_false.structural_arguments,
+    )?;
     snapshots
         .edge_exits
         .insert(when_false.edge, frontier.snapshot());

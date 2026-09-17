@@ -3,18 +3,17 @@
 //! exact source place stays constrained for the result's whole live range,
 //! the retained plan is replayed against the authored `&place` expressions,
 //! and the join is emitted as a `SharedBorrow` block parameter rather than a
-//! fabricated owned transfer.
-//!
-//! Record-referent join parameters still wait on terminal-verifier admission:
-//! `block_views::validate_declarations` accepts only borrowed byte views for
-//! non-owned block parameters today, and `validate_successor` admits
-//! projected shared-borrow arguments at calls but not yet at jump edges. The
-//! tests below pin checking, loan recording, plan provenance and that exact
-//! remaining boundary.
+//! fabricated owned transfer. The terminal verifier admits the record-shaped
+//! join against the exact root and projected path, keeps the referent pinned
+//! for the block that observes it, and the interpreter binds the same view
+//! without copying the payload.
 
 use std::collections::BTreeMap;
 
-use super::check_source;
+use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
+use terminal_psi::StructuralAccess;
+
+use super::{check_source, execute, unsigned};
 
 /// `a` is itself a prior selection's join result: the second match borrows
 /// `a.first` through block-parameter custody on one arm and a plain local's
@@ -111,10 +110,7 @@ fn borrowed_arms(
 }
 
 /// Asserts the exact loans and retained arm provenance, returning both maps
-/// keyed by root local name. The caller then pins the remaining
-/// terminal-verifier boundary: the emitted join is a record-shaped
-/// `SharedBorrow` block parameter, which the verifier admits only for
-/// borrowed byte views today.
+/// keyed by root local name.
 fn checked_borrowed_selection(
     checked: &checked_trees::CheckedTrees,
 ) -> (BTreeMap<String, String>, BTreeMap<String, String>) {
@@ -168,17 +164,37 @@ fn borrowed_selection_rejoins_each_arms_exact_source() {
     assert_eq!(lent["b"], "second");
     assert_eq!(planned.keys().collect::<Vec<_>>(), ["a", "b"]);
 
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect_err("a record shared-borrow join waits on terminal-verifier admission");
-    assert!(
-        matches!(
-            error,
-            checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::InvalidBlockStructuralParameter { .. }
-            )
-        ),
-        "the emitted shared-borrow block parameter pins the verifier boundary: {error:?}"
-    );
+    for (selected, other, expected) in [
+        (true, true, 3),
+        (false, true, 3),
+        (true, false, 7),
+        (false, false, 7),
+    ] {
+        let (module, execution) = execute(
+            CHAINED_SOURCE,
+            &[
+                TerminalScalarValue::Boolean(selected),
+                TerminalScalarValue::Boolean(other),
+            ],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected)),
+            "selected={selected} other={other}"
+        );
+        // The join is one record-shaped shared-borrow block parameter: no
+        // owned transfer is fabricated for either arm's projected referent.
+        assert_eq!(
+            module.machines[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+                .count(),
+            1,
+            "one shared-borrow join parameter"
+        );
+    }
 }
 
 #[test]
@@ -190,17 +206,20 @@ fn borrowed_selection_rejoins_direct_local_sources() {
     assert_eq!(lent["b"], "second");
     assert_eq!(planned.keys().collect::<Vec<_>>(), ["b", "x"]);
 
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect_err("a record shared-borrow join waits on terminal-verifier admission");
-    assert!(
-        matches!(
-            error,
-            checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::InvalidBlockStructuralParameter { .. }
-            )
-        ),
-        "{error:?}"
-    );
+    for (other, expected) in [(true, 3), (false, 7)] {
+        let (_, execution) = execute(
+            UNCHAINED_SOURCE,
+            &[
+                TerminalScalarValue::Boolean(true),
+                TerminalScalarValue::Boolean(other),
+            ],
+        );
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected)),
+            "other={other}"
+        );
+    }
 }
 
 #[test]

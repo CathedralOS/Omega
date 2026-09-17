@@ -1,7 +1,7 @@
 //! What each operation does to the structural ownership frontier.
 
 use super::super::{
-    ClaimId, ModuleError, OperationKind, OperationResult, PlaceId, StructuralAccess,
+    BlockId, ClaimId, ModuleError, OperationKind, OperationResult, PlaceId, StructuralAccess,
     StructuralMultiplicity,
 };
 use super::{
@@ -17,6 +17,7 @@ use super::{
 /// result claims live.
 pub(super) fn apply_operation(
     walk: &FrontierWalk<'_>,
+    block: BlockId,
     operation: &terminal_psi::Operation,
     frontier: &mut StructuralOwnershipFrontier,
 ) -> Result<(), ModuleError> {
@@ -47,6 +48,31 @@ pub(super) fn apply_operation(
         });
     }
     let consumed_places = consumed_places(walk, operation);
+    // A shared successor loan keeps its referent root stable for the whole
+    // duration of the block that bound it: while a joined view observes the
+    // root, no operation here may move it, take an exclusive subloan on it,
+    // or write through it. Shared observations on the same root stay legal.
+    if let Some(pinned) = walk.shared_loans.get(&block) {
+        let disturbed = consumed_places
+            .iter()
+            .copied()
+            .chain(
+                projected_arguments(operation)
+                    .iter()
+                    .filter_map(|argument| {
+                        (argument.access != StructuralAccess::SharedBorrow)
+                            .then_some(argument.place)
+                    }),
+            )
+            .chain(mutation_destinations(operation))
+            .find(|place| pinned.contains(place));
+        if let Some(place) = disturbed {
+            return Err(ModuleError::SharedStructuralLoanDisturbed {
+                operation: operation.id,
+                place,
+            });
+        }
+    }
     for place in &consumed_places {
         if frontier.partial_custody_paths.contains_key(place) {
             return Err(
@@ -291,6 +317,20 @@ fn transferred_claims(operation: &terminal_psi::Operation) -> Vec<ClaimId> {
             .iter()
             .map(|settlement| settlement.claim)
             .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    }
+}
+
+/// The places an operation writes through without moving custody. A store
+/// into a pinned loan root would mutate data a bound shared view observes.
+fn mutation_destinations(operation: &terminal_psi::Operation) -> Vec<PlaceId> {
+    match &operation.kind {
+        OperationKind::StructuralScalarFieldStore { destination, .. }
+        | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
+        | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
+        | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. }
+        | OperationKind::ByteSequenceWrite { destination, .. } => vec![*destination],
         _ => Vec::new(),
     }
 }

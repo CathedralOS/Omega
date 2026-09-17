@@ -31,7 +31,7 @@ pub(crate) use payloadless_calls::{
 };
 pub(crate) use structural_arguments::{
     StructuralArgumentSourcePolicy, is_unrestricted_mutable_subloan,
-    is_unrestricted_shared_subloan, validate_structural_arguments,
+    is_unrestricted_shared_subloan, structural_access_can_supply, validate_structural_arguments,
 };
 pub(crate) use structural_paths::{
     structural_argument_canonical_prefix, structural_field_store_write_path,
