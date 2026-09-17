@@ -43,34 +43,41 @@ pub(super) fn project(
             .ok_or_else(|| {
                 rejected("a closed application without a canonical selected plan index")
             })?;
+        // The row's requirement is a boundary operator or a top-level boundary
+        // requirement; either species keys the policy row on its own overload
+        // coordinate (the operator overload, or the requirement's normalized
+        // machine overload, both result-dispatching named requirements).
         let requirements = retained
             .provider
             .row_requirements
             .iter()
             .enumerate()
             .filter_map(|(index, symbol)| {
-                typed_trees::operator::declaration_by_symbol(&compilation.typed, *symbol)
-                    .filter(|operator| {
-                        operator.is_boundary
-                            && typed_trees::operator::boundary_operator_requirement_identity(
-                                &compilation.typed,
-                                operator,
-                            ) == checked.requirement_identity
+                provider_planning::IntrinsicRequirement::by_symbol(&compilation.typed, *symbol)
+                    .filter(|requirement| {
+                        requirement.requirement_identity == checked.requirement_identity
+                            && requirement
+                                .as_operator()
+                                .is_none_or(|operator| operator.is_boundary)
                     })
-                    .map(|operator| (index, operator))
+                    .map(|requirement| (index, requirement))
             })
             .collect::<Vec<_>>();
-        let [(row_index, operator)] = requirements.as_slice() else {
+        let [(row_index, requirement)] = requirements.as_slice() else {
             return Err(rejected(
                 "a closed application without one exact selected operator overload",
             ));
         };
-        let operator_coordinate = project_operator_coordinate(compilation, operator)?;
+        let operator_coordinate = match requirement.as_operator() {
+            Some(operator) => project_operator_coordinate(compilation, operator)?,
+            None => project_requirement_coordinate(compilation, requirement.symbol)?,
+        };
         if operator_coordinate.identity != checked.operator_declaration {
             return Err(rejected(
                 "a closed application with a different operator owner",
             ));
         }
+        let operator_symbol = requirement.symbol;
         let selected_symbol = *retained
             .provider
             .row_realizations
@@ -115,7 +122,7 @@ pub(super) fn project(
             requirement_identity: policy_provider_requirement_identity(
                 compilation,
                 retained.provider.schema,
-                operator.symbol,
+                operator_symbol,
             )?
             .path,
             application: checked.application,
@@ -140,4 +147,28 @@ pub(super) fn project(
         .validate_canonical_structure(package, providers.target(), providers)
         .map_err(rejected)?;
     Ok(result.realizations)
+}
+
+/// The policy coordinate of a top-level boundary requirement: its nominal
+/// identity and the parameter and result dispatch of its normalized machine
+/// overload, the requirement-species twin of the named operator coordinate.
+fn project_requirement_coordinate(
+    compilation: &PackageReviewInput<'_>,
+    requirement: symbols::SymbolHandle,
+) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
+    let machine = compilation
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == requirement)
+        .ok_or_else(|| rejected("a closed application without its requirement machine"))?;
+    let overload = compilation
+        .typed
+        .normalized_machine_overload_identity(machine)
+        .ok_or_else(|| rejected("a closed application on a requirement without an entry state"))?;
+    Ok(PackageReviewOperatorCoordinate {
+        identity: nominal_identity(compilation, requirement)?,
+        parameter_dispatch: overload.parameters().to_owned(),
+        result_dispatch: overload.result_dispatch().identity(),
+    })
 }
