@@ -1,7 +1,8 @@
-//! Shared admission for dead-store elimination: locate the named `Store` or
-//! `StorePacked`, prove its exact `WritePlace` row, then walk forward to the
-//! first access on the dead place and require it to be a write of the dead
-//! place's storage whose own row covers the dead range entirely.
+//! Shared admission for dead-store elimination: locate the named `Store`,
+//! `StorePacked`, or own-storage `Store64`, prove its single exact write row,
+//! then walk forward to the first access on the dead place and require it to
+//! be a write of the dead place's storage whose own row covers the dead range
+//! entirely.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! dead place interferes when it can observe the stored bytes or leave them
@@ -45,8 +46,8 @@ pub(super) struct Admission<'source> {
     pub block_index: usize,
     pub block: SelectedBlockId,
     pub store_index: usize,
-    /// Index of the store's single `WritePlace` row in `memory_accesses`;
-    /// replay requires the proposed roster to drop exactly this row.
+    /// Index of the store's single write row in `memory_accesses`; replay
+    /// requires the proposed roster to drop exactly this row.
     pub store_access: usize,
 }
 
@@ -96,13 +97,16 @@ pub(super) fn admit<'source>(
         .ok_or(DeadStoreEliminationError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let dead_store = &block.instructions[store_index];
-    // The dead store is one of the target's place stores: the plain
-    // exact-width `Store`, or the `StorePacked` an odd fragment width
-    // selects. The packed form's extra early-clobber scratch `Def` drops
-    // with the instruction, so its admission additionally proves that
+    // The dead store writes the place's storage by one of the routes the
+    // covering write can also take: the plain exact-width `Store`, or the
+    // `StorePacked` an odd fragment width selects, either through the
+    // referent pointer or through the materialized address of the place's
+    // own parameter storage; or the always-eight-byte `Store64` into that
+    // slot directly. The packed form's extra early-clobber scratch `Def`
+    // drops with the instruction, so its admission additionally proves that
     // register occurs nowhere else in the function — a surviving mention
     // would lose its definition to the removal.
-    let (encoded_offset, encoded_size, packed) = match dead_store.kind {
+    let (encoded_offset, encoded_size, packed, direct_slot) = match dead_store.kind {
         SelectedInstructionKind::Store {
             byte_offset,
             byte_size,
@@ -110,16 +114,28 @@ pub(super) fn admit<'source>(
             if !matches!(byte_size, 1 | 2 | 4 | 8) {
                 return Err(DeadStoreEliminationError::UnsupportedInstruction);
             }
-            (byte_offset, u32::from(byte_size), false)
+            (byte_offset, u32::from(byte_size), false, None)
         }
         SelectedInstructionKind::StorePacked { byte_offset, width } => {
-            (byte_offset, u32::from(width.byte_size()), true)
+            (byte_offset, u32::from(width.byte_size()), true, None)
         }
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset,
+        } => (byte_offset, 8, false, Some(slot)),
         _ => return Err(DeadStoreEliminationError::UnsupportedInstruction),
     };
     // The write's semantic identity: exactly one roster row, one place root,
-    // and the same bytes the instruction encodes. `WritePlace` carries
-    // no obligation payload, so dropping the row loses no proof receipt.
+    // and the same bytes the instruction encodes. The row's role must match
+    // the route the instruction takes to the place's storage: `WritePlace`
+    // for the referent-pointer place stores, or `WriteLocal` on the place's
+    // own `StructuralParameter`/`StructuralBlockParameter` slot for the
+    // local-storage routes — the direct `Store64`'s row naming the same slot
+    // the instruction encodes. An operation-owned `Structural` slot can
+    // stage bytes that merely name the place, so a write through it never
+    // moves the place's bytes and cannot be the dead store of them. Neither
+    // admitted role carries an obligation payload, so dropping the row loses
+    // no proof receipt.
     let mut rows = function
         .memory_accesses
         .iter()
@@ -128,8 +144,18 @@ pub(super) fn admit<'source>(
     let (store_access, write) = rows
         .next()
         .ok_or(DeadStoreEliminationError::UnsupportedInstruction)?;
+    let storage_route = match (write.role, direct_slot) {
+        (SelectedMemoryAccessRole::WritePlace, None) => true,
+        (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
+            local_slot_is_place_storage(slot, write.place)
+        }
+        (SelectedMemoryAccessRole::WriteLocal { slot }, Some(encoded)) => {
+            slot == encoded && local_slot_is_place_storage(slot, write.place)
+        }
+        _ => false,
+    };
     if rows.next().is_some()
-        || write.role != SelectedMemoryAccessRole::WritePlace
+        || !storage_route
         || write.byte_offset != encoded_offset
         || write.byte_count != encoded_size
     {
@@ -141,11 +167,14 @@ pub(super) fn admit<'source>(
         byte_count: write.byte_count,
     };
     // The removed instruction must keep the operand surface its kind
-    // declares: the plain two-use place store, or the packed store's
-    // two-use-plus-dead-scratch row. An exotic operand surface would make
-    // the removal contract unclear.
+    // declares: the plain two-use place store, the packed store's
+    // two-use-plus-dead-scratch row, or the direct slot store's single-use
+    // row. An exotic operand surface would make the removal contract
+    // unclear.
     if packed {
         packed_store_shape(dead_store, function, environment)?;
+    } else if direct_slot.is_some() {
+        local_store_shape(dead_store, environment)?;
     } else {
         place_store_shape(dead_store, environment)?;
     }
@@ -336,6 +365,32 @@ fn packed_store_shape(
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     if !scratch_definition_is_dead(function, instruction.operands[2].virtual_register) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    Ok(())
+}
+
+/// The direct slot store's operand surface: the target's declared `store64`
+/// row — exactly `[use value]` — and the instruction carrying just that one
+/// use. Removing it removes no register definition, so no custody check like
+/// the packed scratch's is needed.
+fn local_store_shape(
+    instruction: &SelectedInstruction,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<(), DeadStoreEliminationError> {
+    if environment.selected_keys().store64 != Some(instruction.constraint) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let row = environment
+        .constraint(instruction.constraint)
+        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
+    if row.operands.len() != 1
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || instruction.operands.len() != 1
+        || instruction.operands[0].operand != 0
+        || instruction.operands[0].access != RegisterOperandAccess::Use
+    {
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     Ok(())
