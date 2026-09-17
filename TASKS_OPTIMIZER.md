@@ -1214,15 +1214,31 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   the member's new position and each traversal of the
   head reaches the join — under the same replayed
   restore-by-content validation (crate `nextest`: 734
-  pass).
+  pass) — and `rewrites/arm_relocation` hoists one
+  named body instruction out of a conditional branch
+  arm back into the one fork head whose edges alone
+  reach it — the member becomes unconditional and so
+  speculates onto every traversal leaving the head's
+  other edges, which reverses the sink family's burden:
+  only pure register and condition-state work may rise
+  (no barrier kind, call roster, rostered or unaccounted
+  memory access, or potentially-faulting kind may newly
+  run where it never ran), and a forward dead-path
+  fixpoint proves every location the member writes
+  unread until rewritten on each path the execution is
+  new on, with the member's own new position republishing
+  foreign rather than familiar values on those paths —
+  under the same replayed restore-by-content validation
+  (crate `nextest`: 797 pass).
   Remaining: scheduling past the proven bounded window
   interchange, single-member relocation, multi-member run
   relocation, the single-edge move, the branch-diamond
-  move, the diverging fork move, and the converging join
-  move — relocation through other converging or branching
-  control flow — and compare/test selection past the
-  landed literal folds and the constant-flag boolean
-  materialization and conditional-branch folds.
+  move, the diverging fork move, the converging join
+  move, and the conditional-arm hoist — relocation
+  through other converging or branching control flow —
+  and compare/test selection past the landed literal
+  folds and the constant-flag boolean materialization
+  and conditional-branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
