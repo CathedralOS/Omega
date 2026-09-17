@@ -179,6 +179,50 @@ must be surfaced before relying on them.
    and the `cli_mvp` CLI acceptance are design-blocked; the package axis
    (proposing and accepting the permission row) is not.
 
+5. **Is a token-bound proof-machine `requires` a formation obligation at
+   the selecting use?** (named decision: `proof-operator-requires-formation`).
+   `core/nat.omg` states that subtraction is partial at formation with its
+   premise carried by the operator contract, and
+   `fail/proofs/nat_exact_subtraction_requires_order` pins that a bare `-`
+   on `Nat` without a prior `used <= total` fact rejects ("cannot prove
+   `used <= total` -- the `requires` of `Nat::subtract`"). That premise is
+   enforced today only by the separate operator-contract prover on the
+   `operator` declaration form. The
+   [executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
+   retires that form: `Nat::subtract` and `Nat::less_or_equal` have no
+   compiler catalog identity, so they become declaration-owned bodies
+   (`machine - Nat::subtract(left: Nat, right: Nat) -> Nat requires right
+   <= left; { saturating_sub(left, right) }`), and a token call then "retains
+   the same declaration/body association" as the named call. But
+   `typed-trees-to-checked-trees/src/checks/contracts.rs` deliberately
+   exempts proof-machine-to-proof-machine calls from the `requires` prover
+   ("a call between proof machines denotes a mathematical application whose
+   value does not depend on the callee's requires"; keeping the prover on
+   such calls refuses sound requires-bearing induction), and the named call
+   `Nat::subtract(total, used)` is accepted today without the order fact.
+   [Mathematical bindings](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+   and [citation and induction](wiki/spec/proofs/contracts.md#citation-and-induction)
+   settle recursive citation but not whether a proof application's declared
+   `requires` is a formation-time obligation at the use site. Product
+   requirement: a prototype migration (reverted) compiles both Nat canaries
+   including the fail fixture, so the partial-subtraction premise would be
+   silently dropped for every core `Nat` consumer. Options:
+
+   - (a) Formation obligation: a proof-to-proof application proves the
+     callee's `requires` at the site whenever its facts are decidable
+     there, keeping the induction exemption only for the recursive
+     component's own contract under its proved ranking edge. Preserves the
+     `nat.omg` rule and the fail fixture; implementation in
+     `checks/contracts.rs` plus the migrated bodies. Recommended default.
+   - (b) Exempt, like every named proof-to-proof call: migrate the pair,
+     delete the fail fixture's rule and the harness assertion, and restate
+     `nat.omg` so partiality is documented rather than enforced.
+   - (c) Keep only these two declarations on a retained bodyless form
+     with the operator-contract prover, contradicting the one-supply rule.
+
+   Until answered, the `core/nat.omg` satisfier pairs stay on `operator`
+   and OPERATOR-MACHINE-SUPPLY's map marks them design-blocked.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
