@@ -167,6 +167,7 @@ pub(super) fn build_structural_scalar_field_store(
     statements: &[StatementNode],
     scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
     selected_scalar_result_local: Option<&CheckedUnitScalarResultBindingPlan>,
+    trace: &LocalConstructionTrace,
 ) -> Option<CheckedStructuralScalarFieldStorePlan> {
     let result_local = scalar_result_local.or(selected_scalar_result_local);
     let (statement_index, assignment) = match (result_local, statements) {
@@ -192,6 +193,7 @@ pub(super) fn build_structural_scalar_field_store(
         result_local,
         selected_scalar_result_local.is_some(),
         false,
+        trace,
     )?;
     let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation else {
         return None;
@@ -278,6 +280,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
                             None,
                             false,
                             true,
+                            trace,
                         )
                     }),
             )
@@ -322,6 +325,7 @@ fn build_structural_field_store_at(
     result_local: Option<&CheckedUnitScalarResultBindingPlan>,
     selected_result: bool,
     exact_sequence_frame: bool,
+    trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     if let Some(write) = structural_parameters.iter().find_map(|destination| {
         let parameter = program
@@ -340,6 +344,7 @@ fn build_structural_field_store_at(
     }) {
         return Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(write));
     }
+    trace.phase("structural field store: destination parameter");
     let source_parameters = program.state_parameters(state);
     let target_place = crate::flow::canonical_place_from_expression_in_state(
         program,
@@ -365,6 +370,7 @@ fn build_structural_field_store_at(
     {
         return None;
     }
+    trace.phase("structural field store: parameter access");
     if crate::execution::terminal_unit::abi_parameter_count(source_parameters)
         != scalar_parameters.len() + structural_parameters.len()
         || parameter.is_self != destination.is_self
@@ -389,6 +395,7 @@ fn build_structural_field_store_at(
     if destination.access != expected_access {
         return None;
     }
+    trace.phase("structural field store: root owner record");
     let mut carrier_type = *referee;
     // A receiver's source referent is `Self`; its declaration identity comes
     // from the machine attachment, not a global lookup of that spelling. A
@@ -410,6 +417,7 @@ fn build_structural_field_store_at(
     {
         return None;
     }
+    trace.phase("structural field store: target place");
     let (target, byte_index) = match program.expression_table.expression(assignment.target) {
         ExpressionNode::Indexed(indexed) => {
             if !validation::place_has_builtin_coordinates(
@@ -436,6 +444,7 @@ fn build_structural_field_store_at(
     if place.root != facts::PlaceRoot::Symbol(parameter.symbol) {
         return None;
     }
+    trace.phase("structural field store: carrier path");
     let (final_segment, carrier_segments) = place.segments.split_last()?;
     let facts::PlaceSegment::Field {
         symbol: field_symbol,
@@ -495,11 +504,13 @@ fn build_structural_field_store_at(
             _ => return None,
         }
     }
+    trace.phase("structural field store: field owner record");
     let field_owner = carrier_owner?;
     if !plain_record(field_owner, program) {
         return None;
     }
     let field = exact_relevant_field(program, field_owner, *field_symbol)?;
+    trace.phase("structural field store: write frame");
     let source_path =
         crate::labels::canonical_place_label_from_parts(program, place.root, &place.segments);
     let source_root = crate::labels::canonical_place_label_from_parts(program, place.root, &[]);
@@ -554,6 +565,7 @@ fn build_structural_field_store_at(
     {
         return None;
     }
+    trace.phase("structural field store: byte sequence carrier");
     if let Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) =
         byte_sequence_carrier(program, field.type_reference, &[])
     {
@@ -643,6 +655,7 @@ fn build_structural_field_store_at(
             ),
         );
     }
+    trace.phase("structural field store: scalar field type");
     if byte_index.is_some() {
         return None;
     }
@@ -659,6 +672,7 @@ fn build_structural_field_store_at(
     {
         return None;
     }
+    trace.phase("structural field store: computation source");
     let computations = &facts.values.scalar_computations;
     if let Some(root) = computations.root_at(
         state.symbol,
@@ -699,6 +713,7 @@ fn build_structural_field_store_at(
             },
         ));
     }
+    trace.phase("structural field store: pure source");
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
