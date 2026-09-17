@@ -4,6 +4,12 @@
 //! exact signature. A similarly named operator cannot acquire projection
 //! semantics, and a drifted canonical declaration fails before facts are built.
 
+/// The sibling closed catalog: `FloatSemantics::<name>` semantic definitions,
+/// validated by the same custody rule. Its row/contract query
+/// (`semantic_operations::exact_toolchain_float_semantic_contract`) is the
+/// hook a provider binding will consume once discharge attaches to a row.
+pub(crate) mod semantic_operations;
+
 use diagnostics::Diagnostic;
 use numerics::float_projection::{FloatProjectionContractIdentity, FloatProjectionOperation};
 use numerics::float_semantics::FloatFormat;
@@ -147,6 +153,7 @@ pub(crate) fn validate_float_projection_operator_bindings(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    semantic_operations::validate_float_semantic_operation_bindings(program, diagnostics);
     for operator in program.operators() {
         let path = program.operator_path_members(operator.name);
         let [namespace, name] = path else {

@@ -179,26 +179,29 @@ pub(crate) fn is_bare_bodyless_signature(machine: &syntax::item::Machine) -> boo
 /// a declaration `Float::meaning32` grants no primitive implementation". The
 /// key is therefore exact declaration custody, never the leaf spelling: the
 /// declaring source must be the sealed toolchain float-operations file, and
-/// the path must be one the catalog publishes (`Float::meaning32`,
-/// `Float::meaning64`). The admitted declaration lowers to the same resolved
-/// operator declaration the retiring `operator` introducer produced, so the
-/// sealed projection route (hermetic toolchain symbol identity, exact
-/// signature shape, catalog contract identity) validates it unchanged; a
-/// same-spelled declaration in any other source is refused here.
+/// the path must be one a catalog publishes -- the projection rows
+/// (`Float::meaning32`, `Float::meaning64`) or a semantic-definition row
+/// (`FloatSemantics::<name>` with its complete normalized signature, so the
+/// `from_integer` carriers select distinct rows). The admitted declaration
+/// lowers to the same resolved operator declaration the retiring `operator`
+/// introducer produced, so the sealed routes (hermetic toolchain symbol
+/// identity, exact signature shape, catalog contract identity) validate it
+/// unchanged; a same-spelled declaration in any other source is refused here,
+/// and a sealed declaration whose signature matches no row rejects instead of
+/// lowering as an ordinary declaration.
 pub(crate) fn lower_bare_bodyless_signature(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
     let name = machine.name.as_str();
-    let catalog_path = name
-        .rsplit_once("::")
-        .and_then(|(namespace, leaf)| {
-            numerics::float_projection::FloatProjectionOperation::from_source_identity(
-                namespace, leaf,
-            )
-        })
-        .is_some();
+    let (namespace, leaf) = name.rsplit_once("::").unwrap_or(("", name));
+    let projection_row =
+        numerics::float_projection::FloatProjectionOperation::from_source_identity(namespace, leaf)
+            .is_some();
+    let semantics_family =
+        numerics::float_semantics_catalog::FloatSemanticOperation::names_a_row(namespace, leaf);
+    let catalog_path = projection_row || semantics_family;
     let sealed_source = lowerer
         .sources
         .as_ref()
@@ -240,6 +243,9 @@ pub(crate) fn lower_bare_bodyless_signature(
         .with_source_span(machine.name.source_span()));
     };
     let entry = syntax_trees.items.state(*entry);
+    if semantics_family {
+        require_exact_semantic_row(syntax_trees, machine, entry, namespace, leaf)?;
+    }
     let name_span = machine.name.source_span();
     let mut path = HandleSpan::empty();
     for member in name.split("::") {
@@ -276,4 +282,78 @@ pub(crate) fn lower_bare_bodyless_signature(
         spelling: None,
         token_count: 0,
     })
+}
+
+/// A sealed `FloatSemantics::<leaf>` signature must select one exact catalog
+/// row by its complete normalized signature; a drifted declaration rejects
+/// here rather than lowering as an ordinary (unsupplied) declaration.
+fn require_exact_semantic_row(
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+    entry: &syntax::item::StateNode,
+    namespace: &str,
+    leaf: &str,
+) -> Result<&'static numerics::float_semantics_catalog::FloatSemanticOperation, Diagnostic> {
+    use numerics::float_semantics_catalog::{FloatSemanticOperation, FloatSemanticValueKind};
+    let name = machine.name.as_str();
+    let drift = |detail: String| {
+        Diagnostic::error(format!(
+            "`{name}` names the compiler float-semantics catalog, but {detail}; the sealed \
+             declaration must match one catalog row exactly"
+        ))
+        .with_source_span(machine.name.source_span())
+    };
+    if !machine.type_parameters.is_empty() || !machine.lifetime_parameters.is_empty() {
+        return Err(drift(
+            "catalog rows declare no type or lifetime parameters".to_owned(),
+        ));
+    }
+    let kind_of = |handle: syntax::types::TypeReferenceHandle, position: &str| match syntax_trees
+        .tables
+        .type_references
+        .type_reference(handle)
+    {
+        syntax::types::TypeReferenceNode::Named(identifier) => {
+            FloatSemanticValueKind::from_spelling(identifier.as_str()).ok_or_else(|| {
+                drift(format!(
+                    "{position} type `{}` is not a catalog value kind",
+                    identifier.as_str()
+                ))
+            })
+        }
+        _ => Err(drift(format!(
+            "{position} type is not a named catalog value kind"
+        ))),
+    };
+    let mut parameters = Vec::new();
+    for handle in syntax_trees.items.state_parameters(entry.parameters) {
+        let parameter = syntax_trees.items.state_parameter(*handle);
+        if parameter.is_const || parameter.is_mutable || parameter.is_self {
+            return Err(drift(format!(
+                "parameter `{}` carries a binding mode no catalog row declares",
+                parameter.name.as_str()
+            )));
+        }
+        parameters.push(kind_of(
+            parameter.type_reference,
+            &format!("parameter `{}`", parameter.name.as_str()),
+        )?);
+    }
+    if !entry.return_type.is_valid() {
+        return Err(drift("it declares no result type".to_owned()));
+    }
+    let result = kind_of(entry.return_type, "result")?;
+    FloatSemanticOperation::from_source_identity(namespace, leaf, &parameters, result).ok_or_else(
+        || {
+            drift(format!(
+                "its signature ({}) -> {} matches no catalog row",
+                parameters
+                    .iter()
+                    .map(|kind| kind.spelling())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                result.spelling()
+            ))
+        },
+    )
 }
