@@ -35,8 +35,10 @@ pub struct FixedEntryFuelCertificate {
 /// Exact current-vocabulary theorem for one selected machine-local path
 /// segment. The segment begins before the first operation in `start_block` and
 /// includes the charged `end_edge`; its endpoint may be either a jump or a
-/// return. A later safe-point classifier can select eligible endpoints without
-/// changing this recomputable accounting primitive.
+/// return. A return endpoint's ordered nominal cleanup machines are part of
+/// the segment's charged work: crossing the edge suspends into each in turn
+/// before control leaves the machine. A later safe-point classifier can select
+/// eligible endpoints without changing this recomputable accounting primitive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedSegmentFuelCertificate {
     terminal_psi: TerminalPsiIdentity,

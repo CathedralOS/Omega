@@ -18,7 +18,8 @@ use semantic_vocabulary::{
 };
 use terminal_codec::{decode_module, encode_module, terminal_psi_identity};
 use terminal_fixed_fuel::{
-    derive_fixed_entry_fuel, derive_fixed_safe_point_segments, validate_fixed_entry_fuel,
+    derive_fixed_entry_fuel, derive_fixed_safe_point_segments, derive_fixed_segment_fuel,
+    validate_fixed_entry_fuel, validate_fixed_segment_fuel,
 };
 use terminal_psi::{
     Block, EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind,
@@ -539,6 +540,121 @@ fn scalar_return_composes_every_nominal_cleanup_bound() {
     let certificate = derive_fixed_entry_fuel(&verified, machine_id(900)).unwrap();
     assert_eq!(certificate.ceiling_units(), 3);
     validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+/// Crossing a nominal-affine return edge suspends into each cleanup machine
+/// in order; that suspended work is metered before control leaves the machine,
+/// so the segment ending at the edge must bound it exactly like the entry
+/// bound does.
+#[test]
+fn nominal_affine_cleanups_compose_into_the_return_edge_segment() {
+    let module = ordered_empty_nominal_affine_fixture(true);
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("same-target nominal cleanup module verifies");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, machine_id(900))
+            .expect("the entry bound counts both cleanup invocations")
+            .ceiling_units(),
+        3
+    );
+
+    let segment =
+        derive_fixed_segment_fuel(&verified, machine_id(900), block_id(900), edge_id(900))
+            .expect("the cleanup-bearing return edge bounds its segment");
+    assert_eq!(
+        segment.ceiling_units(),
+        3,
+        "the segment charges the return edge plus both cleanup machine executions"
+    );
+    validate_fixed_segment_fuel(&verified, &segment).unwrap();
+
+    let catalog = derive_fixed_safe_point_segments(&verified, machine_id(900))
+        .expect("the safe-point catalog covers the return edge");
+    assert_eq!(catalog.len(), 1);
+    assert_eq!(catalog[0].ceiling_units(), 3);
+}
+
+#[test]
+fn executable_nominal_cleanup_works_inside_the_return_edge_segment() {
+    let module = ordered_one_executable_nominal_affine_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("one executable ordered cleanup module verifies");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, machine_id(900))
+            .expect("one executable ordered cleanup has an exact fixed bound")
+            .ceiling_units(),
+        5
+    );
+
+    let segment =
+        derive_fixed_segment_fuel(&verified, machine_id(900), block_id(900), edge_id(900))
+            .expect("the cleanup-bearing return edge bounds its segment");
+    assert_eq!(
+        segment.ceiling_units(),
+        5,
+        "root edge plus the executable cleanup's call, helper edge, and drop edge, plus the empty drop"
+    );
+    validate_fixed_segment_fuel(&verified, &segment).unwrap();
+}
+
+/// The same composition holds through `Return`'s ordered cleanup actions:
+/// `InvokeNominal` entries suspend into ordinary machines whose bounds join
+/// the segment ceiling in execution order.
+#[test]
+fn scalar_return_segment_composes_each_cleanup_action() {
+    let mut module = ordered_empty_nominal_affine_fixture(true);
+    let caller = &mut module.machines[0];
+    caller.parameters = vec![ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(900),
+        scalar_type: ScalarType::Boolean,
+    }];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(901),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = std::mem::replace(
+        &mut caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            edge: edge_id(999),
+            trivial_affine_discards: Vec::new(),
+        },
+    ) else {
+        unreachable!()
+    };
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(900),
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("scalar return cleanup module verifies");
+
+    let segment =
+        derive_fixed_segment_fuel(&verified, machine_id(900), block_id(900), edge_id(900))
+            .expect("the scalar return edge bounds its segment");
+    assert_eq!(
+        segment.ceiling_units(),
+        3,
+        "the scalar return edge plus both ordered cleanup invocations"
+    );
+    validate_fixed_segment_fuel(&verified, &segment).unwrap();
 }
 
 #[test]

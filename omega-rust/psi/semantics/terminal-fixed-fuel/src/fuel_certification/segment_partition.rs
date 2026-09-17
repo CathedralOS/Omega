@@ -1,8 +1,8 @@
 //! Invocation-local preparation and complete reachable segment partition.
 
 use super::outcome_bounds::{
-    OutcomeBounds, boundary_call_candidates, dynamic_call_targets, maximum_machine_outcomes,
-    maximum_optional, operation_callees,
+    OutcomeBounds, boundary_call_candidates, compose_cleanup_outcomes, dynamic_call_targets,
+    maximum_machine_outcomes, maximum_optional, operation_callees, terminator_cleanup_machines,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId};
@@ -265,7 +265,26 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 .checked_add(schedule.terminator_units(&block.terminator))
                 .ok_or(FixedFuelError::BoundOverflow)?;
             if block.terminator.edges().any(|edge| edge == end_edge) {
-                return Ok(units);
+                // The charged end edge commits before any nominal cleanup
+                // machines it suspends into; those run as ordinary in-module
+                // work inside this segment, so the bound composes them in
+                // order exactly like the entry bound does. Other terminators
+                // invoke no cleanup machines and return `units` unchanged.
+                return compose_cleanup_outcomes(
+                    terminator_cleanup_machines(&block.terminator),
+                    OutcomeBounds {
+                        returned: Some(units),
+                        crashed: None,
+                    },
+                    machines,
+                    dynamic_call_targets,
+                    provider_candidates,
+                    schedule,
+                    memoized_machines,
+                    &mut active_machines,
+                )?
+                .maximum()
+                .ok_or(FixedFuelError::NoTerminalPath(machine.id));
             }
             match block.terminator {
                 Terminator::Jump { target, .. } => current = target,

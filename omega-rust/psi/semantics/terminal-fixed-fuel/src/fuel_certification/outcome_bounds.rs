@@ -129,11 +129,11 @@ pub(super) fn operation_callees(
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(super) struct OutcomeBounds {
     pub(super) returned: Option<u64>,
-    crashed: Option<u64>,
+    pub(super) crashed: Option<u64>,
 }
 
 impl OutcomeBounds {
-    fn maximum(self) -> Option<u64> {
+    pub(super) fn maximum(self) -> Option<u64> {
         match (self.returned, self.crashed) {
             (Some(returned), Some(crashed)) => Some(returned.max(crashed)),
             (Some(units), None) | (None, Some(units)) => Some(units),
@@ -523,7 +523,11 @@ fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
     }
 }
 
-fn terminator_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
+/// The nominal cleanup machines a terminator's edge suspends into, in the
+/// terminator's own execution order. Only `Return` cleanup actions and
+/// `ReturnUnitNominalAffine` entries invoke machines; every other edge commits
+/// no in-module cleanup work.
+pub(super) fn terminator_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
     match terminator {
         Terminator::Return {
             cleanup_actions, ..
@@ -779,7 +783,12 @@ fn outcome_bounds_from(
     Ok(bounds)
 }
 
-fn compose_cleanup_outcomes(
+/// Sequence the ordered nominal cleanup machines of a committed edge into
+/// outcome bounds. Each cleanup runs only when every earlier one returned; a
+/// cleanup that crashes after the edge charge still counts its own bound plus
+/// the completed prefix. A cleanup machine with no terminal outcome is a
+/// broken semantic invariant, not an empty contribution.
+pub(super) fn compose_cleanup_outcomes(
     cleanup_machines: impl IntoIterator<Item = MachineId>,
     mut bounds: OutcomeBounds,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
@@ -802,6 +811,9 @@ fn compose_cleanup_outcomes(
             memoized_machines,
             active_machines,
         )?;
+        if cleanup_bounds.maximum().is_none() {
+            return Err(FixedFuelError::NoTerminalPath(cleanup_machine));
+        }
         bounds = OutcomeBounds {
             returned: checked_optional_add(cleanup_bounds.returned, cleanup_prefix)?,
             crashed: maximum_optional(
