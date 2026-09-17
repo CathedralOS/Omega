@@ -102,6 +102,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             source_function,
             &source.functions,
             target_function,
+            &target.functions,
             &source.structural_types,
             expected_target,
         )
