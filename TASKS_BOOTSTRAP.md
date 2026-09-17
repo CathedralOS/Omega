@@ -197,7 +197,8 @@ prerequisite to every lower-rung milestone.
   [complete encoding acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md).
   Remaining work: the produced full-subject certificate cannot be admitted
   under the selected provisions; the residual routes are the owner-level
-  decisions in the [cost review](wiki/drafts/bootstrap_cost_review.md).
+  decisions in the [cost review](wiki/drafts/bootstrap_cost_review.md),
+  filed as owner decision `beta-encoding-certificate-admission`.
   Resume evidence on macOS arm64: the complete 18-sort/361-constructor/
   108-function theory emits from Gamma source at 116,992 bytes, SHA-256
   `b2ab717f574b39e7ef6986b2ec3a43036a2ca4f5e7512c1dcbe3435b564ebb4b`, matching
