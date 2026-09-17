@@ -698,10 +698,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   information, stable-address loans, and dynamic-allocation constraints.
   General calls need target-owned frame, callee-save, link-register, and
   call-site alignment plans. Witnessed: the ordinary three-block/two-return
-  fixture and the cyclic loop-carried runtime-spill fixture (six emitted
-  blocks, backward branch, nonzero local spill storage) both replay through
-  frame application, relocation-free object construction, and validated
-  ordinary callable publication on x86-64 and AArch64
+  fixture replays through frame application, relocation-free object
+  construction, and validated ordinary callable publication on x86-64 and
+  AArch64, and the cyclic loop-carried runtime-spill fixture (six emitted
+  blocks, backward branch, nonzero local spill storage) replays the same
+  boundary on all five admitted targets
   (`runtime_spill_pressure::loop_carried_spill_frame_replays_private_accesses_through_callable_publication`).
   A scalar caller passing one argument past each target's register capacity
   now replays its exact outgoing-ABI-area write and the callee's exact
@@ -711,7 +712,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Probing is landed: a caller whose outgoing ABI area exceeds one
   stack-commit granule commits its frame through an exact per-granule
   touch roster recorded in the validated layout and replays through
-  ordinary callable publication on all four targets
+  ordinary callable publication on all five admitted targets
   (`stack_probe_commit::wide_outgoing_area_commits_through_exact_probe_roster_and_publication`).
   x86-64 emits move-and-touch chunks; AAPCS64 emits a
   shifted-then-unshifted `sub sp` pair per chunk followed by an
@@ -786,7 +787,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   no runtime-sized stack-allocation representation exists (every
   selected local/outgoing slot resolves to a static byte extent), so
   this leg waits on a language/Terminal-Psi alloca-style contract
-  rather than on frame-layout work itself.
+  rather than on frame-layout work itself. Coverage remainder, not a
+  design leg: the register_arity and general_cfg_fixed_frame rosters
+  still replay below all five admitted targets.
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
