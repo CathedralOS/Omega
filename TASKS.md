@@ -414,6 +414,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   task per fixture. Passing one earlier checking phase is not full acceptance;
   rerun affected cases after each repair. Remove this umbrella once the corpus
   passes, not merely once every failure has a label.
+  Attribution evidence: `CheckedUnitEffectPlans::omissions` records, per
+  checked-body machine without a Unit plan, the stage that dropped it and the
+  direct callee that was unavailable, and
+  `LoweringError::InvalidUnitMachinePlan::omission` renders that chain to the
+  machine whose own body failed local construction
+  (`checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`, macOS ARM64).
+  The builders in `typed-trees-to-checked-trees/src/execution/unit` still do
+  not retain which local requirement failed inside that machine; that is the
+  next attribution slice before per-fixture reading.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
@@ -3410,6 +3419,16 @@ Owners include
   the retained native product with generated source — dependency-purpose and
   execution-profile binding on checkpoints and generated handoffs, and
   publication gated on every required output plus final product checking.
+  Blocking dependency for the purpose/profile binding (2026-09-17 UTC, macOS
+  ARM64): `CheckedCompileRequest`, `PackageCompilationInputs`,
+  and `PackageGeneratedSourceBundle` carry `DependencyPurpose` only on
+  dependency edges and no execution profile at all, and the only compilation
+  occurrence is the root product-purpose one, so the activation has no purpose
+  or profile fact to bind and no second occurrence to witness drift against;
+  this waits on **BUILD-DEPENDENCY-PURPOSES** supplying the per-scope
+  execution profile on the frontend request and a build-purpose occurrence,
+  and must not derive the profile from the compiler process OS or duplicate
+  the already-bound selected target.
 
 - **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish the compiler/library migration
   to explicit ordinary std dependency edges. Std may be replaced, split, or
