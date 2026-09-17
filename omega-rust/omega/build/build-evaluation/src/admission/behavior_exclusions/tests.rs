@@ -1,7 +1,9 @@
 use super::{
-    BehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusion,
+    BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, BoundaryServiceOwners,
     EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
-    establish_behavior_exclusions,
+    authored_behavior_exclusion_set, authored_behavior_exclusion_set_in,
+    establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
 };
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
@@ -10,6 +12,7 @@ use effects::provider_plan::{
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
 };
+use symbols::SymbolHandle;
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, CrashCause, CrashRouteBucket, CrashRouteGuard,
     MachineContract, Operation, OperationKind, OperationResult, ProviderCandidateConformance,
@@ -860,4 +863,115 @@ fn parameter_dispatch_remains_insufficient_evidence() {
         BehaviorExclusionVerdict::InsufficientEvidence
     );
     assert_eq!(report.gaps[0].kind, EvidenceGapKind::DynamicCall);
+}
+
+#[test]
+fn service_rows_resolve_against_the_module_catalog_and_crash_rows_stand_alone() {
+    let symbol = SymbolHandle::invalid();
+    let rows = [
+        AuthoredBehaviorExclusion {
+            kind: AuthoredBehaviorExclusionKind::Service {
+                trait_symbol: symbol,
+            },
+            selecting_machine: symbol,
+            source_span: source::SourceSpan::default(),
+        },
+        AuthoredBehaviorExclusion {
+            kind: AuthoredBehaviorExclusionKind::CrashCause {
+                cause: CrashCause::Trap,
+                case_symbol: symbol,
+            },
+            selecting_machine: symbol,
+            source_span: source::SourceSpan::default(),
+        },
+    ];
+    let mut module = terminal_module(vec![unit_machine(1, vec![return_unit_block(1)])], vec![]);
+    module.services.push(terminal_psi::ServiceDeclaration {
+        id: service_id(7),
+        identity: "Sink".to_owned(),
+        parents: Vec::new(),
+    });
+    let sink = |_: SymbolHandle| Some("Sink".to_owned());
+    let other = |_: SymbolHandle| Some("Console".to_owned());
+    let unresolved = |_: SymbolHandle| None;
+
+    // In a module that declares the service, the row names its exact id.
+    let resolved = authored_behavior_exclusion_set_in(&rows, &module, &sink);
+    assert!(resolved.excludes_service(service_id(7)));
+    assert!(resolved.excludes_crash_cause(CrashCause::Trap));
+    // A service the module never declares imposes nothing there; the crash
+    // row still stands.
+    for identity in [
+        &other as &dyn Fn(SymbolHandle) -> Option<String>,
+        &unresolved,
+    ] {
+        let resolved = authored_behavior_exclusion_set_in(&rows, &module, identity);
+        assert!(resolved.services().is_empty());
+        assert!(resolved.excludes_crash_cause(CrashCause::Trap));
+    }
+    // The module-free set carries crash causes only.
+    let crash_only = authored_behavior_exclusion_set(&rows);
+    assert!(crash_only.services().is_empty());
+    assert!(crash_only.excludes_crash_cause(CrashCause::Trap));
+}
+
+#[test]
+fn boundary_ownership_counts_the_owning_service_and_its_parents_without_fixed_reach() {
+    // `Sink::emit` spelled no `reaches`, so its fixed reach is empty; the
+    // requirement still belongs to Sink, whose parent is Output.
+    let boundary = boundary_declaration(1);
+    let machine = unit_machine(
+        1,
+        vec![Block {
+            operations: vec![unit_operation(
+                1,
+                OperationKind::BoundaryCall {
+                    boundary: boundary_id(1),
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+            )],
+            ..return_unit_block(1)
+        }],
+    );
+    let mut module = terminal_module(vec![machine], vec![boundary]);
+    assert!(module.boundary_machines[0].fixed_service_reach.is_empty());
+    module.services.push(terminal_psi::ServiceDeclaration {
+        id: service_id(2),
+        identity: "Output".to_owned(),
+        parents: Vec::new(),
+    });
+    module.services.push(terminal_psi::ServiceDeclaration {
+        id: service_id(1),
+        identity: "Sink".to_owned(),
+        parents: vec![service_id(2)],
+    });
+    let owners = BoundaryServiceOwners::from_module(&module, &|identity| {
+        (identity == module.boundary_machines[0].identity).then(|| "Sink".to_owned())
+    });
+    assert_eq!(owners.owner(boundary_id(1)), Some(service_id(1)));
+
+    for excluded in [service_id(1), service_id(2)] {
+        let exclusions =
+            BehaviorExclusions::from_selections([BehaviorExclusion::Service(excluded)]);
+        // Without ownership the empty fixed reach hides the invocation.
+        let unowned =
+            establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
+        assert_eq!(unowned.verdict(), BehaviorExclusionVerdict::Satisfied);
+        // With ownership the boundary call invokes Sink and its parent Output.
+        let owned = establish_behavior_exclusions_with_owners(
+            &module,
+            &entries(),
+            &exclusions,
+            &empty_plans(),
+            &owners,
+        );
+        assert_eq!(owned.verdict(), BehaviorExclusionVerdict::Prohibited);
+        assert_eq!(owned.prohibited.len(), 1);
+        assert_eq!(
+            owned.prohibited[0].exclusion,
+            BehaviorExclusion::Service(excluded)
+        );
+    }
 }

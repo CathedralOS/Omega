@@ -216,8 +216,10 @@ pub(crate) fn project_terminal_native_realization_proposal(
             boundary_application_demands: boundary_application_demands,
             boundary_application_realizations: boundary_application_realizations,
             checked_boundary_operator_scope: checked_boundary_operator_scope,
-            behavior_exclusions: build_evaluation::authored_behavior_exclusion_set(
+            behavior_exclusions: build_evaluation::authored_behavior_exclusion_set_in(
                 checked.behavior_exclusions(),
+                &terminal_module,
+                &crate::terminal_artifact::behavior_exclusions::boundary_trait_identity(checked),
             ),
         },
     )

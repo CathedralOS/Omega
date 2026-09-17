@@ -63,9 +63,10 @@ mod tests;
 
 pub use admission::behavior_exclusions::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusion,
-    BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, EvidenceGap,
-    EvidenceGapKind, ProhibitedBehavior, ProhibitedSite, authored_behavior_exclusion_set,
-    establish_behavior_exclusions,
+    BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, BoundaryServiceOwners,
+    EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
+    authored_behavior_exclusion_set, authored_behavior_exclusion_set_in,
+    establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
 };
 pub use admission::configuration::{
     ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests,

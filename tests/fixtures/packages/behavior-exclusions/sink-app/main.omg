@@ -1,0 +1,15 @@
+// An actual Sink invocation through the boundary. The selected provider is
+// silent, but physical silence is a different property from absence of the
+// abstract service invocation.
+use logger_kit::main;
+use omega::language::core::service;
+
+data Main {
+    sink: Service<Sink> in Bound;
+}
+
+machine Main::main(&mut self)
+reaches Sink
+{
+    self.sink.emit("still an invocation");
+}

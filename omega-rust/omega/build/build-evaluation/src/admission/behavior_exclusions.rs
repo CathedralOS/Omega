@@ -41,13 +41,15 @@
 //! checked call scope (see `declarations::harvest_behavior_exclusions`).
 //! Authored selections retain their exact declaration symbol, selecting
 //! machine, and source span so the product-admission join can reproduce and
-//! audit the canonical union independently. The product-admission join
+//! audit the canonical union independently. `builder.exclude_service<Trait>()`
+//! is the service counterpart: a build-declaration marker whose single type
+//! path must resolve to an exact boundary trait; its Terminal service
+//! identity is resolved per module at the join. The product-admission join
 //! itself lives in `checked-compilation-to-terminal-artifact`, which replays
-//! the unoptimized lowering before the artifact is admitted. There is no
-//! service-exclusion authoring surface yet.
+//! the unoptimized lowering before the artifact is admitted.
 
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, OperationId, ServiceId};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use symbols::SymbolHandle;
 use terminal_psi::{
     CrashCause, OperationKind, ProviderCandidateConformance, TerminalMachine, TerminalModule,
@@ -128,6 +130,11 @@ pub enum AuthoredBehaviorExclusionKind {
         cause: CrashCause,
         case_symbol: SymbolHandle,
     },
+    /// `builder.exclude_service<Trait>()`: the exact boundary-trait symbol
+    /// the authored type path resolved to. The Terminal service identity it
+    /// names exists only per module, so the row resolves at the
+    /// product-admission join against that module's service catalog.
+    Service { trait_symbol: SymbolHandle },
 }
 
 /// One authored exclusion selection retained from the root build machine's
@@ -145,23 +152,60 @@ pub struct AuthoredBehaviorExclusion {
 }
 
 impl AuthoredBehaviorExclusion {
-    /// The canonical exclusion this authored row selects.
-    pub const fn exclusion(&self) -> BehaviorExclusion {
+    /// The canonical exclusion this authored row selects in `module`.
+    /// `trait_identity` maps a checked boundary-trait symbol to the identity
+    /// Terminal service declarations carry. A service exclusion whose
+    /// identity `module` never declares resolves to `None`: no boundary in
+    /// that composition can invoke it, so it imposes no requirement there.
+    pub fn resolve(
+        &self,
+        module: &TerminalModule,
+        trait_identity: &dyn Fn(SymbolHandle) -> Option<String>,
+    ) -> Option<BehaviorExclusion> {
         match self.kind {
             AuthoredBehaviorExclusionKind::CrashCause { cause, .. } => {
-                BehaviorExclusion::CrashCause(cause)
+                Some(BehaviorExclusion::CrashCause(cause))
+            }
+            AuthoredBehaviorExclusionKind::Service { trait_symbol } => {
+                let identity = trait_identity(trait_symbol)?;
+                module
+                    .services
+                    .iter()
+                    .find(|service| service.identity == identity)
+                    .map(|service| BehaviorExclusion::Service(service.id))
             }
         }
     }
 }
 
-/// The canonical union a set of authored rows selects. Duplicates and
-/// authored order collapse under the same deduplication the terminal-side
-/// checker consumes.
+/// The canonical crash-cause union a set of authored rows selects. Service
+/// rows need a module to resolve their identity and are not part of this
+/// set; product admission uses [`authored_behavior_exclusion_set_in`].
 pub fn authored_behavior_exclusion_set(
     exclusions: &[AuthoredBehaviorExclusion],
 ) -> BehaviorExclusions {
-    BehaviorExclusions::from_selections(exclusions.iter().map(AuthoredBehaviorExclusion::exclusion))
+    BehaviorExclusions::from_selections(exclusions.iter().filter_map(|row| match row.kind {
+        AuthoredBehaviorExclusionKind::CrashCause { cause, .. } => {
+            Some(BehaviorExclusion::CrashCause(cause))
+        }
+        AuthoredBehaviorExclusionKind::Service { .. } => None,
+    }))
+}
+
+/// The canonical union a set of authored rows selects in `module`, service
+/// rows resolved against that module's service catalog. Duplicates and
+/// authored order collapse under the same deduplication the terminal-side
+/// checker consumes.
+pub fn authored_behavior_exclusion_set_in(
+    exclusions: &[AuthoredBehaviorExclusion],
+    module: &TerminalModule,
+    trait_identity: &dyn Fn(SymbolHandle) -> Option<String>,
+) -> BehaviorExclusions {
+    BehaviorExclusions::from_selections(
+        exclusions
+            .iter()
+            .filter_map(|row| row.resolve(module, trait_identity)),
+    )
 }
 
 /// The executable coordinate where a possible excluded behavior is retained.
@@ -216,6 +260,75 @@ pub enum BehaviorExclusionVerdict {
     InsufficientEvidence,
 }
 
+/// Which abstract service each boundary machine in a module belongs to.
+///
+/// A boundary declaration retains only the service reach it spelled; the
+/// trait that owns the requirement is not part of the Terminal row. Invoking
+/// a boundary is an invocation of its owning service and of every parent in
+/// the module's service closure, whatever the selected provider does, so the
+/// join supplies this ownership from the checked trait declarations.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BoundaryServiceOwners {
+    owners: BTreeMap<BoundaryMachineId, ServiceId>,
+}
+
+impl BoundaryServiceOwners {
+    /// Join each boundary declaration to its owning service:
+    /// `owning_service_identity` maps a boundary's canonical identity to the
+    /// service identity its trait declares, resolved against the module's
+    /// service catalog. Boundaries the map cannot name have no owner here.
+    pub fn from_module(
+        module: &TerminalModule,
+        owning_service_identity: &dyn Fn(&str) -> Option<String>,
+    ) -> Self {
+        let mut owners = BTreeMap::new();
+        for boundary in &module.boundary_machines {
+            let Some(identity) = owning_service_identity(&boundary.identity) else {
+                continue;
+            };
+            if let Some(service) = module
+                .services
+                .iter()
+                .find(|service| service.identity == identity)
+            {
+                owners.insert(boundary.id, service.id);
+            }
+        }
+        Self { owners }
+    }
+
+    pub fn insert(&mut self, boundary: BoundaryMachineId, service: ServiceId) {
+        self.owners.insert(boundary, service);
+    }
+
+    pub fn owner(&self, boundary: BoundaryMachineId) -> Option<ServiceId> {
+        self.owners.get(&boundary).copied()
+    }
+
+    /// The owning service and its transitive parents in `module`.
+    fn invoked_services(
+        &self,
+        module: &TerminalModule,
+        boundary: BoundaryMachineId,
+    ) -> Vec<ServiceId> {
+        let mut invoked = Vec::new();
+        let Some(owner) = self.owner(boundary) else {
+            return invoked;
+        };
+        let mut pending = vec![owner];
+        while let Some(service) = pending.pop() {
+            if invoked.contains(&service) {
+                continue;
+            }
+            invoked.push(service);
+            if let Some(declaration) = module.services.iter().find(|row| row.id == service) {
+                pending.extend(declaration.parents.iter().copied());
+            }
+        }
+        invoked
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BehaviorExclusionReport {
     pub prohibited: Vec<ProhibitedBehavior>,
@@ -243,6 +356,26 @@ pub fn establish_behavior_exclusions(
     entries: &[MachineId],
     exclusions: &BehaviorExclusions,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
+) -> BehaviorExclusionReport {
+    establish_behavior_exclusions_with_owners(
+        module,
+        entries,
+        exclusions,
+        selected_provider_plans,
+        &BoundaryServiceOwners::default(),
+    )
+}
+
+/// [`establish_behavior_exclusions`] with the boundary-to-service ownership
+/// the join reconstructed: a boundary call then counts as an invocation of
+/// its owning service and that service's parents, beside the fixed reach
+/// the declaration spelled.
+pub fn establish_behavior_exclusions_with_owners(
+    module: &TerminalModule,
+    entries: &[MachineId],
+    exclusions: &BehaviorExclusions,
+    selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    boundary_owners: &BoundaryServiceOwners,
 ) -> BehaviorExclusionReport {
     let mut report = BehaviorExclusionReport::default();
     if exclusions.is_empty() {
@@ -272,6 +405,7 @@ pub fn establish_behavior_exclusions(
                 machine,
                 exclusions,
                 selected_provider_plans,
+                boundary_owners,
                 &mut report,
                 &mut pending,
             );
@@ -382,6 +516,7 @@ fn inspect_machine<'module>(
     machine: &'module TerminalMachine,
     exclusions: &BehaviorExclusions,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    boundary_owners: &BoundaryServiceOwners,
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module TerminalMachine>,
 ) {
@@ -424,7 +559,16 @@ fn inspect_machine<'module>(
                         operation: operation.id,
                         boundary: *boundary,
                     };
-                    for &service in &declaration.fixed_service_reach {
+                    // The declaration's fixed reach and the service that owns
+                    // the requirement (with its parents) are both invoked
+                    // here, whatever the selected provider does.
+                    let mut invoked = declaration.fixed_service_reach.clone();
+                    for service in boundary_owners.invoked_services(module, *boundary) {
+                        if !invoked.contains(&service) {
+                            invoked.push(service);
+                        }
+                    }
+                    for service in invoked {
                         if exclusions.excludes_service(service) {
                             report.prohibited.push(ProhibitedBehavior {
                                 exclusion: BehaviorExclusion::Service(service),

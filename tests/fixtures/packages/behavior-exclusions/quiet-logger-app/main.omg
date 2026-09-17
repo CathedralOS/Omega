@@ -1,0 +1,11 @@
+// The ordinary silent logger: a broad Sink allowance on the contract, no
+// invocation in the verified body.
+use logger_kit::main;
+
+data Main { }
+
+machine Main::main(&mut self)
+reaches Sink
+{
+    log_quiet("nothing to say");
+}
