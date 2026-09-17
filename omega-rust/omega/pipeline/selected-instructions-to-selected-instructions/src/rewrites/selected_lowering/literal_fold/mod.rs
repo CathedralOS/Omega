@@ -68,7 +68,12 @@ pub use validate::validate_literal_fold;
 /// in the function implicitly uses it, while the x86-64 rows' `rflags`
 /// clobber retires unconditionally because dropping a clobber only
 /// narrows destruction; every clamped carrier's row also drops the bound
-/// scratch `Def` past its result under occurrence-free custody.
+/// scratch `Def` past its result under occurrence-free custody — or the
+/// literal `0` at the right operand of a saturating subtract on any
+/// carrier into a `CopyI64` of the left operand — `x -| 0` is `x` inside
+/// the carrier's bounds — under the same retired-definition and
+/// occurrence-free-scratch gates, with no left-literal grammar because
+/// subtraction does not commute: `0 -| x` is not `x`.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

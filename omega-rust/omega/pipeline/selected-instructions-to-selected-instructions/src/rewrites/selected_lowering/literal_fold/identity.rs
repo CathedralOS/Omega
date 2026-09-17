@@ -4,7 +4,7 @@ use crate::{LiteralFoldIdentity, LiteralFoldPlan};
 
 pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v6\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v7\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     LiteralFoldIdentity(Sha256::digest(bytes).into())
 }

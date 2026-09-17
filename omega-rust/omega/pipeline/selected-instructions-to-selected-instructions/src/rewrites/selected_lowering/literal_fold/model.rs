@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 6;
+const LITERAL_FOLD_VERSION: u32 = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -32,27 +32,28 @@ impl LiteralFoldIdentity {
 /// fold, instruction scheduler, rematerializer, spill policy, or opt level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldPolicy {
-    enabled_rules: u16,
+    enabled_rules: u32,
 }
 
 impl LiteralFoldPolicy {
-    const EXACT_ADD_BIT: u16 = 1 << 0;
-    const EXACT_SUBTRACT_BIT: u16 = 1 << 1;
-    const COMPARE_BIT: u16 = 1 << 2;
-    const EXTENSION_BIT: u16 = 1 << 3;
-    const LOAD8_INDEXED_BIT: u16 = 1 << 4;
-    const COPY_BIT: u16 = 1 << 5;
-    const BYTE_VIEW_ADDRESS_BIT: u16 = 1 << 6;
-    const EXACT_DIVIDE_BIT: u16 = 1 << 7;
-    const WRAPPING_REMAINDER_BIT: u16 = 1 << 8;
-    const BITWISE_AND_ZERO_BIT: u16 = 1 << 9;
-    const BITWISE_XOR_ZERO_BIT: u16 = 1 << 10;
-    const WRAPPING_ADD_ZERO_BIT: u16 = 1 << 11;
-    const BITWISE_AND_ONES_BIT: u16 = 1 << 12;
-    const WRAPPING_REMAINDER_ZERO_BIT: u16 = 1 << 13;
-    const EXACT_DIVIDE_ZERO_BIT: u16 = 1 << 14;
-    const SATURATING_ADD_ZERO_BIT: u16 = 1 << 15;
-    const KNOWN_BITS: u16 = Self::EXACT_ADD_BIT
+    const EXACT_ADD_BIT: u32 = 1 << 0;
+    const EXACT_SUBTRACT_BIT: u32 = 1 << 1;
+    const COMPARE_BIT: u32 = 1 << 2;
+    const EXTENSION_BIT: u32 = 1 << 3;
+    const LOAD8_INDEXED_BIT: u32 = 1 << 4;
+    const COPY_BIT: u32 = 1 << 5;
+    const BYTE_VIEW_ADDRESS_BIT: u32 = 1 << 6;
+    const EXACT_DIVIDE_BIT: u32 = 1 << 7;
+    const WRAPPING_REMAINDER_BIT: u32 = 1 << 8;
+    const BITWISE_AND_ZERO_BIT: u32 = 1 << 9;
+    const BITWISE_XOR_ZERO_BIT: u32 = 1 << 10;
+    const WRAPPING_ADD_ZERO_BIT: u32 = 1 << 11;
+    const BITWISE_AND_ONES_BIT: u32 = 1 << 12;
+    const WRAPPING_REMAINDER_ZERO_BIT: u32 = 1 << 13;
+    const EXACT_DIVIDE_ZERO_BIT: u32 = 1 << 14;
+    const SATURATING_ADD_ZERO_BIT: u32 = 1 << 15;
+    const SATURATING_SUBTRACT_ZERO_BIT: u32 = 1 << 16;
+    const KNOWN_BITS: u32 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
         | Self::EXTENSION_BIT
@@ -67,7 +68,8 @@ impl LiteralFoldPolicy {
         | Self::BITWISE_AND_ONES_BIT
         | Self::WRAPPING_REMAINDER_ZERO_BIT
         | Self::EXACT_DIVIDE_ZERO_BIT
-        | Self::SATURATING_ADD_ZERO_BIT;
+        | Self::SATURATING_ADD_ZERO_BIT
+        | Self::SATURATING_SUBTRACT_ZERO_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -210,6 +212,29 @@ impl LiteralFoldPolicy {
     pub const SATURATING_ADD_ZERO_V1: Self = Self {
         enabled_rules: Self::SATURATING_ADD_ZERO_BIT,
     };
+    /// Saturating-subtract identity fold: fold a materialized literal `0`
+    /// feeding its sole `SaturatingSubtract` consumer on any carrier at
+    /// the right `Use` operand into a `CopyI64` of the left `Use` — zero
+    /// is the right identity under saturating subtraction, so `x -| 0`
+    /// is `x` inside the carrier's bounds and the surviving operand's
+    /// register moves to the result unchanged. The grammar is
+    /// deliberately asymmetric: `0 -| x` is `-x` clamped to the carrier's
+    /// bounds, not `x`, so no left-literal rule exists and a literal at
+    /// operand 0 rejects. The saturating-subtract consumer implicitly
+    /// defines the target condition state on aarch64 — every carrier's
+    /// realization is flag-setting — and clobbers `rflags` on x86-64;
+    /// the fold retires both with the folded form, admitting the consumer
+    /// only while every unit its record defines is dead in the function:
+    /// a reader of a retired definition would observe a stale unit.
+    /// Unsigned carriers bind the three-operand row; signed carriers bind
+    /// the clamped row whose operand list continues past the `Def`
+    /// result with a bound scratch `Def` the fold drops under
+    /// occurrence-free custody — a scratch output another instruction
+    /// read or defined would leave a use of a register the rewrite
+    /// stopped defining.
+    pub const SATURATING_SUBTRACT_ZERO_V1: Self = Self {
+        enabled_rules: Self::SATURATING_SUBTRACT_ZERO_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -289,12 +314,16 @@ impl LiteralFoldPolicy {
         self.enabled_rules & Self::SATURATING_ADD_ZERO_BIT != 0
     }
 
-    pub const fn canonical_bits(self) -> u16 {
+    pub const fn enables_saturating_subtract_zero(self) -> bool {
+        self.enabled_rules & Self::SATURATING_SUBTRACT_ZERO_BIT != 0
+    }
+
+    pub const fn canonical_bits(self) -> u32 {
         self.enabled_rules
     }
 
-    pub const fn from_canonical_bits(bits: u16) -> Option<Self> {
-        if bits == 0 || (bits as u32) & !(Self::KNOWN_BITS as u32) != 0 {
+    pub const fn from_canonical_bits(bits: u32) -> Option<Self> {
+        if bits == 0 || bits & !Self::KNOWN_BITS != 0 {
             None
         } else {
             Some(Self {
@@ -363,7 +392,7 @@ impl LiteralFoldPlan {
         let raw_fuel = u32::from_le_bytes(cursor.array()?);
         let fuel_schedule = FuelScheduleIdentity::new(raw_fuel)
             .ok_or(LiteralFoldDecodeError::InvalidFuelSchedule(raw_fuel))?;
-        let policy_bits = u16::from_le_bytes(cursor.array()?);
+        let policy_bits = u32::from_le_bytes(cursor.array()?);
         let policy = LiteralFoldPolicy::from_canonical_bits(policy_bits)
             .ok_or(LiteralFoldDecodeError::UnknownPolicy(policy_bits))?;
         let budget = OptimizationWorkBudget::decode(cursor.take(40)?)
@@ -618,7 +647,7 @@ pub enum LiteralFoldDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),
-    UnknownPolicy(u16),
+    UnknownPolicy(u32),
     UnknownOption(u8),
     UnknownConstraintFamily(u8),
     InvalidFuelSchedule(u32),

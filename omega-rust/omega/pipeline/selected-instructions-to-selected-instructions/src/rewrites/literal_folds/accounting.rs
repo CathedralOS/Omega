@@ -129,7 +129,7 @@ pub(super) fn selected_lowering_completion_identity(
     receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
 ) -> SelectedLoweringOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v4\0");
+    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v5\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -221,7 +221,7 @@ pub(super) fn recovery_policy_tag(policy: RecoveryClassificationPolicy) -> u8 {
     }
 }
 
-pub(super) fn literal_fold_policy_tag(policy: LiteralFoldPolicy) -> u16 {
+pub(super) fn literal_fold_policy_tag(policy: LiteralFoldPolicy) -> u32 {
     policy.canonical_bits()
 }
 

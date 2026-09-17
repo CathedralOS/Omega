@@ -83,6 +83,12 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// folds bind, gated separately so a fold the selection did not enable
     /// cannot replay under another family's policy.
     pub(super) saturating_add_zero: Option<&'a RegisterInstructionConstraint>,
+    /// The `CopyI64` row the saturating-subtract identity fold rewrites
+    /// into — the same constraint row the divide, xor, wrapping-add,
+    /// and-ones, and saturating-add folds bind, gated separately so a fold
+    /// the selection did not enable cannot replay under another family's
+    /// policy.
+    pub(super) saturating_subtract_zero: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -166,6 +172,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_saturating_add_zero()
         .then(|| find(keys.copy_i64))
         .transpose()?;
+    let saturating_subtract_zero = policy
+        .enables_saturating_subtract_zero()
+        .then(|| find(keys.copy_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -183,6 +193,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         remainder_zero,
         divide_zero,
         saturating_add_zero,
+        saturating_subtract_zero,
     ]
     .into_iter()
     .flatten()
@@ -277,6 +288,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::CopyI64,
             isolated_rewritten_declaration,
         ),
+        (
+            saturating_subtract_zero,
+            MachineSemanticKind::CopyI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -302,6 +318,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         remainder_zero,
         divide_zero,
         saturating_add_zero,
+        saturating_subtract_zero,
         catalog,
     })
 }

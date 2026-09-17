@@ -2446,6 +2446,51 @@ pub(super) fn staged_saturating_add_carrier_inputs(
     )
 }
 
+/// The same zero-literal fixture for `SaturatingSubtract` on the `U64`
+/// carrier: `x -| 0` folds into a `CopyI64` of the operand-0 operand.
+/// Unlike the saturating-add family the grammar is asymmetric —
+/// `0 -| x` is `-x` clamped, not `x` — so `literal_operand` must be 1 for
+/// an admitted fold; staging it at 0 produces the left-literal
+/// arrangement the family refuses. The consumer retires the same
+/// target-specific unit effects the saturating add does — aarch64
+/// defines `nzcv`, x86-64 clobbers `rflags` — so `block0` chooses the
+/// block-0 terminator the same way.
+pub(super) fn staged_saturating_subtract_inputs(
+    target: NativeTarget,
+    literal_operand: u16,
+    block0: BlockZeroTerminator,
+) -> Inputs {
+    staged_saturating_subtract_carrier_inputs(
+        target,
+        SaturatingCarrier::U64,
+        literal_operand,
+        block0,
+    )
+}
+
+/// The same zero-literal fixture for `SaturatingSubtract` on `carrier`:
+/// every unsigned carrier binds the three-operand unsigned row — two
+/// `Use` operands and a `Def` result — while every signed carrier binds
+/// the clamped row whose bound scratch `Def` at operand 3 the fold drops
+/// under occurrence-free custody, so the staged consumer carries the
+/// row's own operand count and the scratch register the consumer alone
+/// defines.
+pub(super) fn staged_saturating_subtract_carrier_inputs(
+    target: NativeTarget,
+    carrier: SaturatingCarrier,
+    literal_operand: u16,
+    block0: BlockZeroTerminator,
+) -> Inputs {
+    staged_literal_binary_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::SaturatingSubtract { carrier },
+        LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
+        0,
+        block0,
+    )
+}
+
 /// Shared staging for the exact-literal binary families: a
 /// `MaterializeI64` victim producing `Unsigned(literal)` feeds `kind`'s
 /// `Use` operand at `literal_operand`, whose `Def` result is a scalar
