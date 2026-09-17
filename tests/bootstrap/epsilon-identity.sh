@@ -66,18 +66,91 @@ grep -q 'member digest changed' "$TMP/corrupt-member.err" ||
   fail "corrupted member: destination was written"
 echo "member: a one-byte member change is refused during packing"
 
+require_epsilon_execution_driver_identity ||
+  fail "bound driver identity check refused the canonical driver"
+echo "driver: canonical execution driver passes the bound identity check"
+
+cp "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" "$TMP/corrupt-driver.delta"
+if [ "$(od -An -tc -j 100 -N1 "$TMP/corrupt-driver.delta" | tr -d ' ')" = "a" ]; then
+  printf 'b' | dd of="$TMP/corrupt-driver.delta" bs=1 seek=100 conv=notrunc status=none
+else
+  printf 'a' | dd of="$TMP/corrupt-driver.delta" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_EPSILON_EXECUTION_DRIVER=$TMP/corrupt-driver.delta
+  require_epsilon_execution_driver_identity
+) 2>"$TMP/corrupt-driver.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted driver: expected exit 3, got $rc"
+grep -q 'interpreted-omega-experiment/README.md' "$TMP/corrupt-driver.err" ||
+  fail "corrupted driver: refusal did not cite the driver record"
+echo "driver: a one-byte driver change is refused"
+
+head -c $((EPSILON_EXECUTION_DRIVER_SIZE - 1)) \
+  "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" > "$TMP/truncated-driver.delta"
+rc=0
+(
+  export OMEGA_PATH_EPSILON_EXECUTION_DRIVER=$TMP/truncated-driver.delta
+  require_epsilon_execution_driver_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated driver: expected exit 3, got $rc"
+echo "driver: a truncated driver is refused"
+
+printf 'not the reconstructed evaluator receipt' > "$TMP/short-receipt"
+rc=0
+require_epsilon_evaluator_receipt_identity "$TMP/short-receipt" \
+  2>"$TMP/short-receipt.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "short receipt: expected exit 3, got $rc"
+grep -q 'interpreted-omega-experiment/README.md' "$TMP/short-receipt.err" ||
+  fail "short receipt: refusal did not cite the receipt record"
+echo "receipt: a wrong-size reconstruction is refused"
+
+head -c "$EPSILON_EVALUATOR_RECEIPT_SIZE" /dev/zero > "$TMP/zero-receipt"
+rc=0
+require_epsilon_evaluator_receipt_identity "$TMP/zero-receipt" \
+  2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "zero receipt: expected exit 3, got $rc"
+echo "receipt: a same-size divergent reconstruction is refused"
+
 for needle in \
   "$EPSILON_EVALUATOR_MANIFEST_SHA256" "$EPSILON_EVALUATOR_PACKED_SHA256" \
+  "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
   "617,354"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/README.md" ||
     fail "bootstrap/4_epsilon/README.md lacks bound record $needle"
+done
+for needle in \
+  "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SHA256"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/tests/epsilon/interpreted-omega-experiment/README.md" ||
+    fail "interpreted-omega-experiment README lacks bound record $needle"
 done
 for needle in "$EPSILON_EVALUATOR_PACKED_SIZE" "$EPSILON_EVALUATOR_PACKED_SHA256"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/epsilon/checking/run.sh" ||
     fail "epsilon checking gate lacks bound record $needle"
 done
-echo "records: bound identities match bootstrap/4_epsilon/README.md and the checking gate"
+for gate in \
+  tests/bootstrap/omega-parser/gate.py \
+  tests/bootstrap/omega-outcome/gate.py \
+  tests/bootstrap/omega-executable/gate.py \
+  tests/epsilon/array-storage/gate.py \
+  tests/epsilon/interpreted-omega-experiment/run.sh
+do
+  for needle in \
+    "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SIZE" \
+    "$EPSILON_EVALUATOR_RECEIPT_SHA256"
+  do
+    grep -q "$needle" "$OMEGA_REPO_ROOT/$gate" ||
+      fail "$gate lacks bound record $needle"
+  done
+done
+echo "records: bound identities match the rung README, the driver owner README, and every consuming gate"
 
-echo "Epsilon identity: bound closure materialized exactly; corrupted manifest and member refused"
+echo "Epsilon identity: bound closure materialized exactly; corrupted manifest, member, driver, and receipt refused"

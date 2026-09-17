@@ -35,7 +35,11 @@ it also checks the record names the selected evaluator tape, packed
 closure, and packed support section. `tools/bootstrap/epsilon/evaluator_env.sh` binds the
 `epsilon_compiler.delta.sources` manifest and repacked evaluator closure
 against `bootstrap/4_epsilon/README.md`. Both refuse before writing when the
-bound bytes differ, including a changed manifest or member.
+bound bytes differ, including a changed manifest or member. The same env binds
+the canonical `execution_driver.delta` slice adapter and the evaluator receipt
+identity that the bound Delta edge reconstructs from the bound evaluator,
+driver, and support section; `tests/bootstrap/epsilon-identity.sh` checks the
+driver and receipt refusals and every consuming gate's record.
 
 `tools/bootstrap/omega/compiler_env.sh` binds the
 `omega_compiler.epsilon.sources` manifest and repacked D closure against
