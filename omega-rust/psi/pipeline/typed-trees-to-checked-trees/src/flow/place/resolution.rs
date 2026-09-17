@@ -199,7 +199,25 @@ pub(super) fn expression_type_position(
             let symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
             symbol_type_position(program, symbol)
         }
-        ExpressionNode::Indexed(indexed) => expression_type_position(program, indexed.collection),
+        ExpressionNode::Indexed(indexed) => {
+            // The index hop lands on an element, not on the collection itself:
+            // replay the same segment canonicalization pushes for this
+            // expression so `values[i].item` resumes at `Box<Context>` with
+            // its generic argument still bound. A collection whose position
+            // does not project to an element keeps no position rather than
+            // minting the collection's own for the element.
+            match expression_type_position(program, indexed.collection) {
+                Some(MemberPosition::Reference(reference)) => {
+                    super::super::project_type_reference_from_segments(
+                        program,
+                        reference,
+                        &[super::index_place_segment(program, indexed.index)],
+                    )
+                    .map(MemberPosition::Reference)
+                }
+                position => position,
+            }
+        }
         ExpressionNode::Member(member) => {
             let symbol = effective_member_symbol(program, member.receiver, member);
             member_type_position(program, member.receiver, symbol)
