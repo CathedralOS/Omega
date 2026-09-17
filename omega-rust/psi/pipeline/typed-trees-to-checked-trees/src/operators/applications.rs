@@ -203,6 +203,47 @@ pub(crate) fn bind_boundary_operator_application_demands(
             }
         }
     }
+    // A direct call to a public nongeneric top-level `boundary requirement`
+    // is the requirement's own D29 demand: the same value-site row a named
+    // boundary operator use retains, keyed on the requirement machine symbol
+    // with no binder arguments (the retained use facts admit only nongeneric
+    // requirements). Terminal custody and application coverage rejoin the
+    // selected realization to this row whichever species spelled the call.
+    for (_, requirement_use) in operators.named_requirement_uses.iter() {
+        let ExpressionNode::Call(call) = program
+            .expression_table
+            .expression(requirement_use.expression)
+        else {
+            diagnostics.push(diagnostics::Diagnostic::error(
+                "retained direct requirement use no longer names a call expression",
+            ));
+            continue;
+        };
+        let rejoins = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == requirement_use.requirement_symbol)
+            .is_some_and(|requirement| {
+                program
+                    .machine_states(requirement)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == call.target_symbol)
+            });
+        if !rejoins {
+            diagnostics.push(diagnostics::Diagnostic::error(
+                "retained direct requirement use does not rejoin its requirement's entry state",
+            ));
+            continue;
+        }
+        applications.push(CheckedBoundaryOperatorApplicationDemand {
+            site: CheckedBoundaryOperatorApplicationUseSite::Expression {
+                expression: requirement_use.expression,
+                origin: requirement_use.origin,
+            },
+            requirement_symbol: requirement_use.requirement_symbol,
+            arguments: Vec::new(),
+        });
+    }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
