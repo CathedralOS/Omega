@@ -54,12 +54,18 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
         return Ok(()); // non-generic base: plan-laid / existing error paths
     };
 
-    let argument_handles: Vec<TypeReferenceHandle> = syntax
+    let mut argument_handles: Vec<TypeReferenceHandle> = syntax
         .tables
         .type_references
         .type_reference_handles(arguments)
         .to_vec();
-    if argument_handles.len() != base_info.parameter_names.len() {
+    // Omitted trailing binders are recoverable only through the template's
+    // structural type equations; an excess or an unsolvable shortfall stays
+    // with the declaration-aware validator's arity diagnostic.
+    let parameter_count = base_info.parameter_names.len();
+    if argument_handles.len() > parameter_count
+        || (argument_handles.len() < parameter_count && base_info.type_equations.is_empty())
+    {
         return Ok(());
     }
     if base_info
@@ -258,6 +264,41 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
             }
             _ => continue,
         }
+    }
+    if !base_info.type_equations.is_empty()
+        && base_is_fully_monomorphizable(syntax, generic_data, selection, base_info)
+    {
+        // Every equation is decided against the complete tuple: omitted
+        // trailing binders bind from the supplied arguments' retained
+        // canonical ranges, explicit arguments are verified, and the
+        // authored spelling grows to the complete application so the
+        // retained origin and closed identity see every binder.
+        let completed = super::super::equations::complete_argument_tuple(
+            syntax,
+            base_info,
+            &base_name,
+            &argument_handles,
+            const_values,
+            selection,
+            warnings,
+        )?;
+        if completed.len() != argument_handles.len() {
+            let arguments = syntax
+                .tables
+                .type_references
+                .insert_type_reference_handles(completed.iter().copied());
+            syntax.tables.type_references.replace_type_reference(
+                type_reference,
+                TypeReferenceNode::Generic {
+                    base_name: base_name.clone(),
+                    lifetime_arguments: lifetime_arguments.clone(),
+                    arguments,
+                },
+            );
+            argument_handles = completed;
+        }
+    } else if argument_handles.len() < parameter_count {
+        return Ok(());
     }
     let Some(argument_handles) = canonicalize_monomorphizable_argument_handles(
         syntax,
