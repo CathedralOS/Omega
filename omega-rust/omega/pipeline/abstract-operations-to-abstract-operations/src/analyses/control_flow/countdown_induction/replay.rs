@@ -5,11 +5,9 @@ use super::{
     ExactUnsignedTripCount, MachineId, O, OptimizerCycleComponent,
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
     ScalarType, UnsignedCountdownLoopSummary, ValidatedOptimizerCycleComponents,
-    recompute_psi_optimization_unit_identity,
+    recompute_psi_optimization_unit_identity, region,
 };
 use std::collections::BTreeMap;
-
-mod region;
 
 pub(super) fn reconstruct(
     unit: &PsiOptimizationUnit,
@@ -110,7 +108,7 @@ fn reconstruct_one(
     if binding.scalar_type != ScalarType::Integer(certificate.rank_type) {
         return Err(shape(function.machine));
     }
-    let region = region::reconstruct(function, component, certificate)?;
+    let region = region::derive(function.machine, component, certificate)?;
     Ok(UnsignedCountdownLoopSummary {
         certificate: certificate.clone(),
         region,

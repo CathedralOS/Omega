@@ -10,12 +10,13 @@ use crate::validation::ValidatedOptimizerCycleComponents;
 use optimization_unit::{
     CycleComponentEdge, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
 };
-use semantic_vocabulary::{BlockId, IntegerType, MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{IntegerType, MachineId, ScalarType, ValueId};
 
-use super::{LoopRegion, loops as compute_loop_forest};
+use super::LoopRegion;
 
 mod compute;
 mod model;
+mod region;
 mod replay;
 mod validate;
 

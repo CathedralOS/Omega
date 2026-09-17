@@ -15,8 +15,8 @@ pub struct ExactUnsignedTripCount {
 pub struct UnsignedCountdownLoopSummary {
     /// Complete ranking evidence is the semantic key, not a guessed header.
     pub certificate: OptimizerUnsignedCountdownRankingCertificate,
-    /// The ordinary loop analysis region authenticated against the ranking
-    /// certificate and independently replayed from current control flow.
+    /// The component's reducible region projected from validated Terminal-SCC
+    /// custody: the certified header is the component's unique entry target.
     pub region: LoopRegion,
     pub preheader_edge: CycleComponentEdge,
     pub exit_edge: CycleComponentEdge,
