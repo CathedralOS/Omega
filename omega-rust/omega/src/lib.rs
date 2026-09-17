@@ -6,3 +6,5 @@
 pub mod compilation;
 pub mod execution;
 pub mod inspection;
+
+mod temporary_directory;

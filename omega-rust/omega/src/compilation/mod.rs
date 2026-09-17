@@ -2,6 +2,7 @@
 
 pub mod publication;
 
+use crate::temporary_directory::TemporaryDirectory;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use compiler::{
     CompileOptions, CompileReport, CompileRequest, OptimizationRollback, RequestedCompileProduct,
@@ -57,6 +58,8 @@ pub enum CompileProjectError {
     PackageNative(packages::CompilePreparedLocalProjectNativeError),
     UnsettledAdmissions(TrustAdmissionSettlement),
     Publication(String),
+    /// The private workspace a check stages into could not be created.
+    CheckWorkspace(std::io::Error),
 }
 
 impl std::fmt::Display for CompileProjectError {
@@ -78,6 +81,9 @@ impl std::fmt::Display for CompileProjectError {
                 write!(formatter, "project trust admissions are not settled")
             }
             Self::Publication(error) => write!(formatter, "{error}"),
+            Self::CheckWorkspace(error) => {
+                write!(formatter, "cannot create the check workspace: {error}")
+            }
         }
     }
 }
@@ -100,8 +106,25 @@ pub fn compile_project(
     } else {
         CompileTimings::default()
     };
-    // Placement and policy belong to the authored project, not its resolver snapshot.
-    let build_dir = options.retain_build_dir();
+    // Placement and policy belong to the authored project, not its resolver
+    // snapshot. A check produces no product, so it owns nothing beside the
+    // root: the build evaluation and package review it performs stage into a
+    // private workspace that is removed on return, while a product compile
+    // keeps the authored build directory for its artifacts.
+    let check_workspace = match product {
+        ProjectProduct::Check => Some(
+            TemporaryDirectory::create("check", false)
+                .map_err(CompileProjectError::CheckWorkspace)?,
+        ),
+        ProjectProduct::NativeArtifact => None,
+    };
+    let build_dir = match &check_workspace {
+        Some(workspace) => {
+            options.build_dir = Some(workspace.path().to_path_buf());
+            workspace.path().to_path_buf()
+        }
+        None => options.retain_build_dir(),
+    };
     let policy_root_path = options.root_path.clone();
     let target = target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
         .map_err(|diagnostic| CompileProjectError::Diagnostics(vec![diagnostic]))?;

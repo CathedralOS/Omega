@@ -74,6 +74,60 @@ fn timings_are_opt_in_stderr_output_without_debug_files() {
     std::fs::remove_dir_all(project).unwrap();
 }
 
+/// A check produces no product, so nothing may appear beside the root: neither
+/// the default `build/` nor an explicit `--build-dir`. The package review and
+/// build evaluation a check performs stage into a private temporary workspace
+/// that is removed on return.
+#[test]
+fn check_leaves_no_directory_beside_the_root() {
+    for (label, build_declaration) in [
+        ("standalone", None),
+        (
+            "packaged",
+            Some(
+                "machine build(builder: &mut Build) { builder.application(\"check-leaves-nothing\"); }\n",
+            ),
+        ),
+    ] {
+        let project = temp_path(&format!("check-leaves-nothing-{label}"));
+        std::fs::create_dir(&project).expect("create check project");
+        let mut expected = vec!["main.omg".to_owned()];
+        if let Some(build_declaration) = build_declaration {
+            std::fs::write(project.join("build.omg"), build_declaration)
+                .expect("write project build declaration");
+            expected.push("build.omg".to_owned());
+        }
+        std::fs::write(
+            project.join("main.omg"),
+            b"data Main { }\nmachine Main::main(&mut self) { }\n",
+        )
+        .expect("write project entry");
+        expected.sort();
+        for arguments in [
+            vec!["--check", "main.omg"],
+            vec!["--check", "--build-dir", "explicit", "main.omg"],
+        ] {
+            let output = omega_in(&project, &arguments);
+            assert!(
+                output.status.success(),
+                "{label} check {arguments:?} failed:\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let mut entries = std::fs::read_dir(&project)
+                .expect("list check project")
+                .map(|entry| entry.expect("project entry").file_name())
+                .map(|name| name.to_string_lossy().into_owned())
+                .collect::<Vec<_>>();
+            entries.sort();
+            assert_eq!(
+                entries, expected,
+                "{label} check {arguments:?} left entries beside the root"
+            );
+        }
+        std::fs::remove_dir_all(project).expect("remove check project");
+    }
+}
+
 #[test]
 fn routed_production_entry_roots_pass_real_package_resolution() {
     for (label, relative) in [
@@ -393,6 +447,13 @@ fn assert_package_native_publication(target: &str) {
         .map(PathBuf::from)
         .expect("native build reports a validated published output");
     assert!(published.is_file(), "{stdout}");
+    // A product compile keeps its explicit output directory; only a check
+    // stages into a private workspace.
+    assert!(
+        build_dir.is_dir(),
+        "explicit --build-dir `{}` should survive a product compile",
+        build_dir.display()
+    );
     assert_eq!(
         std::fs::read(project.join("omega.lock")).expect("read lock after native build"),
         accepted_lock,

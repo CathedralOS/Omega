@@ -3,13 +3,12 @@
 //! neither prints nor exits; callers decide how to present outcomes and exit status.
 
 mod compilation;
-mod temporary_output;
 
+use crate::temporary_directory::TemporaryDirectory;
 use compiler::{CompileOptions, CompileReport, TrustAdmissionSettlement};
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
 use std::process::{Command, Output};
-use temporary_output::TemporaryOutput;
 
 pub struct RunRequest {
     pub root_path: PathBuf,
@@ -87,8 +86,8 @@ impl std::fmt::Display for RunError {
 impl std::error::Error for RunError {}
 
 pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
-    let output_directory =
-        TemporaryOutput::create(request.keep_artifacts).map_err(RunError::TemporaryStorage)?;
+    let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
+        .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
     let compilation::ProbeCompilation {
         report,
