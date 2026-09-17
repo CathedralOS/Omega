@@ -1175,13 +1175,34 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   terminators — a clobber, a different definition, unknown
   entry state, an eventless path, or paths that disagree all
   refuse — under the same replayed restore-by-content
-  validation (crate `nextest`: 642 pass).
+  validation (crate `nextest`: 642 pass)
+  — and `rewrites/constant_branch` rewrites a
+  `ConditionalBranch`, `ConditionalBranchU64LessThan`, or
+  `ConditionalBranchI64LessThan` terminator whose implicit
+  uses partition under the flag universe the target's three
+  compare rows publish — flag units must resolve to one
+  compare through the same least-fixpoint entry-event walk
+  read at the terminator position, non-flag units must lie in
+  the jump row's implicit surface, and the jump row must
+  republish the branch's implicit definitions and clobbers
+  exactly — when that compare's operands are compile-time
+  constant, replacing the terminator with the target's own
+  `Jump` carrying the decided `SelectedSuccessor` record
+  verbatim while the compare keeps publishing flag state for
+  other readers — a clobber, a different definition, unknown
+  entry state, an eventless path, disagreeing paths, or a
+  non-flag observation the jump surface cannot carry all
+  refuse — under the same replayed restore-by-content
+  validation (crate `nextest`: 685 pass). The flag walk and
+  constant-operand audit both folds share now live in
+  `rewrites/condition_state`.
   Remaining: scheduling past the proven bounded window
   interchange, single-member relocation, multi-member run
   relocation, the single-edge move, and the branch-diamond
   move — relocation through other converging or branching
   control flow — and compare/test selection past the landed
-  literal folds and the constant-flag boolean materialization.
+  literal folds and the constant-flag boolean materialization
+  and conditional-branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
