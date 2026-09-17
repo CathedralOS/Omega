@@ -63,8 +63,40 @@ pub(crate) fn require_const_expression_selection(
         authority,
         &[],
     ) {
-        Some(reason) => Err(reason),
+        Some(violation) => Err(violation.message),
         None => Ok(()),
+    }
+}
+
+/// One refused build-time admission. `source_span` locates the authored
+/// occurrence that decided the refusal when one exists (a declaration
+/// selection, an operator without builtin meaning); a machine-level floor
+/// violation carries none, and the reporting owner falls back to the
+/// invocation it was evaluating.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildTimeAdmissionRejection {
+    pub reason: String,
+    pub source_span: Option<source::SourceSpan>,
+}
+
+impl From<String> for BuildTimeAdmissionRejection {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            source_span: None,
+        }
+    }
+}
+
+impl From<BuildTimeAdmissionRejection> for String {
+    fn from(rejection: BuildTimeAdmissionRejection) -> Self {
+        rejection.reason
+    }
+}
+
+impl std::fmt::Display for BuildTimeAdmissionRejection {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.reason)
     }
 }
 
@@ -169,7 +201,7 @@ impl BuildTimeAdmissionPlan {
         &self,
         program: &TypedTrees,
         machine: &Machine,
-    ) -> Result<(), String> {
+    ) -> Result<(), BuildTimeAdmissionRejection> {
         self.require_floor(program, machine, None, false)
     }
 
@@ -178,7 +210,7 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
-    ) -> Result<(), String> {
+    ) -> Result<(), BuildTimeAdmissionRejection> {
         self.require_floor(program, machine, Some(custody), false)
     }
 
@@ -194,7 +226,7 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
-    ) -> Result<(), String> {
+    ) -> Result<(), BuildTimeAdmissionRejection> {
         self.require_floor(program, machine, Some(custody), true)
     }
 
@@ -233,7 +265,7 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: Option<BuildTimeInvocationCustody>,
         discharge_authored_requires: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), BuildTimeAdmissionRejection> {
         crate::validate_selected_operators(program, &self.selected_operators)?;
         let service_summary = self
             .service_reaches
@@ -297,6 +329,9 @@ impl BuildTimeAdmissionPlan {
             return Ok(());
         }
 
+        let source_span = selection_violation
+            .as_ref()
+            .and_then(|violation| violation.source_span);
         let mut violations = Vec::new();
         if !services.is_empty() {
             violations.push(format!("service reach [{}]", services.join(", ")));
@@ -311,14 +346,17 @@ impl BuildTimeAdmissionPlan {
             violations.push(violation);
         }
         if let Some(violation) = selection_violation {
-            violations.push(violation);
+            violations.push(violation.message);
         }
 
-        Err(format!(
-            "machine `{}` is not build-time admissible: {}; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure",
-            machine.name,
-            violations.join("; ")
-        ))
+        Err(BuildTimeAdmissionRejection {
+            reason: format!(
+                "machine `{}` is not build-time admissible: {}; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure",
+                machine.name,
+                violations.join("; ")
+            ),
+            source_span,
+        })
     }
 
     /// Admit and evaluate one result-bearing semantic machine against this
@@ -331,7 +369,7 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         machine_name: &str,
         arguments: Vec<BuildTimeValue>,
-    ) -> Result<BuildTimeValue, String> {
+    ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
         let machine = program
             .machines()
             .iter()
@@ -343,6 +381,7 @@ impl BuildTimeAdmissionPlan {
             BuildMachineEvaluationRequest::named(machine_name, arguments),
         )
         .map(BuildTimeOperationEvaluation::into_value)
+        .map_err(BuildTimeAdmissionRejection::from)
     }
 
     pub fn evaluate_machine_for_invocation(
@@ -351,7 +390,7 @@ impl BuildTimeAdmissionPlan {
         machine_name: &str,
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
-    ) -> Result<BuildTimeValue, String> {
+    ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
         let machine = program
             .machines()
             .iter()
@@ -363,6 +402,7 @@ impl BuildTimeAdmissionPlan {
             BuildMachineEvaluationRequest::named(machine_name, arguments),
         )
         .map(BuildTimeOperationEvaluation::into_value)
+        .map_err(BuildTimeAdmissionRejection::from)
     }
 
     /// Admit and evaluate the exact result-bearing machine selected by a

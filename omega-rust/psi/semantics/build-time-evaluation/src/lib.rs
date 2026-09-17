@@ -60,7 +60,8 @@ pub use layouts::plan_laid::{
 };
 pub use layouts::wire_plans::compute_wire_plans;
 pub use machine_execution::admission::{
-    BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeSelectionAuthority,
+    BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
+    BuildTimeSelectionAuthority,
 };
 pub use machine_execution::build_machines::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,

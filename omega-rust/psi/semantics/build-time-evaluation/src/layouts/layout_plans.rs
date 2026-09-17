@@ -480,7 +480,7 @@ pub fn evaluate_and_materialize_typed_owned_layout_into(
     }
     BuildTimeAdmissionPlan::infer(typed, None)
         .require_common_floor(typed, machine)
-        .map_err(MaterializationDiagnostic)?;
+        .map_err(|rejection| MaterializationDiagnostic(rejection.reason))?;
     let value = checked_interpreter::evaluate_build_time_machine(
         typed,
         BuildMachineEvaluationRequest::named(value_machine, vec![]),

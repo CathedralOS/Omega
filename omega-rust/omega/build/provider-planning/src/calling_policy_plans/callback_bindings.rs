@@ -737,8 +737,14 @@ pub fn close_outbound_callback_materializations(
                 realization.relationship_span,
             )),
         )
-        .map_err(|reason| {
-            vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+        .map_err(|rejection| {
+            vec![
+                Diagnostic::error(rejection.reason).with_source_span(
+                    rejection
+                        .source_span
+                        .unwrap_or(realization.relationship_span),
+                ),
+            ]
         })?;
         let classified = CallSignature {
             parameters: validated
