@@ -18,11 +18,12 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, discover_state_entry_mappings, mixed_call_endpoints_are_pinned,
-    prove_ranking_range_call, prove_ranking_range_call_entry,
+    RankingRangePremises, call_member_premise_symbols, discover_state_entry_mappings_preferring,
+    mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
+    ranking_range_required_symbols,
 };
 use comparison::Comparison;
-use projection::RankProjection;
+use projection::{RankOrder, RankProjection};
 
 pub(super) fn extend_runtime_adjacency(
     program: &TypedTrees,
@@ -115,20 +116,56 @@ pub(super) fn check_component(
     // never a destination requirement. The member's discovered
     // telescope names the entry role each site formal carries, so
     // authored subjects and endpoints normalize to the atom the site
-    // actually holds. Discovery keeps a contested claim only for a bare
-    // forward, so every slot sharing one role is an equal copy of the
-    // same arrival value; a computed claimant stays role-less rather than
-    // borrowing equality evidence the member's own edge judgment may never
-    // have run for an admitted component.
+    // actually holds. The telescope must read the same correspondence the
+    // member's own state-edge judgment used, or a call hypothesis could
+    // name a different value than that witness proved. Every ranked
+    // subject is a preferred carrier -- a bounded distance ranks both --
+    // while a slice slot selects its sole collection dependency without a
+    // preference. Discovery keeps a contested claim only for a bare
+    // forward, plus a computed claimant on an entry the member's own
+    // arrival judgment holds equal: ranged members, under the
+    // rank-invariant premise set both premise modes share (an entry
+    // invariant attempt protects a superset). An unranged member's
+    // computed claimants stay role-less rather than borrowing equality
+    // evidence no judgment ran for. Runtime members never select a
+    // record-subject struct view, so there is no fresh-record carrier to
+    // prefer.
     let member_mappings = component
         .iter()
         .enumerate()
         .map(|(position, index)| {
-            discover_state_entry_mappings(
+            let machine = &program.machines()[*index];
+            let rank = &ranks[position];
+            let preferred = match &rank.order {
+                RankOrder::BoundedDistance(_) => [rank.parameter, rank.paired_parameter]
+                    .into_iter()
+                    .filter(|symbol| symbol.is_valid())
+                    .collect::<Vec<_>>(),
+                RankOrder::SliceLength => Vec::new(),
+                _ => [rank.parameter]
+                    .into_iter()
+                    .filter(|symbol| symbol.is_valid())
+                    .collect(),
+            };
+            let required = if rank.range.is_valid() {
+                rank.measure.and_then(|measure| {
+                    ranking_range_required_symbols(
+                        program,
+                        machine,
+                        rank.range,
+                        measure,
+                        RankingRangePremises::RankInvariant,
+                    )
+                })
+            } else {
+                Some(Vec::new())
+            }?;
+            discover_state_entry_mappings_preferring(
                 program,
-                &program.machines()[*index],
-                ranks[position].parameter,
-                &[],
+                machine,
+                &preferred,
+                SymbolHandle::default(),
+                &required,
             )
         })
         .collect::<Option<Vec<_>>>();

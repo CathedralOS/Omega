@@ -1,0 +1,31 @@
+// FAIL CANARY. Same shape as the ranged member's admitted copy, but `count`
+// declares no rank range, so no ranged arrival judgment ever proved the
+// computed copy `remaining + 0` equal to a required carrier. The copy stays
+// role-less in the call-component telescope, and `step(right)` has no evidence
+// relating `right` to `count`'s rank.
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining;
+-> u32 {
+    transition { _ -> pair(remaining, remaining + 0) }
+    state pair(left: u32 [0..=9], right: u32 [0..=9]) {
+        transition left > 0 {
+            true -> self.step(right)
+            false -> left
+        }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 {
+        true -> self.count(n - 1)
+        false -> n
+    }
+}
