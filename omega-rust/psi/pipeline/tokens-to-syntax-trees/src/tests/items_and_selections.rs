@@ -450,6 +450,72 @@ fn provider_selection_retains_two_structural_type_paths() {
 }
 
 #[test]
+fn service_exclusion_retains_one_structural_type_path_and_no_value_arguments() {
+    let source = r#"
+        machine build(builder: &mut Build) {
+            builder.exclude_service<host::Console>();
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize service exclusion");
+    let parsed = parse_syntax_trees(&tokens).expect("parse service exclusion");
+    let call = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "exclude_service" => Some(call),
+            _ => None,
+        })
+        .expect("service-exclusion call");
+
+    assert_eq!(call.machine_arguments.len(), 1);
+    assert_eq!(
+        call.machine_arguments[0]
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["host", "Console"]
+    );
+    assert!(call.machine_arguments[0].application.is_none());
+    assert!(
+        parsed
+            .expressions
+            .expression_handles(call.arguments)
+            .is_empty(),
+        "the marker carries no value argument"
+    );
+}
+
+#[test]
+fn service_exclusion_rejects_extra_paths_and_value_arguments() {
+    for (source, expected) in [
+        (
+            "machine build(builder: &mut Build) { builder.exclude_service<host::Console, other::Log>(); }",
+            "exactly one plain type path",
+        ),
+        (
+            "machine build(builder: &mut Build) { builder.exclude_service<host::Console>(1); }",
+            "takes no value arguments",
+        ),
+        (
+            "machine build(builder: &mut Build) { builder.exclude_service<>(); }",
+            "exclude_service",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize rejected service exclusion");
+        let error = parse_syntax_trees(&tokens)
+            .err()
+            .unwrap_or_else(|| panic!("a malformed service exclusion must not parse: {source}"));
+        let message = format!("{error:?}");
+        assert!(message.contains(expected), "{source}: {message}");
+    }
+}
+
+#[test]
 fn provider_selection_retains_one_explicit_composition_mode_argument() {
     let source = r#"
         machine build(builder: &mut Build) {

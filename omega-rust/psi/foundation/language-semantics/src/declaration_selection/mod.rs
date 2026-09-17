@@ -114,6 +114,12 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
     BuildProviderSelection,
     BuildRepresentationSelection,
+    /// `b.exclude_service<BoundaryTrait>()`: a build behavior exclusion of
+    /// one abstract service (wiki/spec/build/behavior_exclusions.md). The
+    /// marker classifies declaration provenance only; the admission
+    /// requirement it selects is harvested and enforced by Omega's build
+    /// evaluation and product admission.
+    BuildServiceExclusion,
     /// Exact toolchain `Optimizations::enable` selection from the root build
     /// vocabulary. This classifies declaration provenance only; optimization
     /// policy and execution remain Omega-owned.

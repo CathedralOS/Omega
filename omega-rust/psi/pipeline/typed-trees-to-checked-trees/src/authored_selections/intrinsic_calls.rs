@@ -90,6 +90,8 @@ pub(crate) fn checked_call_intrinsic(
         Some(Intrinsic::BuildProviderSelection)
     } else if target == "select_representation" {
         Some(Intrinsic::BuildRepresentationSelection)
+    } else if target == "exclude_service" {
+        Some(Intrinsic::BuildServiceExclusion)
     } else if target.starts_with("accept_boundary#") {
         Some(Intrinsic::BuildBoundaryAcceptance)
     } else if target.starts_with("wire_compatibility#") {
