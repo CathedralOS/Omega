@@ -27,6 +27,40 @@ cmp -s "$TMP/stamped" "$TMP/expected" ||
   fail "stamped [len][tape] payload differs from the audited tape"
 echo "materialize: stamped seed embeds exactly [len][audited tape]"
 
+cp "$OMEGA_PATH_BETA_COMPILER_SOURCE" "$TMP/corrupt-source.beta"
+if [ "$(od -An -tc -j 100 -N1 "$TMP/corrupt-source.beta" | tr -d ' ')" = "a" ]; then
+  printf 'b' | dd of="$TMP/corrupt-source.beta" bs=1 seek=100 conv=notrunc status=none
+else
+  printf 'a' | dd of="$TMP/corrupt-source.beta" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_BETA_COMPILER_SOURCE=$TMP/corrupt-source.beta
+  . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
+  materialize_beta_compiler "$TMP/refused-source"
+) 2>"$TMP/corrupt-source.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted source: expected exit 3, got $rc"
+grep -q 'AUDIT.md' "$TMP/corrupt-source.err" ||
+  fail "corrupted source: refusal did not cite AUDIT.md"
+[ ! -e "$TMP/refused-source" ] ||
+  fail "corrupted source: destination was written"
+echo "corrupt: a one-byte source change is refused before stamping"
+
+head -c $((BETA_COMPILER_SOURCE_SIZE - 1)) \
+  "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$TMP/truncated-source.beta"
+rc=0
+(
+  export OMEGA_PATH_BETA_COMPILER_SOURCE=$TMP/truncated-source.beta
+  . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
+  materialize_beta_compiler "$TMP/refused-source-truncated"
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated source: expected exit 3, got $rc"
+[ ! -e "$TMP/refused-source-truncated" ] ||
+  fail "truncated source: destination was written"
+echo "truncate: a truncated source is refused before stamping"
+
 cp "$OMEGA_PATH_BETA_COMPILER_TAPE" "$TMP/corrupt.tape"
 if [ "$(od -An -tx1 -j 100 -N1 "$TMP/corrupt.tape" | tr -d ' ')" = "ff" ]; then
   printf '\000' | dd of="$TMP/corrupt.tape" bs=1 seek=100 conv=notrunc status=none
@@ -73,4 +107,4 @@ do
 done
 echo "records: bound identities match AUDIT.md and root-audit.py"
 
-echo "Beta identity: bound subject stamped exactly; corrupted and truncated tapes refused"
+echo "Beta identity: bound subject stamped exactly; corrupted and truncated sources and tapes refused"
