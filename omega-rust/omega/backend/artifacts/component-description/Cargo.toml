@@ -8,6 +8,9 @@ version.workspace = true
 name = "component_description"
 path = "src/lib.rs"
 
+[features]
+test-support = []
+
 [dependencies]
 effects = { path = "../../../representations/effects" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
