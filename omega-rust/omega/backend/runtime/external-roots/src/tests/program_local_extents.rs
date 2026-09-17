@@ -1,10 +1,12 @@
 use super::{
     entry_id, extent_id, extent_provider_issuance, install_program_local_required_root,
-    installed_backing_extent, installed_code, installed_code_with_fill_and_installation_identity,
-    program_local_activation, program_local_claim, program_local_epoch_lease,
-    program_local_extent_module, program_local_extent_subject, program_local_lifecycle,
-    program_local_root_catalog, program_local_root_module, program_local_subject,
-    program_local_terminal_object, publish_program_local_era,
+    install_program_local_two_parameter_roots, installed_backing_extent, installed_code,
+    installed_code_with_fill_and_installation_identity, program_local_activation,
+    program_local_claim, program_local_claim_at, program_local_epoch_lease,
+    program_local_extent_module, program_local_extent_subject, program_local_extent_subject_at,
+    program_local_lifecycle, program_local_root_catalog, program_local_root_module,
+    program_local_subject, program_local_terminal_object, program_local_two_schema_extent_module,
+    publish_program_local_era,
 };
 use crate::{
     EstablishedProgramLocalRoot, ProgramLocalExtentRegistry, ProgramLocalRootCohortMember,
@@ -469,6 +471,16 @@ fn counted_aggregate_capacity_cannot_discharge_extent_partitions() {
             )],
         )
         .expect_err("a counted aggregate names no interval requirement to partition");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("counted program-local aggregate")
+    );
+
+    let rejected = registry
+        .retire_aggregate(&mut installation, &mut lifecycle, &aggregate, Vec::new())
+        .expect_err("a counted aggregate names no Extent-partitioned membership to complete");
     assert!(
         rejected
             .diagnostic()
@@ -1492,4 +1504,481 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
     installation
         .retire_established(next, &mut lifecycle)
         .expect("later epoch root retirement");
+}
+
+#[test]
+fn aggregate_retirement_completes_the_epoch_membership_and_rejoins_installed_backing() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        784,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 884, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 984, 10);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject(&root, &activation, 1084, 0x4040, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&established])
+        .expect("the live group reconstructs its aggregate capacity");
+
+    // The receiver partition is carved out of provider-issued installed
+    // image backing; the residuals stay outside the member's authority.
+    let partition = installed_backing_extent(720, 0x4000, 0x200, 30)
+        .partition_owned(0x40, 0x100)
+        .expect("exact receiver partition");
+    let (before, backing, after) = partition.into_parts();
+    let before = before.expect("lower installed residual");
+    let after = after.expect("upper installed residual");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let [extent] = registry
+        .materialize_aggregate(
+            &installation,
+            &lifecycle,
+            &aggregate,
+            vec![(established, backing)],
+        )
+        .expect("reconstructed capacity discharges over the exact partition")
+        .try_into()
+        .expect("one minted program-local Extent");
+    assert_eq!(registry.held_accounts(), 1);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+
+    // Aggregate completion is the discharge's counterpart: the complete live
+    // membership retires in one transaction inside the cohort's epoch, and
+    // each member's installed backing partition returns for rejoin.
+    let [retired]: [_; 1] = registry
+        .retire_aggregate(&mut installation, &mut lifecycle, &aggregate, vec![extent])
+        .expect("the complete live membership completes in its epoch")
+        .try_into()
+        .expect("one retired member");
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    assert_eq!(
+        retired.occurrence().epoch_lease().normalized_identity(),
+        884
+    );
+
+    let tail = retired
+        .into_backing()
+        .merge(after)
+        .expect("receiver partition rejoins its upper residual");
+    let restored = before
+        .merge(tail)
+        .expect("installed image restores around the discharged range");
+    assert!(restored.is_lineage_root());
+    assert_eq!(restored.base(), 0x4000);
+    assert_eq!(restored.length(), 0x200);
+    assert!(
+        restored
+            .provider_issuance()
+            .is_some_and(|issuance| issuance == extent_provider_issuance(720))
+    );
+
+    let receipt = activation.leave_receipt(true);
+    activation
+        .leave(&mut lifecycle, receipt)
+        .expect("the establishing activation completes its scope");
+}
+
+#[test]
+fn aggregate_retirement_is_epoch_bound_and_rejects_stale_aggregates() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        785,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 885, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 985, 10);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject(&root, &activation, 1085, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&established])
+        .expect("the live group reconstructs its aggregate capacity");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extent = registry
+        .materialize(
+            established,
+            installed_backing_extent(722, 0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes over its installed backing");
+
+    // The epoch rolls: aggregate completion replays each member's live epoch
+    // lease, so a closed cohort cannot complete through the aggregate route.
+    publish_program_local_era(
+        &mut lifecycle,
+        11,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+        121,
+        true,
+    );
+    let rejected = registry
+        .retire_aggregate(&mut installation, &mut lifecycle, &aggregate, vec![extent])
+        .expect_err("a closed epoch's membership cannot reconstruct its live group");
+    assert!(rejected.diagnostic().0.contains("live lease"));
+    let (uncommitted, retired_prefix) = (*rejected).into_parts();
+    assert!(retired_prefix.is_empty());
+    let [extent]: [Extent; 1] = uncommitted
+        .try_into()
+        .expect("rejection returns the uncommitted member");
+    assert_eq!(registry.held_accounts(), 1);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+
+    // The single-account route still completes: the stale-era lease releases
+    // without replaying the aggregate's live-epoch requirement.
+    registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("single retirement releases the stale-era lease");
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+
+    // A stale aggregate cannot complete the next epoch's live membership.
+    let next_lease = program_local_epoch_lease(&mut lifecycle, 886, 11, "TestRoot::entry");
+    let mut next_runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                next_lease,
+            )],
+        )
+        .expect("next epoch cohort")
+        .into_runtime();
+    let next_activation = program_local_activation(&mut lifecycle, 986, 11);
+    let next_established = installation
+        .establish(
+            &mut next_runtime,
+            &lifecycle,
+            &next_activation,
+            program_local_extent_subject(&root, &next_activation, 1086, 0x4000, 0x100),
+        )
+        .expect("next epoch establishes a fresh root");
+    let next_aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&next_established])
+        .expect("the next epoch's group reconstructs");
+    let next_extent = registry
+        .materialize(
+            next_established,
+            installed_backing_extent(723, 0x4000, 0x100, 30),
+        )
+        .expect("next epoch materializes over installed backing");
+
+    let rejected = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &aggregate,
+            vec![next_extent],
+        )
+        .expect_err("a stale aggregate cannot discharge the new epoch's membership");
+    assert!(rejected.diagnostic().0.contains("stale or substituted"));
+    let (uncommitted, _) = (*rejected).into_parts();
+    let [next_extent]: [Extent; 1] = uncommitted
+        .try_into()
+        .expect("rejection returns the uncommitted member");
+
+    let [retired]: [_; 1] = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &next_aggregate,
+            vec![next_extent],
+        )
+        .expect("the next epoch's membership completes in its epoch")
+        .try_into()
+        .expect("one retired member");
+    assert_eq!(
+        retired.occurrence().epoch_lease().normalized_identity(),
+        886
+    );
+    assert_eq!(lifecycle.program_local_root_authority_holds(11), Some(0));
+    assert_eq!(registry.held_accounts(), 0);
+}
+
+#[test]
+fn aggregate_retirement_rejects_cross_group_blocked_and_foreign_members() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_two_schema_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let claims = vec![program_local_claim_at(0), program_local_claim_at(1)];
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_two_parameter_roots(&mut code, entry, claims);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [first_prebinding, second_prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("two verified installed Extent prebindings")
+        .try_into()
+        .expect("two producer schemas");
+    let mut lifecycle = program_local_lifecycle(
+        786,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let first_lease = program_local_epoch_lease(&mut lifecycle, 886, 10, "TestRoot::entry");
+    let second_lease = program_local_epoch_lease(&mut lifecycle, 887, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [
+                ProgramLocalRootCohortMember::new(first_prebinding.identity(), &root, first_lease),
+                ProgramLocalRootCohortMember::new(
+                    second_prebinding.identity(),
+                    &root,
+                    second_lease,
+                ),
+            ],
+        )
+        .expect("exact two-schema Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 986, 10);
+    let first = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject_at(&root, &activation, 1086, 0, 0, 0x4040, 0x100),
+        )
+        .expect("first schema establishes on its exact parameter subject");
+    let second = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject_at(&root, &activation, 1087, 1, 1, 0x5040, 0x100),
+        )
+        .expect("second schema establishes on its exact parameter subject");
+    let first_aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&first])
+        .expect("the first group reconstructs its aggregate capacity");
+    let second_aggregate = installation
+        .reconstruct_aggregate_capacity(&lifecycle, [&second])
+        .expect("the second group reconstructs its aggregate capacity");
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let mut extents = registry
+        .materialize_batch(vec![
+            (first, installed_backing_extent(730, 0x4040, 0x100, 30)),
+            (second, installed_backing_extent(731, 0x5040, 0x100, 30)),
+        ])
+        .expect("both members materialize over installed backing");
+    let extent_b = extents.pop().expect("second member extent");
+    let [extent_a]: [_; 1] = extents.try_into().expect("first member extent");
+    assert_eq!(registry.held_accounts(), 2);
+
+    // Members of two distinct aggregate groups cannot complete in one
+    // transaction: reconstruction refuses the mixed roster and both Extents
+    // return uncommitted.
+    let rejected = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &first_aggregate,
+            vec![extent_a, extent_b],
+        )
+        .expect_err("a mixed membership cannot reconstruct one aggregate group");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("distinct aggregate schemas")
+    );
+    let (uncommitted, retired_prefix) = (*rejected).into_parts();
+    assert!(retired_prefix.is_empty());
+    let [extent_a, extent_b]: [Extent; 2] = uncommitted
+        .try_into()
+        .expect("rejection returns both members");
+    assert_eq!(registry.held_accounts(), 2);
+
+    // A live retained foreign argument pins its account out of completion.
+    let retained = registry
+        .retain_foreign_argument_borrowed(
+            &extent_a,
+            RetainedForeignArgumentRequest::new(
+                0x10,
+                0x20,
+                RetainedForeignAccess::Shared,
+                extent_a.rights().clone(),
+            )
+            .expect("retained foreign argument request"),
+        )
+        .expect("borrowed retention");
+    let rejected = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &first_aggregate,
+            vec![extent_a],
+        )
+        .expect_err("a retained foreign argument blocks aggregate completion");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("live retained foreign argument")
+    );
+    let (uncommitted, _) = (*rejected).into_parts();
+    let [extent_a]: [Extent; 1] = uncommitted
+        .try_into()
+        .expect("rejection returns the member");
+    registry
+        .release_retained_foreign_argument(retained)
+        .expect("release the pinned foreign argument");
+
+    // Only the exact recombined lineage root completes the account.
+    let (lower, upper) = extent_a.split_at(0x40).expect("split program-local Extent");
+    let rejected = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &first_aggregate,
+            vec![lower],
+        )
+        .expect_err("a split descendant cannot complete the aggregate");
+    assert!(rejected.diagnostic().0.contains("recombined root"));
+    let (uncommitted, _) = (*rejected).into_parts();
+    let [lower]: [Extent; 1] = uncommitted
+        .try_into()
+        .expect("descendant returns uncommitted");
+    let extent_a = lower.merge(upper).expect("recombine exact root Extent");
+
+    // Ambient provider-issued backing is not a held member, and an account
+    // held by another registry cannot complete through this one.
+    let rejected = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &first_aggregate,
+            vec![installed_backing_extent(732, 0x4040, 0x100, 30)],
+        )
+        .expect_err("provider-issued backing is not a held account");
+    assert!(rejected.diagnostic().0.contains("provider-issued root"));
+    let mut empty_registry = ProgramLocalExtentRegistry::new();
+    let rejected = empty_registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &first_aggregate,
+            vec![extent_a],
+        )
+        .expect_err("another registry holds no account for the member extent");
+    assert!(rejected.diagnostic().0.contains("no held exact occurrence"));
+    let (uncommitted, _) = (*rejected).into_parts();
+    let [extent_a]: [Extent; 1] = uncommitted.try_into().expect("member returns uncommitted");
+
+    // An empty roster cannot complete an aggregate.
+    let rejected = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &first_aggregate,
+            Vec::new(),
+        )
+        .expect_err("aggregate completion requires at least one member");
+    assert!(rejected.diagnostic().0.contains("at least one"));
+
+    // Each group then completes in its own transaction within the epoch.
+    let [retired_a]: [_; 1] = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &first_aggregate,
+            vec![extent_a],
+        )
+        .expect("the first group completes")
+        .try_into()
+        .expect("one retired member");
+    let [retired_b]: [_; 1] = registry
+        .retire_aggregate(
+            &mut installation,
+            &mut lifecycle,
+            &second_aggregate,
+            vec![extent_b],
+        )
+        .expect("the second group completes")
+        .try_into()
+        .expect("one retired member");
+    assert_eq!(retired_a.backing().base(), 0x4040);
+    assert_eq!(retired_b.backing().base(), 0x5040);
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
 }

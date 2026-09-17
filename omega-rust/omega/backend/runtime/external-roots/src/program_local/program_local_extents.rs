@@ -136,7 +136,9 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
     /// until its recombined root returns through
     /// [`ProgramLocalExtentRegistry::retire`], which releases the exact
     /// occurrence and returns its partition for rejoin into installed
-    /// storage, completing the same occurrence and epoch.
+    /// storage. When the whole discharged membership ends inside the
+    /// cohort's epoch, [`ProgramLocalExtentRegistry::retire_aggregate`]
+    /// completes the same occurrence set and epoch in one transaction.
     pub fn materialize_aggregate(
         &mut self,
         installation: &ProgramLocalRootInstallationLedger,
@@ -375,48 +377,24 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
     /// installed occurrence. Split descendants and substituted runtime facts
     /// reject without removing the held account. Success returns the exact
     /// installed backing consumed at materialization, completing the
-    /// account's custody of that range.
+    /// account's custody of that range. The aggregate counterpart
+    /// [`ProgramLocalExtentRegistry::retire_aggregate`] completes one
+    /// aggregate schema group's complete live membership in the same epoch.
     pub fn retire(
         &mut self,
         extent: Extent,
         installation: &mut ProgramLocalRootInstallationLedger,
         lifecycle: &mut ComponentEraEntryLedger,
     ) -> Result<RetiredProgramLocalExtent, Box<ProgramLocalExtentRetirementError>> {
-        let Some(origin) = extent.program_local_origin() else {
-            return Err(Box::new(ProgramLocalExtentRetirementError::new(
-                extent,
-                "program-local Extent retirement received a provider-issued root",
-            )));
+        let origin = match self.validate_retirement_member(&extent) {
+            Ok(origin) => origin,
+            Err(diagnostic) => {
+                return Err(Box::new(ProgramLocalExtentRetirementError::new(
+                    extent,
+                    diagnostic.0,
+                )));
+            }
         };
-        let Some(held) = self.held.get(&origin) else {
-            return Err(Box::new(ProgramLocalExtentRetirementError::new(
-                extent,
-                "program-local Extent retirement names no held exact occurrence",
-            )));
-        };
-        if !extent.is_lineage_root()
-            || extent.lineage_root() != held.lineage
-            || extent.base() != held.backing.base()
-            || extent.length() != held.backing.length()
-            || extent.address_space() != held.backing.address_space()
-            || extent.provenance() != held.backing.provenance()
-            || extent.era() != held.backing.era()
-            || !held.backing.rights().contains(extent.rights())
-        {
-            return Err(Box::new(ProgramLocalExtentRetirementError::new(
-                extent,
-                "program-local Extent retirement requires the exact recombined root and the held installed backing's runtime facts",
-            )));
-        }
-        if !held.retained.is_empty() {
-            return Err(Box::new(ProgramLocalExtentRetirementError::new(
-                extent,
-                format!(
-                    "program-local Extent account retirement is blocked by {} live retained foreign argument(s)",
-                    held.retained.len()
-                ),
-            )));
-        }
 
         let HeldProgramLocalExtent {
             root,
@@ -450,6 +428,192 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
                 )))
             }
         }
+    }
+
+    /// Atomically complete the complete live membership of one reconstructed
+    /// aggregate — the completion counterpart of
+    /// [`ProgramLocalExtentRegistry::materialize_aggregate`].
+    ///
+    /// Every presented Extent must resolve to a held account as its exact
+    /// recombined lineage root, carrying the held installed backing's runtime
+    /// facts and blocked by no live retained foreign argument — the same
+    /// per-member checks [`ProgramLocalExtentRegistry::retire`] applies —
+    /// and no two members may name one occurrence. The installation ledger
+    /// then re-derives the group's complete live established membership from
+    /// the presented members' retained roots, so an omitted, substituted,
+    /// cross-group, or cross-cohort member rejects transactionally with the
+    /// presented extents, as does a presented aggregate that no longer equals
+    /// the live reconstruction for the same lifecycle cohort.
+    ///
+    /// Because reconstruction replays each member's live epoch lease,
+    /// aggregate completion runs inside the cohort's epoch; after an epoch
+    /// roll the single-account [`ProgramLocalExtentRegistry::retire`] route
+    /// still releases each held occurrence's stale-era lease. Success
+    /// releases every member's lifecycle lease through the exact ledger
+    /// retirement and returns each member's installed backing — the receiver
+    /// partitions consumed at materialization — in presented order for
+    /// rejoin into installed storage. A counted aggregate names no
+    /// Extent-partitioned membership and rejects, as does an empty member
+    /// set.
+    pub fn retire_aggregate(
+        &mut self,
+        installation: &mut ProgramLocalRootInstallationLedger,
+        lifecycle: &mut ComponentEraEntryLedger,
+        aggregate: &ProgramLocalRootEpochAggregateCapacity,
+        extents: Vec<Extent>,
+    ) -> Result<Vec<RetiredProgramLocalExtent>, Box<ProgramLocalExtentAggregateRetirementError>>
+    {
+        if aggregate.capacity().interval_set().is_none() {
+            return Err(Box::new(
+                ProgramLocalExtentAggregateRetirementError::validation(
+                    extents,
+                    "counted program-local aggregate capacity names no Extent-partitioned membership to complete",
+                ),
+            ));
+        }
+        if extents.is_empty() {
+            return Err(Box::new(
+                ProgramLocalExtentAggregateRetirementError::validation(
+                    extents,
+                    "program-local Extent aggregate retirement requires at least one recombined member",
+                ),
+            ));
+        }
+
+        let mut origins = BTreeSet::new();
+        let mut ordered = Vec::with_capacity(extents.len());
+        for extent in &extents {
+            let origin = match self.validate_retirement_member(extent) {
+                Ok(origin) => origin,
+                Err(diagnostic) => {
+                    return Err(Box::new(
+                        ProgramLocalExtentAggregateRetirementError::validation(
+                            extents,
+                            diagnostic.0,
+                        ),
+                    ));
+                }
+            };
+            if !origins.insert(origin) {
+                return Err(Box::new(
+                    ProgramLocalExtentAggregateRetirementError::validation(
+                        extents,
+                        "program-local Extent aggregate retirement repeats one exact occurrence",
+                    ),
+                ));
+            }
+            ordered.push(origin);
+        }
+
+        let fresh = match installation.reconstruct_aggregate_capacity(
+            lifecycle,
+            ordered.iter().map(|origin| &self.held[origin].root),
+        ) {
+            Ok(fresh) => fresh,
+            Err(diagnostic) => {
+                return Err(Box::new(
+                    ProgramLocalExtentAggregateRetirementError::validation(extents, diagnostic.0),
+                ));
+            }
+        };
+        if fresh != *aggregate {
+            return Err(Box::new(
+                ProgramLocalExtentAggregateRetirementError::validation(
+                    extents,
+                    "presented program-local aggregate capacity is stale or substituted for the live reconstructed membership",
+                ),
+            ));
+        }
+
+        let mut extents_iter = extents.into_iter();
+        let mut retired = Vec::with_capacity(ordered.len());
+        for origin in ordered {
+            let extent = extents_iter
+                .next()
+                .expect("each validated member retains its Extent");
+            let HeldProgramLocalExtent {
+                root,
+                lineage,
+                backing,
+                retained,
+            } = self
+                .held
+                .remove(&origin)
+                .expect("validated held program-local account remains present");
+            match installation.retire_established(root, lifecycle) {
+                Ok(occurrence) => retired.push(RetiredProgramLocalExtent {
+                    occurrence,
+                    backing,
+                }),
+                Err(error) => {
+                    let root = (*error).into_root();
+                    let replaced = self.held.insert(
+                        origin,
+                        HeldProgramLocalExtent {
+                            root,
+                            lineage,
+                            backing,
+                            retained,
+                        },
+                    );
+                    debug_assert!(replaced.is_none());
+                    let mut uncommitted = Vec::with_capacity(1 + extents_iter.len());
+                    uncommitted.push(extent);
+                    uncommitted.extend(extents_iter);
+                    return Err(Box::new(ProgramLocalExtentAggregateRetirementError {
+                        extents: uncommitted,
+                        retired,
+                        diagnostic: ExternalRootDiagnostic(
+                            "program-local Extent aggregate retirement could not release its exact lifecycle lease".into(),
+                        ),
+                    }));
+                }
+            }
+        }
+        debug_assert!(extents_iter.next().is_none());
+        Ok(retired)
+    }
+
+    /// Reject one Extent that cannot complete a held program-local account:
+    /// it must name a live account's exact origin, be that account's
+    /// recombined lineage root carrying the held installed backing's runtime
+    /// facts, and the account must have no live retained foreign arguments.
+    /// Shared by single retirement and aggregate completion; success returns
+    /// the held account's origin.
+    fn validate_retirement_member(
+        &self,
+        extent: &Extent,
+    ) -> Result<ExtentProgramLocalOrigin, ExternalRootDiagnostic> {
+        let Some(origin) = extent.program_local_origin() else {
+            return Err(ExternalRootDiagnostic(
+                "program-local Extent retirement received a provider-issued root".into(),
+            ));
+        };
+        let Some(held) = self.held.get(&origin) else {
+            return Err(ExternalRootDiagnostic(
+                "program-local Extent retirement names no held exact occurrence".into(),
+            ));
+        };
+        if !extent.is_lineage_root()
+            || extent.lineage_root() != held.lineage
+            || extent.base() != held.backing.base()
+            || extent.length() != held.backing.length()
+            || extent.address_space() != held.backing.address_space()
+            || extent.provenance() != held.backing.provenance()
+            || extent.era() != held.backing.era()
+            || !held.backing.rights().contains(extent.rights())
+        {
+            return Err(ExternalRootDiagnostic(
+                "program-local Extent retirement requires the exact recombined root and the held installed backing's runtime facts".into(),
+            ));
+        }
+        if !held.retained.is_empty() {
+            return Err(ExternalRootDiagnostic(format!(
+                "program-local Extent account retirement is blocked by {} live retained foreign argument(s)",
+                held.retained.len()
+            )));
+        }
+        Ok(origin)
     }
 }
 
@@ -512,6 +676,38 @@ impl ProgramLocalExtentRetirementError {
 
     pub fn into_extent(self) -> Extent {
         self.extent
+    }
+}
+
+/// Rejection of [`ProgramLocalExtentRegistry::retire_aggregate`]. The
+/// uncommitted member Extents return in presented order — the rejected member
+/// followed by every member never attempted — alongside the members that
+/// completed before a mid-commit lease failure, so no installed backing is
+/// dropped. Validation rejections always carry an empty retired prefix.
+#[derive(Debug)]
+pub struct ProgramLocalExtentAggregateRetirementError {
+    extents: Vec<Extent>,
+    retired: Vec<RetiredProgramLocalExtent>,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl ProgramLocalExtentAggregateRetirementError {
+    fn validation(extents: Vec<Extent>, diagnostic: impl Into<String>) -> Self {
+        Self {
+            extents,
+            retired: Vec::new(),
+            diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+        }
+    }
+
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    /// Consume into the uncommitted member Extents and the retired prefix,
+    /// both in presented order.
+    pub fn into_parts(self) -> (Vec<Extent>, Vec<RetiredProgramLocalExtent>) {
+        (self.extents, self.retired)
     }
 }
 
