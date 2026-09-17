@@ -346,17 +346,42 @@ fn general_state_graph_retains_interleaved_immutable_scalar_local() {
 }
 
 #[test]
-fn general_state_graph_rejects_interleaved_scalar_storage_write() {
+fn general_state_graph_retains_interleaved_scalar_storage_write() {
+    // A non-observing store into mutable scalar local storage between two
+    // calls is ordinary statement sequencing: since 6abba05945 the composed
+    // state graph retains the sequencer's WriteOnlyPrimitiveStore at its
+    // authored coordinate instead of declining the machine.
     let checked = checked(&PREFIX.replace(
         "Helper::quiet(output);\n        Helper::quiet(previous);",
         "Helper::quiet(output); output = byte; Helper::quiet(previous);",
     ));
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(machine_named(&checked, "writer"))
-            .is_none()
-    );
+    let machine = machine_named(&checked, "writer");
+    let declaration = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .unwrap();
+    let typed_trees::statement::StatementNode::LocalData(output) = &checked
+        .statement_table
+        .statements(checked.machine_states(declaration)[0].statement_nodes)[1]
+    else {
+        panic!("`output` is the second local")
+    };
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("mutable scalar local store composes between calls");
+    assert!(matches!(plan.states[0].operations.as_slice(), [
+        CheckedUnitEffectOperationPlan::CallUnit { coordinate: first, .. },
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index: 5,
+            destination: checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
+            path,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallUnit { coordinate: last, .. },
+    ] if first.statement_index == 4 && *symbol == output.symbol && path.is_empty()
+        && last.statement_index == 6));
 }
