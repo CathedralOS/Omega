@@ -635,10 +635,12 @@ fn non_boolean_instructions_reject() {
     );
 }
 
-/// A flag unit reaching in from a predecessor block is outside the bounded
-/// walk: the materialization refuses rather than trust unproven custody.
+/// A flag unit reaching in through a predecessor edge resolves to the
+/// compare when every path to the materialization last observed the same
+/// condition-state event — here the jump target's only path runs through
+/// the compare, so the boolean folds to the predicate outcome.
 #[test]
-fn cross_block_flag_reaching_refuses() {
+fn cross_block_flag_reaching_folds() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated(target, |function, environment| {
@@ -656,6 +658,457 @@ fn cross_block_flag_reaching_refuses() {
                 jump_row,
                 &[],
             ),
+            successor: SelectedSuccessor {
+                role: SelectedSuccessorRole::Semantic,
+                psi_edge: EdgeId::new(2).unwrap(),
+                block: SelectedBlockId(1),
+                source_target: BlockId::new(2).unwrap(),
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                structural_case: None,
+                fuel: Vec::new(),
+            },
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![boolean],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    terminal_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    let result = fold(&source, &environment).unwrap();
+    let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+    assert_eq!(rewritten.id, BOOLEAN);
+    // `3 == 5` does not hold: the folded materialization carries zero.
+    assert_eq!(
+        rewritten.kind,
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0)
+        }
+    );
+    assert!(rewritten.implicit_uses.is_empty());
+    assert_eq!(
+        result.transformed().functions[0].blocks[0].instructions[2].kind,
+        SelectedInstructionKind::CompareI64
+    );
+    validate_constant_boolean_fold(
+        &source,
+        0,
+        BOOLEAN,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// A conditional branch reads the compare's flag units without ending
+/// their live range: the boolean on one outgoing path still resolves to
+/// the compare and folds, while the branch keeps observing the retained
+/// definitions.
+#[test]
+fn cross_block_flag_reaching_through_flag_reading_terminator_folds() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let branch_row = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let terminal_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        let boolean = function.blocks[0].instructions.pop().unwrap();
+        let successor = |block: SelectedBlockId, target: u64, edge: u64| SelectedSuccessor {
+            role: SelectedSuccessorRole::Semantic,
+            psi_edge: EdgeId::new(edge).unwrap(),
+            block,
+            source_target: BlockId::new(target).unwrap(),
+            bindings: Vec::new(),
+            structural_bindings: Vec::new(),
+            structural_case: None,
+            fuel: Vec::new(),
+        };
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch_row,
+                &[],
+            ),
+            when_nonzero: successor(SelectedBlockId(1), 2, 2),
+            when_zero: successor(SelectedBlockId(2), 3, 3),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![boolean],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    terminal_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(4).unwrap(),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(9),
+                    SelectedInstructionKind::ReturnUnit,
+                    terminal_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(5).unwrap(),
+            },
+        });
+    });
+    let result = fold(&source, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1].instructions[0].kind,
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0)
+        }
+    );
+    // The branch still reads the compare's published flag units.
+    validate_constant_boolean_fold(
+        &source,
+        0,
+        BOOLEAN,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// A join carries the same constant flag state: both event-free
+/// predecessors pass the compare's event through, so the materialization
+/// at the joined block resolves to the one compare and folds.
+#[test]
+fn cross_block_join_reaching_folds() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let branch_row = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let terminal_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        let boolean = function.blocks[0].instructions.pop().unwrap();
+        let successor = |block: SelectedBlockId, target: u64, edge: u64| SelectedSuccessor {
+            role: SelectedSuccessorRole::Semantic,
+            psi_edge: EdgeId::new(edge).unwrap(),
+            block,
+            source_target: BlockId::new(target).unwrap(),
+            bindings: Vec::new(),
+            structural_bindings: Vec::new(),
+            structural_case: None,
+            fuel: Vec::new(),
+        };
+        let jump = |id: u32, target_block: SelectedBlockId, target: u64, edge: u64| {
+            SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(id),
+                    SelectedInstructionKind::Jump,
+                    jump_row,
+                    &[],
+                ),
+                successor: successor(target_block, target, edge),
+            }
+        };
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch_row,
+                &[],
+            ),
+            when_nonzero: successor(SelectedBlockId(1), 2, 2),
+            when_zero: successor(SelectedBlockId(2), 3, 3),
+        };
+        for (id, source) in [(SelectedBlockId(1), 2u64), (SelectedBlockId(2), 3u64)] {
+            function.blocks.push(SelectedBlock {
+                id,
+                origin: SelectedBlockOrigin::Source(BlockId::new(source).unwrap()),
+                instructions: Vec::new(),
+                terminator: jump(10 + id.0, SelectedBlockId(3), 4, u64::from(10 + id.0)),
+            });
+        }
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: vec![boolean],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    terminal_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(20).unwrap(),
+            },
+        });
+    });
+    let result = fold(&source, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[3].instructions[0].kind,
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0)
+        }
+    );
+}
+
+/// A loop back into the materialization's own block is still the compare's
+/// flag state: the self-edge contributes the block's own entry set, which
+/// the fixpoint resolves to the one reaching event.
+#[test]
+fn cross_block_self_loop_reaching_folds() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let boolean = function.blocks[0].instructions.pop().unwrap();
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::Jump,
+                jump_row,
+                &[],
+            ),
+            successor: SelectedSuccessor {
+                role: SelectedSuccessorRole::Semantic,
+                psi_edge: EdgeId::new(2).unwrap(),
+                block: SelectedBlockId(1),
+                source_target: BlockId::new(2).unwrap(),
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                structural_case: None,
+                fuel: Vec::new(),
+            },
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![boolean],
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Jump,
+                    jump_row,
+                    &[],
+                ),
+                successor: SelectedSuccessor {
+                    role: SelectedSuccessorRole::Semantic,
+                    psi_edge: EdgeId::new(3).unwrap(),
+                    block: SelectedBlockId(1),
+                    source_target: BlockId::new(2).unwrap(),
+                    bindings: Vec::new(),
+                    structural_bindings: Vec::new(),
+                    structural_case: None,
+                    fuel: Vec::new(),
+                },
+            },
+        });
+    });
+    let result = fold(&source, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1].instructions[0].kind,
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(0)
+        }
+    );
+}
+
+/// A path last touched by a different flag event — here a second compare
+/// on a non-literal operand behind the sibling branch — refuses: the
+/// observed condition state is not provably the constant compare's.
+#[test]
+fn cross_block_divergent_reaching_refuses() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let branch_row = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let compare_row = environment
+            .constraint(environment.selected_keys().compare_i64)
+            .unwrap();
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let terminal_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        let boolean = function.blocks[0].instructions.pop().unwrap();
+        let successor = |block: SelectedBlockId, target: u64, edge: u64| SelectedSuccessor {
+            role: SelectedSuccessorRole::Semantic,
+            psi_edge: EdgeId::new(edge).unwrap(),
+            block,
+            source_target: BlockId::new(target).unwrap(),
+            bindings: Vec::new(),
+            structural_bindings: Vec::new(),
+            structural_case: None,
+            fuel: Vec::new(),
+        };
+        let jump = |id: u32, edge: u64| SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(id),
+                SelectedInstructionKind::Jump,
+                jump_row,
+                &[],
+            ),
+            successor: successor(SelectedBlockId(3), 4, edge),
+        };
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch_row,
+                &[],
+            ),
+            when_nonzero: successor(SelectedBlockId(1), 2, 2),
+            when_zero: successor(SelectedBlockId(2), 3, 3),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: Vec::new(),
+            terminator: jump(10, 4),
+        });
+        // The sibling path republishes the flag units from a different
+        // instruction before the join.
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
+            instructions: vec![instruction(
+                EXTRA,
+                SelectedInstructionKind::CompareI64,
+                compare_row,
+                &[LITA, PARAM],
+            )],
+            terminator: jump(11, 5),
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: vec![boolean],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    terminal_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(20).unwrap(),
+            },
+        });
+    });
+    assert_eq!(
+        fold(&source, &environment).unwrap_err(),
+        ConstantBooleanError::UnsupportedUse
+    );
+}
+
+/// A unit whose reaching walk finds no compare at all — the flag state
+/// flows in from the function entry's unknown condition state — refuses.
+#[test]
+fn cross_block_entry_reaching_refuses() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let terminal_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        let boolean = function.blocks[0].instructions.pop().unwrap();
+        // The entry block keeps the literal materializations but publishes
+        // no flag event at all before jumping to the boolean's block.
+        function.blocks[0].instructions.remove(2);
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::Jump,
+                jump_row,
+                &[],
+            ),
+            successor: SelectedSuccessor {
+                role: SelectedSuccessorRole::Semantic,
+                psi_edge: EdgeId::new(2).unwrap(),
+                block: SelectedBlockId(1),
+                source_target: BlockId::new(2).unwrap(),
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                structural_case: None,
+                fuel: Vec::new(),
+            },
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![boolean],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::ReturnUnit,
+                    terminal_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    assert_eq!(
+        fold(&source, &environment).unwrap_err(),
+        ConstantBooleanError::UnsupportedUse
+    );
+}
+
+/// A terminator-carried clobber ends the reach like any other event: the
+/// predecessor's last event for the flag unit is the jump instruction's
+/// own wipe, not the compare, so the materialization refuses.
+#[test]
+fn cross_block_terminator_event_refuses() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let terminal_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        let flags = function.blocks[0].instructions[3].implicit_uses.clone();
+        let boolean = function.blocks[0].instructions.pop().unwrap();
+        let mut jump_instruction = instruction(
+            SelectedInstructionId(6),
+            SelectedInstructionKind::Jump,
+            jump_row,
+            &[],
+        );
+        jump_instruction.clobbers = flags;
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: jump_instruction,
             successor: SelectedSuccessor {
                 role: SelectedSuccessorRole::Semantic,
                 psi_edge: EdgeId::new(2).unwrap(),
@@ -978,19 +1431,22 @@ fn validation_budget_covers_the_flag_scan() {
 
 /// The measured validation-step boundary: admission charges one step per
 /// block plus one per instruction across the plan, then the admitted
-/// function's scan twice for the producer lookups, then one earlier
-/// position per used flag unit — eighteen for the four-instruction
-/// fixture on x86-64, twenty-one once a fifth instruction trails the
-/// boolean — so the exact count admits the fold on both the proposal and
-/// the independent replay path while one step below rejects both.
+/// function's scan twice for the producer lookups, then the flag walk —
+/// the adjacency setup plus, per used unit, the block-prefix and
+/// last-event scans and the bounded entry-set propagation — twenty-nine
+/// for the four-instruction fixture on x86-64, thirty-four once a fifth
+/// instruction trails the boolean — so the exact count admits the fold on
+/// both the proposal and the independent replay path while one step below
+/// rejects both.
 #[test]
 fn measured_validation_step_boundary_admits_and_rejects() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // A fifth body instruction extends both plan-wide and producer scans:
-    // (1 block + 5 instructions) charged once for the plan, (1 block + 5
-    // instructions) charged twice for the producers, three positions for
-    // the single used unit — twenty-one steps.
+    // A fifth body instruction extends the plan-wide and producer scans
+    // and every term the flag walk derives from the function scan: (1
+    // block + 5 instructions) once for the plan, twice for the producers,
+    // and the walk bound of setup 1 plus a per-unit 15 — thirty-four
+    // steps.
     let wider = mutated(target, |function, environment| {
         let copy = environment
             .constraint(environment.selected_keys().copy_i64)
@@ -1011,9 +1467,9 @@ fn measured_validation_step_boundary_admits_and_rejects() {
                 IntegerValue::Unsigned(5),
                 SelectedInstructionKind::MaterializeBooleanEqual,
             ),
-            18u64,
+            29u64,
         ),
-        (wider, 21u64),
+        (wider, 34u64),
     ] {
         let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
         let result =
