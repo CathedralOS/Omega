@@ -8,33 +8,6 @@ use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 
 #[test]
-fn explicit_program_entry_binding_owns_capability_manifest_identity() {
-    let canary = pass_canary(fixture_roster::BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING);
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-explicit-entry-manifest-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CanaryCompileSpec {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("windows_x86_64".into()),
-        product: CanaryCompileProduct::NativeArtifactAndPublish,
-    })
-    .expect("explicit entry canary should emit audit artifacts");
-    let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
-        .expect("capability manifest should be written");
-
-    assert!(
-        manifest.contains("\"entry_machine\": \"launch\"")
-            && manifest.contains("\"entry_state\": \"entry\""),
-        "capability manifest must consume the exact Build-selected entry\n{manifest}"
-    );
-    let _ = fs::remove_dir_all(build_dir);
-}
-
-#[test]
 fn checked_compilation_retains_the_exact_selected_program_entry() {
     let canary = pass_canary(fixture_roster::BUILD_EXPLICIT_PROGRAM_ENTRY_BINDING);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
@@ -48,6 +21,11 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
         .selected_program_entry()
         .expect("checked compilation must retain the complete selected entry");
     assert_eq!(selected.source_signature().machine_name(), "launch");
+    assert_eq!(
+        selected.source_signature().state_name(),
+        "entry",
+        "the Build-selected free machine enters through its implicit `entry` state"
+    );
     assert!(
         selected.calling_plans().is_none(),
         "hosted ProgramEntry has no two-surface storage calling plan"

@@ -1,10 +1,11 @@
 use super::fixture_roster;
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, check_canary,
-    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
-    fail_canary, fs, interpret, pass_canary, production_compile, unique_no_output_build_dir,
+    Command, check_canary, compile_reviewed_repository_fixture,
+    compile_rooted_canary_for_native_host, executable_name, fail_canary, fs, interpret,
+    pass_canary, unique_no_output_build_dir,
 };
 use compiler::CheckedCompileRequest;
+use typed_trees::data::DataMember;
 
 #[test]
 fn ordinary_numbered_record_codecs_check_and_interpret_exact_bytes() {
@@ -214,31 +215,74 @@ fn runtime_wire_encode_primitive_exit_canary_runs() {
 
 #[test]
 fn numbered_case_identities_compile() {
+    // Stable case and payload identities plus their tombstones are ordinary
+    // data metadata: the checked program retains them on the declaration, and
+    // no codec machine is synthesized for data that merely numbers its cases.
     let canary = pass_canary(fixture_roster::NUMBERED_CASE_IDENTITIES);
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-numbered-cases-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    let compilation = production_compile(CanaryCompileSpec {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        product: CanaryCompileProduct::Check,
-    })
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
     .expect("numbered case identities should survive the compiler pipeline");
-    assert!(!compilation.wrote_output());
-    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
-        .expect("identity-keyed ordinary data should appear in the wire artifact");
-    assert!(
-        report.contains("## data Lookup")
-            && report.contains("#1 Found payload:")
-            && report.contains("#1 value: T")
-            && report.contains("retired payload identities: #2")
-            && report.contains("retired case identities: #3")
-            && report.contains("normalized schema identity: 0x")
-            && !report.contains("Lookup::encode"),
-        "ordinary case identities and tombstones must remain visible in the artifact:\n{report}"
+    let program = checked.terminal_production_trees();
+
+    let lookup = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Lookup")
+        .expect("identity-keyed ordinary data `Lookup` should reach checked semantics");
+    assert_eq!(
+        lookup.retired_identities,
+        [3],
+        "`retired #3;` must survive as the retired case identity"
     );
-    let _ = fs::remove_dir_all(&build_dir);
+    let members = program.data_members(lookup);
+    let case_identities = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some((variant.name.as_str(), variant.identity)),
+            DataMember::Field(_) => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(case_identities, [("Found", Some(1)), ("Missing", Some(2))]);
+    let found = members
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Variant(variant) if variant.name.as_str() == "Found" => Some(variant),
+            _ => None,
+        })
+        .expect("case `Found` should be retained");
+    assert_eq!(
+        found.retired_payload_identities,
+        [2],
+        "`retired #2` inside the `Found` payload must survive as a payload tombstone"
+    );
+    let payload = program
+        .data_payload_fields(found)
+        .iter()
+        .map(|field| {
+            (
+                field.identity,
+                field.name.as_str(),
+                program.display_type_reference(field.type_reference),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(payload, [(Some(1), "value", "T".to_owned())]);
+    assert!(
+        program
+            .machines()
+            .iter()
+            .all(|machine| !machine.name.as_str().starts_with("Lookup::")),
+        "ordinary identity-keyed data must not synthesize codec machines"
+    );
+    assert!(
+        program
+            .wire_schemas()
+            .iter()
+            .all(|schema| schema.name.as_str() != "Lookup"),
+        "ordinary identity-keyed data is not a `wire data` schema"
+    );
 }
 
 #[test]
