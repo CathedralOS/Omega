@@ -33,10 +33,16 @@
 //! interference continues through every predecessor block, and the deferred
 //! block resolves once each of those paths resolves to the same stored
 //! register — a store dominating a join decides all its legs, as does each
-//! leg's own store of that register. The entry block, a block no edge
-//! reaches, and a deferred region whose paths never resolve to one register
-//! — a self-loop or writerless cycle included — each end the walk in
-//! rejection. A crossed terminator sits between its block's body and the
+//! leg's own store of that register. A deferred block writes nothing in its
+//! walked span, so a cyclic deferred region still resolves when every leg
+//! arriving into it settles on one register — the region is the meet
+//! fixpoint over predecessor candidates — while a self-loop or writerless
+//! cycle whose arriving legs disagree, the entry block, a block no edge
+//! reaches, and a region no resolved leg reaches each end the walk in
+//! rejection. When the load's own block sits on such a cycle, the span
+//! after the load runs between the carried register and the next
+//! iteration's read, so it is verified as clear as every other walked
+//! span. A crossed terminator sits between its block's body and the
 //! edge, so its roster rows decide first; each crossed edge is then checked
 //! for transports that could redefine the carried registers or write the
 //! forwarded place.
@@ -235,12 +241,14 @@ pub(super) fn admit<'source>(
     // crosses every edge into it and each predecessor's terminator rows
     // decide first. A deferred block then resolves when every predecessor
     // path resolves to one register: either the same store dominates the
-    // join or each leg's own last writer stored that register. The entry
+    // join or each leg's own last writer stored that register, and a
+    // deferred cycle resolves the same way once its arriving legs agree on
+    // the register, since the cycle writes nothing itself. The entry
     // block's implicit path, a block no edge reaches, and a deferred region
-    // whose paths never agree on one register — including cycles with no
-    // writer — each leave the load unproven. The carried `value` and the
-    // load's `output` are validated against every crossed edge, terminator,
-    // and walked span once the common register is known.
+    // whose arriving legs disagree or never settle each leave the load
+    // unproven. The carried `value` and the load's `output` are validated
+    // against every crossed edge, terminator, and walked span once the
+    // common register is known.
     let mut visited = vec![false; function.blocks.len()];
     let mut resolved = vec![None; function.blocks.len()];
     let mut deferred = Vec::new();
@@ -326,13 +334,14 @@ pub(super) fn admit<'source>(
         }
         deferred.push((cursor, predecessors));
     }
-    // Resolve the deferred region: a block resolves to the one register
+    // Resolve the deferred region. A block resolves to the one register
     // every predecessor resolved to, so convergence through a shared
-    // predecessor lands while divergent legs, writerless cycles, and
-    // unreached regions leave the load's block unresolved.
-    let value = loop {
-        if let Some(value) = resolved[block_index] {
-            break value;
+    // predecessor lands while divergent legs and unreached regions leave
+    // the load's block unresolved. The first pass is acyclic propagation
+    // only; a stall leaves the cyclic remainder to the fixpoint below.
+    loop {
+        if resolved[block_index].is_some() {
+            break;
         }
         let mut progressed = false;
         for (block, predecessors) in &deferred {
@@ -350,9 +359,142 @@ pub(super) fn admit<'source>(
             }
         }
         if !progressed {
-            return Err(StoredLoadForwardingError::UnsupportedPair);
+            break;
         }
+    }
+    // The still-open deferred blocks carry an optimistic candidate: nothing
+    // in a deferred block's walked span writes the forwarded range, so a
+    // cyclic region carries whatever its arriving legs agree on. Each open
+    // block takes the meet of its predecessors — a resolved or already
+    // pinned predecessor contributes its register, an open one contributes
+    // nothing, and conflicting registers mark the block conflicted — and the
+    // candidates only descend, so the meet converges. A block left open at
+    // the fixpoint belongs to a region no resolved leg reaches: no finite
+    // path arrives through it, so it constrains nothing.
+    let mut open = vec![false; function.blocks.len()];
+    for (block, _) in &deferred {
+        open[*block] = resolved[*block].is_none();
+    }
+    let mut conflicted = vec![false; function.blocks.len()];
+    loop {
+        let mut progressed = false;
+        for (block, predecessors) in &deferred {
+            if !open[*block] || conflicted[*block] {
+                continue;
+            }
+            let mut candidate = None;
+            let mut conflict = false;
+            for predecessor in predecessors {
+                if conflicted[*predecessor] {
+                    conflict = true;
+                    break;
+                }
+                if let Some(register) = resolved[*predecessor] {
+                    match candidate {
+                        None => candidate = Some(register),
+                        Some(current) if current == register => {}
+                        Some(_) => {
+                            conflict = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if conflict {
+                conflicted[*block] = true;
+                resolved[*block] = None;
+                progressed = true;
+            } else if resolved[*block] != candidate {
+                resolved[*block] = candidate;
+                progressed = true;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    let Some(value) = resolved[block_index] else {
+        return Err(StoredLoadForwardingError::UnsupportedPair);
     };
+    // When the load's own block sits on a deferred cycle — walked
+    // predecessors reach back to it — the span after the load runs between
+    // the carried register and the next iteration's read. It must be as
+    // clear as every other walked span: no barrier kind, no unaccounted
+    // access. An interfering write there is the last writer on the looping
+    // path, so it is admitted only when it is itself a source of the carried
+    // register; the register check below then treats the tail like the rest
+    // of the interval.
+    let head_looped = {
+        let mut deferred_block = vec![false; function.blocks.len()];
+        for (block, _) in &deferred {
+            deferred_block[*block] = true;
+        }
+        let mut seen = vec![false; function.blocks.len()];
+        let mut stack: Vec<usize> = deferred
+            .iter()
+            .find(|(block, _)| *block == block_index)
+            .map(|(_, predecessors)| {
+                predecessors
+                    .iter()
+                    .copied()
+                    .filter(|predecessor| deferred_block[*predecessor])
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut loops = false;
+        while let Some(block) = stack.pop() {
+            if block == block_index {
+                loops = true;
+                break;
+            }
+            if seen[block] {
+                continue;
+            }
+            seen[block] = true;
+            if let Some((_, predecessors)) = deferred.iter().find(|(entry, _)| *entry == block) {
+                stack.extend(
+                    predecessors
+                        .iter()
+                        .copied()
+                        .filter(|predecessor| deferred_block[*predecessor]),
+                );
+            }
+        }
+        loops
+    };
+    if head_looped {
+        let tail = &function.blocks[block_index].instructions[load_index + 1..];
+        for candidate in tail {
+            reject_barrier(candidate)?;
+            let mut has_row = false;
+            let mut interfered = false;
+            for access in function
+                .memory_accesses
+                .iter()
+                .filter(|access| access.instruction == candidate.id)
+            {
+                has_row = true;
+                interfered |= interferes(&forwarded, access);
+            }
+            if interfered {
+                // The interfering instruction is the last writer on the
+                // looping path: the read still observes the carried register
+                // only when this writer itself sourced it.
+                if forwarding_source(candidate, &forwarded, function, environment)? != value {
+                    return Err(StoredLoadForwardingError::AliasingWrite);
+                }
+                continue;
+            }
+            if !has_row {
+                reject_unaccounted(candidate)?;
+            }
+        }
+        between.push((
+            block_index,
+            load_index + 1,
+            function.blocks[block_index].instructions.len(),
+        ));
+    }
     if value == output {
         return Err(StoredLoadForwardingError::UnsupportedUse);
     }
@@ -365,6 +507,8 @@ pub(super) fn admit<'source>(
     // the load's result: the store's tail, each crossed block's terminator
     // and its successor-edge transports, the intervening block bodies, and
     // the load's own head all keep both registers identical after the copy.
+    // A looped head adds its own tail span and terminator: on the cyclic
+    // path they run between the load and the block's next top.
     for successor in &crossed {
         edge_preserves(successor, &forwarded, value, output)?;
     }
@@ -374,7 +518,7 @@ pub(super) fn admit<'source>(
         }
     }
     for walked_block in &walked {
-        if *walked_block != block_index {
+        if *walked_block != block_index || head_looped {
             registers_untouched(
                 terminator_instruction(&function.blocks[*walked_block].terminator),
                 value,
