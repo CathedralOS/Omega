@@ -43,8 +43,9 @@ pub use language_core::{
     DomainClassification, DomainPredicateBody, Multiplicity, ReferenceAccess,
 };
 pub use machine_termination::{
-    MachineSupplyMode, MachineTerminationPlan, ProgressPremise, ProgressSubject, RankRange,
-    RankingWitness, TerminationGuarantee, TerminationInterface,
+    MachineSupplyMode, MachineTerminationPlan, ProgressPremise, ProgressSubject,
+    RANKING_VIEW_CORE_SOURCE, RankRange, RankingViewDeclaration, RankingWitness,
+    TerminationGuarantee, TerminationInterface,
 };
 pub use permissions::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,

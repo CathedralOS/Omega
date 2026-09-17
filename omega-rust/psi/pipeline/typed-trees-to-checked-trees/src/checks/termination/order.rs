@@ -3,6 +3,10 @@
 //! range membership nor descent, and never rewrites custom witness identity to
 //! a builtin view. Diagnostic type spellings are not identity-view application evidence.
 
+#[cfg(test)]
+mod tests;
+
+use language_semantics::RankingViewId;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
@@ -195,16 +199,22 @@ impl RankingOrder {
         decreases: ExpressionHandle,
         order: &[&str],
     ) -> Option<Self> {
-        if path_matches(order, &["Nat", "Descending"]) {
-            return Some(Self::NatDescending);
-        }
-        if path_matches(order, &["Nat", "BoundedDistance"]) {
-            // The bounded distance ranks a `(lower, upper)` pair; a single
-            // subject has no distance reading to select.
-            return None;
-        }
-        if path_matches(order, &["Slice", "Length"]) {
-            return Some(Self::SliceLength);
+        if let Some(view) = RankingViewId::canonical(&order.join("::")) {
+            // A canonical view is keyed on its catalog identity, and a view
+            // with a declaration row is consulted at that declaration: the
+            // spelling alone selects nothing when the program declares a
+            // same-named `Nat::Descending` that is not the sealed one.
+            if !catalog_declaration_is_authentic(program, view) {
+                return None;
+            }
+            return match view {
+                RankingViewId::NAT_DESCENDING => Some(Self::NatDescending),
+                RankingViewId::SLICE_LENGTH => Some(Self::SliceLength),
+                // The bounded distance ranks a `(lower, upper)` pair; a single
+                // subject has no distance reading to select. The argumented
+                // views resolve (or reject) upstream in `resolve`.
+                _ => None,
+            };
         }
 
         let measure = find_declared_measure(program, order)?;
@@ -566,6 +576,60 @@ fn state_parameter_type_name(
                 .type_reference_table
                 .display_name(unwrap_constraint_shells(program, parameter.type_reference))
         })
+}
+
+/// Whether every declaration the program carries at a canonical view's
+/// catalog path is the sealed toolchain declaration the row names: hermetic
+/// identity `toolchain::Nat::Descending` declared by a Toolchain-origin
+/// `nat.omg` under its package root. A source-free program (no declaration
+/// at the path) keeps the builtin reading; a view without a declaration row
+/// is a spelling-only builtin. Symbol resolution already refuses a bare
+/// bodyless lookalike outside the sealed source, so this consult closes the
+/// bodied and boundary spellings of the same path.
+fn catalog_declaration_is_authentic(
+    program: &typed_trees::TypedTrees,
+    view: RankingViewId,
+) -> bool {
+    let Some(row) = view.catalog_declaration() else {
+        return true;
+    };
+    let sealed = |symbol: symbols::SymbolHandle| {
+        program
+            .normalized_hermetic_symbol_identity(symbol)
+            .ok()
+            .as_deref()
+            == Some(format!("toolchain::{}", row.path()).as_str())
+            && program
+                .symbols
+                .symbol_source_span(symbol)
+                .and_then(|span| program.symbols.source_file(span))
+                .is_some_and(|source| {
+                    source.origin == source::SourceOrigin::Toolchain
+                        && source
+                            .path
+                            .strip_prefix(&source.package_root)
+                            .ok()
+                            .is_some_and(|relative| relative == std::path::Path::new(row.source))
+                })
+    };
+    let operators_authentic = program.operators().iter().all(|operator| {
+        let path = program.operator_path_members(operator.name);
+        let at_row =
+            path.len() == 2 && path[0].as_str() == row.namespace && path[1].as_str() == row.name;
+        !at_row || sealed(operator.symbol)
+    });
+    let path = row.path();
+    let machines_authentic = program.machines().iter().all(|machine| {
+        // An attached machine's name is already its qualified path.
+        let at_row = machine.name.as_str() == path
+            || (machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|owner| owner.as_str() == row.namespace)
+                && machine.name.as_str() == row.name);
+        !at_row || sealed(machine.symbol)
+    });
+    operators_authentic && machines_authentic
 }
 
 fn path_matches(order: &[&str], expected: &[&str]) -> bool {

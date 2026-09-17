@@ -405,12 +405,21 @@ fn bare_bodyless_signatures_are_catalog_primitives_or_reject() {
 fn resolve_sealed_core_source(
     source: &str,
 ) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
+    resolve_sealed_core_file(
+        numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
+        source,
+    )
+}
+
+fn resolve_sealed_core_file(
+    relative: &str,
+    source: &str,
+) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     use std::{path::PathBuf, sync::Arc};
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add_with_metadata(
-            PathBuf::from("/toolchain/core")
-                .join(numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE),
+            PathBuf::from("/toolchain/core").join(relative),
             source.to_owned(),
             PathBuf::from("/toolchain/core"),
             None,
@@ -523,4 +532,78 @@ fn float_semantics_lookalike_outside_the_sealed_source_grants_no_primitive() {
         )),
         "{diagnostics:?}"
     );
+}
+
+#[test]
+fn sealed_ranking_view_signature_lowers_from_its_catalog_source_only() {
+    let program = resolve_sealed_core_file(
+        language_semantics::RANKING_VIEW_CORE_SOURCE,
+        "machine Nat::Descending(value: u64) -> u64;",
+    )
+    .expect("the sealed ranking-view row lowers");
+    let declaration = program.operators.iter().next().expect("one declaration");
+    assert_eq!(
+        program
+            .operator_path_members(declaration.name)
+            .iter()
+            .map(|member| member.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        ["Nat", "Descending"]
+    );
+    assert!(!declaration.is_boundary && declaration.spelling.is_none());
+
+    // The same spelling in another sealed core file is the wrong custody.
+    let diagnostics = resolve_sealed_core_source("machine Nat::Descending(value: u64) -> u64;")
+        .expect_err("float_operations.omg does not own the ranking row");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("merely naming a declaration `Nat::Descending` grants no primitive")),
+        "{diagnostics:?}"
+    );
+    // And a user source is refused the same way.
+    let diagnostics = resolve_source("machine Nat::Descending(value: u64) -> u64;")
+        .expect_err("a user-package lookalike grants no ranking primitive");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "`Nat::Descending` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Nat::Descending` grants no primitive"
+        )),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn sealed_ranking_view_signature_that_drifts_from_its_row_rejects() {
+    for (declaration, expected) in [
+        (
+            "machine Nat::Descending(value: u32) -> u64;",
+            "parameter `value` is not the row's `u64` subject",
+        ),
+        (
+            "machine Nat::Descending(value: u64) -> bool;",
+            "its result is not the row's `u64` rank",
+        ),
+        (
+            "machine Nat::Descending(lower: u64, upper: u64) -> u64;",
+            "the row ranks exactly one subject",
+        ),
+        (
+            "machine Nat::Descending<T>(value: u64) -> u64;",
+            "catalog rows declare no type or lifetime parameters",
+        ),
+    ] {
+        let diagnostics =
+            resolve_sealed_core_file(language_semantics::RANKING_VIEW_CORE_SOURCE, declaration)
+                .expect_err(declaration);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("`Nat::Descending` names the compiler ranking-view catalog, but")
+                && diagnostic.message.contains(expected)
+                && diagnostic
+                    .message
+                    .contains("must be exactly `machine Nat::Descending(u64) -> u64;`")),
+            "{declaration}: {diagnostics:?}"
+        );
+    }
 }
