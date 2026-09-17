@@ -16,8 +16,8 @@ use crate::execution::terminal_unit::returns::checked_boolean_contains_short_cir
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::{
     ShapeCollector, checked_composed_provider_attachment_requirements, composed_control, control,
-    entry_claims, free_structural_scalar_signature, machine_binders, return_unit_affine_discards,
-    state_flow, structural_scalar_signature,
+    entry_claims, free_structural_scalar_signature_traced, machine_binders,
+    return_unit_affine_discards, state_flow, structural_scalar_signature_traced,
 };
 
 #[path = "closed_sum.rs"]
@@ -119,50 +119,101 @@ pub(super) fn build_traced(
         }
         trace.phase("state graph: state signature: parameter signature");
         let (structural, scalar) = if machine.attached_data.is_some() {
-            let (identity, structural, scalar) =
-                structural_scalar_signature(program, shapes, machine, state, &[], true)?;
+            let (identity, structural, scalar) = structural_scalar_signature_traced(
+                program,
+                shapes,
+                machine,
+                state,
+                &[],
+                true,
+                trace,
+            )?;
             attachment = Some(identity);
             (structural, scalar)
         } else {
-            free_structural_scalar_signature(program, shapes, state, &[])?
+            free_structural_scalar_signature_traced(program, shapes, state, &[], trace)?
         };
         // Persistent receivers keep their invocation place. Other structural
         // parameters retain explicit owned-value or borrowed-view edge custody.
+        // Each guard marks its own phase so the omission roster names the
+        // custody shape the route lacks, not just the phase.
         trace.phase("state graph: state signature: parameter custody shape");
-        if structural.iter().any(|parameter| {
-            (parameter.multiplicity != Multiplicity::Linear && !parameter.qualifications.is_empty())
-                || if parameter.is_self {
-                    parameter.access != CheckedStructuralAccess::MutableBorrow
-                } else if parameter.access == CheckedStructuralAccess::Owned {
-                    parameter.multiplicity != Multiplicity::Linear && (!matches!(
-                        program.type_reference_table.type_reference(
-                            program.state_parameters(state)[parameter.position as usize]
-                                .type_reference
-                        ),
-                        TypeReferenceNode::Named { .. }
-                    ) || !validation::has_plain_owned_contents_with_numeric_constraints(
-                        program,
-                        program.state_parameters(state)[parameter.position as usize].type_reference,
-                    ))
-                } else {
-                    parameter.multiplicity != Multiplicity::Unrestricted
-                        || !matches!(
-                            parameter.access,
-                            CheckedStructuralAccess::SharedBorrow
-                                | CheckedStructuralAccess::MutableBorrow
-                        )
-                        || {
-                            let reference = program.state_parameters(state)[parameter.position as usize].type_reference;
-                            let primitive_reference = matches!(program.type_reference_table.type_reference(reference),
-                                TypeReferenceNode::Reference { referee, .. }
-                                    if matches!(program.type_reference_table.type_reference(*referee), TypeReferenceNode::Named { .. })
-                                        && program.primitive_type_reference(*referee).is_some());
-                            !primitive_reference && byte_sequence_carrier(program, reference, &[])
-                                != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
-                        }
+        for parameter in &structural {
+            let reference =
+                || program.state_parameters(state)[parameter.position as usize].type_reference;
+            if parameter.multiplicity != Multiplicity::Linear
+                && !parameter.qualifications.is_empty()
+            {
+                trace.phase(
+                    "state graph: state signature: parameter custody shape: qualified non-linear parameter",
+                );
+                return None;
+            }
+            match (parameter.is_self, &parameter.access) {
+                (true, CheckedStructuralAccess::MutableBorrow) => {}
+                (true, _) => {
+                    trace.phase(
+                        "state graph: state signature: parameter custody shape: persistent receiver access",
+                    );
+                    return None;
                 }
-        }) {
-            return None;
+                (false, CheckedStructuralAccess::Owned) => {
+                    if parameter.multiplicity != Multiplicity::Linear
+                        && !matches!(
+                            program.type_reference_table.type_reference(reference()),
+                            TypeReferenceNode::Named { .. }
+                        )
+                    {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: owned non-linear unnamed type",
+                        );
+                        return None;
+                    }
+                    if parameter.multiplicity != Multiplicity::Linear
+                        && !validation::has_plain_owned_contents_with_numeric_constraints(
+                            program,
+                            reference(),
+                        )
+                    {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: owned non-linear record contents",
+                        );
+                        return None;
+                    }
+                }
+                (false, access) => {
+                    if parameter.multiplicity != Multiplicity::Unrestricted {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: borrowed restricted parameter",
+                        );
+                        return None;
+                    }
+                    if !matches!(
+                        access,
+                        CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
+                    ) {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: write-only borrow",
+                        );
+                        return None;
+                    }
+                    let reference = reference();
+                    let primitive_reference = matches!(program.type_reference_table.type_reference(reference),
+                        TypeReferenceNode::Reference { referee, .. }
+                            if matches!(program.type_reference_table.type_reference(*referee), TypeReferenceNode::Named { .. })
+                                && program.primitive_type_reference(*referee).is_some());
+                    if !primitive_reference
+                        && byte_sequence_carrier(program, reference, &[])
+                            != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                    {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: borrowed non-view carrier",
+                        );
+                        return None;
+                    }
+                }
+            }
         }
         trace.phase("state graph: state signature: entry claims");
         let claims = entry_claims(
@@ -201,7 +252,7 @@ pub(super) fn build_traced(
         // just as when an earlier structural local already requires that path.
         .take_while(|binding| binding.value == CheckedScalarBindingValue::Expression)
         .collect::<Vec<_>>();
-        let binding_initializers = prefix_initializers(program, facts, state, &bindings)?;
+        let binding_initializers = prefix_initializers(program, facts, state, &bindings, trace)?;
         let binding_count = bindings.len();
         let terminator_index = statements
             .iter()
@@ -306,6 +357,7 @@ pub(super) fn build_traced(
             {
                 // Call forwarding preserves checked authority; construction
                 // needs a separate issuance witness, not result classification.
+                trace.phase("state graph: operation custody: linear established value");
                 return None;
             }
             match operation {
@@ -396,12 +448,61 @@ pub(super) fn build_traced(
                             } if call == coordinate
                         )
                     }) => {}
-                _ => return None,
+                _ => {
+                    // Name the operation family whose custody the selected
+                    // edges cannot yet carry; admitted families never reach
+                    // this arm.
+                    trace.phase(match operation {
+                        CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
+                            "state graph: operation custody: boundary call arguments"
+                        }
+                        CheckedUnitEffectOperationPlan::CallUnit { .. } => {
+                            "state graph: operation custody: unit call arguments"
+                        }
+                        CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+                            "state graph: operation custody: discarded structural result"
+                        }
+                        CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
+                            "state graph: operation custody: continuation cleanup owner"
+                        }
+                        CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. } => {
+                            "state graph: operation custody: scalar call"
+                        }
+                        CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                            ..
+                        }
+                        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
+                        | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
+                            ..
+                        } => "state graph: operation custody: selected operator call",
+                        CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                        | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
+                            "state graph: operation custody: reference custody"
+                        }
+                        CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {
+                            "state graph: operation custody: scalar array or primitive local"
+                        }
+                        CheckedUnitEffectOperationPlan::PortWrite { .. } => {
+                            "state graph: operation custody: port write"
+                        }
+                        CheckedUnitEffectOperationPlan::Complete { .. } => {
+                            "state graph: operation custody: completion"
+                        }
+                        _ => "state graph: operation custody: other operation",
+                    });
+                    return None;
+                }
             }
         }
         trace.phase("state graph: terminator");
         let ordinal = u32::try_from(terminator_index).ok()?;
-        let edge = |transition, edge_ordinal| {
+        let edge = |transition, edge_ordinal, kind| {
             successor(
                 program,
                 facts,
@@ -411,6 +512,8 @@ pub(super) fn build_traced(
                 &operations,
                 transition,
                 edge_ordinal,
+                kind,
+                trace,
             )
         };
         let terminator = if let Some(terminator) = closed_sum::build(
@@ -421,6 +524,7 @@ pub(super) fn build_traced(
             &signatures,
             &operations,
             terminator_index,
+            trace,
         ) {
             terminator
         } else if let Some(terminator) = returns::guarded(
@@ -483,7 +587,7 @@ pub(super) fn build_traced(
                 {
                     trace.phase("state graph: terminator: jump successor");
                     CheckedComposedUnitControlTerminatorPlan::Jump {
-                        successor: edge(transition, ordinal)?,
+                        successor: edge(transition, ordinal, SuccessorEdge::Jump)?,
                     }
                 }
                 [
@@ -494,23 +598,71 @@ pub(super) fn build_traced(
                         program, when_true, when_false,
                     ) =>
                 {
-                    trace.phase("state graph: terminator: conditional successors");
+                    trace
+                        .phase("state graph: terminator: conditional successors: guard expression");
                     let guard = facts
                         .values
                         .scalar_expressions
                         .expression_at(state.symbol, ordinal, CheckedScalarExpressionRole::Guard)?
                         .clone();
                     if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
+                        trace.phase("state graph: terminator: conditional successors: guard type");
                         return None;
                     }
                     CheckedComposedUnitControlTerminatorPlan::Conditional {
                         guard,
-                        when_true: edge(when_true, ordinal)?,
-                        when_false: edge(when_false, ordinal.checked_add(1)?)?,
+                        when_true: edge(when_true, ordinal, SuccessorEdge::Conditional)?,
+                        when_false: edge(
+                            when_false,
+                            ordinal.checked_add(1)?,
+                            SuccessorEdge::Conditional,
+                        )?,
                     }
                 }
                 _ => {
-                    trace.phase("state graph: terminator: unsupported tail");
+                    // Name the tail shape the general route lacks: the arms
+                    // above admit an empty unit tail, one return expression,
+                    // one unconditional jump, and an exact when/else pair.
+                    trace.phase(match &statements[terminator_index..] {
+                        [] => "state graph: terminator: unsupported tail: missing return value",
+                        [StatementNode::Expression(_)] => {
+                            "state graph: terminator: unsupported tail: expression statement with unit result"
+                        }
+                        [StatementNode::Transition(transition)] => match transition.exit {
+                            TransitionExit::Ordinary => {
+                                "state graph: terminator: unsupported tail: single guarded transition"
+                            }
+                            TransitionExit::Crash(_) => {
+                                "state graph: terminator: unsupported tail: single guarded crash exit"
+                            }
+                        },
+                        [StatementNode::Transition(first), StatementNode::Transition(_)]
+                            if first.guard == TransitionGuardNode::Always =>
+                        {
+                            "state graph: terminator: unsupported tail: jump followed by a transition"
+                        }
+                        [StatementNode::Transition(_), StatementNode::Transition(_)] => {
+                            "state graph: terminator: unsupported tail: guarded pair without exact false fallback"
+                        }
+                        tail @ [
+                            StatementNode::Transition(_),
+                            StatementNode::Transition(_),
+                            StatementNode::Transition(_),
+                            ..,
+                        ] if tail
+                            .iter()
+                            .all(|statement| matches!(statement, StatementNode::Transition(_))) =>
+                        {
+                            "state graph: terminator: unsupported tail: transition chain"
+                        }
+                        [StatementNode::Transition(_), ..] => {
+                            "state graph: terminator: unsupported tail: transition followed by statements"
+                        }
+                        [StatementNode::Expression(_), ..] => {
+                            "state graph: terminator: unsupported tail: expression followed by statements"
+                        }
+                        _ => "state graph: terminator: unsupported tail: other statement tail",
+                    });
                     return None;
                 }
             }
@@ -702,11 +854,16 @@ pub(super) fn build_traced(
     Some(plan)
 }
 
+/// The pure scalar initializers ahead of the first computation, tracing the
+/// binding and the guard (binding value, destination, statement, bound
+/// expression, custody agreement, initializer type, short-circuit boolean)
+/// that declined it.
 fn prefix_initializers(
     program: &TypedTrees,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     bindings: &[CheckedScalarBinding],
+    trace: &control::LocalConstructionTrace,
 ) -> Option<Vec<CheckedScalarExpression>> {
     use checked_trees::CheckedScalarBindingDestination;
 
@@ -715,9 +872,15 @@ fn prefix_initializers(
     bindings
         .iter()
         .map(|binding| {
+            let mark = |phase| {
+                trace.phase(phase);
+                trace.statement(Some(binding.statement_ordinal));
+            };
+            mark("state graph: prefix initializers: binding value");
             if binding.value != CheckedScalarBindingValue::Expression {
                 return None;
             }
+            mark("state graph: prefix initializers: binding destination");
             let (role, destination) = match binding.destination {
                 CheckedScalarBindingDestination::Immutable => {
                     let StatementNode::LocalData(local) =
@@ -738,22 +901,29 @@ fn prefix_initializers(
                     (CheckedScalarExpressionRole::AssignmentValue, symbol)
                 }
             };
+            mark("state graph: prefix initializers: binding statement");
             let expression = match statements.get(binding.statement_ordinal as usize)? {
                 StatementNode::LocalData(local) => local.initial_value,
                 StatementNode::Assignment(assignment) => assignment.value,
                 _ => return None,
             };
+            mark("state graph: prefix initializers: bound expression");
             let (custody, initializer) = facts.values.scalar_expressions.bound_expression_at(
                 state.symbol,
                 binding.statement_ordinal,
                 role,
             )?;
-            if custody.expression != expression
-                || custody.destination != destination
-                || crate::values::scalar_expression_type(initializer)
-                    != Some(binding.primitive_type)
-                || matches!(initializer, CheckedScalarExpression::Boolean(boolean)
-                    if checked_boolean_contains_short_circuit(boolean))
+            mark("state graph: prefix initializers: custody agreement");
+            if custody.expression != expression || custody.destination != destination {
+                return None;
+            }
+            mark("state graph: prefix initializers: initializer type");
+            if crate::values::scalar_expression_type(initializer) != Some(binding.primitive_type) {
+                return None;
+            }
+            mark("state graph: prefix initializers: short-circuit boolean");
+            if matches!(initializer, CheckedScalarExpression::Boolean(boolean)
+                if checked_boolean_contains_short_circuit(boolean))
             {
                 return None;
             }
@@ -777,6 +947,127 @@ type Signature = (
     Vec<CheckedStructuralScalarParameterPlan>,
 );
 
+/// The terminator family an edge is built for. The trace names the guard
+/// that declined the edge beneath that family's phase; the edge's statement
+/// ordinal separates the true and false successors of one conditional.
+#[derive(Clone, Copy)]
+pub(super) enum SuccessorEdge {
+    Jump,
+    Conditional,
+    ClosedCase,
+}
+
+#[derive(Clone, Copy)]
+enum SuccessorGuard {
+    TransitionForm,
+    TargetState,
+    ArgumentCount,
+    StructuralArgument,
+    ReceiverTransfer,
+    SubsliceTransfer,
+    ResultTransfer,
+    ParameterTransfer,
+    ScalarArguments,
+    EdgeCleanup,
+}
+
+impl SuccessorEdge {
+    fn phase(self, guard: SuccessorGuard) -> &'static str {
+        match (self, guard) {
+            (Self::Jump, SuccessorGuard::TransitionForm) => {
+                "state graph: terminator: jump successor: transition form"
+            }
+            (Self::Jump, SuccessorGuard::TargetState) => {
+                "state graph: terminator: jump successor: target state"
+            }
+            (Self::Jump, SuccessorGuard::ArgumentCount) => {
+                "state graph: terminator: jump successor: argument count"
+            }
+            (Self::Jump, SuccessorGuard::StructuralArgument) => {
+                "state graph: terminator: jump successor: structural argument"
+            }
+            (Self::Jump, SuccessorGuard::ReceiverTransfer) => {
+                "state graph: terminator: jump successor: receiver transfer"
+            }
+            (Self::Jump, SuccessorGuard::SubsliceTransfer) => {
+                "state graph: terminator: jump successor: byte-subslice transfer"
+            }
+            (Self::Jump, SuccessorGuard::ResultTransfer) => {
+                "state graph: terminator: jump successor: result-local transfer"
+            }
+            (Self::Jump, SuccessorGuard::ParameterTransfer) => {
+                "state graph: terminator: jump successor: parameter transfer"
+            }
+            (Self::Jump, SuccessorGuard::ScalarArguments) => {
+                "state graph: terminator: jump successor: scalar arguments"
+            }
+            (Self::Jump, SuccessorGuard::EdgeCleanup) => {
+                "state graph: terminator: jump successor: edge cleanup"
+            }
+            (Self::Conditional, SuccessorGuard::TransitionForm) => {
+                "state graph: terminator: conditional successors: transition form"
+            }
+            (Self::Conditional, SuccessorGuard::TargetState) => {
+                "state graph: terminator: conditional successors: target state"
+            }
+            (Self::Conditional, SuccessorGuard::ArgumentCount) => {
+                "state graph: terminator: conditional successors: argument count"
+            }
+            (Self::Conditional, SuccessorGuard::StructuralArgument) => {
+                "state graph: terminator: conditional successors: structural argument"
+            }
+            (Self::Conditional, SuccessorGuard::ReceiverTransfer) => {
+                "state graph: terminator: conditional successors: receiver transfer"
+            }
+            (Self::Conditional, SuccessorGuard::SubsliceTransfer) => {
+                "state graph: terminator: conditional successors: byte-subslice transfer"
+            }
+            (Self::Conditional, SuccessorGuard::ResultTransfer) => {
+                "state graph: terminator: conditional successors: result-local transfer"
+            }
+            (Self::Conditional, SuccessorGuard::ParameterTransfer) => {
+                "state graph: terminator: conditional successors: parameter transfer"
+            }
+            (Self::Conditional, SuccessorGuard::ScalarArguments) => {
+                "state graph: terminator: conditional successors: scalar arguments"
+            }
+            (Self::Conditional, SuccessorGuard::EdgeCleanup) => {
+                "state graph: terminator: conditional successors: edge cleanup"
+            }
+            (Self::ClosedCase, SuccessorGuard::TransitionForm) => {
+                "state graph: terminator: closed-sum case successor: transition form"
+            }
+            (Self::ClosedCase, SuccessorGuard::TargetState) => {
+                "state graph: terminator: closed-sum case successor: target state"
+            }
+            (Self::ClosedCase, SuccessorGuard::ArgumentCount) => {
+                "state graph: terminator: closed-sum case successor: argument count"
+            }
+            (Self::ClosedCase, SuccessorGuard::StructuralArgument) => {
+                "state graph: terminator: closed-sum case successor: structural argument"
+            }
+            (Self::ClosedCase, SuccessorGuard::ReceiverTransfer) => {
+                "state graph: terminator: closed-sum case successor: receiver transfer"
+            }
+            (Self::ClosedCase, SuccessorGuard::SubsliceTransfer) => {
+                "state graph: terminator: closed-sum case successor: byte-subslice transfer"
+            }
+            (Self::ClosedCase, SuccessorGuard::ResultTransfer) => {
+                "state graph: terminator: closed-sum case successor: result-local transfer"
+            }
+            (Self::ClosedCase, SuccessorGuard::ParameterTransfer) => {
+                "state graph: terminator: closed-sum case successor: parameter transfer"
+            }
+            (Self::ClosedCase, SuccessorGuard::ScalarArguments) => {
+                "state graph: terminator: closed-sum case successor: scalar arguments"
+            }
+            (Self::ClosedCase, SuccessorGuard::EdgeCleanup) => {
+                "state graph: terminator: closed-sum case successor: edge cleanup"
+            }
+        }
+    }
+}
+
 fn successor(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -786,6 +1077,8 @@ fn successor(
     operations: &[CheckedUnitEffectOperationPlan],
     transition: &typed_trees::statement::TableTransition,
     ordinal: u32,
+    edge: SuccessorEdge,
+    trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
     let successor = successor_bindings(
         program,
@@ -797,7 +1090,11 @@ fn successor(
         transition,
         ordinal,
         &[],
+        edge,
+        trace,
     )?;
+    trace.phase(edge.phase(SuccessorGuard::EdgeCleanup));
+    trace.statement(Some(ordinal));
     let source = &program.machine_states(machine)[source_index];
     let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
         machine.symbol,
@@ -827,10 +1124,18 @@ fn successor_bindings(
     transition: &typed_trees::statement::TableTransition,
     ordinal: u32,
     payload_parameters: &[u32],
+    edge: SuccessorEdge,
+    trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
+    let mark = |guard| {
+        trace.phase(edge.phase(guard));
+        trace.statement(Some(ordinal));
+    };
+    mark(SuccessorGuard::TransitionForm);
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
     }
+    mark(SuccessorGuard::TargetState);
     let TransitionTargetNode::Named {
         path, arguments, ..
     } = program.statement_table.transition_target(transition.target)
@@ -847,6 +1152,7 @@ fn successor_bindings(
     let target = &states[target_index];
     let arguments = program.statement_table.expression_handles(*arguments);
     let target_parameters = program.state_parameters(target);
+    mark(SuccessorGuard::ArgumentCount);
     if arguments.len()
         != target_parameters
             .iter()
@@ -889,6 +1195,7 @@ fn successor_bindings(
         .enumerate()
         .map(|(target_index, target)| {
             if target.is_self {
+                mark(SuccessorGuard::ReceiverTransfer);
                 let source_index = source_structural.iter().position(|parameter| parameter.is_self)?;
                 if source_structural[source_index] != *target {
                     return None;
@@ -900,10 +1207,12 @@ fn successor_bindings(
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
             }
+            mark(SuccessorGuard::StructuralArgument);
             let expression = argument_at(target.position)?;
             if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
                 && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
             {
+                mark(SuccessorGuard::SubsliceTransfer);
                 let target_parameter = target_parameters.get(target.position as usize)?;
                 let (parameter_index, type_identity) = calls::byte_subslice::source(
                     program, facts, machine, source, source_structural,
@@ -951,6 +1260,7 @@ fn successor_bindings(
                 });
             }
             if target.access == CheckedStructuralAccess::Owned {
+                mark(SuccessorGuard::ResultTransfer);
                 let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
                     let mut matches = operations.iter().filter_map(|operation| match operation {
@@ -969,6 +1279,7 @@ fn successor_bindings(
                     }
                 }
             }
+            mark(SuccessorGuard::ParameterTransfer);
             let source_position = source_position(target.position)?;
             let source_index = source_structural
                 .iter()
@@ -985,6 +1296,7 @@ fn successor_bindings(
             })
         })
         .collect::<Option<Vec<_>>>()?;
+    mark(SuccessorGuard::ScalarArguments);
     let scalar_arguments = target_scalar
         .iter()
         .enumerate()
