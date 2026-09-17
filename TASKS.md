@@ -2748,7 +2748,22 @@ Owners include
   semantic-home ownership (the current check is owner-local within one
   program; the unqualified operand-tuple home needs typing), then `operator` introducer
   removal, supply-mode wiring, Terminal codec, and native call realization
-  per the acceptance above.
+  per the acceptance above. Retirement map (inventory at 36e670e3d0):
+  349 `operator` declarations (81 token-bearing), all bodyless because
+  `parse_operator` requires `;`. By class: boundary requirements with or
+  without a token (175 library, 30 tests) need provider/build selection
+  and `satisfies` realization keyed on `boundary machine` slots instead
+  of `OperatorDefinition`, plus evidence `capture/callables/boundary_operators.rs`
+  and result-domain overload dispatch on machines; tokenless compiler
+  primitives (68 library, 28 tests: `Float::meaning32/64`,
+  `Nat::Descending`, ranking orders) need the catalog keyed on exact
+  declaration/signature identity; bodyless domain-family and
+  carrier-qualified semantic declarations (5 library, 26 tests) migrate
+  to declaration-owned bodies with their relational `ensures`, since the
+  supply table admits no other nonboundary supply; the `IndexAlgebra::plus`
+  satisfier pairs (4) wait on the unqualified operand-tuple home typing;
+  `[]`/`[..]`/comparison positions still reject fail-closed at body
+  supply.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
