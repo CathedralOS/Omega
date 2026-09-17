@@ -36,8 +36,8 @@ pub(crate) use builder::build_flow_facts_with_service_reaches;
 #[cfg(test)]
 pub(crate) use builder::tests::check_against_whole_pass;
 use call_phases::{
-    CallFlowContexts, apply_call_invalidations, build_call_entry_contexts,
-    build_call_exit_contexts, build_call_requires_contexts,
+    CallFlowContexts, append_call_referent_field_domain_facts, apply_call_invalidations,
+    build_call_entry_contexts, build_call_exit_contexts, build_call_requires_contexts,
 };
 use calls::build_call_flow_fact;
 pub(crate) use calls::call_target_return_type;

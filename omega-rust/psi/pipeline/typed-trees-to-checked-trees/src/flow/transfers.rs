@@ -49,14 +49,53 @@ pub(super) fn propagate_statement_transfers(
             ),
         ),
         StatementNode::Assignment(assignment) => {
-            let Some(target_place) = contextual_expression_place(
+            // A write through a local `&mut` alias establishes its facts on
+            // the exact storage it aliases -- the same place invalidation
+            // retires -- so `alias.out = "XXX"` and `label_alias = "hello"`
+            // close the window on the aliased field. A local binding
+            // replacement rebinds the reference itself and an ambiguous
+            // origin proves nothing exact, so both keep the alias place.
+            let Some(target_place) = crate::flow::canonical_place_from_expression_in_state(
                 program,
-                semantic,
-                machine_symbol,
                 state_symbol,
                 statement_index,
                 assignment.target,
-            ) else {
+            )
+            .map(|canonical| {
+                let mut owned_frames = None;
+                let writes_through_alias =
+                    crate::flow::shared_call_frames_or(ctx.call_frames, program, &mut owned_frames)
+                        .zip(
+                            program
+                                .machines()
+                                .iter()
+                                .find(|machine| machine.symbol == machine_symbol),
+                        )
+                        .and_then(|(resolver, machine)| {
+                            resolver.assignment_write_target(machine, statement)
+                        })
+                        .is_some_and(|target| {
+                            matches!(target, validation::AssignmentWriteTarget::Storage { .. })
+                        });
+                if !writes_through_alias {
+                    return canonical;
+                }
+                crate::flow::rebase_exact_local_place(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    canonical.clone(),
+                    ctx.call_frames,
+                )
+                .unwrap_or(canonical)
+            })
+            .map(|canonical| {
+                crate::semantic_places::append_place_with_segments(
+                    semantic,
+                    canonical.root,
+                    &canonical.segments,
+                )
+            }) else {
                 return;
             };
             let source_place = contextual_expression_place(
