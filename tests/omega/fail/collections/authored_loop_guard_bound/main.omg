@@ -1,13 +1,23 @@
-operator == bool::custom(left: bool, right: bool) -> bool;
+// An authored comparison does not establish the builtin loop-guard bound:
+// `self.index < 4` selects the domain-family `<` for the `Counter`-bound
+// field, so the indexed read cannot prove `self.index` within the array.
+// Without the binding the builtin `<` narrows the wrapping counter and the
+// loop checks.
+domain i32::Counter;
+
+machine < i32::Counter::below(left: i32 in Wrapping & Counter, right: i32) -> bool {
+    true
+}
 
 data Main {
     items: [u8; 4];
-    index: i32 in Wrapping;
+    index: i32 in Wrapping & Counter;
 }
 
 machine Main::run(&mut self) {
     self.index = 0;
     transition { _ -> fill() }
+
     state fill(&mut self) {
         let value: u8 = self.items[self.index];
         self.index = self.index + 1;
