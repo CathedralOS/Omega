@@ -19,6 +19,12 @@ pub enum TerminalInterpretError {
     /// A projection cannot be represented exactly by the interpreter's current
     /// path-aware structural model, so execution fails closed.
     AffineProjectionNotRepresentable,
+    /// The module declares placed-view inputs. That roster is semantic
+    /// custody, not storage: no scalar, structural, or byte-sequence input
+    /// can supply the referent each row names, and interpretation has no
+    /// establishment route that lends one. Execution therefore fails closed
+    /// rather than starting the entry machine with a declared input unbound.
+    PlacedViewInputsRequireCustody,
     ArgumentCount {
         expected: usize,
         actual: usize,

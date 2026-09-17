@@ -26,6 +26,8 @@ mod entry;
 mod errors;
 mod execution;
 mod integer_operations;
+#[cfg(test)]
+mod placed_view_input_tests;
 mod primitive_storage;
 mod record;
 mod reference;
