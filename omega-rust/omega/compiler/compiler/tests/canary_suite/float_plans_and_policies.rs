@@ -10,6 +10,8 @@ mod float_match_interpreter;
 mod float_provider_identities;
 #[path = "float_plans_and_policies/named_float_rewrites.rs"]
 mod named_float_rewrites;
+#[path = "float_plans_and_policies/requirement_intrinsics.rs"]
+mod requirement_intrinsics;
 
 fn optional_intrinsic_diagnostic_label(
     checked: &compiler::CheckedCompilation,
@@ -19,12 +21,59 @@ fn optional_intrinsic_diagnostic_label(
         typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator)
             == plan.schema.trait_name
     });
-    let operator = operators.next()?;
+    if let Some(operator) = operators.next() {
+        assert!(
+            operators.next().is_none(),
+            "selected intrinsic plan must resolve one exact boundary operator"
+        );
+        return provider_planning::compiler_intrinsic_diagnostic_label(&checked.typed, operator);
+    }
+    // A top-level `boundary requirement` is its own species: its plan schema
+    // is the requirement's machine path and the label comes from the same
+    // requirement view the compiler-intrinsic bridge keys on.
+    let mut requirements = checked.typed.machines().iter().filter(|machine| {
+        machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+            && machine.name.as_str() == plan.schema.trait_name
+    });
+    let requirement = requirements.next()?;
     assert!(
-        operators.next().is_none(),
-        "selected intrinsic plan must resolve one exact boundary operator"
+        requirements.next().is_none(),
+        "selected intrinsic plan must resolve one exact top-level boundary requirement"
     );
-    provider_planning::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
+    let view =
+        provider_planning::IntrinsicRequirement::from_requirement(&checked.typed, requirement)?;
+    provider_planning::compiler_intrinsic_diagnostic_label_for(&checked.typed, &view)
+}
+
+/// Every retained named use stamped with a selected plan, whichever species
+/// spelled it: the operator use facts and the direct requirement use facts.
+fn stamped_named_uses(
+    checked: &compiler::CheckedCompilation,
+) -> Vec<(typed_trees::expression::ExpressionHandle, u64)> {
+    checked
+        .facts
+        .operators
+        .named_uses()
+        .map(|operator_use| {
+            (
+                operator_use.expression,
+                operator_use.provider_plan_report_fingerprint,
+            )
+        })
+        .chain(
+            checked
+                .facts
+                .operators
+                .named_requirement_uses()
+                .map(|requirement_use| {
+                    (
+                        requirement_use.expression,
+                        requirement_use.provider_plan_report_fingerprint,
+                    )
+                }),
+        )
+        .filter(|(_, fingerprint)| *fingerprint != 0)
+        .collect()
 }
 
 fn selected_intrinsic_diagnostic_label(
