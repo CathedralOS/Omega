@@ -1,4 +1,6 @@
-use crate::proof_contracts::contract_entailment::{ScalarViewComputation, declared_scalar_view};
+use crate::proof_contracts::contract_entailment::{
+    RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
+};
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -54,6 +56,9 @@ pub(super) enum RankOrder {
 pub(super) struct RankProjection {
     pub(super) order: RankOrder,
     pub(super) parameter: SymbolHandle,
+    /// The paired subject's entry parameter for a two-subject view. Invalid
+    /// for single-subject orders.
+    pub(super) paired_parameter: SymbolHandle,
     pub(super) argument_position: usize,
     pub(super) subject: ExpressionHandle,
     /// The upper subject of a two-subject view (`Nat::BoundedDistance` ranks
@@ -61,6 +66,11 @@ pub(super) struct RankProjection {
     /// single-subject orders.
     pub(super) paired_subject: ExpressionHandle,
     pub(super) range: ExpressionHandle,
+    /// The scalar measure the member's own rank-range judgment selected,
+    /// rebuilt here so the call-component telescope can ask for the exact
+    /// required-entry set the member's arrival proofs already cover.
+    /// `None` for a lexicographic order, which has no scalar transport.
+    pub(super) measure: Option<RankingRangeMeasure>,
 }
 
 impl RankProjection {
@@ -95,10 +105,15 @@ impl RankProjection {
             return Some(Self {
                 order: RankOrder::BoundedDistance(primitive),
                 parameter: parameter.symbol,
+                paired_parameter: upper_parameter.symbol,
                 argument_position,
                 subject: *lower,
                 paired_subject: *upper,
                 range: custody.rank_range.unwrap_or_default(),
+                measure: Some(RankingRangeMeasure::Distance {
+                    lower: *lower,
+                    upper: *upper,
+                }),
             });
         }
         let [subject] = custody.subjects.as_slice() else {
@@ -119,10 +134,12 @@ impl RankProjection {
             return Some(Self {
                 order: RankOrder::SliceLength,
                 parameter: parameter.symbol,
+                paired_parameter: SymbolHandle::default(),
                 argument_position,
                 subject: *subject,
                 paired_subject: ExpressionHandle::invalid(),
                 range: custody.rank_range.unwrap_or_default(),
+                measure: Some(RankingRangeMeasure::SliceLength(*subject)),
             });
         }
         if matches!(
@@ -131,6 +148,7 @@ impl RankProjection {
         ) && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
         {
             let increasing = witness.ranking_view == RankingViewId::NAT_INCREASING_TO;
+            let mut limit = ExpressionHandle::invalid();
             if increasing {
                 let [bound] = custody.view_arguments.as_slice() else {
                     return None;
@@ -138,6 +156,7 @@ impl RankProjection {
                 if witness.view_arguments.len() != 1 || !bound.is_valid() {
                     return None;
                 }
+                limit = *bound;
             } else if !witness.view_arguments.is_empty() || !custody.view_arguments.is_empty() {
                 return None;
             }
@@ -149,10 +168,19 @@ impl RankProjection {
                     RankOrder::Natural(primitive)
                 },
                 parameter: parameter.symbol,
+                paired_parameter: SymbolHandle::default(),
                 argument_position,
                 subject: *subject,
                 paired_subject: ExpressionHandle::invalid(),
                 range: custody.rank_range.unwrap_or_default(),
+                measure: Some(if increasing {
+                    RankingRangeMeasure::IncreasingTo {
+                        subject: *subject,
+                        limit,
+                    }
+                } else {
+                    RankingRangeMeasure::Single(*subject)
+                }),
             });
         }
         if witness.ranking_view.is_valid()
@@ -179,13 +207,24 @@ impl RankProjection {
                     computation,
                 },
             };
+            let measure = match view.computation {
+                None => RankingRangeMeasure::Single(*subject),
+                Some(computation) => RankingRangeMeasure::Computed {
+                    subject: *subject,
+                    parameter: computation.parameter,
+                    body: computation.body,
+                    carrier: view.carrier,
+                },
+            };
             return Some(Self {
                 order,
                 parameter: parameter.symbol,
+                paired_parameter: SymbolHandle::default(),
                 argument_position,
                 subject: *subject,
                 paired_subject: ExpressionHandle::invalid(),
                 range: custody.rank_range.unwrap_or_default(),
+                measure: Some(measure),
             });
         }
         if custody.rank_range.is_some() {
@@ -282,10 +321,12 @@ impl RankProjection {
                 fields,
             },
             parameter: parameter.symbol,
+            paired_parameter: SymbolHandle::default(),
             argument_position,
             subject: *subject,
             paired_subject: ExpressionHandle::invalid(),
             range: ExpressionHandle::invalid(),
+            measure: None,
         })
     }
 

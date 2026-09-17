@@ -133,13 +133,33 @@ fn internal_state_calls_read_duplicated_rank_copies() {
             transition n > 0 { true -> self.count(n - 1) false -> n }
         }";
     assert_eq!(admitted(&typed_source(source)).len(), 1);
-    // A copy that actually diverged at the arrival is not kept as a carrier:
-    // the computed claimant demotes and the unproven transported rank rejects.
-    let diverged = source.replace(
-        "pair(remaining, remaining)",
-        "pair(remaining, remaining + 1)",
-    );
-    assert!(admitted(&typed_source(&diverged)).is_empty());
+    // A computed copy of the required carrier keeps its claim at this level:
+    // the member's own ranged arrival judgment -- which the checked stage
+    // runs for every multi-state ranged member -- is what proves the copy
+    // equal, and the component consumes that evidence rather than re-running
+    // it. The same trust covers a spelling the member's judgment would
+    // reject (`remaining + 1`): this harness isolates `check_component`, so
+    // the unequal copy's rejection belongs to the member-level check the
+    // `unequal_computed_rank_copies` fail canary exercises.
+    for copy in ["remaining + 0", "remaining + 1"] {
+        let computed = source.replace(
+            "pair(remaining, remaining)",
+            &format!("pair(remaining, {copy})"),
+        );
+        assert_eq!(admitted(&typed_source(&computed)).len(), 1, "{copy}");
+    }
+    // A computed copy of an entry the range proof never names keeps no
+    // premise claim: `right` spells `spare + 0`, so the site has no route
+    // from the rank to the transported value.
+    let stray = source
+        .replace(
+            "remaining: u32 [0..=9])",
+            "remaining: u32 [0..=9], spare: u32)",
+        )
+        .replace("pair(remaining, remaining)", "pair(remaining, spare + 0)")
+        .replace("self.count(n - 1)", "self.count(n - 1, 0)");
+    assert_ne!(stray, source);
+    assert!(admitted(&typed_source(&stray)).is_empty());
 }
 
 #[test]

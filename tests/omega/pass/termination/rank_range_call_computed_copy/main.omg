@@ -1,0 +1,34 @@
+// PASS CANARY. `right` arrives as the computed copy `remaining + 0`: `count`'s
+// own ranged arrival judgment proved that copy equal to the required
+// `remaining` carrier, so the call-component telescope keeps the claim and
+// `step(right)` transports the rank through that proven equality instead of
+// a positional guess. `scratch` still carries the unique, unconstrained role
+// `extra`, so storing into it before the call touches no premise carrier, no
+// shared copy, and no conserved endpoint.
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5, 1) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9], extra: u32)
+terminates by remaining in 0..=9;
+-> u32 {
+    transition { _ -> pair(remaining, remaining + 0, extra) }
+    state pair(left: u32 [0..=9], right: u32 [0..=9], mut scratch: u32) {
+        scratch = left;
+        transition left > 0 {
+            true -> self.step(right)
+            false -> scratch
+        }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 {
+        true -> self.count(n - 1, 0)
+        false -> n
+    }
+}
