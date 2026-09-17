@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "selected_provider_policy/authority.rs"]
 mod authority;

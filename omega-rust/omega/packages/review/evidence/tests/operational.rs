@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "operational/authored_sources.rs"]
 mod authored_sources;

@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "exact_contract_identity/atomic_loads.rs"]
 mod atomic_loads;

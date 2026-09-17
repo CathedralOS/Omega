@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "boundary_supply/boundary_bodies.rs"]
 mod boundary_bodies;

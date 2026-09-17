@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "proposition_contracts/domains_and_declarations.rs"]
 mod domains_and_declarations;

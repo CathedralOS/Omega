@@ -1,5 +1,5 @@
+use crate::support;
 use compiler::CheckedCompileRequest;
-mod support;
 
 #[path = "public_api/data_and_quotients.rs"]
 mod data_and_quotients;

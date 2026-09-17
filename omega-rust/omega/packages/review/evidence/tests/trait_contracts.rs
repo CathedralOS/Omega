@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "trait_contracts/calls_and_entailment.rs"]
 mod calls_and_entailment;

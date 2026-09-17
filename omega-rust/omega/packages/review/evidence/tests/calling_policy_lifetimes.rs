@@ -1,6 +1,6 @@
 //! Calling lifetime applications remain relative to their containing telescope.
 
-mod support;
+use crate::support;
 
 use compiler::CheckedCompileRequest;
 use package_evidence::encoding::PackagePolicyRecoveryLimits;

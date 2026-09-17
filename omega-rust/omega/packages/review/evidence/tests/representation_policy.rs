@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[path = "representation_policy/source.rs"]
 mod source;

@@ -10,7 +10,7 @@ mod contracts;
 mod public_families;
 #[path = "package_policy/source.rs"]
 mod source;
-mod support;
+use crate::support;
 
 use package_evidence::encoding::{
     PackagePolicyMembershipLimits, PackagePolicyRecoveryLimits, PackagePolicyTextRecoveryLimits,
