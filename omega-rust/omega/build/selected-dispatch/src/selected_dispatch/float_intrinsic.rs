@@ -103,6 +103,7 @@ enum StagedNamedFloatExecution {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct StagedNamedFloatRewrite {
     expression: typed_trees::expression::ExpressionHandle,
+    origin: checked_trees::CheckedValueOrigin,
     realization: NamedFloatRealization,
     execution: StagedNamedFloatExecution,
 }
@@ -237,5 +238,58 @@ pub(super) fn apply_selected_float_intrinsic_rewrites(
             .typed
             .expression_table
             .expression_mut(rewrite.expression) = replacement;
+        retire_rewritten_call_row(checked, rewrite.origin, rewrite.expression);
     }
+}
+
+/// The flow call row captured for the authored call no longer names a call
+/// the settled body makes; retire it so execution planning skips the row
+/// while the certificates holding its handle stay valid.
+fn retire_rewritten_call_row(
+    checked: &mut CheckedTrees,
+    origin: checked_trees::CheckedValueOrigin,
+    expression: typed_trees::expression::ExpressionHandle,
+) {
+    let checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        ..
+    } = origin
+    else {
+        return;
+    };
+    let statement_root = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .and_then(|machine| {
+            checked
+                .typed
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)
+                .map(|state| state.statement_nodes)
+        })
+        .and_then(|statements| {
+            checked
+                .typed
+                .statement_table
+                .statements(statements)
+                .get(statement_index)
+        })
+        .is_some_and(|statement| {
+            matches!(
+                statement,
+                typed_trees::statement::StatementNode::Expression(root) if *root == expression
+            )
+        });
+    checked.facts.flow.control.retire_calls(
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        expression,
+        statement_root,
+    );
 }

@@ -631,6 +631,7 @@ fn negate_publication_appends_only_after_shared_arc_custody_separates() {
         Arc::make_mut(&mut settled),
         vec![StagedNamedFloatRewrite {
             expression: retained.expression,
+            origin: retained.origin,
             realization: NamedFloatRealization::Negate(FloatFormat::F32),
             execution: StagedNamedFloatExecution::Negate(FloatFormat::F32),
         }],
@@ -714,4 +715,41 @@ fn empty_settlement_preserves_shared_arc_identity_and_contents() {
 
     assert!(Arc::ptr_eq(&settled, &original));
     assert_eq!(settled.as_ref(), &original_contents);
+}
+
+#[test]
+fn settled_write_frame_refresh_accepts_agreement_and_rejects_a_changed_complete_frame() {
+    let (fixture, selected, _, _) = selected_fixture();
+    let mut settled = Arc::new(fixture.checked);
+    settle_selected_float_intrinsic_dispatch(&mut settled, &selected)
+        .expect("exact selected intrinsic rewrites");
+    let mut program = settled.as_ref().clone();
+    typed_trees_to_checked_trees::refresh_settled_state_write_frames(&mut program)
+        .expect("the settled body's frames agree with or refine the retained frames");
+    assert_eq!(
+        program.facts.mutation.machines.len(),
+        settled.facts.mutation.machines.len(),
+        "the refresh keeps one entry per machine"
+    );
+
+    let mut drifted = settled.as_ref().clone();
+    let plan = drifted
+        .facts
+        .mutation
+        .machines
+        .iter_mut()
+        .flat_map(|machine| machine.state_write_frames.iter_mut())
+        .find(|plan| plan.frame.completeness() == facts::WriteFrameCompleteness::Complete)
+        .expect("a state with a complete retained frame");
+    plan.frame = facts::NormalizedWriteFrame::complete(vec!["self.drifted".to_owned()]);
+    let diagnostics =
+        typed_trees_to_checked_trees::refresh_settled_state_write_frames(&mut drifted)
+            .expect_err("a retained complete frame the settled body does not derive is a fault");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("changed the complete write frame retained for state"),
+        "{:?}",
+        diagnostics[0].message
+    );
 }

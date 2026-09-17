@@ -1876,6 +1876,7 @@ dependencies = [
  "checked-trees",
  "diagnostics",
  "effects",
+ "facts",
  "language-core",
  "language-semantics",
  "numerics",
