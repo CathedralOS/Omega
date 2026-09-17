@@ -186,7 +186,10 @@ fn validate_call_selection(
     diagnostics: &mut Vec<Diagnostic>,
     nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
 ) {
-    if matches!(target_name, "select_provider" | "select_representation") {
+    if matches!(
+        target_name,
+        "select_provider" | "select_representation" | "exclude_service"
+    ) {
         return;
     }
     let (requirements, generic_types): (Vec<_>, Vec<_>) = if let Some((callee, _)) =

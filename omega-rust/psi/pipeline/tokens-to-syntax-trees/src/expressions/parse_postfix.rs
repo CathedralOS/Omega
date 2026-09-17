@@ -257,6 +257,55 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 continue;
             }
 
+            // BUILD SERVICE EXCLUSION (wiki/spec/build/behavior_exclusions.md):
+            // `b.exclude_service<BoundaryTrait>();` is a build-declaration
+            // marker like provider selection, not a runtime generic machine
+            // call. The single static argument is a plain type path whose
+            // exact boundary-trait identity ordinary symbol resolution
+            // assigns and build harvesting validates; there is no string
+            // label and no value argument.
+            if member.as_str() == "exclude_service" && rest.at_punctuation(PunctuationKind::Less) {
+                let Some((machine_arguments, path_input)) =
+                    try_parse_static_machine_arguments(rest)?
+                else {
+                    return Err(
+                        rest.error_here("`exclude_service` requires one boundary-trait type path")
+                    );
+                };
+                if machine_arguments.len() != 1
+                    || machine_arguments.iter().any(|argument| {
+                        argument.path.is_empty()
+                            || argument.application.is_some()
+                            || argument.const_literal.is_some()
+                            || argument.evidence_projection.is_some()
+                    })
+                {
+                    return Err(
+                        rest.error_here("`exclude_service` requires exactly one plain type path")
+                    );
+                }
+                let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                let ((arguments, evidence_arguments), rest) =
+                    parse_argument_list_after_open_paren_handle(syntax_trees, after_open)?;
+                if !arguments.is_empty() || !evidence_arguments.is_empty() {
+                    return Err(rest.error_here("`exclude_service` takes no value arguments"));
+                }
+                input = rest;
+                expression =
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            target_is_static: false,
+                            receiver: expression,
+                            target: member,
+                            machine_arguments,
+                            arguments,
+                            evidence_arguments,
+                            operational_acknowledgement: Default::default(),
+                        }));
+                continue;
+            }
+
             // An opaque representation selection names semantic data and an
             // already-authored conformance. No ABI values are accepted here.
             if member.as_str() == "select_representation"

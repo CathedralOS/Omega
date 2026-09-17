@@ -553,6 +553,7 @@ impl<'program> Evaluator<'program> {
         if target.starts_with("accept_boundary#")
             || target == "select_provider"
             || target == "select_representation"
+            || target == "exclude_service"
             || target.starts_with("wire_compatibility#")
         {
             return Ok(Value::Unit);

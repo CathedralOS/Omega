@@ -446,6 +446,7 @@ impl<'program> Evaluator<'program> {
         if call.target.as_str().starts_with("accept_boundary#")
             || call.target.as_str() == "select_provider"
             || call.target.as_str() == "select_representation"
+            || call.target.as_str() == "exclude_service"
             || call.target.as_str().starts_with("wire_compatibility#")
         {
             return Ok(Value::Unit);
