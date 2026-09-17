@@ -5,7 +5,7 @@ use omega_language_std::console;
 
 data GenericMath {}
 
-boundary operator % GenericMath::remainder<Element>(
+boundary machine % GenericMath::remainder<Element>(
     left: Element,
     right: Element
 ) -> Element;
