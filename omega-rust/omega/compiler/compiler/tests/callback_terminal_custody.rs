@@ -537,32 +537,40 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     .expect("a canonical thunk artifact can carry a mutation-test symbol");
     let drifted_thunk_proposal = compilation_report::TerminalNativeRealizationProposal::new(
         retained.artifact(),
-        proposal.target_profile(),
-        proposal.native_target(),
-        proposal.subsystem(),
-        proposal.application_intent(),
-        proposal.application_identifier().cloned(),
-        proposal.application_name().map(str::to_owned),
-        proposal.post_terminal_optimizations().clone(),
-        proposal.program_entry().clone(),
-        proposal.checked_program_entry().clone(),
-        proposal.selected_provider_plans().clone(),
-        proposal.external_binding_rows().to_vec(),
-        proposal.package_terminal_authority_permissions().to_vec(),
-        proposal.compiler_builtins().to_vec(),
-        vec![compilation_report::TerminalCallbackOccurrenceProposal::new(
-            0,
-            occurrence.terminal_operation(),
-            Some(application.clone()),
-            callback_thunk_identity,
-            drifted_thunk,
-        )],
-        proposal.ieee_float_fma_occurrences().to_vec(),
-        proposal.ieee_float_comparison_occurrences().to_vec(),
-        proposal.boundary_application_demands().clone(),
-        proposal.boundary_application_realizations().clone(),
-        proposal.checked_boundary_operator_scope().clone(),
-        proposal.behavior_exclusions().clone(),
+        compilation_report::TerminalNativeRealizationInputs {
+            target_profile: proposal.target_profile(),
+            native_target: proposal.native_target(),
+            subsystem: proposal.subsystem(),
+            application_intent: proposal.application_intent(),
+            application_identifier: proposal.application_identifier().cloned(),
+            application_name: proposal.application_name().map(str::to_owned),
+            post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+            program_entry: proposal.program_entry().clone(),
+            checked_program_entry: proposal.checked_program_entry().clone(),
+            selected_provider_plans: proposal.selected_provider_plans().clone(),
+            external_binding_rows: proposal.external_binding_rows().to_vec(),
+            package_terminal_authority_permissions: proposal
+                .package_terminal_authority_permissions()
+                .to_vec(),
+            compiler_builtins: proposal.compiler_builtins().to_vec(),
+            callback_occurrences: vec![
+                compilation_report::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    occurrence.terminal_operation(),
+                    Some(application.clone()),
+                    callback_thunk_identity,
+                    drifted_thunk,
+                ),
+            ],
+            ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+            ieee_float_comparison_occurrences: proposal
+                .ieee_float_comparison_occurrences()
+                .to_vec(),
+            boundary_application_demands: proposal.boundary_application_demands().clone(),
+            boundary_application_realizations: proposal.boundary_application_realizations().clone(),
+            checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+            behavior_exclusions: proposal.behavior_exclusions().clone(),
+        },
     )
     .expect("artifact-local proposal replay does not own checked placement spelling");
     assert!(
@@ -586,32 +594,42 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     assert!(
         compilation_report::TerminalNativeRealizationProposal::new(
             retained.artifact(),
-            proposal.target_profile(),
-            proposal.native_target(),
-            proposal.subsystem(),
-            proposal.application_intent(),
-            proposal.application_identifier().cloned(),
-            proposal.application_name().map(str::to_owned),
-            proposal.post_terminal_optimizations().clone(),
-            proposal.program_entry().clone(),
-            proposal.checked_program_entry().clone(),
-            proposal.selected_provider_plans().clone(),
-            proposal.external_binding_rows().to_vec(),
-            proposal.package_terminal_authority_permissions().to_vec(),
-            proposal.compiler_builtins().to_vec(),
-            vec![compilation_report::TerminalCallbackOccurrenceProposal::new(
-                0,
-                wrong_operation,
-                Some(application.clone()),
-                callback_thunk_identity,
-                occurrence.callback_thunk_artifact().clone(),
-            )],
-            proposal.ieee_float_fma_occurrences().to_vec(),
-            proposal.ieee_float_comparison_occurrences().to_vec(),
-            proposal.boundary_application_demands().clone(),
-            proposal.boundary_application_realizations().clone(),
-            proposal.checked_boundary_operator_scope().clone(),
-            proposal.behavior_exclusions().clone(),
+            compilation_report::TerminalNativeRealizationInputs {
+                target_profile: proposal.target_profile(),
+                native_target: proposal.native_target(),
+                subsystem: proposal.subsystem(),
+                application_intent: proposal.application_intent(),
+                application_identifier: proposal.application_identifier().cloned(),
+                application_name: proposal.application_name().map(str::to_owned),
+                post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+                program_entry: proposal.program_entry().clone(),
+                checked_program_entry: proposal.checked_program_entry().clone(),
+                selected_provider_plans: proposal.selected_provider_plans().clone(),
+                external_binding_rows: proposal.external_binding_rows().to_vec(),
+                package_terminal_authority_permissions: proposal
+                    .package_terminal_authority_permissions()
+                    .to_vec(),
+                compiler_builtins: proposal.compiler_builtins().to_vec(),
+                callback_occurrences: vec![
+                    compilation_report::TerminalCallbackOccurrenceProposal::new(
+                        0,
+                        wrong_operation,
+                        Some(application.clone()),
+                        callback_thunk_identity,
+                        occurrence.callback_thunk_artifact().clone(),
+                    )
+                ],
+                ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+                ieee_float_comparison_occurrences: proposal
+                    .ieee_float_comparison_occurrences()
+                    .to_vec(),
+                boundary_application_demands: proposal.boundary_application_demands().clone(),
+                boundary_application_realizations: proposal
+                    .boundary_application_realizations()
+                    .clone(),
+                checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+                behavior_exclusions: proposal.behavior_exclusions().clone()
+            }
         )
         .is_err(),
         "a non-boundary Terminal operation cannot replace the registrar call",
@@ -619,26 +637,34 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     assert!(
         compilation_report::TerminalNativeRealizationProposal::new(
             retained.artifact(),
-            proposal.target_profile(),
-            proposal.native_target(),
-            proposal.subsystem(),
-            proposal.application_intent(),
-            proposal.application_identifier().cloned(),
-            proposal.application_name().map(str::to_owned),
-            proposal.post_terminal_optimizations().clone(),
-            proposal.program_entry().clone(),
-            proposal.checked_program_entry().clone(),
-            proposal.selected_provider_plans().clone(),
-            proposal.external_binding_rows().to_vec(),
-            proposal.package_terminal_authority_permissions().to_vec(),
-            proposal.compiler_builtins().to_vec(),
-            vec![occurrence.clone(), occurrence.clone()],
-            proposal.ieee_float_fma_occurrences().to_vec(),
-            proposal.ieee_float_comparison_occurrences().to_vec(),
-            proposal.boundary_application_demands().clone(),
-            proposal.boundary_application_realizations().clone(),
-            proposal.checked_boundary_operator_scope().clone(),
-            proposal.behavior_exclusions().clone(),
+            compilation_report::TerminalNativeRealizationInputs {
+                target_profile: proposal.target_profile(),
+                native_target: proposal.native_target(),
+                subsystem: proposal.subsystem(),
+                application_intent: proposal.application_intent(),
+                application_identifier: proposal.application_identifier().cloned(),
+                application_name: proposal.application_name().map(str::to_owned),
+                post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+                program_entry: proposal.program_entry().clone(),
+                checked_program_entry: proposal.checked_program_entry().clone(),
+                selected_provider_plans: proposal.selected_provider_plans().clone(),
+                external_binding_rows: proposal.external_binding_rows().to_vec(),
+                package_terminal_authority_permissions: proposal
+                    .package_terminal_authority_permissions()
+                    .to_vec(),
+                compiler_builtins: proposal.compiler_builtins().to_vec(),
+                callback_occurrences: vec![occurrence.clone(), occurrence.clone()],
+                ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+                ieee_float_comparison_occurrences: proposal
+                    .ieee_float_comparison_occurrences()
+                    .to_vec(),
+                boundary_application_demands: proposal.boundary_application_demands().clone(),
+                boundary_application_realizations: proposal
+                    .boundary_application_realizations()
+                    .clone(),
+                checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+                behavior_exclusions: proposal.behavior_exclusions().clone()
+            }
         )
         .is_err(),
         "duplicate placement occurrence rows must reject",
@@ -647,32 +673,40 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     drifted_application.native_ordinal = 0;
     let drifted_proposal = compilation_report::TerminalNativeRealizationProposal::new(
         retained.artifact(),
-        proposal.target_profile(),
-        proposal.native_target(),
-        proposal.subsystem(),
-        proposal.application_intent(),
-        proposal.application_identifier().cloned(),
-        proposal.application_name().map(str::to_owned),
-        proposal.post_terminal_optimizations().clone(),
-        proposal.program_entry().clone(),
-        proposal.checked_program_entry().clone(),
-        proposal.selected_provider_plans().clone(),
-        proposal.external_binding_rows().to_vec(),
-        proposal.package_terminal_authority_permissions().to_vec(),
-        proposal.compiler_builtins().to_vec(),
-        vec![compilation_report::TerminalCallbackOccurrenceProposal::new(
-            0,
-            occurrence.terminal_operation(),
-            Some(drifted_application),
-            callback_thunk_identity,
-            occurrence.callback_thunk_artifact().clone(),
-        )],
-        proposal.ieee_float_fma_occurrences().to_vec(),
-        proposal.ieee_float_comparison_occurrences().to_vec(),
-        proposal.boundary_application_demands().clone(),
-        proposal.boundary_application_realizations().clone(),
-        proposal.checked_boundary_operator_scope().clone(),
-        proposal.behavior_exclusions().clone(),
+        compilation_report::TerminalNativeRealizationInputs {
+            target_profile: proposal.target_profile(),
+            native_target: proposal.native_target(),
+            subsystem: proposal.subsystem(),
+            application_intent: proposal.application_intent(),
+            application_identifier: proposal.application_identifier().cloned(),
+            application_name: proposal.application_name().map(str::to_owned),
+            post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+            program_entry: proposal.program_entry().clone(),
+            checked_program_entry: proposal.checked_program_entry().clone(),
+            selected_provider_plans: proposal.selected_provider_plans().clone(),
+            external_binding_rows: proposal.external_binding_rows().to_vec(),
+            package_terminal_authority_permissions: proposal
+                .package_terminal_authority_permissions()
+                .to_vec(),
+            compiler_builtins: proposal.compiler_builtins().to_vec(),
+            callback_occurrences: vec![
+                compilation_report::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    occurrence.terminal_operation(),
+                    Some(drifted_application),
+                    callback_thunk_identity,
+                    occurrence.callback_thunk_artifact().clone(),
+                ),
+            ],
+            ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+            ieee_float_comparison_occurrences: proposal
+                .ieee_float_comparison_occurrences()
+                .to_vec(),
+            boundary_application_demands: proposal.boundary_application_demands().clone(),
+            boundary_application_realizations: proposal.boundary_application_realizations().clone(),
+            checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+            behavior_exclusions: proposal.behavior_exclusions().clone(),
+        },
     )
     .expect("artifact-local replay cannot infer the checked native telescope");
     assert!(
@@ -689,32 +723,42 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     assert!(
         compilation_report::TerminalNativeRealizationProposal::new(
             retained.artifact(),
-            proposal.target_profile(),
-            proposal.native_target(),
-            proposal.subsystem(),
-            proposal.application_intent(),
-            proposal.application_identifier().cloned(),
-            proposal.application_name().map(str::to_owned),
-            proposal.post_terminal_optimizations().clone(),
-            proposal.program_entry().clone(),
-            proposal.checked_program_entry().clone(),
-            proposal.selected_provider_plans().clone(),
-            proposal.external_binding_rows().to_vec(),
-            proposal.package_terminal_authority_permissions().to_vec(),
-            proposal.compiler_builtins().to_vec(),
-            vec![compilation_report::TerminalCallbackOccurrenceProposal::new(
-                0,
-                occurrence.terminal_operation(),
-                Some(application.clone()),
-                placement_index_drift,
-                occurrence.callback_thunk_artifact().clone(),
-            ),],
-            proposal.ieee_float_fma_occurrences().to_vec(),
-            proposal.ieee_float_comparison_occurrences().to_vec(),
-            proposal.boundary_application_demands().clone(),
-            proposal.boundary_application_realizations().clone(),
-            proposal.checked_boundary_operator_scope().clone(),
-            proposal.behavior_exclusions().clone(),
+            compilation_report::TerminalNativeRealizationInputs {
+                target_profile: proposal.target_profile(),
+                native_target: proposal.native_target(),
+                subsystem: proposal.subsystem(),
+                application_intent: proposal.application_intent(),
+                application_identifier: proposal.application_identifier().cloned(),
+                application_name: proposal.application_name().map(str::to_owned),
+                post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+                program_entry: proposal.program_entry().clone(),
+                checked_program_entry: proposal.checked_program_entry().clone(),
+                selected_provider_plans: proposal.selected_provider_plans().clone(),
+                external_binding_rows: proposal.external_binding_rows().to_vec(),
+                package_terminal_authority_permissions: proposal
+                    .package_terminal_authority_permissions()
+                    .to_vec(),
+                compiler_builtins: proposal.compiler_builtins().to_vec(),
+                callback_occurrences: vec![
+                    compilation_report::TerminalCallbackOccurrenceProposal::new(
+                        0,
+                        occurrence.terminal_operation(),
+                        Some(application.clone()),
+                        placement_index_drift,
+                        occurrence.callback_thunk_artifact().clone(),
+                    ),
+                ],
+                ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+                ieee_float_comparison_occurrences: proposal
+                    .ieee_float_comparison_occurrences()
+                    .to_vec(),
+                boundary_application_demands: proposal.boundary_application_demands().clone(),
+                boundary_application_realizations: proposal
+                    .boundary_application_realizations()
+                    .clone(),
+                checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+                behavior_exclusions: proposal.behavior_exclusions().clone()
+            }
         )
         .is_err(),
         "a callback-thunk role for another placement index must reject",
@@ -726,32 +770,40 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             .expect("a valid but unrelated continuation can form a mutation identity");
     let continuation_drift_proposal = compilation_report::TerminalNativeRealizationProposal::new(
         retained.artifact(),
-        proposal.target_profile(),
-        proposal.native_target(),
-        proposal.subsystem(),
-        proposal.application_intent(),
-        proposal.application_identifier().cloned(),
-        proposal.application_name().map(str::to_owned),
-        proposal.post_terminal_optimizations().clone(),
-        proposal.program_entry().clone(),
-        proposal.checked_program_entry().clone(),
-        proposal.selected_provider_plans().clone(),
-        proposal.external_binding_rows().to_vec(),
-        proposal.package_terminal_authority_permissions().to_vec(),
-        proposal.compiler_builtins().to_vec(),
-        vec![compilation_report::TerminalCallbackOccurrenceProposal::new(
-            0,
-            occurrence.terminal_operation(),
-            Some(application.clone()),
-            continuation_drift,
-            occurrence.callback_thunk_artifact().clone(),
-        )],
-        proposal.ieee_float_fma_occurrences().to_vec(),
-        proposal.ieee_float_comparison_occurrences().to_vec(),
-        proposal.boundary_application_demands().clone(),
-        proposal.boundary_application_realizations().clone(),
-        proposal.checked_boundary_operator_scope().clone(),
-        proposal.behavior_exclusions().clone(),
+        compilation_report::TerminalNativeRealizationInputs {
+            target_profile: proposal.target_profile(),
+            native_target: proposal.native_target(),
+            subsystem: proposal.subsystem(),
+            application_intent: proposal.application_intent(),
+            application_identifier: proposal.application_identifier().cloned(),
+            application_name: proposal.application_name().map(str::to_owned),
+            post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+            program_entry: proposal.program_entry().clone(),
+            checked_program_entry: proposal.checked_program_entry().clone(),
+            selected_provider_plans: proposal.selected_provider_plans().clone(),
+            external_binding_rows: proposal.external_binding_rows().to_vec(),
+            package_terminal_authority_permissions: proposal
+                .package_terminal_authority_permissions()
+                .to_vec(),
+            compiler_builtins: proposal.compiler_builtins().to_vec(),
+            callback_occurrences: vec![
+                compilation_report::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    occurrence.terminal_operation(),
+                    Some(application.clone()),
+                    continuation_drift,
+                    occurrence.callback_thunk_artifact().clone(),
+                ),
+            ],
+            ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+            ieee_float_comparison_occurrences: proposal
+                .ieee_float_comparison_occurrences()
+                .to_vec(),
+            boundary_application_demands: proposal.boundary_application_demands().clone(),
+            boundary_application_realizations: proposal.boundary_application_realizations().clone(),
+            checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+            behavior_exclusions: proposal.behavior_exclusions().clone(),
+        },
     )
     .expect("artifact-only proposal replay cannot reconstruct checked continuation handles");
     assert!(
@@ -765,26 +817,32 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     );
     let missing = compilation_report::TerminalNativeRealizationProposal::new(
         retained.artifact(),
-        proposal.target_profile(),
-        proposal.native_target(),
-        proposal.subsystem(),
-        proposal.application_intent(),
-        proposal.application_identifier().cloned(),
-        proposal.application_name().map(str::to_owned),
-        proposal.post_terminal_optimizations().clone(),
-        proposal.program_entry().clone(),
-        proposal.checked_program_entry().clone(),
-        proposal.selected_provider_plans().clone(),
-        proposal.external_binding_rows().to_vec(),
-        proposal.package_terminal_authority_permissions().to_vec(),
-        proposal.compiler_builtins().to_vec(),
-        Vec::new(),
-        proposal.ieee_float_fma_occurrences().to_vec(),
-        proposal.ieee_float_comparison_occurrences().to_vec(),
-        proposal.boundary_application_demands().clone(),
-        proposal.boundary_application_realizations().clone(),
-        proposal.checked_boundary_operator_scope().clone(),
-        proposal.behavior_exclusions().clone(),
+        compilation_report::TerminalNativeRealizationInputs {
+            target_profile: proposal.target_profile(),
+            native_target: proposal.native_target(),
+            subsystem: proposal.subsystem(),
+            application_intent: proposal.application_intent(),
+            application_identifier: proposal.application_identifier().cloned(),
+            application_name: proposal.application_name().map(str::to_owned),
+            post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+            program_entry: proposal.program_entry().clone(),
+            checked_program_entry: proposal.checked_program_entry().clone(),
+            selected_provider_plans: proposal.selected_provider_plans().clone(),
+            external_binding_rows: proposal.external_binding_rows().to_vec(),
+            package_terminal_authority_permissions: proposal
+                .package_terminal_authority_permissions()
+                .to_vec(),
+            compiler_builtins: proposal.compiler_builtins().to_vec(),
+            callback_occurrences: Vec::new(),
+            ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+            ieee_float_comparison_occurrences: proposal
+                .ieee_float_comparison_occurrences()
+                .to_vec(),
+            boundary_application_demands: proposal.boundary_application_demands().clone(),
+            boundary_application_realizations: proposal.boundary_application_realizations().clone(),
+            checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+            behavior_exclusions: proposal.behavior_exclusions().clone(),
+        },
     )
     .expect("artifact-local replay permits an empty occurrence catalog");
     let (artifact, placements, _) = retained.into_parts();

@@ -80,48 +80,6 @@ impl ProofFacts {
         }
         Some(projection)
     }
-
-    pub fn with_roots(
-        obligations: Arena<ProofObligationFact>,
-        contract_facts: Arena<ContractProofFact>,
-        inherited_contract_scopes: Arena<InheritedContractScope>,
-        outcome_specific_guarantees: Arena<OutcomeSpecificGuaranteeFact>,
-        outcome_specific_arms: Arena<OutcomeSpecificArmFact>,
-        evidence_terms: Arena<CheckedEvidenceTerm>,
-        contract_evidence_arguments: Arena<ContractEvidenceArgument>,
-        evidence_forwardings: Arena<EvidenceForwardingFact>,
-        proof_output_calls: Arena<ProofOutputCallFact>,
-        contract_fact_refs: Arena<ContractProofFactRef>,
-        contract_calls: Arena<ContractCallFact>,
-        contract_exits: Arena<ContractExitFact>,
-        contract_operator_uses: Arena<ContractOperatorUseFact>,
-        float_meaning_projections: Vec<crate::CheckedFloatMeaningProjection>,
-        float_meaning_equalities: Vec<crate::CheckedFloatMeaningEqualityProposition>,
-        proposition_vocabulary: crate::CheckedPropositionVocabulary,
-    ) -> Self {
-        Self {
-            contract_entailment_assumption_discharges: Vec::new(),
-            obligations,
-            contract_facts,
-            inherited_contract_scopes,
-            outcome_specific_guarantees,
-            outcome_specific_arms,
-            evidence_terms,
-            contract_evidence_arguments,
-            evidence_forwardings,
-            proof_output_calls,
-            contract_fact_refs,
-            contract_calls,
-            contract_expression_evidence_calls: Vec::new(),
-            contract_expression_static_conformance_applications: Vec::new(),
-            contract_exits,
-            contract_operator_uses,
-            float_meaning_projections,
-            float_meaning_projection_occurrences: Vec::new(),
-            float_meaning_equalities,
-            proposition_vocabulary,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -153,24 +111,25 @@ mod tests {
         let float_meaning_equalities = Vec::new();
         let proposition_vocabulary = crate::CheckedPropositionVocabulary::default();
 
-        let facts = ProofFacts::with_roots(
-            obligations.clone(),
-            contract_facts.clone(),
-            inherited_contract_scopes.clone(),
-            outcome_specific_guarantees.clone(),
-            outcome_specific_arms.clone(),
-            evidence_terms.clone(),
-            contract_evidence_arguments.clone(),
-            evidence_forwardings.clone(),
-            proof_output_calls.clone(),
-            contract_fact_refs.clone(),
-            contract_calls.clone(),
-            contract_exits.clone(),
-            contract_operator_uses.clone(),
-            float_meaning_projections.clone(),
-            float_meaning_equalities.clone(),
-            proposition_vocabulary.clone(),
-        );
+        let facts = ProofFacts {
+            obligations: obligations.clone(),
+            contract_facts: contract_facts.clone(),
+            inherited_contract_scopes: inherited_contract_scopes.clone(),
+            outcome_specific_guarantees: outcome_specific_guarantees.clone(),
+            outcome_specific_arms: outcome_specific_arms.clone(),
+            evidence_terms: evidence_terms.clone(),
+            contract_evidence_arguments: contract_evidence_arguments.clone(),
+            evidence_forwardings: evidence_forwardings.clone(),
+            proof_output_calls: proof_output_calls.clone(),
+            contract_fact_refs: contract_fact_refs.clone(),
+            contract_calls: contract_calls.clone(),
+            contract_exits: contract_exits.clone(),
+            contract_operator_uses: contract_operator_uses.clone(),
+            float_meaning_projections: float_meaning_projections.clone(),
+            float_meaning_equalities: float_meaning_equalities.clone(),
+            proposition_vocabulary: proposition_vocabulary.clone(),
+            ..ProofFacts::default()
+        };
 
         assert_eq!(facts.obligations, obligations);
         assert!(facts.contract_entailment_assumption_discharges.is_empty());

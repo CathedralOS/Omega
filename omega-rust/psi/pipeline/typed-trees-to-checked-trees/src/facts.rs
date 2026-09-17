@@ -309,7 +309,7 @@ pub(crate) fn build_check_facts(
         return Err(fact_call_projection_diagnostics);
     }
 
-    let mut facts = CheckFacts::with_roots(
+    Ok(CheckFacts {
         semantic,
         borrow,
         proof,
@@ -331,9 +331,9 @@ pub(crate) fn build_check_facts(
         contract_plans,
         carry,
         fact_call_projections,
-    );
-    facts.placed_view_inputs = build_checked_placed_view_inputs(program);
-    Ok(facts)
+        placed_view_inputs: build_checked_placed_view_inputs(program),
+        ..CheckFacts::default()
+    })
 }
 
 /// Crash refinement gains path-conditioned and permission-frontier evidence
