@@ -27,6 +27,7 @@ mod dominance;
 mod liveness_custody;
 mod parameters;
 mod scalar_payloads;
+mod structural_transports;
 
 // Analysis reuse exercises the same selected-stage fixture as spill recovery.
 #[path = "../../analyses/liveness/reuse_tests.rs"]

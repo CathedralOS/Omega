@@ -4,7 +4,7 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot,
-    SelectedValueTransport, VirtualRegisterId,
+    SelectedStructuralTransport, SelectedValueTransport, VirtualRegisterId,
 };
 
 use super::{RuntimeSpillError, ValidatedRuntimeSpill, admission, validate_runtime_spill};
@@ -75,6 +75,11 @@ pub fn spill_selected_runtime_value(
         }
         let shared = admitted.shared_reload[block_index];
         let mut open_reload = None;
+        // The reload register each rewritten instruction's first victim use
+        // names. Structural-snapshot chunk loads each carry exactly one victim
+        // operand, so their entries let the binding's `argument` field follow
+        // the register its loads actually read.
+        let mut use_reloads = std::collections::BTreeMap::new();
         let mut instructions = Vec::new();
         let mut boundaries = Vec::new();
         let mut instruction_positions = Vec::new();
@@ -90,7 +95,7 @@ pub fn spill_selected_runtime_value(
                 {
                     continue;
                 }
-                operand.virtual_register = reload_for_use(
+                let reloaded = reload_for_use(
                     &admitted,
                     register,
                     shared && operand.fixed_view.is_none(),
@@ -100,6 +105,8 @@ pub fn spill_selected_runtime_value(
                     &mut next_instruction,
                     &mut next_register,
                 )?;
+                use_reloads.entry(rewritten.id).or_insert(reloaded);
+                operand.virtual_register = reloaded;
             }
             instruction_positions.push(
                 u32::try_from(instructions.len())
@@ -179,6 +186,49 @@ pub fn spill_selected_runtime_value(
                 else {
                     unreachable!()
                 };
+                *argument = reloaded;
+            }
+            // A stored structural-transport argument names no new use: the
+            // bridge's snapshot chunk loads already read the reload, so the
+            // binding's `argument` field moves to the single register those
+            // loads name after rewriting — admission proved they all share
+            // it. No reload pair is emitted here.
+            for binding in &mut successor.structural_bindings {
+                let Some(byte_size) = admission::stored_transport_size(binding.transport) else {
+                    continue;
+                };
+                let (SelectedStructuralTransport::Descriptor { argument, .. }
+                | SelectedStructuralTransport::WholeValue { argument, .. }) =
+                    &mut binding.transport
+                else {
+                    continue;
+                };
+                if *argument != register {
+                    continue;
+                }
+                let Some(pending) = admitted.structural_uses.iter().find(|pending| {
+                    pending.block == block_index
+                        && pending.edge == successor.psi_edge
+                        && pending.place == binding.semantic.argument.place
+                        && pending.byte_size == byte_size
+                }) else {
+                    return Err(RuntimeSpillError::SourceMismatch);
+                };
+                let reloaded = pending
+                    .loads
+                    .iter()
+                    .try_fold(None, |found: Option<VirtualRegisterId>, load| {
+                        let named = use_reloads
+                            .get(load)
+                            .copied()
+                            .ok_or(RuntimeSpillError::SourceMismatch)?;
+                        match found {
+                            None => Ok(Some(named)),
+                            Some(existing) if existing == named => Ok(found),
+                            _ => Err(RuntimeSpillError::SourceMismatch),
+                        }
+                    })?
+                    .ok_or(RuntimeSpillError::SourceMismatch)?;
                 *argument = reloaded;
             }
             if let Some(case) = &mut successor.structural_case {

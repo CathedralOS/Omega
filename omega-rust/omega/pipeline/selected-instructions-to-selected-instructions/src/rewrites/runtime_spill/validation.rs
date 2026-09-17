@@ -6,7 +6,7 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlan, SelectedLocalStorageSlot,
-    SelectedValueTransport, VirtualRegisterId,
+    SelectedStructuralTransport, SelectedValueTransport, VirtualRegisterId,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -66,6 +66,10 @@ pub fn validate_runtime_spill(
         // unadmitted block consumes a fresh pair at every use.
         let shared = admitted.shared_reload[block_index];
         let mut open_reload: Option<VirtualRegisterId> = None;
+        // The register each restored instruction's first victim use must
+        // name — replay computes the same binding-argument target the
+        // proposal had to produce.
+        let mut use_reloads = std::collections::BTreeMap::new();
         for original in &source_block.instructions {
             boundaries.push(consumed);
             let mut restored = original.clone();
@@ -101,6 +105,7 @@ pub fn validate_runtime_spill(
                         reload.reload_register.id
                     }
                 };
+                use_reloads.entry(original.id).or_insert(reloaded);
                 operand.virtual_register = reloaded;
             }
             instruction_positions.push(consumed);
@@ -200,6 +205,47 @@ pub fn validate_runtime_spill(
                     unreachable!()
                 };
                 *argument = reload.reload_register.id;
+            }
+            // A stored structural-transport argument consumes no pair: the
+            // expected terminator only retargets it to the single register
+            // the binding's snapshot chunk loads were proven to name.
+            for binding in &mut successor.structural_bindings {
+                let Some(byte_size) = admission::stored_transport_size(binding.transport) else {
+                    continue;
+                };
+                let (SelectedStructuralTransport::Descriptor { argument, .. }
+                | SelectedStructuralTransport::WholeValue { argument, .. }) =
+                    &mut binding.transport
+                else {
+                    continue;
+                };
+                if *argument != register {
+                    continue;
+                }
+                let Some(pending) = admitted.structural_uses.iter().find(|pending| {
+                    pending.block == block_index
+                        && pending.edge == successor.psi_edge
+                        && pending.place == binding.semantic.argument.place
+                        && pending.byte_size == byte_size
+                }) else {
+                    return Err(RuntimeSpillError::ReplayMismatch);
+                };
+                let reloaded = pending
+                    .loads
+                    .iter()
+                    .try_fold(None, |found: Option<VirtualRegisterId>, load| {
+                        let named = use_reloads
+                            .get(load)
+                            .copied()
+                            .ok_or(RuntimeSpillError::ReplayMismatch)?;
+                        match found {
+                            None => Ok(Some(named)),
+                            Some(existing) if existing == named => Ok(found),
+                            _ => Err(RuntimeSpillError::ReplayMismatch),
+                        }
+                    })?
+                    .ok_or(RuntimeSpillError::ReplayMismatch)?;
+                *argument = reloaded;
             }
             if let Some(case) = &mut successor.structural_case {
                 for payload in &mut case.payloads {
