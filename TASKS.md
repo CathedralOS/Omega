@@ -776,6 +776,15 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   cache, lock 2837 B against 2843 B, `build/` 4763 B against 6046 B; the
   separate build-tool-package route the spec keeps as an alternative is
   not implemented, so no measured comparison against it exists.
+  bf8b52c77c adds the spec's cross-build comparisons to
+  `omega/tests/package_commands/snapshot_outputs.rs` on macOS x86-64:
+  two packages settling identically named `templates/banner.tmpl` inputs
+  and `artifact.txt` outputs from their own captured inventories and
+  staged custody down to each sealed entry's retained bytes, one package
+  settling an independent occurrence per requested target off the shared
+  source-preparation slot, a dependency's completed output not publishing
+  through the root's uncommitted set, and one target's uncommitted set
+  reporting its own rejection without hiding another's settlement.
   Remaining: Windows host coverage. Acceptance: an
   ordinary generator reads a template and completes a required file;
   artifact-only and executable-with-companion routes both work. Exercise
