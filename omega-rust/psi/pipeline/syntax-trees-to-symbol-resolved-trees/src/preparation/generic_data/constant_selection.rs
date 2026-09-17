@@ -646,6 +646,143 @@ fn append_variants(
     );
 }
 
+/// The argument bindings one closed generic application establishes for its
+/// selected template's parameters: `Pair<u64>` binds `T` to the `u64` spelling.
+/// Bindings only name arguments that already exist as handles; a member type
+/// still spelling an open parameter resolves one application level at a time
+/// rather than materializing a substituted handle inside an immutable forest.
+pub(crate) type GenericApplicationSubstitution =
+    std::collections::HashMap<String, syntax_trees::types::TypeReferenceHandle>;
+
+/// Whether `type_reference` still spells one of the bound parameter names.
+/// Only structural positions are scanned; an expression-bearing position (a
+/// deferred const argument or a range bound) conservatively counts as open
+/// whenever any binding exists, because its expression may name a parameter.
+pub(crate) fn type_mentions_parameters(
+    syntax: &SyntaxTrees,
+    type_reference: syntax_trees::types::TypeReferenceHandle,
+    substitution: &GenericApplicationSubstitution,
+) -> bool {
+    use syntax_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+    if substitution.is_empty() {
+        return false;
+    }
+    match syntax.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str()),
+        TypeReferenceNode::Generic { arguments, .. } => syntax
+            .type_references
+            .type_reference_handles(*arguments)
+            .iter()
+            .any(|argument| type_mentions_parameters(syntax, *argument, substitution)),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            type_mentions_parameters(syntax, *element_type, substitution)
+                || matches!(length, FixedArrayLength::ConstParameter(name) if substitution.contains_key(name.as_str()))
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            type_mentions_parameters(syntax, *base_type, substitution)
+                || syntax
+                    .type_references
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| match constraint {
+                        TypeConstraintNode::Domain(domain) => syntax
+                            .type_references
+                            .type_reference_handles(domain.arguments)
+                            .iter()
+                            .any(|argument| {
+                                type_mentions_parameters(syntax, *argument, substitution)
+                            }),
+                        TypeConstraintNode::Range { .. } => true,
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {
+                            false
+                        }
+                    })
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_mentions_parameters(syntax, *referee, substitution)
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            type_mentions_parameters(syntax, *element_type, substitution)
+        }
+        TypeReferenceNode::ConstExpression(_) => true,
+        _ => false,
+    }
+}
+
+/// Resolve one generic argument spelling through the enclosing application's
+/// bindings. A bare parameter name reselects its already-closed argument
+/// handle; a composite spelling that still names a parameter cannot
+/// materialize a substituted handle inside an immutable forest and declines.
+pub(crate) fn resolved_generic_argument(
+    syntax: &SyntaxTrees,
+    argument: syntax_trees::types::TypeReferenceHandle,
+    substitution: &GenericApplicationSubstitution,
+) -> Result<syntax_trees::types::TypeReferenceHandle, String> {
+    if let syntax_trees::types::TypeReferenceNode::Named(name) =
+        syntax.type_references.type_reference(argument)
+        && let Some(resolved) = substitution.get(name.as_str())
+    {
+        return Ok(*resolved);
+    }
+    if type_mentions_parameters(syntax, argument, substitution) {
+        return Err(
+            "computed constant carrier member is not yet a closed structural type".to_owned(),
+        );
+    }
+    Ok(argument)
+}
+
+/// Whether `type_reference` contains a deferred `ConstExpression` argument.
+/// Probe forests replace those arguments with layout stand-ins, so a carrier
+/// spelling containing one drifts from the materialized constructor's name;
+/// closed leaf destinations must be probe-stable.
+pub(crate) fn has_deferred_const_argument(
+    syntax: &SyntaxTrees,
+    type_reference: syntax_trees::types::TypeReferenceHandle,
+) -> bool {
+    use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    match syntax.type_references.type_reference(type_reference) {
+        TypeReferenceNode::ConstExpression(_) => true,
+        TypeReferenceNode::Generic { arguments, .. } => syntax
+            .type_references
+            .type_reference_handles(*arguments)
+            .iter()
+            .any(|argument| has_deferred_const_argument(syntax, *argument)),
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            has_deferred_const_argument(syntax, *element_type)
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            has_deferred_const_argument(syntax, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            has_deferred_const_argument(syntax, *base_type)
+                || syntax
+                    .type_references
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| match constraint {
+                        TypeConstraintNode::Domain(domain) => syntax
+                            .type_references
+                            .type_reference_handles(domain.arguments)
+                            .iter()
+                            .any(|argument| has_deferred_const_argument(syntax, *argument)),
+                        _ => false,
+                    })
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Identifier, SourceScopedTopLevelBinding, SyntaxTrees};
