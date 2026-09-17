@@ -3,7 +3,7 @@
 //! cases that a validated module cannot express live beside the rewrite in
 //! `src/copy_propagation/copies.rs`.
 
-mod common;
+use crate::common;
 
 use common::{block_id, copy_fixture, dead_scalar_fixture, machine_id, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};

@@ -1,5 +1,6 @@
 [package]
 name = "lowered-psi-to-lowered-psi"
+autotests = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -15,3 +16,7 @@ terminal-verifier = { path = "../../semantics/terminal-verifier" }
 
 [dev-dependencies]
 language-core = { path = "../../foundation/language-core" }
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"

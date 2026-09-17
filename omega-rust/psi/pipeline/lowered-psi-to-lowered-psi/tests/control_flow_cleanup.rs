@@ -3,7 +3,7 @@
 //! unreachable-block removal under the performed folds, evidence retention,
 //! and the independent verifier's rewrite relation.
 
-mod common;
+use crate::common;
 
 use common::{
     coercion_edge_fixture, coercion_region_fixture, control_flow_fixture, copy_fixture,

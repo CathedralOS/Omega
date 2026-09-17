@@ -3,7 +3,7 @@
 //! validated module cannot express live beside the rewrite in
 //! `src/global_value_numbering/equivalents.rs`.
 
-mod common;
+use crate::common;
 
 use common::{
     block, block_id, boolean, conditional, edge, i32, jump, lowered, machine, operation,
