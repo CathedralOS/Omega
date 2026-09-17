@@ -18,6 +18,7 @@ impl TypedTrees {
             machines,
             measures,
             operators,
+            machine_token_bindings,
             propositions,
             traits,
             conformances,
@@ -29,6 +30,7 @@ impl TypedTrees {
             && root_start_is_retained(*machines, self.roots.machines)
             && root_start_is_retained(*measures, self.roots.measures)
             && root_start_is_retained(*operators, self.roots.operators)
+            && root_start_is_retained(*machine_token_bindings, self.roots.machine_token_bindings)
             && root_start_is_retained(*propositions, self.roots.propositions)
             && root_start_is_retained(*traits, self.roots.traits)
             && root_start_is_retained(*conformances, self.roots.conformances)
@@ -60,6 +62,9 @@ impl TypedTrees {
             && self
                 .operators()
                 .starts_with(base.tables.operators.span_or_empty(*operators))
+            && self
+                .machine_token_bindings()
+                .starts_with(base.tables.operators.span_or_empty(*machine_token_bindings))
             && self
                 .propositions()
                 .starts_with(base.tables.propositions.span_or_empty(*propositions))

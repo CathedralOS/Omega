@@ -1,0 +1,13 @@
+// A closed family's direct token bindings belong to its semantic-home owner.
+// `Wrapped::add` over bare `u8` operands would inject into `u8`'s family, so
+// it rejects at the declaration instead of becoming a candidate at every
+// `u8 + u8`.
+data Wrapped { value: u8; }
+
+machine + Wrapped::add(left: u8, right: u8) -> u64 {
+    (left as u64) + (right as u64)
+}
+
+machine plain(left: u8, right: u8) -> u64 {
+    (left as u64) + (right as u64)
+}

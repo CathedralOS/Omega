@@ -87,8 +87,10 @@ pub struct SpelledOperator<'program> {
 }
 
 /// Find one exact independently nameable operator declaration, whether it is
-/// rooted directly or stored beneath a domain home. Visibility belongs to the
-/// operator itself; callers must not infer it from the carrier/domain path.
+/// rooted directly, stored beneath a domain home, or the signature view of a
+/// token-bearing machine (whose symbol is the machine's own). Visibility
+/// belongs to the operator itself; callers must not infer it from the
+/// carrier/domain path.
 pub fn declaration_by_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
@@ -102,5 +104,6 @@ pub fn declaration_by_symbol(
                 .iter()
                 .flat_map(|domain| program.domain_operators(domain)),
         )
+        .chain(program.machine_token_bindings())
         .find(|operator| operator.symbol == symbol)
 }

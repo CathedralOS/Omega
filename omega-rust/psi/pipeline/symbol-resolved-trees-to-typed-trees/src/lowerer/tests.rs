@@ -7,6 +7,7 @@ mod quotients_and_domains;
 mod retained_constants;
 mod seeded_continuations;
 mod seeded_instances;
+mod token_bindings;
 mod typed_retention;
 
 use super::seeded_continuation::{SeededTypingBase, lower_symbol_resolved_trees_to_seeded_base};

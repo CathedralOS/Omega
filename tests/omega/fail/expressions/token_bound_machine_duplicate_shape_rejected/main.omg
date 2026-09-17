@@ -1,0 +1,12 @@
+// Two direct bindings of the same token, owner, and normalized operand shape
+// reject at the second declaration; declaration-owned supply removes body
+// choice, not overload ambiguity.
+data Wrapped { value: u8; }
+
+machine + Wrapped::add(left: Wrapped, right: Wrapped) -> u64 {
+    (left.value as u64) + (right.value as u64)
+}
+
+machine + Wrapped::plus(left: Wrapped, right: Wrapped) -> u64 {
+    (right.value as u64) + (left.value as u64)
+}

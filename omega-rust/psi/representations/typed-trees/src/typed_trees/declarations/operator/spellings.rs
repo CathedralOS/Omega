@@ -15,6 +15,18 @@ use symbols::SymbolHandle;
 /// This receiver-only query remains useful to validation that merely asks
 /// whether a spelling exists for a carrier. Complete use-site resolution goes
 /// through [`resolve_spelling_for_operands`]. Return types never distinguish.
+///
+/// Three declaration forms bind a spelling: authored root `operator`
+/// declarations, domain-owned operators, and token-bearing machines
+/// (`machine + Vec2::add(...)`). The machine form is the declaration and its
+/// own executable supply; it enters the candidate set through the
+/// operator-signature view in [`TypedTrees::machine_token_bindings`], which
+/// shares the machine's symbol and entry-state spans. That view exists only
+/// because every candidate consumer reads an [`OperatorDefinition`]; the
+/// `operator` introducer retirement will invert this so [`SpelledOperator`]
+/// wraps machine signatures directly. Symbol resolution already rejected
+/// bindings without a semantic home in their operand tuple, so structural
+/// operand matching here is the closed-family selection rule.
 pub fn resolve_spelling<'program>(
     program: &'program TypedTrees,
     spelling: OperatorSpelling,
@@ -23,6 +35,7 @@ pub fn resolve_spelling<'program>(
     let root_candidates = program
         .operators()
         .iter()
+        .chain(program.machine_token_bindings())
         .filter(|operator| operator.spelling == Some(spelling))
         .map(|operator| SpelledOperator {
             operator,

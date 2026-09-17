@@ -126,6 +126,11 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|operator| operator_snapshot(program, operator))
                     .collect(),
+                machine_token_bindings: program
+                    .machine_token_bindings()
+                    .iter()
+                    .map(|operator| operator_snapshot(program, operator))
+                    .collect(),
                 propositions: program
                     .propositions()
                     .iter()
@@ -275,6 +280,8 @@ pub struct TypedRootsSnapshot {
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub machine_token_bindings: Vec<OperatorDefinitionSnapshot>,
     pub propositions: Vec<PropositionSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
