@@ -2775,8 +2775,14 @@ Owners include
   five `arithmetic/authored_*`, `field_singleton_authored_equality` and
   `collections/authored_*` fixtures bind their token through a
   fixture-local domain on the compared operand with every fragment kept,
-  while `termination/computed_measure_authored_operator` and
-  `std/units.omg` still author `operator`); the `IndexAlgebra::plus`
+  and at de44f6a2a6 `std/units.omg`'s five `Quantity` bindings are bodied
+  `machine <token> Quantity::name` declarations whose bodies compute the
+  carrier arithmetic re-qualified with the result unit, with
+  generic-domain bindings homing through domain-qualified operands and
+  indexed arguments distinguishing operand shapes (d376002425;
+  `runtime_std_units_exit` interprets to 70 through the bodies);
+  `termination/computed_measure_authored_operator` still authors
+  `operator`); the `IndexAlgebra::plus`
   satisfier pairs (4) wait on the unqualified operand-tuple home typing;
   `[]`/`[..]`/comparison positions still reject fail-closed at body
   supply.
