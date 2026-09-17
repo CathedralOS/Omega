@@ -2668,10 +2668,17 @@ Owners include
   not match a compiler primitive by leaf name or legacy declaration kind.
 
   Enforce closed-family semantic-home ownership and owner-local duplicate checks.
-  Replace the legacy `u8::sum` declaration-plus-satisfier fixture in
-  `tests/omega/pass/expressions/declared_operator_match_result/main.omg` with a
-  test-owned type/domain and a declaration-owned body returning `u64`.
-  Keep the selected-call join in
+  At c797755f12 `tests/omega/pass/expressions/declared_operator_match_result/main.omg`
+  authors the test-owned `Wrapped` type with
+  `machine + Wrapped::add(&Wrapped, &Wrapped) -> u64` owning its body in place
+  of the legacy `u8::sum` declaration-plus-satisfier pair; the interpreter leg
+  `declared_operator_match_result_canary_interprets_both_arms` returns 260
+  in the selected true arm, 1 in the false arm without invoking the
+  operator, and 260 through the named call. Operands are borrowed because
+  by-value data operands inside a match arm still stop at the owned-match
+  custody join (MATCH-SELECTIVE-LOWERING), and the fixture stays
+  checked-only until native admission of borrowed local data arguments to a
+  free machine lands. Keep the selected-call join in
   `typed-trees-to-checked-trees/src/values/scalar/computations.rs`,
   `computations/integers.rs`, and
   `checked-trees-to-lowered-psi/src/scalar_graph/scalar_source_custody` compositional.
