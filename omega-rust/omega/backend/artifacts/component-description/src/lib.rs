@@ -18,10 +18,14 @@
 //! evidence-only `VerifiedComponent` whose `realizes_selected_plan` joins a
 //! build-selected provider plan to the component's exported realizations.
 //! The native-realization producer that fills these facts from a
-//! `ComponentCandidate` lives in `component-candidate`.
+//! `ComponentCandidate` lives in `component-candidate`. `test_support`
+//! (feature `test-support`) builds canonical provider-component modules for
+//! consumer tests that need a real described-and-verified component.
 
 pub mod component_description;
 pub mod component_verification;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 
 pub use component_description::{
     COMPONENT_DESCRIPTION_SCHEMA_V1, ComponentDescription, ComponentDescriptionFacts,
