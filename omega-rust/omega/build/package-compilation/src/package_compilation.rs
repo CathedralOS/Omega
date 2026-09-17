@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use terminal_psi::TerminalPsiIdentity;
 
 /// One stable package identity, its canonical declared name, and the canonical
 /// source root from which this compilation may load it. The name is validated
@@ -191,6 +192,52 @@ impl PackageGeneratedSourceBundle {
     }
 }
 
+/// One dependency's canonical component description, attached to the exact
+/// target compilation that selected that dependency's providers with
+/// `CompositionMode::Independent`.
+///
+/// The bytes are the description the dependency's own compilation published;
+/// `expected_subject` is the Terminal Psi identity that compilation observed
+/// for the component module, not a field read out of the description. This
+/// carrier is trusted for nothing: build settlement verifies the bytes under
+/// the build's admission profile against the expected subject before any
+/// selected plan may join the component, so a substituted, corrupt, or
+/// partial description rejects there instead of being carried as evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndependentComponentDescription {
+    package: PackageKeyIdentity,
+    expected_subject: TerminalPsiIdentity,
+    description: Arc<[u8]>,
+}
+
+impl IndependentComponentDescription {
+    pub fn new(
+        package: PackageKeyIdentity,
+        expected_subject: TerminalPsiIdentity,
+        description: Vec<u8>,
+    ) -> Self {
+        Self {
+            package,
+            expected_subject,
+            description: Arc::from(description),
+        }
+    }
+
+    pub const fn package(&self) -> PackageKeyIdentity {
+        self.package
+    }
+
+    pub const fn expected_subject(&self) -> TerminalPsiIdentity {
+        self.expected_subject
+    }
+
+    /// The exact canonical description bytes to verify. Their identity is
+    /// established by the verifier, never by this carrier.
+    pub fn description(&self) -> &[u8] {
+        &self.description
+    }
+}
+
 impl PackageDependencyClosure {
     pub const fn root(&self) -> PackageKeyIdentity {
         self.root
@@ -294,6 +341,8 @@ pub struct PackageCompilationInputs {
 pub struct PackageCompilationTargetInputs {
     dependency_generated_sources: BTreeMap<PackageKeyIdentity, PackageGeneratedSourceBundle>,
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
+    independent_component_descriptions:
+        BTreeMap<PackageKeyIdentity, IndependentComponentDescription>,
 }
 
 /// Shared target-independent package inputs used
@@ -590,6 +639,7 @@ impl PackageCompilationInputs {
         let PackageCompilationTargetInputs {
             dependency_generated_sources,
             accepted_semantic_bindings,
+            independent_component_descriptions,
         } = target;
         let mut inputs = Self {
             source,
@@ -602,6 +652,9 @@ impl PackageCompilationInputs {
                 dependency_generated_sources.into_values().collect(),
             )?;
         }
+        inputs = inputs.with_independent_component_descriptions(
+            independent_component_descriptions.into_values().collect(),
+        )?;
         Ok(inputs)
     }
 
@@ -740,6 +793,58 @@ impl PackageCompilationInputs {
         &self,
     ) -> impl Iterator<Item = &PackageGeneratedSourceBundle> {
         self.target.dependency_generated_sources.values()
+    }
+
+    /// Attach the component descriptions published for this root's
+    /// independently composed dependencies. Each description names one
+    /// dependency in the exact closure, never the root; the set need not
+    /// cover every dependency because only an `Independent` selection
+    /// consumes one, and settlement rejects a selection left without its
+    /// description rather than treating the edge as fused.
+    pub fn with_independent_component_descriptions(
+        mut self,
+        descriptions: Vec<IndependentComponentDescription>,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        let mut errors = Vec::new();
+        let mut attached = BTreeMap::new();
+        for description in descriptions {
+            let package = description.package();
+            if package == self.source.root {
+                errors.push(
+                    PackageCompilationInputError::RootIndependentComponentDescription { package },
+                );
+                continue;
+            }
+            if !self.source.packages.contains_key(&package) {
+                errors.push(
+                    PackageCompilationInputError::ForeignIndependentComponentDescription {
+                        package,
+                    },
+                );
+                continue;
+            }
+            if attached.insert(package, description).is_some() {
+                errors.push(
+                    PackageCompilationInputError::DuplicateIndependentComponentDescription {
+                        package,
+                    },
+                );
+            }
+        }
+        if errors.is_empty() {
+            self.target.independent_component_descriptions = attached;
+            Ok(self)
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// The attached component descriptions in package-identity order. They
+    /// are unverified bytes until build settlement admits them.
+    pub fn independent_component_descriptions(
+        &self,
+    ) -> impl Iterator<Item = &IndependentComponentDescription> {
+        self.target.independent_component_descriptions.values()
     }
 
     #[doc(hidden)]
@@ -1066,6 +1171,15 @@ pub enum PackageCompilationInputError {
     MissingGeneratedSourceBundle {
         package: PackageKeyIdentity,
     },
+    RootIndependentComponentDescription {
+        package: PackageKeyIdentity,
+    },
+    ForeignIndependentComponentDescription {
+        package: PackageKeyIdentity,
+    },
+    DuplicateIndependentComponentDescription {
+        package: PackageKeyIdentity,
+    },
     GeneratedSourceBundleClosureMismatch {
         package: PackageKeyIdentity,
     },
@@ -1197,6 +1311,21 @@ impl fmt::Display for PackageCompilationInputError {
             Self::DuplicateGeneratedSourceBundle { package } => write!(
                 formatter,
                 "package {} has more than one generated-source bundle",
+                display_identity(*package)
+            ),
+            Self::RootIndependentComponentDescription { package } => write!(
+                formatter,
+                "root package {} cannot attach its own component description; only a dependency compiled as its own component publishes one",
+                display_identity(*package)
+            ),
+            Self::ForeignIndependentComponentDescription { package } => write!(
+                formatter,
+                "component description names foreign package {}",
+                display_identity(*package)
+            ),
+            Self::DuplicateIndependentComponentDescription { package } => write!(
+                formatter,
+                "package {} has more than one component description",
                 display_identity(*package)
             ),
             Self::MissingGeneratedSourceBundle { package } => write!(

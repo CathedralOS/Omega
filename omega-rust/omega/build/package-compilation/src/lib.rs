@@ -14,9 +14,9 @@ mod source_snapshot;
 
 pub use build_declarations::BuildDeclarationKind;
 pub use package_compilation::{
-    PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
-    PackageCompilationTargetInputs, PackageDependencyBinding, PackageDependencyClosure,
-    PackageGeneratedSourceBundle, PackageSourceBinding,
+    IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
+    PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyBinding,
+    PackageDependencyClosure, PackageGeneratedSourceBundle, PackageSourceBinding,
 };
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
