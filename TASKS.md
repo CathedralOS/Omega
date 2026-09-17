@@ -605,6 +605,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   (`fresh_record_carrier` and mapping discovery still assume a direct
   owned nominal slot), reference boundaries inside a chain, and
   call-component struct views remain.
+  Slice landed at 914fad6e23 on macOS ARM64: statement-position calls
+  before a ranking transition or component call carry write-preservation
+  evidence — a checked-body callee with inert arguments and complete
+  direct and nested value write frames disjoint from every protected
+  premise carrier is admitted, while incomplete or opaque frames,
+  premise-carrier writes, authored-operator or effectful arguments, and
+  bodyless boundary, requirement, or admitted declarations still reject
+  (`pass/termination/rank_range_{,call_component_}prefix_call`,
+  `fail/termination/rank_range_{prefix_call_premise_write,call_component_prefix_write}`).
   Still open on this item: diverging rank-input copies,
   exact slice-length/bounded-distance/custom-view arrival mappings, preserved
   premises, named-state transport for nested/borrowed record roles,
