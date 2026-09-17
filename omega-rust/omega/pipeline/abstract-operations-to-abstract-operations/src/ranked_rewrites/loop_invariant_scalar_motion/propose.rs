@@ -83,7 +83,13 @@ fn component_candidate(
 /// its discharged obligation byte-exact inside the moved operation), an
 /// invariant scalar-signature call whose callee's transitive effect summary
 /// proves no observable effect, crash, or suspension and whose member roster
-/// is unobservable throughout, or a computation whose
+/// is unobservable throughout, an invariant unit-result call —
+/// `CallUnit` — whose callee passes the same effect bar, whose member roster
+/// is unobservable, whose component performs no place mutation or custody
+/// movement, and whose every shared-borrow structural argument names a root
+/// already visible at the preheader, resolved through an invariant member
+/// structural parameter, or produced by a node earlier in the same run, or a
+/// computation whose
 /// member-internal operands are all defined by nodes earlier in the same run —
 /// plus the number of countdown-certificate constants already occupying the
 /// preheader tail (the dedicated countdown boundary owns their role order).
@@ -165,6 +171,11 @@ pub(super) fn component_plan(
     // order canonical for independent replay.
     let mut nodes = Vec::new();
     let mut relocating = std::collections::BTreeSet::new();
+    // The place roots the run's already-admitted nodes produce: a relocated
+    // establishment keeps its declared place identity byte-exact, so a
+    // structural argument spelling a member-produced root stays correct when
+    // the producer lands in the same run ahead of the call.
+    let mut relocating_roots = std::collections::BTreeSet::new();
     let mut admitted = std::collections::BTreeSet::new();
     // The transitive per-function effect table a scalar-call admission
     // consults is derived lazily — only a member carrying the call shape
@@ -217,6 +228,7 @@ pub(super) fn component_plan(
                     continue;
                 }
                 let mut root_rewrite = None;
+                let mut argument_rewrites = Vec::new();
                 let operand_rewrites = if crate::validation::admissible_scalar_leaf_relocation(node)
                 {
                     Vec::new()
@@ -344,6 +356,41 @@ pub(super) fn component_plan(
                         continue;
                     }
                     substitution.into_iter().collect()
+                } else if crate::validation::admissible_invariant_unit_call(node).is_some() {
+                    // A unit-result call keeps the scalar call's full
+                    // evidence surface — the non-speculative gate, the pure
+                    // transitive callee, and the unobservable member roster —
+                    // then adds the structural halves: the component must
+                    // perform no place mutation or custody movement (the
+                    // callee can observe caller places through its shared
+                    // borrows), every structural argument must be a shared
+                    // borrow, and each argument root must land somewhere the
+                    // run can see it — already preheader-visible, resolved
+                    // through an invariant member structural parameter, or
+                    // produced by a node the same run already covers.
+                    if !(guaranteed_entry && guaranteed.contains(member)) {
+                        continue;
+                    }
+                    let effects = call_effects.get_or_insert_with(|| {
+                        crate::validation::unit_effect_summaries(session.unit())
+                    });
+                    let Some((substitution, rewrites)) =
+                        crate::validation::invariant_unit_call_admission(
+                            function,
+                            component,
+                            node,
+                            &relocating,
+                            &relocating_roots,
+                            effects,
+                        )
+                    else {
+                        continue;
+                    };
+                    if !representable(&substitution, &relocating) {
+                        continue;
+                    }
+                    argument_rewrites = rewrites;
+                    substitution.into_iter().collect()
                 } else {
                     if !(guaranteed_entry && guaranteed.contains(member)) {
                         continue;
@@ -372,11 +419,11 @@ pub(super) fn component_plan(
                         }
                     }
                     [] => match &node.operation {
-                        // Only a shape-gated subslice or byte literal reaches
-                        // relocation without a scalar definition — any other
-                        // zero- or multi-definition node cannot pass an
-                        // admission gate, so reaching one here means the plan
-                        // drifted.
+                        // Only a shape-gated subslice, byte literal, or unit
+                        // call reaches relocation without a scalar definition
+                        // — any other zero- or multi-definition node cannot
+                        // pass an admission gate, so reaching one here means
+                        // the plan drifted.
                         AbstractOperation::ByteSequenceSubslice { result, .. }
                             if crate::validation::admissible_invariant_subslice(node).is_some() =>
                         {
@@ -387,11 +434,20 @@ pub(super) fn component_plan(
                         {
                             LoopInvariantNodeResult::LiteralPlace(*place)
                         }
+                        AbstractOperation::CallUnit { .. }
+                            if crate::validation::admissible_invariant_unit_call(node)
+                                .is_some() =>
+                        {
+                            LoopInvariantNodeResult::Unit
+                        }
                         _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                     },
                     _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                 };
                 admitted.insert(psi_operation);
+                if let Some(root) = crate::validation::produced_place_root(&node.operation) {
+                    relocating_roots.insert(root);
+                }
                 nodes.push(LoopInvariantScalarNode {
                     psi_operation,
                     result,
@@ -403,6 +459,7 @@ pub(super) fn component_plan(
                     },
                     operand_rewrites,
                     root_rewrite,
+                    argument_rewrites,
                     provenance: node.provenance.clone(),
                     fuel: node.fuel.clone(),
                 });

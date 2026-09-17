@@ -98,6 +98,19 @@ pub(crate) fn realize(
             {
                 return Err(LoopInvariantScalarMotionError::CandidateMismatch);
             }
+            if !planned.argument_rewrites.is_empty() {
+                let rewrites = planned
+                    .argument_rewrites
+                    .iter()
+                    .copied()
+                    .collect::<BTreeMap<_, _>>();
+                if !crate::validation::substitute_invariant_call_roots(
+                    &mut node.operation,
+                    &rewrites,
+                ) {
+                    return Err(LoopInvariantScalarMotionError::CandidateMismatch);
+                }
+            }
             Ok(node)
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;

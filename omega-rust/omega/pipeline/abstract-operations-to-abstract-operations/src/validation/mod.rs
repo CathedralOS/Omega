@@ -267,8 +267,9 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 
 /// Whether `component`'s member blocks perform no place mutation or custody
 /// movement at all: no store, record establishment, atomic event, or
-/// ownership event inside a member, no call that could reach a caller place
-/// through a mutating structural argument or a transferred claim, and no
+/// custody-moving ownership event inside a member, no call that could reach a
+/// caller place through a mutating structural argument or a transferred
+/// claim, and no
 /// affine discard on any component-adjacent edge. A `ByteSequenceSubslice` and
 /// an `EstablishByteSequenceLiteral` are the only establishments this bound
 /// tolerates: the subslice reads its source root's extent without mutating
@@ -276,7 +277,11 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// fresh view root —
 /// [`invariant_member_place_parameters`] already refuses member-produced
 /// roots as representatives, so the fresh view can never anchor a rebind and
-/// no member observation of an existing root changes across traversals. When
+/// no member observation of an existing root changes across traversals. A
+/// member call node always carries one `ClaimTransfer` ownership row — the
+/// custody mirror of its `claim_transfers` roster — so the bound reads the
+/// row rather than requiring an empty list: only a row actually moving a
+/// claim refuses. When
 /// this holds, every member place observation is loop-invariant — no
 /// traversal can change what it observes — so an admitted read relocates
 /// without a per-root write analysis. That whole-component bound is
@@ -293,7 +298,15 @@ pub(crate) fn component_preserves_place_observations(
             return false;
         };
         for node in &block.nodes {
-            if !node.ownership.is_empty() || !node_preserves_place_observations(&node.operation) {
+            // A member call's ownership roster is one claim-transfer row
+            // spelling the same custody its `claim_transfers` carry: an empty
+            // row moves nothing. Every other ownership event — completion,
+            // cleanup, structural return, crash frontier — is custody
+            // movement the bound refuses.
+            let custody_quiet = node.ownership.iter().all(
+                |event| matches!(event, OwnershipEvent::ClaimTransfer(claims) if claims.is_empty()),
+            );
+            if !custody_quiet || !node_preserves_place_observations(&node.operation) {
                 return false;
             }
         }
@@ -454,25 +467,39 @@ pub(crate) fn place_observation_root_visible(
 /// compare-exchange outcome. This is the producer half of
 /// [`place_observation_root_visible`].
 fn produces_place_root(operation: &O, root: PlaceId) -> bool {
+    produced_place_root(operation) == Some(root)
+}
+
+/// The place root `operation` establishes, when it establishes one: the
+/// structural-result places, the declaration-carried literal and
+/// affine-local places, and a single-attempt compare-exchange outcome. A
+/// relocated producer keeps its root byte-exact inside the moved operation,
+/// so the relocation run's produced-root roster is exactly this relation
+/// read off the moved nodes — a member node whose argument or observed root
+/// a run-covered producer declared can treat the root as landing in the
+/// preheader with its producer.
+pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
     match operation {
         O::EstablishPrimitiveLocal { result, .. }
         | O::ByteSequenceSubslice { result, .. }
         | O::EstablishScalarArray { result, .. }
         | O::EstablishScalarCase { result, .. }
         | O::EstablishRecord { result, .. }
-        | O::CallStructural { result, .. } => result.place == root,
+        | O::CallStructural { result, .. } => Some(result.place),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
-        } => result.place == root,
+        } => Some(result.place),
         O::EstablishByteSequenceLiteral { place, .. }
-        | O::EstablishTrivialAffineLocal { place, .. } => place.id == root,
-        O::AtomicEvent { event, .. } => matches!(
-            event,
-            abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. }
-                if outcome.place == root
-        ),
-        _ => false,
+        | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
+        O::AtomicEvent {
+            event:
+                abstract_operations::AbstractAtomicEvent::CompareExchangeOnce {
+                    outcome, ..
+                },
+            ..
+        } => Some(outcome.place),
+        _ => None,
     }
 }
 
@@ -1246,6 +1273,145 @@ pub(crate) fn admissible_invariant_scalar_call(node: &OptimizationNode) -> Optio
     .then_some(*callee)
 }
 
+/// Unit-result machine calls — `CallUnit` — are the structural-signature
+/// member of the call family admitted for loop-invariant motion: an exact
+/// internal callee invocation whose scalar arguments ride the shared
+/// substitution and whose structural arguments are all shared borrows. The
+/// node must keep its own operation identity as the first provenance row,
+/// define no scalar (`CallUnit` produces no result — the relocated node
+/// preserves the invocation itself), use exactly its scalar `arguments` in
+/// operand order, carry no successors, and keep no crash-route custody. A
+/// structural argument with `MutableBorrow`, `WriteOnlyBorrow`, or `Owned`
+/// access would hand the callee authority over a caller place — mutation or
+/// movement this boundary cannot re-express — so only shared borrows admit.
+/// `claim_transfers` must be empty: the node then carries exactly one
+/// vacuous `ClaimTransfer` ownership row — the custody mirror of the empty
+/// roster — which relocates byte-exact inside the moved operation.
+/// `requirement_obligations` move byte-exact exactly like a scalar call's:
+/// they were discharged against the argument values and operand substitution
+/// only rebinds a member parameter to the representative every reaching edge
+/// proves equal. Argument-root invariance and the whole-component
+/// place-custody bound are decided separately by
+/// [`invariant_unit_call_admission`].
+pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<MachineId> {
+    let O::CallUnit {
+        psi_operation,
+        callee,
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        crash_continuations,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.is_empty()
+        && node.uses.len() == arguments.len()
+        && node
+            .uses
+            .iter()
+            .zip(arguments.iter())
+            .all(|(value_use, argument)| value_use.value == *argument)
+        && node.successors.is_empty()
+        && claim_transfers.is_empty()
+        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())]
+        && crash_continuations.is_empty()
+        && structural_arguments
+            .iter()
+            .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow))
+    .then_some(*callee)
+}
+
+/// The complete unit-call admission shared by the proposal and the
+/// relocation freeze replay: `node` must carry the source-owned call shape
+/// ([`admissible_invariant_unit_call`]) — which yields the exact internal
+/// callee — the callee's transitive effect summary must prove no observable
+/// effect, no crash, and no suspension, every node inside the component's
+/// member roster must be unobservable under the same summaries, and the
+/// component must perform no place mutation or custody movement
+/// ([`component_preserves_place_observations`]) — the whole-component bound
+/// the byte family already replays, required here because the callee can
+/// observe caller places through its shared borrows: only when no member
+/// mutates any place does the relocated call observe, on every traversal,
+/// exactly what the in-loop invocation observed.
+///
+/// The callee's `structural_state` axis stays exempt under the same argument
+/// the scalar call uses, tightened by the shared-borrow whitelist: every
+/// place the callee could mutate is either activation-internal or reached
+/// through a shared borrow — verified call bindings cannot hand a shared
+/// borrow to a mutable parameter — so no caller-visible place moves, and a
+/// `May` there reflects callee-internal structural work or control edges
+/// carrying structural bindings, not caller custody.
+///
+/// Each scalar `arguments` operand then obeys the shared use-site invariance
+/// rule ([`member_scalar_operand_substitution`]). Each structural argument's
+/// root must land somewhere the relocated run can see it: already visible at
+/// the unique preheader insertion point, the representative an invariant
+/// member structural parameter resolves to
+/// ([`invariant_member_place_parameters`]), or a root a node earlier in the
+/// same run produced — `relocating_roots` — because the run preserves the
+/// producer's declared place identity and orders it ahead of the call. A
+/// member parameter the fixed point resolves rebinds on the moved node; a
+/// member-produced root the run does not cover — or any other invisible root
+/// — refuses the relocation.
+///
+/// Returns the scalar substitution plus the `(member parameter or
+/// member-produced root, preheader-visible root)` rewrites the relocated
+/// call performs on its structural arguments — empty when every argument
+/// already names a visible root.
+pub(crate) fn invariant_unit_call_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
+    effects: &crate::EffectSummaryAnalysis,
+) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
+    let callee = admissible_invariant_unit_call(node)?;
+    if !scalar_call_callee_pure(effects, callee) {
+        return None;
+    }
+    if !component_members_unobservable(function, component, effects) {
+        return None;
+    }
+    if !component_preserves_place_observations(function, component) {
+        return None;
+    }
+    let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
+    let preheader_source = shared_entry_source(component)?;
+    let preheader = function
+        .blocks
+        .iter()
+        .find(|block| block.id == preheader_source)?;
+    let representatives = invariant_member_place_parameters(function, component);
+    let O::CallUnit {
+        structural_arguments,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    let mut rewrites = Vec::new();
+    for argument in structural_arguments {
+        let resolved = if place_observation_root_visible(function, preheader, argument.place)
+            || relocating_roots.contains(&argument.place)
+        {
+            argument.place
+        } else {
+            let representative = *representatives.get(&argument.place)?;
+            (place_observation_root_visible(function, preheader, representative)
+                || relocating_roots.contains(&representative))
+            .then_some(representative)?
+        };
+        if resolved != argument.place {
+            rewrites.push((argument.place, resolved));
+        }
+    }
+    Some((substitution, rewrites))
+}
+
 /// The complete scalar-call admission shared by the proposal and the
 /// relocation freeze replay: `node` must carry the source-owned call shape
 /// ([`admissible_invariant_scalar_call`]) — which yields the exact internal
@@ -1523,6 +1689,47 @@ pub(crate) fn substitute_invariant_place_root(
     }
     *source = representative;
     true
+}
+
+/// Rebind the structural-argument roots of an admitted call operation:
+/// `rewrites` maps each member-parameter or member-produced root the
+/// admission resolved to the preheader-visible root the relocated call now
+/// names. Every static-call variant carries the same `structural_arguments`
+/// field shape, so the substitution walks whichever one the operation is —
+/// `CallUnit` is the only admitted structural-signature family today, and a
+/// relocation never reaches here for an operation the admission refused.
+/// Returns `true` only when every requested rewrite found at least one
+/// argument to rebind: a planned rewrite that fires on no argument means the
+/// plan drifted from the operation, which the relocation callers treat as a
+/// candidate mismatch. Multiple arguments may share a root — one rewrite
+/// rebinds them all.
+pub(crate) fn substitute_invariant_call_roots(
+    operation: &mut O,
+    rewrites: &BTreeMap<PlaceId, PlaceId>,
+) -> bool {
+    let arguments = match operation {
+        O::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructural {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return rewrites.is_empty(),
+    };
+    let mut applied = BTreeSet::new();
+    for argument in arguments.iter_mut() {
+        if let Some(root) = rewrites.get(&argument.place) {
+            applied.insert(argument.place);
+            argument.place = *root;
+        }
+    }
+    rewrites.keys().all(|from| applied.contains(from))
 }
 pub use prephysical_manifest::{
     PrePhysicalOptimizationManifestError, ValidatedPrePhysicalOptimizationManifest,

@@ -140,6 +140,21 @@ pub(super) fn validate(
             );
     }
     let no_relocated_results = BTreeSet::new();
+    // Place roots every relocated node produced, keyed by its home
+    // component: a structural argument of a moved call may keep spelling a
+    // member-produced root exactly when that root's producer relocated out
+    // of the same component's roster in the same run — the run preserves the
+    // producer's declared place identity, so the argument stays byte-exact.
+    let mut relocated_roots: BTreeMap<CycleComponentId, BTreeSet<PlaceId>> = BTreeMap::new();
+    for relocation in &moved {
+        if let Some(root) = crate::validation::produced_place_root(&relocation.expected.operation) {
+            relocated_roots
+                .entry(relocation.home.id.clone())
+                .or_default()
+                .insert(root);
+        }
+    }
+    let no_relocated_roots = BTreeSet::new();
 
     // Each relocated node must land in its own component's unique preheader
     // ahead of the terminator that owns every entry edge, and it must retain
@@ -217,8 +232,8 @@ pub(super) fn validate(
         // resolves to — plus the `length` coupling that keeps the moved read
         // paired with a `ByteSequenceLength` measuring the same root, so a
         // forged source, operand, or obligation spelling rejects.
-        let (substitution, root) = if leaf {
-            (BTreeMap::new(), None)
+        let (substitution, root, argument_roots) = if leaf {
+            (BTreeMap::new(), None, BTreeMap::new())
         } else if crate::validation::admissible_invariant_place_read(relocation.expected).is_some()
         {
             // The whole-component place-custody gate and the root's
@@ -230,7 +245,7 @@ pub(super) fn validate(
                 component,
                 relocation.expected,
             ) {
-                Some(root) => (BTreeMap::new(), Some(root)),
+                Some(root) => (BTreeMap::new(), Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else if crate::validation::admissible_invariant_byte_read(relocation.expected).is_some() {
@@ -247,7 +262,7 @@ pub(super) fn validate(
                     .get(&component.id)
                     .unwrap_or(&no_relocated_results),
             ) {
-                Some((root, substitution)) => (substitution, Some(root)),
+                Some((root, substitution)) => (substitution, Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else if crate::validation::admissible_invariant_subslice(relocation.expected).is_some() {
@@ -266,7 +281,7 @@ pub(super) fn validate(
                     .get(&component.id)
                     .unwrap_or(&no_relocated_results),
             ) {
-                Some((root, substitution)) => (substitution, Some(root)),
+                Some((root, substitution)) => (substitution, Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else if crate::validation::admissible_invariant_byte_literal(relocation.expected) {
@@ -277,7 +292,7 @@ pub(super) fn validate(
             // comparison. There is no observed root or scalar operand to
             // re-derive; the shared non-speculative gate above already
             // replayed because a literal is not a scalar-constant leaf.
-            (BTreeMap::new(), None)
+            (BTreeMap::new(), None, BTreeMap::new())
         } else if crate::validation::admissible_invariant_scalar_call(relocation.expected).is_some()
         {
             // A scalar call replays its whole admission from the seed: the
@@ -297,7 +312,37 @@ pub(super) fn validate(
                     .unwrap_or(&no_relocated_results),
                 effects,
             ) {
-                Some(substitution) => (substitution, None),
+                Some(substitution) => (substitution, None, BTreeMap::new()),
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::admissible_invariant_unit_call(relocation.expected).is_some() {
+            // A unit-result call replays the scalar call's whole admission
+            // plus its structural halves from the seed: the pure callee,
+            // the unobservable member roster, the whole-component
+            // place-custody bound, the shared-borrow whitelist, and each
+            // argument root's landing — already preheader-visible, resolved
+            // through an invariant member structural parameter, or produced
+            // by a node this component's run already relocated. A forged
+            // move that skipped the root rebind, kept a non-shared borrow,
+            // or left the literal's producer behind rejects here or in
+            // `same_relocated_node`'s operation comparison.
+            let effects = call_effects
+                .get_or_insert_with(|| crate::validation::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_unit_call_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
+                effects,
+            ) {
+                Some((substitution, rewrites)) => {
+                    (substitution, None, rewrites.into_iter().collect())
+                }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else {
@@ -309,11 +354,17 @@ pub(super) fn validate(
                     .get(&component.id)
                     .unwrap_or(&no_relocated_results),
             ) {
-                Some(substitution) => (substitution, None),
+                Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         };
-        if !same_relocated_node(relocation.expected, relocation.current, &substitution, root) {
+        if !same_relocated_node(
+            relocation.expected,
+            relocation.current,
+            &substitution,
+            root,
+            &argument_roots,
+        ) {
             return Err(mismatch(machine, relocation.expected_block));
         }
     }
@@ -398,6 +449,7 @@ fn same_relocated_node(
     current: &OptimizationNode,
     substitution: &BTreeMap<ValueId, ValueId>,
     root: Option<PlaceId>,
+    argument_roots: &BTreeMap<PlaceId, PlaceId>,
 ) -> bool {
     let mut operation = expected.operation.clone();
     crate::validation::substitute_invariant_scalar_operands(&mut operation, substitution);
@@ -414,6 +466,14 @@ fn same_relocated_node(
         if !rebound {
             return false;
         }
+    }
+    if !argument_roots.is_empty()
+        && !crate::validation::substitute_invariant_call_roots(&mut operation, argument_roots)
+    {
+        // Admission re-derived the rewrites from the seed, so a rewrite that
+        // finds no matching structural argument means the moved node drifted
+        // from the plan.
+        return false;
     }
     operation == current.operation
         && expected.provenance == current.provenance

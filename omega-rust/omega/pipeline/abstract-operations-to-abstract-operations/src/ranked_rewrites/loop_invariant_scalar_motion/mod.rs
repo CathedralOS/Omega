@@ -36,7 +36,7 @@ pub use model::{
 /// Propose every unique-preheader cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, invariant place observations, byte observations, pure-callee
-/// scalar-signature calls, and
+/// scalar-signature and shared-borrow unit calls, and
 /// side-effect-free scalar
 /// computations — including exact, saturating, and
 /// wrapping variants carrying a verifier-discharged obligation, which moves
@@ -71,7 +71,18 @@ pub use model::{
 /// must be unobservable, so hoisting the call's possible divergence can
 /// never reorder member work anyone could see. Its scalar arguments obey the
 /// same member-parameter substitution a computation obeys; discharged
-/// requirement obligations move byte-exact inside the operation.
+/// requirement obligations move byte-exact inside the operation. A
+/// `CallUnit` — a structural-signature call producing no result — adds the
+/// family's second call relocation on top of that evidence: the component
+/// must additionally preserve all place custody (the callee can observe
+/// caller places through its borrows), every structural argument must be a
+/// shared borrow — no mutable, write-only, or owned access may reach a
+/// caller place — its claim roster must be empty (the vacuous
+/// `ClaimTransfer` ownership row moves byte-exact with the operation), and
+/// each argument's root must be visible at the preheader insertion point
+/// either directly, through an invariant member structural parameter's
+/// representative (rebound on the moved node), or through a node earlier in
+/// the same run that produced the root (the argument stays byte-exact).
 /// Computation,
 /// observation, and establishment
 /// relocation is non-speculative: every successor of the unique preheader's
