@@ -164,7 +164,13 @@ fn prove(
                 source_fields.include(actual);
                 value
             } else {
-                field.actual(program, caller_state, &mut source_engine, *argument)?
+                field.actual(
+                    program,
+                    caller_state,
+                    &mut source_engine,
+                    *argument,
+                    field.borrowed,
+                )?
             };
             substitutions.insert(field.identity.clone(), actual);
         }
