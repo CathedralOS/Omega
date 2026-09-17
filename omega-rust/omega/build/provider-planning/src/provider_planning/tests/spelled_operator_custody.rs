@@ -185,3 +185,99 @@ fn later_failure_publishes_no_staged_fixed_token_checked_adapter_update() {
     assert_eq!(retained_use.provider_plan_report_fingerprint, 0);
     assert!(retained_use.provider_plan_commitment.is_empty());
 }
+
+/// The provider realizes `+` and spells `+` inside its own body; the caller
+/// invokes the realization machine directly. Only the provider-internal
+/// spelling is a boundary-operator use.
+fn self_spelling_checked_adapter_fixture() -> (checked_trees::CheckedTrees, ProviderPlan) {
+    let source = r#"
+        data CheckedMath {}
+        boundary operator + CheckedMath::add(left: f64, right: f64) -> f64;
+
+        data CheckedMathProvider {}
+        machine CheckedMathProvider::add(left: f64, right: f64) -> f64
+        satisfies CheckedMath::add
+        {
+            transition { _ -> (left + right) }
+        }
+
+        machine run(left: f64, right: f64) -> f64 {
+            transition { _ -> (CheckedMathProvider::add(left, right)) }
+        }
+    "#;
+    let typed = super::typed_fixture(source);
+    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
+    let [plan] = plans.as_slice() else {
+        panic!(
+            "self-spelling checked-adapter fixture must derive one provider plan, got {}",
+            plans.len()
+        )
+    };
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("check self-spelling checked-adapter fixture");
+    (checked, plan.clone())
+}
+
+#[test]
+fn spelling_the_operator_inside_the_provider_redispatches_while_a_direct_call_delegates() {
+    let (checked, plan) = self_spelling_checked_adapter_fixture();
+    let provider_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "CheckedMathProvider::add")
+        .expect("the realization machine")
+        .symbol;
+    assert!(checked.facts.operators.named_uses.is_empty());
+    let uses = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .map(|(handle, operator_use)| (handle, *operator_use))
+        .collect::<Vec<_>>();
+    let [(use_handle, use_before)] = uses.as_slice() else {
+        panic!(
+            "exactly one spelled use: the direct call in `run` is an ordinary call, got {}",
+            uses.len()
+        )
+    };
+    let checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } =
+        use_before.origin
+    else {
+        panic!("the spelled use originates in a machine state")
+    };
+    assert_eq!(
+        machine_symbol, provider_machine,
+        "the only spelled use is the provider's own `+`"
+    );
+    assert_eq!(use_before.provider_plan_report_fingerprint, 0);
+
+    let original = Arc::new(checked);
+    let selected = effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("select the self-spelling provider");
+    let binding = bind_selected_provider_plan_facts(
+        &original,
+        std::slice::from_ref(&plan),
+        selected,
+        &[],
+        &[],
+    )
+    .expect("the provider-internal spelling redispatches through the selected plan");
+    let (bound, _, _) = binding.into_parts();
+    let bound_use = bound.facts.operators.uses.get(*use_handle);
+    assert_eq!(
+        bound_use.provider_plan_report_fingerprint,
+        plan.report_fingerprint()
+    );
+    assert_eq!(
+        bound_use.provider_plan_commitment.as_bytes(),
+        plan.identity_digest().as_bytes()
+    );
+}
