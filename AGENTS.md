@@ -454,6 +454,7 @@ Use that exact local copy; these repository contracts take precedence.
 - Source text is source-loading, diagnostic, and debug payload. Beyond resolution, source-backed names are technical debt unless they are literal program strings, diagnostics/debug metadata, or final-image import/export payload.
 - Use stable handles when data needs references across phases; use redirect tables only when arena contents need reordering.
 - Comments should explain non-obvious intent. Do not add “doing X unlike Rust” commentary unless the contrast changes implementation.
+- Crate `lib.rs` headers carry the reasoning signatures cannot: mechanism, justification, honest boundaries, and provenance. `omega-rust/omega/backend/images/image/src/lib.rs` and `omega-rust/psi/semantics/terminal-fixed-fuel/src/lib.rs` are the established exemplars.
 
 Configuration that looks wrong but is deliberate:
 
