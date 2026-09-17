@@ -692,3 +692,72 @@ fn scalar_computations_retain_integer_initializer_applications() {
         CheckedScalarComputationKind::Value(_)
     ));
 }
+
+#[test]
+fn scalar_computations_keep_self_target_argument_coordinates() {
+    let checked = checked_source(
+        r#"
+        machine helper(input: u64) -> u64 { input }
+        data Main { hits: u64; }
+        machine Main::run(flag: bool) -> u64 {
+            transition flag {
+                true -> fwd(helper(41))
+                _ -> fwd(0)
+            }
+            state fwd(&mut self, n: u64) -> u64 {
+                n
+            }
+        }
+        "#,
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| root.state == state.symbol)
+        .collect::<Vec<_>>();
+    // `fwd(&mut self, n)` declares `n` at parameter position 1; the authored
+    // actual list never carries the implicit receiver. Both arms share that
+    // full target coordinate, matching the pure plan and jump-argument
+    // capture, so only the call-bearing arm needs a computation.
+    let [computed] = roots.as_slice() else {
+        panic!("only the call argument arm retains a computation root")
+    };
+    assert_eq!(computed.statement_ordinal, 0);
+    assert_eq!(
+        computed.role,
+        CheckedScalarExpressionRole::TransitionArgument {
+            argument_ordinal: 1
+        }
+    );
+    let CheckedScalarComputationKind::Call { call_ordinal, .. } =
+        plans.nodes.get(computed.root).kind
+    else {
+        panic!("the argument evaluation keeps its invocation")
+    };
+    assert_eq!(call_ordinal, 1);
+    // The pure `fwd(0)` arm still supplies its own binding at the same
+    // coordinate; no duplicate computation is recorded for it.
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                state.symbol,
+                1,
+                CheckedScalarExpressionRole::TransitionArgument {
+                    argument_ordinal: 1
+                },
+            )
+            .is_some()
+    );
+}
