@@ -2330,11 +2330,24 @@ Owners include
   clauses (no scalar residual equality), a `requires` bound does not
   propagate a subtraction's lower bound, and entry `requires` facts do not
   survive the first request's consumption of the backing — so each request's
-  residual is a caller-stated premise. Next acceptance: a `Vec<T>`-style
-  container over the chain — blocked on placement operations:
-  `Vacant`/`Resident<P,T>` are declared vocabulary without place/take/read
-  operations (wiki/spec/resources/placed_access.md), so no element can be
-  established inside an issued extent.
+  residual is a caller-stated premise. At 16fee936df the canary
+  establishes, reads and retires one resident element through a package
+  `ResidentStorage` boundary (`place` -> `Occupied { storage: Extent in
+  Granted & Resident<SlotPlacement, Slot> }`, borrowed `read`, owned
+  `retire` -> `Granted & Vacant`), the `ResidentContentTransfer<P,T>`
+  provider-issuance route spelled as one concrete application; fail
+  canaries `memory/bump_allocator_{reset_with_live_resident,
+  resident_dropped,place_into_occupied}` pin the rejections. Two Psi edges
+  keep residents record-carried: an indexed domain does not parse in a
+  proof-fact position (`ensures result in Granted & Resident<P, T>` stops
+  at `<` in the tokens-to-syntax-trees proof-fact grammar), and a
+  typed-let restatement of `Resident<P,T>` is unprovable at a call
+  `requires` because `semantic/field_domains.rs` restates with
+  `SemanticDomainId::NULL` while `checks/contracts/prover.rs` proves
+  indexed membership only against an equal valid instance. Next
+  acceptance: a `Vec<T>`-style container over the chain, which still
+  needs compiler-owned `Initialize`/placed-view establishment (plan
+  evaluation of `P` over `T`, Stable-supply admission).
 
 - **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,
   backing, policy, installation, and teardown in Omega source. Existing numeric
