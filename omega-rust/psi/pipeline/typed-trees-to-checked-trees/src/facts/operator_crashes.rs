@@ -107,6 +107,7 @@ pub(crate) fn build(
             .get_or_insert_with(|| validation::build_content_conservation_plans(program));
         let (published, surviving) = retained_operator_crash_routes(
             program,
+            operators,
             flow,
             semantic,
             operator_use_handle,
@@ -183,6 +184,7 @@ pub(crate) fn build(
             .get_or_insert_with(|| validation::build_content_conservation_plans(program));
         let (published, surviving) = retained_operator_crash_routes(
             program,
+            operators,
             flow,
             semantic,
             arena::Handle::invalid(),
@@ -223,6 +225,7 @@ pub(crate) fn build(
 #[allow(clippy::too_many_arguments)]
 fn retained_operator_crash_routes(
     program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     semantic: &FactPlan,
     operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
@@ -235,8 +238,12 @@ fn retained_operator_crash_routes(
     statement_index: usize,
     content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> (Vec<CrashRouteBucket>, Vec<CrashRouteBucket>) {
-    let published =
-        super::derive_authored_operator_crash_buckets(program, operator, content_conservation);
+    let published = super::derive_authored_operator_crash_buckets(
+        program,
+        operator,
+        operators,
+        content_conservation,
+    );
     let parameter_names = parameters
         .iter()
         .map(|parameter| parameter.name.as_str().to_owned())

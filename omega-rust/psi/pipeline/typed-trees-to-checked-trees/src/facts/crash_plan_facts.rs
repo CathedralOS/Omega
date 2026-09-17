@@ -315,9 +315,15 @@ pub(crate) fn derive_authored_signature_crash_buckets(
     )
 }
 
+/// An operator declaration's published buckets. Each guarded route carries
+/// its structured scalar form over the operator's own formal parameters
+/// (dense scalar position, the telescope Terminal operation crash contracts
+/// read as formal `k + 1`); a route the operator reader cannot structure
+/// keeps its identity only, so downstream lowering still fails closed on it.
 pub(crate) fn derive_authored_operator_crash_buckets(
     program: &TypedTrees,
     operator: &typed_trees::operator::OperatorDefinition,
+    operators: &checked_trees::CheckedOperatorFacts,
     content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> Vec<checked_trees::CrashRouteBucket> {
     let parameter_names = program
@@ -332,8 +338,8 @@ pub(crate) fn derive_authored_operator_crash_buckets(
             .span_or_empty(operator.contracts),
         &parameter_names,
         content_conservation,
-        None,
-        None,
+        Some(CrashContractOwner::Operator(operator)),
+        Some(operators),
         &[],
     )
 }
@@ -341,6 +347,7 @@ pub(crate) fn derive_authored_operator_crash_buckets(
 enum CrashContractOwner<'program> {
     Machine(&'program typed_trees::machine::Machine),
     Signature(&'program typed_trees::signature::StateSignature),
+    Operator(&'program typed_trees::operator::OperatorDefinition),
 }
 
 fn build_published_crash_buckets(
@@ -412,6 +419,14 @@ fn build_published_crash_buckets(
                                     program,
                                     operators,
                                     signature,
+                                    *expression,
+                                )
+                            }
+                            CrashContractOwner::Operator(operator) => {
+                                crate::values::lower_operator_crash_contract_expression(
+                                    program,
+                                    operators,
+                                    operator,
                                     *expression,
                                 )
                             }

@@ -272,3 +272,132 @@ fn named_call_keeps_a_route_after_the_operand_storage_is_overwritten() {
         "{diagnostics:#?}"
     );
 }
+
+fn published_guard_forms(
+    checked: &CheckedTrees,
+) -> Vec<Option<checked_trees::CheckedBooleanExpression>> {
+    checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| machine.crash.checked_operators())
+        .flat_map(|site| site.published.iter())
+        .flat_map(|bucket| bucket.alternative_guards())
+        .map(|guard| match guard {
+            checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                predicate.scalar_expression().cloned()
+            }
+            checked_trees::CrashRouteGuard::Truth => panic!("a guarded route, not Truth"),
+        })
+        .collect()
+}
+
+/// `!(right >= 0)` over the operator's own formals: `right` is dense scalar
+/// position 1 (the Terminal operation-contract formal 2) and the literal
+/// lands in the operand's `i32`.
+fn assert_negated_right_at_least_zero(form: &checked_trees::CheckedBooleanExpression) {
+    use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+    use typed_trees::types::PrimitiveType;
+    let CheckedBooleanExpression::Not(comparison) = form else {
+        panic!("the negation survives: {form:?}");
+    };
+    let CheckedBooleanExpression::IntegerComparison { kind, left, right } = comparison.as_ref()
+    else {
+        panic!("an integer comparison over the formals: {form:?}");
+    };
+    assert_eq!(
+        *kind,
+        checked_trees::CheckedIntegerComparisonKind::LessOrEqual
+    );
+    assert!(
+        matches!(
+            left.as_ref(),
+            CheckedScalarExpression::IntegerLiteral { .. }
+        ),
+        "{form:?}"
+    );
+    assert_eq!(
+        right.as_ref(),
+        &CheckedScalarExpression::Parameter {
+            position: 1,
+            primitive_type: PrimitiveType::I32,
+        },
+        "{form:?}"
+    );
+}
+
+#[test]
+fn authored_operator_crash_buckets_carry_their_structured_guard_forms() {
+    // Both declaration forms publish the same guard over their own formal
+    // parameters. Neither owns a machine contract plan in the checked
+    // output, so the site's published bucket is the only carrier the
+    // Terminal producer can read the form from. A spelled use and a named
+    // call read the same declaration and therefore the same form.
+    for (declaration, use_site) in [
+        (
+            "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+             crashes Trap !(right >= 0);",
+            "1 == value",
+        ),
+        (
+            "boundary machine == Comparison::equal(left: i32, right: i32) -> bool
+             crashes Trap !(right >= 0);",
+            "1 == value",
+        ),
+        (
+            "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+             crashes Trap !(right >= 0);",
+            "Comparison::equal(1, value)",
+        ),
+    ] {
+        let source = format!(
+            "{declaration}
+             pub machine safe(value: i32) -> bool
+             requires value >= 0 {{ {use_site} }}"
+        );
+        let checked = check(&source).expect("the entry fact discharges the route");
+        let forms = published_guard_forms(&checked);
+        let [Some(form)] = forms.as_slice() else {
+            panic!("one guarded published route with a structured form: {forms:?}");
+        };
+        assert_negated_right_at_least_zero(form);
+        let sites = checked
+            .facts
+            .contract_plans
+            .machines
+            .iter()
+            .flat_map(|machine| machine.crash.checked_operators())
+            .collect::<Vec<_>>();
+        let [site] = sites.as_slice() else {
+            panic!("one operator crash site");
+        };
+        assert!(
+            checked
+                .facts
+                .contract_plans
+                .for_machine(site.selected_operator)
+                .is_none(),
+            "{declaration}"
+        );
+        assert_eq!(published_guard_forms(&inspect(&source)), forms);
+    }
+}
+
+#[test]
+fn a_structural_operator_formal_keeps_its_route_identity_only() {
+    // The operator reader binds scalar formals; a guard through a structural
+    // formal has no scalar telescope position, so the route keeps its
+    // canonical identity and no structured form. Nothing downstream may read
+    // that absence as a crash-free route.
+    let checked = inspect(
+        "pub data Rec { count: i32 }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine safe(rec: Rec) -> bool
+         requires rec.count >= 0 {
+             Ns::probe(&rec)
+         }",
+    );
+    assert_eq!(published_guard_forms(&checked), vec![None]);
+}
