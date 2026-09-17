@@ -1,8 +1,8 @@
 use super::{
     BlockZeroTerminator, assert_budget_is_enforced, assert_deterministic_fixed_point, fold_with,
-    policy_without, policy_without_all, restage_literal, staged_saturating_divide_carrier_inputs,
-    staged_saturating_divide_inputs, staged_saturating_subtract_inputs, staged_wrapping_add_inputs,
-    validate,
+    policy_without, policy_without_all, restage_literal,
+    staged_saturating_divide_zero_dividend_carrier_inputs, staged_saturating_subtract_inputs,
+    staged_wrapping_add_inputs, validate,
 };
 use crate::RecoveryClassification;
 use crate::{LiteralFoldError, LiteralFoldPolicy, validated_machine_effect_catalog};
@@ -99,7 +99,7 @@ fn tail_shape(
 }
 
 #[test]
-fn saturating_divide_one_fold_rewrites_every_unsigned_carrier_consumer() {
+fn saturating_divide_zero_dividend_fold_rewrites_every_unsigned_carrier_consumer() {
     for (target, block0) in unsigned_fixtures() {
         let environment = baseline_target_register_environment(target).unwrap();
         let keys = environment.allocation_constraint_keys();
@@ -128,16 +128,17 @@ fn saturating_divide_one_fold_rewrites_every_unsigned_carrier_consumer() {
             assert!(consumer_row.clobbers.is_empty());
         }
         for carrier in unsigned_carriers() {
-            let inputs = staged_saturating_divide_carrier_inputs(target, carrier, 1, block0);
+            let inputs =
+                staged_saturating_divide_zero_dividend_carrier_inputs(target, carrier, 0, block0);
             let result = fold_with(
                 &inputs,
                 &environment,
-                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
             )
             .unwrap_or_else(|error| {
                 panic!(
-                    "saturating-divide-one fold on {carrier:?} with the literal at operand 1 on \
-                     {target:?} should validate: {error:?}"
+                    "saturating-divide-zero-dividend fold on {carrier:?} with the literal at \
+                     operand 0 on {target:?} should validate: {error:?}"
                 )
             });
 
@@ -148,11 +149,14 @@ fn saturating_divide_one_fold_rewrites_every_unsigned_carrier_consumer() {
             assert_eq!(result.receipt().applied_count(), 1);
             let action = result.plan().functions[0].action.unwrap();
             assert_eq!(action.result, Some(VirtualRegisterId(2)));
-            // The recorded immediate is the folded literal itself — one —
-            // the evidence the divide's encoded fault cannot fire; the
-            // `CopyI64` rewrite binds the surviving register rather than
-            // embedding a constant.
-            assert_eq!(action.immediate, 1);
+            // The recorded immediate is the constant the rewritten
+            // `MaterializeI64` embeds — zero — which the folded zero
+            // dividend already is; the divide-by-zero fault discharge
+            // rests on the carried obligation, not the literal.
+            assert_eq!(action.immediate, 0);
+            // The surviving register records the dropped operand-1
+            // divisor `Use` for custody; the rewritten row binds no
+            // `Use` at all.
             assert_eq!(action.surviving, VirtualRegisterId(0));
             assert_eq!(action.victim, VirtualRegisterId(1));
             assert_eq!(
@@ -163,13 +167,14 @@ fn saturating_divide_one_fold_rewrites_every_unsigned_carrier_consumer() {
                 action.consumer_instruction,
                 SelectedInstructionId(auxiliaries as u32 + 1)
             );
-            assert_eq!(action.immediate_constraint, keys.copy_i64);
+            assert_eq!(action.immediate_constraint, keys.materialize_i64);
 
             let function = &result.transformed().functions[0];
-            // The fold removes only the divisor literal and its register:
-            // the surviving operand, the result, and every dropped tail
-            // register stay declared, redensified past the removed victim;
-            // each auxiliary zero materialization stays, left dead.
+            // The fold removes only the dividend literal and its
+            // register: the divisor operand, the result, and every
+            // dropped tail register stay declared, redensified past the
+            // removed victim; each auxiliary zero materialization stays,
+            // left dead.
             assert_eq!(function.virtual_registers.len(), 2 + tail);
             let instructions = &function.blocks[0].instructions;
             assert_eq!(instructions.len(), 1 + auxiliaries);
@@ -184,28 +189,33 @@ fn saturating_divide_one_fold_rewrites_every_unsigned_carrier_consumer() {
             }
             let rewritten = &instructions[auxiliaries];
             assert_eq!(rewritten.id, SelectedInstructionId(auxiliaries as u32));
-            assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
-            assert_eq!(rewritten.constraint, keys.copy_i64);
-            // The rebuilt operand list binds only the surviving `Use` and
-            // the result `Def` — redensified to `VirtualRegisterId(1)` —
-            // from the clean copy row: the register pins and the dropped
-            // tail are gone with the divide form, and so is every unit
-            // effect it carried. `FaultDischargedByLiteralDeadUnitDefs`
-            // retires the x86-64 `rdx`/`rflags` clobbers unconditionally —
-            // dropping a clobber only narrows destruction.
-            assert_eq!(rewritten.operands.len(), 2);
-            assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(0));
-            assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
-            assert_eq!(rewritten.operands[1].virtual_register, VirtualRegisterId(1));
-            assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Def);
-            assert!(!rewritten.operands[1].early_clobber);
+            assert_eq!(
+                rewritten.kind,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(0),
+                }
+            );
+            assert_eq!(rewritten.constraint, keys.materialize_i64);
+            // The rebuilt operand list binds only the result `Def` —
+            // redensified to `VirtualRegisterId(1)` — from the clean
+            // materialize row: the register pins, the dropped divisor
+            // `Use`, and the dropped tail are gone with the divide form,
+            // and so is every unit effect it carried.
+            // `FaultDischargedByObligationDeadUnitDefs` retires the
+            // x86-64 `rdx`/`rflags` clobbers unconditionally — dropping
+            // a clobber only narrows destruction.
+            assert_eq!(rewritten.operands.len(), 1);
+            assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(1));
+            assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Def);
+            assert_eq!(rewritten.operands[0].fixed_view, None);
+            assert!(!rewritten.operands[0].early_clobber);
             assert!(rewritten.implicit_uses.is_empty());
             assert!(rewritten.implicit_defs.is_empty());
             assert!(rewritten.clobbers.is_empty());
             // The folded literal's provenance joins the consumer's, and
             // the divide's obligation custody is retained — the fold's
-            // fault discharge rests on the literal, but the rewritten
-            // record still carries the obligation its source declared.
+            // fault discharge rests on the carried nonzero-divisor
+            // obligation, so the rewritten record still carries it.
             assert_eq!(rewritten.provenance.operations.len(), 2);
             assert_eq!(
                 rewritten.provenance.obligations,
@@ -240,7 +250,7 @@ fn saturating_divide_one_fold_rewrites_every_unsigned_carrier_consumer() {
 }
 
 #[test]
-fn saturating_divide_one_fold_rewrites_every_signed_carrier_consumer() {
+fn saturating_divide_zero_dividend_fold_rewrites_every_signed_carrier_consumer() {
     for (target, block0) in signed_fixtures() {
         let environment = baseline_target_register_environment(target).unwrap();
         let keys = environment.allocation_constraint_keys();
@@ -248,12 +258,13 @@ fn saturating_divide_one_fold_rewrites_every_signed_carrier_consumer() {
             validated_machine_effect_catalog(environment.target(), environment.constraints())
                 .unwrap();
         // The signed divide row carries both surfaces this family
-        // retires: the encoded `MayArchitecturalFaultV1` the divisor-one
-        // literal discharges and the unit traffic the rewritten copy
-        // drops — x86-64's `idiv` clobbers `rdx`/`rflags` behind the same
-        // operand-3 zeroed `Use` the unsigned row reads, while aarch64's
-        // clamped form defines `nzcv` and writes a bound scratch `Def` at
-        // operand 3, both `Def`s early-clobber.
+        // retires: the encoded `MayArchitecturalFaultV1` the carried
+        // nonzero-divisor obligation discharges and the unit traffic the
+        // rewritten materialization drops — x86-64's `idiv` clobbers
+        // `rdx`/`rflags` behind the same operand-3 zeroed `Use` the
+        // unsigned row reads, while aarch64's clamped form defines
+        // `nzcv` and writes a bound scratch `Def` at operand 3, both
+        // `Def`s early-clobber.
         let consumer_row = environment
             .constraint(keys.saturating_divide_signed)
             .unwrap();
@@ -280,16 +291,17 @@ fn saturating_divide_one_fold_rewrites_every_signed_carrier_consumer() {
             assert!(consumer_row.operands[3].early_clobber);
         }
         for carrier in signed_carriers() {
-            let inputs = staged_saturating_divide_carrier_inputs(target, carrier, 1, block0);
+            let inputs =
+                staged_saturating_divide_zero_dividend_carrier_inputs(target, carrier, 0, block0);
             let result = fold_with(
                 &inputs,
                 &environment,
-                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
             )
             .unwrap_or_else(|error| {
                 panic!(
-                    "saturating-divide-one fold on {carrier:?} with the literal at operand 1 on \
-                     {target:?} should validate: {error:?}"
+                    "saturating-divide-zero-dividend fold on {carrier:?} with the literal at \
+                     operand 0 on {target:?} should validate: {error:?}"
                 )
             });
 
@@ -300,7 +312,7 @@ fn saturating_divide_one_fold_rewrites_every_signed_carrier_consumer() {
             assert_eq!(result.receipt().applied_count(), 1);
             let action = result.plan().functions[0].action.unwrap();
             assert_eq!(action.result, Some(VirtualRegisterId(2)));
-            assert_eq!(action.immediate, 1);
+            assert_eq!(action.immediate, 0);
             assert_eq!(action.surviving, VirtualRegisterId(0));
             assert_eq!(action.victim, VirtualRegisterId(1));
             assert_eq!(
@@ -311,12 +323,12 @@ fn saturating_divide_one_fold_rewrites_every_signed_carrier_consumer() {
                 action.consumer_instruction,
                 SelectedInstructionId(auxiliaries as u32 + 1)
             );
-            assert_eq!(action.immediate_constraint, keys.copy_i64);
+            assert_eq!(action.immediate_constraint, keys.materialize_i64);
 
             let function = &result.transformed().functions[0];
-            // The fold removes only the divisor literal and its register:
-            // the surviving operand, the result, and the dropped tail
-            // register stay declared, redensified past the removed
+            // The fold removes only the dividend literal and its
+            // register: the divisor operand, the result, and the dropped
+            // tail register stay declared, redensified past the removed
             // victim — the aarch64 scratch entry carries no operand
             // occurrence past the rewrite.
             assert_eq!(function.virtual_registers.len(), 2 + tail);
@@ -333,14 +345,18 @@ fn saturating_divide_one_fold_rewrites_every_signed_carrier_consumer() {
             }
             let rewritten = &instructions[auxiliaries];
             assert_eq!(rewritten.id, SelectedInstructionId(auxiliaries as u32));
-            assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
-            assert_eq!(rewritten.constraint, keys.copy_i64);
-            assert_eq!(rewritten.operands.len(), 2);
-            assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(0));
-            assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
-            assert_eq!(rewritten.operands[1].virtual_register, VirtualRegisterId(1));
-            assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Def);
-            assert!(!rewritten.operands[1].early_clobber);
+            assert_eq!(
+                rewritten.kind,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(0),
+                }
+            );
+            assert_eq!(rewritten.constraint, keys.materialize_i64);
+            assert_eq!(rewritten.operands.len(), 1);
+            assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(1));
+            assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Def);
+            assert_eq!(rewritten.operands[0].fixed_view, None);
+            assert!(!rewritten.operands[0].early_clobber);
             assert!(rewritten.implicit_uses.is_empty());
             assert!(rewritten.implicit_defs.is_empty());
             assert!(rewritten.clobbers.is_empty());
@@ -354,91 +370,153 @@ fn saturating_divide_one_fold_rewrites_every_signed_carrier_consumer() {
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_a_non_one_divisor() {
+fn saturating_divide_zero_dividend_fold_rejects_a_non_zero_dividend() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        // The literal is the right divisor identity only when it is
-        // exactly one: `x /| 2` is a different computation both the
+        // The literal is the zero dividend only under the constant fold:
+        // a dividend of one or seven is a different computation both the
         // producer's declared bound and the replay's re-derived grammar
-        // reject — and `x /| 0` rejects the same way even though a
-        // saturating divide by zero clamps rather than faults.
-        for divisor in [0, 2] {
-            let mut inputs = staged_saturating_divide_inputs(target, 1, BlockZeroTerminator::Jump);
-            restage_literal(&mut inputs, divisor);
+        // reject — and a dividend of one does not become the sibling
+        // divisor-one fold by value, which binds the divisor position.
+        for dividend in [1, 7] {
+            let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
+                target,
+                SaturatingCarrier::U64,
+                0,
+                BlockZeroTerminator::Jump,
+            );
+            restage_literal(&mut inputs, dividend);
             assert_eq!(
                 fold_with(
                     &inputs,
                     &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
                 )
                 .map(|_| ()),
                 Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} divisor {divisor}"
+                "{target:?} dividend {dividend}"
             );
             assert_eq!(
                 validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
                 Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} divisor {divisor} replay"
+                "{target:?} dividend {dividend} replay"
             );
         }
     }
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_the_left_literal_form() {
-    // Division does not commute: `1 /| x` is `1 / x` clamped, not `x`,
-    // so the family declares no left-literal grammar at all. Staging the
-    // one literal at operand 0 — the consumer's own `Use` position for
-    // its dividend — records a future use at a position no admitted
-    // shape folds: both the producer's descriptor selection and the
-    // replay's independently re-derived operand-1 victim position refuse
-    // it as a future-use mismatch, on the unsigned row and the signed
-    // row alike.
+fn saturating_divide_zero_dividend_fold_rejects_a_missing_obligation() {
+    // The fold's fault discharge is the carried nonzero-divisor
+    // obligation, not the folded literal — a zero dividend over an
+    // unproven divisor would still fault. A consumer record that no
+    // longer retains the obligation its kind declares cannot fold: the
+    // producer's `admits_consumer_obligation` and the replay's
+    // independent obligation check reject alike on both targets and on
+    // both row shapes.
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
-            let inputs = staged_saturating_divide_carrier_inputs(
+            let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
                 target,
                 carrier,
                 0,
+                BlockZeroTerminator::Jump,
+            );
+            let mut plan = inputs.selected.transformed().clone();
+            plan.functions[0].blocks[0]
+                .instructions
+                .iter_mut()
+                .find(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        SelectedInstructionKind::SaturatingDivide { .. }
+                    )
+                })
+                .unwrap()
+                .provenance
+                .obligations
+                .clear();
+            let mut selected = inputs.selected.clone();
+            selected.transformed = Arc::new(plan);
+            inputs.selected = selected;
+
+            assert_eq!(
+                fold_with(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
+                )
+                .map(|_| ()),
+                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
+                "{carrier:?} on {target:?} with no carried obligation"
+            );
+            assert_eq!(
+                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
+                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
+                "{carrier:?} on {target:?} with no carried obligation, replay"
+            );
+        }
+    }
+}
+
+#[test]
+fn saturating_divide_zero_dividend_fold_rejects_the_right_literal_form() {
+    // Division does not commute: `x /| 0` is the divide-by-zero case the
+    // family deliberately does not fold, not a constant zero, so the
+    // family declares no right-literal grammar at all. Staging the zero
+    // literal at operand 1 — the consumer's own `Use` position for its
+    // divisor — records a future use at a position no admitted shape
+    // folds: both the producer's descriptor selection and the replay's
+    // independently re-derived operand-0 victim position refuse it as a
+    // future-use mismatch, on the unsigned row and the signed row alike.
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
+            let inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
+                target,
+                carrier,
+                1,
                 BlockZeroTerminator::Jump,
             );
             assert_eq!(
                 fold_with(
                     &inputs,
                     &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
                 )
                 .map(|_| ()),
                 Err(LiteralFoldError::FutureUseMismatch { function: 0 }),
-                "{carrier:?} `1 /| x` on {target:?} names no admitted grammar"
+                "{carrier:?} `x /| 0` on {target:?} names no admitted grammar"
             );
             assert_eq!(
                 validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
                 Err(LiteralFoldError::FutureUseMismatch { function: 0 }),
-                "{carrier:?} `1 /| x` on {target:?} names no admitted grammar, replay"
+                "{carrier:?} `x /| 0` on {target:?} names no admitted grammar, replay"
             );
         }
     }
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_an_auxiliary_operand_without_zero_custody() {
+fn saturating_divide_zero_dividend_fold_rejects_an_auxiliary_operand_without_zero_custody() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // Both x86-64 divide rows — the unsigned `div` and the signed `idiv`
     // — read the zeroed high-half dividend through the operand-3 `Use`.
     // A `Use` operand past the result is droppable only when its register
-    // is defined solely by zero materializations: a nonzero
-    // materialization, a non-materialize definition, a `Def` or `UseDef`
-    // at the tail position, and a register no instruction defines each
-    // reject — the producer and the independent replay alike.
+    // is defined solely by zero materializations: a literal of zero at
+    // operand 0 fixes only the low dividend half the pinned `div`/`idiv`
+    // reads. A nonzero materialization, a non-materialize definition, a
+    // `Def` or `UseDef` at the tail position, and a register no
+    // instruction defines each reject — the producer and the independent
+    // replay alike.
     for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
         for mutation in 0..5 {
-            let mut inputs = staged_saturating_divide_carrier_inputs(
+            let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
                 target,
                 carrier,
-                1,
+                0,
                 BlockZeroTerminator::Jump,
             );
             let mut plan = inputs.selected.transformed().clone();
@@ -472,7 +550,7 @@ fn saturating_divide_one_fold_rejects_an_auxiliary_operand_without_zero_custody(
                 fold_with(
                     &inputs,
                     &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
                 )
                 .map(|_| ()),
                 Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
@@ -488,7 +566,7 @@ fn saturating_divide_one_fold_rejects_an_auxiliary_operand_without_zero_custody(
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_a_scratch_def_without_dead_custody() {
+fn saturating_divide_zero_dividend_fold_rejects_a_scratch_def_without_dead_custody() {
     let target = NativeTarget::linux_arm64();
     let environment = baseline_target_register_environment(target).unwrap();
     // aarch64's clamped signed row writes the bound scratch `Def` at
@@ -501,10 +579,10 @@ fn saturating_divide_one_fold_rejects_a_scratch_def_without_dead_custody() {
     // position already carries leaves a surviving read of a definition
     // the rewrite would stop making.
     for mutation in 0..3 {
-        let mut inputs = staged_saturating_divide_carrier_inputs(
+        let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
             target,
             SaturatingCarrier::I32,
-            1,
+            0,
             BlockZeroTerminator::Jump,
         );
         let mut plan = inputs.selected.transformed().clone();
@@ -521,7 +599,7 @@ fn saturating_divide_one_fold_rejects_a_scratch_def_without_dead_custody() {
             fold_with(
                 &inputs,
                 &environment,
-                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
             )
             .map(|_| ()),
             Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
@@ -536,7 +614,7 @@ fn saturating_divide_one_fold_rejects_a_scratch_def_without_dead_custody() {
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_a_scratch_def_read_elsewhere() {
+fn saturating_divide_zero_dividend_fold_rejects_a_scratch_def_read_elsewhere() {
     let target = NativeTarget::linux_arm64();
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.allocation_constraint_keys();
@@ -545,10 +623,10 @@ fn saturating_divide_one_fold_rejects_a_scratch_def_read_elsewhere() {
     // of a definition the rewrite would stop making, so the fold refuses
     // on both paths.
     let copy = environment.constraint(keys.copy_i64).unwrap();
-    let mut inputs = staged_saturating_divide_carrier_inputs(
+    let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
         target,
         SaturatingCarrier::I32,
-        1,
+        0,
         BlockZeroTerminator::Jump,
     );
     let mut plan = inputs.selected.transformed().clone();
@@ -607,7 +685,7 @@ fn saturating_divide_one_fold_rejects_a_scratch_def_read_elsewhere() {
         fold_with(
             &inputs,
             &environment,
-            LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+            LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
         )
         .map(|_| ()),
         Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
@@ -621,7 +699,7 @@ fn saturating_divide_one_fold_rejects_a_scratch_def_read_elsewhere() {
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_while_a_terminator_reads_the_defined_unit() {
+fn saturating_divide_zero_dividend_fold_rejects_while_a_terminator_reads_the_defined_unit() {
     // On aarch64 the conditional branch implicitly uses `nzcv`, the unit
     // every signed saturating-divide row defines: retiring the definition
     // would leave the branch observing stale flags, so the
@@ -644,17 +722,17 @@ fn saturating_divide_one_fold_rejects_while_a_terminator_reads_the_defined_unit(
         "the aarch64 branch reads the unit the signed divide row defines"
     );
     for carrier in signed_carriers() {
-        let inputs = staged_saturating_divide_carrier_inputs(
+        let inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
             target,
             carrier,
-            1,
+            0,
             BlockZeroTerminator::ConditionalBranch,
         );
         assert_eq!(
             fold_with(
                 &inputs,
                 &environment,
-                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
             )
             .map(|_| ()),
             Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
@@ -669,7 +747,7 @@ fn saturating_divide_one_fold_rejects_while_a_terminator_reads_the_defined_unit(
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_while_another_instruction_reads_the_defined_unit() {
+fn saturating_divide_zero_dividend_fold_rejects_while_another_instruction_reads_the_defined_unit() {
     // The deadness scan is whole-function and order-insensitive: a reader
     // in a different block — here a block-1 `MaterializeBooleanEqual`,
     // which implicitly uses `nzcv` on aarch64 and `rflags` on x86-64 —
@@ -686,10 +764,10 @@ fn saturating_divide_one_fold_rejects_while_another_instruction_reads_the_define
             "the {target:?} materialize-boolean row reads condition state"
         );
         for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
-            let mut inputs = staged_saturating_divide_carrier_inputs(
+            let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
                 target,
                 carrier,
-                1,
+                0,
                 BlockZeroTerminator::Jump,
             );
             let mut plan = inputs.selected.transformed().clone();
@@ -757,7 +835,7 @@ fn saturating_divide_one_fold_rejects_while_another_instruction_reads_the_define
                     fold_with(
                         &inputs,
                         &environment,
-                        LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
                     )
                     .map(|_| ()),
                     Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
@@ -777,7 +855,7 @@ fn saturating_divide_one_fold_rejects_while_another_instruction_reads_the_define
                 let result = fold_with(
                     &inputs,
                     &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
                 )
                 .expect("a reader of a unit the consumer does not define cannot block the fold");
                 assert_eq!(result.receipt().applied_count(), 1);
@@ -787,10 +865,10 @@ fn saturating_divide_one_fold_rejects_while_another_instruction_reads_the_define
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_a_consumer_implicitly_using_a_unit() {
-    // `FaultDischargedByLiteralDeadUnitDefs` forbids the consumer's own
-    // implicit uses too: a use the `CopyI64` does not carry would
-    // silently stop being observed. Forging the branch row's
+fn saturating_divide_zero_dividend_fold_rejects_a_consumer_implicitly_using_a_unit() {
+    // `FaultDischargedByObligationDeadUnitDefs` forbids the consumer's
+    // own implicit uses too: a use the `MaterializeI64` does not carry
+    // would silently stop being observed. Forging the branch row's
     // condition-state use onto the consumer — `nzcv` on aarch64,
     // `rflags` on x86-64 — fails the gate on both targets, however dead
     // the definition itself is.
@@ -803,11 +881,22 @@ fn saturating_divide_one_fold_rejects_a_consumer_implicitly_using_a_unit() {
             .implicit_uses
             .clone();
         assert!(!condition_state.is_empty());
-        let mut inputs = staged_saturating_divide_inputs(target, 1, BlockZeroTerminator::Jump);
+        let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
+            target,
+            SaturatingCarrier::U64,
+            0,
+            BlockZeroTerminator::Jump,
+        );
         let mut plan = inputs.selected.transformed().clone();
         plan.functions[0].blocks[0]
             .instructions
-            .last_mut()
+            .iter_mut()
+            .find(|instruction| {
+                matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::SaturatingDivide { .. }
+                )
+            })
             .unwrap()
             .implicit_uses
             .clone_from(&condition_state);
@@ -819,7 +908,7 @@ fn saturating_divide_one_fold_rejects_a_consumer_implicitly_using_a_unit() {
             fold_with(
                 &inputs,
                 &environment,
-                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
             )
             .map(|_| ()),
             Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
@@ -834,35 +923,39 @@ fn saturating_divide_one_fold_rejects_a_consumer_implicitly_using_a_unit() {
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_a_literal_claiming_the_wrong_operand_position() {
+fn saturating_divide_zero_dividend_fold_rejects_a_literal_claiming_the_wrong_operand_position() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        // The right-literal grammar folds operand 1 alone: a fixture with
-        // the literal at operand 1 claiming operand 0 or the operand-2
+        // The left-literal grammar folds operand 0 alone: a fixture with
+        // the literal at operand 0 claiming operand 1 or the operand-2
         // `Def` position names no grammar's victim position, and a
-        // fixture with the literal physically at operand 0 — the refused
-        // `1 /| x` arrangement — claiming operand 1 finds the surviving
+        // fixture with the literal physically at operand 1 — the refused
+        // `x /| 0` arrangement — claiming operand 0 finds the surviving
         // register where the victim must sit, a consumer mismatch under
-        // the right-literal grammar.
+        // the left-literal grammar.
         for (literal_operand, claimed_operand, expected) in [
             (
-                1u16,
                 0u16,
+                1u16,
                 LiteralFoldError::FutureUseMismatch { function: 0 },
             ),
             (
-                1u16,
+                0u16,
                 2u16,
                 LiteralFoldError::FutureUseMismatch { function: 0 },
             ),
             (
-                0u16,
                 1u16,
+                0u16,
                 LiteralFoldError::ConsumerMismatch { function: 0 },
             ),
         ] {
-            let mut inputs =
-                staged_saturating_divide_inputs(target, literal_operand, BlockZeroTerminator::Jump);
+            let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
+                target,
+                SaturatingCarrier::U64,
+                literal_operand,
+                BlockZeroTerminator::Jump,
+            );
             let RecoveryClassification::ImmediateU64RematerializationCandidate {
                 future_uses, ..
             } = &mut inputs.recovery.plan.functions[0]
@@ -878,7 +971,7 @@ fn saturating_divide_one_fold_rejects_a_literal_claiming_the_wrong_operand_posit
                 fold_with(
                     &inputs,
                     &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
                 )
                 .map(|_| ()),
                 Err(expected.clone()),
@@ -895,7 +988,8 @@ fn saturating_divide_one_fold_rejects_a_literal_claiming_the_wrong_operand_posit
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_tied_consumer_operands_but_keeps_the_marks_it_allows() {
+fn saturating_divide_zero_dividend_fold_rejects_tied_consumer_operands_but_keeps_the_marks_it_allows()
+ {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // `BoundEarlyClobberConsumerOperands` admits `fixed_view` pins and
@@ -906,10 +1000,10 @@ fn saturating_divide_one_fold_rejects_tied_consumer_operands_but_keeps_the_marks
     // applies on the allocatable divisor `Use`.
     for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
         for mutation in 0..3 {
-            let mut inputs = staged_saturating_divide_carrier_inputs(
+            let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
                 target,
                 carrier,
-                1,
+                0,
                 BlockZeroTerminator::Jump,
             );
             let mut plan = inputs.selected.transformed().clone();
@@ -928,7 +1022,7 @@ fn saturating_divide_one_fold_rejects_tied_consumer_operands_but_keeps_the_marks
                     fold_with(
                         &inputs,
                         &environment,
-                        LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
                     )
                     .map(|_| ()),
                     Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
@@ -943,7 +1037,7 @@ fn saturating_divide_one_fold_rejects_tied_consumer_operands_but_keeps_the_marks
                 let result = fold_with(
                     &inputs,
                     &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
                 )
                 .unwrap_or_else(|error| {
                     panic!("{carrier:?} mutation {mutation} is admitted: {error:?}")
@@ -957,18 +1051,23 @@ fn saturating_divide_one_fold_rejects_tied_consumer_operands_but_keeps_the_marks
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_consumers_the_selection_does_not_enable() {
+fn saturating_divide_zero_dividend_fold_rejects_consumers_the_selection_does_not_enable() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // The saturating-divide operand grammar admits the literal only under
-    // the saturating-divide-one policy: every selection naming no
+    // the saturating-divide-zero policy: every selection naming no
     // saturating-divide family sees no admitted consumer kind — including
-    // its sibling saturating families and the strongest posture, every
-    // other rule enabled at once with both saturating-divide bits closed.
-    let inputs = staged_saturating_divide_inputs(target, 1, BlockZeroTerminator::Jump);
+    // the strongest posture, every other rule enabled at once with both
+    // saturating-divide bits closed.
+    let inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
+        target,
+        SaturatingCarrier::U64,
+        0,
+        BlockZeroTerminator::Jump,
+    );
     for policy in [
         LiteralFoldPolicy::EXACT_ADD_V1,
-        LiteralFoldPolicy::EXACT_DIVIDE_V1,
+        LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
         LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
         LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
         policy_without_all(&[
@@ -982,15 +1081,15 @@ fn saturating_divide_one_fold_rejects_consumers_the_selection_does_not_enable() 
             "{policy:?}"
         );
     }
-    // The sibling zero-dividend family admits the same consumer kind at
-    // the operand-0 dividend position: with only the divisor-one bit
-    // closed — or with the zero-dividend bit alone — the kind is
-    // admitted but no enabled grammar covers the operand-1 divisor
-    // position the staged literal occupies: a future-use mismatch, not
-    // an unadmitted consumer.
+    // The sibling divisor-one family admits the same consumer kind at
+    // the operand-1 divisor position: with only the divisor-one bit set
+    // — or with every family enabled except the zero-dividend bit — the
+    // kind is admitted but no enabled grammar covers the operand-0
+    // dividend position the staged literal occupies: a future-use
+    // mismatch, not an unadmitted consumer.
     for policy in [
-        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
-        policy_without(LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1),
+        LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+        policy_without(LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1),
     ] {
         assert_eq!(
             fold_with(&inputs, &environment, policy).map(|_| ()),
@@ -998,16 +1097,16 @@ fn saturating_divide_one_fold_rejects_consumers_the_selection_does_not_enable() 
             "{policy:?}"
         );
     }
-    // And the saturating-divide-one policy admits no other consumer: the
-    // saturating-subtract and wrapping-add fixtures' consumer kinds are
-    // no admitted kind.
+    // And the saturating-divide-zero policy admits no other consumer:
+    // the saturating-subtract and wrapping-add fixtures' consumer kinds
+    // are no admitted kind.
     let saturating_subtract =
         staged_saturating_subtract_inputs(target, 1, BlockZeroTerminator::Jump);
     assert_eq!(
         fold_with(
             &saturating_subtract,
             &environment,
-            LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+            LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
         )
         .map(|_| ()),
         Err(LiteralFoldError::ConsumerMismatch { function: 0 })
@@ -1017,7 +1116,7 @@ fn saturating_divide_one_fold_rejects_consumers_the_selection_does_not_enable() 
         fold_with(
             &wrapping,
             &environment,
-            LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+            LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
         )
         .map(|_| ()),
         Err(LiteralFoldError::ConsumerMismatch { function: 0 })
@@ -1025,7 +1124,7 @@ fn saturating_divide_one_fold_rejects_consumers_the_selection_does_not_enable() 
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_a_carrier_kind_against_another_row() {
+fn saturating_divide_zero_dividend_fold_rejects_a_carrier_kind_against_another_row() {
     // Every carrier shares the family's one mixed-tail operand grammar,
     // so a record whose kind names a carrier on the other side of the
     // signedness boundary still parses — the operand grammar cannot
@@ -1039,10 +1138,10 @@ fn saturating_divide_one_fold_rejects_a_carrier_kind_against_another_row() {
             (SaturatingCarrier::U64, SaturatingCarrier::I32),
             (SaturatingCarrier::I32, SaturatingCarrier::U64),
         ] {
-            let mut inputs = staged_saturating_divide_carrier_inputs(
+            let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
                 target,
                 staged,
-                1,
+                0,
                 BlockZeroTerminator::Jump,
             );
             let mut plan = inputs.selected.transformed().clone();
@@ -1069,7 +1168,7 @@ fn saturating_divide_one_fold_rejects_a_carrier_kind_against_another_row() {
                 fold_with(
                     &inputs,
                     &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
                 )
                 .map(|_| ()),
                 Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
@@ -1085,32 +1184,36 @@ fn saturating_divide_one_fold_rejects_a_carrier_kind_against_another_row() {
 }
 
 #[test]
-fn saturating_divide_one_fold_replay_rejects_every_decision_field_substitution() {
+fn saturating_divide_zero_dividend_fold_replay_rejects_every_decision_field_substitution() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // The right-literal grammar exercises the operand-1 fold on the
+    // The left-literal grammar exercises the operand-0 fold on the
     // auxiliary-`Use` tail both x86-64 rows carry; every recorded
     // decision field must agree with the action the validator
     // independently reconstructs.
     for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
-        let inputs =
-            staged_saturating_divide_carrier_inputs(target, carrier, 1, BlockZeroTerminator::Jump);
+        let inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
+            target,
+            carrier,
+            0,
+            BlockZeroTerminator::Jump,
+        );
         let result = fold_with(
             &inputs,
             &environment,
-            LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+            LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
         )
-        .expect("the staged saturating-divide-one fold should validate");
+        .expect("the staged saturating-divide-zero-dividend fold should validate");
 
         for mutation in 0..11 {
             let mut plan = result.plan().clone();
             match mutation {
                 // The recorded result register is the divide's own `Def`,
-                // not the dividend the copy reads.
+                // not the dropped divisor `Use`.
                 0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
                 1 => plan.functions[0].action.as_mut().unwrap().result = None,
-                // The recorded immediate is the folded literal one; any
-                // substitution replays differently.
+                // The recorded immediate is the materialized constant
+                // zero; any substitution replays differently.
                 2 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
                 3 => {
                     plan.functions[0]
@@ -1119,8 +1222,8 @@ fn saturating_divide_one_fold_replay_rejects_every_decision_field_substitution()
                         .unwrap()
                         .consumer_instruction = SelectedInstructionId(9)
                 }
-                // The recorded constraint is the `CopyI64` row the
-                // saturating-divide-one policy gate binds; any other key
+                // The recorded constraint is the `MaterializeI64` row the
+                // saturating-divide-zero policy gate binds; any other key
                 // fails the rebuild's binding.
                 4 => {
                     plan.functions[0]
@@ -1136,16 +1239,16 @@ fn saturating_divide_one_fold_replay_rejects_every_decision_field_substitution()
                         SelectedInstructionPlanIdentity::from_bytes([99; 32])
                 }
                 7 => plan.usage.candidates += 1,
-                // A policy without the saturating-divide-one bit cannot
-                // replay the fold: no `CopyI64` row binds for this
-                // consumer and the action reconstructs nothing.
-                8 => plan.policy = LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
+                // The sibling divisor-one policy alone cannot replay the
+                // fold: its grammar covers only the operand-1 divisor
+                // position, so the action reconstructs nothing.
+                8 => plan.policy = LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
                 9 => {
                     plan.machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes([98; 32])
                 }
-                // The surviving register is the operand-0 `Use` the
-                // rewritten copy binds: recording the result `Def`
-                // register instead fails the re-derived action.
+                // The surviving register is the dropped divisor:
+                // recording the result `Def` register instead fails the
+                // re-derived action.
                 _ => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(2),
             }
             assert!(
@@ -1157,30 +1260,32 @@ fn saturating_divide_one_fold_replay_rejects_every_decision_field_substitution()
 }
 
 #[test]
-fn saturating_divide_one_fold_reports_and_enforces_its_measured_work() {
+fn saturating_divide_zero_dividend_fold_reports_and_enforces_its_measured_work() {
     for (target, block0) in signed_fixtures() {
         let environment = baseline_target_register_environment(target).unwrap();
         for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
-            let inputs = staged_saturating_divide_carrier_inputs(target, carrier, 1, block0);
+            let inputs =
+                staged_saturating_divide_zero_dividend_carrier_inputs(target, carrier, 0, block0);
             assert_budget_is_enforced(
                 &inputs,
                 &environment,
-                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
             );
         }
     }
 }
 
 #[test]
-fn saturating_divide_one_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+fn saturating_divide_zero_dividend_fold_is_deterministic_and_a_fixed_point_on_its_output() {
     for (target, block0) in signed_fixtures() {
         let environment = baseline_target_register_environment(target).unwrap();
         for carrier in [SaturatingCarrier::U64, SaturatingCarrier::I32] {
-            let inputs = staged_saturating_divide_carrier_inputs(target, carrier, 1, block0);
+            let inputs =
+                staged_saturating_divide_zero_dividend_carrier_inputs(target, carrier, 0, block0);
             assert_deterministic_fixed_point(
                 &inputs,
                 &environment,
-                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
             );
         }
     }

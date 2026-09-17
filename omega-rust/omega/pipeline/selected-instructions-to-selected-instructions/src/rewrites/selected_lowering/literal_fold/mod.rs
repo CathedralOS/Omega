@@ -82,7 +82,16 @@ pub use validate::validate_literal_fold;
 /// implicit unit definitions retire under the same whole-function
 /// deadness gate, and every operand past the `Def` result drops under
 /// the mixed custody of provably-zero auxiliary `Use`s and
-/// occurrence-free scratch `Def`s.
+/// occurrence-free scratch `Def`s — or the literal `0` at the dividend
+/// operand of a saturating divide on any carrier into a `MaterializeI64`
+/// of the constant zero — `0 /| x` is `0` inside every carrier's bounds
+/// — discharging the consumer's encoded fault surface under the
+/// nonzero-divisor obligation the divide kind already carries rather
+/// than under the folded literal, dropping the divisor `Use` and every
+/// tail operand under the same mixed custody, and retiring the
+/// consumer's implicit unit definitions under the same deadness gate;
+/// the zero-dividend fold stays disjoint on the folded literal's operand
+/// position from its divisor-one sibling.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

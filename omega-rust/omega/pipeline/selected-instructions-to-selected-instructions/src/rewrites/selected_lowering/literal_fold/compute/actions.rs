@@ -354,6 +354,47 @@ pub(super) fn derive_action(
             }
             Some(result.virtual_register)
         }
+        // A binary left-literal consumer whose folded result is a constant
+        // of the literal alone and whose operand list continues past its
+        // `Def` result with a mixed drop tail: `[victim, right, result,
+        // tail...]` folds the operand-0 `Use`, drops the operand-1 `Use`
+        // — the constant result never reads it — and drops every operand
+        // past the result under the custody its own access declares — a
+        // `Use` drops only when its register is defined in this function
+        // solely by zero materializations, the zeroed high-half dividend
+        // an x86-64 `div`/`idiv` realization reads, and a `Def` drops only
+        // when its register occurs nowhere else in the function, the
+        // bound scratch an aarch64 clamped signed-divide realization
+        // writes. A `UseDef` tail operand names neither custody —
+        // dropping it would silently discard a read — and rejects.
+        (
+            PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs,
+            PairResultDisposition::ScalarRegister,
+            [victim, right, result, tail @ ..],
+        ) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !tail.iter().all(|operand| match operand.access {
+                    RegisterOperandAccess::Use => {
+                        auxiliary_zero_defined(function, operand.virtual_register)
+                    }
+                    RegisterOperandAccess::Def => {
+                        dropped_def_is_dead(function, operand.virtual_register)
+                    }
+                    _ => false,
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // Commutative binary consumers also admit the literal as the left
         // operand: `[victim, right, result]` folds the operand-0 `Use` and
         // binds the operand-1 survivor into the rewritten row.
@@ -528,6 +569,7 @@ pub(super) fn derive_action(
         PairOperandShape::BinaryLeftLiteral
         | PairOperandShape::BinaryLeftLiteralConstantResult
         | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
+        | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs
         | PairOperandShape::BinaryLeftLiteralScratchDefs => consumer.operands[1].virtual_register,
         PairOperandShape::BinaryRightLiteral
         | PairOperandShape::BinaryRightLiteralAuxiliaryUses

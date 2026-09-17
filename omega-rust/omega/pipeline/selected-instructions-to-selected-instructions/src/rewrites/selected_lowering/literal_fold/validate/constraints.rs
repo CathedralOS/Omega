@@ -95,6 +95,15 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// separately so a fold the selection did not enable cannot replay
     /// under another family's policy.
     pub(super) saturating_divide_one: Option<&'a RegisterInstructionConstraint>,
+    /// The `MaterializeI64` row the saturating-divide zero-dividend fold
+    /// rewrites into — the same constraint row the unary, remainder,
+    /// and-zero, remainder-zero, and divide-zero folds bind, gated
+    /// separately so a fold the selection did not enable cannot replay
+    /// under another family's policy. The zero-dividend family shares
+    /// its consumer kind with the divisor-one family; the folded
+    /// literal's operand position names which family a
+    /// `SaturatingDivide` fold belongs to.
+    pub(super) saturating_divide_zero: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -186,6 +195,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_saturating_divide_one()
         .then(|| find(keys.copy_i64))
         .transpose()?;
+    let saturating_divide_zero = policy
+        .enables_saturating_divide_zero()
+        .then(|| find(keys.materialize_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -205,6 +218,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         saturating_add_zero,
         saturating_subtract_zero,
         saturating_divide_one,
+        saturating_divide_zero,
     ]
     .into_iter()
     .flatten()
@@ -309,6 +323,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::CopyI64,
             isolated_rewritten_declaration,
         ),
+        (
+            saturating_divide_zero,
+            MachineSemanticKind::MaterializeI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -336,6 +355,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         saturating_add_zero,
         saturating_subtract_zero,
         saturating_divide_one,
+        saturating_divide_zero,
         catalog,
     })
 }
@@ -663,4 +683,32 @@ pub(super) fn fault_discharged_dead_unit_defs_fold_admission(
                 && encoded.implicit_unit_uses.is_empty()
         })
         && isolated_rewritten_declaration(rewritten)
+}
+
+/// The relationship the validator re-derives between a consumer that both
+/// may architecturally fault and retires implicit unit *definitions* —
+/// a `SaturatingDivide` on any carrier, whose x86-64 `div`/`idiv`
+/// realizations encode `MayArchitecturalFaultV1` and whose aarch64
+/// signed realizations define `nzcv` — and the fully isolated
+/// materialization a dividend literal of zero rewrites into, where the
+/// encoded fault is unreachable under the consumer's own carried
+/// obligation rather than under the folded literal alone. The
+/// declaration surface is the one
+/// `fault_discharged_dead_unit_defs_fold_admission` requires; the
+/// distinguishing evidence is `obligation_carried`, which the caller
+/// re-derives from the instruction record itself: under the
+/// zero-dividend saturating-divide grammar the folded dividend of zero
+/// does not discharge the divide-by-zero fault — a zero dividend over
+/// an unproven divisor would still fault — so the nonzero-divisor
+/// obligation the `SaturatingDivide` kind names must appear in the
+/// consumer's recorded provenance obligations for the rewrite to retire
+/// the trap surface, and the record-level deadness the caller re-derives
+/// from the concrete instruction and function is what admits retiring
+/// every implicit unit the consumer defines.
+pub(super) fn obligation_discharged_dead_unit_defs_fold_admission(
+    consumer: &MachineEffectDeclaration,
+    rewritten: &MachineEffectDeclaration,
+    obligation_carried: bool,
+) -> bool {
+    obligation_carried && fault_discharged_dead_unit_defs_fold_admission(consumer, rewritten)
 }
