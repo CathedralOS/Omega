@@ -3,7 +3,7 @@
 //! boundary cases a validated module cannot express live beside the rewrite
 //! in `src/sparse_conditional_constant_propagation/folding.rs`.
 
-mod common;
+use crate::common;
 
 use common::{copy_fixture, sccp_fixture, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};

@@ -1,7 +1,7 @@
 //! Stage-level coverage for the exact `ProofCheckElision` rule through the
 //! public `run_psi_optimization` entrance.
 
-mod common;
+use crate::common;
 
 use common::{
     obligation, operation_id, proof_check_fixture, ranked_cycle_fixture,

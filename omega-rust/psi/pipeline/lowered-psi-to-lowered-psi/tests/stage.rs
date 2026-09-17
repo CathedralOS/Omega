@@ -2,7 +2,7 @@
 //! transformation, selection dispatch, canonical order, and fail-closed
 //! handling of unsupported or malformed inputs.
 
-mod common;
+use crate::common;
 
 use common::{copy_fixture, dead_scalar_fixture, minimal_unit_lowered, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};

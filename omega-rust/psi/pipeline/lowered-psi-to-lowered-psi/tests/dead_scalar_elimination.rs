@@ -1,7 +1,7 @@
 //! Stage-level coverage for the exact `DeadPureScalarElimination` rule
 //! through the public `run_psi_optimization` entrance.
 
-mod common;
+use crate::common;
 
 use common::{block_id, copy_fixture, dead_scalar_fixture, operation_id, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
