@@ -2164,7 +2164,21 @@ Owners include
   `ScalarTerm` closure over literals, caller values, field reads and
   caller erased formals, with anything else rejecting at the initializer.
   The interpreter and native lowering need no evaluation path because
-  `requires` is verifier-only today.
+  `requires` is verifier-only today. Resume: that slice is built as
+  per-machine `erased_scalar_formals`/`erased_call_arguments` rosters with
+  proof-only `ScalarTerm::Value` identities from the top of the identity
+  stride (no new term variant), a checked contract namespace of retained,
+  then erased, then result positions, `ErasedCallArgument` rows, a
+  `proofs/erased_call_arguments` pass, the spec entries and an
+  `erased_argument_runtime_call` fail control; the unclaimed halves are
+  parked on the local branch `work/terminal-erased-term-parked`
+  (def0c1be67 on bdf2b1665a, does not compile alone) with the apply
+  scripts and recipe under `.codex-parked/`, waiting on the
+  MATCH-SELECTIVE-LOWERING claim over terminal-psi/codec/verifier/
+  interpreter. Two limits stay fail-closed: composed-route state
+  contracts carry no `requires`, so `erased_parameter_named_transition_forward`
+  stays checked-only, and a caller's own erased formal forwarded through
+  a call has no row.
 
 ## P4 - ABI, borrowing, and callbacks
 
