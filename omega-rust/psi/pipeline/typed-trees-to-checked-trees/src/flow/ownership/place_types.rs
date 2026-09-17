@@ -5,6 +5,9 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn expression_type_reference_in_state(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
@@ -211,9 +214,7 @@ fn attached_data_field_type_reference(
             &[facts::PlaceSegment::Field { symbol }],
         );
     }
-    let data = program.data_definitions().iter().find(|definition| {
-        machine.attached_data_symbol.is_valid() && definition.symbol == machine.attached_data_symbol
-    })?;
+    let data = unique_data_definition_by_symbol(program, machine.attached_data_symbol)?;
     data_field_type_reference(program, data, symbol)
 }
 
@@ -319,18 +320,40 @@ fn substituted_type_reference(
     type_reference
 }
 
+/// Data-declaration identity is an exact premise: a lookup commits to one
+/// declaration row, so a second row bearing the same symbol (or, for the
+/// name fallback, the same spelling) makes the premise ambiguous. Refuse it
+/// rather than letting the first same-shaped row mint evidence for the wrong
+/// subject.
+pub(super) fn unique_data_definition_by_symbol(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| symbol.is_valid() && definition.symbol == symbol);
+    let definition = definitions.next()?;
+    definitions.next().is_none().then_some(definition)
+}
+
 fn data_definition_by_symbol_or_name<'program>(
     program: &'program typed_trees::TypedTrees,
     symbol: SymbolHandle,
     name: &typed_trees::name::Identifier,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
-    program.data_definitions().iter().find(|definition| {
-        if symbol.is_valid() {
-            definition.symbol == symbol
-        } else {
-            definition.name == *name
-        }
-    })
+    // A field projection commits to exactly one data declaration. Resolve the
+    // retained symbol when it is live; otherwise the retained name may stand
+    // in only when it names one definition outright.
+    if symbol.is_valid() {
+        return unique_data_definition_by_symbol(program, symbol);
+    }
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name == *name);
+    let definition = definitions.next()?;
+    definitions.next().is_none().then_some(definition)
 }
 
 fn data_field_type_reference(

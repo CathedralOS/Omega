@@ -2,6 +2,9 @@ use super::place_types::expression_type_reference_in_state;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
+#[cfg(test)]
+mod tests;
+
 pub(in crate::flow::ownership) fn expression_requires_ownership(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
@@ -187,11 +190,10 @@ pub(super) fn intrinsic_enum_equality(
     if nominal(operands[1]) != Some(symbol) {
         return false;
     }
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)
-    else {
+    // The nominal premise commits to one declaration row: a second row
+    // bearing the operand's symbol cannot mint member evidence for the wrong
+    // subject, so ambiguous identity declines the classification.
+    let Some(data) = super::place_types::unique_data_definition_by_symbol(program, symbol) else {
         return false;
     };
     let members = program.data_members(data);
