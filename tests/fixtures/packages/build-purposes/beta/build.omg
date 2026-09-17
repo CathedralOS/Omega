@@ -1,0 +1,6 @@
+// package-manager fixture: a product library selected only through an
+// ordinary product edge.
+
+machine build(builder: &mut Build) {
+    builder.package("beta");
+}
