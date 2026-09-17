@@ -72,10 +72,6 @@ fn assert_rejected(bytes: &[u8]) {
 #[test]
 fn every_external_binding_and_foreign_locator_recovers_typed_policy() {
     let mut bindings = vec![
-        PackageReviewExternalBinding::Import {
-            library: "kernel32.dll".into(),
-            symbol: "ExitProcess".into(),
-        },
         PackageReviewExternalBinding::NormalizedSyscall(syscall()),
         PackageReviewExternalBinding::Syscall { number: 60 },
         PackageReviewExternalBinding::CompilerIntrinsic,
@@ -107,6 +103,36 @@ fn every_external_binding_and_foreign_locator_recovers_typed_policy() {
             digest: [0; 32],
         });
     assert_round_trip(&policy);
+}
+
+#[test]
+fn retired_string_backed_import_tag_is_rejected_by_name() {
+    // The two encodings differ first at the binding tag byte: `Syscall` is
+    // tag 1 and `CompilerIntrinsic` tag 2. Rewriting that byte to the retired
+    // string-backed import tag 0 yields the stale artifact shape without
+    // hand-assembling a row, and recovery names the retirement instead of
+    // reading two strings back as an import.
+    let syscall = bytes(&supply(PackageReviewExternalBinding::Syscall {
+        number: 19,
+    }));
+    let intrinsic = bytes(&supply(PackageReviewExternalBinding::CompilerIntrinsic));
+    let tag_index = syscall
+        .iter()
+        .zip(&intrinsic)
+        .position(|(left, right)| left != right)
+        .expect("binding tag differs");
+    assert_eq!(syscall[tag_index], 1);
+    assert_eq!(intrinsic[tag_index], 2);
+
+    let mut stale = syscall;
+    stale[tag_index] = 0;
+    assert_eq!(
+        PackagePolicyExternalExecutableSupply::recover_canonical(
+            &stale,
+            PackagePolicyRecoveryLimits::default(),
+        ),
+        Err(PackagePolicyRecoveryError::RetiredVocabulary)
+    );
 }
 
 #[test]

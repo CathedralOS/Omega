@@ -36,10 +36,6 @@ impl PackagePolicyEvaluatedBindingProducer {
 /// carriers. No variant retains an evaluator receipt or executable artifact.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyExternalBinding {
-    Import {
-        library: String,
-        symbol: String,
-    },
     NormalizedImport {
         target: String,
         locator: PackageReviewForeignLocator,
@@ -68,10 +64,6 @@ pub enum PackagePolicyExternalBinding {
 impl From<&PackageReviewExternalBinding> for PackagePolicyExternalBinding {
     fn from(binding: &PackageReviewExternalBinding) -> Self {
         match binding {
-            PackageReviewExternalBinding::Import { library, symbol } => Self::Import {
-                library: library.clone(),
-                symbol: symbol.clone(),
-            },
             PackageReviewExternalBinding::NormalizedImport(import) => Self::NormalizedImport {
                 target: import.target.clone(),
                 locator: import.locator.clone(),

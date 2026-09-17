@@ -215,10 +215,6 @@ fn assert_changed(original: &SupplyFixture, changed: &SupplyFixture) {
 #[test]
 fn all_binding_variants_remain_distinct_policy_data() {
     let bindings = vec![
-        PackageReviewExternalBinding::Import {
-            library: "kernel32.dll".to_owned(),
-            symbol: "ExitProcess".to_owned(),
-        },
         PackageReviewExternalBinding::NormalizedImport(import(locators().remove(0))),
         PackageReviewExternalBinding::NormalizedSyscall(syscall()),
         PackageReviewExternalBinding::Syscall { number: 60 },
@@ -597,26 +593,6 @@ fn complete_callable_and_requirement_coordinates_change_policy() {
 fn legacy_binding_fields_and_encoding_bound_are_preserved() {
     let pairs = [
         (
-            PackageReviewExternalBinding::Import {
-                library: "a".into(),
-                symbol: "b".into(),
-            },
-            PackageReviewExternalBinding::Import {
-                library: "c".into(),
-                symbol: "b".into(),
-            },
-        ),
-        (
-            PackageReviewExternalBinding::Import {
-                library: "a".into(),
-                symbol: "b".into(),
-            },
-            PackageReviewExternalBinding::Import {
-                library: "a".into(),
-                symbol: "c".into(),
-            },
-        ),
-        (
             PackageReviewExternalBinding::Syscall { number: 1 },
             PackageReviewExternalBinding::Syscall { number: 2 },
         ),
@@ -636,9 +612,8 @@ fn legacy_binding_fields_and_encoding_bound_are_preserved() {
     for (before, after) in pairs {
         assert_changed(&supply(before), &supply(after));
     }
-    let oversized = supply(PackageReviewExternalBinding::Import {
-        library: "x".repeat(4 * 1024 * 1024),
-        symbol: "entry".to_owned(),
+    let oversized = supply(PackageReviewExternalBinding::VtableField {
+        field: "x".repeat(4 * 1024 * 1024),
     });
     assert!(oversized.policy().canonical_bytes().is_err());
 }

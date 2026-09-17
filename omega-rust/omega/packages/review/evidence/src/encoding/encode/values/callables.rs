@@ -185,12 +185,9 @@ pub(crate) fn encode_external_executable_supply(
     supply: &PackageReviewExternalExecutableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
     encode_external_executable_supply_key(encoder, supply)?;
+    // Tag 0 carried the retired string-backed import row and is never
+    // produced again; the normalized rows keep their tags unchanged.
     match &supply.binding {
-        PackageReviewExternalBinding::Import { library, symbol } => {
-            encoder.byte(0);
-            encoder.string(library)?;
-            encoder.string(symbol)?;
-        }
         PackageReviewExternalBinding::NormalizedImport(import) => {
             encoder.byte(6);
             encode_review_evaluated_import(encoder, import)?;
