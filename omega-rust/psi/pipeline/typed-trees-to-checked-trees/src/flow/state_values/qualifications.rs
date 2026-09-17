@@ -6,7 +6,7 @@ use super::TransitionTargetNode;
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::ExpressionHandle;
 use checked_trees::name::Identifier;
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
@@ -110,18 +110,26 @@ fn owned_projection(
     frames.proof_value_is_caller_isolated(reference)
 }
 
-fn capture_parameter(
+/// Capture live membership facts whose place is the argument's own denoted
+/// place or a projection below it. `source_segments` names the argument value
+/// itself, so a fact deeper in the same place describes a selected field of
+/// the value the state parameter will carry; the captured claim republishes
+/// only the part below the argument.
+#[allow(clippy::too_many_arguments)]
+fn capture_place(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     flow_context: &FlowBuildContext,
-    source: &StateParameter,
+    source_root: facts::PlaceRoot,
+    source_segments: &[facts::PlaceSegment],
+    source_type: TypeReferenceHandle,
     destination: SymbolHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<CapturedQualification> {
     let Some(frames) = flow_context.call_frames else {
         return Vec::new();
     };
-    let isolated = frames.proof_value_is_caller_isolated(source.type_reference);
+    let isolated = frames.proof_value_is_caller_isolated(source_type);
     let mut captured = Vec::new();
     for context in flow_context
         .contexts
@@ -153,12 +161,21 @@ fn capture_parameter(
             let FactPlace::Place(place) = fact.place else {
                 continue;
             };
-            let place = semantic.places.get(place);
-            let segments = semantic.place_segments.span_or_empty(place.segments);
+            let Some(place) = crate::flow::canonical_place_from_semantic_place(
+                program,
+                semantic,
+                semantic.places.get(place),
+            ) else {
+                continue;
+            };
             if !domain_symbol.is_valid()
-                || place.root != facts::PlaceRoot::Symbol(source.symbol)
-                || !owned_projection(program, frames, source.type_reference, segments)
+                || place.root != source_root
+                || !place.segments.starts_with(source_segments)
             {
+                continue;
+            }
+            let segments = &place.segments[source_segments.len()..];
+            if !owned_projection(program, frames, source_type, segments) {
                 continue;
             }
             captured.push(CapturedQualification {
@@ -178,6 +195,33 @@ fn capture_parameter(
     captured
 }
 
+fn capture_parameter(
+    program: &typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    flow_context: &FlowBuildContext,
+    source: &StateParameter,
+    destination: SymbolHandle,
+    contexts: HandleSpan<FlowSemanticContextRef>,
+) -> Vec<CapturedQualification> {
+    capture_place(
+        program,
+        semantic,
+        flow_context,
+        facts::PlaceRoot::Symbol(source.symbol),
+        &[],
+        source.type_reference,
+        destination,
+        contexts,
+    )
+}
+
+/// Capture the memberships carried by one transition argument into its
+/// destination parameter. The argument is read at its authored evaluation
+/// point, so every denoted place counts — a renamed state parameter, a staged
+/// local, a selected field, or an evaluated call result — rather than only a
+/// bare parameter name. Facts must already be live in `contexts`; nothing is
+/// rederived from the destination signature, and a missing place or value type
+/// fails closed.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn capture_argument(
     program: &typed_trees::TypedTrees,
@@ -185,30 +229,12 @@ pub(in crate::flow) fn capture_argument(
     flow_context: &FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     target: typed_trees::statement::TransitionTargetHandle,
     ordinal: usize,
     argument: ExpressionHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<CapturedQualification> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
-        return Vec::new();
-    };
-    if name.symbol != name.head_symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return Vec::new();
-    }
-    let Some(source) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == name.symbol && !parameter.is_self)
-    else {
-        return Vec::new();
-    };
     let TransitionTargetNode::Named { path, .. } =
         program.statement_table.transition_target(target)
     else {
@@ -229,11 +255,33 @@ pub(in crate::flow) fn capture_argument(
     else {
         return Vec::new();
     };
-    capture_parameter(
+    let Some(source) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        argument,
+    ) else {
+        return Vec::new();
+    };
+    // A `self`-rooted argument moves through the transition's receiver path,
+    // not through ordinary parameter evidence.
+    if program.state_parameters(state).iter().any(|candidate| {
+        candidate.is_self && source.root == facts::PlaceRoot::Symbol(candidate.symbol)
+    }) {
+        return Vec::new();
+    }
+    let Some(source_type) =
+        validation::expression_result_type_reference(program, machine, state, argument)
+    else {
+        return Vec::new();
+    };
+    capture_place(
         program,
         semantic,
         flow_context,
-        source,
+        source.root,
+        &source.segments,
+        source_type,
         parameter.symbol,
         contexts,
     )

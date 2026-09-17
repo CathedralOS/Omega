@@ -17,6 +17,7 @@ fn check(source: &str, accepted: bool) {
                     .iter()
                     .any(|diagnostic| diagnostic.message.contains("requires")
                         || diagnostic.message.contains("ensures")
+                        || diagnostic.message.contains("implicit domain weakening")
                         || diagnostic.message.contains("distinct normalized instances")
                         || diagnostic.message.contains("violates required fact")),
                 "{diagnostics:#?}\n{source}"
@@ -437,6 +438,111 @@ fn transition_sibling_writes_do_not_invalidate_other_jump_inputs() {
         "#,
         true,
     );
+}
+
+#[test]
+fn named_state_arguments_transport_established_memberships() {
+    // The membership rides on the argument's denoted place, so a qualified
+    // call result, a staged local, a selected field, and a field below a
+    // passed aggregate all feed a bare destination parameter that a later
+    // `requires` contract consumes. No value is copied merely to carry the
+    // claim.
+    let prelude = r#"
+        data Token { value: u64; }
+        data Holder { token: Token; }
+        domain Token::Issued established by TokenIssuer::issue;
+        trait TokenIssuer { machine issue(value: u64) -> Token ensures result in Token::Issued; }
+        machine Token::issue(value: u64) -> Token satisfies TokenIssuer::issue ensures result in Token::Issued { Token { value: value } }
+        machine consume(token: Token in Issued) {}
+    "#;
+    for body in [
+        // Qualified call result passed straight into a bare parameter.
+        r#"
+        machine run(value: u64) {
+            transition { _ -> done(Token::issue(value)) }
+            state done(token: Token) { consume(token); }
+        }
+    "#,
+        // Membership staged through a local binding.
+        r#"
+        machine run(value: u64) {
+            let issued: Token = Token::issue(value);
+            transition { _ -> done(issued) }
+            state done(token: Token) { consume(token); }
+        }
+    "#,
+        // A selected field of a passed aggregate's own value.
+        r#"
+        machine run(value: u64) {
+            let mut holder: Holder = Holder { token: Token { value: 0 } };
+            holder.token = Token::issue(value);
+            transition { _ -> done(holder.token) }
+            state done(token: Token) { consume(token); }
+        }
+    "#,
+        // The claim lives below the argument's place and follows it.
+        r#"
+        machine run(value: u64) {
+            let mut holder: Holder = Holder { token: Token { value: 0 } };
+            holder.token = Token::issue(value);
+            transition { _ -> done(holder) }
+            state done(holder: Holder) { consume(holder.token); }
+        }
+    "#,
+        // A renamed parameter still carries its declared membership.
+        r#"
+        machine run(token: Token in Issued) {
+            transition { _ -> hold(token) }
+            state hold(token: Token in Issued) {
+                transition { _ -> done(token) }
+            }
+            state done(token: Token in Issued) { consume(token); }
+        }
+    "#,
+    ] {
+        check(&format!("{prelude}\n{body}"), true);
+    }
+}
+
+#[test]
+fn named_state_arguments_reject_unproven_memberships() {
+    let prelude = r#"
+        data Token { value: u64; }
+        data Holder { token: Token; }
+        domain Token::Issued established by TokenIssuer::issue;
+        trait TokenIssuer { machine issue(value: u64) -> Token ensures result in Token::Issued; }
+        machine Token::issue(value: u64) -> Token satisfies TokenIssuer::issue ensures result in Token::Issued { Token { value: value } }
+        machine consume(token: Token in Issued) {}
+    "#;
+    for body in [
+        // A raw constructed value carries no membership claim.
+        r#"
+        machine run(value: u64) {
+            let raw: Token = Token { value: value };
+            transition { _ -> done(raw) }
+            state done(token: Token) { consume(token); }
+        }
+    "#,
+        // A declared membership may only drop through an explicit `as`.
+        r#"
+        machine run(token: Token in Issued) {
+            transition { _ -> done(token) }
+            state done(token: Token) { consume(token); }
+        }
+    "#,
+        // A later write to the same field retires the captured claim.
+        r#"
+        machine run(value: u64) {
+            let mut holder: Holder = Holder { token: Token { value: 0 } };
+            holder.token = Token::issue(value);
+            holder.token = Token { value: value };
+            transition { _ -> done(holder) }
+            state done(holder: Holder) { consume(holder.token); }
+        }
+    "#,
+    ] {
+        check(&format!("{prelude}\n{body}"), false);
+    }
 }
 
 #[test]
