@@ -302,6 +302,7 @@ pub(in crate::execution::terminal_unit) fn build(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
+    trace.phase("statement sequence: scalar control guard");
     let scalar_control = scalar_control(program, facts, machine, state).map(|(control, _)| control);
     if scalar_control.is_some()
         && (!entry_claims.is_empty()
@@ -335,6 +336,7 @@ pub(in crate::execution::terminal_unit) fn build(
     let mut structural_results = Vec::new();
     let mut call_count = 0_usize;
     let binders = machine_binders(program, machine);
+    trace.phase("statement sequence: scalar field store sequence");
     let mut stores =
         super::super::structural_scalar_store::build_structural_scalar_field_store_sequence(
             program,
