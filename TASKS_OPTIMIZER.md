@@ -1264,16 +1264,41 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   new on, with the member's own new position republishing
   foreign rather than familiar values on those paths —
   under the same replayed restore-by-content validation
-  (crate `nextest`: 797 pass).
+  (crate `nextest`: 797 pass) — and
+  `rewrites/bypass_relocation` sinks one named body
+  instruction out of a block ending in a two-successor
+  conditional branch, across the bypassed triangle it
+  heads, onto a named position in the one join the branch
+  itself names on at least one edge — every other distinct
+  edge target a plain source arm the branch alone reaches
+  that ends in a plain `Jump` back to the join and every
+  edge into the join leaving the head or an arm, so each
+  traversal of the head reaches the join exactly once
+  whether it bypassed the arm or ran it and the member
+  keeps its execution count of one — when no register or
+  condition-state hazard runs between the member and any
+  crossed position — the head tail, the branch terminator,
+  both branch edges, the arm's body, `Jump`, and edge, and
+  the join's prefix — when no crossed edge's register
+  transports would hand a binding a stale or overwritten
+  value, when no call, hosted effect, barrier kind, or
+  call-roster entry sits inside the window, when the
+  validated memory roster accounts for every access a
+  memory-capable member can reach, and when no boundary
+  settlement past the member's index in the head or the
+  landing index in the join would observe a changed
+  executed prefix, under the same replayed
+  restore-by-content validation (crate `nextest`: 865
+  pass).
   Remaining: scheduling past the proven bounded window
   interchange, single-member relocation, multi-member run
   relocation, the single-edge move, the branch-diamond
   move, the diverging fork move, the converging join
-  move, and the conditional-arm hoist — relocation
-  through other converging or branching control flow —
-  and compare/test selection past the landed literal
-  folds and the constant-flag boolean materialization
-  and conditional-branch folds.
+  move, the conditional-arm hoist, and the bypassed-arm
+  triangle move — relocation through other converging or
+  branching control flow — and compare/test selection
+  past the landed literal folds and the constant-flag
+  boolean materialization and conditional-branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
