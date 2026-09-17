@@ -240,13 +240,14 @@ pub(super) fn build_traced(
         // Computation roots retain handles into this arena. Borrow the original
         // occurrences so their exact identity survives nested-call validation.
         trace.phase("state graph: outer calls");
-        let calls = control::outer_calls_before(
+        let calls = control::outer_calls_before_traced(
             program,
             facts,
             machine.symbol,
             state,
             &source_calls[first_call..after_calls],
             operation_end,
+            trace,
         )?;
         let sequence = control::statement_sequence::build(
             program,
