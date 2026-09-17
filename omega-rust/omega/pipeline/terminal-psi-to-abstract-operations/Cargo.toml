@@ -1,5 +1,6 @@
 [package]
 name = "terminal-psi-to-abstract-operations"
+autotests = false
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -32,3 +33,7 @@ syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-t
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"
