@@ -1,0 +1,1 @@
+where equation binds `Capacity` to -1, outside its declared `u64`

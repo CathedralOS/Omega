@@ -1,0 +1,17 @@
+// An explicitly uninhabited interval is legal, but its normalized inclusive
+// end is the proof integer -1, which no `const Capacity: u64` can hold.
+// Emptiness cannot choose an arbitrary capacity.
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Main {
+    bytes: TinyBytes<u64[0..0]>;
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,1 @@
+where equation mixes type and value kinds: type binder `Length` cannot equal value binder `Capacity`

@@ -1,0 +1,16 @@
+// No equation relates Capacity to the supplied structure, so the omitted
+// binder is underdetermined and needs an explicit argument.
+data Loose<Length, const Capacity: u64>
+where
+    Length == u64[0..=256]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Main {
+    bytes: Loose<u64[0..=256]>;
+}
+
+machine Main::main(&mut self) {
+}

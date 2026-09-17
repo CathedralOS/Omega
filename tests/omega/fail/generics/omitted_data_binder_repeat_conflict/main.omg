@@ -1,0 +1,18 @@
+// Repeated occurrences of a recovered binder must agree under canonical
+// normalization: the inclusive equation binds Capacity to 256 and the
+// exclusive one to 257 from the same supplied interval.
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64[0..=Capacity],
+    Length == u64[0..Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Main {
+    bytes: TinyBytes<u64[0..=256]>;
+}
+
+machine Main::main(&mut self) {
+}

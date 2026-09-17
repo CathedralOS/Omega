@@ -1,0 +1,16 @@
+// An actual without the declared range structure cannot supply an endpoint;
+// the omitted capacity needs an explicit argument.
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Main {
+    bytes: TinyBytes<u64>;
+}
+
+machine Main::main(&mut self) {
+}

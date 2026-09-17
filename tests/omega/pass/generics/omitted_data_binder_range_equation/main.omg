@@ -1,0 +1,26 @@
+// A `where` type equation recovers an omitted trailing data binder from the
+// supplied argument's canonical range: `TinyBytes<u64[0..=256]>` binds
+// Capacity to 256 before layout, the exclusive spelling `u64[0..257]`
+// normalizes to the same interval and selects the same instance, and an
+// explicit tuple must satisfy the equation exactly. A call's declared-range
+// inference stays separate: `upper_bound<512>` remains ordinary range
+// compatibility, not an exact type equation.
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Main {
+    inclusive: TinyBytes<u64[0..=256]>;
+    exclusive: TinyBytes<u64[0..257]>;
+    explicit: TinyBytes<u64[0..=256], 256>;
+}
+
+machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+machine larger(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }
+
+machine Main::main(&mut self) {
+}
