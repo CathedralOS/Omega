@@ -9,6 +9,7 @@ mod borrowed_parameters;
 mod finite_family;
 mod generic_requirements;
 mod source_retention;
+mod top_level_requirements;
 use crate::boundary_dispatch::boundary_fields::exact_adapter_receiver_shape;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use typed_trees::TypedTrees;
@@ -383,6 +384,7 @@ fn adapter(
         forward_receiver: false,
         family_tuple: Box::default(),
         family_tuple_display: Box::default(),
+        top_level_owner: None,
     }
 }
 
