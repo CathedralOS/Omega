@@ -31,6 +31,7 @@ mod write_frame_literal_moves;
 mod write_frame_moved_aggregates;
 mod write_frame_parameter_aggregates;
 mod write_frame_probe_r59;
+mod write_frame_requirement_calls;
 mod write_frame_returned_places;
 mod write_frame_stored_aggregates;
 

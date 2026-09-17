@@ -276,6 +276,8 @@ fn complete_expression_tree(
         if call.receiver.is_valid()
             && receiver_member_chain(program, call.receiver).is_none()
             && super::machine_state_by_symbol(program, call.target_symbol).is_none()
+            && super::boundary_calls::requirement_signature_by_target(program, call.target_symbol)
+                .is_none()
         {
             return false;
         }
@@ -325,6 +327,26 @@ fn complete_expression_tree(
                 symbols,
                 &receiver_members,
                 call.target.as_str(),
+                super::caller_aliases::CallerWriteSite::Expression(expression),
+                arguments,
+                inference,
+            )
+        })
+        .or_else(|| {
+            if call.receiver.is_valid()
+                && receiver_member_chain(program, call.receiver).is_none()
+                && receiver_origin.is_none()
+            {
+                return None;
+            }
+            super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                &receiver_members,
+                call.target.as_str(),
+                receiver_origin.as_ref(),
                 super::caller_aliases::CallerWriteSite::Expression(expression),
                 arguments,
                 inference,

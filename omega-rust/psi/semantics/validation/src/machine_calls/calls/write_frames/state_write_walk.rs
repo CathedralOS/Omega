@@ -11,7 +11,9 @@ use crate::machine_calls::calls::write_frames::alias_origins::{
     stable_local_reference_alias_origin,
 };
 use crate::machine_calls::calls::write_frames::assignment_targets::expression_is_effectful_indexed_place;
-use crate::machine_calls::calls::write_frames::boundary_calls::known_boundary_call_written_paths_for_parts;
+use crate::machine_calls::calls::write_frames::boundary_calls::{
+    known_boundary_call_written_paths_for_parts, known_requirement_call_written_paths_for_parts,
+};
 use crate::machine_calls::calls::write_frames::caller_aliases::AssignmentWriteTarget;
 use crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite;
 use crate::machine_calls::calls::write_frames::demand::{
@@ -590,6 +592,26 @@ fn walk_state_write_prefix_inner(
                             symbols,
                             &nested_receiver_members,
                             nested_call.target.as_str(),
+                            CallerWriteSite::Call(nested_call),
+                            arguments,
+                            inference,
+                        )
+                    })
+                    .flatten()
+                })
+                .or_else(|| {
+                    (!arguments
+                        .iter()
+                        .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
+                    .then(|| {
+                        known_requirement_call_written_paths_for_parts(
+                            program,
+                            machine,
+                            &machine_symbols,
+                            symbols,
+                            &nested_receiver_members,
+                            nested_call.target.as_str(),
+                            None,
                             CallerWriteSite::Call(nested_call),
                             arguments,
                             inference,
