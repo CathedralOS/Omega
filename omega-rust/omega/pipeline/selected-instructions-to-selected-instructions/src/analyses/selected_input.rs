@@ -4,8 +4,8 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
-    ValidatedAddressFold, ValidatedArmRelocation, ValidatedConstantBoolean,
-    ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedDeadCompare,
+    ValidatedAddressFold, ValidatedArmRelocation, ValidatedBypassRelocation,
+    ValidatedConstantBoolean, ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedDeadCompare,
     ValidatedDeadStoreElimination, ValidatedDiamondRelocation, ValidatedEdgeRelocation,
     ValidatedFixedViewCopies, ValidatedForkRelocation, ValidatedJoinRelocation,
     ValidatedLiteralCompare, ValidatedLiteralFold, ValidatedLiteralMinuend,
@@ -42,6 +42,26 @@ impl ValidatedSelectedAnalysis for ValidatedAddressFold {
 impl sealed::Sealed for ValidatedArmRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedArmRelocation {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedBypassRelocation {}
+
+impl ValidatedSelectedAnalysis for ValidatedBypassRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
