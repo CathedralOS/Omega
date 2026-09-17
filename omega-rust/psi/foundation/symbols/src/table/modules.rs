@@ -225,6 +225,119 @@ impl SymbolTable {
             .unwrap_or_else(SymbolHandle::invalid)
     }
 
+    /// Whether an authored domain reference may select `domain` from
+    /// `reference` under module name law. A fully qualified spelling always
+    /// selects its exact declaration. A relative spelling reaches a
+    /// module-owned domain inside its own module or through an exposing
+    /// import: a narrow import of the exact declaration exposes its leaf and
+    /// its declared carrier-qualified spelling, while importing the declaring
+    /// module exposes its directly declared domains to the carrier-qualified
+    /// spelling. The carrier-qualified form additionally requires the
+    /// authored carrier to resolve to the exact carrier the declaring context
+    /// attached the domain to -- importing the carrier type, an ordinary
+    /// sibling declaration, or merely loading another source exposes nothing.
+    /// Unmoduled domains keep root scope; generated references carry no
+    /// lexical module and select only qualified or unmoduled domains.
+    /// Resolution-stratum and package visibility stay with the caller.
+    pub fn domain_name_reaches(
+        &self,
+        domain: SymbolHandle,
+        authored: &str,
+        reference: SourceSpan,
+    ) -> bool {
+        let qualified = self.display_path(domain, "::");
+        if qualified == authored {
+            return true;
+        }
+        let domain_name = self.name(domain);
+        let domain_module = self.symbol_module(domain);
+        if !domain_module.is_valid() {
+            return same_semantic_name(domain_name, authored);
+        }
+        // A generated or source-free reference carries no lexical module; it
+        // can only select the domain through its complete qualified path
+        // above.
+        if reference.span.start == reference.span.end {
+            return false;
+        }
+        if self.source_module(reference.source_id) == domain_module {
+            return same_semantic_name(domain_name, authored);
+        }
+        if !authored.contains("::") {
+            // A narrow import of the exact declaration exposes its leaf
+            // spelling, just like ordinary name resolution. A module import
+            // does not turn the leaf into a bare local name.
+            return same_semantic_name(domain_name, authored)
+                && self
+                    .source_module_import_paths(reference.source_id)
+                    .any(|path| {
+                        self.source_module_import_target(reference.source_id, path) == Some(domain)
+                    });
+        }
+        self.carrier_qualified_domain_reaches(domain, authored, reference)
+    }
+
+    /// Whether a carrier-qualified spelling (`Carrier::Leaf`) selects an
+    /// exposed module-owned domain. The authored carrier must resolve to the
+    /// same exact carrier the declaring source attached the domain to -- a
+    /// caller's same-spelled type cannot redirect the attachment -- and an
+    /// import must expose the domain: either a narrow import of the exact
+    /// declaration or a broad import of its declaring module, which exposes
+    /// only the domains that module directly declares.
+    pub fn carrier_qualified_domain_reaches(
+        &self,
+        domain: SymbolHandle,
+        authored: &str,
+        reference: SourceSpan,
+    ) -> bool {
+        let domain_module = self.symbol_module(domain);
+        if !domain_module.is_valid() || reference.span.start == reference.span.end {
+            return false;
+        }
+        let Some((declared_carrier, declared_leaf)) = self.name(domain).rsplit_once("::") else {
+            // A leaf-named declaration (a generic domain family) has no
+            // carrier-qualified spelling.
+            return false;
+        };
+        let Some((authored_carrier, authored_leaf)) = authored.rsplit_once("::") else {
+            return false;
+        };
+        if authored_leaf != declared_leaf {
+            return false;
+        }
+        const CARRIER_KINDS: [SymbolKind; 4] = [
+            SymbolKind::BuiltinType,
+            SymbolKind::Data,
+            SymbolKind::Machine,
+            SymbolKind::Trait,
+        ];
+        let Some(authored_carrier_symbol) = self.find_top_level_by_name_and_kinds_from_source(
+            authored_carrier,
+            &CARRIER_KINDS,
+            reference,
+        ) else {
+            return false;
+        };
+        let declared_carrier_symbol = self.symbol_provenance_source_span(domain).and_then(|span| {
+            self.find_top_level_by_name_and_kinds_from_source(
+                declared_carrier,
+                &CARRIER_KINDS,
+                span,
+            )
+        });
+        if authored_carrier_symbol != declared_carrier_symbol.unwrap_or_else(SymbolHandle::invalid)
+        {
+            return false;
+        }
+        self.source_module_import_paths(reference.source_id)
+            .any(|path| {
+                matches!(
+                    self.source_module_import_target(reference.source_id, path),
+                    Some(target) if target == domain || target == domain_module
+                )
+            })
+    }
+
     pub fn symbol_module(&self, symbol: SymbolHandle) -> SymbolHandle {
         self.symbol_provenance_source_span(symbol)
             .map(|span| self.source_module(span.source_id))
@@ -357,6 +470,7 @@ impl SymbolTable {
         let qualified = name.contains("::");
         let mut matches = Vec::new();
         let mut module_local_matches = Vec::new();
+        let mut carrier_domain_matches = Vec::new();
         for candidate in self
             .child_handles(self.root)
             .into_iter()
@@ -465,6 +579,21 @@ impl SymbolTable {
                 }
                 false
             });
+            // A domain's declared carrier-qualified spelling
+            // (`u64::Distance` authored for `units::u64::Distance`) is not a
+            // lexical module path; it reaches through the domain exposure
+            // law instead -- a narrow import of the exact declaration or a
+            // broad import of its declaring module, with the authored carrier
+            // resolving to the exact attached carrier. These candidates wait
+            // outside `matches` so a contested spelling keeps the ordinary
+            // not-found result and pooled callers retain their own ambiguity
+            // and checked-obligation behavior.
+            if qualified
+                && self.get(candidate).kind == SymbolKind::Domain
+                && self.carrier_qualified_domain_reaches(candidate, name, reference)
+            {
+                carrier_domain_matches.push(candidate);
+            }
             if legacy_path
                 || (direct_path && same_package)
                 || imported_path
@@ -482,6 +611,9 @@ impl SymbolTable {
                 module_local_matches.into_iter(),
             ))
         } else if qualified {
+            if matches.is_empty() && carrier_domain_matches.len() == 1 {
+                return Some(SymbolLookup::Unique(carrier_domain_matches[0]));
+            }
             Some(SymbolLookup::from_candidates(matches.into_iter()))
         } else if matches.is_empty() {
             None
@@ -489,6 +621,15 @@ impl SymbolTable {
             Some(SymbolLookup::from_candidates(matches.into_iter()))
         }
     }
+}
+
+/// A relative domain spelling matches its declared name either exactly or by
+/// leaf, mirroring the semantic-name rule the resolved-lookup exposure pool
+/// shares with this table law.
+fn same_semantic_name(left: &str, right: &str) -> bool {
+    left == right
+        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
+        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
 }
 
 fn logical_import_path(import: &ModuleImport) -> String {

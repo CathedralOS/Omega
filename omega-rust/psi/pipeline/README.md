@@ -459,8 +459,15 @@ payload-bearing cases, local and projected borrows, private/direct-dependency
 authority and competing same-leaf owners. Ambiguous case selection reports both
 declarations and the importing source's exposure. Declared domains and eligible
 cases use one ambiguity-preserving selection; neither a unique domain nor an
-ambiguous domain roster can hide competing case meaning. Module-owned declared
-domain normalization remains a separate implementation limit; header-level
+ambiguous domain roster can hide competing case meaning. A module-owned
+domain's declared carrier-qualified spelling (`u64::Distance` for
+`units::u64::Distance`) resolves through the shared table law: a narrow
+import of the exact declaration or a broad import of its declaring module
+exposes it to constraints, casts, membership, and proof facts, with the
+authored carrier required to select the exact attached carrier. A contested
+spelling keeps the pooled checked-obligation result rather than selecting or
+hiding a declaration. Other module-owned declared domain forms remain a
+separate implementation limit; header-level
 selection tests pin the shared namespace independently of that source fence.
 `cargo run -p omega -- --check tests/omega/pass/modules/qualified_case_membership/main.omg`
 checks the four-source package customer. Additional `case_membership` source

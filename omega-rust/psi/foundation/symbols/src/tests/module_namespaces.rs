@@ -320,6 +320,205 @@ fn attached_leaves_do_not_become_source_free_or_legacy_vocabulary_names() {
     );
 }
 
+/// One moduled domain `units::u64::Distance` declared in source 1 beside the
+/// root `u64` carrier. Source 0 owns a same-named local `Meters` that shadows
+/// the declaring source's `units::Meters`, so `Meters::...` spellings from
+/// source 0 name a different carrier than `units::Meters::Depth` attached to.
+fn domain_table(
+    bindings: Vec<SourceScopedTopLevelBinding>,
+    modules: &[&[&str]],
+) -> (SymbolTable, SymbolHandle) {
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(None, bindings);
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let mut handles = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
+            (
+                SymbolKind::Data,
+                SymbolNameRef::OwnedSource {
+                    value: "Meters",
+                    source_span: reference(0),
+                },
+            ),
+            (
+                SymbolKind::Data,
+                SymbolNameRef::OwnedSource {
+                    value: "Meters",
+                    source_span: reference(1),
+                },
+            ),
+            (
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "u64::Distance",
+                    source_span: reference(1),
+                },
+            ),
+            (
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "Meters::Depth",
+                    source_span: reference(1),
+                },
+            ),
+        ],
+    ));
+    handles.next().expect("u64 carrier");
+    handles.next().expect("local Meters carrier");
+    handles.next().expect("units Meters carrier");
+    let domain = handles.next().expect("u64::Distance domain");
+    handles.next().expect("Meters::Depth domain");
+    let mut symbols = builder.finish();
+    for (ordinal, path) in modules.iter().enumerate() {
+        register_module(&mut symbols, ordinal + 1, path);
+    }
+    (symbols, domain)
+}
+
+fn domain_reference(
+    symbols: &SymbolTable,
+    source_ordinal: usize,
+    name: &str,
+) -> Option<SymbolHandle> {
+    symbols.find_top_level_by_name_and_kinds_from_source(
+        name,
+        &[SymbolKind::Domain],
+        reference(source_ordinal),
+    )
+}
+
+#[test]
+fn broad_module_import_exposes_carrier_qualified_domain_spelling() {
+    let (mut symbols, domain) = domain_table(Vec::new(), &[&["units"]]);
+    assert_eq!(domain_reference(&symbols, 0, "u64::Distance"), None);
+    symbols.register_source_import(SourceId(0), "units");
+    assert_eq!(
+        domain_reference(&symbols, 0, "units::u64::Distance"),
+        Some(domain),
+        "the complete qualified path always selects its declaration",
+    );
+    assert_eq!(
+        domain_reference(&symbols, 0, "u64::Distance"),
+        Some(domain),
+        "importing the declaring module exposes the carrier-qualified spelling",
+    );
+    assert_eq!(
+        domain_reference(&symbols, 0, "Distance"),
+        None,
+        "a broad import never makes the leaf a bare local name",
+    );
+}
+
+#[test]
+fn narrow_domain_import_exposes_carrier_qualified_spelling() {
+    let (mut symbols, domain) = domain_table(Vec::new(), &[&["units"]]);
+    symbols.register_source_import(SourceId(0), "units::u64::Distance");
+    assert_eq!(
+        domain_reference(&symbols, 0, "u64::Distance"),
+        Some(domain),
+        "a narrow import of the exact declaration exposes its carrier-qualified spelling",
+    );
+    assert_eq!(domain_reference(&symbols, 0, "Distance"), Some(domain));
+}
+
+#[test]
+fn carrier_qualified_spelling_needs_exact_carrier_and_exposing_import() {
+    let (symbols, _) = domain_table(Vec::new(), &[&["units"]]);
+    assert_eq!(
+        domain_reference(&symbols, 0, "u64::Distance"),
+        None,
+        "loading the declaring source without an import exposes nothing",
+    );
+    let (mut symbols, domain) = domain_table(Vec::new(), &[&["units"], &["other"]]);
+    symbols.register_source_import(SourceId(0), "other");
+    assert_eq!(
+        domain_reference(&symbols, 0, "u64::Distance"),
+        None,
+        "an unrelated module import does not expose the domain",
+    );
+    symbols.register_source_import(SourceId(0), "units");
+    assert_eq!(
+        domain_reference(&symbols, 0, "u64::Depth"),
+        None,
+        "the leaf must match the declared carrier-qualified name",
+    );
+    assert_eq!(
+        domain_reference(&symbols, 0, "Meters::Distance"),
+        None,
+        "a same-leaf spelling whose carrier resolves to a different declaration rejects",
+    );
+    assert_eq!(domain_reference(&symbols, 0, "u64::Distance"), Some(domain),);
+}
+
+#[test]
+fn contested_carrier_qualified_spellings_keep_the_not_found_result() {
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(None, Vec::new());
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let mut handles = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
+            (
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "u64::Distance",
+                    source_span: reference(1),
+                },
+            ),
+            (
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "u64::Distance",
+                    source_span: reference(2),
+                },
+            ),
+        ],
+    ));
+    handles.next().expect("u64 carrier");
+    let first = handles.next().expect("units u64::Distance domain");
+    handles.next().expect("foreign u64::Distance domain");
+    let mut symbols = builder.finish();
+    register_module(&mut symbols, 1, &["units"]);
+    register_module(&mut symbols, 2, &["foreign"]);
+    symbols.register_source_import(SourceId(0), "units");
+    symbols.register_source_import(SourceId(0), "foreign");
+    assert_eq!(
+        domain_reference(&symbols, 0, "u64::Distance"),
+        None,
+        "two exposed same-spelled domains stay contested rather than selecting one",
+    );
+    assert_eq!(
+        domain_reference(&symbols, 0, "units::u64::Distance"),
+        Some(first),
+        "the exact qualified path still selects its declaration",
+    );
+}
+
+#[test]
+fn generated_references_carry_no_carrier_qualified_exposure() {
+    let (mut symbols, domain) = domain_table(Vec::new(), &[&["units"]]);
+    symbols.register_source_import(SourceId(0), "units");
+    assert_eq!(
+        symbols.find_top_level_by_name_and_kinds_from_source(
+            "u64::Distance",
+            &[SymbolKind::Domain],
+            SourceSpan::new(SourceId(0), Span::new(0, 0)),
+        ),
+        None,
+        "source-free references carry no lexical module or import exposure",
+    );
+    assert_eq!(
+        symbols.find_top_level_by_name_and_kinds_from_source(
+            "units::u64::Distance",
+            &[SymbolKind::Domain],
+            SourceSpan::new(SourceId(0), Span::new(0, 0)),
+        ),
+        Some(domain),
+        "generated references still select the complete qualified path",
+    );
+}
+
 #[test]
 fn package_qualification_does_not_relax_exact_import_source_validation() {
     let bindings = vec![SourceScopedTopLevelBinding::module_import(

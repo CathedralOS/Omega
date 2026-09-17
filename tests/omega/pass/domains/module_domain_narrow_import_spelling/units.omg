@@ -1,0 +1,5 @@
+module units;
+
+pub domain u64::Distance
+requires
+    self > 0;

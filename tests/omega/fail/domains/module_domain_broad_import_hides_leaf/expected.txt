@@ -1,0 +1,1 @@
+no `domain` named `Distance` is declared for `u64`
