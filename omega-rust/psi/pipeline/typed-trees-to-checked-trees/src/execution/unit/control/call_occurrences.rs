@@ -641,16 +641,44 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     }
     trace.phase("outer calls: unconsumed nested calls");
     trace.statement(None);
-    if calls
+    if let Some(unconsumed) = calls
         .iter()
         .filter(|call| call.call_ordinal != 0)
-        .any(|call| {
+        .find(|call| {
             !consumed
                 .iter()
-                .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), call))
-                && !structural.iter().any(|nested| std::ptr::eq(*nested, call))
+                .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), *call))
+                && !structural.iter().any(|nested| std::ptr::eq(*nested, *call))
         })
     {
+        // Name the statement family holding the first unconsumed nested call:
+        // the admitted argument positions differ per family, so this is the
+        // shape the composed route still lacks.
+        trace.phase(match statements.get(unconsumed.statement_index) {
+            Some(StatementNode::Assignment(_)) => {
+                "outer calls: unconsumed nested call in an assignment"
+            }
+            Some(StatementNode::LocalData(_)) => {
+                "outer calls: unconsumed nested call in a local initializer"
+            }
+            Some(StatementNode::Call(_)) => {
+                "outer calls: unconsumed nested call in a call statement"
+            }
+            Some(StatementNode::Expression(_)) => {
+                "outer calls: unconsumed nested call in an expression statement"
+            }
+            Some(StatementNode::Transition(_)) => {
+                "outer calls: unconsumed nested call in a transition"
+            }
+            Some(StatementNode::RootBinding(_)) => {
+                "outer calls: unconsumed nested call in a root binding"
+            }
+            Some(StatementNode::AssemblyFact(_)) => {
+                "outer calls: unconsumed nested call in an assembly fact"
+            }
+            None => "outer calls: unconsumed nested call past the statement window",
+        });
+        trace.statement(u32::try_from(unconsumed.statement_index).ok());
         return None;
     }
     Some(outer)
