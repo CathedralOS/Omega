@@ -272,10 +272,16 @@ the self-loop prover rebuilds the literal chain step by step down to the
 ranked field, and the ranked path through every step must stay unwritten. The
 subject may reach its record through a reference (`card: &Card`, rebuilt as
 `&Card { .. }`), with the binding kept unwritten like any input path. The
-relational range route still binds one direct field of an owned record, so
-nested or borrowed views keep the static membership tier
-(`pass/termination/measure_nested_projection_rank`,
-`measure_borrowed_projection`).
+relational range route transports the ranked field, the endpoints and the
+entry facts through the same exact chain and reference: validation re-resolves
+the measure body's projection from the subject's declaration, binds authored
+member chains in requires facts, endpoints, guards and operands to
+chain-identified atoms, and reads an arrival as the literal chain rebuilt down
+to the field (a borrow of it for a reference-typed subject), with a forward of
+the exact prefix projection keeping the remaining chain's value
+(`pass/termination/measure_nested_projection_range_relational`,
+`measure_nested_projection_range_pinned_limit`,
+`measure_borrowed_projection_range`).
 A declared scalar view whose body computes over its parameter with `+` and
 `*` (`{ value * 2 }`, `{ value * value + 3 }`) is admitted through validation's
 `declared_scalar_view` only when every operator has builtin meaning and the
