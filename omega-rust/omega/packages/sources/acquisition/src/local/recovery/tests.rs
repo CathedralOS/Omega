@@ -4,7 +4,7 @@ use super::{
 };
 use crate::PrimaryGitChoices;
 use crate::SourceResolverStorage;
-use crate::local::operations::resolve_local_source_snapshot_with_storage;
+use crate::local::operations::resolve_local_source_snapshot;
 use crate::snapshot::permissions::make_tree_owner_writable;
 use crate::test_support::temp_root;
 use std::fs;
@@ -32,12 +32,8 @@ impl Fixture {
     }
 
     fn capture(&self, storage: &SourceResolverStorage) -> crate::ResolvedLocalSnapshot {
-        resolve_local_source_snapshot_with_storage(
-            self.0.join("source"),
-            storage,
-            LocalSourceLimits::default(),
-        )
-        .unwrap()
+        resolve_local_source_snapshot(self.0.join("source"), storage, LocalSourceLimits::default())
+            .unwrap()
     }
 }
 

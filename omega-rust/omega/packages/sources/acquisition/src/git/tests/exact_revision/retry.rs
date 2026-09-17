@@ -5,6 +5,7 @@ use super::{
 };
 fn ordinary(fixture: &Fixture) -> Result<ResolvedGitSource, SourceResolveError> {
     resolve_git_source_in_lane(
+        fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         fixture.storage.git_sources(),
         LocalSourceLimits::default(),
@@ -153,6 +154,7 @@ fn an_operation_local_pin_cannot_rebuild_its_incomplete_cache() {
     let snapshot = initial.snapshot_root().to_path_buf();
     std::fs::remove_file(fixture.entry().join(GIT_CACHE_METADATA)).unwrap();
     let result = resolve_git_source_from_pin_in_lane(
+        fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         Some(&pin),
         fixture.storage.git_sources(),

@@ -6,9 +6,9 @@ use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::test_system_git_executor;
 use crate::git::request::GitSourceRequest;
-use crate::git::resolution::resolve_git_source_with_storage;
+use crate::git::resolution::resolve_git_source;
 use crate::limits::LocalSourceLimits;
-use crate::local::operations::resolve_local_source_snapshot_with_storage;
+use crate::local::operations::resolve_local_source_snapshot;
 use crate::local::resolution_observations::ResolvedLocalSnapshot;
 use crate::observations::resolved::ResolvedGitSource;
 use crate::storage::SourceResolverStorage;
@@ -82,7 +82,7 @@ fn simultaneous_fixture_roots_are_distinct_even_with_the_same_timestamp() {
     assert_eq!(roots.len(), 256);
 }
 
-pub(crate) fn resolve_git_source(
+pub(crate) fn resolve_git_source_from_hardened_base(
     request: &GitSourceRequest,
     hardened_base: impl AsRef<Path>,
     limits: LocalSourceLimits,
@@ -98,17 +98,17 @@ pub(crate) fn resolve_git_source(
             ..PrimaryGitChoices::default()
         },
     )?;
-    resolve_git_source_with_storage(request, &storage, limits)
+    resolve_git_source(request, &storage, limits)
 }
 
-pub(crate) fn resolve_local_source_snapshot(
+pub(crate) fn resolve_local_source_snapshot_from_hardened_base(
     root: impl AsRef<Path>,
     hardened_base: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
     let storage =
         SourceResolverStorage::for_hardened_base(hardened_base, PrimaryGitChoices::default())?;
-    resolve_local_source_snapshot_with_storage(root, &storage, limits)
+    resolve_local_source_snapshot(root, &storage, limits)
 }
 
 pub(crate) fn git_storage_lane(hardened_base: &Path) -> PathBuf {

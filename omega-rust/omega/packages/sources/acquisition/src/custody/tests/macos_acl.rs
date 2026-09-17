@@ -1,9 +1,9 @@
 use super::{
     CacheCustodyKind, LocalSourceLimits, OpenOptions, SourceResolveError, change_macos_acl,
     create_git_source, git_cache_entry_root, local_git_request, open_absolute_directory_nofollow,
-    resolve_git_source, resolve_local_source_snapshot, temp_root, verify_cache_custody,
-    verify_cache_custody_from_open_root, verify_cache_lock_path_identity_for_test,
-    verify_macos_open_cache_directory_acl_custody,
+    resolve_git_source_from_hardened_base, resolve_local_source_snapshot_from_hardened_base,
+    temp_root, verify_cache_custody, verify_cache_custody_from_open_root,
+    verify_cache_lock_path_identity_for_test, verify_macos_open_cache_directory_acl_custody,
 };
 
 #[cfg(target_os = "macos")]
@@ -145,13 +145,15 @@ fn git_cache_reuse_rejects_extended_acl_allow_entry() {
     let (repository, _) = create_git_source("git-cache-acl-source");
     let cache = temp_root("git-cache-acl-cache");
     let request = local_git_request(&repository, "HEAD");
-    resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+        .expect("prime cache");
     let cache = cache.canonicalize().expect("canonicalize Git cache");
     let entry = git_cache_entry_root(&cache, &request);
     change_macos_acl(&entry, &["+a", "everyone allow write"]);
 
-    let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect_err("extended ACL allow on Git cache must reject reuse");
+    let error =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect_err("extended ACL allow on Git cache must reject reuse");
     assert!(
         matches!(
             &error,
@@ -172,13 +174,21 @@ fn local_snapshot_reuse_rejects_extended_acl_allow_entry() {
     let cache = temp_root("local-cache-acl-cache");
     std::fs::create_dir_all(&source).expect("create source");
     std::fs::write(source.join("main.omg"), b"machine main() { }").expect("write source");
-    let resolved = resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
-        .expect("prime local snapshot cache");
+    let resolved = resolve_local_source_snapshot_from_hardened_base(
+        &source,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("prime local snapshot cache");
     let payload = resolved.snapshot_root().join("main.omg");
     change_macos_acl(&payload, &["+a", "everyone allow write"]);
 
-    let error = resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
-        .expect_err("extended ACL allow on local snapshot must reject reuse");
+    let error = resolve_local_source_snapshot_from_hardened_base(
+        &source,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect_err("extended ACL allow on local snapshot must reject reuse");
     assert!(matches!(
         &error,
         SourceResolveError::LocalSnapshotInvalid { path, message }

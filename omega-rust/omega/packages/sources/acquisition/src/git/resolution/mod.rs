@@ -30,44 +30,21 @@ mod workspace_member;
 use acquisition::resolve_git_source_from_retained_cache_with;
 use materialization::materialize_whole_git_source;
 
-pub use pinned_source::{
-    resolve_git_source_from_pin_in_lane, resolve_git_source_from_pin_in_lane_with_primary_git,
-};
+pub use pinned_source::resolve_git_source_from_pin_in_lane;
 
-pub use exact_revision::{
-    GitExactRevisionAcquisition, resolve_git_source_at_revision_in_lane,
-    resolve_git_source_at_revision_in_lane_with_primary_git,
-};
+pub use exact_revision::{GitExactRevisionAcquisition, resolve_git_source_at_revision_in_lane};
 
 pub use workspace_member::{
-    resolve_git_workspace_member_at_revision_in_lanes,
-    resolve_git_workspace_member_at_revision_in_lanes_with_primary_git,
-    resolve_git_workspace_member_from_pin_in_lanes,
-    resolve_git_workspace_member_from_pin_in_lanes_with_primary_git,
-    resolve_git_workspace_member_in_lanes, resolve_git_workspace_member_in_lanes_with_primary_git,
-    resolve_git_workspace_member_with_primary_git, resolve_git_workspace_member_with_storage,
+    resolve_git_workspace_member, resolve_git_workspace_member_at_revision_in_lanes,
+    resolve_git_workspace_member_from_pin_in_lanes, resolve_git_workspace_member_in_lanes,
 };
 
 #[cfg(test)]
 mod tests;
 
+/// Resolve one Git source inside a retained lane with the selected primary Git.
+/// Callers that trust the lane's own selection pass `lane.primary_git()?`.
 pub fn resolve_git_source_in_lane(
-    request: &GitSourceRequest,
-    lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedGitSource, SourceResolveError> {
-    let package_controlled_roots = resolver_package_controlled_roots(&[lane.path()])?;
-    resolve_git_source_in_lane_with_selected_roots(
-        lane.primary_git()?,
-        &package_controlled_roots,
-        request,
-        None,
-        lane,
-        limits,
-    )
-}
-
-pub fn resolve_git_source_in_lane_with_primary_git(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,
     lane: &RetainedStorageLane,
@@ -106,26 +83,14 @@ fn resolve_git_source_in_lane_with_selected_roots(
     result
 }
 
-pub fn resolve_git_source_with_storage(
+pub fn resolve_git_source(
     request: &GitSourceRequest,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     storage.verify_path_identity()?;
-    let result = resolve_git_source_in_lane(request, storage.git_sources(), limits);
-    storage.verify_path_identity()?;
-    result
-}
-
-pub fn resolve_git_source_with_primary_git(
-    primary_git: &PrimaryGitSelection,
-    request: &GitSourceRequest,
-    storage: &SourceResolverStorage,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedGitSource, SourceResolveError> {
-    storage.verify_path_identity()?;
-    let result = resolve_git_source_in_lane_with_primary_git(
-        primary_git,
+    let result = resolve_git_source_in_lane(
+        storage.git_sources().primary_git()?,
         request,
         storage.git_sources(),
         limits,

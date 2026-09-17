@@ -8,7 +8,7 @@ use super::request::{PackageSourceInspectionError, PackageSourceRequest, SourceA
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::resolve_git_source_in_lane;
 #[cfg(test)]
-use package_source::resolve_git_source_with_storage;
+use package_source::resolve_git_source;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
     LocalSourceLimits, SourceResolveError, SourceResolverStorage, resolve_local_source,
@@ -42,7 +42,7 @@ pub(crate) fn inspect_package_source_in_cache(
         PackageSourceRequest::Git(request) => {
             let storage =
                 SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
-            let resolved = resolve_git_source_with_storage(&request, &storage, limits)?;
+            let resolved = resolve_git_source(&request, &storage, limits)?;
             Ok(PackageSourceInspection {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),
@@ -79,7 +79,7 @@ fn inspect_package_source_in_lane(
             })
         }
         PackageSourceRequest::Git(request) => {
-            let resolved = resolve_git_source_in_lane(&request, lane, limits)?;
+            let resolved = resolve_git_source_in_lane(lane.primary_git()?, &request, lane, limits)?;
             Ok(PackageSourceInspection {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),

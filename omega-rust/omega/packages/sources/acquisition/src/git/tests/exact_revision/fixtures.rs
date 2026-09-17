@@ -65,6 +65,7 @@ impl Fixture {
         mode: GitExactRevisionAcquisition,
     ) -> Result<ResolvedGitSource, SourceResolveError> {
         resolve_git_source_at_revision_in_lane(
+            self.storage.git_sources().primary_git().unwrap(),
             &self.request,
             commit,
             tree,

@@ -117,7 +117,8 @@ fn git_batch_request_creation_and_cleanup_remain_in_the_retained_cache_parent() 
     let (repo, _) = create_git_source("retained-batch-request-source");
     let cache = temp_root("retained-batch-request-cache");
     let request = local_git_request(&repo, "HEAD");
-    resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+        .expect("prime cache");
     let verified = open_verified_git_repository(&cache, &request);
     let cache_root = verified
         .entry_root
@@ -174,7 +175,8 @@ fn git_batch_request_cleanup_does_not_remove_a_replacement_name() {
     let (repo, _) = create_git_source("replaced-batch-request-source");
     let cache = temp_root("replaced-batch-request-cache");
     let request = local_git_request(&repo, "HEAD");
-    resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+        .expect("prime cache");
     let verified = open_verified_git_repository(&cache, &request);
     let cache_root = verified
         .entry_root
@@ -367,8 +369,9 @@ fn selective_git_member_opens_only_authenticated_declarations_and_member_payload
 
     let cache = temp_root("selective-member-payloads-cache");
     let request = local_git_request(&repo, "HEAD");
-    let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect("prime authenticated repository cache");
+    let resolved =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("prime authenticated repository cache");
     let tree = resolved.tree().to_owned();
     let repository = open_verified_git_repository(&cache, &request);
     let executor =
@@ -452,8 +455,9 @@ fn selective_git_projection_rejects_duplicate_missing_and_wrong_type_paths() {
 
     let cache = temp_root("selective-member-path-errors-cache");
     let request = local_git_request(&repo, "HEAD");
-    let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect("prime authenticated repository cache");
+    let resolved =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("prime authenticated repository cache");
     let tree = resolved.tree().to_owned();
     let repository = open_verified_git_repository(&cache, &request);
     let executor =
@@ -528,8 +532,9 @@ fn selective_git_projection_authenticates_an_empty_member_tree() {
     let revision = add_empty_tree_commit(&repo);
     let cache = temp_root("selective-empty-member-cache");
     let request = local_git_request(&repo, &revision);
-    let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect("prime authenticated empty-tree repository cache");
+    let resolved =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("prime authenticated empty-tree repository cache");
     let repository = open_verified_git_repository(&cache, &request);
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");

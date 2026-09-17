@@ -124,8 +124,9 @@ impl Fixture {
         let blob = run_test_git_with_input(&source, ["rev-parse", "HEAD:main.omg"], b"");
         let cache = temp_root("exact-object-probe-cache");
         let request = local_git_request(&source, "HEAD");
-        let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-            .expect("prime verified object cache");
+        let resolved =
+            resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+                .expect("prime verified object cache");
         let repository = open_verified_git_repository(&cache, &request);
         let offline = source.with_extension("offline");
         std::fs::rename(&source, &offline).expect("make all source transport unavailable");

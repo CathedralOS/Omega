@@ -123,7 +123,7 @@ pub fn resolve_local_source_snapshot_in_lane(
     }
 }
 
-pub fn resolve_local_source_snapshot_with_storage(
+pub fn resolve_local_source_snapshot(
     root: impl AsRef<Path>,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,

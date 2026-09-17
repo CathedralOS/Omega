@@ -24,12 +24,9 @@ use super::materialization::GitMaterializedSource;
 use super::selection::GitRevisionSelection;
 
 mod recorded;
-pub use recorded::{
-    resolve_git_workspace_member_at_revision_in_lanes,
-    resolve_git_workspace_member_at_revision_in_lanes_with_primary_git,
-};
+pub use recorded::resolve_git_workspace_member_at_revision_in_lanes;
 
-pub fn resolve_git_workspace_member_with_storage<Planner>(
+pub fn resolve_git_workspace_member<Planner>(
     request: &GitSourceRequest,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,
@@ -44,34 +41,7 @@ where
 {
     storage.verify_path_identity()?;
     let result = resolve_git_workspace_member_in_lanes(
-        request,
-        storage.git_sources(),
-        storage.workspace_members(),
-        limits.compiler_bounded(),
-        declaration_limits,
-        planner,
-    );
-    storage.verify_path_identity()?;
-    result
-}
-
-pub fn resolve_git_workspace_member_with_primary_git<Planner>(
-    primary_git: &PrimaryGitSelection,
-    request: &GitSourceRequest,
-    storage: &SourceResolverStorage,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<
-    GitWorkspaceProjectionResult<Planner::Evidence>,
-    GitWorkspaceProjectionError<Planner::Error>,
->
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    storage.verify_path_identity()?;
-    let result = resolve_git_workspace_member_in_lanes_with_primary_git(
-        primary_git,
+        storage.git_sources().primary_git()?,
         request,
         storage.git_sources(),
         storage.workspace_members(),
@@ -84,6 +54,7 @@ where
 }
 
 pub fn resolve_git_workspace_member_in_lanes<Planner>(
+    primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,
     git_lane: &RetainedStorageLane,
     member_lane: &RetainedStorageLane,
@@ -98,32 +69,6 @@ where
     Planner: GitWorkspaceProjectionPlanner,
 {
     resolve_git_workspace_member_from_pin_in_lanes(
-        request,
-        None,
-        git_lane,
-        member_lane,
-        limits,
-        declaration_limits,
-        planner,
-    )
-}
-
-pub fn resolve_git_workspace_member_in_lanes_with_primary_git<Planner>(
-    primary_git: &PrimaryGitSelection,
-    request: &GitSourceRequest,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<
-    GitWorkspaceProjectionResult<Planner::Evidence>,
-    GitWorkspaceProjectionError<Planner::Error>,
->
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    resolve_git_workspace_member_from_pin_in_lanes_with_primary_git(
         primary_git,
         request,
         None,
@@ -136,38 +81,6 @@ where
 }
 
 pub fn resolve_git_workspace_member_from_pin_in_lanes<Planner>(
-    request: &GitSourceRequest,
-    pin: Option<&GitAcquisitionPin>,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    declaration_limits: GitWorkspaceDeclarationLimits,
-    planner: &mut Planner,
-) -> Result<
-    GitWorkspaceProjectionResult<Planner::Evidence>,
-    GitWorkspaceProjectionError<Planner::Error>,
->
-where
-    Planner: GitWorkspaceProjectionPlanner,
-{
-    let package_controlled_roots =
-        resolver_package_controlled_roots(&[git_lane.path(), member_lane.path()])?;
-    resolve_git_workspace_member_with_selected_roots(
-        git_lane
-            .primary_git()
-            .map_err(GitWorkspaceProjectionError::Source)?,
-        &package_controlled_roots,
-        request,
-        GitRevisionSelection::Ordinary(pin),
-        git_lane,
-        member_lane,
-        limits,
-        declaration_limits,
-        planner,
-    )
-}
-
-pub fn resolve_git_workspace_member_from_pin_in_lanes_with_primary_git<Planner>(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,
     pin: Option<&GitAcquisitionPin>,

@@ -74,6 +74,7 @@ fn resolve_selected_git_declared_source_at_revision_in_lanes(
     match request.selection() {
         PackageSelection::Root => {
             let source = resolve_git_source_at_revision_in_lane(
+                git_lane.primary_git()?,
                 request.acquisition(),
                 commit,
                 tree,
@@ -86,6 +87,7 @@ fn resolve_selected_git_declared_source_at_revision_in_lanes(
         PackageSelection::Named(package) => {
             let mut planner = ManagerGitWorkspacePlanner::new(package);
             let projected = resolve_git_workspace_member_at_revision_in_lanes(
+                git_lane.primary_git()?,
                 request.acquisition(),
                 commit,
                 tree,

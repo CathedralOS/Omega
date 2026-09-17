@@ -1,6 +1,7 @@
 use super::{
     LocalSourceLimits, SourceResolveError, SourceTreePolicy, capture_local_source,
-    make_tree_owner_writable, publish_local_snapshot, resolve_local_source_snapshot, temp_root,
+    make_tree_owner_writable, publish_local_snapshot,
+    resolve_local_source_snapshot_from_hardened_base, temp_root,
 };
 #[test]
 fn local_resolution_observation_binds_request_spelling_and_limits() {
@@ -24,10 +25,14 @@ fn local_resolution_observation_binds_request_spelling_and_limits() {
         root.file_name()
             .expect("temporary source has a final component"),
     );
-    let ordinary = resolve_local_source_snapshot(&root, &cache, ordinary_limits)
+    let ordinary = resolve_local_source_snapshot_from_hardened_base(&root, &cache, ordinary_limits)
         .expect("resolve ordinary request");
-    let alternate = resolve_local_source_snapshot(&alternate_request, &cache, ordinary_limits)
-        .expect("resolve alternate request spelling");
+    let alternate = resolve_local_source_snapshot_from_hardened_base(
+        &alternate_request,
+        &cache,
+        ordinary_limits,
+    )
+    .expect("resolve alternate request spelling");
     assert_eq!(ordinary.snapshot_root(), alternate.snapshot_root());
     assert_eq!(
         ordinary.resolution_observation().custody_identity(),
@@ -44,7 +49,7 @@ fn local_resolution_observation_binds_request_spelling_and_limits() {
         max_bytes: ordinary_limits.max_bytes,
         max_depth: ordinary_limits.max_depth,
     };
-    let tighter = resolve_local_source_snapshot(&root, &cache, tighter_limits)
+    let tighter = resolve_local_source_snapshot_from_hardened_base(&root, &cache, tighter_limits)
         .expect("resolve under tighter accepted limits");
     assert_eq!(ordinary.snapshot_root(), tighter.snapshot_root());
     assert_ne!(

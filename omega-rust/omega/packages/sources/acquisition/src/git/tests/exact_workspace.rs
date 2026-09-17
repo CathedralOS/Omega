@@ -2,7 +2,6 @@
 use super::{
     GitExactRevisionAcquisition, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
     SourceResolveError, resolve_git_workspace_member_at_revision_in_lanes,
-    resolve_git_workspace_member_at_revision_in_lanes_with_primary_git,
 };
 mod fixtures;
 mod planner;
@@ -42,7 +41,7 @@ fn exact_old_workspace_declarations_survive_branch_drift_and_offline_recovery() 
 #[test]
 fn exact_workspace_explicit_primary_keeps_root_and_member_tree_distinct() {
     let fixture = Fixture::new("exact-workspace-primary");
-    let result = resolve_git_workspace_member_at_revision_in_lanes_with_primary_git(
+    let result = resolve_git_workspace_member_at_revision_in_lanes(
         fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         &fixture.commit,
@@ -82,6 +81,7 @@ fn member_tree_cannot_replace_recorded_repository_root_before_planning() {
     let fixture = Fixture::new("exact-workspace-forged-root");
     let mut planner = Planner::default();
     let error = resolve_git_workspace_member_at_revision_in_lanes(
+        fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         &fixture.commit,
         &fixture.member_tree,
@@ -135,6 +135,7 @@ fn warm_exact_workspace_reapplies_declaration_limits_before_planning() {
     fixture.disconnect();
     let mut planner = Planner::default();
     let error = resolve_git_workspace_member_at_revision_in_lanes(
+        fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         &fixture.commit,
         &fixture.root_tree,

@@ -24,26 +24,14 @@ pub enum GitExactRevisionAcquisition {
     AllowFetch,
 }
 
-/// Reconstruct whole-source custody from recorded commit/root-tree identities.
+/// Reconstruct whole-source custody from recorded commit/root-tree identities
+/// with the selected primary Git (`lane.primary_git()?` trusts the lane's own).
 /// The original authored request remains in the result and cache metadata.
 /// IDs are expected content, not proof of acquisition or package acceptance.
 /// Named workspace member selection is not performed by this entrance.
 /// Missing or corrupt descendant objects fail normal source authentication;
 /// this entrance does not automatically repair an incomplete descendant graph.
 pub fn resolve_git_source_at_revision_in_lane(
-    request: &GitSourceRequest,
-    commit: &GitCommitId,
-    tree: &GitTreeId,
-    acquisition: GitExactRevisionAcquisition,
-    lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedGitSource, SourceResolveError> {
-    let recorded = RecordedGitRevision::new(request, commit, tree, acquisition)?;
-    resolve_recorded(lane.primary_git()?, request, &recorded, lane, limits)
-}
-
-/// Exact recorded revision acquisition using an explicit operator-selected Git.
-pub fn resolve_git_source_at_revision_in_lane_with_primary_git(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,
     commit: &GitCommitId,
