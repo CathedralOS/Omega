@@ -1,4 +1,7 @@
-use super::{Context, call_targets_proof_machine, erased_fields};
+use super::{
+    Context, argument_position_context, call_targets_proof_machine, callee_parameters,
+    erased_fields,
+};
 use diagnostics::Diagnostic;
 use language_core::BindingRelevance;
 use symbols::SymbolHandle;
@@ -42,7 +45,8 @@ pub(super) fn validate_expression(
                     .expression_table
                     .name_path_member_symbols(path.member_symbols)
                 {
-                    reported |= report_runtime_erased_field(program, *symbol, diagnostics);
+                    reported |= report_runtime_erased_field(program, *symbol, diagnostics)
+                        || report_runtime_erased_binding(program, state, *symbol, diagnostics);
                 }
                 let members = program.expression_table.name_path_members(path.members);
                 if !reported && members.len() == 2 && members[0].as_str() == "self" {
@@ -112,7 +116,7 @@ pub(super) fn validate_expression(
                 && !call_targets_proof_machine(program, proof_only, call.target_symbol)
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "erased field initializer calls runtime machine `{}`; erased initialization cannot perform runtime effects or computation",
+                    "erased binding initializer calls runtime machine `{}`; erased initialization cannot perform runtime effects or computation",
                     call.target
                 )));
             }
@@ -127,14 +131,20 @@ pub(super) fn validate_expression(
                     diagnostics,
                 );
             }
-            for argument in program.expression_table.expression_handles(call.arguments) {
+            let parameters = callee_parameters(program, call.target_symbol);
+            for (position, argument) in program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .enumerate()
+            {
                 validate_expression(
                     program,
                     proof_only,
                     machine,
                     state,
                     *argument,
-                    context,
+                    argument_position_context(context, parameters, position),
                     diagnostics,
                 );
             }
@@ -142,7 +152,7 @@ pub(super) fn validate_expression(
         ExpressionNode::Atomic(atomic) => {
             if context == Context::ErasedInitializer {
                 diagnostics.push(Diagnostic::error(
-                    "erased field initializer cannot perform an atomic runtime operation",
+                    "erased binding initializer cannot perform an atomic runtime operation",
                 ));
             }
             validate_expression(
@@ -354,6 +364,50 @@ fn report_runtime_erased_field(
         diagnostics.push(Diagnostic::error(format!(
             "erased field `{}` has no runtime value, address, read, write, or cleanup; it may be used only by proofs or another erased binding",
             field.name
+        )));
+        return true;
+    }
+    false
+}
+
+/// An erased parameter or `let` local of the current state has no runtime
+/// value; a runtime read of its symbol rejects exactly like an erased field.
+fn report_runtime_erased_binding(
+    program: &TypedTrees,
+    state: &State,
+    symbol: SymbolHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !symbol.is_valid() {
+        return false;
+    }
+    let erased_parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol && parameter.relevance.is_erased());
+    if let Some(parameter) = erased_parameter {
+        diagnostics.push(Diagnostic::error(format!(
+            "erased parameter `{}` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding",
+            parameter.name
+        )));
+        return true;
+    }
+    let erased_local = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local)
+                if local.symbol == symbol && local.relevance.is_erased() =>
+            {
+                Some(local)
+            }
+            _ => None,
+        });
+    if let Some(local) = erased_local {
+        diagnostics.push(Diagnostic::error(format!(
+            "erased local `{}` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding",
+            local.name
         )));
         return true;
     }

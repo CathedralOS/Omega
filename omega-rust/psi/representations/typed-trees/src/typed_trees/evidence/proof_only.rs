@@ -147,10 +147,16 @@ impl ProofOnlyClassification {
                         })
                 });
         }
+        // Erased parameters and locals are proof-side occurrences: a
+        // proof-only type there does not turn the machine into a computed
+        // proof machine, exactly as an erased field does not make its record
+        // proof-only.
         program.machine_states(machine).iter().any(|state| {
             program.state_parameters(state).iter().any(|parameter| {
-                self.proof_only_mention(program, parameter.type_reference)
-                    .is_some()
+                !parameter.relevance.is_erased()
+                    && self
+                        .proof_only_mention(program, parameter.type_reference)
+                        .is_some()
             }) || (state.return_type.is_valid()
                 && self
                     .proof_only_mention(program, state.return_type)
@@ -160,9 +166,12 @@ impl ProofOnlyClassification {
                     .statements(state.statement_nodes)
                     .iter()
                     .any(|statement| match statement {
-                        crate::statement::StatementNode::LocalData(local_data) => self
-                            .proof_only_mention(program, local_data.type_reference)
-                            .is_some(),
+                        crate::statement::StatementNode::LocalData(local_data) => {
+                            !local_data.relevance.is_erased()
+                                && self
+                                    .proof_only_mention(program, local_data.type_reference)
+                                    .is_some()
+                        }
                         _ => false,
                     })
         })

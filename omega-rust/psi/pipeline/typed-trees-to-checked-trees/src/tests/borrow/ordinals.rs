@@ -98,6 +98,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             is_const: false,
             is_mutable: true,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_machine_state(&mut machine, entry_state);

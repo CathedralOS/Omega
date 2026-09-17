@@ -128,6 +128,7 @@ fn expected_result_selects_qualified_overload_and_no_expected_selects_empty() {
             initial_value: qualified_call,
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     program.statement_table.push_statement(
@@ -201,6 +202,7 @@ fn missing_exact_result_dispatch_set_rejects_without_rebinding() {
             initial_value: call,
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     let mut caller = Machine {

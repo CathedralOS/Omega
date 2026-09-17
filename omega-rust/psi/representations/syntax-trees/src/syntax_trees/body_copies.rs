@@ -155,6 +155,7 @@ impl SyntaxTrees {
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
                 is_self: parameter.is_self,
+                relevance: parameter.relevance,
             });
             let copied = self.items.append_state_parameter_handle(copied);
             if count == 0 {
@@ -241,6 +242,7 @@ impl SyntaxTrees {
                 type_reference: self.copy_type_reference_handle(other, local_data.type_reference),
                 initial_value: self.copy_expression_handle(other, local_data.initial_value),
                 is_mutable: local_data.is_mutable,
+                relevance: local_data.relevance,
             }),
             StatementNode::Transition(transition) => StatementNode::Transition(TableTransition {
                 target: self.copy_transition_target(other, transition.target),

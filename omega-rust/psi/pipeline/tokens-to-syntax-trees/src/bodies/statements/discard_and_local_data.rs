@@ -126,13 +126,10 @@ pub(crate) fn parse_local_data_statement_handle<'tokens, 'source>(
         (false, input)
     };
     let (name, input) = input.take_identifier()?;
-    // `[erased]` is spec-legal on any authored binding occurrence; the local
-    // node cannot retain relevance yet, so the bracket fails closed here
-    // rather than parsing and dropping.
-    let ((), input) =
-        crate::parameters::binding_properties::parse_unsupported_binding_relevance_brackets(
-            input, "local",
-        )?;
+    // `[erased]` marks the binding occurrence: `let proof [erased]: T` is a
+    // proof-side local with the same relevance marker as an erased field.
+    let (relevance, input) =
+        crate::parameters::binding_properties::parse_binding_relevance_brackets(input, "local")?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let (initial_value, input) = if input.at_punctuation(PunctuationKind::Equal) {
@@ -152,6 +149,7 @@ pub(crate) fn parse_local_data_statement_handle<'tokens, 'source>(
                 type_reference,
                 initial_value,
                 is_mutable,
+                relevance,
             })),
         input,
     ))

@@ -162,6 +162,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                 type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value,
                 is_mutable: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         ));
         let handle = syntax_trees.items.append_statement_handle(capture);
@@ -180,6 +181,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                 type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value: subject_place,
                 is_mutable: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         ));
         let handle = syntax_trees.items.append_statement_handle(marker);

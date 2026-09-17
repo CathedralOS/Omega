@@ -50,20 +50,3 @@ pub(crate) fn parse_binding_relevance_brackets<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
     Ok((relevance, input))
 }
-
-/// Parse binding brackets at a site whose binding node cannot retain
-/// `BindingRelevance` yet (signature parameters, `let` locals). Only
-/// `DataField` carries relevance today, so the marker admits the bracket
-/// grammar for uniform property diagnostics and then fails closed:
-/// parse-and-drop would silently charge runtime storage for a proof-side
-/// binding. Retire this fence once those nodes retain relevance end to end.
-pub(crate) fn parse_unsupported_binding_relevance_brackets<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    site: &str,
-) -> ParseResult<'tokens, 'source, ()> {
-    let (relevance, input) = parse_binding_relevance_brackets(input, site)?;
-    if relevance.is_erased() {
-        return Err(input.error_here(format!("`[erased]` on a {site} is not implemented yet")));
-    }
-    Ok(((), input))
-}

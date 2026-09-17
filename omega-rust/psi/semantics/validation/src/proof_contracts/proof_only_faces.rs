@@ -110,7 +110,10 @@ pub(crate) fn validate_proof_only_consumption(
 
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
-                if parameter.is_self {
+                // An erased parameter is a proof-side binding occurrence with
+                // no runtime transfer, so a proof-only type there is legal --
+                // the same exemption as an erased data field below.
+                if parameter.is_self || parameter.relevance.is_erased() {
                     continue;
                 }
                 if let Some(held) =
@@ -138,6 +141,10 @@ pub(crate) fn validate_proof_only_consumption(
                 let StatementNode::LocalData(local_data) = statement else {
                     continue;
                 };
+                // `let proof [erased]: T` owns no runtime storage either.
+                if local_data.relevance.is_erased() {
+                    continue;
+                }
                 if let Some(held) =
                     classification.proof_only_mention(program, local_data.type_reference)
                 {

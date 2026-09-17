@@ -148,6 +148,7 @@ fn operator_with_placeholder_operands(
                 is_const: false,
                 is_mutable: false,
                 is_self: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         );
     }

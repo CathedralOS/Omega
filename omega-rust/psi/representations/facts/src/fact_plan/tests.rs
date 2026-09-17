@@ -294,6 +294,7 @@ fn expression_places_resolve_attached_data_members() {
             is_const: false,
             is_mutable: true,
             is_self: true,
+            relevance: Default::default(),
         },
     );
     program.push_machine_state(&mut machine, state);

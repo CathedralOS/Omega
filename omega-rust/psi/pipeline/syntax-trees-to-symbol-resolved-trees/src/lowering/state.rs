@@ -630,6 +630,7 @@ pub(crate) fn lower_state_parameter(
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
         is_self: parameter.is_self,
+        relevance: parameter.relevance,
     })
 }
 
@@ -689,6 +690,7 @@ pub(crate) fn build_synthesized_arm_state(
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         };
         lowerer
             .symbol_resolved_trees
@@ -709,6 +711,7 @@ pub(crate) fn build_synthesized_arm_state(
             initial_value: arm.call,
             is_mutable: false,
             type_is_inferred: true,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     });
     let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
@@ -791,6 +794,7 @@ pub(crate) fn build_synthesized_transition_argument_state(
                     is_const: false,
                     is_mutable,
                     is_self: false,
+                    relevance: language_core::BindingRelevance::Relevant,
                 },
             );
     }
@@ -820,6 +824,7 @@ pub(crate) fn build_synthesized_transition_argument_state(
                         initial_value: call_initializer,
                         is_mutable: false,
                         type_is_inferred: true,
+                        relevance: language_core::BindingRelevance::Relevant,
                     },
                 }),
             );

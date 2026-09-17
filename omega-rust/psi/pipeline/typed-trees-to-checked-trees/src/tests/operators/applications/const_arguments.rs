@@ -292,6 +292,7 @@ fn const_binder_absent_from_operands_remains_open() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
 

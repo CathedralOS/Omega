@@ -1030,7 +1030,9 @@ fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> Data
     }
 }
 
-fn snapshot_binding_relevance(relevance: language_core::BindingRelevance) -> &'static str {
+pub(super) fn snapshot_binding_relevance(
+    relevance: language_core::BindingRelevance,
+) -> &'static str {
     match relevance {
         language_core::BindingRelevance::Relevant => "relevant",
         language_core::BindingRelevance::Erased => "erased",

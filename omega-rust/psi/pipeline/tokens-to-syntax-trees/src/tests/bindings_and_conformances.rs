@@ -322,24 +322,67 @@ fn rejects_unknown_or_duplicate_field_relevance_properties() {
 }
 
 #[test]
-fn fences_erased_relevance_on_signature_parameters_and_locals() {
-    // `[erased]` is spec-legal on any authored binding occurrence, not only
-    // data members; signature and local binding nodes carry no relevance
-    // slot yet, so these sites admit the bracket grammar and fail closed
-    // (PROOF-RELEVANCE-MIGRATION).
+fn parses_binding_relevance_on_signature_parameters_and_locals() {
+    // `[erased]` marks any authored binding occurrence, not only data
+    // members: signature parameters and `let` locals retain the same
+    // relevance marker (PROOF-RELEVANCE-MIGRATION).
+    let source = r#"
+        data Main { v: i32; }
+        machine Main::main(&mut self, n: i32, bound [erased]: i32) {
+            let x [erased]: i32 = 0;
+            let mut y: i32 = 1;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("binding relevance should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine declaration");
+    let [state] = parsed.items.state_handles(machine.states) else {
+        panic!("one state");
+    };
+    let state = parsed.items.state(*state);
+    let parameters = parsed
+        .items
+        .state_parameters(state.parameters)
+        .iter()
+        .map(|handle| parsed.items.state_parameter(*handle))
+        .collect::<Vec<_>>();
+    let [receiver, n, bound] = parameters.as_slice() else {
+        panic!("three parameters");
+    };
+    assert!(receiver.is_self);
+    assert_eq!(
+        receiver.relevance,
+        language_core::BindingRelevance::Relevant
+    );
+    assert_eq!(n.relevance, language_core::BindingRelevance::Relevant);
+    assert_eq!(bound.relevance, language_core::BindingRelevance::Erased);
+
+    let locals = parsed
+        .items
+        .statements(state.statements)
+        .iter()
+        .filter_map(|handle| match parsed.statements.statement(*handle) {
+            syntax_trees::statement::StatementNode::LocalData(local) => Some(local),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [x, y] = locals.as_slice() else {
+        panic!("two locals");
+    };
+    assert_eq!(x.relevance, language_core::BindingRelevance::Erased);
+    assert!(!x.is_mutable);
+    assert_eq!(y.relevance, language_core::BindingRelevance::Relevant);
+    assert!(y.is_mutable);
+
     for (source, expected) in [
-        (
-            "machine m(x [erased]: i32) {}",
-            "`[erased]` on a parameter is not implemented yet",
-        ),
-        (
-            "machine m(&x [erased]: i32) {}",
-            "`[erased]` on a parameter is not implemented yet",
-        ),
-        (
-            "machine m(const x [erased]: i32) {}",
-            "`[erased]` on a parameter is not implemented yet",
-        ),
         (
             "machine m(x [copy]: i32) {}",
             "unknown parameter binding property `copy`",
@@ -349,14 +392,6 @@ fn fences_erased_relevance_on_signature_parameters_and_locals() {
             "duplicate binding property `erased`",
         ),
         (
-            "data Main { v: i32; } machine Main::main(&mut self) { let x [erased]: i32 = 0; }",
-            "`[erased]` on a local is not implemented yet",
-        ),
-        (
-            "data Main { v: i32; } machine Main::main(&mut self) { let mut x [erased]: i32 = 0; }",
-            "`[erased]` on a local is not implemented yet",
-        ),
-        (
             "data Main { v: i32; } machine Main::main(&mut self) { let x [bogus]: i32 = 0; }",
             "unknown local binding property `bogus`",
         ),
@@ -364,8 +399,7 @@ fn fences_erased_relevance_on_signature_parameters_and_locals() {
         let tokens = Lexer::new(source)
             .tokenize()
             .expect("tokenize should succeed");
-        let error =
-            parse_syntax_trees(&tokens).expect_err("unsupported binding relevance must reject");
+        let error = parse_syntax_trees(&tokens).expect_err("invalid binding property must reject");
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }

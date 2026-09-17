@@ -238,6 +238,7 @@ pub(crate) fn lower_statement_node(
                         initial_value: call,
                         is_mutable: false,
                         type_is_inferred: true,
+                        relevance: language_core::BindingRelevance::Relevant,
                     },
                 }));
             }
@@ -330,6 +331,7 @@ pub(crate) fn lower_statement_node(
                     initial_value,
                     is_mutable: local_data.is_mutable,
                     type_is_inferred: !local_data.type_reference.is_valid(),
+                    relevance: local_data.relevance,
                 },
             }));
             if let Some(local) = capturable_local {

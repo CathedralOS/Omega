@@ -1,0 +1,20 @@
+// `[erased]` marks a binding occurrence, so a signature parameter may be
+// erased exactly like a data field (contracts.md#explicit-erased-bindings).
+// `bound` remains in checking and semantic identity but contributes no
+// runtime storage, transfer, or read: it appears only in the requires
+// clause, while the runtime body reads `n` alone. The call site discharges
+// the instantiated requires from its literal arguments.
+data Main {
+    total: i32;
+}
+
+machine Main::main(&mut self) {
+    self.record(3, 10);
+}
+
+machine Main::record(&mut self, n: i32, bound [erased]: i32)
+requires
+    n < bound
+{
+    self.total = n;
+}

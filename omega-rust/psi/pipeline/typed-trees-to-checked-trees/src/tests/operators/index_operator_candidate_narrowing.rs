@@ -74,6 +74,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_operator_parameter(
@@ -85,6 +86,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_operator(matching_operator);
@@ -100,6 +102,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_operator(mismatched_operator);
@@ -123,6 +126,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_machine_state(&mut machine, state);
@@ -228,6 +232,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_operator_parameter(
@@ -239,6 +244,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_operator(matching_operator);
@@ -254,6 +260,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_operator_parameter(
@@ -265,6 +272,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             is_const: false,
             is_mutable: false,
             is_self: false,
+            relevance: language_core::BindingRelevance::Relevant,
         },
     );
     program.push_operator(mismatched_operator);
@@ -281,6 +289,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
                 is_const: false,
                 is_mutable: false,
                 is_self: false,
+                relevance: language_core::BindingRelevance::Relevant,
             },
         );
     }
@@ -327,6 +336,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     program.statement_table.push_statement(
@@ -338,6 +348,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     program.statement_table.push_statement(

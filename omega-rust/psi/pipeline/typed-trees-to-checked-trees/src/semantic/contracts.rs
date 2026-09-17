@@ -453,6 +453,7 @@ fn instantiate_call_contract_payload(
                     is_const: actual.is_const,
                     is_mutable: actual.is_mutable,
                     is_self: actual.is_self,
+                    relevance: actual.relevance,
                 },
             )
             .collect();

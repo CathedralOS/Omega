@@ -119,6 +119,7 @@ pub(crate) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
             type_reference,
             initial_value: zero,
             is_mutable: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }));
     let first_handle = syntax_trees.items.append_statement_handle(local_stmt);
 
@@ -265,6 +266,7 @@ pub(crate) fn try_parse_atomic_fetch_let<'tokens, 'source>(
             type_reference,
             initial_value: zero,
             is_mutable: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }));
     let first_handle = syntax_trees.items.append_statement_handle(local_stmt);
 
@@ -362,6 +364,7 @@ pub(crate) fn try_parse_atomic_swap_let<'tokens, 'source>(
             type_reference,
             initial_value: zero,
             is_mutable: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }));
     let first = syntax_trees.items.append_statement_handle(local);
 

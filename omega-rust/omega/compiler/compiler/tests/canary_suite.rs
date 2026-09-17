@@ -840,9 +840,15 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "wire/wire_compatibility_migration_same_named_eras",
     "wire/wire_compatibility_migration_retired_identity_fresh",
     "wire/wire_codec_qualified_schema_calls",
+    // Occurrence-level `[erased]` on a signature parameter: checked semantics
+    // admits the proof-only use; the native calling plan does not strip the
+    // erased position yet (PROOF-RELEVANCE-MIGRATION), so this stays Check.
+    "relevance/erased_parameter_proof_only",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "relevance/erased_parameter_runtime_read",
+    "relevance/erased_local_runtime_read",
     "operators/operand_requires_invalidated",
     "operators/selected_crash_invocation",
     "expressions/match_float_equality_missing",

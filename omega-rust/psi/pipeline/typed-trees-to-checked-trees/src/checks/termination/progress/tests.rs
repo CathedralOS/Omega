@@ -154,6 +154,7 @@ fn correspondence_fixture() -> (
             initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: true,
             type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
         }),
     );
     program.statement_table.push_statement(

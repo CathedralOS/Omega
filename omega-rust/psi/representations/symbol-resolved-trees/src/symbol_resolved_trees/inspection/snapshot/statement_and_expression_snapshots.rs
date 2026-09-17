@@ -67,6 +67,7 @@ pub enum StatementSnapshot {
         type_reference: TypeReferenceSnapshot,
         initial_value: Option<ExpressionSnapshot>,
         type_is_inferred: bool,
+        relevance: &'static str,
     },
     Transition {
         target: TransitionTargetSnapshot,
@@ -297,6 +298,9 @@ pub(crate) fn statement_snapshot(
             name: local_data.name.to_string(),
             type_reference: type_reference_snapshot(program, &local_data.type_reference),
             type_is_inferred: local_data.type_is_inferred,
+            relevance: super::declaration_snapshots::snapshot_binding_relevance(
+                local_data.relevance,
+            ),
             initial_value: local_data
                 .initial_value
                 .is_valid()

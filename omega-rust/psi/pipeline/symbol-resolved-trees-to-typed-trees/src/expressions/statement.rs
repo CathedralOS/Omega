@@ -117,6 +117,7 @@ pub(crate) fn lower_statement_node(
                         .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
                     is_mutable: local_data.is_mutable,
                     type_is_inferred: local_data.type_is_inferred,
+                    relevance: local_data.relevance,
                 },
             ))
         }

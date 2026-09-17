@@ -1,5 +1,6 @@
 //! Runtime noninterference and fail-closed fences for occurrence-level
-//! `[erased]` data fields.
+//! `[erased]` bindings: data fields, case payload fields, signature
+//! parameters, and `let` locals.
 //!
 //! The executable slice supports transparent records and sums, plus closed
 //! synthesized generic-record instances at explicitly typed local
@@ -8,12 +9,19 @@
 //! ownership; native lowering later strips erased literal fields from its
 //! private runtime expression graph and attached-machine storage/topology.
 //!
-//! The spec scopes `[erased]` to any authored binding occurrence, not only
-//! data members: signature parameters and `let` locals are binding
-//! occurrences too, so the parser admits the same bracket grammar there and
-//! currently fails closed — their binding nodes carry no `BindingRelevance`
-//! slot yet. Once they do, this walk needs the same runtime-use rejection
-//! for reads of those parameter and local symbols.
+//! Every binding occurrence shares one contract
+//! (wiki/spec/proofs/contracts.md#explicit-erased-bindings): the binding may
+//! supply proof computation but cannot determine runtime data or control.
+//! Contracts, invariants, and proof machines are `Context::Proof` and never
+//! walk here as runtime reads. An erased binding's own initializer -- a
+//! field initializer in a struct literal, a `let x [erased]` initializer, or
+//! the argument supplied to an erased parameter position -- is
+//! `Context::ErasedInitializer`: it may read erased bindings but cannot call
+//! a runtime machine or perform an atomic operation, because nothing at
+//! runtime will ever observe the result. Runtime reads of erased parameters
+//! and locals are resolved by symbol against the current state's own
+//! parameters and `let` statements; parameter positions align arguments with
+//! the callee's non-`self` parameters.
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -81,14 +89,24 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                         } else {
                             Context::Runtime
                         };
-                        for argument in program.statement_table.expression_handles(call.arguments) {
+                        let callee_parameters = callee_parameters(program, call.target_symbol);
+                        for (position, argument) in program
+                            .statement_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .enumerate()
+                        {
                             validate_expression(
                                 program,
                                 &proof_only,
                                 machine,
                                 state,
                                 *argument,
-                                argument_context,
+                                argument_position_context(
+                                    argument_context,
+                                    callee_parameters,
+                                    position,
+                                ),
                                 diagnostics,
                             );
                         }
@@ -108,7 +126,11 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                         machine,
                         state,
                         local.initial_value,
-                        machine_context,
+                        if local.relevance.is_erased() && machine_context == Context::Runtime {
+                            Context::ErasedInitializer
+                        } else {
+                            machine_context
+                        },
                         diagnostics,
                     ),
                     StatementNode::Transition(transition) => {
@@ -169,6 +191,45 @@ use shape_admission::validate_supported_shapes;
 
 mod runtime_uses;
 use runtime_uses::validate_expression;
+
+/// The callee state's authored parameters, when `target` names a state.
+/// Positional call arguments align with the non-`self` parameters.
+pub(super) fn callee_parameters(
+    program: &TypedTrees,
+    target: SymbolHandle,
+) -> Option<&[typed_trees::signature::StateParameter]> {
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == target)
+            .map(|state| program.state_parameters(state))
+    })
+}
+
+/// A runtime argument supplied to an erased parameter position is the erased
+/// binding's initializer, not a runtime transfer.
+pub(super) fn argument_position_context(
+    context: Context,
+    callee_parameters: Option<&[typed_trees::signature::StateParameter]>,
+    position: usize,
+) -> Context {
+    if context != Context::Runtime {
+        return context;
+    }
+    let erased_position = callee_parameters.is_some_and(|parameters| {
+        parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .nth(position)
+            .is_some_and(|parameter| parameter.relevance.is_erased())
+    });
+    if erased_position {
+        Context::ErasedInitializer
+    } else {
+        Context::Runtime
+    }
+}
 
 pub(super) fn call_targets_proof_machine(
     program: &TypedTrees,

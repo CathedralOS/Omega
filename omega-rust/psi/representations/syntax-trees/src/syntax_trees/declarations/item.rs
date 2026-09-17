@@ -1227,6 +1227,10 @@ fn proof_fact_source_span_index(handle: Handle<ProofFact>) -> usize {
         .expect("proof fact source-span handle must be valid")
 }
 
+/// One authored signature parameter. `relevance` is the binding
+/// occurrence's `[erased]` marker (contracts.md#explicit-erased-bindings):
+/// an erased parameter stays in checking, contracts, and semantic identity
+/// but owns no runtime storage, transfer, or read.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateParameterNode {
     pub name: Identifier,
@@ -1234,6 +1238,7 @@ pub struct StateParameterNode {
     pub is_const: bool,
     pub is_mutable: bool,
     pub is_self: bool,
+    pub relevance: language_core::BindingRelevance,
 }
 
 /// One compiler-private native callback parameter declared on a bodyless
