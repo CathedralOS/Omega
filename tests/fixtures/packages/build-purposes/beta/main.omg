@@ -1,0 +1,1 @@
+pub machine beta_value() -> u64 { 2 }
