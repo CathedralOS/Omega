@@ -822,22 +822,29 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   usage mismatches
   (`tests/native-differential/.../fixtures/call_spanning_reload.rs`,
   `.../register_allocation/reload_value_homes.rs`). The executable
-  runtime-spill rewrite now realizes a block's flexible victim uses through
-  one shared reload register when admission proves some physical view of the
-  victim's class survives everything the block touches — clobbers, implicit
-  accesses, function-wide pinned views, and inserted frame rows — so the
-  produced reload interval can cross an intervening call and land on a
-  callee-saved home; ABI-pinned uses keep a private pair so the pin covers
-  only the load-to-use window, and independent replay reconstructs the same
-  grouping
+  runtime-spill rewrite realizes a block's flexible victim uses through one
+  shared reload register only while every instruction inside the open span
+  writes no unit — a clobber or an implicit definition closes the pair, so
+  no produced interval ever demands a cross-call home — when admission
+  proves some allocatable view of the victim's class is free of
+  function-wide implicit uses, pinned views, and reservations; ABI-pinned
+  uses keep a private pair so the pin covers only the load-to-use window,
+  and independent replay reconstructs the same grouping
   (`selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs`,
   `.../runtime_spill/rewrite.rs`, `.../runtime_spill/validation.rs`). The
-  sequenced native fixture homes the call-spanning reload on the surviving
-  callee-saved view on linux-x64 and linux-arm64
+  sequenced native fixture drives that boundary on all five native
+  targets: the victim's two uses straddle an intervening `CallUnit` and
+  each opens a private frame-address/load pair whose window holds no call,
+  while the fixture's own filler still spans the first call onto the
+  callee-saved survivor (rbx on x86-64, x19 on AArch64); independent
+  replay rejects a dropped pair, a post-call use rebound to the pre-call
+  reload or to the victim, a bogus extra load, a non-canonical reload
+  home, and a foreign legality root
   (`tests/native-differential/.../register_allocation/runtime_spill_call_spanning.rs`).
-  Remaining: the call-spanning witness runs only on the two Linux targets —
-  Windows x64, UEFI x64, Darwin AArch64, and Windows AArch64 legs are
-  unwitnessed.
+  Remaining: none of the stated legs are outstanding — every
+  `NativeTarget` constructor is witnessed; Windows AArch64 has no
+  `NativeTarget` constructor, so that ABI combination stays unwitnessable
+  until the target vocabulary grows one.
 
 ## Machine optimization
 
