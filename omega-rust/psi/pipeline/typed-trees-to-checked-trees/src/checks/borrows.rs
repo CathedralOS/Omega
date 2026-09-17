@@ -22,11 +22,26 @@ pub(crate) fn check_flow_call_borrows(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let retained_diagnostics = validate_checked_borrow_compatibility_certificates(program, facts);
-    if !retained_diagnostics.is_empty() {
+    let mut retained_diagnostics =
+        validate_checked_borrow_compatibility_certificates(program, facts);
+    if retained_diagnostics.is_empty() {
+        resources::replay_checked_direct_borrow_resources(program, facts, mutation_summaries)?;
+    } else {
+        // The retained resource rows are an independent evidence channel that
+        // certificate rejection must not silence: a tampered loan or resource
+        // still has to surface through its own substrate replay. Run it on a
+        // scratch copy so the transactional rebuild cannot publish rows into
+        // facts this pass is already rejecting.
+        let mut scratch = facts.clone();
+        if let Err(mut resource_diagnostics) = resources::replay_checked_direct_borrow_resources(
+            program,
+            &mut scratch,
+            mutation_summaries,
+        ) {
+            retained_diagnostics.append(&mut resource_diagnostics);
+        }
         return Err(retained_diagnostics);
     }
-    resources::replay_checked_direct_borrow_resources(program, facts, mutation_summaries)?;
     let mut diagnostics = Vec::new();
     let mut compatibility_certificates = Vec::new();
     let retained_compatibility_certificates = facts
@@ -274,6 +289,23 @@ fn replay_checked_borrow_compatibility_certificate(
             "checked borrow compatibility certificate conclusion drifted from independent structural replay",
         ));
     }
+    // A pair the spatial verdict could not discharge was admitted only through
+    // recorded provenance. Replay that edge from the loan rows rather than
+    // trusting the ledger: without it the certificate has no replayable
+    // admission basis.
+    if !certificate.conclusion.non_interfering
+        && !statements::carried_authority(
+            forming_loan,
+            certificate.active_loan,
+            active_loan,
+            active_access,
+            certificate.conclusion.containment,
+        )
+    {
+        return Err(Diagnostic::error(
+            "checked borrow compatibility certificate records an interfering loan pair without carried authority",
+        ));
+    }
     Ok(())
 }
 
@@ -287,3 +319,6 @@ fn matching_borrow_state<'a>(
             .then_some(state)
     })
 }
+
+#[cfg(test)]
+mod tests;

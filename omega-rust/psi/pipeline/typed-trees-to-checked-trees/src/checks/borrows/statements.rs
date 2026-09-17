@@ -88,12 +88,6 @@ pub(super) fn check_statement_borrows(
                 .borrow_loan_constraints(statement.entry_constraints)
             {
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
-                if loan.source_owner_symbol == active_loan.owner_symbol
-                    && active_loan.kind.is_exclusive()
-                {
-                    continue;
-                }
-
                 let retained =
                     retained_compatibility_certificates
                         .iter()
@@ -110,7 +104,7 @@ pub(super) fn check_statement_borrows(
                                     .borrow
                                     .compatibility_certificate_matches_resources(certificate)
                         });
-                let (compatibility, selector_snapshot, premises) =
+                let (compatibility, selector_snapshot, premises, active_access) =
                     if let Some((retained_index, retained)) = retained {
                         let Some((forming_access, active_access)) = facts
                             .borrow
@@ -140,6 +134,7 @@ pub(super) fn check_statement_borrows(
                             compatibility,
                             retained.selector_snapshot.clone(),
                             retained.premises.clone(),
+                            active_access,
                         )
                     } else {
                         let evidence = borrow_loan_compatibility_with_selector_snapshot(
@@ -153,9 +148,18 @@ pub(super) fn check_statement_borrows(
                             evidence.compatibility,
                             evidence.selector_snapshot,
                             evidence.premises,
+                            &active_loan.kind,
                         )
                     };
-                if compatibility.non_interfering {
+                if compatibility.non_interfering
+                    || carried_authority(
+                        loan,
+                        active_loan_handle,
+                        active_loan,
+                        active_access,
+                        compatibility.containment,
+                    )
+                {
                     let certificate = CheckedBorrowCompatibilityCertificate {
                         formation: BorrowCompatibilityFormation {
                             machine_symbol: state_flow.machine_symbol,
@@ -399,6 +403,48 @@ fn source_exiting_without_carried_borrows<'program>(
         }
     }
     positional.next().is_none().then_some(source)
+}
+
+/// Whether `forming_loan` is recorded as deriving its authority through this
+/// exact active loan occurrence.
+///
+/// A retained reborrow names its unique parent loan handle; the edge is
+/// replayed independently from the typed statement by lineage replay. An
+/// unretained transfer (aggregate-carried or helper-derived) keeps only its
+/// rebasing source owner local, so it may rejoin an active loan of that owner
+/// only when the replayed containment verdict proves the forming place still
+/// sits inside the active loan's captured place. Either way the active loan
+/// must be exclusive: sharing a read parent does not suspend anything.
+///
+/// This judgment only reads already-recorded loan rows and the independently
+/// replayed containment verdict. It creates no authority: the forming loan
+/// was itself produced by rebasing through the named source, and the pair's
+/// compatibility certificate still retains the honest spatial conclusion.
+pub(super) fn carried_authority(
+    forming_loan: &checked_trees::BorrowLoanFact,
+    active_loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
+    active_loan: &checked_trees::BorrowLoanFact,
+    active_access: &checked_trees::BorrowAccessKind,
+    containment: checked_trees::CapturedPlaceContainment,
+) -> bool {
+    if !active_access.is_exclusive()
+        || !matches!(
+            containment,
+            checked_trees::CapturedPlaceContainment::Same
+                | checked_trees::CapturedPlaceContainment::RightContainsLeft
+        )
+    {
+        return false;
+    }
+    match forming_loan.lineage {
+        checked_trees::BorrowLoanLineage::Reborrow { parent_loan } => {
+            parent_loan == active_loan_handle
+        }
+        checked_trees::BorrowLoanLineage::UnretainedDerived => {
+            forming_loan.source_owner_symbol == active_loan.owner_symbol
+        }
+        checked_trees::BorrowLoanLineage::DirectRoot => false,
+    }
 }
 
 fn local_loan_ends_before_successor(
