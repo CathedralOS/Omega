@@ -316,10 +316,18 @@ fn installed_root_teardown_preflight_rejects_incomplete_ambiguous_and_stale_stat
                 .0
                 .contains("unreachable")
         );
-        ledger.active_interrupts.insert((
-            rows[0].root.root,
-            root_id(999, InterruptInvocationId::from_normalized_identity),
-        ));
+        ledger.active_interrupts.insert(
+            (
+                rows[0].root.root,
+                root_id(999, InterruptInvocationId::from_normalized_identity),
+            ),
+            crate::interrupts::interrupt_entries::ActiveInterruptEntry {
+                arrival_context: calling_conventions::ArrivalContextId::new(1)
+                    .expect("arrival context"),
+                depth: 1,
+                interrupted: None,
+            },
+        );
         rows[0].receipt.entry_unreachable = true;
         assert!(
             ledger

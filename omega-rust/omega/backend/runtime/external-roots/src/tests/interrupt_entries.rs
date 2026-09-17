@@ -1,17 +1,26 @@
 use super::{
-    entry_id, installed_code, installed_code_with_fill, interrupt_boundary, interrupt_candidate,
-    interrupt_candidate_for_code, interrupt_candidate_for_code_with_completion,
-    interrupt_entry_receipt, provider_execution, root_id, selected_interrupt_completion_for, slot,
+    entry_id, installed_code, installed_code_with_fill, interrupt_boundary, interrupt_boundary_on,
+    interrupt_boundary_shaped, interrupt_candidate, interrupt_candidate_for_code,
+    interrupt_candidate_for_code_with_completion, interrupt_candidate_shaped,
+    interrupt_entry_receipt, interrupt_entry_receipt_in_context, provider_execution,
+    provider_execution_for, root_id, selected_interrupt_completion_for, slot, stack_epoch_input,
 };
 use crate::{
     AcknowledgementPolicyId, AdmittedEntrySubject, AdmittedResultQualification,
-    AdmittedResultSubject, InstalledRootLedger, InterruptAcknowledgementId,
-    InterruptAcknowledgementReceipt, InterruptAcknowledgementReceiptId, InterruptEntryReceiptId,
-    InterruptInvocationId, InterruptMaskGuardId, InterruptMaskRestoreReceipt,
-    InterruptMaskSaveReceipt, InterruptMaskStateId, InterruptMaskTransitionReceiptId,
-    ProviderExecutionId, ProviderPlanId, RootAdmission, RootAdmissionId, RootRemovalReceipt,
-    RootRemovalReceiptId, validate_external_root,
+    AdmittedResultSubject, ExternalRootCandidate, InstalledExternalRoot, InstalledRootLedger,
+    InterruptAcknowledgementId, InterruptAcknowledgementReceipt, InterruptAcknowledgementReceiptId,
+    InterruptEntryReceiptId, InterruptInvocationId, InterruptMaskGuardId,
+    InterruptMaskRestoreReceipt, InterruptMaskSaveReceipt, InterruptMaskStateId,
+    InterruptMaskTransitionReceiptId, InterruptPreemptionReport, ProviderExecutionId,
+    ProviderPlanId, RootAdmission, RootAdmissionId, RootRemovalReceipt, RootRemovalReceiptId,
+    RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackNestingEdge, StackNestingRelation,
+    compose_bound_entry_stack_epochs, validate_external_root,
 };
+use calling_conventions::{
+    ArrivalContextId, EntryStack, EntryStackStage, Preemption, ValidatedBoundaryEntryPlan,
+};
+use executable_installation::InstalledCode;
+use std::collections::BTreeSet;
 
 #[test]
 fn interrupt_entry_mints_exact_linear_obligations_and_requires_settlement() {
@@ -831,4 +840,525 @@ fn interrupt_obligation_receipts_retain_exact_invocation_evidence() {
             .0
             .contains("exact invocation")
     );
+}
+
+/// Install one shaped interrupt candidate into `ledger` with caller-chosen
+/// slot, execution, and admission seeds. Roots sharing one ledger carry the
+/// same artifact-wide bound epoch composition, assigned before validation.
+#[allow(clippy::too_many_arguments)]
+fn install_interrupt_root<'code>(
+    ledger: &mut InstalledRootLedger,
+    code: &'code InstalledCode,
+    candidate: ExternalRootCandidate,
+    boundary: &ValidatedBoundaryEntryPlan,
+    slot_identity: u64,
+    owner_identity: u64,
+    execution_identity: u64,
+    admission_identity: u64,
+) -> InstalledExternalRoot<'code> {
+    let validated = validate_external_root(candidate, boundary).expect("interrupt root plan");
+    let authority = RootSlotAuthority::from_admitted_owner(
+        root_id(slot_identity, RootSlotId::from_normalized_identity),
+        root_id(owner_identity, RootSlotOwnerId::from_normalized_identity),
+    );
+    let execution = provider_execution_for(&validated, execution_identity);
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(
+            admission_identity,
+            RootAdmissionId::from_normalized_identity,
+        ),
+        &validated,
+        &execution,
+        code,
+        &authority,
+        validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("root admission");
+    ledger
+        .install(code, validated, authority, admission)
+        .expect("installed interrupt root")
+}
+
+#[test]
+fn interrupt_entry_rejoins_the_exact_admitted_arrival_context() {
+    // Two interrupt roots on one artifact admit different context rosters:
+    // root 1 admits context 1, root 2 admits context 2.
+    let entry = entry_id(1001);
+    let mut code = installed_code(1, entry);
+    let first_boundary = interrupt_boundary_on(EntryStack::Dedicated { class: 1 });
+    let second_boundary = interrupt_boundary_on(EntryStack::Dedicated { class: 2 });
+    let first_candidate = interrupt_candidate_shaped(entry, &code, 1, true);
+    let second_candidate = interrupt_candidate_shaped(entry, &code, 101, true);
+    let provider = first_candidate.provider;
+    let first_input = stack_epoch_input(
+        first_candidate.identity,
+        provider,
+        &first_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 1 },
+        2048,
+        &[(
+            1,
+            &[(EntryStackStage::Body, Preemption::Masked)] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let second_input = stack_epoch_input(
+        second_candidate.identity,
+        provider,
+        &second_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 2 },
+        2048,
+        &[(
+            2,
+            &[(EntryStackStage::Body, Preemption::Masked)] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let relation = StackNestingRelation {
+        identity: first_candidate.nesting_relation,
+        edges: BTreeSet::new(),
+    };
+    let composition = compose_bound_entry_stack_epochs(&relation, [&first_input, &second_input])
+        .expect("shared two-context composition");
+    let mut first_candidate = first_candidate;
+    first_candidate.stack.realization = composition.clone();
+    let mut second_candidate = second_candidate;
+    second_candidate.stack.realization = composition;
+
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
+    let first = install_interrupt_root(
+        &mut ledger,
+        &code,
+        first_candidate,
+        &first_boundary,
+        20,
+        21,
+        54,
+        22,
+    );
+    let second = install_interrupt_root(
+        &mut ledger,
+        &code,
+        second_candidate,
+        &second_boundary,
+        120,
+        121,
+        154,
+        122,
+    );
+
+    let context = |value: u64| ArrivalContextId::new(value).expect("arrival context");
+
+    // An arrival context absent from this root's admitted roster rejects.
+    let unresolved = ledger
+        .begin_interrupt_entry(
+            &first,
+            interrupt_entry_receipt_in_context(&first, context(9), None, 90, Some(7), Some(91)),
+        )
+        .expect_err("an arrival context outside the admitted roster rejects");
+    assert!(unresolved.diagnostic().0.contains("arrival context"));
+    let _ = unresolved.into_receipt();
+
+    // A context admitted only by the sibling root is a cross-context
+    // disposition and rejects for this root.
+    let cross = ledger
+        .begin_interrupt_entry(
+            &first,
+            interrupt_entry_receipt_in_context(&first, context(2), None, 90, Some(7), Some(91)),
+        )
+        .expect_err("a context admitted for a different root rejects");
+    assert!(cross.diagnostic().0.contains("arrival context"));
+    let cross_second = ledger
+        .begin_interrupt_entry(
+            &second,
+            interrupt_entry_receipt_in_context(&second, context(1), None, 92, Some(7), Some(93)),
+        )
+        .expect_err("the sibling root equally rejects the foreign context");
+    assert!(cross_second.diagnostic().0.contains("arrival context"));
+
+    // The exact admitted context enters and is retained through settlement.
+    let obligations = ledger
+        .begin_interrupt_entry(
+            &first,
+            interrupt_entry_receipt_in_context(&first, context(1), None, 90, Some(7), Some(91)),
+        )
+        .expect("the admitted arrival context enters");
+    let (pending, control, acknowledgement) = obligations.into_parts();
+    let acknowledgement = acknowledgement.expect("policy mints acknowledgement");
+    let acknowledgement_receipt = InterruptAcknowledgementReceipt::from_provider(
+        root_id(
+            93,
+            InterruptAcknowledgementReceiptId::from_normalized_identity,
+        ),
+        &acknowledgement,
+        "InterruptCompletion::complete",
+    )
+    .expect("exact installed completion route");
+    let completed = acknowledgement
+        .complete(acknowledgement_receipt)
+        .expect("settled acknowledgement");
+    let completed = ledger
+        .finish_interrupt_entry(pending, control, Some(completed))
+        .expect("settled exit");
+    assert_eq!(completed.arrival_context, context(1));
+
+    // The sibling's own admitted context enters under its root.
+    let obligations = ledger
+        .begin_interrupt_entry(
+            &second,
+            interrupt_entry_receipt_in_context(&second, context(2), None, 92, Some(7), Some(93)),
+        )
+        .expect("the sibling root's own context admits");
+    let (pending, control, acknowledgement) = obligations.into_parts();
+    let acknowledgement = acknowledgement.expect("policy mints acknowledgement");
+    let acknowledgement_receipt = InterruptAcknowledgementReceipt::from_provider(
+        root_id(
+            94,
+            InterruptAcknowledgementReceiptId::from_normalized_identity,
+        ),
+        &acknowledgement,
+        "InterruptCompletion::complete",
+    )
+    .expect("exact installed completion route");
+    let completed = acknowledgement
+        .complete(acknowledgement_receipt)
+        .expect("settled acknowledgement");
+    let completed = ledger
+        .finish_interrupt_entry(pending, control, Some(completed))
+        .expect("settled sibling exit");
+    assert_eq!(completed.arrival_context, context(2));
+}
+
+#[test]
+fn nested_interrupt_entry_rejoins_declared_edge_and_finite_depth() {
+    // Three roots on one artifact: parent (context 1: Masked Enter, Nestable{3}
+    // Body), middle (context 1: Nestable{2} Body), leaf (context 1: Masked
+    // Body). The shared relation declares parent→middle and middle→leaf.
+    let entry = entry_id(1001);
+    let mut code = installed_code(1, entry);
+    let parent_boundary = interrupt_boundary_shaped(
+        EntryStack::Dedicated { class: 1 },
+        Preemption::Nestable { maximum_depth: 3 },
+    );
+    let middle_boundary = interrupt_boundary_shaped(
+        EntryStack::Dedicated { class: 2 },
+        Preemption::Nestable { maximum_depth: 3 },
+    );
+    let leaf_boundary = interrupt_boundary_on(EntryStack::Dedicated { class: 3 });
+    let parent_candidate = interrupt_candidate_shaped(entry, &code, 1, false);
+    let middle_candidate = interrupt_candidate_shaped(entry, &code, 101, false);
+    let leaf_candidate = interrupt_candidate_shaped(entry, &code, 201, false);
+    let provider = parent_candidate.provider;
+    let parent_input = stack_epoch_input(
+        parent_candidate.identity,
+        provider,
+        &parent_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 1 },
+        1024,
+        &[(
+            1,
+            &[
+                (EntryStackStage::Enter, Preemption::Masked),
+                (
+                    EntryStackStage::Body,
+                    Preemption::Nestable { maximum_depth: 3 },
+                ),
+            ] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let middle_input = stack_epoch_input(
+        middle_candidate.identity,
+        provider,
+        &middle_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 2 },
+        1024,
+        &[(
+            1,
+            &[(
+                EntryStackStage::Body,
+                Preemption::Nestable { maximum_depth: 2 },
+            )] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let leaf_input = stack_epoch_input(
+        leaf_candidate.identity,
+        provider,
+        &leaf_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 3 },
+        1024,
+        &[(
+            1,
+            &[(EntryStackStage::Body, Preemption::Masked)] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let relation = StackNestingRelation {
+        identity: parent_candidate.nesting_relation,
+        edges: BTreeSet::from([
+            StackNestingEdge {
+                interrupted: parent_candidate.identity,
+                preemptor: middle_candidate.identity,
+            },
+            StackNestingEdge {
+                interrupted: middle_candidate.identity,
+                preemptor: leaf_candidate.identity,
+            },
+        ]),
+    };
+    let composition =
+        compose_bound_entry_stack_epochs(&relation, [&parent_input, &middle_input, &leaf_input])
+            .expect("shared three-root composition");
+    let mut parent_candidate = parent_candidate;
+    parent_candidate.stack.realization = composition.clone();
+    let mut middle_candidate = middle_candidate;
+    middle_candidate.stack.realization = composition.clone();
+    let mut leaf_candidate = leaf_candidate;
+    leaf_candidate.stack.realization = composition;
+
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
+    let parent = install_interrupt_root(
+        &mut ledger,
+        &code,
+        parent_candidate,
+        &parent_boundary,
+        20,
+        21,
+        54,
+        22,
+    );
+    let middle = install_interrupt_root(
+        &mut ledger,
+        &code,
+        middle_candidate,
+        &middle_boundary,
+        120,
+        121,
+        154,
+        122,
+    );
+    let leaf = install_interrupt_root(
+        &mut ledger,
+        &code,
+        leaf_candidate,
+        &leaf_boundary,
+        220,
+        221,
+        254,
+        222,
+    );
+
+    let context = ArrivalContextId::new(1).expect("arrival context");
+    let parent_invocation = root_id(90, InterruptInvocationId::from_normalized_identity);
+    let middle_invocation = root_id(91, InterruptInvocationId::from_normalized_identity);
+
+    let parent_obligations = ledger
+        .begin_interrupt_entry(
+            &parent,
+            interrupt_entry_receipt_in_context(&parent, context, None, 90, None, None),
+        )
+        .expect("top-level parent entry");
+    let (parent_pending, parent_control, _) = parent_obligations.into_parts();
+
+    // An arrival while an invocation is live must name the preempted
+    // invocation: an unreported preemption is an unresolved disposition.
+    let unreported = ledger
+        .begin_interrupt_entry(
+            &middle,
+            interrupt_entry_receipt_in_context(&middle, context, None, 91, None, None),
+        )
+        .expect_err("a live parent requires the preempted invocation to be named");
+    assert!(unreported.diagnostic().0.contains("preempted invocation"));
+
+    // A stale or non-innermost preempted invocation rejects.
+    let stale = ledger
+        .begin_interrupt_entry(
+            &middle,
+            interrupt_entry_receipt_in_context(
+                &middle,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    root_id(999, InterruptInvocationId::from_normalized_identity),
+                    EntryStackStage::Body,
+                )),
+                91,
+                None,
+                None,
+            ),
+        )
+        .expect_err("a preempted invocation that is not live rejects");
+    assert!(stale.diagnostic().0.contains("innermost"));
+
+    // The parent's Enter epoch is masked: preempting at that stage rejects.
+    let masked_stage = ledger
+        .begin_interrupt_entry(
+            &middle,
+            interrupt_entry_receipt_in_context(
+                &middle,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    parent_invocation,
+                    EntryStackStage::Enter,
+                )),
+                91,
+                None,
+                None,
+            ),
+        )
+        .expect_err("preempting a masked epoch rejects");
+    assert!(masked_stage.diagnostic().0.contains("finite nesting bound"));
+
+    // The parent's context realizes no Exit epoch: the reported stage is an
+    // unresolved disposition.
+    let unknown_stage = ledger
+        .begin_interrupt_entry(
+            &middle,
+            interrupt_entry_receipt_in_context(
+                &middle,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    parent_invocation,
+                    EntryStackStage::Exit,
+                )),
+                91,
+                None,
+                None,
+            ),
+        )
+        .expect_err("a stage absent from the preempted context rejects");
+    assert!(
+        unknown_stage
+            .diagnostic()
+            .0
+            .contains("finite nesting bound")
+    );
+
+    // The parent has no declared self-nesting edge: a second invocation of the
+    // same root preempting itself rejects.
+    let no_edge = ledger
+        .begin_interrupt_entry(
+            &parent,
+            interrupt_entry_receipt_in_context(
+                &parent,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    parent_invocation,
+                    EntryStackStage::Body,
+                )),
+                93,
+                None,
+                None,
+            ),
+        )
+        .expect_err("an undeclared self-nesting edge rejects");
+    assert!(
+        no_edge
+            .diagnostic()
+            .0
+            .contains("declared stack-nesting edge")
+    );
+
+    // The declared edge plus the parent's permitted Body stage admits the
+    // nested entry at depth 2.
+    let middle_obligations = ledger
+        .begin_interrupt_entry(
+            &middle,
+            interrupt_entry_receipt_in_context(
+                &middle,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    parent_invocation,
+                    EntryStackStage::Body,
+                )),
+                91,
+                None,
+                None,
+            ),
+        )
+        .expect("declared edge and permitted stage admit the nested entry");
+    let (middle_pending, middle_control, _) = middle_obligations.into_parts();
+
+    // The middle invocation is now innermost: a leaf preempting the parent
+    // names a non-innermost invocation and rejects.
+    let not_innermost = ledger
+        .begin_interrupt_entry(
+            &leaf,
+            interrupt_entry_receipt_in_context(
+                &leaf,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    parent_invocation,
+                    EntryStackStage::Body,
+                )),
+                92,
+                None,
+                None,
+            ),
+        )
+        .expect_err("preempting a non-innermost invocation rejects");
+    assert!(not_innermost.diagnostic().0.contains("innermost"));
+
+    // The middle's Nestable{2} bound permits only two live occurrences on the
+    // lineage: a third nested entry exceeds the finite bound.
+    let depth_exceeded = ledger
+        .begin_interrupt_entry(
+            &leaf,
+            interrupt_entry_receipt_in_context(
+                &leaf,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    middle.root(),
+                    middle_invocation,
+                    EntryStackStage::Body,
+                )),
+                92,
+                None,
+                None,
+            ),
+        )
+        .expect_err("a third live occurrence exceeds the finite nesting bound");
+    assert!(
+        depth_exceeded
+            .diagnostic()
+            .0
+            .contains("finite nesting bound")
+    );
+
+    // The preempted parent cannot settle while its nested entry is live.
+    let early_exit = ledger
+        .finish_interrupt_entry(parent_pending, parent_control, None)
+        .expect_err("a preempted invocation cannot exit under a live child");
+    assert!(early_exit.diagnostic().0.contains("nested invocation"));
+    let (parent_pending, parent_control, _) = early_exit.into_parts();
+
+    ledger
+        .finish_interrupt_entry(middle_pending, middle_control, None)
+        .expect("the innermost nested entry settles first");
+    ledger
+        .finish_interrupt_entry(parent_pending, parent_control, None)
+        .expect("the settled parent exits after its nested entry");
+
+    // With nothing live, the leaf enters at depth 1 under its own context.
+    let leaf_obligations = ledger
+        .begin_interrupt_entry(
+            &leaf,
+            interrupt_entry_receipt_in_context(&leaf, context, None, 92, None, None),
+        )
+        .expect("a settled lineage admits a fresh top-level entry");
+    let (leaf_pending, leaf_control, _) = leaf_obligations.into_parts();
+    ledger
+        .finish_interrupt_entry(leaf_pending, leaf_control, None)
+        .expect("leaf exit settles");
 }
