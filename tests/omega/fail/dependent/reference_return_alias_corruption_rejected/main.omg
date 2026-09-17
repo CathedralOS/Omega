@@ -1,0 +1,29 @@
+// FAIL CANARY. A readable reference return owes the referent's declared
+// field predicates on the returned place: the alias write retired
+// `level.rooms[1].label`'s `Utf8` coverage, and `&mut level.rooms[1]` hands
+// that corrupted room to the caller, so the return rejects with the exact
+// returned place beside the `&mut level` referent obligation.
+domain [u8; 4]::Utf8
+requires
+    valid_utf8(self);
+
+data Room {
+    label: [u8; 4] in Utf8;
+}
+
+data Level {
+    rooms: [Room; 2];
+}
+
+machine pick(level: &mut Level) -> &mut Room {
+    let label: &mut [u8; 4] = &mut level.rooms[1].label;
+    label[0] = 255;
+    &mut level.rooms[1]
+}
+
+machine main() {
+    let mut level: Level = Level {
+        rooms: [Room { label: "aaaa" }, Room { label: "bbbb" }],
+    };
+    let room: &mut Room = pick(&mut level);
+}

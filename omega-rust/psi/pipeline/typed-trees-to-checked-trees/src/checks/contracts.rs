@@ -28,6 +28,7 @@ pub(crate) use evidence::{
     exact_target_evidence_parameters, instantiate_contract_expression_evidence_parameter,
 };
 use exits::{CyclicHeaderInvariants, check_exit_ensures};
+pub(crate) use exits::{is_readable_mutable_reference, result_domain_type, value_provable_domain};
 use writes::check_domain_field_writes;
 
 pub(super) fn check_flow_call_contracts(
@@ -118,7 +119,25 @@ pub(super) fn check_flow_call_contracts(
             // An owned nominal result also owes its declared field predicates
             // on the returned value itself -- enforced here so a caller may
             // consume them from the signature (flow/calls.rs).
+            let exit_diagnostics = diagnostics.len();
             exits::check_result_field_domains(program, facts, exit_flow, &mut diagnostics);
+            // The return hands every readable `&mut` referent back to the
+            // caller, so the field facts it assumed on entry are due again.
+            // A reference return into that referent names the same place
+            // twice; report each exact place once per exit.
+            exits::check_mutable_referent_field_domains(
+                program,
+                facts,
+                exit_flow,
+                &mut diagnostics,
+            );
+            let mut reported = Vec::new();
+            for diagnostic in diagnostics.split_off(exit_diagnostics) {
+                if !reported.contains(&diagnostic) {
+                    reported.push(diagnostic);
+                }
+            }
+            diagnostics.extend(reported);
         }
         arrivals::check_self_transition_arrival_requires(
             program,

@@ -21,6 +21,32 @@ fn check(source: &str, accepted: bool) {
     );
 }
 
+/// The caller's return re-proves every readable `&mut` referent's declared
+/// field facts, so a corrupted element rejects there with its exact place
+/// while every call in the body stays accepted: the sibling's coverage was
+/// never disturbed.
+fn check_sibling_coverage_at_calls_and_corruption_at_return(source: &str, place: &str) {
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+        panic!("a corrupted referent must not be handed back at the return:\n{source}");
+    };
+    let field_requirements = diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot prove default-domain field requirement")
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !field_requirements.is_empty()
+            && field_requirements.iter().all(|diagnostic| {
+                diagnostic.message.contains("for return from caller")
+                    && diagnostic.message.contains(place)
+            }),
+        "expected only the return-time rejection of {place:?}: {diagnostics:#?}\n{source}"
+    );
+}
+
 fn check_rejection(source: &str, accepted: bool, fragment: &str) {
     match lower_typed_trees(parse_typed_trees(source)) {
         Ok(_) => assert!(
@@ -90,7 +116,7 @@ fn corrupting_one_element_preserves_its_siblings_coverage() {
         machine caller(rows: &mut [Row; 2]) {{ corrupt(&mut rows[0].bytes); consume(&rows[1]); }}
     "#
     );
-    check(&source, true);
+    check_sibling_coverage_at_calls_and_corruption_at_return(&source, "rows[0].bytes");
 }
 
 #[test]
@@ -574,7 +600,7 @@ fn corrupted_sibling_view_preserves_the_other_elements_coverage() {
         }}
     "#
     );
-    check(&source, true);
+    check_sibling_coverage_at_calls_and_corruption_at_return(&source, "rows[0].bytes");
 }
 
 #[test]
@@ -1189,10 +1215,11 @@ fn view_literal_index_write_keeps_sibling_element_coverage() {
 
 /// The per-place split does not widen the evidence: corrupting one element
 /// through the view still retires exactly that element, so its own call
-/// rejects while the untouched sibling's call is accepted.
+/// rejects while the untouched sibling's call is accepted and only the
+/// caller's return reports the corrupted element.
 #[test]
 fn view_element_corruption_retires_only_that_element() {
-    for (consumed, accepted) in [("view[1]", false), ("view[0]", true)] {
+    for (consumed, call_rejected) in [("view[1]", true), ("view[0]", false)] {
         let source = format!(
             r#"{DEFINITIONS}
             machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
@@ -1204,6 +1231,10 @@ fn view_element_corruption_retires_only_that_element() {
             }}
         "#
         );
-        check(&source, accepted);
+        if call_rejected {
+            check(&source, false);
+        } else {
+            check_sibling_coverage_at_calls_and_corruption_at_return(&source, "rows[1].bytes");
+        }
     }
 }

@@ -1,0 +1,28 @@
+// COMPILE CANARY. The alias write opens a window on `level.rooms[1].label`;
+// a domain-establishing write to the exact field before the return closes
+// it, so the return's referent consumption point is satisfied and the
+// sibling element's coverage was never disturbed.
+domain [u8; 4]::Utf8
+requires
+    valid_utf8(self);
+
+data Room {
+    label: [u8; 4] in Utf8;
+}
+
+data Level {
+    rooms: [Room; 2];
+}
+
+machine restore(level: &mut Level) {
+    let label: &mut [u8; 4] = &mut level.rooms[1].label;
+    label[0] = 255;
+    level.rooms[1].label = "room";
+}
+
+machine main() {
+    let mut level: Level = Level {
+        rooms: [Room { label: "aaaa" }, Room { label: "bbbb" }],
+    };
+    restore(&mut level);
+}
