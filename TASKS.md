@@ -2687,14 +2687,33 @@ Owners include
   `reachable_private_callback_registrar_binds_its_terminal_occurrence`
   (`cargo nextest run -p compiler --test callback_terminal_custody`) — the call
   emits its `BoundaryCall`, reaches Terminal, and replays the authored-use
-  join; failure no longer reads "0 Terminal registrar occurrences". Custody
-  now stops inside `produce_callback_thunk_artifact`:
+  join; failure no longer reads "0 Terminal registrar occurrences". At
+  `b1c7dbd56d` the void-body stop is cleared (verified macOS ARM64):
   `lower_bounded_callback_identity_machine`
   (`omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/machine_lowering.rs`)
-  reports "bounded callback body has no checked scalar graph" for the void
-  provider body — ahead of `validate_direct_callback_thunk_shape` (u64→u64
-  identity leaf only) and `admitted_native_callbacks`'s field-cohort
-  rejection, the remaining custody stages.
+  no longer reports "bounded callback body has no checked scalar graph" —
+  `lower_bounded_callback_unit_body` admits the one-state `u64 -> Unit`
+  complete-only Unit plan beside the `u64 -> u64` identity scalar graph, and
+  `validate_direct_callback_thunk_shape` accepts the matching
+  `TerminalMachineResult::Unit` + `ReturnUnit` leaf; the witness closes the
+  Terminal product with both field-destination thunks decoded. Custody now
+  stops at native production, the field-cohort receiving stages: the
+  `NativeArtifact` product rejects in `reject_unconsumed_callbacks`
+  (`omega-rust/omega/compiler/native-realization/src/native_product/admission.rs`)
+  with "native-artifact production cannot discard 2 validated callback
+  placement(s) for `WindowProcedure::call`, `WindowProcedure::call`; canonical
+  Terminal callback-use custody is not implemented", and the retained route
+  `realize_retained_native_artifact` rejects in `admitted_native_callbacks`
+  (`retained_native_product.rs`) with "ordinary native realization currently
+  admits exactly one direct callback" and, for a single `NativePlace::Field`
+  placement, "field callback materialization is outside the direct-parameter
+  cohort". The direct-parameter witness
+  `direct_callback_relocation_resolves_to_its_private_function` is red at base
+  on every host: `emit_realization_object`
+  (`native-realization/src/native_realization/object_emission.rs`) rejects any
+  callback thunk with "callback ABI transport is not implemented in the common
+  instruction pipeline". Next: admit the field cohort through both native
+  routes without a raw code pointer.
 
 - **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
   external root and unregister as the operation that ends it before releasing
