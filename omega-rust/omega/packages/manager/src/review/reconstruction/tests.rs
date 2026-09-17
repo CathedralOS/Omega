@@ -1,7 +1,7 @@
 use super::{outgoing_product_requests, reachable_source_packages};
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, PackageSourceClosureLimits,
-    resolve_external_local_package_closure_with_storage,
+    resolve_external_local_package_closure,
 };
 use crate::review::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
@@ -136,7 +136,7 @@ fn shared_product_graph_and_single_emission_preserve_reference_bytes_and_limits(
         PrimaryGitChoices::default(),
     )
     .unwrap();
-    let closure = resolve_external_local_package_closure_with_storage(
+    let closure = resolve_external_local_package_closure(
         fixture.0.join("root"),
         ExternalSourceContext::derive(b"reconstruction-emission"),
         &storage,

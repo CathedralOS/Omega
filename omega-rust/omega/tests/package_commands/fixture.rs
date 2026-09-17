@@ -1,4 +1,5 @@
 use package_manager::lock::{PackageLock, PackageLockRecoveryLimits};
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::review::SemanticBindingReview;
 use package_source::PrimaryGitChoices;
 use std::fs;
@@ -95,7 +96,7 @@ impl Fixture {
         target: target::TargetProfile,
     ) -> package_manager::review::CompilerIssuedPackageReviewSet {
         use package_manager::resolution::graph::{
-            PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
+            PackageSourceClosureLimits, resolve_external_local_project_closure,
         };
         let root = self.path("root");
         let storage = package_source::SourceResolverStorage::for_current_user(PrimaryGitChoices {
@@ -103,12 +104,13 @@ impl Fixture {
             ..PrimaryGitChoices::default()
         })
         .unwrap();
-        let closure = resolve_external_local_project_closure_with_storage(
+        let closure = resolve_external_local_project_closure(
             &root,
             package_source::ExternalSourceContext::derive(b"omega-local-project-v1"),
             &storage,
             package_source::LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
+            GitResolutionOptions::default(),
         )
         .expect("resolve current fixture sources for a fresh audit");
         package_manager::review::compile_resolved_package_reviews(

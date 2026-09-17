@@ -3,9 +3,10 @@ use super::{
     CompileResolvedPackageReviewsError, PathBuf, PreparedLocalProject,
     PreparedLocalProjectCheckRequest, TargetProfile, check_prepared_local_project,
 };
+use crate::operations::LocalProjectPreparationOptions;
 use crate::operations::{
     CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project_for_target,
+    compile_prepared_local_project_for_native, prepare_local_project,
 };
 use std::fs;
 use std::path::Path;
@@ -37,9 +38,15 @@ impl Project {
     }
 
     fn prepare(&self, entry: &str) -> PreparedLocalProject {
-        prepare_local_project_for_target(&self.0.join(entry), TARGET)
-            .expect("prepare exact project and target")
-            .expect("project has build.omg")
+        prepare_local_project(
+            &self.0.join(entry),
+            LocalProjectPreparationOptions {
+                target: TARGET,
+                offline: false,
+            },
+        )
+        .expect("prepare exact project and target")
+        .expect("project has build.omg")
     }
 
     fn request(&self, entry: &str, output: &str) -> PreparedLocalProjectCheckRequest {
@@ -109,11 +116,15 @@ fn package_check_does_not_relax_native_application_gate() {
     let report = check_prepared_local_project(project.request("source/main.omg", "checked"))
         .expect("package roots support CHECK");
     assert_check_only(&report);
-    let result = compile_prepared_local_project_for_native(PreparedLocalProjectNativeRequest::new(
-        project.prepare("source/main.omg"),
-        project.0.join("native"),
-        TARGET,
-    ));
+    let result = compile_prepared_local_project_for_native(
+        PreparedLocalProjectNativeRequest::new(
+            project.prepare("source/main.omg"),
+            project.0.join("native"),
+            TARGET,
+        ),
+        |_| (),
+    )
+    .map(|(report, ())| report);
     assert!(matches!(
         result,
         Err(CompilePreparedLocalProjectNativeError::Review(

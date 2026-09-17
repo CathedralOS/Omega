@@ -5,9 +5,9 @@ use super::{
     SourceRelativePath, assemble_initial_source_review, assemble_update_source_review,
     assert_fixture_evidence, compare_review_only_initial_capabilities,
     compile_resolved_package_reviews, decode_ordinary_package_obligation_ledger,
-    encode_ordinary_package_obligation_ledger, resolve_workspace_package_closure, temp_root,
-    triage_initial_install, triage_review_update, triage_update_without_admission_baseline,
-    workspace_root,
+    encode_ordinary_package_obligation_ledger,
+    resolve_workspace_package_closure_from_hardened_base, temp_root, triage_initial_install,
+    triage_review_update, triage_update_without_admission_baseline, workspace_root,
 };
 use package_manager::review::SemanticBindingReview;
 
@@ -18,7 +18,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
 
     for package in REVIEWABLE_PACKAGES {
         let cache = temp_root(package);
-        let closure = resolve_workspace_package_closure(
+        let closure = resolve_workspace_package_closure_from_hardened_base(
             &workspace_lineage,
             SourceRelativePath::parse(package).expect("fixture member path"),
             &fixtures,
@@ -381,7 +381,7 @@ fn process_exit_fixture_retains_exact_closed_console_leaves_and_unresolved_sibli
     let fixtures = workspace_root().join("tests/fixtures/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let cache = temp_root(package);
-    let closure = resolve_workspace_package_closure(
+    let closure = resolve_workspace_package_closure_from_hardened_base(
         &workspace_lineage,
         SourceRelativePath::parse(package).expect("fixture member path"),
         &fixtures,

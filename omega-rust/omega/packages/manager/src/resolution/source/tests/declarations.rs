@@ -1,7 +1,9 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::declarations::dependencies::read::{DependencyProjectionError, DependencySourceRequest};
 use crate::declarations::roles::BuildDeclarationError;
-use crate::resolution::source::{ResolvePackageSourceError, resolve_external_local_package_source};
+use crate::resolution::source::{
+    ResolvePackageSourceError, resolve_external_local_package_source_from_hardened_base,
+};
 use package_source::{ExternalSourceContext, LocalSourceLimits};
 
 #[test]
@@ -11,7 +13,7 @@ fn declaration_failure_does_not_fall_back_to_repository_name() {
     std::fs::create_dir_all(&root).expect("create source");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
 
-    let error = resolve_external_local_package_source(
+    let error = resolve_external_local_package_source_from_hardened_base(
         &root,
         &cache,
         LocalSourceLimits::default(),
@@ -41,7 +43,7 @@ fn application_role_cannot_be_bound_as_a_package_source() {
     .expect("write application declaration");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
 
-    let error = resolve_external_local_package_source(
+    let error = resolve_external_local_package_source_from_hardened_base(
         &root,
         &cache,
         LocalSourceLimits::default(),
@@ -81,7 +83,7 @@ fn source_custody_projects_only_canonical_dependency_rows() {
     )
     .expect("write dependency projection");
 
-    let resolved = resolve_external_local_package_source(
+    let resolved = resolve_external_local_package_source_from_hardened_base(
         &root,
         &cache,
         LocalSourceLimits::default(),
@@ -129,7 +131,7 @@ fn source_custody_rejects_hidden_dependency_requests() {
     )
     .expect("write hidden dependency");
 
-    let error = resolve_external_local_package_source(
+    let error = resolve_external_local_package_source_from_hardened_base(
         &root,
         &cache,
         LocalSourceLimits::default(),

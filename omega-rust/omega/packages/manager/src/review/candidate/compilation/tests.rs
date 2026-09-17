@@ -6,8 +6,9 @@ use super::{
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
     compile_resolved_package_reviews_reusing,
 };
+use crate::resolution::graph::GitResolutionOptions;
 use crate::resolution::graph::{
-    PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
+    PackageSourceClosureLimits, resolve_external_local_project_closure,
 };
 use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
@@ -95,12 +96,13 @@ impl SourcePreparationFixture {
             PrimaryGitChoices::default(),
         )
         .unwrap();
-        resolve_external_local_project_closure_with_storage(
+        resolve_external_local_project_closure(
             self.0.join("package"),
             ExternalSourceContext::derive(b"candidate-source-preparation"),
             &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
+            GitResolutionOptions::default(),
         )
         .unwrap()
     }

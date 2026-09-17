@@ -1,7 +1,7 @@
 use package_manager::operations::{PackageInspectionOptions, inspect_packages};
 
 pub(crate) fn run(options: PackageInspectionOptions) {
-    match inspect_packages(options) {
+    match inspect_packages(options, None) {
         Ok(outcome) => {
             print!("{}", outcome.report);
             if !outcome.complete {

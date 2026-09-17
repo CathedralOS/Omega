@@ -1,6 +1,6 @@
 use super::fixture::*;
 use package_manager::PackageCommandStatus;
-use package_manager::operations::{PackageInspectionOptions, inspect_packages_with_storage};
+use package_manager::operations::{PackageInspectionOptions, inspect_packages};
 use package_source::PrimaryGitChoices;
 use package_source::SourceResolverStorage;
 
@@ -81,18 +81,20 @@ fn inspect_with_offline(
     offline: bool,
 ) -> package_manager::operations::PackageInspectionOutcome {
     let calls = fixture.transport_calls();
-    let result = inspect_packages_with_storage(
+    let result = inspect_packages(
         PackageInspectionOptions {
             project_root: fixture.path("root"),
             targets: Vec::new(),
             details: false,
             offline,
         },
-        &SourceResolverStorage::for_hardened_base(
-            fixture.path("cache"),
-            PrimaryGitChoices::default(),
-        )
-        .unwrap(),
+        Some(
+            &SourceResolverStorage::for_hardened_base(
+                fixture.path("cache"),
+                PrimaryGitChoices::default(),
+            )
+            .unwrap(),
+        ),
     )
     .unwrap();
     if offline {

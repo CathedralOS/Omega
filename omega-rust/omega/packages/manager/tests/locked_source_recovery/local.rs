@@ -5,9 +5,10 @@ use super::{
     ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, TargetProfile, Tree,
     assert_fresh_matches, capture_lock, fs, package, recover_locked_sources,
 };
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
     PackageSourceClosureResolutionError, ResolveLockedPackageClosureError,
-    resolve_external_local_project_closure_with_storage,
+    resolve_external_local_project_closure,
 };
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_source::SourceResolveError;
@@ -31,12 +32,13 @@ fn diamond(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourc
         );
     }
     package(&tree.path("sources/shared"), "shared", "");
-    resolve_external_local_project_closure_with_storage(
+    resolve_external_local_project_closure(
         tree.path("sources/root"),
         ExternalSourceContext::derive(b"locked-source-diamond"),
         storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap()
 }

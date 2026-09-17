@@ -1,7 +1,8 @@
 use super::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
     PackageSourceVerificationPhase, SourceLineage, SourceRelativePath, SourceResolveError,
-    compile_resolved_package_reviews, resolve_workspace_package_closure, temp_root, workspace_root,
+    compile_resolved_package_reviews, resolve_workspace_package_closure_from_hardened_base,
+    temp_root, workspace_root,
 };
 use package_manager::review::SemanticBindingReview;
 
@@ -13,7 +14,7 @@ fn review_compilation_rejects_snapshot_tampering_before_compiler_consumption() {
     let fixtures = workspace_root().join("tests/fixtures/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let cache = temp_root("tampered-custody");
-    let closure = resolve_workspace_package_closure(
+    let closure = resolve_workspace_package_closure_from_hardened_base(
         &workspace_lineage,
         SourceRelativePath::parse("arithmetic-kernels").unwrap(),
         &fixtures,

@@ -2,10 +2,8 @@ use super::super::{
     ExternalSourceContext, GitResolutionOptions, LocalSourceLimits, PackageRootSourceRequest,
     PackageSourceClosureLimits, PackageSourceClosureResolutionError, PathBuf,
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError, SourceLineage,
-    SourceRelativePath, SourceResolverStorage, resolve_external_local_project_closure_with_options,
-    resolve_external_local_project_closure_with_storage,
-    resolve_staged_external_local_project_closure_with_options,
-    resolve_staged_external_local_project_closure_with_storage,
+    SourceRelativePath, SourceResolverStorage, resolve_external_local_project_closure,
+    resolve_staged_external_local_project_closure,
 };
 use super::{
     PackageSourceClosureLimitKind, compile_resolved_package_reviews, temp_root, write_application,
@@ -14,7 +12,6 @@ use super::{
 use crate::declarations::BuildDeclarationKind;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
-    resolve_staged_external_local_project_closure_with_git_pins,
 };
 use crate::resolution::source::ResolvePackageSourceError;
 use crate::review::SemanticBindingReview;
@@ -95,7 +92,7 @@ fn live_and_staged_options_validate_pin_root_and_context_before_acquisition() {
     let proposed = "machine build(builder: &mut Build) { builder.application(\"consumer\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n";
     let stage = fixture.stage(&storage, proposed);
     let context = ExternalSourceContext::derive(b"offline-options-root-request");
-    let original = resolve_external_local_project_closure_with_options(
+    let original = resolve_external_local_project_closure(
         stage.requested_root(),
         context.clone(),
         &storage,
@@ -119,7 +116,7 @@ fn live_and_staged_options_validate_pin_root_and_context_before_acquisition() {
             pins: Some(pins),
             offline,
         };
-        let candidate = resolve_staged_external_local_project_closure_with_options(
+        let candidate = resolve_staged_external_local_project_closure(
             &stage,
             context.clone(),
             &storage,
@@ -129,7 +126,7 @@ fn live_and_staged_options_validate_pin_root_and_context_before_acquisition() {
         )
         .unwrap();
         assert_eq!(candidate.custodies().len(), 2);
-        resolve_external_local_project_closure_with_options(
+        resolve_external_local_project_closure(
             stage.requested_root(),
             context.clone(),
             &storage,
@@ -146,7 +143,7 @@ fn live_and_staged_options_validate_pin_root_and_context_before_acquisition() {
                 ExternalSourceContext::derive(b"foreign"),
             ),
         ] {
-            let error = resolve_external_local_project_closure_with_options(
+            let error = resolve_external_local_project_closure(
                 root,
                 consuming_context,
                 &storage,
@@ -160,7 +157,7 @@ fn live_and_staged_options_validate_pin_root_and_context_before_acquisition() {
                 ResolveExternalLocalPackageClosureError::RootRequestMismatch
             ));
         }
-        let error = resolve_staged_external_local_project_closure_with_options(
+        let error = resolve_staged_external_local_project_closure(
             &stage,
             ExternalSourceContext::derive(b"foreign"),
             &storage,
@@ -194,20 +191,22 @@ fn staged_project_adds_relative_and_nested_path_dependencies_from_live_directori
     let context = ExternalSourceContext::derive(b"staged-closure-context");
     let proposed = "machine build(builder: &mut Build) {\n    builder.application(\"staged-app\");\n    builder.depend(Source::Path { location: \"../middle\" });\n    builder.depend(Source::Path { location: \"./nested\" });\n}\n";
     let stage = fixture.stage(&storage, proposed);
-    let original = resolve_external_local_project_closure_with_storage(
+    let original = resolve_external_local_project_closure(
         stage.requested_root(),
         context.clone(),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve original declaration");
-    let candidate = resolve_staged_external_local_project_closure_with_storage(
+    let candidate = resolve_staged_external_local_project_closure(
         &stage,
         context.clone(),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve proposed dependency closure");
 
@@ -309,12 +308,13 @@ fn staged_project_rejects_stale_live_root_before_dependency_acquisition() {
     .unwrap();
     let stage = fixture.stage(&storage, "machine build(builder: &mut Build) { builder.package(\"staged-root\"); builder.depend(Source::Path { location: \"../missing\" }); }\n");
     std::fs::write(fixture.path("root/main.omg"), "machine changed() {}\n").unwrap();
-    let error = resolve_staged_external_local_project_closure_with_storage(
+    let error = resolve_staged_external_local_project_closure(
         &stage,
         ExternalSourceContext::derive(b"stale-staged-closure"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect_err("live drift rejects before the missing dependency");
     assert!(matches!(
@@ -337,7 +337,7 @@ fn staged_project_preserves_closure_limits_and_package_only_dependencies() {
     .unwrap();
     let stage = fixture.stage(&storage, "machine build(builder: &mut Build) { builder.package(\"staged-root\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n");
     let context = ExternalSourceContext::derive(b"staged-closure-limits");
-    let error = resolve_staged_external_local_project_closure_with_storage(
+    let error = resolve_staged_external_local_project_closure(
         &stage,
         context.clone(),
         &storage,
@@ -346,6 +346,7 @@ fn staged_project_preserves_closure_limits_and_package_only_dependencies() {
             max_packages: 1,
             ..PackageSourceClosureLimits::default()
         },
+        GitResolutionOptions::default(),
     )
     .expect_err("staged traversal obeys closure limits");
     assert!(matches!(
@@ -358,12 +359,13 @@ fn staged_project_preserves_closure_limits_and_package_only_dependencies() {
         )
     ));
     write_application(&fixture.path("dependency"), "dependency", None);
-    let error = resolve_staged_external_local_project_closure_with_storage(
+    let error = resolve_staged_external_local_project_closure(
         &stage,
         context,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect_err("dependency may not be an application");
     assert!(matches!(
@@ -392,12 +394,13 @@ fn staged_pin_policy_keeps_local_lookup_and_rejects_another_root_request() {
     let proposed = "machine build(builder: &mut Build) { builder.application(\"staged-app\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n";
     let stage = fixture.stage(&storage, proposed);
     let context = ExternalSourceContext::derive(b"staged-pin-policy");
-    let original = resolve_external_local_project_closure_with_storage(
+    let original = resolve_external_local_project_closure(
         stage.requested_root(),
         context.clone(),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap();
     let subject = CanonicalSourceClosureSubject::from_resolved(
@@ -406,13 +409,16 @@ fn staged_pin_policy_keeps_local_lookup_and_rejects_another_root_request() {
     )
     .unwrap();
     let pins = GitDependencyPins::new(&subject, &[], GitExactRevisionAcquisition::Offline).unwrap();
-    let candidate = resolve_staged_external_local_project_closure_with_git_pins(
+    let candidate = resolve_staged_external_local_project_closure(
         &stage,
         context,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
-        pins,
+        GitResolutionOptions {
+            pins: Some(pins),
+            ..GitResolutionOptions::default()
+        },
     )
     .expect("pin-aware staged resolver still follows relative Path dependencies");
     assert_eq!(candidate.custodies().len(), 2);
@@ -424,13 +430,16 @@ fn staged_pin_policy_keeps_local_lookup_and_rejects_another_root_request() {
             .snapshot_root(),
         stage.snapshot_root()
     );
-    let error = resolve_staged_external_local_project_closure_with_git_pins(
+    let error = resolve_staged_external_local_project_closure(
         &stage,
         ExternalSourceContext::derive(b"another-context"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
-        pins,
+        GitResolutionOptions {
+            pins: Some(pins),
+            ..GitResolutionOptions::default()
+        },
     )
     .expect_err("another consuming context cannot supply accepted pins");
     assert!(matches!(
@@ -448,13 +457,16 @@ fn staged_pin_policy_keeps_local_lookup_and_rejects_another_root_request() {
         LocalSourceLimits::default(),
     )
     .unwrap();
-    let error = resolve_staged_external_local_project_closure_with_git_pins(
+    let error = resolve_staged_external_local_project_closure(
         &another_stage,
         ExternalSourceContext::derive(b"staged-pin-policy"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
-        pins,
+        GitResolutionOptions {
+            pins: Some(pins),
+            ..GitResolutionOptions::default()
+        },
     )
     .expect_err("identical declaration in another project is not the accepted root request");
     assert!(matches!(

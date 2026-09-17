@@ -2,7 +2,7 @@ use super::super::{
     GitSourceRequest, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
     PackageSourceClosureResolutionError, ResolveDependencySourceError,
     ResolveGitPackageClosureError, SourceResolverStorage, git_root_request_matches,
-    resolve_git_package_closure_with_storage,
+    resolve_git_package_closure,
 };
 use super::{GitTransportProfile, run_test_git, temp_root, write_application, write_package};
 use package_source::PrimaryGitChoices;
@@ -27,7 +27,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     .expect("validated local Git root request");
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
-    let resolved = crate::resolution::source::resolve_git_package_source_with_storage(
+    let resolved = crate::resolution::source::resolve_git_package_source(
         &request,
         &storage,
         LocalSourceLimits::default(),
@@ -52,7 +52,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     .expect("alternate locator request");
     assert!(!git_root_request_matches(&wrong_locator, resolved.source()));
 
-    let closure = resolve_git_package_closure_with_storage(
+    let closure = resolve_git_package_closure(
         &request,
         &storage,
         LocalSourceLimits::default(),
@@ -102,14 +102,14 @@ fn repository_root_project_retains_application_role_and_package_entry_rejects() 
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
-    crate::resolution::graph::resolve_git_package_closure_with_storage(
+    crate::resolution::graph::resolve_git_package_closure(
         &request,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
     .expect_err("package-only Git entry rejects an application root");
-    let closure = crate::resolution::graph::resolve_git_project_closure_with_storage(
+    let closure = crate::resolution::graph::resolve_git_project_closure(
         &request,
         &storage,
         LocalSourceLimits::default(),
@@ -164,7 +164,7 @@ machine build(builder: &mut Build) {
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
-    let closure = crate::resolution::graph::resolve_selected_git_package_closure_with_storage(
+    let closure = crate::resolution::graph::resolve_selected_git_package_closure(
         &request,
         &storage,
         LocalSourceLimits::default(),
@@ -247,7 +247,7 @@ machine build(builder: &mut Build) {
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
-    let closure = crate::resolution::graph::resolve_selected_git_project_closure_with_storage(
+    let closure = crate::resolution::graph::resolve_selected_git_project_closure(
         &request,
         &storage,
         LocalSourceLimits::default(),
@@ -318,7 +318,7 @@ machine build(builder: &mut Build) {
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
-    let closure = crate::resolution::graph::resolve_selected_git_package_closure_with_storage(
+    let closure = crate::resolution::graph::resolve_selected_git_package_closure(
         &request,
         &storage,
         LocalSourceLimits::default(),
@@ -419,7 +419,7 @@ machine build(builder: &mut Build) {
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained Git resolver storage");
 
-    let error = crate::resolution::graph::resolve_selected_git_package_closure_with_storage(
+    let error = crate::resolution::graph::resolve_selected_git_package_closure(
         &request,
         &storage,
         LocalSourceLimits::default(),

@@ -4,9 +4,8 @@ use crate::operations::PackageFileTransaction;
 use crate::operations::prepare_project::LOCAL_PROJECT_CONTEXT;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitResolutionOptions,
-    PackageRootSourceRequest, PackageSourceClosureLimits,
-    resolve_external_local_project_closure_with_options,
-    resolve_locked_local_project_closure_with_storage,
+    PackageRootSourceRequest, PackageSourceClosureLimits, resolve_external_local_project_closure,
+    resolve_locked_local_project_closure,
 };
 use crate::review::SemanticBindingReview;
 use crate::review::{
@@ -144,7 +143,7 @@ fn check(
 > {
     let context = ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT);
     let closure = if let Some(accepted) = accepted {
-        resolve_locked_local_project_closure_with_storage(
+        resolve_locked_local_project_closure(
             accepted.source(),
             &PackageRootSourceRequest::ExternalLocal {
                 requested_root: project_root.to_path_buf(),
@@ -162,7 +161,7 @@ fn check(
         )
         .map_err(failure)?
     } else {
-        resolve_external_local_project_closure_with_options(
+        resolve_external_local_project_closure(
             project_root,
             context,
             storage,

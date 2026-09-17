@@ -2,7 +2,7 @@
 use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
     ResolvedPackageSourceClosure, SourceResolverStorage, fs,
-    resolve_external_local_project_closure_with_storage, write_member,
+    resolve_external_local_project_closure, write_member,
 };
 use super::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock, PackageLockError,
@@ -11,6 +11,7 @@ use super::{
 };
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::review::SemanticBindingReview;
 use package_source::PrimaryGitChoices;
 
@@ -40,12 +41,13 @@ fn resolve_chain(tree: &TempTree) -> ResolvedPackageSourceClosure {
     let storage =
         SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
             .unwrap();
-    resolve_external_local_project_closure_with_storage(
+    resolve_external_local_project_closure(
         sources.join("root"),
         ExternalSourceContext::derive(b"policy-owner-membership-chain"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap()
 }

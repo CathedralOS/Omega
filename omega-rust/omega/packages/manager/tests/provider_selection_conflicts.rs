@@ -2,7 +2,7 @@ use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewSourceLocationRole,
 };
 use package_manager::resolution::graph::{
-    PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
+    PackageSourceClosureLimits, resolve_external_local_package_closure,
 };
 use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
@@ -86,7 +86,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
         PrimaryGitChoices::default(),
     )
     .expect("create baseline resolver storage");
-    let baseline_sources = resolve_external_local_package_closure_with_storage(
+    let baseline_sources = resolve_external_local_package_closure(
         &live,
         context.clone(),
         &baseline_storage,
@@ -107,7 +107,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
         PrimaryGitChoices::default(),
     )
     .expect("create candidate resolver storage");
-    let candidate_sources = resolve_external_local_package_closure_with_storage(
+    let candidate_sources = resolve_external_local_package_closure(
         &live,
         context,
         &candidate_storage,

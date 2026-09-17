@@ -17,10 +17,10 @@ pub(crate) use recorded::{
 };
 pub use request::GitPackageSourceRequest;
 #[cfg(test)]
-pub(crate) use resolution::resolve_git_package_source;
+pub(crate) use resolution::resolve_git_package_source_from_hardened_base;
 pub(crate) use resolution::resolve_selected_git_package_source_from_pin_in_lanes;
 pub(crate) use resolution::resolve_selected_git_project_source_from_pin_in_lanes;
 pub use resolution::{
-    resolve_git_package_source_with_storage, resolve_selected_git_package_source_with_storage,
-    resolve_selected_git_project_source_with_storage,
+    resolve_git_package_source, resolve_selected_git_package_source,
+    resolve_selected_git_project_source,
 };

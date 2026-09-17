@@ -1,9 +1,7 @@
 use package_manager::declarations::{PackageKey, PackageName};
 use package_manager::declarations::{extract_dependency_projection, extract_package_declaration};
-use package_manager::resolution::graph::{
-    PackageSourceClosureLimits, resolve_git_package_closure_with_storage,
-};
-use package_manager::resolution::source::resolve_git_package_source_with_storage;
+use package_manager::resolution::graph::{PackageSourceClosureLimits, resolve_git_package_closure};
+use package_manager::resolution::source::resolve_git_package_source;
 use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::PrimaryGitChoices;
@@ -237,17 +235,13 @@ fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
             pin.package
         );
 
-        let declared = resolve_git_package_source_with_storage(
-            &request,
-            &storage,
-            LocalSourceLimits::default(),
-        )
-        .unwrap_or_else(|error| {
-            panic!(
-                "remote fixture {} should bind its declared identity: {error}",
-                pin.package
-            )
-        });
+        let declared = resolve_git_package_source(&request, &storage, LocalSourceLimits::default())
+            .unwrap_or_else(|error| {
+                panic!(
+                    "remote fixture {} should bind its declared identity: {error}",
+                    pin.package
+                )
+            });
         assert_eq!(declared.key().name().as_str(), pin.package);
         assert_eq!(
             declared.product_dependency_requests(),
@@ -264,7 +258,7 @@ fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
             pin.package
         );
 
-        let closure = resolve_git_package_closure_with_storage(
+        let closure = resolve_git_package_closure(
             &request,
             &storage,
             LocalSourceLimits::default(),

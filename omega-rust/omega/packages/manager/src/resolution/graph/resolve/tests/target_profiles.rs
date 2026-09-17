@@ -1,7 +1,8 @@
 //! The selected target remains invocation identity, never dependency selection.
 use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, Path,
-    ResolveExternalLocalPackageClosureError, resolve_external_local_package_closure,
+    ResolveExternalLocalPackageClosureError,
+    resolve_external_local_package_closure_from_hardened_base,
 };
 use super::{temp_root, write_package};
 use crate::resolution::graph::{
@@ -14,7 +15,7 @@ fn resolve(
     root: &Path,
     cache: &Path,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    resolve_external_local_package_closure(
+    resolve_external_local_package_closure_from_hardened_base(
         root,
         ExternalSourceContext::derive(b"flat-dependency-target-identity"),
         cache,

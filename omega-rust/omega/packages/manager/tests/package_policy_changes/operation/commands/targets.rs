@@ -1,6 +1,6 @@
 use super::super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, assert_fresh_matches,
-    resolve_external_local_project_closure_with_storage,
+    resolve_external_local_project_closure,
 };
 use super::super::ASSUMPTION;
 use super::{
@@ -9,6 +9,7 @@ use super::{
     proposal_path, resume, update,
 };
 use package_manager::operations::{LockedSourceRecoveryOptions, check_locked_sources};
+use package_manager::resolution::graph::GitResolutionOptions;
 
 #[test]
 fn every_retained_target_requires_choices_and_survives_subset_updates() {
@@ -113,12 +114,13 @@ fn pure_initial_install_and_unchanged_update_reload_exact_pins_and_compile_again
         current.target(TARGET).unwrap().baselines(),
         accepted.target(TARGET).unwrap().baselines()
     );
-    let recovered = resolve_external_local_project_closure_with_storage(
+    let recovered = resolve_external_local_project_closure(
         fs::canonicalize(tree.path("sources/root")).unwrap(),
         ExternalSourceContext::derive(b"omega-local-project-v1"),
         &tree.storage("fresh-command-cache"),
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap();
     assert_fresh_matches(&current, &recovered);

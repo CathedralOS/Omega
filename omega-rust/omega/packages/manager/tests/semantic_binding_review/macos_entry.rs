@@ -5,8 +5,9 @@ use super::{
     PackageSourceClosureLimits, Path, ReviewOnlyCapabilityConflictLimits, SemanticBindingReview,
     SourceResolverStorage, TemporaryTree, bind_fresh_package_root_policy,
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
-    resolve_external_local_project_closure_with_storage, write_file,
+    resolve_external_local_project_closure, write_file,
 };
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_source::PrimaryGitChoices;
 #[test]
 fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
@@ -33,12 +34,13 @@ fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
         PrimaryGitChoices::default(),
     )
     .unwrap();
-    let closure = resolve_external_local_project_closure_with_storage(
+    let closure = resolve_external_local_project_closure(
         &application,
         ExternalSourceContext::derive(b"macos-entry-dependency-discovery"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve unchanged hosted app plus ordinary std dependency");
     let target = closure.for_exact_target(target::TargetProfile::MacosArm64);

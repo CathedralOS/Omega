@@ -4,7 +4,7 @@ use crate::lock::PackageLock;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
     ResolveLockedPackageClosureError, ResolvedPackageSourceClosure,
-    resolve_locked_package_source_closure_with_storage,
+    resolve_locked_package_source_closure,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{LocalSourceLimits, SourceResolverStorage};
@@ -84,7 +84,7 @@ pub fn recover_locked_sources(
     let retained = lock
         .target(target)
         .ok_or(RecoverLockedSourcesError::MissingTarget { target })?;
-    resolve_locked_package_source_closure_with_storage(
+    resolve_locked_package_source_closure(
         retained.source(),
         root_request,
         options.git_acquisition,

@@ -1,12 +1,13 @@
 use super::super::{
     LocalSourceLimits, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
-    ResolveWorkspacePackageClosureError, SourceRelativePath, resolve_workspace_package_closure,
+    ResolveWorkspacePackageClosureError, SourceRelativePath,
+    resolve_workspace_package_closure_from_hardened_base,
 };
 use super::{PackageSourceClosureLimitKind, fixture_lineage, fixture_root, temp_root};
 #[test]
 fn propagates_closure_resource_ceilings() {
     let cache = temp_root("limit-cache");
-    let error = resolve_workspace_package_closure(
+    let error = resolve_workspace_package_closure_from_hardened_base(
         &fixture_lineage(),
         SourceRelativePath::parse("graph-workbench").expect("root member"),
         fixture_root(),

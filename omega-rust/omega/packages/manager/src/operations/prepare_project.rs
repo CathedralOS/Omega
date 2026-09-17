@@ -5,8 +5,8 @@ use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
 use crate::resolution::graph::{
     CanonicalSourceClosureSubjectLimits, GitResolutionOptions, PackageRootSourceRequest,
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
-    ResolvedPackageSourceClosure, resolve_external_local_project_closure_with_options,
-    resolve_locked_local_project_closure_with_storage,
+    ResolvedPackageSourceClosure, resolve_external_local_project_closure,
+    resolve_locked_local_project_closure,
 };
 use crate::resolution::package_compilation_inputs;
 use package_compilation::{PackageCompilationInputError, PackageCompilationInputs};
@@ -111,43 +111,23 @@ impl fmt::Display for PrepareLocalProjectError {
 
 impl std::error::Error for PrepareLocalProjectError {}
 
+/// Offline preparation permits normal local root edits and cached accepted Git
+/// pins. Unlocked local graphs work, but any unrecorded Git request rejects.
 /// Prepare package-aware compiler inputs when `entry_path` belongs to a local
-/// project with a sibling `build.omg`.
+/// project with a sibling `build.omg`; `options` selects the exact target
+/// (accepted evidence is chosen for it before any source is acquired) and the
+/// offline policy.
 ///
 /// A standalone Omega source returns `Ok(None)`. The workflow owns storage,
 /// source closure resolution, root relocation, and compiler input assembly so
-/// the command-line binary does not reproduce package policy. This convenience
-/// wrapper selects the host target; cross-target callers use the exact-target
-/// entrance below.
+/// the command-line binary does not reproduce package policy. Local project
+/// source stays editable; accepted dependency content and requests remain
+/// pinned until an explicit package update.
 pub fn prepare_local_project(
-    entry_path: &Path,
-) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_local_project_for_target(entry_path, TargetProfile::host())
-}
-
-/// Select accepted evidence for the exact target before acquiring any source.
-/// Local project source stays editable; accepted dependency content and requests
-/// remain pinned until an explicit package update.
-pub fn prepare_local_project_for_target(
-    entry_path: &Path,
-    target: TargetProfile,
-) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_local_project_with_options(
-        entry_path,
-        LocalProjectPreparationOptions {
-            target,
-            offline: false,
-        },
-    )
-}
-
-/// Offline preparation permits normal local root edits and cached accepted Git
-/// pins. Unlocked local graphs work, but any unrecorded Git request rejects.
-pub fn prepare_local_project_with_options(
     entry_path: &Path,
     options: LocalProjectPreparationOptions,
 ) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_with_options_and_storage(entry_path, options, |root| {
+    prepare_local_project_in_storage(entry_path, options, |root| {
         SourceResolverStorage::for_current_user(PrimaryGitChoices {
             excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
             ..PrimaryGitChoices::default()
@@ -155,23 +135,7 @@ pub fn prepare_local_project_with_options(
     })
 }
 
-#[cfg(test)]
-fn prepare_with_storage(
-    entry_path: &Path,
-    target: TargetProfile,
-    open_storage: impl FnOnce(&Path) -> Result<SourceResolverStorage, SourceResolveError>,
-) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_with_options_and_storage(
-        entry_path,
-        LocalProjectPreparationOptions {
-            target,
-            offline: false,
-        },
-        open_storage,
-    )
-}
-
-fn prepare_with_options_and_storage(
+fn prepare_local_project_in_storage(
     entry_path: &Path,
     options: LocalProjectPreparationOptions,
     open_storage: impl FnOnce(&Path) -> Result<SourceResolverStorage, SourceResolveError>,
@@ -260,7 +224,7 @@ fn prepare_with_options_and_storage(
     let storage =
         open_storage(&canonical_project_root).map_err(PrepareLocalProjectError::Storage)?;
     let closure = if let Some(accepted) = accepted_target.as_ref() {
-        resolve_locked_local_project_closure_with_storage(
+        resolve_locked_local_project_closure(
             accepted.source(),
             &PackageRootSourceRequest::ExternalLocal {
                 requested_root: canonical_project_root.clone(),
@@ -278,7 +242,7 @@ fn prepare_with_options_and_storage(
         )
         .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))?
     } else {
-        resolve_external_local_project_closure_with_options(
+        resolve_external_local_project_closure(
             &canonical_project_root,
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
             &storage,
@@ -323,8 +287,10 @@ fn prepare_with_options_and_storage(
 #[cfg(test)]
 mod tests {
     use super::{PathBuf, prepare_local_project};
+    use crate::operations::LocalProjectPreparationOptions;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
+    use target::TargetProfile;
 
     mod locked;
 
@@ -349,7 +315,14 @@ mod tests {
         let entry = root.join("main.omg");
         std::fs::write(&entry, "machine main() {}\n").expect("write standalone source");
 
-        let prepared = prepare_local_project(&entry).expect("inspect standalone source");
+        let prepared = prepare_local_project(
+            &entry,
+            LocalProjectPreparationOptions {
+                target: TargetProfile::host(),
+                offline: false,
+            },
+        )
+        .expect("inspect standalone source");
 
         assert!(prepared.is_none());
         std::fs::remove_dir_all(root).expect("remove standalone source root");

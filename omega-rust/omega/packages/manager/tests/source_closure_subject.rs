@@ -2,8 +2,8 @@ use package_manager::resolution::graph::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectLimits, PackageSourceClosureLimits,
     ResolveExternalLocalPackageClosureError, ResolveWorkspacePackageClosureError,
-    ResolvedPackageSourceClosure, resolve_external_local_package_closure_with_storage,
-    resolve_workspace_package_closure_with_storage,
+    ResolvedPackageSourceClosure, resolve_external_local_package_closure,
+    resolve_workspace_package_closure,
 };
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_source::PrimaryGitChoices;
@@ -82,7 +82,7 @@ fn write_diamond(tree: &TempTree) -> PathBuf {
     sources.join("root")
 }
 
-fn resolve_external_local_package_closure(
+fn resolve_external_local_package_closure_from_hardened_base(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     cache_dir: impl AsRef<Path>,
@@ -93,7 +93,7 @@ fn resolve_external_local_package_closure(
         .map_err(|error| {
             ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_external_local_package_closure_with_storage(
+    resolve_external_local_package_closure(
         live_root,
         source_context,
         &storage,
@@ -102,7 +102,7 @@ fn resolve_external_local_package_closure(
     )
 }
 
-fn resolve_workspace_package_closure(
+fn resolve_workspace_package_closure_from_hardened_base(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -114,7 +114,7 @@ fn resolve_workspace_package_closure(
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_workspace_package_closure_with_storage(
+    resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
@@ -129,7 +129,7 @@ fn resolve_diamond(
     context: ExternalSourceContext,
     cache: &Path,
 ) -> ResolvedPackageSourceClosure {
-    resolve_external_local_package_closure(
+    resolve_external_local_package_closure_from_hardened_base(
         requested_root,
         context,
         cache,
@@ -408,7 +408,7 @@ fn workspace_member_requests_round_trip_without_cache_identity() {
         SourceLineage::git("https://github.com/CathedralOS/source-subject-workspace.git")
             .expect("canonical workspace source identity");
     let limits = CanonicalSourceClosureSubjectLimits::default();
-    let closure = resolve_workspace_package_closure(
+    let closure = resolve_workspace_package_closure_from_hardened_base(
         &workspace_source,
         SourceRelativePath::parse("root").expect("root member path"),
         &workspace,
@@ -438,7 +438,7 @@ fn workspace_member_requests_round_trip_without_cache_identity() {
         subject
     );
 
-    let relocated = resolve_workspace_package_closure(
+    let relocated = resolve_workspace_package_closure_from_hardened_base(
         &workspace_source,
         SourceRelativePath::parse("root").expect("root member path"),
         &workspace,

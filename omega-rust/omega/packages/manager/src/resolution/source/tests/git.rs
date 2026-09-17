@@ -1,8 +1,9 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::{
-    GitPackageSourceRequest, ResolvePackageSourceError, resolve_external_local_package_source,
-    resolve_git_package_source, resolve_selected_git_package_source_with_storage,
+    GitPackageSourceRequest, ResolvePackageSourceError,
+    resolve_external_local_package_source_from_hardened_base,
+    resolve_git_package_source_from_hardened_base, resolve_selected_git_package_source,
 };
 use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, GitSourceRequest, LocalSourceLimits};
@@ -50,10 +51,18 @@ fn git_binding_normalizes_known_transport_without_using_repository_name() {
         Some("git@github.com:cathedralos/repository-name-does-not-match.git"),
     )
     .expect("SSH request");
-    let https = resolve_git_package_source(&https_request, &cache, LocalSourceLimits::default())
-        .expect("resolve HTTPS-lineage source");
-    let ssh = resolve_git_package_source(&ssh_request, &cache, LocalSourceLimits::default())
-        .expect("resolve SSH-lineage source");
+    let https = resolve_git_package_source_from_hardened_base(
+        &https_request,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("resolve HTTPS-lineage source");
+    let ssh = resolve_git_package_source_from_hardened_base(
+        &ssh_request,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("resolve SSH-lineage source");
 
     assert_eq!(https.key(), ssh.key());
     assert_eq!(https.key().name().as_str(), "declared-package");
@@ -91,7 +100,7 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
     )
     .expect("retained storage");
 
-    let missing = resolve_selected_git_package_source_with_storage(
+    let missing = resolve_selected_git_package_source(
         &GitPackageSourceRequest::new(
             acquisition.clone(),
             crate::declarations::PackageSelection::Named(
@@ -111,7 +120,7 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
         ) if package_name.as_str() == "missing"
     ));
 
-    let duplicate = resolve_selected_git_package_source_with_storage(
+    let duplicate = resolve_selected_git_package_source(
         &GitPackageSourceRequest::new(
             acquisition,
             crate::declarations::PackageSelection::Named(
@@ -169,7 +178,7 @@ fn named_git_binding_rejects_symlink_member_navigation() {
     )
     .expect("retained storage");
 
-    let error = resolve_selected_git_package_source_with_storage(
+    let error = resolve_selected_git_package_source(
         &GitPackageSourceRequest::new(
             acquisition,
             crate::declarations::PackageSelection::Named(
@@ -274,24 +283,32 @@ fn conflicting_git_revisions_report_real_custody_and_both_request_paths() {
         Some(canonical_repository),
     )
     .expect("validate first local Git fixture request");
-    let first = resolve_git_package_source(&first_request, cache.join("first"), source_limits)
-        .expect("bind first declared package custody")
-        .into_custody();
+    let first = resolve_git_package_source_from_hardened_base(
+        &first_request,
+        cache.join("first"),
+        source_limits,
+    )
+    .expect("bind first declared package custody")
+    .into_custody();
     let second_request = GitSourceRequest::for_local_test_repository(
         &repository,
         Some(second_revision.clone()),
         Some(canonical_repository),
     )
     .expect("validate second local Git fixture request");
-    let second = resolve_git_package_source(&second_request, cache.join("second"), source_limits)
-        .expect("bind second declared package custody")
-        .into_custody();
+    let second = resolve_git_package_source_from_hardened_base(
+        &second_request,
+        cache.join("second"),
+        source_limits,
+    )
+    .expect("bind second declared package custody")
+    .into_custody();
     assert_eq!(first.key(), second.key());
     assert_ne!(first.resolution(), second.resolution());
     assert_ne!(first.snapshot_root(), second.snapshot_root());
 
     let source_context = ExternalSourceContext::derive(b"real-custody-reconciliation");
-    let root_custody = resolve_external_local_package_source(
+    let root_custody = resolve_external_local_package_source_from_hardened_base(
         &root,
         cache.join("root"),
         source_limits,

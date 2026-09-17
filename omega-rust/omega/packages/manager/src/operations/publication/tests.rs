@@ -144,7 +144,7 @@ fn interrupt(
 ) {
     let mut visited = Vec::new();
     let error = transaction
-        .publish_with_checkpoint(BEFORE_BUILD, AFTER_BUILD, before_lock, AFTER_LOCK, |step| {
+        .publish(BEFORE_BUILD, AFTER_BUILD, before_lock, AFTER_LOCK, |step| {
             visited.push(step);
             if step == stop {
                 Err(PackagePublicationError::InvalidJournal(
@@ -219,13 +219,21 @@ fn initial_publication_and_update_publish_exact_pairs_without_stage_residue() {
             (BEFORE_BUILD.to_vec(), before_lock.map(<[u8]>::to_vec))
         );
         transaction
-            .publish(BEFORE_BUILD, AFTER_BUILD, before_lock, AFTER_LOCK)
+            .publish(BEFORE_BUILD, AFTER_BUILD, before_lock, AFTER_LOCK, |_| {
+                Ok(())
+            })
             .unwrap();
         project.assert_pair(AFTER_BUILD, Some(AFTER_LOCK));
         project.assert_layout(true, false);
         assert!(!transaction.has_pending().unwrap());
         transaction
-            .publish(AFTER_BUILD, BEFORE_BUILD, Some(AFTER_LOCK), BEFORE_LOCK)
+            .publish(
+                AFTER_BUILD,
+                BEFORE_BUILD,
+                Some(AFTER_LOCK),
+                BEFORE_LOCK,
+                |_| Ok(()),
+            )
             .unwrap();
         project.assert_pair(BEFORE_BUILD, Some(BEFORE_LOCK));
         project.assert_layout(true, false);
@@ -242,7 +250,7 @@ fn stale_either_file_rejects_the_whole_pair_before_intent() {
             let mut transaction = project.open();
             fs::write(project.root.join(changed), THIRD_PARTY).unwrap();
             let error = transaction
-                .publish_with_checkpoint(BEFORE_BUILD, AFTER_BUILD, before_lock, AFTER_LOCK, |_| {
+                .publish(BEFORE_BUILD, AFTER_BUILD, before_lock, AFTER_LOCK, |_| {
                     panic!("stale pair reached durable intent")
                 })
                 .unwrap_err();
@@ -274,7 +282,7 @@ fn absent_and_empty_old_lock_are_not_interchangeable() {
         let project = Project::new(actual);
         let mut transaction = project.open();
         assert!(matches!(
-            transaction.publish(BEFORE_BUILD, AFTER_BUILD, expected, AFTER_LOCK),
+            transaction.publish(BEFORE_BUILD, AFTER_BUILD, expected, AFTER_LOCK, |_| Ok(())),
             Err(PackagePublicationError::ConcurrentEdit { file: "omega.lock" })
         ));
         project.assert_pair(BEFORE_BUILD, actual);
@@ -297,7 +305,9 @@ fn checkpoint_errors_reopen_and_complete_forward_at_every_step() {
             assert_interrupted_pair(&project, before_lock, step);
             let journal = fs::read(project.journal()).unwrap();
             assert!(matches!(
-                transaction.publish(BEFORE_BUILD, THIRD_PARTY, before_lock, THIRD_PARTY),
+                transaction.publish(BEFORE_BUILD, THIRD_PARTY, before_lock, THIRD_PARTY, |_| Ok(
+                    ()
+                )),
                 Err(PackagePublicationError::RecoveryRequired)
             ));
             assert_eq!(fs::read(project.journal()).unwrap(), journal);
@@ -451,7 +461,7 @@ fn publication_subprocess() {
         .unwrap();
     let before_lock = read_optional(&root.join("omega.lock"));
     transaction
-        .publish_with_checkpoint(
+        .publish(
             BEFORE_BUILD,
             AFTER_BUILD,
             before_lock.as_deref(),

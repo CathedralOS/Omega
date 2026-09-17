@@ -3,7 +3,7 @@ use super::{
     ResolvedPackageSourceClosure, SourceResolverStorage, TARGET, Tree, assert_fresh_matches,
     capture_lock, check_locked_sources, fs,
 };
-use package_manager::resolution::graph::resolve_workspace_project_closure_with_storage;
+use package_manager::resolution::graph::resolve_workspace_project_closure;
 use package_source::{SourceLineage, SourceRelativePath};
 
 fn generated_workspace(
@@ -26,7 +26,7 @@ fn generated_workspace(
         fs::create_dir_all(destination.parent().unwrap()).unwrap();
         fs::copy(fixtures.join(relative), destination).unwrap();
     }
-    resolve_workspace_project_closure_with_storage(
+    resolve_workspace_project_closure(
         &SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap(),
         SourceRelativePath::parse("generated-consumer").unwrap(),
         tree.path("sources"),

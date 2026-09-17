@@ -12,7 +12,7 @@ use package_evidence::record::{
 };
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
-    resolve_workspace_package_closure_with_storage,
+    resolve_workspace_package_closure,
 };
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_manager::review::{

@@ -15,7 +15,8 @@ use package_manager::declarations::{DependencyPurpose, DependencySourceRequest};
 use package_manager::operations::{
     LockedSourceRecoveryOptions, check_locked_sources, stage_build_dependency_edit,
 };
-use package_manager::resolution::graph::resolve_staged_external_local_project_closure_with_storage;
+use package_manager::resolution::graph::GitResolutionOptions;
+use package_manager::resolution::graph::resolve_staged_external_local_project_closure;
 use package_source::SourceResolveError;
 use package_source::local::staging::StagedLocalSnapshot;
 
@@ -41,12 +42,13 @@ fn staged_review(
     let storage = tree.storage("staged-cache");
     let staged =
         stage_build_dependency_edit(replacement, &storage, LocalSourceLimits::default()).unwrap();
-    let closure = resolve_staged_external_local_project_closure_with_storage(
+    let closure = resolve_staged_external_local_project_closure(
         &staged,
         ExternalSourceContext::derive(b"complete-package-policy-changes"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap();
     let review =

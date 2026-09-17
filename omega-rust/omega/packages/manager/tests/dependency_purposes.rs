@@ -13,11 +13,11 @@ use package_manager::operations::{
     LockedSourceRecoveryOptions, RecoverLockedSourcesError, check_locked_sources,
     recover_locked_sources,
 };
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest,
     PackageSourceClosureLimits, ResolveLockedPackageClosureError, ResolvedPackageSourceClosure,
-    resolve_external_local_project_closure_with_storage,
-    resolve_locked_local_project_closure_with_storage,
+    resolve_external_local_project_closure, resolve_locked_local_project_closure,
 };
 use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::compile_resolved_package_reviews;
@@ -35,12 +35,13 @@ const TARGET: TargetProfile = TargetProfile::WindowsX64;
 const CONTEXT: &[u8] = b"dependency-purposes";
 
 fn resolve(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourceClosure {
-    resolve_external_local_project_closure_with_storage(
+    resolve_external_local_project_closure(
         tree.path("sources/root"),
         ExternalSourceContext::derive(CONTEXT),
         storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap()
 }
@@ -437,7 +438,7 @@ fn dropping_or_repurposing_a_build_row_rejects_locked_recovery() {
     let original_build = fs::read_to_string(tree.path("sources/root/build.omg")).unwrap();
 
     let locked_local = |storage: &SourceResolverStorage| {
-        resolve_locked_local_project_closure_with_storage(
+        resolve_locked_local_project_closure(
             &subject,
             &request,
             GitExactRevisionAcquisition::Offline,

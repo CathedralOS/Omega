@@ -1,7 +1,7 @@
 use super::{
     QUESTION_MAGIC, find_subslice, graph_workbench_question, join_question, remove_temporary_tree,
-    resolve_external_closure, resolve_workspace_package_closure, split_question, temporary_root,
-    workspace_root,
+    resolve_external_closure, resolve_workspace_package_closure_from_hardened_base, split_question,
+    temporary_root, workspace_root,
 };
 use crate::package_reconstruction_question::accepted_policy_fixture;
 use package_evidence::ledger::OrdinaryPackageObligationStatus;
@@ -724,7 +724,7 @@ fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh
     let fixture_root = workspace_root().join("tests/fixtures/packages");
     let alternate_request_spelling = fixture_root.join(".");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
-    let alternate_closure = resolve_workspace_package_closure(
+    let alternate_closure = resolve_workspace_package_closure_from_hardened_base(
         &workspace_lineage,
         SourceRelativePath::parse("graph-workbench").unwrap(),
         &alternate_request_spelling,

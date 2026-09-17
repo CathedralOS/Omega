@@ -55,7 +55,7 @@ pub fn bind_staged_external_local_project_source(
 /// path to an explicit consuming context. Such lineage is intentionally
 /// non-portable and cannot impersonate a workspace or network source.
 #[cfg(test)]
-pub fn resolve_external_local_package_source(
+pub fn resolve_external_local_package_source_from_hardened_base(
     source_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
@@ -63,12 +63,7 @@ pub fn resolve_external_local_package_source(
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let storage =
         SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
-    resolve_external_local_package_source_with_storage(
-        source_root,
-        &storage,
-        limits,
-        source_context,
-    )
+    resolve_external_local_package_source(source_root, &storage, limits, source_context)
 }
 
 /// Resolve a local project root selected for execution.
@@ -108,7 +103,7 @@ pub(crate) fn resolve_external_local_project_source_in_lane(
     )
 }
 
-pub fn resolve_external_local_package_source_with_storage(
+pub fn resolve_external_local_package_source(
     source_root: impl AsRef<Path>,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,
@@ -125,7 +120,7 @@ pub fn resolve_external_local_package_source_with_storage(
     result
 }
 
-pub fn resolve_external_local_project_source_with_storage(
+pub fn resolve_external_local_project_source(
     source_root: impl AsRef<Path>,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,

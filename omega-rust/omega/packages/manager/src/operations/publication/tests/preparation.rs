@@ -2,8 +2,10 @@ use super::{
     AFTER_LOCK, PackageFileTransaction, PackagePublicationError, PackagePublicationLimits, Project,
     PublicationStep, entries, fs,
 };
+use crate::operations::LocalProjectPreparationOptions;
 use crate::operations::{PrepareLocalProjectError, prepare_local_project};
 use crate::resolution::graph::ResolvedSourceIdentity;
+use target::TargetProfile;
 
 const ORIGINAL_BUILD: &[u8] =
     b"machine build(builder: &mut Build) {\n    builder.package(\"before-publication\");\n}\n";
@@ -19,9 +21,15 @@ fn valid_project() -> Project {
 }
 
 fn prepare_snapshot(project: &Project, build: &[u8], name: &str) -> ResolvedSourceIdentity {
-    let prepared = prepare_local_project(&project.root.join("main.omg"))
-        .expect("prepare a valid Omega package")
-        .expect("build.omg selects package preparation");
+    let prepared = prepare_local_project(
+        &project.root.join("main.omg"),
+        LocalProjectPreparationOptions {
+            target: TargetProfile::host(),
+            offline: false,
+        },
+    )
+    .expect("prepare a valid Omega package")
+    .expect("build.omg selects package preparation");
     let (entry, closure, _) = prepared.into_review_parts();
     let root = closure.graph().root();
     let snapshot = closure.source_root(root).unwrap();
@@ -39,10 +47,16 @@ fn proposed_lock(project: &Project) -> String {
     use crate::operations::review_package_change;
     use crate::review::resolve_package_policy_decisions;
     fs::write(project.root.join("build.omg"), PROPOSED_BUILD).unwrap();
-    let (_, closure, _) = prepare_local_project(&project.root.join("main.omg"))
-        .unwrap()
-        .unwrap()
-        .into_review_parts();
+    let (_, closure, _) = prepare_local_project(
+        &project.root.join("main.omg"),
+        LocalProjectPreparationOptions {
+            target: TargetProfile::host(),
+            offline: false,
+        },
+    )
+    .unwrap()
+    .unwrap()
+    .into_review_parts();
     let review = review_package_change(
         closure,
         target::TargetProfile::host(),
@@ -77,7 +91,7 @@ fn preparation_recovers_pending_publication_before_snapshotting() {
         let after_lock = after_lock.as_bytes();
         let mut transaction = project.open();
         let error = transaction
-            .publish_with_checkpoint(ORIGINAL_BUILD, PROPOSED_BUILD, None, after_lock, |step| {
+            .publish(ORIGINAL_BUILD, PROPOSED_BUILD, None, after_lock, |step| {
                 if step == stop {
                     Err(PackagePublicationError::InvalidJournal(
                         "injected interruption",
@@ -134,7 +148,13 @@ fn preparation_rejects_busy_transaction_and_succeeds_after_guard_release() {
     let transaction = project.open();
     assert!(project.state().is_dir());
     assert!(matches!(
-        prepare_local_project(&project.root.join("main.omg")),
+        prepare_local_project(
+            &project.root.join("main.omg"),
+            LocalProjectPreparationOptions {
+                target: TargetProfile::host(),
+                offline: false
+            }
+        ),
         Err(PrepareLocalProjectError::Publication(
             PackagePublicationError::Busy
         ))
@@ -168,7 +188,7 @@ fn missing_build_file_during_pending_publication_is_not_standalone_source() {
     let project = valid_project();
     let mut transaction = project.open();
     let error = transaction
-        .publish_with_checkpoint(ORIGINAL_BUILD, PROPOSED_BUILD, None, AFTER_LOCK, |_| {
+        .publish(ORIGINAL_BUILD, PROPOSED_BUILD, None, AFTER_LOCK, |_| {
             Err(PackagePublicationError::InvalidJournal(
                 "injected interruption",
             ))
@@ -178,7 +198,13 @@ fn missing_build_file_during_pending_publication_is_not_standalone_source() {
     drop(transaction);
     fs::remove_file(project.root.join("build.omg")).unwrap();
     assert!(matches!(
-        prepare_local_project(&project.root.join("main.omg")),
+        prepare_local_project(
+            &project.root.join("main.omg"),
+            LocalProjectPreparationOptions {
+                target: TargetProfile::host(),
+                offline: false
+            }
+        ),
         Err(PrepareLocalProjectError::Publication(
             PackagePublicationError::Pending(_)
         ))

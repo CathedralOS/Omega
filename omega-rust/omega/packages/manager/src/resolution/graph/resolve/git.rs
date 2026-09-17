@@ -25,7 +25,7 @@ use std::path::Path;
 /// multi-package workspace remains ambiguous until the explicit package
 /// selector design is implemented.
 #[cfg(test)]
-pub(crate) fn resolve_git_package_closure(
+pub(crate) fn resolve_git_package_closure_from_hardened_base(
     request: &GitSourceRequest,
     cache_dir: impl AsRef<Path>,
     source_limits: LocalSourceLimits,
@@ -35,7 +35,7 @@ pub(crate) fn resolve_git_package_closure(
         .map_err(|error| {
             ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_git_package_closure_with_storage(request, &storage, source_limits, closure_limits)
+    resolve_git_package_closure(request, &storage, source_limits, closure_limits)
 }
 
 fn resolve_git_package_closure_from_lanes(
@@ -90,13 +90,13 @@ fn resolve_git_package_closure_from_lanes(
 }
 
 /// Resolve a Git closure beneath the manager-owned private source root.
-pub fn resolve_git_package_closure_with_storage(
+pub fn resolve_git_package_closure(
     request: &GitSourceRequest,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
-    resolve_selected_git_package_closure_with_storage(
+    resolve_selected_git_package_closure(
         &GitPackageSourceRequest::root(request.clone()),
         storage,
         source_limits,
@@ -106,13 +106,13 @@ pub fn resolve_git_package_closure_with_storage(
 
 /// Resolve a repository-root Git project. The selected root may be a package
 /// or application; every dependency remains package-only.
-pub fn resolve_git_project_closure_with_storage(
+pub fn resolve_git_project_closure(
     request: &GitSourceRequest,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
-    resolve_selected_git_project_closure_with_storage(
+    resolve_selected_git_project_closure(
         &GitPackageSourceRequest::root(request.clone()),
         storage,
         source_limits,
@@ -121,7 +121,7 @@ pub fn resolve_git_project_closure_with_storage(
 }
 
 /// Resolve one explicitly selected package from a Git repository and its closure.
-pub fn resolve_selected_git_package_closure_with_storage(
+pub fn resolve_selected_git_package_closure(
     request: &GitPackageSourceRequest,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
@@ -147,7 +147,7 @@ pub fn resolve_selected_git_package_closure_with_storage(
 
 /// Resolve one explicitly selected Git project root. Named workspace members
 /// may be packages or applications at this root boundary.
-pub fn resolve_selected_git_project_closure_with_storage(
+pub fn resolve_selected_git_project_closure(
     request: &GitPackageSourceRequest,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,

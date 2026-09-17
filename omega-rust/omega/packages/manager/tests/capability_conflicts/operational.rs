@@ -5,8 +5,8 @@ use super::{
     PackageTriageReason, ReviewOnlyCapabilityConflictBaseline, ReviewOnlyCapabilityConflictChange,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
     compare_review_only_capabilities, compare_review_only_initial_capabilities,
-    compile_resolved_package_reviews, resolve_external_local_package_closure, temp_root,
-    triage_initial_install, write_package,
+    compile_resolved_package_reviews, resolve_external_local_package_closure_from_hardened_base,
+    temp_root, triage_initial_install, write_package,
 };
 use package_manager::review::SemanticBindingReview;
 
@@ -32,7 +32,7 @@ invokes {service};
         )
     };
     write_package(&live, &source("First"));
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -48,7 +48,7 @@ invokes {service};
     .expect("compile invocation baseline");
 
     write_package(&live, &source("Second"));
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -112,7 +112,7 @@ reaches {service}
         )
     };
     write_package(&live, &source("First"));
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -128,7 +128,7 @@ reaches {service}
     .expect("compile service-reach baseline");
 
     write_package(&live, &source("Second"));
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -183,7 +183,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
 
     let source = |clause: &str| format!("pub machine operate()\n{clause};\n{{ }}\n");
     write_package(&live, &source("suspends"));
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -199,7 +199,7 @@ fn operational_changes_render_exact_authored_clause_locations() {
     .expect("compile operational baseline");
 
     write_package(&live, &source("blocks"));
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -274,7 +274,7 @@ pub windows_x86_64 machine invoke_leaf()
         )
     };
     write_package(&live, &source("invoke_v1"));
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -348,7 +348,7 @@ pub windows_x86_64 machine invoke_leaf()
     }));
 
     write_package(&live, &source("invoke_v2"));
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -418,7 +418,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     let context = ExternalSourceContext::derive(b"transparent-proposition-conflict-test");
 
     write_package(&live, "pub proposition ready() = true;\n");
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -434,7 +434,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     .expect("compile transparent proposition baseline");
 
     write_package(&live, "pub proposition ready() = false;\n");
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -503,7 +503,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
         &live,
         "pub data Packet { value: u32; }\npub domain Packet::Ready\nrequires self.value == 0;\n",
     );
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -522,7 +522,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
         &live,
         "pub data Packet { value: u32; }\npub domain Packet::Ready\nrequires self.value == 1;\n",
     );
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,

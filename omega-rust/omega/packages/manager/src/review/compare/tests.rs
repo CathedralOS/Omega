@@ -7,7 +7,7 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{
     PackageSourceClosureLimits, ResolvedPackageClosure, ResolvedPackageSourceClosure,
-    resolve_external_local_package_closure,
+    resolve_external_local_package_closure_from_hardened_base,
 };
 use crate::review::ReviewOnlySourceConsumptionCommitment;
 use crate::review::candidate::PackageReviewEvidence;
@@ -166,7 +166,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
     let cache = temp_root("cache");
     write_package(&dependency, "closure-dependency", None);
     write_package(&root, "closure-root", Some("../dependency"));
-    let closure = resolve_external_local_package_closure(
+    let closure = resolve_external_local_package_closure_from_hardened_base(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-review-evidence"),
         &cache,
@@ -227,7 +227,7 @@ fn candidate_closure_binds_the_selected_target_profile() {
     let root = temp_root("target-profile");
     let cache = temp_root("target-profile-cache");
     write_package(&root, "profile-probe", None);
-    let closure = resolve_external_local_package_closure(
+    let closure = resolve_external_local_package_closure_from_hardened_base(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-target-profile"),
         &cache,
@@ -270,7 +270,7 @@ fn candidate_closure_binds_the_exact_root_role() {
     let root = temp_root("root-role");
     let cache = temp_root("root-role-cache");
     write_package(&root, "role-probe", None);
-    let closure = resolve_external_local_package_closure(
+    let closure = resolve_external_local_package_closure_from_hardened_base(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-root-role"),
         &cache,
@@ -302,9 +302,9 @@ fn candidate_closure_binds_the_exact_root_role() {
     let review_refs = reviews.iter().collect::<Vec<_>>();
 
     assert_ne!(
-        derive_candidate_graph_commitment(&package_graph, &review_refs)
+        derive_candidate_graph_commitment(&package_graph, None, &review_refs)
             .expect("commit package-root graph"),
-        derive_candidate_graph_commitment(&application_graph, &review_refs)
+        derive_candidate_graph_commitment(&application_graph, None, &review_refs)
             .expect("commit application-root graph"),
         "candidate closure identity must bind root role"
     );

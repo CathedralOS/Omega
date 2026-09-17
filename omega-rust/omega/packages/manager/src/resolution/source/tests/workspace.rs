@@ -1,7 +1,7 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::{
-    ResolvePackageSourceError, resolve_workspace_member_package_source,
+    ResolvePackageSourceError, resolve_workspace_member_package_source_from_hardened_base,
 };
 #[cfg(unix)]
 use package_source::PrimaryGitChoices;
@@ -46,7 +46,7 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
         max_bytes: 4096,
         max_depth: 8,
     };
-    let resolved = resolve_workspace_member_package_source(
+    let resolved = resolve_workspace_member_package_source_from_hardened_base(
         &workspace_root_source,
         member_path.clone(),
         &workspace,
@@ -109,7 +109,7 @@ fn workspace_member_resolution_rejects_member_path_symlink_escape() {
         PrimaryGitChoices::default(),
     )
     .expect("create retained workspace storage");
-    let error = crate::resolution::source::resolve_workspace_member_package_source_with_storage(
+    let error = crate::resolution::source::resolve_workspace_member_package_source(
         &SourceLineage::git("https://github.com/CathedralOS/workspace.git")
             .expect("workspace lineage"),
         SourceRelativePath::parse("packages/escaped").expect("member path"),
@@ -153,7 +153,7 @@ fn workspace_member_resolution_retains_member_tree_symlink_containment() {
     symlink(outside.join("secret.omg"), member.join("escaped.omg"))
         .expect("create escaping source symlink");
 
-    let error = resolve_workspace_member_package_source(
+    let error = resolve_workspace_member_package_source_from_hardened_base(
         &SourceLineage::git("https://github.com/CathedralOS/workspace.git")
             .expect("workspace lineage"),
         SourceRelativePath::parse("packages/member").expect("member path"),
@@ -183,7 +183,7 @@ fn workspace_member_resolution_rejects_recursive_workspace_lineage() {
         SourceRelativePath::parse("packages/parent").expect("parent member path"),
     ));
 
-    let error = resolve_workspace_member_package_source(
+    let error = resolve_workspace_member_package_source_from_hardened_base(
         &recursive_source,
         SourceRelativePath::parse("packages/child").expect("child member path"),
         temp_root("recursive-workspace"),

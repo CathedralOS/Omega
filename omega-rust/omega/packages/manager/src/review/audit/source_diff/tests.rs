@@ -4,7 +4,7 @@ use super::{
     PackageSourcePatchSide, SourceLine, SourceResolveError, myers_diff, render_entry,
     render_package_source_patch, source_line_count, split_lines,
 };
-use crate::resolution::source::resolve_external_local_package_source;
+use crate::resolution::source::resolve_external_local_package_source_from_hardened_base;
 use package_source::local::resolution_observations::VerifiedPackageSourceEntryKind;
 use package_source::{ExternalSourceContext, LocalSourceLimits};
 use std::path::{Path, PathBuf};
@@ -255,7 +255,7 @@ fn custody_patch_is_exact_bounded_and_marks_unreviewable_content() {
     let alternate_cache = temp_root("alternate-cache");
     write_package(&live, b"machine first() {\n}\n");
     let context = ExternalSourceContext::derive(b"source-patch-test");
-    let baseline = resolve_external_local_package_source(
+    let baseline = resolve_external_local_package_source_from_hardened_base(
         &live,
         &baseline_cache,
         LocalSourceLimits::default(),
@@ -270,7 +270,7 @@ fn custody_patch_is_exact_bounded_and_marks_unreviewable_content() {
     )
     .unwrap();
     std::fs::write(live.join("opaque.bin"), [0, 0xff, b'\n']).unwrap();
-    let candidate = resolve_external_local_package_source(
+    let candidate = resolve_external_local_package_source_from_hardened_base(
         &live,
         &candidate_cache,
         LocalSourceLimits::default(),
@@ -397,7 +397,7 @@ fn custody_patch_is_exact_bounded_and_marks_unreviewable_content() {
         })
     ));
 
-    let alternate = resolve_external_local_package_source(
+    let alternate = resolve_external_local_package_source_from_hardened_base(
         &live,
         &alternate_cache,
         LocalSourceLimits::default(),

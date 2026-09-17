@@ -4,7 +4,7 @@ use package_evidence::record::{
 };
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
-    ResolvedPackageSourceClosure, resolve_external_local_package_closure_with_storage,
+    ResolvedPackageSourceClosure, resolve_external_local_package_closure,
 };
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_manager::review::{
@@ -52,7 +52,7 @@ machine build(builder: &mut Build) {
     std::fs::write(root.join("main.omg"), main).expect("write package source");
 }
 
-fn resolve_external_local_package_closure(
+fn resolve_external_local_package_closure_from_hardened_base(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     cache_base: impl AsRef<Path>,
@@ -66,7 +66,7 @@ fn resolve_external_local_package_closure(
                     error,
                 ))
             })?;
-    resolve_external_local_package_closure_with_storage(
+    resolve_external_local_package_closure(
         live_root,
         source_context,
         &storage,

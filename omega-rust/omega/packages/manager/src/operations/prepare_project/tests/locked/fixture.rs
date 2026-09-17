@@ -6,9 +6,11 @@ use super::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, ExternalSourceContext,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, LOCAL_PROJECT_CONTEXT,
     LocalSourceLimits, PackageLockTarget, PackageSourceClosureLimits, PrepareLocalProjectError,
-    TargetProfile, compile_resolved_package_reviews, fs, prepare_with_storage,
+    TargetProfile, compile_resolved_package_reviews, fs, prepare_local_project_in_storage,
 };
-use crate::resolution::graph::resolve_external_local_project_closure_with_storage;
+use crate::operations::LocalProjectPreparationOptions;
+use crate::resolution::graph::GitResolutionOptions;
+use crate::resolution::graph::resolve_external_local_project_closure;
 use crate::review::SemanticBindingReview;
 use package_source::PrimaryGitChoices;
 
@@ -44,20 +46,26 @@ impl Project {
     }
 
     pub(super) fn resolve(&self, root: &Path) -> ResolvedPackageSourceClosure {
-        resolve_external_local_project_closure_with_storage(
+        resolve_external_local_project_closure(
             root,
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
             &self.storage(),
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
+            GitResolutionOptions::default(),
         )
         .unwrap()
     }
 
     pub(super) fn prepare(&self) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-        prepare_with_storage(&self.root().join("main.omg"), TargetProfile::host(), |_| {
-            Ok(self.storage())
-        })
+        prepare_local_project_in_storage(
+            &self.root().join("main.omg"),
+            LocalProjectPreparationOptions {
+                target: TargetProfile::host(),
+                offline: false,
+            },
+            |_| Ok(self.storage()),
+        )
     }
 
     pub(super) fn lock(&self) -> PackageLock {

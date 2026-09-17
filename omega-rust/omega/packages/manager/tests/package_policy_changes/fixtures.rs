@@ -3,19 +3,20 @@ use super::{
     CompilerIssuedPackageReviewSet, ExternalSourceContext, HistoricalPackagePolicyDecisions,
     HistoricalPackagePolicyLimits, LocalSourceLimits, PackageLock, PackageLockRecoveryLimits,
     PackageLockTarget, PackageSourceClosureLimits, ResolvedPackageSourceClosure, TARGET, Tree,
-    compile_resolved_package_reviews, fs, package,
-    resolve_external_local_project_closure_with_storage,
+    compile_resolved_package_reviews, fs, package, resolve_external_local_project_closure,
 };
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::review::SemanticBindingReview;
 
 pub(super) fn resolve(tree: &Tree, label: &str) -> ResolvedPackageSourceClosure {
     let storage = tree.storage(&format!("{label}-cache"));
-    resolve_external_local_project_closure_with_storage(
+    resolve_external_local_project_closure(
         tree.path("sources/root"),
         ExternalSourceContext::derive(b"complete-package-policy-changes"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap()
 }

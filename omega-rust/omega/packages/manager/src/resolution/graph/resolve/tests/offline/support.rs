@@ -1,7 +1,7 @@
 use super::super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, Path, PathBuf,
-    SourceRelativePath, SourceResolverStorage, resolve_external_local_project_closure_with_options,
-    resolve_staged_external_local_project_closure_with_options,
+    SourceRelativePath, SourceResolverStorage, resolve_external_local_project_closure,
+    resolve_staged_external_local_project_closure,
 };
 use super::super::{run_test_git, temp_root, write_application};
 use super::{
@@ -138,7 +138,7 @@ impl Fixture {
                 LocalSourceLimits::default(),
             )
             .unwrap();
-            resolve_staged_external_local_project_closure_with_options(
+            resolve_staged_external_local_project_closure(
                 &stage,
                 context,
                 storage,
@@ -147,7 +147,7 @@ impl Fixture {
                 options,
             )
         } else {
-            resolve_external_local_project_closure_with_options(
+            resolve_external_local_project_closure(
                 &root,
                 context,
                 storage,

@@ -3,15 +3,14 @@ use super::super::{
     LOCAL_PROJECT_CONTEXT, LocalProjectPreparationOptions, LocalSourceLimits,
     PackageFileTransaction, PackagePublicationLimits, PackageRootSourceRequest,
     PackageSourceClosureLimits, PrepareLocalProjectError, TargetProfile,
-    prepare_with_options_and_storage, prepare_with_storage,
-    resolve_locked_local_project_closure_with_storage,
+    prepare_local_project_in_storage, resolve_locked_local_project_closure,
 };
 
 use crate::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,
 };
 use crate::resolution::graph::{
-    CanonicalSourceClosureSubject, resolve_locked_package_source_closure_with_storage,
+    CanonicalSourceClosureSubject, resolve_locked_package_source_closure,
 };
 use crate::review::compile_resolved_package_reviews;
 use std::fs;
@@ -53,7 +52,7 @@ fn local_root_main_edits_preserve_locked_dependencies_and_lock_bytes() {
         }
         // The explicit immutable-root API still rejects precisely this edit.
         assert!(
-            resolve_locked_package_source_closure_with_storage(
+            resolve_locked_package_source_closure(
                 accepted,
                 fresh.source_requests().root().request(),
                 GitExactRevisionAcquisition::AllowFetch,
@@ -124,9 +123,14 @@ fn missing_target_rejects_before_storage_or_missing_local_source_acquisition() {
         .into_iter()
         .find(|target| *target != TargetProfile::host())
         .unwrap();
-    let error = prepare_with_storage(&project.root().join("main.omg"), other, |_| {
-        panic!("missing target must reject before storage and source acquisition")
-    })
+    let error = prepare_local_project_in_storage(
+        &project.root().join("main.omg"),
+        LocalProjectPreparationOptions {
+            target: other,
+            offline: false,
+        },
+        |_| panic!("missing target must reject before storage and source acquisition"),
+    )
     .err()
     .unwrap();
     assert!(
@@ -171,9 +175,12 @@ fn incompatible_lock_rejects_before_acquisition() {
     let project = Project::new("package");
     for bytes in [b"omega-lock 999\n".as_slice(), &[0xff]] {
         fs::write(project.root().join("omega.lock"), bytes).unwrap();
-        let error = prepare_with_storage(
+        let error = prepare_local_project_in_storage(
             &project.root().join("main.omg"),
-            TargetProfile::host(),
+            LocalProjectPreparationOptions {
+                target: TargetProfile::host(),
+                offline: false,
+            },
             |_| panic!("incompatible lock must reject before acquisition"),
         )
         .err()
@@ -188,7 +195,7 @@ fn recovery_precedes_baseline_loading_and_deleted_declaration_standalone_gate() 
     for (deleted, offline) in [(false, false), (true, false), (false, true), (true, true)] {
         let project = Project::new("package");
         let prepare = || {
-            prepare_with_options_and_storage(
+            prepare_local_project_in_storage(
                 &project.root().join("main.omg"),
                 LocalProjectPreparationOptions {
                     target: TargetProfile::host(),
@@ -264,7 +271,7 @@ fn historical_root_spelling_uses_physical_caller_without_relaxing_strict_api() {
         source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
     };
     let storage = project.storage();
-    let strict = resolve_locked_package_source_closure_with_storage(
+    let strict = resolve_locked_package_source_closure(
         &subject,
         &request,
         GitExactRevisionAcquisition::AllowFetch,
@@ -278,7 +285,7 @@ fn historical_root_spelling_uses_physical_caller_without_relaxing_strict_api() {
         Err(crate::resolution::graph::ResolveLockedPackageClosureError::RootRequestMismatch)
     ));
     assert!(
-        resolve_locked_local_project_closure_with_storage(
+        resolve_locked_local_project_closure(
             &subject,
             &request,
             GitExactRevisionAcquisition::AllowFetch,
@@ -294,7 +301,7 @@ fn historical_root_spelling_uses_physical_caller_without_relaxing_strict_api() {
         source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
     };
     assert!(
-        resolve_locked_local_project_closure_with_storage(
+        resolve_locked_local_project_closure(
             &subject,
             &wrong_request,
             GitExactRevisionAcquisition::AllowFetch,
