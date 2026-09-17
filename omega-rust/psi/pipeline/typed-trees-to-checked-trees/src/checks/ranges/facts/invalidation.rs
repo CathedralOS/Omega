@@ -1,4 +1,5 @@
 use super::RangeFacts;
+use crate::flow::CanonicalPlace;
 use typed_trees::{TypedTrees, machine::Machine, state::State, statement::StatementNode};
 
 impl RangeFacts<'_> {
@@ -27,7 +28,7 @@ impl RangeFacts<'_> {
             program,
             &mut owned_frames,
         );
-        let writes = (!self.expression_dependencies.is_empty())
+        let writes = (!self.expression_dependencies.is_empty() || self.has_descriptor_facts())
             .then(|| {
                 crate::flow::statement_storage_writes(
                     program,
@@ -42,11 +43,28 @@ impl RangeFacts<'_> {
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
         let affected = self.affected_expression_labels(program, machine, state, writes.as_deref());
-        self.invalidate_relational_bounds(|name| {
+        let statement_index = self.statement_index;
+        let string_fallback = |name: &str| {
+            !preserved.iter().any(|label| label == name) && write_affects_bound(name, &target)
+        };
+        let overlaps =
+            |name: &str| affected.iter().any(|label| label == name) || string_fallback(name);
+        let covers = |name: &str| {
             affected.iter().any(|label| label == name)
-                || (!preserved.iter().any(|label| label == name)
-                    && write_affects_bound(name, &target))
-        });
+                || match writes.as_deref() {
+                    Some(writes) => descriptor_covered(
+                        program,
+                        state,
+                        statement_index,
+                        writes,
+                        symbols::SymbolHandle::invalid(),
+                        name,
+                    )
+                    .unwrap_or_else(|| string_fallback(name)),
+                    None => string_fallback(name),
+                }
+        };
+        self.invalidate_relational_bounds(overlaps, covers);
         if let Some((collection, minimum, exact)) = extent {
             if let Some(minimum) = minimum {
                 self.prove_minimum_length(collection.clone(), minimum);
@@ -124,10 +142,19 @@ impl RangeFacts<'_> {
         if paths.is_some_and(|paths| paths.is_empty()) {
             return;
         }
+        // A located call's structured write set keeps the element coordinates
+        // the flattened frame paths deliberately drop: `clear(&mut rooms[0])`
+        // instantiates to `rooms[0].tag`, never to the `rooms` descriptor.
+        // Descriptor-keyed rows (view extents, window parentage, the
+        // collection keys of index/range proofs) therefore retire only when a
+        // write reaches the collection place itself, so they consult the
+        // structured set even when no typed read set exists.
+        let call_writes = site
+            .filter(|_| !self.expression_dependencies.is_empty() || self.has_descriptor_facts())
+            .and_then(|site| self.structured_call_writes(program, machine, state, site));
         let structured = paths
             .filter(|_| !self.expression_dependencies.is_empty())
-            .and(site)
-            .and_then(|site| self.structured_call_writes(program, machine, state, site));
+            .and_then(|_| call_writes.clone());
         let mut owned_frames = None;
         let shared_frames = crate::flow::shared_call_frames_or(
             self.checked_calls.and_then(|context| context.call_frames()),
@@ -151,12 +178,32 @@ impl RangeFacts<'_> {
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
         let affected = self.affected_expression_labels(program, machine, state, writes.as_deref());
-        let overlaps = |name: &str| {
+        let statement_index = self.statement_index;
+        let string_fallback = |name: &str| {
+            !preserved.iter().any(|label| label == name)
+                && paths
+                    .is_none_or(|paths| paths.iter().any(|path| write_affects_bound(name, path)))
+        };
+        let overlaps =
+            |name: &str| affected.iter().any(|label| label == name) || string_fallback(name);
+        // A descriptor row survives when every caller-visible write stays
+        // below the collection's own place. Labels that resolve to no caller
+        // place, or a missing/incomplete write set, keep the conservative
+        // string answer.
+        let covers = |name: &str| {
             affected.iter().any(|label| label == name)
-                || (!preserved.iter().any(|label| label == name)
-                    && paths.is_none_or(|paths| {
-                        paths.iter().any(|path| write_affects_bound(name, path))
-                    }))
+                || match call_writes.as_deref() {
+                    Some(writes) => descriptor_covered(
+                        program,
+                        state,
+                        statement_index,
+                        writes,
+                        symbols::SymbolHandle::invalid(),
+                        name,
+                    )
+                    .unwrap_or_else(|| string_fallback(name)),
+                    None => string_fallback(name),
+                }
         };
         // Field constants currently retain a leaf name and declaration symbol,
         // not the instance's full storage path. A write to `self.cell.value`
@@ -172,7 +219,15 @@ impl RangeFacts<'_> {
                 && !overlaps(name)
         });
         self.locals.retain(|(symbol, name, _)| {
-            !overlaps(name) || {
+            let covered = affected.iter().any(|label| label == name.as_str())
+                || match call_writes.as_deref() {
+                    Some(writes) => {
+                        descriptor_covered(program, state, statement_index, writes, *symbol, name)
+                            .unwrap_or_else(|| string_fallback(name))
+                    }
+                    None => string_fallback(name),
+                };
+            !covered || {
                 let reference = program
                     .state_parameters(state)
                     .iter()
@@ -195,29 +250,92 @@ impl RangeFacts<'_> {
                 })
             }
         });
-        self.invalidate_relational_bounds(overlaps);
+        self.invalidate_relational_bounds(overlaps, covers);
         // These rows replay their defining expressions. Until they carry all
         // operand dependencies, no mutating call may preserve such a shortcut.
         self.boolean_locals.clear();
     }
 
-    pub(super) fn invalidate_relational_bounds(&mut self, overlaps: impl Fn(&str) -> bool) {
+    /// Any live row whose key is a collection's own storage — a view extent,
+    /// a window parent edge, or the collection key of an index/range proof —
+    /// deserves the structured-write coverage answer rather than the coarse
+    /// frame paths.
+    fn has_descriptor_facts(&self) -> bool {
+        !self.locals.is_empty()
+            || !self.minimum_lengths.is_empty()
+            || !self.exact_lengths.is_empty()
+            || !self.window_parents.is_empty()
+            || !self.proven_indexes.is_empty()
+            || !self.proven_range_bounds.is_empty()
+    }
+
+    /// `overlaps` decides value-level rows (indices, bounds, orderings);
+    /// `covers` decides descriptor rows whose key names a collection place.
+    /// A write below the collection — `rooms[0]` inside `rooms` — retires the
+    /// element's own facts but leaves the collection's extent true.
+    pub(super) fn invalidate_relational_bounds(
+        &mut self,
+        overlaps: impl Fn(&str) -> bool,
+        covers: impl Fn(&str) -> bool,
+    ) {
         self.proven_indexes
-            .retain(|(collection, index)| !overlaps(collection) && !overlaps(index));
+            .retain(|(collection, index)| !covers(collection) && !overlaps(index));
         self.proven_index_upper_bounds
             .retain(|(index, _)| !overlaps(index));
         self.proven_non_negatives.retain(|index| !overlaps(index));
         self.proven_orderings
             .retain(|(left, right)| !overlaps(left) && !overlaps(right));
         self.proven_range_bounds
-            .retain(|(collection, bound)| !overlaps(collection) && !overlaps(bound));
+            .retain(|(collection, bound)| !covers(collection) && !overlaps(bound));
         self.minimum_lengths
-            .retain(|(collection, _)| !overlaps(collection));
+            .retain(|(collection, _)| !covers(collection));
         self.exact_lengths
-            .retain(|(collection, _)| !overlaps(collection));
+            .retain(|(collection, _)| !covers(collection));
         self.window_parents
-            .retain(|(child, parent, _)| !overlaps(child) && !overlaps(parent));
+            .retain(|(child, parent, _)| !covers(child) && !covers(parent));
     }
+}
+
+/// Resolve a descriptor row's key to the caller place it measures, then ask
+/// whether any write reaches that place itself. A declared local symbol is
+/// the identity when present; otherwise the dotted label resolves through
+/// the same parameter/local namespace the write paths use. `None` reports
+/// "unresolvable — keep the caller's conservative answer".
+fn descriptor_covered(
+    program: &TypedTrees,
+    state: &State,
+    statement_index: usize,
+    writes: &[CanonicalPlace],
+    symbol: symbols::SymbolHandle,
+    label: &str,
+) -> Option<bool> {
+    let place = if symbol.is_valid() {
+        crate::flow::canonical_place_from_symbol(symbol)?
+    } else {
+        crate::flow::place_from_origin_path(program, state, statement_index, label)?
+    };
+    Some(
+        writes
+            .iter()
+            .any(|write| write_covers_place(program, write, &place)),
+    )
+}
+
+/// A write covers a descriptor place only by reaching it or an ancestor:
+/// `rooms` covers `rooms`, but `rooms[0].tag` — any depth below — does not.
+fn write_covers_place(
+    program: &TypedTrees,
+    write: &CanonicalPlace,
+    place: &CanonicalPlace,
+) -> bool {
+    crate::flow::normalized_event_place_root(program, write.root)
+        == crate::flow::normalized_event_place_root(program, place.root)
+        && write.segments.len() <= place.segments.len()
+        && crate::flow::canonical_place_segments_may_overlap(
+            program,
+            &write.segments,
+            &place.segments,
+        )
 }
 
 fn write_affects_bound(name: &str, path: &str) -> bool {
@@ -249,7 +367,10 @@ mod tests {
         facts.prove_index_upper_bound("index".to_owned(), 4);
         facts.prove_index_upper_bound("unrelated".to_owned(), 4);
 
-        facts.invalidate_relational_bounds(|name| write_affects_bound(name, "index"));
+        facts.invalidate_relational_bounds(
+            |name| write_affects_bound(name, "index"),
+            |name| write_affects_bound(name, "index"),
+        );
 
         assert!(!facts.index_upper_bound_is_proven("index", 4));
         assert!(facts.index_upper_bound_is_proven("unrelated", 4));
@@ -274,7 +395,10 @@ mod tests {
                     None,
                 );
             } else {
-                facts.invalidate_relational_bounds(|name| write_affects_bound(name, "record"));
+                facts.invalidate_relational_bounds(
+                    |name| write_affects_bound(name, "record"),
+                    |name| write_affects_bound(name, "record"),
+                );
             }
             for name in ["record.value", "record.value - 1", "captured", "unrelated"] {
                 let survives = matches!(name, "captured" | "unrelated");
