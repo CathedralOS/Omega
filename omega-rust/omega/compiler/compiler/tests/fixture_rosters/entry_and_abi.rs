@@ -58,6 +58,8 @@ pub const TARGETS_EFI_LARGE_AGGREGATE_STACK_ENTRY: &str = "targets/efi_large_agg
 pub const TARGETS_EFI_STACK_ENTRY_ARGUMENT: &str = "targets/efi_stack_entry_argument";
 pub const TARGETS_ENTRY_RUN_ARGS_BYTES: &str = "targets/entry_run_args_bytes";
 pub const TEXT_RUNTIME_UTF16_LITERAL_EXIT: &str = "text/runtime_utf16_literal_exit";
+pub const EXPRESSIONS_RUNTIME_FLOAT_RECEIVER_STORAGE_EXIT: &str =
+    "expressions/runtime_float_receiver_storage_exit";
 pub const COLLECTIONS_RUNTIME_CASE_ARRAY_ELEMENT_WRITE_EXIT: &str =
     "collections/runtime_case_array_element_write_exit";
 pub const WIRE_RUNTIME_WIRE_POLICY_AUTHORED_PLAN_EXIT: &str =
@@ -136,6 +138,7 @@ pub const PASS_CANARIES: &[&str] = &[
     TARGETS_EFI_STACK_ENTRY_ARGUMENT,
     TARGETS_ENTRY_RUN_ARGS_BYTES,
     TEXT_RUNTIME_UTF16_LITERAL_EXIT,
+    EXPRESSIONS_RUNTIME_FLOAT_RECEIVER_STORAGE_EXIT,
     COLLECTIONS_RUNTIME_CASE_ARRAY_ELEMENT_WRITE_EXIT,
     WIRE_RUNTIME_WIRE_POLICY_AUTHORED_PLAN_EXIT,
     WIRE_RUNTIME_WIRE_POLICY_AUTHORED_NESTED_EXIT,

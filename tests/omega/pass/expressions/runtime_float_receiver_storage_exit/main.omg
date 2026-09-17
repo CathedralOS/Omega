@@ -1,0 +1,33 @@
+use omega::language::core::float_operations;
+
+// Native witness for IEEE float leaves in the hosted receiver: the program
+// entry bridge zero-fills `data Main` before the first state runs, and an
+// all-zero bit pattern is the exact positive `0.0` of both `f64` and `f32`, so
+// float fields are zero-valid receiver storage beside the Bound Console
+// carrier. The body is the `runtime_float_constant_store_exit` store sequence
+// (an `f64` field receives 8-byte bits, an `f32` field the narrowed 4-byte
+// bits, including 0.0 and an overwrite) with the Console established through
+// its Bound row rather than a bare interface field, so the receiver reaches the
+// bridge's storage guard instead of its missing-row guard. Exit 70 confirms the
+// receiver was provisioned and every store executed.
+//
+// Unit plans admit no float guards, so the stored values are not compared
+// here; `runtime_float_place_comparison_exit` covers float comparison.
+
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    wide: f64;
+    narrow: f32;
+    zero: f64;
+    console: Service<Console> in Bound;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.wide = 3.5;
+    self.narrow = 1.25;
+    self.zero = 0.0;
+    self.wide = 2.0;
+    self.console.exit_process(70);
+}

@@ -610,10 +610,16 @@ fn receiver_layout(
             erased += 1;
         } else {
             match field.field_type {
+                // Zero-filled IEEE storage is the exact positive `0.0` of
+                // either format, so float leaves start zero-valid like
+                // booleans and integers. Terminal retains a relevant float
+                // leaf as its own `IeeeFloat` field variant.
                 StructuralFieldType::Scalar(
                     semantic_vocabulary::ScalarType::Boolean
-                    | semantic_vocabulary::ScalarType::Integer(_),
-                ) => {}
+                    | semantic_vocabulary::ScalarType::Integer(_)
+                    | semantic_vocabulary::ScalarType::IeeeFloat(_),
+                )
+                | StructuralFieldType::IeeeFloat(_) => {}
                 StructuralFieldType::BoundedInteger(integer)
                     if integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0)) => {}
@@ -664,14 +670,20 @@ fn zero_valid_record_storage(
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return terminal_semantics::scalar_array_leaf_shape(declarations.iter(), structural_type)
             .is_some_and(|(scalar, _)| {
-                matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
+                matches!(
+                    scalar,
+                    ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_)
+                )
             });
     };
     visiting.push(structural_type);
     let valid = fields.iter().all(|field| {
         !field.relevance.is_erased()
             && match field.field_type {
-                StructuralFieldType::Scalar(ScalarType::Boolean | ScalarType::Integer(_)) => true,
+                StructuralFieldType::Scalar(
+                    ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
+                )
+                | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::BoundedInteger(integer) => {
                     integer.contains(IntegerValue::Signed(0))
                         || integer.contains(IntegerValue::Unsigned(0))
