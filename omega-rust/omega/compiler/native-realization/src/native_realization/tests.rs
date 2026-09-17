@@ -330,6 +330,8 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
     for target_profile in [
         target::TargetProfile::LinuxX64,
         target::TargetProfile::LinuxArm64,
+        target::TargetProfile::WindowsX64,
+        target::TargetProfile::UefiX64,
     ] {
         let (produced, signature) = entry_fixture(RECEIVER_STORE, target_profile);
         let (artifact, receipt, scope, _, _) = produced.into_parts();
@@ -339,10 +341,14 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
             NativeProgramEntrySettlement::new(&signature, None, &[]),
             target_profile.native_target(),
         );
-        if target_profile == target::TargetProfile::LinuxX64 {
-            // The Linux x86-64 slot declares its two-surface contract, so a
-            // declaration-only settlement without the selected paired calling
-            // plans fails closed before receiver provisioning is examined.
+        if matches!(
+            target_profile,
+            target::TargetProfile::LinuxX64 | target::TargetProfile::UefiX64
+        ) {
+            // The Linux x86-64 and UEFI slots declare their two-surface
+            // contracts, so a declaration-only settlement without the selected
+            // paired calling plans fails closed before receiver provisioning
+            // is examined.
             assert!(matches!(
                 settlement,
                 Err(crate::NativeProgramEntrySettlementError::CallingPlanPairingDrift)
@@ -451,6 +457,125 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
     );
     super::validate_emitted_receiver_binding(&emitted.object, None)
         .expect("no admitted receiver and no binding stays consistent");
+}
+
+#[test]
+fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
+    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::LinuxX64);
+    let (artifact, receipt, scope, _, _) = produced.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let request = NativeRealizationRequest {
+        checked_scope: Some(&scope),
+        program_entry: NativeProgramEntrySettlement::new(&signature, None, &[])
+            .with_checked_entry(&receipt),
+        ..request(&signature, &profile, &optimizations, &providers)
+    };
+    let input =
+        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("checked receiver input");
+    let admitted_providers = super::providers::admit_native_providers(
+        &input,
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        *artifact.manifest().identity().as_bytes(),
+        &request,
+    )
+    .expect("provider admission");
+    let emitted = super::emit_realization_object(
+        input,
+        admitted_providers.installation,
+        &admitted_providers.settlements,
+        None,
+        None,
+        &request,
+    )
+    .expect("emission alone never provisions the receiver");
+    let mut object = emitted.object;
+    assert!(object.hosted_receiver_binding().is_none());
+
+    // Bind the exact Linux x86-64 bridge the way the admitted emission stage
+    // does once provisioning is granted: same source signature, same closed
+    // target-package contract, same derived stack demand.
+    let demand = image_emission::derive_stack_demand(&object, object.entry())
+        .expect("emitted entry stack demand");
+    let calling_plan = program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan();
+    let physical = program_entry_plan::ProgramEntryPhysicalContractPlan::new(
+        target::TargetProfile::LinuxX64.program_entry_slot(),
+        program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY.into(),
+        target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
+        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest(),
+        // The package-source report fingerprint is retained for diagnostics
+        // only; contract custody replays the strong source digest instead.
+        0,
+        vec![program_entry_plan::LINUX_X86_64_ADDRESS_TYPE_IDENTITY.into()],
+        program_entry_plan::LINUX_X86_64_I32_TYPE_IDENTITY.into(),
+        calling_plan.contract_report_fingerprint(),
+        calling_plan.plan().clone(),
+    )
+    .expect("exact Linux x86-64 physical contract");
+    image_emission::bind_hosted_receiver(&mut object, &signature, &physical, &[], &demand)
+        .expect("the exact bridge binds the emitted object");
+    assert!(object.hosted_receiver_binding().is_some());
+
+    // Bypassed provisioning: an emitted binding no admission ever granted.
+    let diagnostics = super::validate_emitted_receiver_binding(&object, None)
+        .expect_err("an emitted binding without admission must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("admission never granted")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+
+    // Redirected contract identity: an admitted settlement that lost its
+    // physical-contract custody cannot be satisfied by the emitted binding.
+    let settlement = crate::ValidatedNativeProgramEntrySettlement {
+        checked_entry: receipt.clone(),
+        target: request.target,
+        source: signature.clone(),
+        semantic_calling_application: None,
+        physical_calling_application: None,
+        storage_entry: None,
+        fused_service_establishments: Vec::new(),
+    };
+    let diagnostics = super::validate_emitted_receiver_binding(&object, Some(&settlement))
+        .expect_err("a settlement without the emitted contract must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not carry the admitted source signature and physical contract")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+
+    // Redirected receiver identity: a substituted source signature — here the
+    // same entry declaration with its receiver provision removed — cannot
+    // stand in for the emitted binding's exact receiver source.
+    let redirected_source =
+        program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            signature.target_slot(),
+            signature.machine_symbol(),
+            signature.state_symbol(),
+            signature.machine_name().into(),
+            signature.state_name().into(),
+            signature.normalized_callable_identity().into(),
+            program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+            signature.visible_parameters().to_vec(),
+        )
+        .expect("free declaration is valid alone");
+    let settlement = crate::ValidatedNativeProgramEntrySettlement {
+        source: redirected_source,
+        ..settlement
+    };
+    let diagnostics = super::validate_emitted_receiver_binding(&object, Some(&settlement))
+        .expect_err("a substituted receiver source signature must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not carry the admitted source signature and physical contract")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
 }
 
 #[test]
