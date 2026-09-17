@@ -1,9 +1,15 @@
 // An authored comparison does not establish the builtin numeric ordering.
-// The ordinary subtraction must still reject its unproved u64 lower bound.
-operator >= u64::custom(left: u64, right: u64) -> bool;
+// The `requires` selects the domain-family `>=` for the `Custom`-bound
+// operand, so the ordinary subtraction must still reject its unproved u64
+// lower bound; without the binding the builtin `>=` discharges it.
+domain u64::Custom;
 
-machine subtract(left: u64, right: u64) -> u64
+machine >= u64::Custom::custom(left: u64 in Custom, right: u64) -> bool {
+    false
+}
+
+machine subtract(left: u64 in Custom, right: u64) -> u64
 requires left >= right;
 {
-    left - right
+    (left - right) as u64
 }
