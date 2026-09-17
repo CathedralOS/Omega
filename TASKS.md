@@ -445,6 +445,12 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   ARM64, base b53585d23c) splits as: 40 structural call binding, 26 scalar
   call binding, 29 scalar local pure initializer and 1 initializer expression;
   none stop elsewhere.
+  The 100 single-state stops rerun at 6ee6ad2f3d (macOS ARM64) split as: 36
+  call statement shape; 29 in the structural field store (16 pure source, 12
+  scalar field type, 1 destination parameter); 17 local-data statements (13
+  scalar local pure initializer, 3 scalar call binding, 1 structural call
+  binding); 7 call statements; 4 unconsumed nested calls; 3 trivial affine
+  locals; 2 signature; 2 provider attachment requirements.
   Distribution reconstructed 2026-09-17 (macOS ARM64, `cargo nextest run -p
   compiler --test canary_suite --no-fail-fast` at 4dcb7723da): 1379 tests,
   223 pass, 1156 fail. By owner: 680 stop at Terminal production with
