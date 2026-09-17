@@ -71,3 +71,43 @@ fn canonical_view_catalog_round_trips() {
     assert_eq!(RankingViewId::canonical("Card::PowerOrder"), None);
     assert_eq!(RankingViewId::NULL.canonical_path(), None);
 }
+
+#[test]
+fn catalog_declaration_rows_key_on_the_exact_path() {
+    use crate::{RANKING_VIEW_CORE_SOURCE, RankingViewDeclaration};
+    let row = RankingViewId::NAT_DESCENDING
+        .catalog_declaration()
+        .expect("Nat::Descending is browsable in core");
+    assert_eq!(
+        row,
+        RankingViewDeclaration {
+            view: RankingViewId::NAT_DESCENDING,
+            source: RANKING_VIEW_CORE_SOURCE,
+            namespace: "Nat",
+            name: "Descending",
+            parameter: "u64",
+            result: "u64",
+        }
+    );
+    assert_eq!(row.path(), "Nat::Descending");
+    assert_eq!(
+        RankingViewId::from_catalog_declaration("Nat", "Descending"),
+        Some(row)
+    );
+    // The leaf spelling alone selects nothing, and the spelling-only
+    // builtins have no declaration row.
+    assert_eq!(
+        RankingViewId::from_catalog_declaration("Card", "Descending"),
+        None
+    );
+    assert_eq!(
+        RankingViewId::from_catalog_declaration("Nat", "BoundedDistance"),
+        None
+    );
+    assert_eq!(
+        RankingViewId::NAT_BOUNDED_DISTANCE.catalog_declaration(),
+        None
+    );
+    assert_eq!(RankingViewId::SLICE_LENGTH.catalog_declaration(), None);
+    assert_eq!(RankingViewId::NULL.catalog_declaration(), None);
+}

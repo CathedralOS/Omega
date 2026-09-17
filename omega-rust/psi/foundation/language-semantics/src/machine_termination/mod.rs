@@ -172,6 +172,34 @@ pub struct MachineTerminationPlan {
     pub implementation_witness: Option<RankingWitness>,
 }
 
+/// Sealed toolchain source (relative to the core package root) that declares
+/// the ranking views carrying a catalog declaration row.
+pub const RANKING_VIEW_CORE_SOURCE: &str = "nat.omg";
+
+/// One canonical view's sealed declaration: the exact source-visible path
+/// and normalized signature the Toolchain-origin core file must declare for
+/// the bare bodyless `machine Nat::Descending(value: u64) -> u64;` to be
+/// supplied from the catalog. Identity only; the view's proof meaning stays
+/// in the termination checker keyed on [`RankingViewId`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RankingViewDeclaration {
+    pub view: RankingViewId,
+    /// Relative path of the sealed declaring source under the core root.
+    pub source: &'static str,
+    pub namespace: &'static str,
+    pub name: &'static str,
+    /// The single parameter's type spelling.
+    pub parameter: &'static str,
+    /// The result type spelling.
+    pub result: &'static str,
+}
+
+impl RankingViewDeclaration {
+    pub fn path(&self) -> String {
+        format!("{}::{}", self.namespace, self.name)
+    }
+}
+
 /// The BUILTIN canonical ranking-view catalog (decision 23, TPR2). The ids
 /// are FIXED (deterministic across programs — they may enter proof-cache
 /// keys); user-declared measures are NOT here (they get per-program
@@ -213,5 +241,42 @@ impl RankingViewId {
             Self::NAT_INCREASING_TO => Some("Nat::IncreasingTo"),
             _ => None,
         }
+    }
+
+    /// The sealed toolchain declaration a canonical view is browsable at, if
+    /// the core library declares one. This is the catalog's declaration
+    /// custody row: the executable-supply contract supplies an exact
+    /// compiler-owned bodyless machine from the closed catalog only when the
+    /// Toolchain-origin source named here declares it with exactly this path
+    /// and signature, and "merely naming a declaration `Nat::Descending`
+    /// grants no primitive". Views without a row (`Nat::BoundedDistance`,
+    /// `Slice::Length`, `Nat::IncreasingTo`) are spelling-only builtins today.
+    pub fn catalog_declaration(self) -> Option<RankingViewDeclaration> {
+        match self {
+            Self::NAT_DESCENDING => Some(RankingViewDeclaration {
+                view: self,
+                source: RANKING_VIEW_CORE_SOURCE,
+                namespace: "Nat",
+                name: "Descending",
+                parameter: "u64",
+                result: "u64",
+            }),
+            _ => None,
+        }
+    }
+
+    /// Select the canonical view whose catalog declaration has exactly this
+    /// path. The leaf spelling alone selects nothing: `("Card", "Descending")`
+    /// and `("Nat", "Ranking")` are not rows.
+    pub fn from_catalog_declaration(namespace: &str, name: &str) -> Option<RankingViewDeclaration> {
+        [
+            Self::NAT_DESCENDING,
+            Self::NAT_BOUNDED_DISTANCE,
+            Self::SLICE_LENGTH,
+            Self::NAT_INCREASING_TO,
+        ]
+        .into_iter()
+        .filter_map(Self::catalog_declaration)
+        .find(|declaration| declaration.namespace == namespace && declaration.name == name)
     }
 }

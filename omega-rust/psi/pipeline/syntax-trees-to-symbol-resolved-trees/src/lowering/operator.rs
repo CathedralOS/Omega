@@ -196,31 +196,25 @@ pub(crate) fn lower_bare_bodyless_signature(
 ) -> Result<symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
     let name = machine.name.as_str();
     let (namespace, leaf) = name.rsplit_once("::").unwrap_or(("", name));
-    let projection_row =
-        numerics::float_projection::FloatProjectionOperation::from_source_identity(namespace, leaf)
-            .is_some();
-    let semantics_family =
-        numerics::float_semantics_catalog::FloatSemanticOperation::names_a_row(namespace, leaf);
-    let catalog_path = projection_row || semantics_family;
-    let sealed_source = lowerer
-        .sources
-        .as_ref()
-        .and_then(|sources| sources.get(machine.name.source_span().source_id))
-        .is_some_and(|file| {
-            file.origin == source::SourceOrigin::Toolchain
-                && file
-                    .path
-                    .strip_prefix(&file.package_root)
-                    .ok()
-                    .is_some_and(|relative| {
-                        relative
-                            == std::path::Path::new(
-                                numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
-                            )
-                    })
-        });
-    if !catalog_path || !sealed_source {
-        let guidance = if catalog_path {
+    let family = CatalogFamily::naming(namespace, leaf);
+    let sealed_source = family.is_some_and(|family| {
+        lowerer
+            .sources
+            .as_ref()
+            .and_then(|sources| sources.get(machine.name.source_span().source_id))
+            .is_some_and(|file| {
+                file.origin == source::SourceOrigin::Toolchain
+                    && file
+                        .path
+                        .strip_prefix(&file.package_root)
+                        .ok()
+                        .is_some_and(|relative| {
+                            relative == std::path::Path::new(family.sealed_source())
+                        })
+            })
+    });
+    let Some(family) = family.filter(|_| sealed_source) else {
+        let guidance = if family.is_some() {
             format!(
                 "`{name}` names a compiler primitive, but only the sealed toolchain declaration \
                  supplies it; merely naming a declaration `{name}` grants no primitive \
@@ -235,7 +229,7 @@ pub(crate) fn lower_bare_bodyless_signature(
             )
         };
         return Err(Diagnostic::error(guidance).with_source_span(machine.name.source_span()));
-    }
+    };
     let Some(entry) = syntax_trees.items.state_handles(machine.states).first() else {
         return Err(Diagnostic::error(format!(
             "`{name}` is a compiler-catalog signature without an entry signature"
@@ -243,8 +237,14 @@ pub(crate) fn lower_bare_bodyless_signature(
         .with_source_span(machine.name.source_span()));
     };
     let entry = syntax_trees.items.state(*entry);
-    if semantics_family {
-        require_exact_semantic_row(syntax_trees, machine, entry, namespace, leaf)?;
+    match family {
+        CatalogFamily::FloatProjection => {}
+        CatalogFamily::FloatSemantics => {
+            require_exact_semantic_row(syntax_trees, machine, entry, namespace, leaf)?;
+        }
+        CatalogFamily::RankingView(declaration) => {
+            require_exact_ranking_view_row(syntax_trees, machine, entry, declaration)?;
+        }
     }
     let name_span = machine.name.source_span();
     let mut path = HandleSpan::empty();
@@ -282,6 +282,110 @@ pub(crate) fn lower_bare_bodyless_signature(
         spelling: None,
         token_count: 0,
     })
+}
+
+/// The closed catalogs a bare bodyless signature may name, each with the one
+/// sealed toolchain source (relative to the core package root) whose
+/// declaration it supplies. A family is selected by exact path; the leaf
+/// spelling alone selects nothing.
+#[derive(Clone, Copy)]
+enum CatalogFamily {
+    /// `Float::meaning32` / `Float::meaning64` (`float_operations.omg`).
+    FloatProjection,
+    /// `FloatSemantics::<name>` rows (`float_operations.omg`), keyed on the
+    /// complete signature.
+    FloatSemantics,
+    /// A canonical ranking view with a declaration row (`Nat::Descending` in
+    /// `nat.omg`).
+    RankingView(language_semantics::RankingViewDeclaration),
+}
+
+impl CatalogFamily {
+    fn naming(namespace: &str, leaf: &str) -> Option<Self> {
+        if numerics::float_projection::FloatProjectionOperation::from_source_identity(
+            namespace, leaf,
+        )
+        .is_some()
+        {
+            return Some(Self::FloatProjection);
+        }
+        if numerics::float_semantics_catalog::FloatSemanticOperation::names_a_row(namespace, leaf) {
+            return Some(Self::FloatSemantics);
+        }
+        language_semantics::RankingViewId::from_catalog_declaration(namespace, leaf)
+            .map(Self::RankingView)
+    }
+
+    fn sealed_source(self) -> &'static str {
+        match self {
+            Self::FloatProjection | Self::FloatSemantics => {
+                numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE
+            }
+            Self::RankingView(declaration) => declaration.source,
+        }
+    }
+}
+
+/// A sealed ranking-view signature must match its declaration row exactly:
+/// one plain parameter of the row's carrier and the row's result, no type or
+/// lifetime parameters; a drifted declaration rejects instead of lowering as
+/// an ordinary (unsupplied) declaration.
+fn require_exact_ranking_view_row(
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+    entry: &syntax::item::StateNode,
+    declaration: language_semantics::RankingViewDeclaration,
+) -> Result<(), Diagnostic> {
+    let name = machine.name.as_str();
+    let drift = |detail: String| {
+        Diagnostic::error(format!(
+            "`{name}` names the compiler ranking-view catalog, but {detail}; the sealed \
+             declaration must be exactly `machine {}({}) -> {};`",
+            declaration.path(),
+            declaration.parameter,
+            declaration.result
+        ))
+        .with_source_span(machine.name.source_span())
+    };
+    if !machine.type_parameters.is_empty() || !machine.lifetime_parameters.is_empty() {
+        return Err(drift(
+            "catalog rows declare no type or lifetime parameters".to_owned(),
+        ));
+    }
+    let named_spelling = |handle: syntax::types::TypeReferenceHandle| match syntax_trees
+        .tables
+        .type_references
+        .type_reference(handle)
+    {
+        syntax::types::TypeReferenceNode::Named(identifier) => Some(identifier.as_str()),
+        _ => None,
+    };
+    let [parameter] = syntax_trees.items.state_parameters(entry.parameters) else {
+        return Err(drift("the row ranks exactly one subject".to_owned()));
+    };
+    let parameter = syntax_trees.items.state_parameter(*parameter);
+    if parameter.is_const || parameter.is_mutable || parameter.is_self {
+        return Err(drift(format!(
+            "parameter `{}` carries a binding mode the row does not declare",
+            parameter.name.as_str()
+        )));
+    }
+    if named_spelling(parameter.type_reference) != Some(declaration.parameter) {
+        return Err(drift(format!(
+            "parameter `{}` is not the row's `{}` subject",
+            parameter.name.as_str(),
+            declaration.parameter
+        )));
+    }
+    if !entry.return_type.is_valid()
+        || named_spelling(entry.return_type) != Some(declaration.result)
+    {
+        return Err(drift(format!(
+            "its result is not the row's `{}` rank",
+            declaration.result
+        )));
+    }
+    Ok(())
 }
 
 /// A sealed `FloatSemantics::<leaf>` signature must select one exact catalog
