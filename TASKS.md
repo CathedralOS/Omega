@@ -2658,7 +2658,31 @@ Owners include
   `facts/dependencies/tests.rs`: `items[low + step..high]` under an
   authored `u64` `+` reads `low`, `step`, `high`, and the window place,
   survives a write to `unrelated`, and is retired by a write to any
-  operand or to `items`; 130 range-checker tests pass (8 new).
+  operand or to `items`; 130 range-checker tests pass (8 new). Eleventh
+  slice landed at 33d79f1bdf (macOS ARM64): statement-level borrow
+  admission no longer excuses a forming loan whose recorded source owner
+  merely matches an exclusive active loan's owner.
+  `checks/borrows/statements.rs` admits each forming/active pair only
+  through the replayed non-interfering verdict or a replayable
+  carried-authority edge — an exclusive active loan, a replayed
+  containment verdict placing the forming place inside it (`Same` or
+  `RightContainsLeft`), and the exact recorded provenance (a retained
+  reborrow's parent handle, or an unretained transfer's rebasing source
+  owner; a `DirectRoot` carries nothing). Every admitted pair publishes
+  a `CheckedBorrowCompatibilityCertificate`, and certificate replay
+  re-derives the edge from the loan rows, so a forged interfering
+  certificate without provenance rejects. A rejected certificate ledger
+  also no longer silences the substrate: resource and lineage replay
+  still runs on a scratch copy so its diagnostics surface beside the
+  certificate findings without publishing into a rejected pass.
+  Evidence only — no loan is created, no lifetime extended, and
+  resource/ownership accounting stays authoritative. Witnessed by
+  `checks/borrows/tests.rs` (4 new tests): carried pairs retain
+  replayable certificates across passes, an overlapping same-owner loan
+  without the edge rejects, a forged interfering certificate fails
+  replay, and the edge's truth table pins exclusivity, containment
+  direction, and lineage exactness; the crate suite's three remaining
+  failures reproduce identically at base 47e5773bb6.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
