@@ -1127,12 +1127,34 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   counting as accounted positions — and when no boundary
   settlement in either block would observe the member inside a
   changed executed prefix, under the same replayed
-  restore-by-content validation (crate `nextest`: 592 pass).
+  restore-by-content validation (crate `nextest`: 592 pass)
+  — and `rewrites/diamond_relocation` relocates one named
+  body instruction out of a block ending in a two-successor
+  conditional branch, across each distinct arm and its
+  unconditional `Jump`, onto a named position in the one join
+  block the arms alone feed — each arm a plain source block
+  reached by that branch's edges alone, every edge into the
+  join leaving an arm, so each traversal executes exactly one
+  arm and the member keeps its execution count of one — when
+  no register or condition-state hazard runs between the
+  member and any crossed position, the branch terminator and
+  arm `Jump`s included, when no crossed edge's register
+  transports would hand a binding a stale or overwritten
+  value, when no call, hosted effect, barrier kind, or
+  call-roster entry sits inside the window, when the validated
+  memory roster accounts for every access a memory-capable
+  member can reach — a roster-carrying member crosses only
+  row-less positions, each terminator and the edge-origin rows
+  counting as accounted boundary positions — and when no
+  boundary settlement past the member's index in its own block
+  or past the landing index in the join would observe a
+  changed executed prefix, under the same replayed
+  restore-by-content validation (crate `nextest`: 636 pass).
   Remaining: scheduling past the proven bounded window
   interchange, single-member relocation, multi-member run
-  relocation, and the single-edge move — relocation through
-  converging or branching control flow — and compare/test
-  selection past the landed literal folds.
+  relocation, the single-edge move, and the branch-diamond
+  move — and compare/test selection past the landed literal
+  folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
