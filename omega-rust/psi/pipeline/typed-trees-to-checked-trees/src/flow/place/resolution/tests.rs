@@ -249,6 +249,125 @@ fn requires_fact_through_a_generic_leaf_resolves_at_call_sites() {
         .expect("a requires fact through a generic leaf discharges at the call site");
 }
 
+/// `values[i].item.scheduler` crosses an indexed leaf before the generic
+/// application: `values: &[Box<Context>]` projects the index hop onto the
+/// bound `Box<Context>` argument, whose `item: T` then resumes at `Context`.
+/// Dropping the collection's retained position at the index hop would stop
+/// `scheduler` at the unbound `T`, so this is the same replay one shape later.
+fn indexed_generic_leaf_fixture() -> (
+    typed_trees::TypedTrees,
+    TableMemberExpression,
+    TableMemberExpression,
+) {
+    let source = r#"
+        data Main {}
+        machine Main::run(&mut self) {}
+        pub data SchedulerHandle [copy] {}
+        pub data Context { scheduler: SchedulerHandle; }
+        pub data Box<T> { item: T; }
+        machine hold(values: &[Box<Context>]) {
+            let i: u64 = 1;
+            let s: SchedulerHandle = values[0].item.scheduler;
+            let t: SchedulerHandle = values[i].item.scheduler;
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let members: Vec<TableMemberExpression> = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, node)| match node {
+            ExpressionNode::Member(member) => Some(member.clone()),
+            _ => None,
+        })
+        .collect();
+    let item = members
+        .iter()
+        .find(|member| member.member.as_str() == "item")
+        .expect("values[0].item member expression")
+        .clone();
+    let scheduler = members
+        .iter()
+        .find(|member| member.member.as_str() == "scheduler")
+        .expect("values[0].item.scheduler member expression")
+        .clone();
+    (program, item, scheduler)
+}
+
+#[test]
+fn member_resolution_replays_an_indexed_generic_leaf() {
+    let (program, item, scheduler) = indexed_generic_leaf_fixture();
+    let item_symbol = declared_field(&program, "Box", "item");
+    let scheduler_symbol = declared_field(&program, "Context", "scheduler");
+
+    // `values[0].item` still names Box's own member; the index hop keeps the
+    // reaching `&[Box<Context>]` position instead of dropping it.
+    assert_eq!(
+        effective_member_symbol(&program, item.receiver, &item),
+        item_symbol
+    );
+    // `item`'s declared `T` resumes at the bound `Context` argument across the
+    // indexed leaf, so `scheduler` resolves `Context::scheduler`.
+    assert_eq!(
+        effective_member_symbol(&program, scheduler.receiver, &scheduler),
+        scheduler_symbol
+    );
+    assert_eq!(
+        super::expression_type_symbol(&program, scheduler.receiver),
+        Some(declared_data_symbol(&program, "Context"))
+    );
+}
+
+#[test]
+fn member_resolution_replays_a_runtime_indexed_generic_leaf() {
+    let (program, _, _) = indexed_generic_leaf_fixture();
+    let runtime_scheduler = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, node)| match node {
+            ExpressionNode::Member(member) if member.member.as_str() == "scheduler" => {
+                Some(member.clone())
+            }
+            _ => None,
+        })
+        .find(|member| {
+            let ExpressionNode::Member(item) = program.expression_table.expression(member.receiver)
+            else {
+                return false;
+            };
+            let ExpressionNode::Indexed(indexed) =
+                program.expression_table.expression(item.receiver)
+            else {
+                return false;
+            };
+            !program
+                .expression_table
+                .constant_integer_value(indexed.index)
+                .is_some()
+        })
+        .expect("values[i].item.scheduler member expression");
+    assert_eq!(
+        effective_member_symbol(&program, runtime_scheduler.receiver, &runtime_scheduler),
+        declared_field(&program, "Context", "scheduler")
+    );
+}
+
+#[test]
+fn member_resolution_through_an_indexed_leaf_still_names_a_declared_member() {
+    let (program, _, scheduler) = indexed_generic_leaf_fixture();
+    let mut missing = scheduler.clone();
+    missing.member = Identifier::generated("missing");
+    assert!(!effective_member_symbol(&program, scheduler.receiver, &missing).is_valid());
+}
+
 fn declared_data_symbol(program: &typed_trees::TypedTrees, type_name: &str) -> SymbolHandle {
     program
         .data_definitions()
