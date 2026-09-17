@@ -6,6 +6,7 @@ use crate::builder::generic_bindings::{
     GenericLayoutBinding, binding_for_type, fixed_array_length_with_bindings,
 };
 use crate::builder::{LayoutBuilder, OpaqueRepresentationDemand};
+use crate::packing::placement_overflow;
 use crate::sizing::{
     dynamic_trait_descriptor_layout, fat_descriptor_layout, primitive_type_layout,
 };
@@ -102,8 +103,17 @@ impl<'program> LayoutBuilder<'program> {
                         TypeReferenceNode::FixedArray { .. }
                     )
                 {
+                    // The length word plus the inline bytes must still fit the
+                    // addressable size; a saturated extent would silently lay
+                    // out a buffer smaller than its declared capacity.
+                    let Some(size) = self.target.pointer_size.checked_add(base_layout.size) else {
+                        return Err(placement_overflow(format!(
+                            "bounded byte buffer of {} byte(s) behind a {}-byte length word",
+                            base_layout.size, self.target.pointer_size
+                        )));
+                    };
                     return Ok(TypeLayout {
-                        size: self.target.pointer_size.saturating_add(base_layout.size),
+                        size,
                         alignment: self.target.pointer_alignment,
                     });
                 }

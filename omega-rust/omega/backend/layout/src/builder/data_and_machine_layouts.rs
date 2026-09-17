@@ -5,7 +5,9 @@ use crate::builder::LayoutBuilder;
 use crate::builder::generic_bindings::GenericLayoutBinding;
 use crate::builder::private_callback_closure::close_private_callback_demands;
 use crate::builder::semantic_ranges::canonical_plan_laid_data_identity;
-use crate::packing::{PlannedField, pack_fields, pack_fields_at, place_fields_by_plan};
+use crate::packing::{
+    PlannedField, align_to, pack_fields, pack_fields_at, place_fields_by_plan, placement_overflow,
+};
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, MachineLayout, RepeatedFieldLayout,
     StoredIntegerLayout, TargetClosedPlanLaidDataLayoutIdentity, TypeLayout, VariantLayout,
@@ -111,7 +113,7 @@ impl<'program> LayoutBuilder<'program> {
                     size: plan.size,
                     alignment: plan.align,
                 },
-            );
+            )?;
             for bit_field in &plan.bit_fields {
                 let Some(field) = self
                     .fields
@@ -277,7 +279,7 @@ impl<'program> LayoutBuilder<'program> {
             });
         }
 
-        let (fields, layout) = pack_fields(&mut self.fields, fields);
+        let (fields, layout) = pack_fields(&mut self.fields, fields)?;
 
         Ok(DataLayout {
             symbol: definition.symbol,
@@ -337,7 +339,7 @@ impl<'program> LayoutBuilder<'program> {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let (common_fields, common_layout) =
-            pack_fields_at(&mut self.fields, planned_common, TAG_LAYOUT.size);
+            pack_fields_at(&mut self.fields, planned_common, TAG_LAYOUT.size)?;
         let common_end = common_layout.size.max(TAG_LAYOUT.size);
 
         // Plan every case's payload fields next: the shared payload base offset
@@ -382,23 +384,31 @@ impl<'program> LayoutBuilder<'program> {
             .alignment
             .max(common_layout.alignment)
             .max(payload_alignment);
-        let payload_base = common_end.div_ceil(payload_alignment) * payload_alignment;
+        let payload_base = align_to(common_end, payload_alignment).ok_or_else(|| {
+            placement_overflow(format!(
+                "aligning the payload base of `{}` at offset {common_end} to {payload_alignment} byte(s)",
+                definition.name
+            ))
+        })?;
 
         let mut end_offset = common_end;
-        let variant_layouts = planned_variants
-            .into_iter()
-            .map(|(symbol, name, planned)| {
-                let (fields, payload_layout) =
-                    pack_fields_at(&mut self.fields, planned, payload_base);
-                end_offset = end_offset.max(payload_layout.size);
-                VariantLayout {
-                    symbol,
-                    name,
-                    fields,
-                }
-            })
-            .collect::<Vec<_>>();
+        let mut variant_layouts = Vec::with_capacity(planned_variants.len());
+        for (symbol, name, planned) in planned_variants {
+            let (fields, payload_layout) = pack_fields_at(&mut self.fields, planned, payload_base)?;
+            end_offset = end_offset.max(payload_layout.size);
+            variant_layouts.push(VariantLayout {
+                symbol,
+                name,
+                fields,
+            });
+        }
         let variants = self.variants.insert_many(variant_layouts);
+        let size = align_to(end_offset, alignment).ok_or_else(|| {
+            placement_overflow(format!(
+                "aligning the {end_offset}-byte extent of `{}` to {alignment} byte(s)",
+                definition.name
+            ))
+        })?;
 
         Ok(DataLayout {
             symbol: definition.symbol,
@@ -407,10 +417,7 @@ impl<'program> LayoutBuilder<'program> {
                 common_fields,
                 variants,
             },
-            layout: TypeLayout {
-                size: end_offset.div_ceil(alignment) * alignment,
-                alignment,
-            },
+            layout: TypeLayout { size, alignment },
         })
     }
 
@@ -434,7 +441,12 @@ impl<'program> LayoutBuilder<'program> {
             .unwrap_or(0);
         let field_capacity = data_field_capacity
             .checked_add(self.program.machine_owned_data(machine).len())
-            .expect("machine layout field capacity overflow");
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "machine `{}` field inventory overflows the compiler host",
+                    machine.name
+                ))
+            })?;
         let mut fields = Vec::with_capacity(field_capacity);
 
         if let Some(data_definition) = self
@@ -480,7 +492,7 @@ impl<'program> LayoutBuilder<'program> {
             });
         }
 
-        let (fields, layout) = pack_fields(&mut self.fields, fields);
+        let (fields, layout) = pack_fields(&mut self.fields, fields)?;
 
         Ok(MachineLayout {
             symbol: machine.symbol,

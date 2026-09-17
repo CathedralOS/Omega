@@ -414,3 +414,80 @@ fn mixed_case_layout_excludes_erased_common_and_payload_fields() {
         [("code", 6)]
     );
 }
+
+#[test]
+fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
+    // The witnessed defect: `Capacity` bound to `u64::MAX` gives `storage` a
+    // full-width extent, so aligning the following `length` field wraps. The
+    // layout must reject the placement through its diagnostic vocabulary.
+    let checked = checked(
+        r#"
+        data TinyBytes<Length, const Capacity: u64> {
+            storage: [u8; Capacity];
+            length: Length;
+        }
+        data Main {
+            bytes: TinyBytes<u64, 18446744073709551615>;
+        }
+        "#,
+    );
+
+    let error = build_layout_plan(&checked, NativeTarget::host(), &[])
+        .expect_err("a full-width capacity cannot place the trailing length field");
+    assert!(
+        error.message.contains("overflows the addressable size")
+            && error.message.contains("aligning field `length`"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
+fn full_width_case_payload_rejects_placement_instead_of_panicking() {
+    // The payload overlay starts after the 4-byte tag, so a full-width array
+    // payload ends past the addressable size.
+    let checked = checked(
+        r#"
+        data Slab<const Capacity: u64> {
+            case Empty;
+            case Full(storage: [u8; Capacity]);
+        }
+        data Main {
+            slab: Slab<18446744073709551615>;
+        }
+        "#,
+    );
+
+    let error = build_layout_plan(&checked, NativeTarget::host(), &[])
+        .expect_err("a full-width payload cannot end within the addressable size");
+    assert!(
+        error.message.contains("overflows the addressable size")
+            && error.message.contains("field `storage`"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
+fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
+    // `2^61 - 1` eight-byte elements occupy `usize::MAX - 7` bytes; the
+    // trailing byte then ends at `usize::MAX - 6`, and rounding the record
+    // extent up to its 8-byte alignment wraps.
+    let checked = checked(
+        r#"
+        data Wide {
+            words: [u64; 2305843009213693951];
+            tail: u8;
+        }
+        "#,
+    );
+
+    let error = build_layout_plan(&checked, NativeTarget::host(), &[])
+        .expect_err("a record extent past usize::MAX must be rejected");
+    assert!(
+        error.message.contains("overflows the addressable size")
+            && error.message.contains("record extent"),
+        "{}",
+        error.message
+    );
+}
