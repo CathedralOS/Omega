@@ -8,6 +8,41 @@
 //! explicit edge. A verified `Natural`-ranked machine also admits a whole-entry
 //! ceiling: the components partition the cyclic topology, every cycle crosses a
 //! strict rank descent, and the condensed graph is acyclic.
+//!
+//! The design rule is recompute-and-compare, never trust. Every certificate
+//! arrives as a `derive_*`/`validate_*` pair: `validate_*` recomputes the
+//! bound from independently verified semantics and rejects on any field
+//! difference, so a producing compiler's claimed ceiling carries no authority.
+//! The safe-point catalog is compared as one ordered sequence rather than row
+//! by row, because per-row checks cannot see a producer that omitted a
+//! reachable segment or reordered two. `derive_validated_*` applies the same
+//! rule to itself - it derives the roster twice with fresh outcome working
+//! state before sealing, so a result that depended on mutable leftovers
+//! cannot seal - and `retain_validated_*` seals a compared catalog into a
+//! deliberately non-clonable carrier so the evidence rows cannot be edited
+//! down after the fact.
+//!
+//! The derivation lives in `fuel_certification/` and starts at
+//! `fuel_certification.rs`. `segment_partition.rs` owns the canonical order -
+//! block order, then terminator-edge order - that makes sequence comparison
+//! meaningful, and `outcome_bounds.rs` owns the charging rules: the charged
+//! segment endpoint is inclusive so adjacent certificates neither omit nor
+//! double-charge an edge, a return edge charges its nominal cleanup machines
+//! in order before control leaves the machine, and a call composes the
+//! callee's normal-return bound while a callee crash terminates the path, so
+//! an all-crash call makes the caller terminator unreachable.
+//!
+//! Two error variants are honest boundaries rather than missing features.
+//! `InvocationBoundCallee` means the callee arrives through the invocation's
+//! descriptor table with no retained realization identity, so no fixed
+//! ceiling can cover that open callee set; `BranchingNotYetSupported` fails
+//! closed because crossing an unresolved conditional would charge for a path
+//! the certificate never walked. Both reject where a looser design could
+//! have guessed.
+//!
+//! Tests live in `fuel_certification/tests.rs`; the consuming read path is
+//! `omega inspect-terminal`'s evidence report
+//! (`omega/src/inspection/evidence.rs`).
 
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, Proposition};
 use terminal_codec::{CodecError, TerminalPsiIdentity};
