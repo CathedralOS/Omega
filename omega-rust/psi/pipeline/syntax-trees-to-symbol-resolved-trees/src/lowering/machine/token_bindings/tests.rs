@@ -401,3 +401,126 @@ fn bare_bodyless_signatures_are_catalog_primitives_or_reject() {
         "{diagnostics:?}"
     );
 }
+
+fn resolve_sealed_core_source(
+    source: &str,
+) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
+    use std::{path::PathBuf, sync::Arc};
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add_with_metadata(
+            PathBuf::from("/toolchain/core")
+                .join(numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE),
+            source.to_owned(),
+            PathBuf::from("/toolchain/core"),
+            None,
+            source::SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let tokens = Lexer::new(source).tokenize().expect("tokens");
+    let syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("syntax");
+    let mut request = ResolutionRequest::new(&syntax);
+    request.sources = Some(Arc::new(sources));
+    resolve(request)
+}
+
+const SEALED_FLOAT_PRELUDE: &str = "data FloatMeaning { value: u64; }
+     data FloatFormat { width: u8; }
+     data FloatClass { kind: u8; }";
+
+#[test]
+fn sealed_float_semantics_signatures_select_exact_catalog_rows() {
+    // Both `from_integer` overloads lower from the sealed source: the row key
+    // is the complete signature, so same-leaf declarations do not collide.
+    let program = resolve_sealed_core_source(&format!(
+        "{SEALED_FLOAT_PRELUDE}
+         machine FloatSemantics::from_integer(format: FloatFormat, value: i8) -> FloatMeaning;
+         machine FloatSemantics::from_integer(format: FloatFormat, value: u64) -> FloatMeaning;
+         machine FloatSemantics::less(left: FloatMeaning, right: FloatMeaning) -> bool;
+         machine FloatSemantics::to_u8_saturating(value: FloatMeaning) -> u8;"
+    ))
+    .expect("sealed catalog rows lower");
+    let names = program
+        .operators
+        .iter()
+        .map(|operator| {
+            (
+                program
+                    .operator_path_members(operator.name)
+                    .iter()
+                    .map(|member| member.as_str().to_owned())
+                    .collect::<Vec<_>>()
+                    .join("::"),
+                operator.spelling,
+                operator.is_boundary,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        vec![
+            ("FloatSemantics::from_integer".to_owned(), None, false),
+            ("FloatSemantics::from_integer".to_owned(), None, false),
+            ("FloatSemantics::less".to_owned(), None, false),
+            ("FloatSemantics::to_u8_saturating".to_owned(), None, false),
+        ]
+    );
+}
+
+#[test]
+fn sealed_float_semantics_signature_that_drifts_from_its_row_rejects() {
+    let cases: &[(&str, &str)] = &[
+        (
+            "machine FloatSemantics::add(left: FloatMeaning, right: FloatMeaning) -> FloatMeaning;",
+            "its signature (FloatMeaning, FloatMeaning) -> FloatMeaning matches no catalog row",
+        ),
+        (
+            "machine FloatSemantics::from_integer(format: FloatFormat, value: i128) -> FloatMeaning;",
+            "parameter `value` type `i128` is not a catalog value kind",
+        ),
+        (
+            "machine FloatSemantics::less(left: FloatMeaning, right: FloatMeaning) -> FloatMeaning;",
+            "its signature (FloatMeaning, FloatMeaning) -> FloatMeaning matches no catalog row",
+        ),
+        (
+            "machine FloatSemantics::negate<T>(format: FloatFormat, value: FloatMeaning) -> FloatMeaning;",
+            "catalog rows declare no type or lifetime parameters",
+        ),
+        (
+            "machine FloatSemantics::is_nan(value: &FloatMeaning) -> bool;",
+            "parameter `value` type is not a named catalog value kind",
+        ),
+    ];
+    for (declaration, expected) in cases {
+        let diagnostics =
+            resolve_sealed_core_source(&format!("{SEALED_FLOAT_PRELUDE}\n{declaration}"))
+                .expect_err(declaration);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("names the compiler float-semantics catalog, but")
+                && diagnostic.message.contains(expected)
+                && diagnostic
+                    .message
+                    .contains("the sealed declaration must match one catalog row exactly")),
+            "{declaration}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn float_semantics_lookalike_outside_the_sealed_source_grants_no_primitive() {
+    let diagnostics = resolve_source(
+        "data FloatMeaning { value: u64; }
+         data FloatFormat { width: u8; }
+         machine FloatSemantics::add(format: FloatFormat, left: FloatMeaning, right: FloatMeaning) -> FloatMeaning;",
+    )
+    .expect_err("a user-package lookalike grants no catalog row");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive"
+        )),
+        "{diagnostics:?}"
+    );
+}
