@@ -65,6 +65,30 @@ Read those controls when widening a route. The owning source/Terminal coverage
 contract is ../../compiler/terminal-production/README.md relative to this crate.
 */
 
+/*
+Erased parameters. An `[erased]` binding occurrence
+(contracts.md#explicit-erased-bindings) stays in the typed signature and in
+proof identity but owns no ABI position. Every signature builder here
+(calls/signatures.rs, calls/call_operations.rs, ../scalar/plan_scalar.rs)
+skips it, and every caller-side argument producer
+(values/scalar/computations.rs, values/scalar/call_lowering.rs,
+flow/transfers/scalar_values/calls.rs) numbers its dense argument ordinals over
+the retained positions only, so the two sides agree without a shared table.
+`position` and `source_position` stay the authored typed-signature index and
+therefore become sparse after a strip: the Terminal consumer rejoins each
+retained parameter to `state_parameters(state)[position]` for its type, symbol
+and custody, so renumbering densely would bind the wrong source parameter.
+Arity checks count `abi_parameter_count`, not `state_parameters(state).len()`,
+and `strips_erased_parameter` decides which bindings may be stripped at all.
+The consumer, checked-trees-to-lowered-psi, still reconstructs the scalar
+partition from every typed parameter (unit/attached_unit/parameters.rs,
+expression_preparation/qualifications.rs and source_custody/parameters,
+source_custody/direct_calls.rs), so it rejects a stripped plan until it skips
+erased bindings the same way; that is the open half of
+PROOF-RELEVANCE-MIGRATION, pinned by the canary_suite layouts_and_pending
+erased_parameter_* checked-plan tests.
+*/
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::{
@@ -177,6 +201,7 @@ use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
 pub(super) use structural_scalar_store::build_local_scalar_field_store;
 use structural_scalar_store::build_structural_scalar_field_store;
+pub(crate) use types::strips_erased_parameter;
 use types::*;
 
 /// Scalar callees available to this planning pass, independent of published facts.
@@ -203,6 +228,9 @@ pub(super) fn structural_scalar_graph_signature(
     Vec<CheckedUnitStructuralTypePlan>,
 )> {
     if program.state_parameters(state).iter().any(|parameter| {
+        if parameter.relevance.is_erased() {
+            return false;
+        }
         // Numeric constraints retain their separate scalar contract owner;
         // they do not qualify an owned structural carrier.
         if program

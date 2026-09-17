@@ -100,6 +100,11 @@ pub(crate) fn lower_call_arguments(
         }
         let argument = *explicit_arguments.get(explicit_index)?;
         explicit_index = explicit_index.checked_add(1)?;
+        // An erased position consumes its authored argument but owns neither a
+        // scalar nor a structural ordinal.
+        if crate::execution::terminal_unit::strips_erased_parameter(target)? {
+            continue;
+        }
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
             let argument_ordinal = u32::try_from(structural_index).ok()?;
             structural_index = structural_index.checked_add(1)?;
@@ -253,13 +258,23 @@ pub(crate) fn lower_direct_call_binding_arguments(
     if arguments.len() != target_parameters.len() {
         return None;
     }
+    // Erased positions own no `CallArgument` ordinal; the retained ones are
+    // numbered densely to match the callee's stripped scalar signature.
+    if target_parameters.iter().any(|target_parameter| {
+        crate::execution::terminal_unit::strips_erased_parameter(target_parameter).is_none()
+    }) {
+        return None;
+    }
+    let mut argument_ordinal = 0u32;
     arguments
         .iter()
         .zip(target_parameters)
-        .enumerate()
-        .map(|(argument_index, (argument, target_parameter))| {
+        .filter(|(_, target_parameter)| !target_parameter.relevance.is_erased())
+        .map(|(argument, target_parameter)| {
             let expected_type =
                 program.primitive_type_reference(target_parameter.type_reference)?;
+            let ordinal = argument_ordinal;
+            argument_ordinal = argument_ordinal.checked_add(1)?;
             Some((
                 *argument,
                 CheckedLocatedScalarExpression {
@@ -267,7 +282,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
                     statement_ordinal,
                     role: CheckedScalarExpressionRole::CallArgument {
                         binding_ordinal,
-                        argument_ordinal: u32::try_from(argument_index).ok()?,
+                        argument_ordinal: ordinal,
                     },
                     expression: lower_return_expression(
                         program,

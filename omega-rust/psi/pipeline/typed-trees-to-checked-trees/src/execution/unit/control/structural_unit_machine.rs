@@ -84,7 +84,10 @@ pub(crate) fn build_structural_unit_control_machine(
                         || !parameter.qualifications.is_empty()
                 }
             })
-            || parameters.len() + scalar_parameters.len() != program.state_parameters(state).len()
+            || parameters.len() + scalar_parameters.len()
+                != crate::execution::terminal_unit::abi_parameter_count(
+                    program.state_parameters(state),
+                )
         {
             return None;
         }

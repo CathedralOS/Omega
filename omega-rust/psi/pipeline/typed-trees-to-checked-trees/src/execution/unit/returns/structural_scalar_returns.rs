@@ -287,8 +287,10 @@ pub(crate) fn build_structural_scalar_return_machine(
         )
         .collect::<BTreeSet<_>>();
     if structural_parameters.is_empty()
-        || structural_parameters.len() + scalar_parameters.len() != source_state_parameters.len()
-        || authored_parameter_positions.len() != source_state_parameters.len()
+        || structural_parameters.len() + scalar_parameters.len()
+            != crate::execution::terminal_unit::abi_parameter_count(source_state_parameters)
+        || authored_parameter_positions.len()
+            != crate::execution::terminal_unit::abi_parameter_count(source_state_parameters)
         || authored_parameter_positions
             .iter()
             .copied()

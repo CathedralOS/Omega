@@ -1,0 +1,47 @@
+// Positional control: an erased parameter sits BETWEEN two runtime
+// parameters. The callee signature and the caller's argument plan must skip
+// the same authored position, so `low` and `high` keep their own values
+// across the call rather than sliding into the erased slot. Each callee
+// returns one of the two runtime parameters; the erased literal 50 would
+// land in `high` if a position shifted (canary_suite
+// layouts_and_pending::erased_parameter_between_runtime_values_*).
+// Native run, once Terminal lowering accepts the stripped plan: exit 70 =
+// low and high observed as 7 and 20; 71 = low wrong; 72 = high wrong.
+use omega_language_std::console;
+use omega::language::core::service;
+
+machine first(low: i32, bound [erased]: i32, high: i32) -> i32
+requires
+    low < bound
+{
+    low
+}
+
+machine second(low: i32, bound [erased]: i32, high: i32) -> i32
+requires
+    low < bound
+{
+    high
+}
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let low_result: i32 = first(7, 50, 20);
+    transition low_result == 7 {
+        true -> check_high()
+        _ -> bad_low()
+    }
+    state check_high(&mut self) {
+        let high_result: i32 = second(7, 50, 20);
+        transition high_result == 20 {
+            true -> good()
+            _ -> bad_high()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad_low(&mut self) { self.console.exit_process(71); }
+    state bad_high(&mut self) { self.console.exit_process(72); }
+}

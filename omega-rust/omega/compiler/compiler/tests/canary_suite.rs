@@ -853,9 +853,14 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "wire/wire_compatibility_migration_retired_identity_fresh",
     "wire/wire_codec_qualified_schema_calls",
     // Occurrence-level `[erased]` on a signature parameter: checked semantics
-    // admits the proof-only use; the native calling plan does not strip the
-    // erased position yet (PROOF-RELEVANCE-MIGRATION), so this stays Check.
+    // admits the proof-only use and the checked calling plan strips the
+    // erased position (layouts_and_pending::erased_parameter_* pin both call
+    // sides), but `checked-trees-to-lowered-psi` still rejoins the scalar
+    // partition against every typed parameter, so Terminal production rejects
+    // the stripped plan and these stay Check (PROOF-RELEVANCE-MIGRATION).
     "relevance/erased_parameter_proof_only",
+    "relevance/erased_parameter_between_runtime_values_exit",
+    "relevance/erased_proof_only_typed_parameter_exit",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[

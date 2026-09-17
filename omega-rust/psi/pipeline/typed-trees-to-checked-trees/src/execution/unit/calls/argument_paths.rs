@@ -236,7 +236,8 @@ pub(crate) fn ordinary_projected_call_is_supported(
     let target_parameters = target_source_parameters
         .iter()
         .filter(|parameter| {
-            !(parameter.is_self && is_reference(program, parameter.type_reference))
+            !parameter.relevance.is_erased()
+                && !(parameter.is_self && is_reference(program, parameter.type_reference))
                 && program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()

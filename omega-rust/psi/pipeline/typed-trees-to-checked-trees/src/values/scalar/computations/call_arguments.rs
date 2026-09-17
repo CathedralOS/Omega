@@ -32,6 +32,13 @@ impl Builder<'_, '_> {
         let boundary = call_is_boundary(self.program, target);
         let mut scalar_ordinal = 0u32;
         for (argument, parameter) in arguments.iter().zip(explicit_parameters) {
+            // An erased parameter position has no scalar ordinal: the callee
+            // plan (`execution::unit::calls`) skips it the same way.
+            match crate::execution::terminal_unit::strips_erased_parameter(parameter) {
+                Some(true) => continue,
+                Some(false) => {}
+                None => return,
+            }
             let Some(primitive_type) = self
                 .program
                 .primitive_type_reference(parameter.type_reference)

@@ -55,7 +55,7 @@ pub(crate) fn build_claim_free_affine_structural_return_machine(
         || structural_parameter.access != CheckedStructuralAccess::Owned
         || !structural_parameter.qualifications.is_empty()
         || structural_parameter.fused_service_erasure.is_some()
-        || program.state_parameters(state).len()
+        || crate::execution::terminal_unit::abi_parameter_count(program.state_parameters(state))
             != structural_parameters.len() + scalar_parameters.len()
         || scalar_parameters.iter().any(|parameter| {
             !matches!(

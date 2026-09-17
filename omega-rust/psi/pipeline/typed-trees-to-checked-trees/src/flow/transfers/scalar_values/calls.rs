@@ -113,11 +113,23 @@ pub(super) fn capture_call<Value: CapturedValue>(
     if self_position.is_some() && !machine.attached_data_symbol.is_valid() {
         return None;
     }
-    let scalar_parameters: Vec<_> = parameters
+    let explicit_parameters: Vec<_> = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect();
-    if arguments.len() != scalar_parameters.len()
+    // Erased positions carry proof material only; they own no scalar binding
+    // ordinal, so ordinals below count the retained positions alone.
+    if explicit_parameters.iter().any(|parameter| {
+        crate::execution::terminal_unit::strips_erased_parameter(parameter).is_none()
+    }) {
+        return None;
+    }
+    let scalar_parameters: Vec<_> = explicit_parameters
+        .iter()
+        .copied()
+        .filter(|parameter| !parameter.relevance.is_erased())
+        .collect();
+    if arguments.len() != explicit_parameters.len()
         || scalar_parameters.iter().any(|parameter| {
             parameter.is_const
                 || (parameter.is_mutable
@@ -137,12 +149,19 @@ pub(super) fn capture_call<Value: CapturedValue>(
         active,
     };
     let call_ordinal = u32::try_from(occurrence.call_ordinal).ok()?;
+    let mut next_argument_ordinal = 0u32;
     let argument_values = arguments
         .iter()
         .enumerate()
+        .filter(|(argument_index, _)| {
+            explicit_parameters
+                .get(*argument_index)
+                .is_some_and(|parameter| !parameter.relevance.is_erased())
+        })
         .map(|(argument_index, argument)| {
             let statement_ordinal = u32::try_from(statement_index).ok()?;
-            let argument_ordinal = u32::try_from(argument_index).ok()?;
+            let argument_ordinal = next_argument_ordinal;
+            next_argument_ordinal = next_argument_ordinal.checked_add(1)?;
             // The producer retains two distinct views for immutable local
             // calls. Select the family belonging to this authored statement;
             // an independently retained Unit view is not a duplicate row.

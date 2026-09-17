@@ -43,6 +43,237 @@ fn plan_laid_value_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// The checked calling plan on both sides of an `[erased]` signature
+/// parameter (contracts.md#explicit-erased-bindings): each callee's scalar
+/// signature keeps only its retained authored positions, and the caller's
+/// `ScalarCall` carries exactly the retained literal arguments in order, so
+/// the erased literal never slides into a later runtime position. The native
+/// exit run of the same fixtures (exit 70 in each header) is the remaining
+/// acceptance: `checked-trees-to-lowered-psi` still reconstructs the scalar
+/// partition from every typed parameter
+/// (`unit/attached_unit/parameters.rs::checked_scalar_source_parameters`,
+/// `expression_preparation/qualifications.rs::scalar_state_types`,
+/// `expression_preparation/source_custody/parameters/replay_parameters.rs`),
+/// so Terminal production rejects the stripped plan until that consumer skips
+/// erased bindings the same way (PROOF-RELEVANCE-MIGRATION).
+fn assert_erased_parameter_call_plan(canary_name: &str, callees: &[(&str, &[u32], &[i64])]) {
+    let canary = pass_canary(canary_name);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "{canary_name} should reach checked semantics:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let flow = &checked.facts.flow;
+    let literal_argument = |argument: &checked_trees::CheckedCallScalarArgument| -> i64 {
+        let expression = match argument {
+            checked_trees::CheckedCallScalarArgument::Pure(expression) => expression.clone(),
+            checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+                let node = checked.facts.values.scalar_computations.nodes.get(*handle);
+                let checked_trees::CheckedScalarComputationKind::Value(expression) = &node.kind
+                else {
+                    panic!("{canary_name}: call argument is not a pure value: {node:?}");
+                };
+                expression.clone()
+            }
+        };
+        let checked_trees::CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+            panic!("{canary_name}: call argument is not an integer literal: {expression:?}");
+        };
+        literal
+            .value_i64()
+            .unwrap_or_else(|| panic!("{canary_name}: literal {literal:?} exceeds i64"))
+    };
+    for (callee_name, retained_positions, retained_arguments) in callees {
+        let callee = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == *callee_name)
+            .unwrap_or_else(|| panic!("{canary_name}: machine `{callee_name}` is typed"));
+        let signature = flow
+            .terminal_scalar_graphs
+            .machines
+            .iter()
+            .find(|graph| graph.machine == callee.symbol)
+            .and_then(|graph| graph.states.first())
+            .map(|state| state.scalar_parameters.clone())
+            .or_else(|| {
+                flow.terminal_unit_effects
+                    .machines
+                    .iter()
+                    .find(|plan| plan.machine == callee.symbol)
+                    .map(|plan| plan.scalar_parameters.clone())
+            })
+            .unwrap_or_else(|| {
+                panic!("{canary_name}: `{callee_name}` should own a checked scalar signature plan")
+            });
+        assert_eq!(
+            signature
+                .iter()
+                .map(|parameter| parameter.source_position)
+                .collect::<Vec<_>>(),
+            *retained_positions,
+            "{canary_name}: `{callee_name}` keeps exactly the retained authored positions"
+        );
+        // The caller reaches the callee as a Unit-body `ScalarCall`
+        // operation, as a scalar-graph `let` binding whose `DirectCall`
+        // arguments live under `CallArgument` roles, or as a scalar
+        // computation `Call` node with dense operands; each must carry only
+        // the retained arguments.
+        let operation_calls = flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .flat_map(|plan| plan.operations.iter())
+            .chain(
+                flow.terminal_unit_effects
+                    .composed_machines
+                    .iter()
+                    .flat_map(|machine| &machine.states)
+                    .flat_map(|state| state.operations.iter()),
+            )
+            .filter_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+                    target_machine,
+                    scalar_arguments,
+                    ..
+                } if *target_machine == callee.symbol => Some(
+                    scalar_arguments
+                        .iter()
+                        .map(literal_argument)
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
+            });
+        let binding_calls = flow
+            .terminal_scalar_graphs
+            .machines
+            .iter()
+            .flat_map(|graph| &graph.states)
+            .flat_map(|state| {
+                state
+                    .bindings
+                    .iter()
+                    .enumerate()
+                    .map(move |(binding_ordinal, binding)| (state, binding_ordinal, binding))
+            })
+            .filter_map(|(state, binding_ordinal, binding)| match binding.value {
+                checked_trees::CheckedScalarBindingValue::DirectCall {
+                    target_machine,
+                    argument_count,
+                    ..
+                } if target_machine == callee.symbol => Some(
+                    (0..argument_count)
+                        .map(|argument_ordinal| {
+                            let role = checked_trees::CheckedScalarExpressionRole::CallArgument {
+                                binding_ordinal: u32::try_from(binding_ordinal)
+                                    .expect("binding ordinal fits u32"),
+                                argument_ordinal,
+                            };
+                            let expression = checked
+                                .facts
+                                .values
+                                .scalar_expressions
+                                .expressions
+                                .iter()
+                                .find(|expression| {
+                                    expression.state == state.state
+                                        && expression.statement_ordinal == binding.statement_ordinal
+                                        && expression.role == role
+                                })
+                                .unwrap_or_else(|| {
+                                    panic!(
+                                        "{canary_name}: call argument {argument_ordinal} of \
+                                         `{callee_name}` should have a retained expression"
+                                    )
+                                });
+                            literal_argument(&checked_trees::CheckedCallScalarArgument::Pure(
+                                expression.expression.clone(),
+                            ))
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
+            });
+        let computation_calls = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .iter()
+            .filter_map(|(_, node)| match &node.kind {
+                checked_trees::CheckedScalarComputationKind::Call {
+                    target_machine,
+                    arguments,
+                    ..
+                } if *target_machine == callee.symbol => Some(
+                    checked
+                        .facts
+                        .values
+                        .scalar_computations
+                        .operands
+                        .span_or_empty(*arguments)
+                        .iter()
+                        .map(|operand| {
+                            literal_argument(
+                                &checked_trees::CheckedCallScalarArgument::Computation(*operand),
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
+            });
+        let calls = operation_calls
+            .chain(binding_calls)
+            .chain(computation_calls)
+            .collect::<Vec<_>>();
+        let [arguments] = calls.as_slice() else {
+            panic!(
+                "{canary_name}: exactly one planned call should target `{callee_name}`; found {}",
+                calls.len()
+            );
+        };
+        assert_eq!(
+            arguments.as_slice(),
+            *retained_arguments,
+            "{canary_name}: the call to `{callee_name}` carries only the retained arguments"
+        );
+    }
+}
+
+#[test]
+fn erased_parameter_proof_only_strips_the_erased_position() {
+    assert_erased_parameter_call_plan(
+        fixture_roster::ERASED_PARAMETER_PROOF_ONLY,
+        &[("keep", &[0], &[70])],
+    );
+}
+
+#[test]
+fn erased_parameter_between_runtime_values_keeps_both_runtime_positions() {
+    assert_erased_parameter_call_plan(
+        fixture_roster::ERASED_PARAMETER_BETWEEN_RUNTIME_VALUES_EXIT,
+        &[("first", &[0, 2], &[7, 20]), ("second", &[0, 2], &[7, 20])],
+    );
+}
+
+#[test]
+fn erased_proof_only_typed_parameter_stays_out_of_the_scalar_signature() {
+    assert_erased_parameter_call_plan(
+        fixture_roster::ERASED_PROOF_ONLY_TYPED_PARAMETER_EXIT,
+        &[("keep", &[0], &[70])],
+    );
+}
+
 #[test]
 fn plan_laid_erased_field_is_semantic_but_not_physical() {
     let canary = pass_canary(fixture_roster::RUNTIME_PLAN_LAID_ERASED_FIELD_EXIT);

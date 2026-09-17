@@ -331,7 +331,8 @@ fn build_structural_field_store_at(
     {
         return None;
     }
-    if source_parameters.len() != scalar_parameters.len() + structural_parameters.len()
+    if crate::execution::terminal_unit::abi_parameter_count(source_parameters)
+        != scalar_parameters.len() + structural_parameters.len()
         || parameter.is_self != destination.is_self
         || parameter.is_const
         || !parameter.is_mutable
