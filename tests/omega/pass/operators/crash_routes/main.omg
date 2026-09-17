@@ -1,4 +1,4 @@
-boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+boundary machine == Comparison::equal(left: i32, right: i32) -> bool
 crashes Trap !(right >= 0);
 
 pub machine safe(value: i32) -> bool

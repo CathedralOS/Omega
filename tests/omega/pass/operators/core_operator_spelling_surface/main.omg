@@ -3,11 +3,11 @@
 
 operator + i32::add(left: i32, right: i32) -> i32;
 
-boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
+boundary machine [] Slice::index<T>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
-boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
     start <= end && end <= items.len;
 
