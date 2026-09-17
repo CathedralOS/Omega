@@ -83,6 +83,23 @@ pub fn spill_selected_runtime_value(
         let mut instructions = Vec::new();
         let mut boundaries = Vec::new();
         let mut instruction_positions = Vec::new();
+        // An entry parameter's store opens its block: the register is live-in,
+        // so position zero is the earliest point the slot holds the value and
+        // the only one every use — body, terminator, or edge — follows.
+        for definition in admitted.definitions.iter().filter(|definition| {
+            definition.block_index == block_index
+                && matches!(definition.position, admission::StoragePosition::BlockStart)
+        }) {
+            instructions.push(admission::instruction(
+                SelectedInstructionId(admission::fresh(&mut next_instruction)?),
+                SelectedInstructionKind::Store64 {
+                    slot: admission::frame(admitted.slot),
+                    byte_offset: 0,
+                },
+                admitted.store,
+                &[definition.register],
+            ));
+        }
         for original in &block.instructions {
             boundaries.push(
                 u32::try_from(instructions.len())
@@ -120,7 +137,10 @@ pub fn spill_selected_runtime_value(
                 open_reload = None;
             }
             for definition in admitted.definitions.iter().filter(|definition| {
-                definition.block_index == block_index && original.id == definition.instruction
+                definition.block_index == block_index
+                    && matches!(definition.position,
+                        admission::StoragePosition::AfterInstruction(instruction)
+                            if instruction == original.id)
             }) {
                 instructions.push(admission::instruction(
                     SelectedInstructionId(admission::fresh(&mut next_instruction)?),

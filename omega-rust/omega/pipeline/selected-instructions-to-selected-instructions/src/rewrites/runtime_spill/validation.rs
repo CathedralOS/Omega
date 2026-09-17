@@ -70,6 +70,29 @@ pub fn validate_runtime_spill(
         // name — replay computes the same binding-argument target the
         // proposal had to produce.
         let mut use_reloads = std::collections::BTreeMap::new();
+        // A boundary definition's store opens the block; replay consumes it
+        // from the stream before the first source instruction, in the same
+        // order the proposal emitted it.
+        for definition in admitted.definitions.iter().filter(|definition| {
+            definition.block_index == block_index
+                && matches!(definition.position, admission::StoragePosition::BlockStart)
+        }) {
+            let store = admission::instruction(
+                SelectedInstructionId(admission::fresh(&mut next_instruction)?),
+                SelectedInstructionKind::Store64 {
+                    slot: admission::frame(admitted.slot),
+                    byte_offset: 0,
+                },
+                admitted.store,
+                &[definition.register],
+            );
+            if stream.next() != Some(&store) {
+                return Err(RuntimeSpillError::ReplayMismatch);
+            }
+            consumed = consumed
+                .checked_add(1)
+                .ok_or(RuntimeSpillError::IdentityOverflow)?;
+        }
         for original in &source_block.instructions {
             boundaries.push(consumed);
             let mut restored = original.clone();
@@ -122,7 +145,10 @@ pub fn validate_runtime_spill(
                 open_reload = None;
             }
             for definition in admitted.definitions.iter().filter(|definition| {
-                definition.block_index == block_index && original.id == definition.instruction
+                definition.block_index == block_index
+                    && matches!(definition.position,
+                        admission::StoragePosition::AfterInstruction(instruction)
+                            if instruction == original.id)
             }) {
                 let store = admission::instruction(
                     SelectedInstructionId(admission::fresh(&mut next_instruction)?),

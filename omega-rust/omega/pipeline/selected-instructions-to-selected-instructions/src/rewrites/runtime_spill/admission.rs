@@ -53,11 +53,24 @@ pub(super) struct Admission<'source> {
 
 /// Source definition coordinates, not proposed spill instructions. An incoming
 /// parameter has one exact edge definition per predecessor: the predecessor's
-/// own copy output, or a case bridge's field observation behind its load.
+/// own copy output, or a case bridge's field observation behind its load. An
+/// entry parameter's single definition is the function-entry boundary itself.
 pub(super) struct StorageDefinition {
     pub block_index: usize,
-    pub instruction: SelectedInstructionId,
+    pub position: StoragePosition,
     pub register: VirtualRegisterId,
+}
+
+/// Where the definition's store lands inside `block_index`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum StoragePosition {
+    /// Immediately after the instruction that physically defines the stored
+    /// register — the victim's own result or an edge's copy/observation output.
+    AfterInstruction(SelectedInstructionId),
+    /// Ahead of every block instruction: an entry parameter's boundary
+    /// definition. Its register is live-in, so position zero is the earliest
+    /// point the stored value exists and the only one every use follows.
+    BlockStart,
 }
 
 /// One stored structural-transport argument — a `Descriptor` or `WholeValue`
@@ -156,6 +169,26 @@ pub(super) fn admit<'source>(
             }
             (source_value, None, block_index)
         }
+        VirtualRegisterOrigin::EntryParameter {
+            source_value,
+            parameter_index,
+        } => {
+            // The entry block is the definition anchor: the parameter arrives
+            // live-in, so its store opens that block and dominates every use
+            // without any instruction or incoming edge to lean on.
+            let block_index = function
+                .blocks
+                .iter()
+                .position(|block| block.id == function.entry_block)
+                .ok_or(RuntimeSpillError::SourceMismatch)?;
+            if !matches!(victim.definition_site,
+                Some(ValueDefinitionSite::FunctionParameter(position))
+                    if position as usize == parameter_index)
+            {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            }
+            (source_value, None, block_index)
+        }
         _ => return Err(RuntimeSpillError::UnsupportedValue),
     };
     // This preserves a full GPR in its own eight-byte slot, not a source
@@ -171,8 +204,13 @@ pub(super) fn admit<'source>(
     };
     // Semantic lineage alone does not locate physical storage definitions.
     // Instruction results and incoming parameters establish those separately.
+    // An entry parameter's ABI live-in pin is its own boundary constraint:
+    // rewriting shrinks that register's interval to the entry-to-store window,
+    // so the view still pins exactly where the value must arrive. A fixed view
+    // on any other origin stays a rejection.
+    let entry_boundary = matches!(victim.origin, VirtualRegisterOrigin::EntryParameter { .. });
     if !scalar_payload
-        || victim.entry_fixed_view.is_some()
+        || (victim.entry_fixed_view.is_some() && !entry_boundary)
         || !matches!(
             victim.definition_site,
             Some(ValueDefinitionSite::FunctionParameter(_))
@@ -193,9 +231,11 @@ pub(super) fn admit<'source>(
     let definitions = if let Some(instruction) = definition {
         vec![StorageDefinition {
             block_index,
-            instruction,
+            position: StoragePosition::AfterInstruction(instruction),
             register,
         }]
+    } else if entry_boundary {
+        entry_definitions(function, block_index, victim)?
     } else {
         parameter_definitions(function, block_index, victim, source_value)?
     };
@@ -469,6 +509,16 @@ pub(super) fn admit<'source>(
         })
         .and_then(|total| total.checked_add(uses.checked_mul(4)?))
         .and_then(|total| total.checked_add(definitions.len()))
+        // An entry parameter's boundary definition scans every block's
+        // successor list once for a re-entry edge — the same per-block shape
+        // the two dominance passes below already pay for.
+        .and_then(|total| {
+            total.checked_add(if entry_boundary {
+                function.blocks.len()
+            } else {
+                0
+            })
+        })
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .and_then(|total| total.checked_add(slot_scan))
         // The structural-argument check groups the memory accesses once, then
@@ -860,7 +910,7 @@ fn parameter_definitions(
                     }
                     definitions.push(StorageDefinition {
                         block_index,
-                        instruction,
+                        position: StoragePosition::AfterInstruction(instruction),
                         register: argument,
                     });
                     continue;
@@ -913,7 +963,7 @@ fn parameter_definitions(
             }
             definitions.push(StorageDefinition {
                 block_index,
-                instruction,
+                position: StoragePosition::AfterInstruction(instruction),
                 register: argument,
             });
         }
@@ -922,6 +972,34 @@ fn parameter_definitions(
         return Err(RuntimeSpillError::UnsupportedUse);
     }
     Ok(definitions)
+}
+
+/// An entry parameter's storage definition is the function-entry boundary:
+/// the value arrives live-in, so its store opens the entry block. Any edge
+/// back to that block — a loop header reuse or a shared continuation — would
+/// re-execute the store reading a register whose interval already ended at
+/// the first store, so re-entry stays rejected rather than replayed against.
+fn entry_definitions(
+    function: &SelectedFunction,
+    entry: usize,
+    victim: &VirtualRegister,
+) -> Result<Vec<StorageDefinition>, RuntimeSpillError> {
+    let entry_block = function.blocks[entry].id;
+    for block in &function.blocks {
+        if super::control(&block.terminator)
+            .1
+            .into_iter()
+            .flatten()
+            .any(|successor| successor.block == entry_block)
+        {
+            return Err(RuntimeSpillError::UnsupportedControlFlow);
+        }
+    }
+    Ok(vec![StorageDefinition {
+        block_index: entry,
+        position: StoragePosition::BlockStart,
+        register: victim.id,
+    }])
 }
 
 /// The unique physical instruction defining `argument` anywhere in the

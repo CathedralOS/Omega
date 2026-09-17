@@ -27,7 +27,7 @@ use selected_instructions::{
     VirtualRegisterId,
 };
 
-use super::admission::StorageDefinition;
+use super::admission::{StorageDefinition, StoragePosition};
 
 /// Admitted use positions for the victim, one entry per block in order. The
 /// sharing check needs positions, not just block membership: a proposed reload
@@ -252,6 +252,17 @@ fn shareable(
         .enumerate()
         .map(|(block_index, block)| {
             let mut events = Vec::new();
+            // A boundary definition's store opens the block: it is the first
+            // writer event, ahead of every instruction-positioned access.
+            events.extend(
+                definitions
+                    .iter()
+                    .filter(|definition| {
+                        definition.block_index == block_index
+                            && matches!(definition.position, StoragePosition::BlockStart)
+                    })
+                    .map(|_| Event::NewStore),
+            );
             for (index, instruction) in block.instructions.iter().enumerate() {
                 if loads_before(uses, shared_reload, block, block_index, index) {
                     events.push(Event::NewLoad);
@@ -264,7 +275,9 @@ fn shareable(
                         .iter()
                         .filter(|definition| {
                             definition.block_index == block_index
-                                && instruction.id == definition.instruction
+                                && matches!(definition.position,
+                                    StoragePosition::AfterInstruction(anchor)
+                                        if anchor == instruction.id)
                         })
                         .map(|_| Event::NewStore),
                 );
