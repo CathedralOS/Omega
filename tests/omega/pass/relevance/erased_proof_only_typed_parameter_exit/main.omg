@@ -1,10 +1,10 @@
-// A proof-only type (`Nat` has no runtime layout) may sit on an erased
-// parameter of a runtime machine: the binding is proof-side, so the checked
-// calling plan gives it no scalar position and the machine keeps its scalar
-// signature instead of becoming a mixed structural one (canary_suite
+// RUN canary. A proof-only type (`Nat` has no runtime layout) may sit on an
+// erased parameter of a runtime machine: the binding is proof-side, so the
+// checked calling plan gives it no scalar position, the machine keeps its
+// scalar signature instead of becoming a mixed structural one, and Terminal
+// lowering reconstructs the same retained signature (canary_suite
 // layouts_and_pending::erased_proof_only_typed_parameter_*).
-// Native run, once Terminal lowering accepts the stripped plan: exit 70 = the
-// runtime argument arrived intact; 71 = it did not.
+// Exit 70 = the runtime argument arrived intact; 71 = it did not.
 use omega_language_std::console;
 use omega::language::core::service;
 use omega::language::core::nat;

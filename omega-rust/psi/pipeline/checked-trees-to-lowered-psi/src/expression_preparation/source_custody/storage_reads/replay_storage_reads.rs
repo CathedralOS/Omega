@@ -146,9 +146,11 @@ fn validate_reads(
         .state_parameters(state)
         .iter()
         .filter(|parameter| {
-            checked
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
+            // An `[erased]` binding occupies no position in this namespace.
+            !parameter.relevance.is_erased()
+                && checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
         })
         .map(|parameter| parameter.symbol)
         .chain(

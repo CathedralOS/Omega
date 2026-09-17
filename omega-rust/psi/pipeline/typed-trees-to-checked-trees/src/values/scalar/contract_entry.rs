@@ -129,6 +129,7 @@ impl EntryOperands<'_> {
             .filter(|(_, parameter)| symbol.is_valid() && parameter.symbol == symbol);
         let (position, parameter) = matches.next()?;
         if matches.next().is_some()
+            || parameter.relevance.is_erased()
             || crate::values::mutable_scalar_parameter_type(self.program, parameter)
                 != Some(primitive)
         {
@@ -140,9 +141,7 @@ impl EntryOperands<'_> {
             self.parameters[..position]
                 .iter()
                 .filter(|parameter| {
-                    self.program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_some()
+                    crate::values::scalar::occupies_scalar_position(self.program, parameter)
                 })
                 .count(),
         )

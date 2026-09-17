@@ -677,6 +677,10 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 ExpressionNode::Name(name) => {
                     let source_position = parameter_position(program, name, parameters)?;
                     let parameter = parameters.get(source_position)?;
+                    // An erased binding has no scalar position to read.
+                    if parameter.relevance.is_erased() {
+                        return None;
+                    }
                     let primitive_type =
                         program.primitive_type_reference(parameter.type_reference)?;
                     if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
@@ -687,9 +691,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     let position = parameters[..source_position]
                         .iter()
                         .filter(|parameter| {
-                            program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_some()
+                            crate::values::scalar::occupies_scalar_position(program, parameter)
                         })
                         .count();
                     Some((
@@ -1052,6 +1054,9 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         || name_text.is_some_and(|text| parameter.name == *text)
                 })?;
                 let parameter = parameters.get(source_position)?;
+                if parameter.relevance.is_erased() {
+                    return None;
+                }
                 if parameter.is_mutable {
                     return (crate::values::mutable_scalar_parameter_type(program, parameter)
                         == Some(PrimitiveType::Bool)
@@ -1067,9 +1072,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     position: parameters[..source_position]
                         .iter()
                         .filter(|parameter| {
-                            program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_some()
+                            crate::values::scalar::occupies_scalar_position(program, parameter)
                         })
                         .count(),
                 })

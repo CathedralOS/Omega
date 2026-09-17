@@ -169,6 +169,9 @@ fn validate_rank(
             "scalar loop rank names a foreign parameter",
         ))?;
     let parameter = &parameters[source_position];
+    if parameter.relevance.is_erased() {
+        return unsupported("scalar loop rank names an erased parameter");
+    }
     let primitive = checked
         .primitive_type_reference(parameter.type_reference)
         .ok_or(LoweringError::Unsupported(
@@ -177,9 +180,11 @@ fn validate_rank(
     let scalar_position = parameters[..source_position]
         .iter()
         .filter(|parameter| {
-            checked
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
+            // An `[erased]` binding occupies no position in this namespace.
+            !parameter.relevance.is_erased()
+                && checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
         })
         .count();
     let scalar_position = u32::try_from(scalar_position)

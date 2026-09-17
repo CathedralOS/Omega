@@ -75,13 +75,16 @@ impl ContractPredicates<'_, '_> {
             if self.allow_result && parameter.is_mutable {
                 return None;
             }
+            // An erased binding has no scalar position; a contract naming it
+            // stays a checked proposition without a Terminal scalar term.
+            if parameter.relevance.is_erased() {
+                return None;
+            }
             program.primitive_type_reference(parameter.type_reference)?;
             let scalar_position = self.parameters[..position]
                 .iter()
                 .filter(|parameter| {
-                    program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_some()
+                    crate::values::scalar::occupies_scalar_position(program, parameter)
                 })
                 .count();
             return Some((scalar_position, parameter.type_reference));
@@ -97,9 +100,7 @@ impl ContractPredicates<'_, '_> {
                 self.parameters
                     .iter()
                     .filter(|parameter| {
-                        program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_some()
+                        crate::values::scalar::occupies_scalar_position(program, parameter)
                     })
                     .count(),
                 entry.return_type,

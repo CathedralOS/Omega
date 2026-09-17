@@ -139,9 +139,11 @@ pub(super) fn validate(
         let expected_source_index = source_parameters[..source_position]
             .iter()
             .filter(|parameter| {
-                checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
+                // An `[erased]` binding occupies no position in this namespace.
+                !parameter.relevance.is_erased()
+                    && checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
             })
             .count();
         let retained_source = source

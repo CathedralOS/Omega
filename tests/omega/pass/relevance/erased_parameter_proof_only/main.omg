@@ -6,7 +6,10 @@
 // plan gives it no scalar position on either side of the call
 // (canary_suite layouts_and_pending::erased_parameter_proof_only_*). The call
 // site discharges the instantiated requires from its literal arguments.
-// Native run, once Terminal lowering accepts the stripped plan: exit 70 = the
+// Terminal lowering accepts the stripped signature (see the two RUN siblings)
+// but has no proof-only value for `bound`, so `requires n < bound` cannot yet
+// become a Terminal contract proposition; this stays a checked-only canary
+// until Terminal contracts carry erased terms. Native run then: exit 70 = the
 // runtime argument reached the callee intact; 71 = it did not.
 use omega_language_std::console;
 use omega::language::core::service;

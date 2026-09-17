@@ -88,11 +88,7 @@ pub(crate) fn lower_unit_scalar_argument(
     let parameters = program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        })
+        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
         .cloned()
         .collect::<Vec<_>>();
     let parameter_types = parameters

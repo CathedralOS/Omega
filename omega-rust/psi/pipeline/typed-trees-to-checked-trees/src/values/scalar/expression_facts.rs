@@ -12,6 +12,20 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
 
+/// Whether an authored parameter occupies a position in the dense scalar
+/// namespace that `CheckedScalarExpression::Parameter` indexes: a primitive
+/// carrier that is not an `[erased]` binding occurrence. An erased primitive
+/// parameter owns no position (contracts.md#explicit-erased-bindings), so the
+/// retained parameters after it shift down, matching the stripped signature
+/// plan in `execution::unit::calls::signatures`; a runtime read of it then
+/// finds no position and fails closed here as well as in validation.
+pub(crate) fn occupies_scalar_position(program: &TypedTrees, parameter: &StateParameter) -> bool {
+    !parameter.relevance.is_erased()
+        && program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+}
+
 pub(crate) fn parameter_position(
     program: &TypedTrees,
     path: &typed_trees::expression::TableNamePath,

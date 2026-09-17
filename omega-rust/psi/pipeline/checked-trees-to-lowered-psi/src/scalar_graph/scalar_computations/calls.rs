@@ -213,7 +213,18 @@ impl Expansion<'_> {
         let mut scalar_ordinal = 0usize;
         let mut structural_ordinal = 0usize;
         let mut operands = Vec::new();
-        for position in 0..self.checked.state_parameters(source_state).len() {
+        for (position, source_parameter) in self
+            .checked
+            .state_parameters(source_state)
+            .iter()
+            .enumerate()
+        {
+            // An `[erased]` formal position has no operand of either kind
+            // (contracts.md#explicit-erased-bindings); the typed relevance
+            // decides that, not the operand roster being validated.
+            if source_parameter.relevance.is_erased() {
+                continue;
+            }
             if let Some(parameter) = parameters.get(structural_ordinal)
                 && parameter.position as usize == position
             {

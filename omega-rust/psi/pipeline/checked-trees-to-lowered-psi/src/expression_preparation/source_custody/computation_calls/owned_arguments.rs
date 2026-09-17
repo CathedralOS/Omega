@@ -46,9 +46,11 @@ pub(super) fn validate(
     let source = parameters
         .iter()
         .filter(|parameter| {
-            checked
-                .primitive_type_reference(parameter.type_reference)
-                .is_none()
+            // An `[erased]` binding occupies no position in this namespace.
+            !parameter.relevance.is_erased()
+                && checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
         })
         .nth(parameter_index as usize)
         .ok_or(LoweringError::Unsupported(

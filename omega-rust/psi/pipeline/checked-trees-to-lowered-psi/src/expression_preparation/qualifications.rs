@@ -294,9 +294,12 @@ impl PreparedScalarQualifications {
             .state_parameters(state)
             .iter()
             .filter(|parameter| {
-                checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some()
+                // An `[erased]` binding owns no scalar entry; the typed
+                // relevance decides that here, independently of the plan.
+                !parameter.relevance.is_erased()
+                    && checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
             })
             .map(|parameter| self.value_type(checked, parameter.type_reference))
             .collect::<Result<Vec<_>, _>>()?;

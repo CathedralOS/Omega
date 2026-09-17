@@ -43,19 +43,51 @@ fn plan_laid_value_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Native run of an erased-parameter fixture from its authored build root
+/// (macOS arm64 host): each fixture exits 70 only when its runtime arguments
+/// arrive in the callee intact (its header names the other exit codes), so a
+/// shifted ABI position or a Terminal rejection of the stripped plan fails
+/// here.
+fn assert_erased_parameter_canary_exits_70(canary_name: &str, label: &str) {
+    let canary = pass_canary(canary_name);
+    let build_dir = std::env::temp_dir().join(format!("omega-{label}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{canary_name} should compile natively:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    let executable = compilation
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{canary_name} should retain its executable receipt"));
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("{canary_name} should run: {error}"));
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "{canary_name}: runtime arguments should reach the callee intact; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 /// The checked calling plan on both sides of an `[erased]` signature
 /// parameter (contracts.md#explicit-erased-bindings): each callee's scalar
 /// signature keeps only its retained authored positions, and the caller's
-/// `ScalarCall` carries exactly the retained literal arguments in order, so
-/// the erased literal never slides into a later runtime position. The native
-/// exit run of the same fixtures (exit 70 in each header) is the remaining
-/// acceptance: `checked-trees-to-lowered-psi` still reconstructs the scalar
-/// partition from every typed parameter
-/// (`unit/attached_unit/parameters.rs::checked_scalar_source_parameters`,
-/// `expression_preparation/qualifications.rs::scalar_state_types`,
-/// `expression_preparation/source_custody/parameters/replay_parameters.rs`),
-/// so Terminal production rejects the stripped plan until that consumer skips
-/// erased bindings the same way (PROOF-RELEVANCE-MIGRATION).
+/// call carries exactly the retained literal arguments in order, so the
+/// erased literal never slides into a later runtime position. The Terminal
+/// consumer reconstructs the same partition independently from the typed
+/// relevance (checked-trees-to-lowered-psi `checked_scalar_source_parameters`,
+/// `scalar_state_types`, `parameter_storage`, `direct_calls::locate`, and the
+/// computation-call operand pairing), which the native runs above exercise.
 fn assert_erased_parameter_call_plan(canary_name: &str, callees: &[(&str, &[u32], &[i64])]) {
     let canary = pass_canary(canary_name);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
@@ -252,6 +284,9 @@ fn assert_erased_parameter_call_plan(canary_name: &str, callees: &[(&str, &[u32]
 
 #[test]
 fn erased_parameter_proof_only_strips_the_erased_position() {
+    // Checked plan only: `requires n < bound` mentions the erased binding and
+    // Terminal contracts have no proof-only value for it yet, so this fixture
+    // stays on `CHECKED_ONLY_PASS_CANARIES` (PROOF-RELEVANCE-MIGRATION).
     assert_erased_parameter_call_plan(
         fixture_roster::ERASED_PARAMETER_PROOF_ONLY,
         &[("keep", &[0], &[70])],
@@ -264,6 +299,10 @@ fn erased_parameter_between_runtime_values_keeps_both_runtime_positions() {
         fixture_roster::ERASED_PARAMETER_BETWEEN_RUNTIME_VALUES_EXIT,
         &[("first", &[0, 2], &[7, 20]), ("second", &[0, 2], &[7, 20])],
     );
+    assert_erased_parameter_canary_exits_70(
+        fixture_roster::ERASED_PARAMETER_BETWEEN_RUNTIME_VALUES_EXIT,
+        "erased-parameter-between",
+    );
 }
 
 #[test]
@@ -271,6 +310,10 @@ fn erased_proof_only_typed_parameter_stays_out_of_the_scalar_signature() {
     assert_erased_parameter_call_plan(
         fixture_roster::ERASED_PROOF_ONLY_TYPED_PARAMETER_EXIT,
         &[("keep", &[0], &[70])],
+    );
+    assert_erased_parameter_canary_exits_70(
+        fixture_roster::ERASED_PROOF_ONLY_TYPED_PARAMETER_EXIT,
+        "erased-proof-only-typed",
     );
 }
 
