@@ -94,3 +94,164 @@ fn an_admitted_execution_profile_without_a_helper_row_leaves_the_helper_inert() 
         "{diagnostics:#?}"
     );
 }
+
+/// A root package beside its reconciled dependencies, wired as a package
+/// graph rather than through a lock: `kit` is reachable only through the
+/// root's build edge, `lib` only through its product edge, and an optional
+/// `tool` only through `kit`'s ordinary edge. The build entry imports `kit`
+/// and calls its `kit_probe`; the product entry imports `lib`.
+struct PackagedFixture {
+    directory: std::path::PathBuf,
+    root_main: std::path::PathBuf,
+    inputs: package_compilation::PackageCompilationInputs,
+}
+
+impl PackagedFixture {
+    fn new(kit_main: &str, lib_main: &str, tool_main: Option<&str>) -> Self {
+        use package_compilation::{
+            PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+        };
+        let directory = std::env::temp_dir().join(format!(
+            "omega-build-dependency-scope-{}-{}",
+            std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
+        ));
+        fs::create_dir(&directory).expect("create dependency-scope fixture");
+        let package = |name: &str, main: &str| {
+            let root = directory.join(name);
+            fs::create_dir(&root).expect("create package directory");
+            fs::write(root.join("main.omg"), main).expect("write package main");
+            fs::write(
+                root.join("build.omg"),
+                format!(
+                    "machine build(builder: &mut Build) {{\n    builder.package(\"{name}\");\n}}\n"
+                ),
+            )
+            .expect("write package build");
+            root.canonicalize().expect("canonical package root")
+        };
+        let root_dir = package("scoped-root", "use lib::main;\n\nconst ANSWER: u32 = 42;\n");
+        fs::write(
+            root_dir.join("build.omg"),
+            "use kit::main;\n\nmachine build(builder: &mut Build) {\n    builder.package(\"scoped-root\");\n    kit_probe();\n}\n",
+        )
+        .expect("write root build");
+        let kit_dir = package("kit", kit_main);
+        let lib_dir = package("lib", lib_main);
+        let identity = |digest: u8| {
+            semantic_vocabulary::PackageKeyIdentity::from_digest([digest; 32])
+                .expect("nonzero package identity")
+        };
+        let (root, kit, lib, tool) = (identity(1), identity(2), identity(3), identity(4));
+        let mut packages = vec![
+            PackageSourceBinding::new(root, "scoped-root", root_dir.clone()),
+            PackageSourceBinding::new(kit, "kit", kit_dir),
+            PackageSourceBinding::new(lib, "lib", lib_dir),
+        ];
+        let mut dependencies = vec![
+            PackageDependencyBinding::for_purpose(
+                root,
+                "kit",
+                kit,
+                build_declarations::DependencyPurpose::Build,
+            ),
+            PackageDependencyBinding::new(root, "lib", lib),
+        ];
+        if let Some(tool_main) = tool_main {
+            packages.push(PackageSourceBinding::new(
+                tool,
+                "tool",
+                package("tool", tool_main),
+            ));
+            dependencies.push(PackageDependencyBinding::new(kit, "tool", tool));
+        }
+        let inputs = PackageCompilationInputs::new_package(root, packages, dependencies)
+            .expect("closed dependency graph");
+        Self {
+            root_main: root_dir.join("main.omg"),
+            directory,
+            inputs,
+        }
+    }
+
+    fn request(&self, product: target::TargetProfile) -> super::CheckedCompileRequest<'static> {
+        let mut request =
+            super::CheckedCompileRequest::new(&self.root_main, Some(product.target_name()));
+        request.package_inputs = Some(self.inputs.clone());
+        request
+    }
+}
+
+impl Drop for PackagedFixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+/// A library exposing `Probe::run` for `helper_target` only, and a plain
+/// `kit_probe` calling it.
+fn host_probe_library(helper_target: &str) -> String {
+    format!(
+        "pub data Probe {{ }}\n\npub {helper_target} machine Probe::run() {{ }}\n\npub machine kit_probe() {{\n    Probe::run();\n}}\n"
+    )
+}
+
+const PLAIN_KIT: &str = "pub machine kit_probe() { }\n";
+const PLAIN_LIB: &str = "pub machine lib_value() -> u64 { 2 }\n";
+
+#[test]
+fn a_build_only_dependency_selects_its_host_row_under_a_foreign_product_target() {
+    let host = target::TargetProfile::host();
+    let fixture = PackagedFixture::new(&host_probe_library(host.target_name()), PLAIN_LIB, None);
+    let product = foreign_product_target();
+    let checked = super::compile_to_checked(fixture.request(product)).unwrap_or_else(|diagnostics| {
+        panic!("the build-only dependency's {host:?} row must select under a {product:?} product: {diagnostics:#?}")
+    });
+    assert_eq!(checked.selected_target_profile(), Some(product));
+}
+
+#[test]
+fn a_build_dependency_ordinary_dependency_selects_its_host_row_too() {
+    let host = target::TargetProfile::host();
+    let fixture = PackagedFixture::new(
+        "use tool::main;\n\npub machine kit_probe() {\n    Probe::run();\n}\n",
+        PLAIN_LIB,
+        Some(&format!(
+            "pub data Probe {{ }}\n\npub {} machine Probe::run() {{ }}\n",
+            host.target_name()
+        )),
+    );
+    let product = foreign_product_target();
+    let checked = super::compile_to_checked(fixture.request(product)).unwrap_or_else(|diagnostics| {
+        panic!("a build dependency's ordinary dependency is host context; its {host:?} row must select under a {product:?} product: {diagnostics:#?}")
+    });
+    assert_eq!(checked.selected_target_profile(), Some(product));
+}
+
+#[test]
+fn a_product_dependency_host_row_stays_inert_under_a_foreign_product_target() {
+    let host = target::TargetProfile::host();
+    // A lone foreign row is filtered silently, so `Gauge::read` carries two
+    // rows, neither for the product: the loud missing-implementation edge
+    // fires only when the product target is what `lib` selects against.
+    let fixture = PackagedFixture::new(
+        PLAIN_KIT,
+        &format!(
+            "pub data Gauge {{ }}\n\npub {} machine Gauge::read() {{ }}\n\npub {} machine Gauge::read() {{ }}\n",
+            host.target_name(),
+            third_profile().target_name(),
+        ),
+        None,
+    );
+    let diagnostics = super::compile_to_checked(fixture.request(foreign_product_target()))
+        .expect_err("a product dependency's host row selects against the product target");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("Gauge::read")
+                && diagnostic
+                    .message
+                    .contains("no implementation for the selected target")
+        }),
+        "{diagnostics:#?}"
+    );
+}

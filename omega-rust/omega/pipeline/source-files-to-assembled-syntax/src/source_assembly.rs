@@ -1,6 +1,6 @@
 use crate::frontend::{
-    discover_imports, discover_imports_with_packages, extend_source_storage, lex_sources,
-    load_package_generated_source, load_sources, parse_sources,
+    build_only_packages, discover_imports, discover_imports_with_packages, extend_source_storage,
+    lex_sources, load_package_generated_source, load_sources, parse_sources,
 };
 use crate::source::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
@@ -31,10 +31,14 @@ pub struct AssembledSyntax {
     pub application: Option<build_declarations::ApplicationDeclaration>,
     pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-    /// Root-owned sources claimed by the build scope: the selected build entry
-    /// and the root-local helpers it transitively imports. Their
+    /// Sources the build scope owns: the selected build entry, the
+    /// root-local helpers it transitively imports, and every physical source
+    /// of a package the root reaches only through build-purpose edges
+    /// (including such a package's own ordinary dependencies). Their
     /// target-scoped declarations select against the admitted build execution
-    /// profile, never the product target; every other source is product scope.
+    /// profile, never the product target; every other source — product
+    /// packages, dual-purpose packages, and generated dependency source
+    /// (produced for the product target) — is product scope.
     pub build_scope_sources: HashSet<source::SourceId>,
 }
 
@@ -934,18 +938,30 @@ fn assemble_syntax(
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     import_scopes: &BTreeMap<PathBuf, DependencyPurpose>,
+    package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+    let build_only_packages = package_inputs.map(build_only_packages).unwrap_or_default();
+    let generated_sources = generated_source_custody
+        .iter()
+        .map(|(source_id, _)| *source_id)
+        .collect::<HashSet<_>>();
     let build_scope_sources = sources
         .files
         .iter()
         .filter_map(|(_, file)| {
-            let purpose = import_scopes.get(&file.path).copied().or_else(|| {
+            let claimed_purpose = import_scopes.get(&file.path).copied().or_else(|| {
                 file.path
                     .canonicalize()
                     .ok()
                     .and_then(|canonical| import_scopes.get(&canonical).copied())
             });
-            (purpose == Some(DependencyPurpose::Build)).then_some(file.source_id)
+            let claimed_by_build_entry = claimed_purpose == Some(DependencyPurpose::Build);
+            let owned_by_build_only_package = !build_only_packages.is_empty()
+                && !generated_sources.contains(&file.source_id)
+                && package_inputs
+                    .and_then(|packages| packages.package_for_source(&file.path))
+                    .is_some_and(|package| build_only_packages.contains(&package));
+            (claimed_by_build_entry || owned_by_build_only_package).then_some(file.source_id)
         })
         .collect();
     Ok(AssembledSyntax {

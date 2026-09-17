@@ -743,25 +743,28 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   file and scope named, product cycles, and edge removal after
   publication all hold; `omega/tests/package_commands/build_purposes.rs`
   pins them through the shipped binary at 380c6f3fdb over
-  `tests/fixtures/packages/build-purposes`. Build-scope root sources (the build
-  entry and the root-local helpers it imports) now select their
-  target-scoped machines against the admitted build execution profile
+  `tests/fixtures/packages/build-purposes`. Build-scope sources select
+  their target-scoped machines against the admitted build execution profile
   (`CheckedCompileRequest::build_execution_profile`, defaulting to the
   compiler host) while product sources keep the product target
   (`build-evaluation/src/admission/target_machines.rs::filter_target_machines_by_scope`
-  over `AssembledSyntax::build_scope_sources`; witnessed by
+  over `AssembledSyntax::build_scope_sources`). The build scope holds the
+  build entry, the root-local helpers it imports, and every physical source
+  of a package the root reaches only through build-purpose edges, including
+  such a package's own ordinary dependencies
+  (`frontend/mod.rs::build_only_packages`, decided from the reconciled
+  package graph rather than import order); witnessed by
   `assembled-syntax-to-checked-compilation/src/checking/execution_profile_tests.rs`,
-  macOS ARM64; a free target-scoped machine still cannot be imported by
-  name, so helpers keep std's attached-machine spelling). Open:
-  build-dependency packages' own sources still resolve
-  as product scope (`frontend/mod.rs::source_import_scope`), so a host
-  tool library's target-scoped rows are not yet checked for the execution
-  profile, and a file imported by both scopes is rejected rather than
-  checked twice (the cross-scope import diagnostic now names the
-  `builder.depend_as`/`build_depend_as` declaration that would close the
-  gap); and non-root packages cannot author build rows,
-  so cross-purpose cycles and per-helper build activations stay
-  unexercised.
+  macOS ARM64 (a free target-scoped machine still cannot be imported by
+  name, so helpers keep std's attached-machine spelling). Open: a package
+  the root reaches through both purposes stays product scope, so its
+  target-scoped rows still select against the product target, and a file
+  imported by both scopes is rejected rather than checked twice (the
+  cross-scope import diagnostic names the `builder.depend_as`/`build_depend_as`
+  declaration that would close the gap); generated dependency source keeps
+  product scope even under a build-only package; and non-root packages
+  cannot author build rows, so cross-purpose cycles and per-helper build
+  activations stay unexercised.
 
 - **BUILD-PRODUCT-REFERENCES.** In Psi source selection and the existing Build
   root/provider owners, implement designated product operands and qualified
