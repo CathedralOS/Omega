@@ -144,8 +144,13 @@ fn internal_state_calls_read_duplicated_rank_copies() {
 
 #[test]
 fn mixed_component_conserves_endpoints_through_internal_sites() {
-    // `hold(pending, bound)` carries the ranked input and the authored ceiling;
-    // the unranged member must transport that exact endpoint back.
+    // `hold(pending, bound)` carries the ranked input and the authored
+    // ceiling. The site consumes `outer`'s own range invariant, `0 <= pending
+    // <= bound`, as the arrival's proven evidence -- the member's state-edge
+    // judgment, which the checked stage runs for every ranged member with
+    // internal arrivals, re-establishes it there -- so the guard need not
+    // respell membership; the unranged member must still transport that
+    // exact endpoint back.
     let source = "data Main {}
         machine Main::outer(&mut self, cap: u64, remaining: u64)
         requires remaining <= cap;
@@ -153,19 +158,20 @@ fn mixed_component_conserves_endpoints_through_internal_sites() {
         -> u64 {
             transition remaining > 0 { true -> hold(remaining, cap) false -> remaining }
             state hold(pending: u64, bound: u64) {
-                transition pending > 0 && pending <= bound {
+                transition pending > 0 {
                     true -> self.inner(pending, bound)
                     false -> pending
                 }
             }
         }
         machine Main::inner(&mut self, n: u64, limit: u64)
-        requires n <= limit;
         terminates by n;
         -> u64 {
-            transition n > 0 { true -> self.outer(limit, n - 1) false -> n }
+            transition n > 0 && n <= limit { true -> self.outer(limit, n - 1) false -> n }
         }";
     assert_eq!(admitted(&typed_source(source)).len(), 1);
+    let respelled = source.replace("pending > 0 {", "pending > 0 && pending <= bound {");
+    assert_eq!(admitted(&typed_source(&respelled)).len(), 1);
     // An actual that is not the carried endpoint cannot pin the authored
     // ceiling, even when it is spelled from the same carrier.
     let moved = source.replace(
@@ -175,6 +181,19 @@ fn mixed_component_conserves_endpoints_through_internal_sites() {
     assert!(admitted(&typed_source(&moved)).is_empty());
     let renamed = source.replace("self.inner(pending, bound)", "self.inner(pending, pending)");
     assert!(admitted(&typed_source(&renamed)).is_empty());
+    // A prefix store into a carrier the invariant reads invalidates it.
+    let written = source
+        .replace("pending: u64, bound: u64)", "pending: u64, mut bound: u64)")
+        .replace(
+            "                transition pending > 0 {",
+            "                bound = bound; transition pending > 0 {",
+        );
+    assert_ne!(written, source);
+    assert!(admitted(&typed_source(&written)).is_empty());
+    // Requires facts stay entry-site evidence: the entry obligation, not the
+    // subordinate site, is what a missing premise fails.
+    let missing_entry = source.replace("requires remaining <= cap;", "");
+    assert!(admitted(&typed_source(&missing_entry)).is_empty());
 }
 
 #[test]

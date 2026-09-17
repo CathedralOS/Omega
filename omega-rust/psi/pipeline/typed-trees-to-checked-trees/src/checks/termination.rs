@@ -84,15 +84,21 @@ pub(crate) fn check_machine_termination_with_call_frames(
         // The whole-component judgment proves these members' cross-machine
         // call edges and transported ranges, but it never inspects an internal
         // state arrival: it trusts each member's own ranking judgment for the
-        // local graph. That trust only holds while the member has no
-        // local-state cycle, so a member that can still loop internally --
-        // through a subordinate-state backedge, an implicit self transition,
-        // or a call naming this machine's entry -- must answer to the
-        // local-state induction rule for exactly those intra-machine edges.
-        // Clamped call ranks on cross-machine edges stay component-owned, and
-        // external progress and ordinary contracts remain obligations of
-        // their existing checks.
+        // local graph. A member that can still loop internally -- through a
+        // subordinate-state backedge, an implicit self transition, or a call
+        // naming this machine's entry -- must answer to the local-state
+        // induction rule for exactly those intra-machine edges. A ranged
+        // member with internal arrivals must answer to its state-edge
+        // judgment even without a local cycle: a component call issued from
+        // a subordinate state consumes the member's authored range as that
+        // arrival's invariant, and only this judgment re-establishes
+        // membership and endpoint pinning at each arrival. A single-state
+        // member owes nothing past the entry membership the component
+        // judgment already proved. Clamped call ranks on cross-machine edges
+        // stay component-owned, and external progress and ordinary contracts
+        // remain obligations of their existing checks.
         if !has_local_cycle
+            && program.machine_states(machine).len() == 1
             && ranked_call_components
                 .iter()
                 .any(|members| members.contains(&machine.symbol))
