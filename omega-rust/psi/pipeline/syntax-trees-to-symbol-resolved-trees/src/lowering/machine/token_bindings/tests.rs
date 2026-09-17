@@ -373,3 +373,31 @@ fn token_bearing_boundary_signature_is_the_operator_slot_of_the_operator_spellin
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn bare_bodyless_signatures_are_catalog_primitives_or_reject() {
+    // No source map: nothing is the sealed toolchain source, so the catalog
+    // spelling is refused by custody and an ordinary name by the body rule.
+    let diagnostics = resolve_source(
+        "data FloatMeaning { value: u64; }
+         machine Float::meaning32(value: f32) -> FloatMeaning;",
+    )
+    .expect_err("a lookalike outside the sealed toolchain source grants no primitive");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "`Float::meaning32` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Float::meaning32` grants no primitive"
+        )),
+        "{diagnostics:?}"
+    );
+    let diagnostics = resolve_source(
+        "data Plain { value: u64; }
+         machine Plain::describe(value: u64) -> Plain;",
+    )
+    .expect_err("a bodyless nonboundary machine outside the catalog needs a body");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "`Plain::describe` has no body and is neither a boundary signature nor a compiler-catalog primitive"
+        )),
+        "{diagnostics:?}"
+    );
+}
