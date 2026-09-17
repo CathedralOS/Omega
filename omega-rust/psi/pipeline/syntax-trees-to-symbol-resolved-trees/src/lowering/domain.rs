@@ -161,6 +161,45 @@ fn lower_domain_operators(
     Ok(span)
 }
 
+/// The indexed application on a membership fact lowers exactly like a domain
+/// constraint's arguments: each argument becomes a child type reference and
+/// its retained const-argument selections keep their slot custody.
+fn lower_membership_domain_arguments(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    arguments: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
+) -> Result<arena::HandleSpan<symbol_resolved_trees::types::TypeReference>, Diagnostic> {
+    if arguments.is_empty() {
+        return Ok(arena::HandleSpan::empty());
+    }
+    let selection_start = lowerer.pending_const_argument_selections.len();
+    let mut lowered = arena::HandleSpan::empty();
+    for argument in syntax_trees
+        .type_references
+        .type_reference_handles(arguments)
+    {
+        let argument = crate::lowering::type_reference::lower_type_reference_handle(
+            lowerer,
+            syntax_trees,
+            *argument,
+        )?;
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .child_type_references
+            .append_to_span(&mut lowered, argument);
+    }
+    crate::lowering::type_reference::retain_const_argument_slots(
+        lowerer,
+        syntax_trees,
+        arguments,
+        lowered,
+        selection_start,
+    );
+    Ok(lowered)
+}
+
 pub(crate) fn lower_proof_facts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -197,10 +236,16 @@ pub(crate) fn lower_proof_facts(
                         .domain_path_members
                         .append_to_span(&mut domain, lower_name(member));
                 }
+                let domain_arguments = lower_membership_domain_arguments(
+                    lowerer,
+                    syntax_trees,
+                    membership.domain_arguments,
+                )?;
                 ProofFact::Membership(ProofMembershipFact {
                     value,
                     domain,
                     domain_symbol: SymbolHandle::invalid(),
+                    domain_arguments,
                     authored_domain_selection: None,
                 })
             }

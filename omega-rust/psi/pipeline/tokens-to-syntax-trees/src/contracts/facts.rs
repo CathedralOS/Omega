@@ -8,6 +8,7 @@ use syntax_trees::expression::{
     TableMembershipExpression,
 };
 use syntax_trees::item::{ProofFact, ProofMembershipFact};
+use syntax_trees::types::TypeReferenceHandle;
 use tokens::PunctuationKind;
 
 fn copy_item_path_to_expression_path(
@@ -42,12 +43,18 @@ fn copy_item_path_to_expression_path(
     }
 }
 
+/// One authored membership domain and its indexed application, if any.
+type MembershipDomain = (
+    HandleSpan<syntax_trees::identifier::Identifier>,
+    HandleSpan<TypeReferenceHandle>,
+);
+
 fn expand_carry_portable_item_paths(
     syntax_trees: &mut SyntaxTrees,
-    domains: Vec<HandleSpan<syntax_trees::identifier::Identifier>>,
-) -> Vec<HandleSpan<syntax_trees::identifier::Identifier>> {
+    domains: Vec<MembershipDomain>,
+) -> Vec<MembershipDomain> {
     let mut expanded = Vec::new();
-    for domain in domains {
+    for (domain, domain_arguments) in domains {
         let name = syntax_trees
             .tables
             .items
@@ -57,7 +64,7 @@ fn expand_carry_portable_item_paths(
             .collect::<Vec<_>>()
             .join("::");
         if name != "Carry::Portable" {
-            expanded.push(domain);
+            expanded.push((domain, domain_arguments));
             continue;
         }
 
@@ -74,7 +81,7 @@ fn expand_carry_portable_item_paths(
                 ),
             );
             debug_assert_eq!(member.arena_index(), namespace.arena_index() + 1);
-            expanded.push(HandleSpan::from_parts(namespace, 2));
+            expanded.push((HandleSpan::from_parts(namespace, 2), HandleSpan::empty()));
         }
     }
     expanded
@@ -121,7 +128,10 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                 let (first_domain, rest) = parse_path_handle_span(input, |member| {
                     syntax_trees.items.append_identifier_path_member(member)
                 })?;
-                let rest = reject_proof_fact_domain_arguments(syntax_trees, rest)?;
+                let argument_start = rest;
+                let (first_arguments, rest) =
+                    parse_proof_fact_domain_arguments(syntax_trees, first_domain, rest)?;
+                let mut argument_site = (!first_arguments.is_empty()).then_some(argument_start);
                 input = rest;
 
                 let first_expression_domain =
@@ -135,7 +145,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
 
                 let mut chain_expression = first_membership;
                 let mut saw_pipe = false;
-                let mut membership_domains = vec![first_domain];
+                let mut membership_domains = vec![(first_domain, first_arguments)];
 
                 while input.at_punctuation(PunctuationKind::Ampersand)
                     || input.at_punctuation(PunctuationKind::Pipe)
@@ -155,9 +165,14 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                     let (domain, rest) = parse_path_handle_span(rest, |member| {
                         syntax_trees.items.append_identifier_path_member(member)
                     })?;
-                    let rest = reject_proof_fact_domain_arguments(syntax_trees, rest)?;
+                    let argument_start = rest;
+                    let (domain_arguments, rest) =
+                        parse_proof_fact_domain_arguments(syntax_trees, domain, rest)?;
+                    if !domain_arguments.is_empty() && argument_site.is_none() {
+                        argument_site = Some(argument_start);
+                    }
                     input = rest;
-                    membership_domains.push(domain);
+                    membership_domains.push((domain, domain_arguments));
                     let expression_domain = copy_item_path_to_expression_path(syntax_trees, domain);
                     let membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
                         TableMembershipExpression {
@@ -175,6 +190,15 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                 }
 
                 if saw_pipe {
+                    // A `|` alternative lowers to a boolean expression whose
+                    // membership node carries only the domain path; an indexed
+                    // application would lose its instance there, so it stays a
+                    // named rejection rather than an erased index.
+                    if let Some(site) = argument_site {
+                        return Err(site.error_here(
+                            "indexed domain applications are not carried by `|` proof-fact alternatives; state the indexed membership as its own fact",
+                        ));
+                    }
                     let handle = syntax_trees
                         .items
                         .append_proof_fact(ProofFact::Expression(chain_expression));
@@ -186,10 +210,15 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                         .checked_add(1)
                         .expect("proof fact span count overflow");
                 } else {
-                    for domain in expand_carry_portable_item_paths(syntax_trees, membership_domains)
+                    for (domain, domain_arguments) in
+                        expand_carry_portable_item_paths(syntax_trees, membership_domains)
                     {
                         let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
-                            ProofMembershipFact { value, domain },
+                            ProofMembershipFact {
+                                value,
+                                domain,
+                                domain_arguments,
+                            },
                         ));
                         authored_fact_handles.push(handle);
                         if fact_count == 0 {
@@ -372,27 +401,29 @@ fn range_membership_expression(
 
 /// An indexed domain application after a proof-fact membership path
 /// (`result in Granted & Resident<P, T>`). The arguments are read with the
-/// type-position grammar so the spelling is the same one a declared type
-/// accepts, but the proof-fact membership node retains only the domain path:
-/// carrying the instance arguments to the typed membership fact needs the
-/// syntax, symbol-resolved, and typed proof-fact nodes to agree on an
-/// argument span and the typer to intern the instance identity, as it does
-/// for a type constraint. Until that route exists the application is rejected
-/// here by name rather than as a stray `<` before the fact terminator.
-fn reject_proof_fact_domain_arguments<'tokens, 'source>(
+/// type-position grammar so the spelling is the one a domain constraint
+/// accepts; the membership fact retains them for the resolver and the typer,
+/// which interns the instance identity exactly as it does for a constraint.
+/// Compiler carry permissions have no index, so an application there is
+/// rejected by name rather than as a stray `<` before the fact terminator.
+fn parse_proof_fact_domain_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
+    domain: HandleSpan<syntax_trees::identifier::Identifier>,
     input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, ParseError> {
+) -> Result<(HandleSpan<TypeReferenceHandle>, Input<'tokens, 'source>), ParseError> {
     if !input.at_punctuation(PunctuationKind::Less) {
-        return Ok(input);
+        return Ok((HandleSpan::empty(), input));
     }
-    let argument_site = input;
-    let (arguments, _) =
-        crate::type_syntax::parse_type::parse_domain_argument_handles(syntax_trees, input)?;
-    if arguments.is_empty() {
-        return Ok(input);
+    let name = syntax_trees
+        .tables
+        .items
+        .identifier_path_members(domain)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    if name == "Carry::Portable" || language_core::CarryPermission::from_name(&name).is_some() {
+        return Err(input.error_here("compiler carry permissions do not take index arguments"));
     }
-    Err(argument_site.error_here(
-        "indexed domain applications are not yet carried by proof facts; declare the membership on the value's type (`Extent in Granted & Resident<P, T>`) instead",
-    ))
+    crate::type_syntax::parse_type::parse_domain_argument_handles(syntax_trees, input)
 }

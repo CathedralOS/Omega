@@ -49,6 +49,8 @@ impl SyntaxTrees {
             ProofFact::Membership(membership) => ProofFact::Membership(ProofMembershipFact {
                 value: self.copy_expression_handle(other, membership.value),
                 domain: self.copy_item_identifier_span(other, membership.domain),
+                domain_arguments: self
+                    .copy_type_reference_handle_span(other, membership.domain_arguments),
             }),
         };
         let copied = self.items.append_proof_fact(copied);

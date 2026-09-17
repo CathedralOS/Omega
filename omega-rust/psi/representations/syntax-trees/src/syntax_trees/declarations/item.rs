@@ -583,6 +583,10 @@ impl Default for ProofFact {
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
+    /// Indexed domain application after the path (`value in Resident<P, T>`),
+    /// read with the same type-position grammar a domain constraint uses.
+    /// Empty for an unindexed membership.
+    pub domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
 }
 
 impl Default for ProofMembershipFact {
@@ -590,6 +594,7 @@ impl Default for ProofMembershipFact {
         Self {
             value: crate::expression::ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
+            domain_arguments: HandleSpan::empty(),
         }
     }
 }

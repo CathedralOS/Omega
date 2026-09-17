@@ -522,3 +522,155 @@ fn typed_snapshot_retains_trait_owned_operator_token() {
 
     assert_eq!(requirement.spelling, Some("<"));
 }
+
+/// The proof-fact position interns the same instance identity as the type
+/// position: `ensures result in Resident<SlotPlacement, Slot>` on a
+/// requirement returning `Extent in Resident<SlotPlacement, Slot>` carries
+/// both closed type indices and lands on the constraint's `semantic_id`, and a
+/// generic requirement's `ensures result in Quantity<To>` resolves `To` to
+/// the requirement's own const binder rather than a top-level name.
+#[test]
+fn proof_fact_indexed_application_interns_the_constraint_identity() {
+    let source = r#"
+        data Extent {}
+        data Slot {}
+        data SlotPlacement {}
+        data Unit {}
+        domain<P, T> Extent::Resident<P, T>;
+        domain<T, const U: Unit> T::Quantity<U>;
+
+        trait ResidentStorage {
+            machine place(storage: Extent) -> Extent in Resident<SlotPlacement, Slot>
+            ensures result in Resident<SlotPlacement, Slot>;
+
+            machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To>
+            ensures result in Quantity<To>;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
+    let typed_trees =
+        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+
+    let storage = typed_trees.traits().first().expect("ResidentStorage trait");
+    let [place, retag] = typed_trees.trait_machine_signatures(storage) else {
+        panic!("ResidentStorage should retain two requirements");
+    };
+
+    let return_constraint = |return_type| {
+        let typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+            typed_trees.type_reference_table.type_reference(return_type)
+        else {
+            panic!("requirement result should retain its indexed constraint");
+        };
+        let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
+            typed_trees.type_reference_table.constraints(*constraints)
+        else {
+            panic!("requirement result should carry one declared domain");
+        };
+        domain.clone()
+    };
+    let ensures_membership = |contracts| {
+        let [contract] = typed_trees.signature_contracts.span_or_empty(contracts) else {
+            panic!("requirement should retain one ensures contract");
+        };
+        assert_eq!(
+            contract.kind,
+            typed_trees::signature::SignatureContractKind::Ensures
+        );
+        let [typed_trees::domain::ProofFact::Membership(membership)] =
+            typed_trees.proof_facts.span_or_empty(contract.facts)
+        else {
+            panic!("ensures should retain one membership fact");
+        };
+        *membership
+    };
+    let argument_names = |arguments| {
+        typed_trees
+            .type_reference_table
+            .type_reference_handles(arguments)
+            .iter()
+            .map(
+                |argument| match typed_trees.type_reference_table.type_reference(*argument) {
+                    typed_trees::types::TypeReferenceNode::Named { symbol, name } => {
+                        (name.as_str().to_owned(), *symbol)
+                    }
+                    other => panic!("index argument should be a named leaf, got {other:?}"),
+                },
+            )
+            .collect::<Vec<_>>()
+    };
+
+    let place_domain = return_constraint(place.return_type);
+    let place_membership = ensures_membership(place.contracts);
+    assert_eq!(place_membership.domain_symbol, place_domain.symbol);
+    let place_arguments = argument_names(place_membership.domain_arguments);
+    assert_eq!(
+        place_arguments
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<_>>(),
+        ["SlotPlacement", "Slot"]
+    );
+    assert!(place_arguments.iter().all(|(_, symbol)| symbol.is_valid()));
+    assert!(place_membership.semantic_domain.is_valid());
+    assert_eq!(place_membership.semantic_domain, place_domain.semantic_id);
+    assert_ne!(
+        place_membership.semantic_domain,
+        typed_trees
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == place_domain.symbol)
+            .expect("Resident family")
+            .semantic_id,
+        "the instance must not collapse onto the family"
+    );
+
+    let [binder] = typed_trees.state_signature_type_parameters(retag) else {
+        panic!("retag should retain its const binder");
+    };
+    let retag_domain = return_constraint(retag.return_type);
+    let retag_membership = ensures_membership(retag.contracts);
+    assert_eq!(retag_membership.domain_symbol, retag_domain.symbol);
+    let retag_arguments = argument_names(retag_membership.domain_arguments);
+    let [(argument, symbol)] = retag_arguments.as_slice() else {
+        panic!("retag ensures should retain one index argument");
+    };
+    assert_eq!(argument, "To");
+    assert_eq!(*symbol, binder.symbol);
+    assert_eq!(retag_membership.semantic_domain, retag_domain.semantic_id);
+}
+
+#[test]
+fn proof_fact_indexed_application_rejects_a_wrong_argument_count() {
+    let source = r#"
+        data Extent {}
+        data Slot {}
+        data SlotPlacement {}
+        domain<P, T> Extent::Resident<P, T>;
+
+        trait ResidentStorage {
+            machine place(storage: Extent) -> Extent
+            ensures result in Resident<SlotPlacement>;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program =
+        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
+    let error = lower_symbol_resolved_trees(&resolved_program)
+        .expect_err("one argument cannot apply a two-index family");
+    assert!(
+        error.message.contains(
+            "domain family `Resident` requires 2 closed index argument(s), but 1 were supplied"
+        ),
+        "{}",
+        error.message
+    );
+}

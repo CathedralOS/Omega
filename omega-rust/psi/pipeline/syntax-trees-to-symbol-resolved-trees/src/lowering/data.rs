@@ -649,8 +649,30 @@ fn generic_case_facts_unsupported(
                         .identifier_path_members(membership.domain)
                         .iter()
                         .any(|member| gate.mentions(member.as_str()))
+                    || syntax_trees
+                        .type_references
+                        .type_reference_handles(membership.domain_arguments)
+                        .iter()
+                        .any(|argument| membership_argument_mentions(syntax_trees, *argument, gate))
             }
         })
+}
+
+/// An indexed application's argument is a type-position leaf: a named binder
+/// refuses like the domain path, and an open const expression refuses like the
+/// membership value.
+fn membership_argument_mentions(
+    syntax_trees: &SyntaxTrees,
+    argument: syntax::types::TypeReferenceHandle,
+    gate: &GenericCaseFactGate,
+) -> bool {
+    match syntax_trees.type_references.type_reference(argument) {
+        syntax::types::TypeReferenceNode::Named(name) => gate.mentions(name.as_str()),
+        syntax::types::TypeReferenceNode::ConstExpression(expression) => {
+            case_fact_expression_mentions(syntax_trees, *expression, gate, false)
+        }
+        _ => false,
+    }
 }
 
 /// Split a case-fact expression into its top-level `and` conjuncts.

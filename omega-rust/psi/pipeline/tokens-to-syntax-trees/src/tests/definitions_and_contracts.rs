@@ -1402,3 +1402,105 @@ fn retired_generated_proof_package_has_directed_migration() {
             .contains("let (value; public_output: local_term)")
     );
 }
+
+fn parse_domain_facts(
+    source: &str,
+) -> (
+    syntax_trees::SyntaxTrees,
+    Vec<syntax_trees::item::ProofFact>,
+) {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let facts = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Domain(domain) => Some(domain.facts),
+            _ => None,
+        })
+        .expect("one domain");
+    let facts = parsed.items.proof_facts(facts).to_vec();
+    (parsed, facts)
+}
+
+#[test]
+fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
+    let (parsed, facts) = parse_domain_facts(
+        r#"
+        domain Extent::Placed
+        requires
+            self in Granted & Resident<SlotPlacement, Slot>
+        "#,
+    );
+    let [
+        syntax_trees::item::ProofFact::Membership(granted),
+        syntax_trees::item::ProofFact::Membership(resident),
+    ] = facts.as_slice()
+    else {
+        panic!("an `&` chain lowers to one membership fact per domain, got {facts:?}");
+    };
+    assert_eq!(
+        parsed.items.identifier_path_members(granted.domain)[0].as_str(),
+        "Granted"
+    );
+    assert!(granted.domain_arguments.is_empty());
+    assert_eq!(
+        parsed.items.identifier_path_members(resident.domain)[0].as_str(),
+        "Resident"
+    );
+    let arguments = parsed
+        .type_references
+        .type_reference_handles(resident.domain_arguments)
+        .iter()
+        .map(
+            |argument| match parsed.type_references.type_reference(*argument) {
+                TypeReferenceNode::Named(name) => name.as_str().to_owned(),
+                other => panic!("index argument should be a named leaf, got {other:?}"),
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_eq!(arguments, ["SlotPlacement", "Slot"]);
+}
+
+#[test]
+fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
+    let tokens = Lexer::new(
+        r#"
+        domain Extent::Placed
+        requires
+            self in Granted | Resident<SlotPlacement, Slot>
+        "#,
+    )
+    .tokenize()
+    .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("a `|` alternative has no argument slot");
+    assert!(
+        error
+            .message
+            .contains("indexed domain applications are not carried by `|` proof-fact alternatives"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
+fn proof_fact_carry_permission_rejects_index_arguments() {
+    let tokens = Lexer::new(
+        r#"
+        domain Extent::Placed
+        requires
+            self in Carry::AnyCpu<SlotPlacement>
+        "#,
+    )
+    .tokenize()
+    .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("carry permissions have no index");
+    assert!(
+        error
+            .message
+            .contains("compiler carry permissions do not take index arguments"),
+        "{}",
+        error.message
+    );
+}

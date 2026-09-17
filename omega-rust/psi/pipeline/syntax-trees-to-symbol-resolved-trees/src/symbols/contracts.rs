@@ -65,6 +65,7 @@ pub(super) fn assign_contract_reference_symbols(
         assign_contract_span(
             symbols,
             &scope,
+            &[],
             entry_parameters,
             entry_symbol,
             machine.contracts,
@@ -79,6 +80,7 @@ pub(super) fn assign_contract_reference_symbols(
             assign_contract_span(
                 symbols,
                 &scope,
+                &[],
                 state_parameters.span_or_empty(state.parameters),
                 state.symbol,
                 state.contracts,
@@ -113,6 +115,7 @@ pub(super) fn assign_contract_reference_symbols(
             assign_contract_span(
                 symbols,
                 &scope,
+                data_type_parameters.span_or_empty(signature.type_parameters),
                 state_parameters.span_or_empty(signature.parameters),
                 signature.symbol,
                 signature.contracts,
@@ -154,6 +157,7 @@ pub(super) fn assign_contract_reference_symbols(
         assign_contract_span(
             symbols,
             &scope,
+            &[],
             state_parameters.span_or_empty(operator.parameters),
             operator.symbol,
             operator.contracts,
@@ -193,6 +197,7 @@ pub(super) fn assign_contract_reference_symbols(
         assign_contract_span(
             symbols,
             &scope,
+            &[],
             state_parameters.span_or_empty(signature.parameters),
             signature.symbol,
             signature.contracts,
@@ -208,6 +213,7 @@ pub(super) fn assign_contract_reference_symbols(
 fn assign_contract_span(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
+    signature_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
     parameters: &[symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
     contracts: arena::HandleSpan<symbol_resolved_trees::signature::SignatureContract>,
@@ -221,6 +227,30 @@ fn assign_contract_span(
             let expression = match fact {
                 symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
                 symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                    // An indexed application's arguments resolve in the
+                    // signature's lexical generic scope, exactly as a
+                    // parameter's `T in Family<P>` constraint arguments do:
+                    // the owning machine or trait telescope, then the
+                    // requirement's own binders.
+                    let mut local_type_parameters = machine.type_parameters.to_vec();
+                    local_type_parameters.extend_from_slice(signature_type_parameters);
+                    for offset in 0..membership.domain_arguments.count() {
+                        let start = membership.domain_arguments.start();
+                        let handle = arena::Handle::from_parts(
+                            start.arena_index() + offset,
+                            start.generation(),
+                        );
+                        let mut argument = child_type_references.get(handle).clone();
+                        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                            symbols,
+                            child_type_references,
+                            machine.type_constraints,
+                            &local_type_parameters,
+                            machine.symbol,
+                            &mut argument,
+                        );
+                        *child_type_references.get_mut(handle) = argument;
+                    }
                     membership.value
                 }
             };

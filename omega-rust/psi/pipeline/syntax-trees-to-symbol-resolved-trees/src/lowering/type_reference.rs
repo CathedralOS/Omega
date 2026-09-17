@@ -430,7 +430,7 @@ fn lower_type_constraint_handle(
 // Both ordinary data applications and indexed domain constraints own their
 // exact argument spans. Carry that relationship privately through resolution;
 // source names and equal encoded atoms cannot reconstruct a receiving slot.
-fn retain_const_argument_slots(
+pub(super) fn retain_const_argument_slots(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
