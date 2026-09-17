@@ -1165,3 +1165,45 @@ fn element_copy_into_machine_field_carries_field_coverage() {
     );
     check(&source, true);
 }
+
+/// A mutable collection view lends each element's declared-field coverage to
+/// the binding, and one statement transports all of it. A write at one literal
+/// index retires that coordinate alone: the transported facts sit in separate
+/// per-place contexts, so a sibling element's coverage stays live for the
+/// next call (the dungeon's `clear_level` shape: a slice view of the level's
+/// rooms handed element by element to a mutating helper).
+#[test]
+fn view_literal_index_write_keeps_sibling_element_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine clear_row(row: &mut Row) {{ row.bytes = ""; row.tag = 0; }}
+        machine caller(rows: &mut [Row; 2]) {{
+            let view: &mut [Row] = rows.as_mut_slice();
+            view[0].tag = 3;
+            clear_row(&mut view[1]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// The per-place split does not widen the evidence: corrupting one element
+/// through the view still retires exactly that element, so its own call
+/// rejects while the untouched sibling's call is accepted.
+#[test]
+fn view_element_corruption_retires_only_that_element() {
+    for (consumed, accepted) in [("view[1]", false), ("view[0]", true)] {
+        let source = format!(
+            r#"{DEFINITIONS}
+            machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+            machine caller(rows: &mut [Row; 2]) {{
+                let view: &mut [Row] = rows.as_mut_slice();
+                let alias: &mut [u8; 4] = &mut view[1].bytes;
+                alias[0] = 255;
+                consume(&{consumed});
+            }}
+        "#
+        );
+        check(&source, accepted);
+    }
+}
