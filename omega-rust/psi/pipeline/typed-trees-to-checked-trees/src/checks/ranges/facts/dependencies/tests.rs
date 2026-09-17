@@ -47,6 +47,17 @@ fn parameter_place(program: &TypedTrees, state: &State, name: &str) -> Canonical
     }
 }
 
+/// Build the checked operator evidence production hands to range facts: the
+/// same value/operator fact construction, including domain selection, so a
+/// recorded use row is the exact occurrence custody the checker consults.
+fn selected_operator_facts(program: &TypedTrees) -> checked_trees::CheckedOperatorFacts {
+    let proof_plan = proof::obligations::build_proof_plan(program);
+    let values = crate::values::build_value_facts(program, &proof_plan);
+    let mut operators = crate::operators::build_operator_facts(program, &values);
+    crate::operators::select_pending_domain_operator_meanings(program, &mut operators);
+    operators
+}
+
 #[test]
 fn retention_requires_complete_disjoint_writes_for_every_operand() {
     let program = typed_source(
@@ -277,6 +288,56 @@ fn compound_literals_read_each_evaluated_operand() {
                 "{statement}: write to {name}"
             );
         }
+    }
+}
+
+/// An authored arithmetic operator inside a literal element is call-shaped:
+/// with the exact checked operator-use row at this statement, its footprint
+/// is the operands the selected declaration receives, so the literal reads
+/// every operand of every element and nothing else.
+#[test]
+fn a_literal_element_with_selected_arithmetic_reads_its_checked_operands() {
+    let program = typed_source(
+        "operator + u64::custom(left: u64, right: u64) -> u64;
+        machine window(low: u64, step: u64, high: u64, unrelated: u64) {
+            let cut: [u64; 2] = [low + step, high];
+        }",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let expression = initializer(&program, state);
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("selected arithmetic element reads");
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "low"),
+            parameter_place(&program, state, "step"),
+            parameter_place(&program, state, "high"),
+        ]
+        .as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [
+        ("low", false),
+        ("step", false),
+        ("high", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
     }
 }
 

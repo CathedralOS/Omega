@@ -2259,10 +2259,10 @@ Owners include
   `OperatorSpelling::Range` (element-result typing intentionally returns
   none for windows), while selected authored range operators keep exact
   checked-occurrence custody. Incomplete read sets are preserved for
-  missing or foreign custody, unresolved or ambiguous selection, absent
-  or invalid range operands, and authored bound arithmetic. Evidence
-  only — disjointness and preservation still run through the existing
-  place algebra and loan checks. Witnessed by
+  missing or foreign custody, unresolved or ambiguous selection, and
+  absent or invalid range operands. Evidence only — disjointness and
+  preservation still run through the existing place algebra and loan
+  checks. Witnessed by
   `facts/dependencies/tests/indexes.rs`: 34 focused dependency tests, 79
   range-checker tests, and 231 range integration tests pass; the crate
   suite's 14 failures reproduce identically at base 5006b9314c. Ninth
@@ -2288,7 +2288,37 @@ Owners include
   (`writing_atomic_axes_retire_only_the_resident_place_premise`): a
   `requires` premise on `self.counter.load(NoOrdering)` survives a store,
   swap, `fetch_add`, or `compare_exchange` on `self.other` and is retired
-  by the same axis on `self.counter`.
+  by the same axis on `self.counter`. Tenth slice: the
+  operand gate `collect_operand_reads` now admits authored bound
+  arithmetic in selectors. When a bound's subtree lacks builtin meaning
+  the gate walks it node by node: a builtin arithmetic node recurses into
+  its operands, and an authored `+`/`-`/`*`/`/`/`%` application is
+  call-shaped, so `collect_selected_arithmetic_reads` admits exactly the
+  operands its exact checked operator-use row at the statement occurrence
+  authenticates — one `selected_operator_operands` join now serves the
+  `[]`/`[..]` and arithmetic spellings (a single stable `Resolved` row,
+  valid selection, intact candidate roster, matching spelling and operand
+  count) — and each operand recurses through the gate so a nested
+  authored application proves its own custody. The builtin point-selector
+  arm of `collect_selector_reads` uses the same gate. A constant-shaped
+  application (`1u64 + 0u64`) stays incomplete even with custody because
+  `index_place_segment` folds it syntactically to builtin arithmetic's
+  coordinate; a non-constant selector keeps its conservative `Index`
+  segment, so a fixed-element write still retires the facts. Incomplete
+  read sets are preserved for missing, drifted, or requires-scope
+  custody, constant-shaped authored applications, authored comparisons
+  and other non-arithmetic spellings, and authored arithmetic at an
+  expression root (the top-level `record_dependencies` floor is
+  unchanged). Evidence only, and no source compiles differently yet:
+  window validation still needs builtin bound meaning to prove a
+  computed start bound (even builtin `items[low + 0u64..high]` reports
+  "cannot prove subslice range start bound"), so this slice closes the
+  read-set shape ahead of value semantics for authored operators.
+  Witnessed by `facts/dependencies/tests/indexes.rs` and
+  `facts/dependencies/tests.rs`: `items[low + step..high]` under an
+  authored `u64` `+` reads `low`, `step`, `high`, and the window place,
+  survives a write to `unrelated`, and is retired by a write to any
+  operand or to `items`; 130 range-checker tests pass (8 new).
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
