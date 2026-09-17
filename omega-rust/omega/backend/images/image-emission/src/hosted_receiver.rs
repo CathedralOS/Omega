@@ -576,6 +576,16 @@ fn receiver_layout(
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return Err(invalid());
     };
+    // Every erased receiver field must rejoin exactly one Fused establishment
+    // row. Terminal lowers a bare boundary-trait instance binding
+    // (`console: Console`, checked `ProviderBacked`) and a canonical
+    // `Service<R> in Bound` carrier (checked `FusedServiceBacked`) to the same
+    // `Erased { type_identity }` shape, and only the Bound carrier ever
+    // produces a row (`selected-dispatch/src/service_custody/root.rs`). This
+    // layout therefore cannot tell a provider-backed field from a Bound field
+    // whose row went missing, so a bare interface field rejects here by
+    // design; admitting it would need a positive Psi-side witness that the
+    // field carries no Bound domain, never a missing-row fallback.
     let mut erased = 0;
     for field in fields {
         if field.relevance.is_erased()
