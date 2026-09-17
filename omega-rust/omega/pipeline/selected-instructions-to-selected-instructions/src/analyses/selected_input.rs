@@ -4,7 +4,7 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
-    ValidatedAddressFold, ValidatedConstantBoolean, ValidatedCopyRemoval,
+    ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch, ValidatedCopyRemoval,
     ValidatedDeadStoreElimination, ValidatedDiamondRelocation, ValidatedEdgeRelocation,
     ValidatedFixedViewCopies, ValidatedLiteralCompare, ValidatedLiteralFold,
     ValidatedLiteralMinuend, ValidatedLocalRelocation, ValidatedLocalSchedule,
@@ -40,6 +40,26 @@ impl ValidatedSelectedAnalysis for ValidatedAddressFold {
 impl sealed::Sealed for ValidatedConstantBoolean {}
 
 impl ValidatedSelectedAnalysis for ValidatedConstantBoolean {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedConstantBranch {}
+
+impl ValidatedSelectedAnalysis for ValidatedConstantBranch {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
