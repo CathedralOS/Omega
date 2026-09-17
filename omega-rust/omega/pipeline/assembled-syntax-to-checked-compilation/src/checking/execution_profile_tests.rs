@@ -104,6 +104,9 @@ struct PackagedFixture {
     directory: std::path::PathBuf,
     root_main: std::path::PathBuf,
     inputs: package_compilation::PackageCompilationInputs,
+    /// Every non-root package; an exact-target child receives one
+    /// generated-source handoff (possibly empty) per entry.
+    dependencies: Vec<semantic_vocabulary::PackageKeyIdentity>,
 }
 
 impl PackagedFixture {
@@ -165,13 +168,75 @@ impl PackagedFixture {
             ));
             dependencies.push(PackageDependencyBinding::new(kit, "tool", tool));
         }
+        let dependency_packages = packages
+            .iter()
+            .map(PackageSourceBinding::identity)
+            .filter(|package| *package != root)
+            .collect();
         let inputs = PackageCompilationInputs::new_package(root, packages, dependencies)
             .expect("closed dependency graph");
         Self {
             root_main: root_dir.join("main.omg"),
             directory,
             inputs,
+            dependencies: dependency_packages,
         }
+    }
+
+    /// Mount the generated source each dependency's build handed off for
+    /// `product`: `generated` names the handoff text per package, and every
+    /// other dependency receives an empty handoff. This is the
+    /// `PackageCompilationInputs` route through which the compiler passes
+    /// dependency build output to checked compilation; the dependency builds
+    /// themselves run above this layer.
+    fn with_generated_sources(
+        mut self,
+        product: target::TargetProfile,
+        generated: &[(semantic_vocabulary::PackageKeyIdentity, &str)],
+    ) -> Self {
+        use package_compilation::{
+            PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+        };
+        let bundles = self
+            .dependencies
+            .iter()
+            .map(|&package| {
+                let sources = match generated.iter().find(|(owner, _)| *owner == package) {
+                    Some((_, text)) => {
+                        let tree = build_output::replayed_single_ordinary_file(
+                            b"generated.omg",
+                            text.as_bytes(),
+                        )
+                        .expect("generated handoff should form a retained output tree");
+                        build_output::select_included_sources(&tree, &[b"generated.omg".to_vec()])
+                            .expect("generated handoff should be selected")
+                    }
+                    None => Vec::new(),
+                };
+                PackageGeneratedSourceBundle::from_checked(
+                    package,
+                    product,
+                    self.inputs.dependency_closure_for(package),
+                    PackageSourceConsumptionCommitment::for_test([5; 32]),
+                    sources,
+                )
+            })
+            .collect();
+        // Clones share the immutable graph; only the target attachments change.
+        self.inputs = self
+            .inputs
+            .clone()
+            .with_complete_dependency_generated_sources(bundles)
+            .expect("every dependency receives one handoff");
+        self
+    }
+
+    fn package(&self, name: &str) -> semantic_vocabulary::PackageKeyIdentity {
+        self.dependencies
+            .iter()
+            .copied()
+            .find(|package| self.inputs.package_name(*package) == Some(name))
+            .unwrap_or_else(|| panic!("fixture declares package `{name}`"))
     }
 
     fn request(&self, product: target::TargetProfile) -> super::CheckedCompileRequest<'static> {
@@ -245,6 +310,51 @@ fn a_product_dependency_host_row_stays_inert_under_a_foreign_product_target() {
     );
     let diagnostics = super::compile_to_checked(fixture.request(foreign_product_target()))
         .expect_err("a product dependency's host row selects against the product target");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("Gauge::read")
+                && diagnostic
+                    .message
+                    .contains("no implementation for the selected target")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+/// A generated handoff declaring `Owner::read` for the host and a third
+/// profile only, neither the product. A lone foreign row is filtered
+/// silently; two rows without a match reach the loud missing-implementation
+/// edge, so the row set exposes which target the handoff's owner selects
+/// against.
+fn two_row_handoff(owner: &str) -> String {
+    format!(
+        "pub data {owner} {{ }}\n\npub {} machine {owner}::read() {{ }}\n\npub {} machine {owner}::read() {{ }}\n",
+        target::TargetProfile::host().target_name(),
+        third_profile().target_name(),
+    )
+}
+
+#[test]
+fn a_build_only_dependency_generated_source_selects_its_host_row_under_a_foreign_product_target() {
+    let host = target::TargetProfile::host();
+    let product = foreign_product_target();
+    let fixture = PackagedFixture::new(PLAIN_KIT, PLAIN_LIB, None);
+    let kit = fixture.package("kit");
+    let fixture = fixture.with_generated_sources(product, &[(kit, &two_row_handoff("Probe"))]);
+    let checked = super::compile_to_checked(fixture.request(product)).unwrap_or_else(|diagnostics| {
+        panic!("a build-only dependency's generated source is host context; its {host:?} row must select under a {product:?} product: {diagnostics:#?}")
+    });
+    assert_eq!(checked.selected_target_profile(), Some(product));
+}
+
+#[test]
+fn a_product_dependency_generated_source_host_row_stays_inert_under_a_foreign_product_target() {
+    let product = foreign_product_target();
+    let fixture = PackagedFixture::new(PLAIN_KIT, PLAIN_LIB, None);
+    let lib = fixture.package("lib");
+    let fixture = fixture.with_generated_sources(product, &[(lib, &two_row_handoff("Gauge"))]);
+    let diagnostics = super::compile_to_checked(fixture.request(product))
+        .expect_err("a product dependency's generated source selects against the product target");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("Gauge::read")

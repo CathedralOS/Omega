@@ -1,8 +1,10 @@
 use super::{CompileTimings, ImmutableSourceParseCheckpoint, PackageCompilationInputs};
+use build_declarations::DependencyPurpose;
 use package_compilation::{
     PackageDependencyBinding, PackageGeneratedSourceBundle, PackageSourceBinding,
     PackageSourceConsumptionCommitment,
 };
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -24,6 +26,14 @@ struct Fixture {
 
 impl Fixture {
     fn new(with_physical_generated_source: bool) -> Self {
+        Self::with_dependency_purpose(with_physical_generated_source, DependencyPurpose::Product)
+    }
+
+    /// The root reaches `dependency` through one edge of `purpose`.
+    fn with_dependency_purpose(
+        with_physical_generated_source: bool,
+        purpose: DependencyPurpose,
+    ) -> Self {
         let root = std::env::temp_dir().join(format!(
             "omega-source-checkpoint-{}-{}",
             std::process::id(),
@@ -60,10 +70,11 @@ impl Fixture {
                 PackageSourceBinding::new(identity(1), "checkpoint-root", application),
                 PackageSourceBinding::new(identity(2), "checkpoint-dependency", dependency.clone()),
             ],
-            vec![PackageDependencyBinding::new(
+            vec![PackageDependencyBinding::for_purpose(
                 identity(1),
                 "dependency",
                 identity(2),
+                purpose,
             )],
         )
         .expect("checkpoint package graph should close");
@@ -251,6 +262,50 @@ fn generated_imports_use_the_bundle_package_as_requester() {
         .expect("generated source's helper joined the frontier");
     assert_eq!(source.package_identity, Some(identity(2)));
     assert_eq!(assembled.generated_source_custody.len(), 1);
+}
+
+#[test]
+fn generated_source_joins_the_build_scope_with_its_build_only_owner() {
+    for (purpose, joins_build_scope) in [
+        (DependencyPurpose::Build, true),
+        (DependencyPurpose::Product, false),
+    ] {
+        let fixture = Fixture::with_dependency_purpose(false, purpose);
+        // A handoff mounts whole for its exact target; the root need not
+        // import it, so the scope decision reads package ownership alone.
+        fs::write(&fixture.main, "const ANSWER: u32 = 42;\n").unwrap();
+        let inputs = fixture.child_inputs(
+            target::TargetProfile::WindowsX64,
+            b"pub machine generated_value() -> u64 { 7 }\n",
+        );
+        let mut timings = CompileTimings::default();
+        let checkpoint = ImmutableSourceParseCheckpoint::prepare(
+            &fixture.main,
+            Some(&fixture.inputs),
+            &mut timings,
+        )
+        .expect("prepare package source checkpoint");
+        let (_, assembled) = checkpoint
+            .for_exact_target("windows_x86_64", Some(&inputs))
+            .expect("select generated-source target")
+            .assemble(&mut timings)
+            .expect("assemble exact source child");
+        let [(generated, _)] = assembled.generated_source_custody.as_slice() else {
+            panic!("exactly one generated source is mounted");
+        };
+        // The selected build entry is always build scope; the handoff joins
+        // it exactly when its owner is reachable only through build edges.
+        let mut expected = HashSet::from([assembled
+            .build_source_id
+            .expect("the fixture root selects its build.omg")]);
+        if joins_build_scope {
+            expected.insert(*generated);
+        }
+        assert_eq!(
+            assembled.build_scope_sources, expected,
+            "a {purpose:?}-purpose dependency's generated source",
+        );
+    }
 }
 
 #[test]

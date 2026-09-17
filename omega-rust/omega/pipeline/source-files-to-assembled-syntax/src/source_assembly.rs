@@ -32,13 +32,14 @@ pub struct AssembledSyntax {
     pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     /// Sources the build scope owns: the selected build entry, the
-    /// root-local helpers it transitively imports, and every physical source
-    /// of a package the root reaches only through build-purpose edges
-    /// (including such a package's own ordinary dependencies). Their
-    /// target-scoped declarations select against the admitted build execution
-    /// profile, never the product target; every other source — product
-    /// packages, dual-purpose packages, and generated dependency source
-    /// (produced for the product target) — is product scope.
+    /// root-local helpers it transitively imports, and every source of a
+    /// package the root reaches only through build-purpose edges (including
+    /// such a package's own ordinary dependencies) — its physical files and
+    /// the generated source its build handed off alike, since both execute in
+    /// the same host context. Their target-scoped declarations select against
+    /// the admitted build execution profile, never the product target; every
+    /// other source — product packages, dual-purpose packages, and their
+    /// generated dependency source — is product scope.
     pub build_scope_sources: HashSet<source::SourceId>,
 }
 
@@ -941,10 +942,10 @@ fn assemble_syntax(
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     let build_only_packages = package_inputs.map(build_only_packages).unwrap_or_default();
-    let generated_sources = generated_source_custody
-        .iter()
-        .map(|(source_id, _)| *source_id)
-        .collect::<HashSet<_>>();
+    // Package ownership reads the source path for physical and generated
+    // sources alike: a generated source is mounted under its producing
+    // package's root (`generated_source_logical_path`), so a build-only
+    // package's handoff joins the build scope with that package's files.
     let build_scope_sources = sources
         .files
         .iter()
@@ -957,7 +958,6 @@ fn assemble_syntax(
             });
             let claimed_by_build_entry = claimed_purpose == Some(DependencyPurpose::Build);
             let owned_by_build_only_package = !build_only_packages.is_empty()
-                && !generated_sources.contains(&file.source_id)
                 && package_inputs
                     .and_then(|packages| packages.package_for_source(&file.path))
                     .is_some_and(|package| build_only_packages.contains(&package));
