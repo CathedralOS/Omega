@@ -145,14 +145,13 @@
 //   comparison), so `place` returns the `Occupied` record whose field
 //   carries the domain in type position, as `Split` and `Retired` do.
 // - Restating `placed.storage` into a typed local
-//   `Extent in Granted & Resident<SlotPlacement, Slot>` keeps the domain
-//   for weakening and linearity but not for a call's `requires`: an indexed
-//   membership is proved only against an exact instance identity, which the
-//   restatement does not supply, so `read(&resident)`/`retire(resident)`
-//   report `resident in Resident<...>` unprovable. The resident family
-//   therefore stays inside `Occupied` and is consumed atomically —
-//   `read(&Occupied)`, `retire(Occupied)` — the record rule the header
-//   already states for issued allocations.
+//   `Extent in Granted & Resident<SlotPlacement, Slot>` carries the
+//   instance identity the typer interned on the declared constraint, so the
+//   restated local proves the indexed membership at a call `requires`
+//   exactly as a `Vacant` restatement does (`exercise_resident_restated`:
+//   `view(&resident)`, `retire_view(resident)`). The record-carried shape
+//   (`exercise_resident`: `read(&Occupied)`, `retire(Occupied)`) remains
+//   the form that needs no restatement at all.
 // - A generic `boundary trait ResidentContentTransfer<P, T>` with an
 //   `Occupied<P, T>` result parses and types, so lifting this concrete
 //   route into the core schema is mechanical once its signature and receipt
@@ -529,6 +528,15 @@ boundary trait ResidentStorage {
     machine retire(placed: Occupied) -> Retired
     ensures
         Granted::content(old(&placed.storage)) == Granted::content(&result.storage);
+
+    // The same view and retirement over the restated qualified extent: the
+    // parameter domains are the exact indexed application, so a caller must
+    // prove `Resident<SlotPlacement, Slot>` on the argument it passes.
+    machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot;
+
+    machine retire_view(storage: Extent in Granted & Resident<SlotPlacement, Slot>) -> Retired
+    ensures
+        Granted::content(old(&storage)) == Granted::content(&result.storage);
 }
 
 // One allocation, established, read, retired, and recomposed with the tail.
@@ -553,6 +561,39 @@ reaches ExtentPartition, ResidentStorage
     let placed: Occupied = storage.place(vacant, Slot { value: 7 });
     let observed: Slot = storage.read(&placed);
     let retired: Retired = storage.retire(placed);
+    let released: Extent in Granted & Vacant = retired.storage;
+    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+        taken: released,
+        rest: tail,
+    });
+    recomposed as Extent
+}
+
+// The restated-local variant: `Occupied.storage` is restated through an
+// exactly typed `let` and the qualified extent itself crosses the view and
+// retirement calls.
+machine exercise_resident_restated(
+    partition: &ExtentPartition,
+    storage: &ResidentStorage,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    16 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition, ResidentStorage
+{
+    let issued: Issued = allocate(
+        partition,
+        Bump { tail: whole, remaining: capacity },
+        16,
+    );
+    let tail: Extent in Granted & Vacant = issued.strategy.tail;
+    let vacant: Extent in Granted & Vacant = issued.allocation;
+    let placed: Occupied = storage.place(vacant, Slot { value: 7 });
+    let resident: Extent in Granted & Resident<SlotPlacement, Slot> = placed.storage;
+    let observed: Slot = storage.view(&resident);
+    let retired: Retired = storage.retire_view(resident);
     let released: Extent in Granted & Vacant = retired.storage;
     let recomposed: Extent in Granted & Vacant = partition.merge(Split {
         taken: released,

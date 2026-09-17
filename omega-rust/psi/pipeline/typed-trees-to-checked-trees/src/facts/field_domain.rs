@@ -47,11 +47,25 @@ pub(crate) fn assignment_target_domain_symbols(
     state: &typed_trees::state::State,
     target: typed_trees::expression::ExpressionHandle,
 ) -> Vec<SymbolHandle> {
+    assignment_target_domain_identities(program, machine, state, target)
+        .into_iter()
+        .map(|(symbol, _)| symbol)
+        .collect()
+}
+
+/// [`assignment_target_domain_symbols`] paired with each constraint's interned
+/// identity, for producers that seed provable membership facts.
+pub(crate) fn assignment_target_domain_identities(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    target: typed_trees::expression::ExpressionHandle,
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(type_reference) = assignment_target_type_reference(program, machine, state, target)
     else {
         return Vec::new();
     };
-    predicate_domain_constraint_symbols(program, type_reference)
+    predicate_domain_constraint_identities(program, type_reference)
 }
 
 /// Resolve a state parameter/local target, including nested data members, to
@@ -472,9 +486,25 @@ pub(crate) fn domain_constraint_symbols(
     program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
+    domain_constraint_identities(program, type_reference)
+        .into_iter()
+        .map(|(symbol, _)| symbol)
+        .collect()
+}
+
+/// Declared domain constraints paired with the identity the typer interned on
+/// each constraint. An indexed application (`Resident<P, T>`) is proved only
+/// against an exact instance identity (`checks::contracts::prover`), so a
+/// membership fact seeded from a declared type must carry that identity; the
+/// definition symbol alone proves atomic domains only. For an atomic domain
+/// the identity is the definition's own.
+pub(crate) fn domain_constraint_identities(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            domain_constraint_symbols(program, *referee)
+            domain_constraint_identities(program, *referee)
         }
         TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
@@ -482,7 +512,7 @@ pub(crate) fn domain_constraint_symbols(
             .iter()
             .filter_map(|constraint| match constraint {
                 TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
-                    Some(domain.symbol)
+                    Some((domain.symbol, domain.semantic_id))
                 }
                 _ => None,
             })
@@ -498,9 +528,20 @@ pub(crate) fn predicate_domain_constraint_symbols(
     program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
-    domain_constraint_symbols(program, type_reference)
+    predicate_domain_constraint_identities(program, type_reference)
         .into_iter()
-        .filter(|symbol| {
+        .map(|(symbol, _)| symbol)
+        .collect()
+}
+
+/// The predicate-bearing subset of [`domain_constraint_identities`].
+pub(crate) fn predicate_domain_constraint_identities(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+    domain_constraint_identities(program, type_reference)
+        .into_iter()
+        .filter(|(symbol, _)| {
             program
                 .domain_definitions()
                 .iter()

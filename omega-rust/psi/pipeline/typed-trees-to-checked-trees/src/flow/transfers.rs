@@ -493,6 +493,13 @@ pub(super) fn propagate_statement_transfers(
     // recording the fact here makes a checked LET usable at later call and
     // operator boundaries just like a checked reassignment. An uninitialized
     // local grants nothing.
+    //
+    // The fact carries the identity the typer interned on the declared
+    // constraint, not only the definition symbol: an indexed application such
+    // as `Extent in Granted & Resident<P, T>` is proved at a call `requires`
+    // only against an exact instance identity, so a restated local that
+    // recorded `NULL` here kept the domain for weakening and linearity but was
+    // unprovable as a call premise.
     let declared_target_domains = match statement {
         StatementNode::Assignment(assignment) => {
             match (
@@ -500,7 +507,7 @@ pub(super) fn propagate_statement_transfers(
                 crate::semantic_calls::find_state_in_machine(program, machine_symbol, state_symbol),
             ) {
                 (Some(machine), Some(state)) => {
-                    crate::facts::field_domain::assignment_target_domain_symbols(
+                    crate::facts::field_domain::assignment_target_domain_identities(
                         program,
                         machine,
                         state,
@@ -511,11 +518,11 @@ pub(super) fn propagate_statement_transfers(
             }
         }
         StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-            crate::facts::field_domain::domain_constraint_symbols(program, local.type_reference)
+            crate::facts::field_domain::domain_constraint_identities(program, local.type_reference)
         }
         _ => Vec::new(),
     };
-    for domain_symbol in declared_target_domains {
+    for (domain_symbol, semantic_domain) in declared_target_domains {
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(target_place),
             point: ProgramPoint::Statement {
@@ -532,7 +539,7 @@ pub(super) fn propagate_statement_transfers(
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
                 domain_symbol,
-                semantic_domain: language_semantics::SemanticDomainId::NULL,
+                semantic_domain,
             },
         });
         semantic.append_ref(&mut refs, fact);

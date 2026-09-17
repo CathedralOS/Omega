@@ -1777,6 +1777,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "memory/bump_allocator_reset_with_live_resident",
     "memory/bump_allocator_resident_dropped",
     "memory/bump_allocator_place_into_occupied",
+    "memory/bump_allocator_restated_resident_index_mismatch",
 ];
 
 #[path = "canary_suite/entry_and_abi.rs"]
