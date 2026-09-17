@@ -1,7 +1,7 @@
 //! Outcome-sensitive machine and control-flow composition.
 
 use crate::FixedFuelError;
-use semantic_vocabulary::{BlockId, IntegerValue, MachineId, OperationId};
+use semantic_vocabulary::{BlockId, BoundaryMachineId, IntegerValue, MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::{
@@ -25,10 +25,12 @@ pub(super) fn derive_maximum_entry_bound(
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
     let dynamic_call_targets = dynamic_call_targets(module);
+    let provider_candidates = boundary_call_candidates(module);
     maximum_machine_outcomes(
         machine,
         &machines,
         &dynamic_call_targets,
+        &provider_candidates,
         schedule,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
@@ -37,6 +39,11 @@ pub(super) fn derive_maximum_entry_bound(
     .ok_or(FixedFuelError::NoTerminalPath(machine))
 }
 
+/// Every descriptor-dispatched call's verified realization, keyed by its
+/// call operation. `CallDynamicScalar` and `CallDynamicUnit` resolve through
+/// exactly one indirect or stored dispatch row; both lanes carry the same
+/// coordinates the interpreter joins on, so the merged map mirrors runtime
+/// resolution.
 pub(super) fn dynamic_call_targets(
     module: &TerminalModule,
 ) -> BTreeMap<(MachineId, OperationId), MachineId> {
@@ -45,24 +52,77 @@ pub(super) fn dynamic_call_targets(
         .indirect_dispatches
         .iter()
         .map(|dispatch| ((dispatch.owner, dispatch.operation), dispatch.realization))
+        .chain(
+            module
+                .dynamic_dispatch
+                .stored_dispatches
+                .iter()
+                .map(|dispatch| ((dispatch.owner, dispatch.operation), dispatch.realization)),
+        )
         .collect()
 }
 
-pub(super) fn operation_callee(
+/// Every checked provider an installation may select for a boundary
+/// requirement. A boundary call dispatches to whichever candidate the
+/// admitted installation binds, so bound composition takes the maximum over
+/// the whole candidate list rather than naming one.
+pub(super) fn boundary_call_candidates(
+    module: &TerminalModule,
+) -> BTreeMap<BoundaryMachineId, Vec<MachineId>> {
+    let mut candidates = BTreeMap::<BoundaryMachineId, Vec<MachineId>>::new();
+    for candidate in &module.provider_candidates {
+        candidates
+            .entry(candidate.boundary)
+            .or_default()
+            .push(candidate.candidate);
+    }
+    candidates
+}
+
+/// Every in-module machine one admitted operation can dispatch to.
+///
+/// Direct calls name their callee exactly. `CallDynamicScalar` and
+/// `CallDynamicUnit` resolve through the module's indirect or stored
+/// dispatch row; a missing row means the semantic invariant is broken, so
+/// the bound fails closed. A `BoundaryCall` can dispatch to any checked
+/// provider candidate, or to an external handler when the module retains
+/// none — an external completion charges no in-module callee work. A
+/// dynamic-parameter call receives its callee from the invocation's
+/// descriptor table; that open callee set has no fixed ceiling, so the
+/// certificate rejects rather than under-approximate.
+pub(super) fn operation_callees(
     owner: MachineId,
     operation: &terminal_psi::Operation,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
-) -> Option<MachineId> {
+    provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+) -> Result<Vec<MachineId>, FixedFuelError> {
     match &operation.kind {
         OperationKind::Call { callee, .. }
         | OperationKind::CallUnit { callee, .. }
         | OperationKind::CallStructuralScalar { callee, .. }
         | OperationKind::CallStructural { callee, .. }
-        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => Some(*callee),
-        OperationKind::CallDynamicScalar { .. } => {
-            dynamic_call_targets.get(&(owner, operation.id)).copied()
+        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => Ok(vec![*callee]),
+        OperationKind::CallDynamicScalar { .. } | OperationKind::CallDynamicUnit { .. } => {
+            dynamic_call_targets
+                .get(&(owner, operation.id))
+                .map(|realization| vec![*realization])
+                .ok_or(FixedFuelError::MissingDynamicDispatch {
+                    owner,
+                    operation: operation.id,
+                })
         }
-        _ => None,
+        OperationKind::CallDynamicParameterScalar { .. }
+        | OperationKind::CallDynamicParameterUnit { .. } => {
+            Err(FixedFuelError::InvocationBoundCallee {
+                owner,
+                operation: operation.id,
+            })
+        }
+        OperationKind::BoundaryCall { boundary, .. } => Ok(provider_candidates
+            .get(boundary)
+            .cloned()
+            .unwrap_or_default()),
+        _ => Ok(Vec::new()),
     }
 }
 
@@ -96,7 +156,7 @@ impl OutcomeBounds {
     }
 }
 
-fn maximum_optional(left: Option<u64>, right: Option<u64>) -> Option<u64> {
+pub(super) fn maximum_optional(left: Option<u64>, right: Option<u64>) -> Option<u64> {
     match (left, right) {
         (Some(left), Some(right)) => Some(left.max(right)),
         (Some(value), None) | (None, Some(value)) => Some(value),
@@ -118,6 +178,7 @@ pub(super) fn maximum_machine_outcomes(
     machine: MachineId,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -146,6 +207,7 @@ pub(super) fn maximum_machine_outcomes(
             &blocks,
             machines,
             dynamic_call_targets,
+            provider_candidates,
             schedule,
             memoized_machines,
             active_machines,
@@ -156,6 +218,7 @@ pub(super) fn maximum_machine_outcomes(
             &blocks,
             machines,
             dynamic_call_targets,
+            provider_candidates,
             schedule,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
@@ -187,6 +250,7 @@ fn natural_machine_outcomes(
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -208,6 +272,7 @@ fn natural_machine_outcomes(
                 block,
                 machines,
                 dynamic_call_targets,
+                provider_candidates,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -372,6 +437,7 @@ fn block_visit_units(
     block: &terminal_psi::Block,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -385,23 +451,35 @@ fn block_visit_units(
                 .ok_or(FixedFuelError::BoundOverflow)
         })?;
     for operation in &block.operations {
-        if let Some(callee) = operation_callee(machine.id, operation, dynamic_call_targets) {
+        // The possible callees are mutually exclusive dispatch outcomes:
+        // one visit invokes at most one of them, so the visit bound takes
+        // the maximum rather than the sum. A candidate with no terminal
+        // path admits an unbounded installation, so it rejects outright.
+        let mut invoked = 0_u64;
+        for callee in operation_callees(
+            machine.id,
+            operation,
+            dynamic_call_targets,
+            provider_candidates,
+        )? {
             let callee_bounds = maximum_machine_outcomes(
                 callee,
                 machines,
                 dynamic_call_targets,
+                provider_candidates,
                 schedule,
                 memoized_machines,
                 active_machines,
             )?;
-            units = units
-                .checked_add(
-                    callee_bounds
-                        .maximum()
-                        .ok_or(FixedFuelError::NoTerminalPath(callee))?,
-                )
-                .ok_or(FixedFuelError::BoundOverflow)?;
+            invoked = invoked.max(
+                callee_bounds
+                    .maximum()
+                    .ok_or(FixedFuelError::NoTerminalPath(callee))?,
+            );
         }
+        units = units
+            .checked_add(invoked)
+            .ok_or(FixedFuelError::BoundOverflow)?;
     }
     units = units
         .checked_add(schedule.terminator_units(&block.terminator))
@@ -411,6 +489,7 @@ fn block_visit_units(
             cleanup_machine,
             machines,
             dynamic_call_targets,
+            provider_candidates,
             schedule,
             memoized_machines,
             active_machines,
@@ -472,6 +551,7 @@ fn outcome_bounds_from(
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
     schedule: TerminalFuelSchedule,
     memoized: &mut BTreeMap<BlockId, OutcomeBounds>,
     active: &mut BTreeSet<BlockId>,
@@ -493,22 +573,34 @@ fn outcome_bounds_from(
     for operation in &block.operations {
         normal_units =
             checked_optional_add(normal_units, schedule.operation_units(&operation.kind))?;
-        if let Some(callee) = operation_callee(machine, operation, dynamic_call_targets) {
-            let callee_bounds = maximum_machine_outcomes(
-                callee,
+        let callees = operation_callees(
+            machine,
+            operation,
+            dynamic_call_targets,
+            provider_candidates,
+        )?;
+        // One invocation dispatches to at most one callee, so the
+        // candidates' outcome bounds merge as a maximum, not a sum. The
+        // derivation still runs when the call is unreachable so malformed
+        // targets (missing dispatch rows, call cycles) fail closed.
+        let mut invoked = OutcomeBounds::default();
+        for callee in &callees {
+            invoked = invoked.merge(maximum_machine_outcomes(
+                *callee,
                 machines,
                 dynamic_call_targets,
+                provider_candidates,
                 schedule,
                 memoized_machines,
                 active_machines,
-            )?;
-            if let Some(prefix) = normal_units {
-                crash_units = maximum_optional(
-                    crash_units,
-                    checked_optional_add(callee_bounds.crashed, prefix)?,
-                );
-                normal_units = checked_optional_add(callee_bounds.returned, prefix)?;
-            }
+            )?);
+        }
+        if !callees.is_empty()
+            && let Some(prefix) = normal_units
+        {
+            crash_units =
+                maximum_optional(crash_units, checked_optional_add(invoked.crashed, prefix)?);
+            normal_units = checked_optional_add(invoked.returned, prefix)?;
         }
     }
     let terminator_units = schedule.terminator_units(&block.terminator);
@@ -550,6 +642,7 @@ fn outcome_bounds_from(
             },
             machines,
             dynamic_call_targets,
+            provider_candidates,
             schedule,
             memoized_machines,
             active_machines,
@@ -567,6 +660,7 @@ fn outcome_bounds_from(
                 },
                 machines,
                 dynamic_call_targets,
+                provider_candidates,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -586,6 +680,7 @@ fn outcome_bounds_from(
             blocks,
             machines,
             dynamic_call_targets,
+            provider_candidates,
             schedule,
             memoized,
             active,
@@ -610,6 +705,7 @@ fn outcome_bounds_from(
             blocks,
             machines,
             dynamic_call_targets,
+            provider_candidates,
             schedule,
             memoized,
             active,
@@ -622,6 +718,7 @@ fn outcome_bounds_from(
             blocks,
             machines,
             dynamic_call_targets,
+            provider_candidates,
             schedule,
             memoized,
             active,
@@ -644,6 +741,7 @@ fn outcome_bounds_from(
                 blocks,
                 machines,
                 dynamic_call_targets,
+                provider_candidates,
                 schedule,
                 memoized,
                 active,
@@ -657,6 +755,7 @@ fn outcome_bounds_from(
                     blocks,
                     machines,
                     dynamic_call_targets,
+                    provider_candidates,
                     schedule,
                     memoized,
                     active,
@@ -685,6 +784,7 @@ fn compose_cleanup_outcomes(
     mut bounds: OutcomeBounds,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -697,6 +797,7 @@ fn compose_cleanup_outcomes(
             cleanup_machine,
             machines,
             dynamic_call_targets,
+            provider_candidates,
             schedule,
             memoized_machines,
             active_machines,

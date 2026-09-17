@@ -9,7 +9,7 @@
 //! ceiling: the components partition the cyclic topology, every cycle crosses a
 //! strict rank descent, and the condensed graph is acyclic.
 
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, Proposition};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, Proposition};
 use terminal_codec::{CodecError, TerminalPsiIdentity};
 use terminal_fuel::FuelScheduleIdentity;
 
@@ -152,6 +152,20 @@ pub enum FixedFuelError {
     /// The retained `Natural` component is malformed — a hard failure like any
     /// other broken semantic invariant, not an analysis limitation.
     InvalidRankedScc(MachineId),
+    /// A descriptor-dispatched dynamic call has no indirect or stored
+    /// dispatch row naming its realization — a broken semantic invariant,
+    /// not an analysis limitation.
+    MissingDynamicDispatch {
+        owner: MachineId,
+        operation: OperationId,
+    },
+    /// A dynamic-parameter call receives its callee from the invocation's
+    /// descriptor table; the module deliberately retains no realization
+    /// identity, so no fixed ceiling covers that open callee set.
+    InvocationBoundCallee {
+        owner: MachineId,
+        operation: OperationId,
+    },
     BoundOverflow,
     CertificateMismatch,
 }
