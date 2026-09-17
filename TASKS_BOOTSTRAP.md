@@ -413,7 +413,9 @@ prerequisite to every lower-rung milestone.
   canonical closure in `tools/bootstrap/delta/compiler_env.sh` (which also
   checks the record names the selected evaluator, packed closure, and packed
   support section), the
-  Epsilon evaluator manifest and repacked closure in
+  Epsilon evaluator manifest and repacked closure, the canonical slice
+  driver `execution_driver.delta`, and the reconstructed evaluator receipt
+  obligation in
   `tools/bootstrap/epsilon/evaluator_env.sh`, the Epsilon-written Omega D
   manifest and repacked closure in `tools/bootstrap/omega/compiler_env.sh`,
   and the derivation-checker and Beta-encoding theory manifests and repacked
@@ -423,7 +425,9 @@ prerequisite to every lower-rung milestone.
   needs macOS arm64 or Windows x64). Every test gate consuming a canonical
   closure now reaches it through the bound materializers or their
   `require_*_identity` checks; only gate-local diagnostic closures and
-  per-gate prefix entries still pack on top of the bound member bytes.
+  per-gate prefix entries still pack on top of the bound member bytes (the
+  shared slice driver is bound; the remaining unbound prefixes are each
+  gate's own driver and D's gate-local entries).
   Next: bind D's OCREQ request
   entry, the omega0/omega compiler tapes, and the eventual certificate and
   disclosed admission records the same way as those artifacts land.
