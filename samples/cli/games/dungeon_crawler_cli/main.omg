@@ -34,7 +34,7 @@ machine Main::main(&mut self) {
 
 
     state running(&mut self) {
-        self.game.run_game_loop();
+        block self.game.run_game_loop();
 
         transition {
             _ -> shutdown()
