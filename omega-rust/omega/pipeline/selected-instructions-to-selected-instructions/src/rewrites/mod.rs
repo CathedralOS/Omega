@@ -2,6 +2,7 @@
 
 mod address_fold;
 mod allocation_recovery;
+mod constant_boolean;
 mod copy_removal;
 mod dead_store;
 mod edge_relocation;
@@ -24,6 +25,7 @@ pub mod test_support;
 
 pub use address_fold::*;
 pub use allocation_recovery::*;
+pub use constant_boolean::*;
 pub use copy_removal::*;
 pub use dead_store::*;
 pub use edge_relocation::*;
