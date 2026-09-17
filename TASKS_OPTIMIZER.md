@@ -642,8 +642,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **SPILL-REALIZATION.** Extend executable spill recovery beyond dominating
   nonaddress instruction results in acyclic or cyclic functions and
   edge-initialized block parameters in acyclic or cyclic functions; admitted
-  uses now include body and terminator operands plus register-transport
-  arguments on outgoing successor edges.
+  uses now include body and terminator operands, register-transport arguments
+  on outgoing successor edges, and stored structural-transport snapshot
+  arguments on edge-transfer continuations.
   The owning paths are `selected-instructions-to-register-homes/src/assignment/runtime_spill/`
   and `selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`.
   Complete broader CFG/type and fixed-use recovery, composition with selected

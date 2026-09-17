@@ -39,8 +39,23 @@
 //! declared type must equal the victim's exact type. The parameter side of a
 //! binding or payload is not a use at all — it is the destination's
 //! definition, admitted only when it is the block-parameter victim's own
-//! incoming edge; every other naming stays rejected. Structural transports
-//! remain unsupported.
+//! incoming edge; every other naming stays rejected.
+//!
+//! A stored structural transport — a `Descriptor` or `WholeValue` snapshot
+//! argument on an edge-transfer continuation — reads the victim only through
+//! the bridge's own snapshot chunk loads, which admission treats as ordinary
+//! body instruction uses: each reload pair sits before its load, inside the
+//! bridge body rather than at the end-of-block position. The binding's
+//! `argument` field then moves to the single register those loads name after
+//! rewriting — no pair of its own is emitted. Admission requires the exact
+//! chunk-load stream the transport's byte decomposition describes, recorded
+//! as `ReadPlace` accesses for the edge and source place in this block. A
+//! one-chunk snapshot always resolves to one register; a multi-chunk
+//! snapshot needs the block's shared open reload, so it is admitted only
+//! where every chunk operand is unpinned and no unit-writing instruction
+//! closes the span between the first and last chunk load. A stored argument
+//! on the victim's own incoming edge, on a non-continuation successor, or
+//! whose chunk loads cannot resolve to one register stays rejected.
 //! Cyclic functions stay admitted: a back edge
 //! reaching the destination is just one more incoming edge, and it must run
 //! the same dedicated edge-copy definition whose store initializes the slot

@@ -7,10 +7,11 @@ use register_model::{
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedOperand, SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator,
-    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
+    SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+use semantic_vocabulary::{EdgeId, IntegerSign, IntegerType, PlaceId, ScalarType, ValueId};
 
 use super::RuntimeSpillError;
 use super::slot;
@@ -37,6 +38,12 @@ pub(super) struct Admission<'source> {
     /// already declared by an earlier victim — frame demand is unchanged and
     /// the byte must not be counted a second time.
     pub fresh_slot: bool,
+    /// Stored structural-transport arguments naming the victim, one per
+    /// binding. The snapshot's chunk loads are the real uses and were admitted
+    /// as ordinary instruction operands; `loads` holds those load identities
+    /// in byte order so proposal and replay can retarget the binding's
+    /// `argument` field to the single register the loads name after rewriting.
+    pub structural_uses: Vec<StructuralArgumentUse>,
     pub first_instruction: u32,
     pub first_register: u32,
     pub address: &'source RegisterInstructionConstraint,
@@ -51,6 +58,43 @@ pub(super) struct StorageDefinition {
     pub block_index: usize,
     pub instruction: SelectedInstructionId,
     pub register: VirtualRegisterId,
+}
+
+/// One stored structural-transport argument — a `Descriptor` or `WholeValue`
+/// snapshot source — naming the victim. The binding sits on an edge-transfer
+/// continuation in `block`; its snapshot loads carry `ReadPlace` memory
+/// accesses for `edge`/`place` in `byte_size`'s chunk decomposition, and
+/// `loads` is their instruction identities in byte order.
+pub(super) struct StructuralArgumentUse {
+    pub block: usize,
+    pub edge: EdgeId,
+    pub place: PlaceId,
+    pub byte_size: u32,
+    pub loads: Vec<SelectedInstructionId>,
+}
+
+/// The stored byte extent a structural transport snapshots — a descriptor's
+/// fixed sixteen bytes, or a whole value's declared size. `Unused` transports
+/// snapshot nothing.
+pub(super) fn stored_transport_size(transport: SelectedStructuralTransport) -> Option<u32> {
+    match transport {
+        SelectedStructuralTransport::Unused => None,
+        SelectedStructuralTransport::Descriptor { .. } => Some(16),
+        SelectedStructuralTransport::WholeValue { byte_size, .. } => Some(u32::from(byte_size)),
+    }
+}
+
+/// The chunk decomposition edge-transfer selection emits for one snapshot:
+/// the largest of 8, 4, 2, 1 bytes at each remaining offset. Admission walks
+/// the sorted access stream against this split rather than inferring widths.
+/// `offset` stays at or below `byte_size`, so the subtraction cannot
+/// underflow; once it equals `byte_size` no chunk remains and `None` is
+/// returned for any further access.
+fn next_chunk(byte_size: u32, offset: u32) -> Option<u8> {
+    [8u32, 4, 2, 1]
+        .into_iter()
+        .find(|width| *width <= byte_size - offset)
+        .map(|width| width as u8)
 }
 
 pub(super) fn admit<'source>(
@@ -170,6 +214,11 @@ pub(super) fn admit<'source>(
         .iter()
         .map(|_| slot::BlockUsePositions::default())
         .collect();
+    // Stored structural-transport arguments naming the victim. Their snapshot
+    // chunk loads are ordinary operand uses the instruction scan below admits;
+    // these records only pin down which loads belong to each binding so the
+    // rewrite can retarget the binding's argument to one reload register.
+    let mut structural_uses: Vec<StructuralArgumentUse> = Vec::new();
     for (current_block_index, block) in function.blocks.iter().enumerate() {
         let previous_uses = uses;
         let (terminal, successors) = super::control(&block.terminator);
@@ -246,13 +295,45 @@ pub(super) fn admit<'source>(
                     .checked_add(1)
                     .ok_or(RuntimeSpillError::IdentityOverflow)?;
             }
-            if successor.structural_bindings.iter().any(|binding| {
-                matches!(binding.transport,
-                SelectedStructuralTransport::Descriptor { argument, .. }
-                    | SelectedStructuralTransport::WholeValue { argument, .. }
-                    if argument == register)
-            }) {
-                return Err(RuntimeSpillError::UnsupportedUse);
+            for binding in &successor.structural_bindings {
+                let Some(byte_size) = stored_transport_size(binding.transport) else {
+                    continue;
+                };
+                let (SelectedStructuralTransport::Descriptor { argument, .. }
+                | SelectedStructuralTransport::WholeValue { argument, .. }) = binding.transport
+                else {
+                    continue;
+                };
+                if argument != register {
+                    continue;
+                }
+                // A stored structural argument is read only by the bridge's
+                // own snapshot chunk loads — the real uses, admitted as
+                // ordinary instruction operands below. The binding is the
+                // continuation's transfer record, so it must sit on the
+                // edge-transfer continuation of the edge's own bridge, the
+                // same idiom `parameter_definitions` enforces for the value
+                // bindings on a block parameter's incoming edges.
+                if successor.role != SelectedSuccessorRole::EdgeTransferContinuation
+                    || !matches!(block.origin, SelectedBlockOrigin::EdgeTransfer { edge, target }
+                        if edge == successor.psi_edge && target == successor.source_target)
+                {
+                    return Err(RuntimeSpillError::UnsupportedControlFlow);
+                }
+                // On a block-parameter victim's own incoming edge the edge's
+                // definition store runs inside this same bridge; a snapshot
+                // of the same register there could not be ordered against
+                // that store, so that naming stays rejected.
+                if definition.is_none() && successor.block == function.blocks[block_index].id {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
+                structural_uses.push(StructuralArgumentUse {
+                    block: current_block_index,
+                    edge: successor.psi_edge,
+                    place: binding.semantic.argument.place,
+                    byte_size,
+                    loads: Vec::new(),
+                });
             }
             if let Some(case) = &successor.structural_case {
                 for payload in &case.payloads {
@@ -390,6 +471,16 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(definitions.len()))
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .and_then(|total| total.checked_add(slot_scan))
+        // The structural-argument check groups the memory accesses once, then
+        // each pending binding walks its own access group.
+        .and_then(|total| total.checked_add(function.memory_accesses.len()))
+        .and_then(|total| {
+            total.checked_add(
+                structural_uses
+                    .len()
+                    .checked_mul(function.memory_accesses.len())?,
+            )
+        })
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow)?
         > budget.validation_steps()
@@ -531,6 +622,108 @@ pub(super) fn admit<'source>(
                 )
         })
         .collect();
+    // Every recorded binding must resolve to exactly the snapshot chunk-load
+    // stream its transport describes — `ReadPlace` accesses for its edge and
+    // source place in the transport's chunk decomposition, each in this
+    // bridge block reading the victim — and all of those loads must name one
+    // register after rewriting so the binding's `argument` field can move to
+    // it. A one-chunk snapshot always has such a register; a multi-chunk
+    // snapshot needs the block's shared open reload, so it is admitted only
+    // where every chunk operand is unpinned and no unit-writing instruction
+    // closes the span between the first and the last chunk load.
+    if !structural_uses.is_empty() {
+        let mut chunk_loads: std::collections::BTreeMap<
+            (EdgeId, PlaceId),
+            Vec<&selected_instructions::SelectedMemoryAccess>,
+        > = std::collections::BTreeMap::new();
+        for access in &function.memory_accesses {
+            if let SelectedMemoryAccessOrigin::Edge(edge) = access.origin
+                && access.role == SelectedMemoryAccessRole::ReadPlace
+            {
+                chunk_loads
+                    .entry((edge, access.place))
+                    .or_default()
+                    .push(access);
+            }
+        }
+        for accesses in chunk_loads.values_mut() {
+            accesses.sort_by_key(|access| access.byte_offset);
+        }
+        let mut owners = std::collections::BTreeMap::new();
+        for (owner, block) in function.blocks.iter().enumerate() {
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                owners.insert(instruction.id, (owner, index));
+            }
+        }
+        for pending in &mut structural_uses {
+            let Some(accesses) = chunk_loads.get(&(pending.edge, pending.place)) else {
+                return Err(RuntimeSpillError::UnsupportedUse);
+            };
+            let block = &function.blocks[pending.block];
+            let mut positions = Vec::with_capacity(accesses.len());
+            let mut pinned = false;
+            let mut offset = 0u32;
+            for access in accesses {
+                let Some(width) = next_chunk(pending.byte_size, offset) else {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                };
+                if access.byte_offset != offset || access.byte_count != u32::from(width) {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
+                let Some(&(owner, index)) = owners.get(&access.instruction) else {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                };
+                if owner != pending.block {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
+                let instruction = &block.instructions[index];
+                let expected_kind = match width {
+                    8 => SelectedInstructionKind::Load64 {
+                        byte_offset: offset,
+                    },
+                    4 => SelectedInstructionKind::Load32 {
+                        byte_offset: offset,
+                    },
+                    2 => SelectedInstructionKind::Load16 {
+                        byte_offset: offset,
+                    },
+                    _ => SelectedInstructionKind::Load8 {
+                        byte_offset: offset,
+                    },
+                };
+                let Some(address) = instruction.operands.first() else {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                };
+                if instruction.kind != expected_kind
+                    || address.virtual_register != register
+                    || address.access != RegisterOperandAccess::Use
+                {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
+                pinned |= address.fixed_view.is_some();
+                positions.push(index);
+                pending.loads.push(access.instruction);
+                offset += u32::from(width);
+            }
+            if offset != pending.byte_size {
+                return Err(RuntimeSpillError::UnsupportedUse);
+            }
+            if pending.loads.len() > 1 {
+                // Positions follow byte order, not necessarily instruction
+                // order; the span between the outermost chunk loads is what a
+                // unit-writing instruction would have to sit inside to close
+                // the shared reload between them.
+                let first = *positions.iter().min().unwrap();
+                let last = *positions.iter().max().unwrap();
+                let closed = block.instructions[first..last].iter().any(|instruction| {
+                    !instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty()
+                });
+                if !shared_reload[pending.block] || closed || pinned {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
+            }
+        }
+    }
     // Prefer reusing an already-declared spill slot when the last-writer
     // replay proves the incumbent's and this victim's storage windows never
     // interleave. Reuse declares nothing, so the shared slot is charged to the
@@ -555,6 +748,7 @@ pub(super) fn admit<'source>(
         definitions,
         slot,
         fresh_slot,
+        structural_uses,
         first_instruction,
         first_register,
         address,
