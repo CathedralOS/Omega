@@ -1,5 +1,5 @@
 use super::{content_predicate, hard_root_module, structural_parameter, unit_call_mut};
-use crate::{
+use crate::structural_unit::{
     block_id, boundary_id, claim_id, edge_id, machine_id, operation_id, place_id, service_id,
     value_id,
 };
