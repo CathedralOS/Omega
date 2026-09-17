@@ -475,7 +475,7 @@ ensures
         Float::meaning64(right),
         Float::meaning64(addend)
     );
-pub boundary operator F32::fused_multiply_add(left: f32, right: f32, addend: f32) -> f32
+pub boundary requirement F32::fused_multiply_add(left: f32, right: f32, addend: f32) -> f32
 ensures
     Float::meaning32(result) == FloatSemantics::fused_multiply_add(
         FloatFormat::BINARY32,
@@ -483,7 +483,7 @@ ensures
         Float::meaning32(right),
         Float::meaning32(addend)
     );
-pub boundary operator F64::fused_multiply_add(left: f64, right: f64, addend: f64) -> f64
+pub boundary requirement F64::fused_multiply_add(left: f64, right: f64, addend: f64) -> f64
 ensures
     Float::meaning64(result) == FloatSemantics::fused_multiply_add(
         FloatFormat::BINARY64,
