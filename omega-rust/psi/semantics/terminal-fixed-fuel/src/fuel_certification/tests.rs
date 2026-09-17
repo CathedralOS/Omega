@@ -78,10 +78,14 @@ mod machine_bounds {
         TerminalMachine, TerminalModule, TerminalNaturalCycle, TerminalRankedScc, Terminator,
         identity,
     };
-    use semantic_vocabulary::{ContractId, IntegerSign, IntegerType, ValueId};
+    use semantic_vocabulary::{
+        ContractId, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
+    };
     use terminal_psi::{
-        Block, MachineContract, Operation, OperationResult, TerminalBlockNaturalRank,
-        TerminalMachineResult, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+        Block, MachineContract, Operation, OperationResult, ProviderCandidateConformance,
+        ProviderRefinement, ProviderSignature, TerminalBlockNaturalRank,
+        TerminalIndirectDynamicDispatch, TerminalMachineResult, TerminalNaturalRankComparison,
+        TerminalNaturalRankEdge, TerminalStoredDynamicDispatch, ValueDeclaration,
     };
 
     fn id<T: semantic_vocabulary::PsiSemanticId>(raw: u64) -> T {
@@ -218,6 +222,155 @@ mod machine_bounds {
         }
     }
 
+    fn dynamic_unit_call(operation_id: u64, descriptor_ordinal: u32) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: id(operation_id),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallDynamicUnit {
+                descriptor_ordinal,
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        }
+    }
+
+    fn dynamic_scalar_call(operation_id: u64, descriptor_ordinal: u32) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: id(operation_id),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id(20_000 + operation_id),
+                scalar_type: ScalarType::Boolean,
+                qualifications: Default::default(),
+            }),
+            kind: OperationKind::CallDynamicScalar {
+                descriptor_ordinal,
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        }
+    }
+
+    fn parameter_unit_call(operation_id: u64) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: id(operation_id),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallDynamicParameterUnit {
+                parameter_ordinal: 0,
+                requirement_slot: 0,
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        }
+    }
+
+    fn boundary_call(operation_id: u64, boundary: u64) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: id(operation_id),
+            result: OperationResult::Unit,
+            kind: OperationKind::BoundaryCall {
+                boundary: id(boundary),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+        }
+    }
+
+    fn integer_constant(operation_id: u64, result: u64, value: u64) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: id(operation_id),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id(result),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 integer type"),
+                ),
+                qualifications: Default::default(),
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(u128::from(value)),
+            },
+        }
+    }
+
+    fn return_scalar(edge: u64, value: u64) -> Terminator {
+        Terminator::Return {
+            edge: id(edge),
+            value: id(value),
+            cleanup_actions: Vec::new(),
+        }
+    }
+
+    fn scalar_machine(machine_id: u64, entry_block: u64, blocks: Vec<Block>) -> TerminalMachine {
+        let mut semantic = machine(machine_id, entry_block, blocks, None);
+        semantic.result = TerminalMachineResult::Scalar(ValueDeclaration {
+            id: id(20_000 + machine_id),
+            scalar_type: ScalarType::Boolean,
+            qualifications: Default::default(),
+        });
+        semantic
+    }
+
+    fn indirect_dispatch(
+        owner: u64,
+        operation: u64,
+        descriptor_ordinal: u32,
+        realization: u64,
+    ) -> TerminalIndirectDynamicDispatch {
+        TerminalIndirectDynamicDispatch {
+            owner: id(owner),
+            operation: id(operation),
+            descriptor_ordinal,
+            declaring_trait_identity: "test::Work".into(),
+            public_requirement_identity: "test::Work::run()".into(),
+            requirement_identity: "test::Work::run".into(),
+            realization_identity: "test::Item::run".into(),
+            realization_callable_identity: "test::Item::run#callable".into(),
+            realization: id(realization),
+        }
+    }
+
+    fn stored_dispatch(
+        owner: u64,
+        operation: u64,
+        descriptor_ordinal: u32,
+        realization: u64,
+    ) -> TerminalStoredDynamicDispatch {
+        TerminalStoredDynamicDispatch {
+            owner: id(owner),
+            operation: id(operation),
+            descriptor_ordinal,
+            declaring_trait_identity: "test::Work".into(),
+            public_requirement_identity: "test::Work::run()".into(),
+            requirement_identity: "test::Work::run".into(),
+            realization_identity: "test::Item::run".into(),
+            realization_callable_identity: "test::Item::run#callable".into(),
+            realization: id(realization),
+        }
+    }
+
+    fn provider_candidate(boundary: u64, candidate: u64) -> ProviderCandidateConformance {
+        ProviderCandidateConformance {
+            boundary: id(boundary),
+            requirement_identity: "test::boundary".into(),
+            provider_identity: format!("test::provider::{candidate}"),
+            candidate_identity: format!("test::candidate::{candidate}"),
+            candidate: id(candidate),
+            signature: ProviderSignature {
+                parameters: Vec::new(),
+            },
+            refinement: ProviderRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        }
+    }
+
     fn rank_edge(
         edge: u64,
         source: u64,
@@ -325,6 +478,117 @@ mod machine_bounds {
             derive_maximum_entry_bound(&module, id(1)),
             Err(FixedFuelError::ControlCycle(id(2)))
         );
+    }
+
+    /// A descriptor-dispatched Unit call inside a cyclic member composes its
+    /// realization's bound into every member visit, exactly like a direct
+    /// call — the `rank_maximum + 1` multiplier covers it per iteration.
+    #[test]
+    fn natural_cycle_bound_counts_dynamic_unit_realization_per_visit() {
+        let walk = cyclic_machine(32, vec![dynamic_unit_call(10, 0)]);
+        let realization = machine(5, 5, vec![block(5, Vec::new(), return_unit(6))], None);
+        let mut module = module(1, vec![walk, realization]);
+        module.dynamic_dispatch.indirect_dispatches = vec![indirect_dispatch(1, 10, 0, 5)];
+
+        // Same accounting as the direct-call case: header edge 1 plus work
+        // (1 call op + 1 callee unit + 1 jump edge) per member visit.
+        let component = 4_u128 * (u128::from(u32::MAX) + 1);
+        let walk_bound = 1 + component + 1;
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(u64::try_from(walk_bound).expect("fits u64"))
+        );
+    }
+
+    /// A stored-descriptor dispatch names the same kind of in-module
+    /// realization an indirect row does: its bound composes per call site.
+    #[test]
+    fn stored_dispatch_realization_contributes_its_bound() {
+        let caller = machine(
+            1,
+            1,
+            vec![block(1, vec![dynamic_scalar_call(10, 0)], return_unit(2))],
+            None,
+        );
+        let realization =
+            scalar_machine(5, 5, vec![block(5, Vec::new(), return_scalar(6, 20_005))]);
+        let mut module = module(1, vec![caller, realization]);
+        module.dynamic_dispatch.stored_dispatches = vec![stored_dispatch(1, 10, 0, 5)];
+
+        // 1 call op + realization bound 1 (its Return edge) + ReturnUnit edge 1.
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(3));
+    }
+
+    /// A descriptor call without its dispatch row has no realization to
+    /// bound. That is a broken semantic invariant, so derivation fails closed
+    /// instead of certifying zero callee work.
+    #[test]
+    fn descriptor_call_without_dispatch_row_rejects() {
+        let walk = cyclic_machine(32, vec![dynamic_unit_call(10, 0)]);
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Err(FixedFuelError::MissingDynamicDispatch {
+                owner: id(1),
+                operation: id(10),
+            })
+        );
+    }
+
+    /// A dynamic-parameter call receives its callee from the invocation's
+    /// descriptor table: the realization set is open, so no fixed ceiling can
+    /// cover it and derivation rejects rather than under-approximates.
+    #[test]
+    fn dynamic_parameter_call_rejects_as_invocation_bound() {
+        let walk = cyclic_machine(32, vec![parameter_unit_call(10)]);
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Err(FixedFuelError::InvocationBoundCallee {
+                owner: id(1),
+                operation: id(10),
+            })
+        );
+    }
+
+    /// An installed boundary call dispatches to whichever checked candidate
+    /// the admitted installation binds, so the call charge is the maximum
+    /// candidate bound — not the sum and not zero.
+    #[test]
+    fn boundary_call_composes_the_maximum_candidate_bound() {
+        let caller = machine(
+            1,
+            1,
+            vec![block(1, vec![boundary_call(10, 7)], return_unit(2))],
+            None,
+        );
+        let small = machine(5, 5, vec![block(5, Vec::new(), return_unit(6))], None);
+        let large = machine(
+            6,
+            6,
+            vec![block(6, vec![integer_constant(11, 12, 0)], return_unit(8))],
+            None,
+        );
+        let mut module = module(1, vec![caller, small, large]);
+        module.provider_candidates = vec![provider_candidate(7, 5), provider_candidate(7, 6)];
+
+        // 1 call op + max(candidate bounds 1 and 2) + ReturnUnit edge 1 = 4.
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(4));
+    }
+
+    /// A boundary call with no retained provider candidates completes
+    /// through an external handler: it charges only its own operation unit.
+    #[test]
+    fn boundary_call_without_candidates_charges_only_the_operation() {
+        let caller = machine(
+            1,
+            1,
+            vec![block(1, vec![boundary_call(10, 7)], return_unit(2))],
+            None,
+        );
+        let module = module(1, vec![caller]);
+
+        assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(2));
     }
 
     #[test]

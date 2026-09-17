@@ -1,10 +1,11 @@
 //! Invocation-local preparation and complete reachable segment partition.
 
 use super::outcome_bounds::{
-    OutcomeBounds, dynamic_call_targets, maximum_machine_outcomes, operation_callee,
+    OutcomeBounds, boundary_call_candidates, dynamic_call_targets, maximum_machine_outcomes,
+    maximum_optional, operation_callees,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
+use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_codec::{TerminalPsiIdentity, terminal_psi_identity};
 use terminal_fuel::TerminalFuelSchedule;
@@ -23,6 +24,7 @@ pub(super) struct PreparedFuelModule<'module> {
     terminal_psi: std::cell::OnceCell<Result<TerminalPsiIdentity, terminal_codec::CodecError>>,
     machines: BTreeMap<MachineId, &'module TerminalMachine>,
     dynamic_call_targets: BTreeMap<(MachineId, OperationId), MachineId>,
+    provider_candidates: BTreeMap<BoundaryMachineId, Vec<MachineId>>,
 }
 
 impl<'module> PreparedFuelModule<'module> {
@@ -38,6 +40,7 @@ impl<'module> PreparedFuelModule<'module> {
                 .map(|machine| (machine.id, machine))
                 .collect(),
             dynamic_call_targets: dynamic_call_targets(module),
+            provider_candidates: boundary_call_candidates(module),
         }
     }
 
@@ -90,6 +93,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         let blocks = &self.blocks;
         let machines = &self.subject.machines;
         let dynamic_call_targets = &self.subject.dynamic_call_targets;
+        let provider_candidates = &self.subject.provider_candidates;
         let schedule = TerminalFuelSchedule::CURRENT;
         let mut memoized_machines = BTreeMap::new();
         let mut active_machines = BTreeSet::from([machine]);
@@ -106,16 +110,29 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 .ok_or(FixedFuelError::UnknownBlock(current))?;
             let mut terminator_reachable = true;
             for operation in &block.operations {
-                if let Some(callee) = operation_callee(machine, operation, dynamic_call_targets) {
-                    let callee_bounds = maximum_machine_outcomes(
-                        callee,
-                        machines,
-                        dynamic_call_targets,
-                        schedule,
-                        &mut memoized_machines,
-                        &mut active_machines,
-                    )?;
-                    if callee_bounds.returned.is_none() {
+                let callees = operation_callees(
+                    machine,
+                    operation,
+                    dynamic_call_targets,
+                    provider_candidates,
+                )?;
+                // The caller's terminator stays reachable when at least one
+                // admitted dispatch target can return normally.
+                if !callees.is_empty() {
+                    let mut any_returns = false;
+                    for callee in callees {
+                        let callee_bounds = maximum_machine_outcomes(
+                            callee,
+                            machines,
+                            dynamic_call_targets,
+                            provider_candidates,
+                            schedule,
+                            &mut memoized_machines,
+                            &mut active_machines,
+                        )?;
+                        any_returns |= callee_bounds.returned.is_some();
+                    }
+                    if !any_returns {
                         terminator_reachable = false;
                         break;
                     }
@@ -188,6 +205,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         let blocks = &self.blocks;
         let machines = &self.subject.machines;
         let dynamic_call_targets = &self.subject.dynamic_call_targets;
+        let provider_candidates = &self.subject.provider_candidates;
         let schedule = TerminalFuelSchedule::CURRENT;
         let mut active_machines = BTreeSet::from([machine.id]);
         if !blocks.contains_key(&start_block) {
@@ -209,21 +227,35 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 units = units
                     .checked_add(schedule.operation_units(&operation.kind))
                     .ok_or(FixedFuelError::BoundOverflow)?;
-                if let Some(callee) = operation_callee(machine.id, operation, dynamic_call_targets)
-                {
-                    let callee_bounds = maximum_machine_outcomes(
-                        callee,
-                        machines,
-                        dynamic_call_targets,
-                        schedule,
-                        memoized_machines,
-                        &mut active_machines,
-                    )?;
+                let callees = operation_callees(
+                    machine.id,
+                    operation,
+                    dynamic_call_targets,
+                    provider_candidates,
+                )?;
+                if !callees.is_empty() {
+                    // Mutually exclusive dispatch targets: the segment's call
+                    // charge is the maximum normal-return bound across the
+                    // candidates an admitted dispatch could select.
+                    let mut invoked_returned = None;
+                    for &callee in &callees {
+                        let callee_bounds = maximum_machine_outcomes(
+                            callee,
+                            machines,
+                            dynamic_call_targets,
+                            provider_candidates,
+                            schedule,
+                            memoized_machines,
+                            &mut active_machines,
+                        )?;
+                        invoked_returned =
+                            maximum_optional(invoked_returned, callee_bounds.returned);
+                    }
                     units = units
-                        .checked_add(callee_bounds.returned.ok_or(
+                        .checked_add(invoked_returned.ok_or(
                             FixedFuelError::SegmentEndUnreachableAfterCall {
                                 block: current,
-                                callee,
+                                callee: callees[0],
                             },
                         )?)
                         .ok_or(FixedFuelError::BoundOverflow)?;
