@@ -13,7 +13,7 @@ mod static_bindings;
 
 pub(crate) use callee_proposals::{
     collect_contract_facts, collect_expression_tree, collect_machine_proposals_for_callee,
-    contract_expression_handles, resolve_callee, state_by_symbol,
+    contract_expression_handles, enclosing_statement_ordinal, resolve_callee, state_by_symbol,
 };
 pub(crate) use candidate_bounds::{approved_type_bounds, validate_candidate_conformance_bounds};
 pub(crate) use selection_assembly::{
@@ -40,6 +40,7 @@ pub(super) fn collect_call_proposals(
     target_name: &str,
     machine_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
+    receiver_type: Option<TypeReferenceHandle>,
     expected_return: Option<TypeReferenceHandle>,
     scope_limit: usize,
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
@@ -116,6 +117,28 @@ pub(super) fn collect_call_proposals(
             const_proposals,
         );
     }
+    // A receiver-syntax call (`a.settle()`) excludes the `self` formal from
+    // its argument list, so the zip above never pairs it. The receiver place
+    // still carries the concrete application — `Box<i32>` against `self:
+    // Self` on `machine Box::settle<T>` — and is the only evidence a
+    // zero-argument generic method call can offer.
+    if let Some(self_index) = callee.self_index
+        && self_index < skip
+        && let Some(actual) = receiver_type
+    {
+        let required = callee.parameter_types[self_index];
+        infer_static_bindings(
+            program,
+            required,
+            actual,
+            &candidate.template.type_parameters,
+            &candidate.template.const_parameters,
+            Some(&fixed_range_parameters),
+            callee.candidate_index,
+            type_proposals,
+            const_proposals,
+        );
+    }
     if let Some(actual) = expected_return {
         // Result context can fill an omitted endpoint, but cannot reselect a
         // bound already supplied by an argument (even a still-open one).
@@ -175,6 +198,12 @@ pub(super) fn collect_call_selections(
                             call.target.as_str(),
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
+                            statement_receiver_type(
+                                program,
+                                state,
+                                CallSite::Statement(handle),
+                                call,
+                            ),
                             None,
                             !program.machine_type_parameters(machine).is_empty(),
                         ) {
@@ -199,6 +228,7 @@ pub(super) fn collect_call_selections(
                                 call.target.as_str(),
                                 &call.machine_arguments,
                                 program.expression_table.expression_handles(call.arguments),
+                                expression_receiver_type(program, machine, state, call.receiver),
                                 // An inferred result type is not independent
                                 // destination evidence for its own call.
                                 (local.type_reference.is_valid() && !local.type_is_inferred)
@@ -227,6 +257,7 @@ pub(super) fn collect_call_selections(
                                 call.target.as_str(),
                                 &call.machine_arguments,
                                 program.expression_table.expression_handles(call.arguments),
+                                expression_receiver_type(program, machine, state, call.receiver),
                                 None,
                                 !program.machine_type_parameters(machine).is_empty(),
                             ) {
@@ -282,6 +313,7 @@ pub(super) fn collect_call_selections(
                     call.target.as_str(),
                     &call.machine_arguments,
                     program.expression_table.expression_handles(call.arguments),
+                    expression_receiver_type(program, machine, state, call.receiver),
                     None,
                     !program.machine_type_parameters(machine).is_empty(),
                 ) {
@@ -345,4 +377,90 @@ pub(super) fn collect_call_selections(
     }
 
     selections
+}
+
+/// A receiver call's binding evidence for the `self` formal it keeps out of
+/// the ordinary argument list. `None` for a namespace receiver
+/// (`Box::settle`) or a receiver whose declared type cannot be recovered.
+fn expression_receiver_type(
+    program: &TypedTrees,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
+    receiver: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if !receiver.is_valid() {
+        return None;
+    }
+    validation::declared_place_type_raw(program, caller_machine, Some(caller_state), receiver)
+        .or_else(|| {
+            validation::expression_result_type_reference(
+                program,
+                caller_machine,
+                caller_state,
+                receiver,
+            )
+        })
+}
+
+/// A statement call retains its receiver as a name path plus the root and
+/// leaf member symbols rather than an expression. One member is a declared
+/// place outright; two members (`self.a`, `other.field`) project the leaf
+/// through the root's type so a generic root still supplies the leaf's
+/// concrete application. Deeper projections do not retain their intermediate
+/// member symbols, so only the leaf's own declared type remains usable.
+fn statement_receiver_type(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    site: CallSite,
+    call: &typed_trees::statement::TableCall,
+) -> Option<TypeReferenceHandle> {
+    if !call.receiver_root_symbol.is_valid() || !call.receiver_symbol.is_valid() {
+        return None;
+    }
+    let statement_index = enclosing_statement_ordinal(program, state, site).unwrap_or(usize::MAX);
+    let members = program.statement_table.name_path_members(call.receiver);
+    let segments = match members.len() {
+        0 => return None,
+        1 => Vec::new(),
+        2 => vec![facts::PlaceSegment::Field {
+            symbol: call.receiver_symbol,
+        }],
+        _ => return declared_member_type(program, call.receiver_symbol),
+    };
+    crate::flow::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement_index,
+        &crate::flow::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(call.receiver_root_symbol),
+            segments,
+        },
+    )
+    .or_else(|| declared_member_type(program, call.receiver_symbol))
+}
+
+/// The declared type of a data field or variant payload member by symbol —
+/// the fallback for receiver projections too deep to reconstruct. A member
+/// declared through its owner's own parameters (`value: T` on `Box<T>`)
+/// proposes nothing concrete downstream; a concrete member is exact.
+fn declared_member_type(
+    program: &TypedTrees,
+    member_symbol: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    program.data_definitions().iter().find_map(|data| {
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) => {
+                    (field.symbol == member_symbol).then_some(field.type_reference)
+                }
+                typed_trees::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find_map(|field| {
+                        (field.symbol == member_symbol).then_some(field.type_reference)
+                    }),
+            })
+    })
 }
