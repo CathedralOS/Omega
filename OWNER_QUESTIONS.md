@@ -40,7 +40,28 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-None.
+1. **Bare boundary-trait instance fields on a program-entry receiver.** The
+   language guide ratifies `console: Console;` as an instance binding
+   (chapter 1 Hello World, chapter 19 service bindings), and 136 maintained
+   samples spell their Console field that way against 4 using
+   `console: Service<Console> in Bound`. The [entry contract](wiki/spec/build/entry_roots.md)
+   defines occurrence evidence only for `Service<R> in Bound` receiver
+   fields, so the hosted receiver bridge has no establishment row for a bare
+   instance field and rejects the entry ("macOS hosted receiver bridge lost
+   exact contract, storage, or entry custody"); TASKS.md forbids admitting an
+   erased field without a row. Witness (macOS ARM64, ab5f28700d): unchanged
+   `samples/cli/basics/number_guess` fails there, and the same program with
+   only that field respelled `Service<Console> in Bound` compiles and exits
+   70. Decision needed: (a) a bare instance field on the entry receiver is
+   establishable, which requires Psi eligibility to record provider-backed
+   erased fields as a positive witness that settlement and the bridge check
+   (no erased-field fallback); or (b) `Service<R> in Bound` is the only
+   establishable receiver spelling, in which case chapter 1's Hello World and
+   the 136 samples migrate (precedent: cli_mvp 70f1ebe6cd, generic_counters
+   838a868432) and the guide's instance-binding examples stay valid only for
+   non-entry data. Motivating customers: SAMPLE-CORPUS `number_guess` and
+   the `cli/basics` cohort; ENTRY-CONTENT-ROOTS owns the implementation
+   either way.
 
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
