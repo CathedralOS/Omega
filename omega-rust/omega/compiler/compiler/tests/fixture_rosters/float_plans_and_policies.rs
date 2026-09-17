@@ -21,6 +21,8 @@ pub(crate) const FLOAT_NAMED_PROVIDER_MULTIPLY_THEN_ADD_EXIT: &str =
     "float/named_provider_multiply_then_add_exit";
 pub(crate) const FLOAT_NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT: &str =
     "float/named_provider_fused_multiply_add_exit";
+pub(crate) const FLOAT_NAMED_REQUIREMENT_FUSED_MULTIPLY_ADD_EXIT: &str =
+    "float/named_requirement_fused_multiply_add_exit";
 pub(crate) const FLOAT_NAMED_PROVIDER_DIRECTED_FUSED_MULTIPLY_ADD_EXIT: &str =
     "float/named_provider_directed_fused_multiply_add_exit";
 pub(crate) const FLOAT_NAMED_PROVIDER_DIRECTED_ADD_EXIT: &str =
@@ -159,6 +161,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     FLOAT_NAMED_PROVIDER_CLASSIFY_EXIT,
     FLOAT_NAMED_PROVIDER_MULTIPLY_THEN_ADD_EXIT,
     FLOAT_NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT,
+    FLOAT_NAMED_REQUIREMENT_FUSED_MULTIPLY_ADD_EXIT,
     FLOAT_NAMED_PROVIDER_DIRECTED_FUSED_MULTIPLY_ADD_EXIT,
     FLOAT_NAMED_PROVIDER_DIRECTED_ADD_EXIT,
     FLOAT_NAMED_PROVIDER_DIRECTED_SUBTRACT_EXIT,

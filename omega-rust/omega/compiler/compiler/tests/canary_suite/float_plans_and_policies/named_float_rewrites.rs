@@ -945,13 +945,13 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
-    for operator_use in checked.facts.operators.named_uses() {
-        if operator_use.provider_plan_report_fingerprint == 0 {
-            continue;
-        }
+    // Core spells `F32::fused_multiply_add`/`F64::fused_multiply_add` as
+    // top-level boundary requirements, so the evidence is a named requirement
+    // use rather than a named operator use.
+    for (expression, provider_plan_report_fingerprint) in super::stamped_named_uses(&checked) {
         let plan = checked
             .selected_provider_plans()
-            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
+            .plan_by_report_fingerprint(provider_plan_report_fingerprint)
             .expect("named FMA evidence must resolve to its retained plan");
         let [row] = plan.rows.as_slice() else {
             panic!("named FMA plan must contain exactly one row");
@@ -966,10 +966,8 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         selected_intrinsics.insert(name.clone());
         selected_plan_identities.push(plan.report_fingerprint());
 
-        let typed_trees::expression::ExpressionNode::Call(call) = checked
-            .typed
-            .expression_table
-            .expression(operator_use.expression)
+        let typed_trees::expression::ExpressionNode::Call(call) =
+            checked.typed.expression_table.expression(expression)
         else {
             panic!("`{name}` must preserve its selected root as a compiler call");
         };
