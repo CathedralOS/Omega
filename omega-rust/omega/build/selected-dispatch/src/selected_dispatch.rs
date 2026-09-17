@@ -136,11 +136,25 @@ fn settle_execution(
         &operator_rewrites,
         &mut source_edits,
     );
+    let float_intrinsics_rewritten = !float_rewrites.is_empty();
     float_intrinsic::apply_selected_float_intrinsic_rewrites(
         &mut staged,
         float_rewrites,
         &mut source_edits,
     );
+    if float_intrinsics_rewritten {
+        // An intrinsic rewrite replaces a bodyless boundary call with its
+        // realization in the authored body, so the write frames retained at
+        // checking (opaque across that call) no longer describe the settled
+        // body. Refresh them and rebuild the Terminal plans from the settled
+        // program so Unit store planning sees one write frame.
+        typed_trees_to_checked_trees::refresh_settled_state_write_frames(&mut staged)?;
+        typed_trees_to_checked_trees::rebuild_checked_terminal_plans_with_selected_execution(
+            &mut staged,
+            &operator_applications,
+            &fma_applications,
+        )?;
+    }
     // Rebuilds may refresh checked occurrence handles. Derive execution
     // custody from the final staged program, without replacing Match syntax.
     let comparisons =

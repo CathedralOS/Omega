@@ -283,3 +283,121 @@ fn requirement_uses_are_stamped_with_their_selected_plan_and_stage_the_same_rewr
         );
     }
 }
+
+/// A direct requirement call is an ordinary machine call at checking, so flow
+/// retains a call row for it; the operator spelling retains none. Settlement
+/// replaces the call node in the body, so the row is retired in place (the
+/// arena keeps it for the handles held on it) and both spellings then carry
+/// no live call row for the rewritten expression.
+#[test]
+fn settling_a_rewritten_requirement_call_retires_its_flow_call_row_in_place() {
+    let (operator_checked, operator_plans) = checked_with_plans(OPERATOR_SOURCE);
+    let (requirement_checked, requirement_plans) = checked_with_plans(&requirement_source());
+    let (mut operator_bound, operator_selected) = bound(operator_checked, &operator_plans);
+    let (mut requirement_bound, requirement_selected) =
+        bound(requirement_checked, &requirement_plans);
+    let requirement_uses = requirement_bound
+        .facts
+        .operators
+        .named_requirement_uses()
+        .map(SelectedIntrinsicUse::from)
+        .collect::<Vec<_>>();
+    let live_rows = |checked: &CheckedTrees| {
+        checked
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .flat_map(|(_, state)| {
+                checked
+                    .facts
+                    .flow
+                    .control
+                    .calls
+                    .span_or_empty(state.calls)
+                    .iter()
+                    .filter(|call| {
+                        !checked
+                            .facts
+                            .flow
+                            .control
+                            .is_retired(state.state_symbol, call)
+                    })
+                    .map(|call| call.authored_expression)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
+    };
+    let requirement_rows_before = requirement_bound.facts.flow.control.calls.iter().count();
+    assert!(
+        requirement_uses
+            .iter()
+            .all(|selected_use| live_rows(&requirement_bound).contains(&selected_use.expression)),
+        "checking retains one live call row per direct requirement call"
+    );
+    assert!(
+        operator_bound.facts.flow.control.retired_calls.is_empty()
+            && requirement_bound
+                .facts
+                .flow
+                .control
+                .retired_calls
+                .is_empty()
+    );
+
+    crate::selected_dispatch::float_intrinsic::settle_selected_float_intrinsic_dispatch(
+        &mut operator_bound,
+        &operator_selected,
+    )
+    .expect("operator spelling settles");
+    crate::selected_dispatch::float_intrinsic::settle_selected_float_intrinsic_dispatch(
+        &mut requirement_bound,
+        &requirement_selected,
+    )
+    .expect("requirement spelling settles");
+
+    assert!(
+        operator_bound.facts.flow.control.retired_calls.is_empty(),
+        "a named operator call retains no flow call row, so nothing is retired"
+    );
+    let mut retired = requirement_bound
+        .facts
+        .flow
+        .control
+        .retired_calls
+        .iter()
+        .map(|row| (row.statement_index, row.call_ordinal))
+        .collect::<Vec<_>>();
+    retired.sort_unstable();
+    let mut expected = requirement_uses
+        .iter()
+        .map(|selected_use| match selected_use.origin {
+            checked_trees::CheckedValueOrigin::StateStatement {
+                statement_index, ..
+            } => (statement_index, 0),
+            other => panic!("requirement use origin {other:?} is not a state statement"),
+        })
+        .collect::<Vec<_>>();
+    expected.sort_unstable();
+    assert_eq!(
+        retired, expected,
+        "settlement retires exactly the row of each rewritten requirement call"
+    );
+    assert_eq!(
+        requirement_bound.facts.flow.control.calls.iter().count(),
+        requirement_rows_before,
+        "retirement keeps every row so held handles stay valid"
+    );
+    assert!(
+        requirement_uses
+            .iter()
+            .all(|selected_use| !live_rows(&requirement_bound).contains(&selected_use.expression)),
+        "no live call row names a rewritten requirement call"
+    );
+    assert_eq!(
+        live_rows(&operator_bound).len(),
+        live_rows(&requirement_bound).len(),
+        "both spellings settle to the same live call roster"
+    );
+}

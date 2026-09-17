@@ -164,6 +164,7 @@ fn resolve_float_intrinsic_call(
     let execution = preflight_named_float_execution(checked, &requirement, realization)?;
     Ok(Some(StagedNamedFloatRewrite {
         expression: selected_use.expression,
+        origin: selected_use.origin,
         realization,
         execution,
     }))
