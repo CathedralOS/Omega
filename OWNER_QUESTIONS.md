@@ -63,6 +63,31 @@ must be surfaced before relying on them.
    the `cli/basics` cohort; ENTRY-CONTENT-ROOTS owns the implementation
    either way.
 
+2. **Do fixed-token operator operands auto-borrow a place into a reference
+   parameter?** [Expressions](wiki/spec/language/expressions.md#operators)
+   makes operator selection operand-directed over normalized operand shapes,
+   gives an attached receiver position zero "with its exact
+   ownership/access mode", and otherwise puts the first ordinary parameter
+   there; [indexing](wiki/spec/language/expressions.md#indexing-and-ranges)
+   says `[]` selects an ordinary operator. Neither says whether a record
+   place operand (`self.buffer: Buffer`) matches an ordinary
+   `items: &Buffer` parameter, the way a `&self` receiver is taken on a
+   place. Today only collection shells adapt (`[T; N]`, `&[T; N]`,
+   `&mut [T]` into `&[T]`, per
+   `typed-trees/src/typed_trees/declarations/operator/indexing.rs`); a
+   `Buffer` place never matches `&Buffer`, and the checking test
+   `indexed_operand_access_preserves_shared_collection_and_owned_index`
+   (wiki/drafts/known_baseline_failures.md) fails only because f1f9f898e2
+   stopped a wildcard re-seed that had hidden the mismatch. Decision
+   needed: (a) operand position zero of a fixed-token use takes a shared
+   loan of a place when the declared parameter is `&T` and the place is
+   `T` (an implicit `&` limited to that position, matching attached
+   receivers), or (b) operand shapes are exact and the author spells
+   `(&self.buffer)[index]`, in which case the fixture is respelled and no
+   typing change is needed. Recommendation: (b), since every other operand
+   position and ordinary call already requires the explicit borrow and the
+   spec names no implicit loan outside attached receivers.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required

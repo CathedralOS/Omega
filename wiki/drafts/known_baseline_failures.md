@@ -13,26 +13,44 @@ Rows verified by independent stash-baseline reproduction at revision
 
 ## typed-trees-to-checked-trees
 
-`cargo nextest run --workspace --lib --no-fail-fast` at 2c234a684c on
-2026-09-16 (macOS arm64) reports 14 failures in this crate's lib tests:
-`execution::terminal_unit::calls::computation_arguments::tests::scalar_caller_retains_call_produced_record_local_before_getter`,
-`tests::borrow::checks::persistent_storage::accepts_static_persistent_copy_across_attached_transparent_result_frame`,
-`tests::contracts::boolean_call_results::call_produced_boolean_guarantees_reject_altered_call_and_argument_custody`,
-`tests::flow::terminal_cleanup::machine_edges_and_projections::affine_locals_fail_closed_in_the_whole_parameter_edge_slice`,
-`tests::flow::terminal_unit::calls::boundary_calls::static_boundary_reaches_keep_every_direct_intrinsic_and_parameter_call`,
-`tests::flow::terminal_unit::cleanup::unit_and_scalar_cleanup::unit_body_affine_local_slice_fences_every_wider_local_shape`,
-`tests::flow::terminal_unit::nested_boundary_results::nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers`,
-`tests::flow::terminal_unit::nested_boundary_results::nested_ordinary_results_keep_postorder_and_exact_boundary_operand_roles`,
-`tests::flow::terminal_unit::state_graph_scalars::general_state_graph_rejects_interleaved_scalar_storage_write`,
-`tests::generics::symbolic_ranges::discarded_calls_in_open_templates_validate_inferred_const_bounds`,
-`tests::multiplicity::borrowed_observations::indexed_operand_access_preserves_shared_collection_and_owned_index`,
-`tests::multiplicity::obligations_and_state_call_results::consuming_call_that_returns_an_obligation_transfers_its_origin`,
-`tests::termination::crash_routes::crash_fallthrough_and_equality::erased_record_equality_is_not_mistaken_for_empty_record_equality`, and
-`tests::values::initializer_call_computations::later_results::direct_boundary_result_operands_retain_exact_nonself_transfer_events`.
-The earlier 12-failure row (8220f55febc1, 2026-09-13) named a subset of these.
-The crate's `src/tests`, `src/flow`, `src/values`, `src/facts`, and
-termination/multiplicity check areas were under live work claims when this row
-was refreshed, so no attribution beyond the names is recorded here.
+`cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast` at
+30f4189a58 plus the seven `psi:` fixture commits beside this row (2026-09-17,
+macOS arm64): 3991 run, 3988 passed, 3 failed. The 13-failure row recorded at
+2c234a684c was worked through test by test; ten were stale fixtures or retired
+premises (each commit names the introducing revision and the rule that decided
+it), and the two renamed tests are now
+`static_boundary_reaches_keep_every_direct_intrinsic_and_requirement_call` and
+`general_state_graph_retains_interleaved_scalar_storage_write`. The remaining
+three, with the production site each needs:
+
+- `tests::multiplicity::borrowed_observations::indexed_operand_access_preserves_shared_collection_and_owned_index`:
+  since f1f9f898e2 `build_operator_facts` no longer re-seeds `NestedExpression`
+  value rows, which had resolved the `[]` occurrence with wildcard operands;
+  under exact typing the `self.buffer: Buffer` place does not match the
+  declared `items: &Buffer` operand because
+  `typed-trees/src/typed_trees/declarations/operator/indexing.rs::shared_collection_elements`
+  adapts only slice shells (a `buffer: &Buffer` parameter operand passes; a
+  `Buffer` place fails in every spelling). Whether a fixed-token operand
+  auto-borrows a record place into a `&Record` parameter is
+  OWNER_QUESTIONS.md question 2; the fixture stays until it is answered.
+- `tests::multiplicity::obligations_and_state_call_results::consuming_call_that_returns_an_obligation_transfers_its_origin`:
+  since 2dc27270bc
+  `validation/src/value_custody/permission_provenance.rs::static_namespace_receiver`
+  returns `Err("namespace differs from its selected nonself state")` when the
+  callee takes `self` and is spelled through its data namespace
+  (`Receipt::forward(issued)`), so provenance falls back to a fresh
+  Statement-1 establishment for the result while `claim_identity` keeps the
+  Statement-0 origin. The `PermissionProvenance` contract says transfers
+  preserve the value and never mint a fresh origin, so this is a checker
+  regression: a bare data-namespace receiver of a self-taking state is a
+  non-operand (`Ok(true)`), and the explicit `self` argument supplies the
+  common origin. The file is under the live **MATCH-SELECTIVE-LOWERING**
+  claim (`validation/src/value_custody`); repair belongs to that holder or
+  after it lapses.
+- `execution::terminal_unit::calls::computation_arguments::tests::scalar_caller_retains_call_produced_record_local_before_getter`:
+  `ParseError` "expected ':', found ','" in its inline fixture (last touched
+  by 0ad7edc425); `src/execution` is under the live
+  **PROOF-RELEVANCE-MIGRATION/abi-stripping** claim.
 
 ## checked-trees-to-lowered-psi
 
