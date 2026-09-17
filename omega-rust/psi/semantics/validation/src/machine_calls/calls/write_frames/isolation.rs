@@ -248,12 +248,13 @@ fn type_is_caller_isolated_local_inner(
             if proof_values && symbol.is_valid() && isolated_parameters.contains(symbol) {
                 return true;
             }
-            if proof_values
-                && matches!(
-                    program.symbols.builtin_type_atom(*symbol),
-                    Some(symbols::BuiltinTypeAtom::UInt | symbols::BuiltinTypeAtom::Int)
-                )
-            {
+            // The unbounded integer atoms are values on every route: a
+            // `UInt` field reaches no reference, so a record holding one is
+            // its owner's storage exactly like a `u64` field.
+            if matches!(
+                program.symbols.builtin_type_atom(*symbol),
+                Some(symbols::BuiltinTypeAtom::UInt | symbols::BuiltinTypeAtom::Int)
+            ) {
                 return true;
             }
             let mut definitions = program.data_definitions().iter().filter(|definition| {

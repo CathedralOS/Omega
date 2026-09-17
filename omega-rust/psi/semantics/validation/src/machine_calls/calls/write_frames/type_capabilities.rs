@@ -84,6 +84,14 @@ fn type_reaches_opaque_data(
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. } => true,
         TypeReferenceNode::Named { symbol, name } => {
+            // The unbounded integer atoms are values with no members to
+            // reach, exactly like the primitive atoms above.
+            if matches!(
+                program.symbols.builtin_type_atom(*symbol),
+                Some(symbols::BuiltinTypeAtom::UInt | symbols::BuiltinTypeAtom::Int)
+            ) {
+                return false;
+            }
             let mut definitions = program.data_definitions().iter().filter(|definition| {
                 if symbol.is_valid() {
                     definition.symbol == *symbol
