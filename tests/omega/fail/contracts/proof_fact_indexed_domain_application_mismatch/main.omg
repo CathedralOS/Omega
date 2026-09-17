@@ -1,0 +1,58 @@
+// A restating `let` over a requirement's result cannot change the instance
+// the requirement established: `place` ensures `result in Granted &
+// Resident<SlotPlacement, Slot>`, and restating that result into a local
+// declared `Resident<OtherPlacement, Slot>` is refused at the `let` because
+// the two are distinct normalized instances. The comparison reads the
+// instance the `ensures` fact carries, not the family symbol, so the
+// mismatch is named at the restatement even though `view` and `retire_view`
+// are declared over `OtherPlacement` and would otherwise accept the local.
+// The accepted shape is
+// `tests/omega/pass/contracts/proof_fact_indexed_domain_application`; the
+// field-sourced sibling is
+// `tests/omega/fail/memory/bump_allocator_restated_resident_index_mismatch`.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Slot [copy] {
+    value: u32;
+}
+
+data SlotPlacement {}
+
+data OtherPlacement {}
+
+data Retired {
+    storage: Extent in Granted & Vacant;
+    value: Slot;
+}
+
+boundary trait ResidentStorage {
+    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Extent
+    ensures
+        result in Granted & Resident<SlotPlacement, Slot>,
+        Granted::content(old(&storage)) == Granted::content(&result);
+
+    machine view(storage: &Extent in Granted & Resident<OtherPlacement, Slot>) -> Slot;
+
+    machine retire_view(storage: Extent in Granted & Resident<OtherPlacement, Slot>) -> Retired
+    ensures
+        Granted::content(old(&storage)) == Granted::content(&result.storage);
+}
+
+machine exercise_placed(
+    storage: &ResidentStorage,
+    vacant: Extent in Granted & Vacant
+) -> Extent
+reaches ResidentStorage
+{
+    let placed: Extent in Granted & Resident<OtherPlacement, Slot> =
+        storage.place(vacant, Slot { value: 7 });
+    let observed: Slot = storage.view(&placed);
+    let retired: Retired = storage.retire_view(placed);
+    let released: Extent in Granted & Vacant = retired.storage;
+    released as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

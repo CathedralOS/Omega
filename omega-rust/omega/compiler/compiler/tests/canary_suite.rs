@@ -1839,6 +1839,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "memory/bump_allocator_place_into_occupied",
     "memory/bump_allocator_restated_resident_index_mismatch",
     "contracts/proof_fact_indexed_domain_application_arity",
+    "contracts/proof_fact_indexed_domain_application_mismatch",
 ];
 
 #[path = "canary_suite/entry_and_abi.rs"]

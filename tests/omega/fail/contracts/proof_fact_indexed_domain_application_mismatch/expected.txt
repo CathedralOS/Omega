@@ -1,0 +1,1 @@
+actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances
