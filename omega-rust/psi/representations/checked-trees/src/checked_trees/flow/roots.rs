@@ -1,4 +1,5 @@
 use arena::Arena;
+use symbols::SymbolHandle;
 
 use super::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBoundaryEdgeFact, FlowCallFact,
@@ -108,6 +109,11 @@ pub struct FlowControlFacts {
     pub exits: Arena<FlowExitFact>,
     pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
     pub states: Arena<FlowStateFact>,
+    /// Call rows whose authored call selected execution replaced in the typed
+    /// body after checking. The rows stay in `calls` because borrow
+    /// certificates and computation roots hold their handles; execution
+    /// planning consults this set and skips a retired row.
+    pub retired_calls: Vec<super::RetiredFlowCall>,
 }
 
 impl FlowControlFacts {
@@ -125,7 +131,58 @@ impl FlowControlFacts {
             exits,
             exit_parameter_origins: Arena::default(),
             states,
+            retired_calls: Vec::new(),
         }
+    }
+
+    /// Whether `call`, a row of `state`, was retired by selected execution.
+    pub fn is_retired(&self, state: SymbolHandle, call: &FlowCallFact) -> bool {
+        self.retired_calls.iter().any(|retired| {
+            retired.state_symbol == state
+                && retired.statement_index == call.statement_index
+                && retired.call_ordinal == call.call_ordinal
+        })
+    }
+
+    /// Retire every call row of `state` at `statement_index` whose authored
+    /// expression is `expression`; with `statement_root`, also the
+    /// statement-level row (ordinal zero, which captures no expression).
+    /// Returns the number of rows newly retired.
+    pub fn retire_calls(
+        &mut self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        statement_root: bool,
+    ) -> usize {
+        let Some(span) = self.states.iter().find_map(|(_, candidate)| {
+            (candidate.machine_symbol == machine && candidate.state_symbol == state)
+                .then_some(candidate.calls)
+        }) else {
+            return 0;
+        };
+        let mut retired = 0;
+        for call in self.calls.span_or_empty(span) {
+            if call.statement_index != statement_index {
+                continue;
+            }
+            let matches = if call.authored_expression.is_valid() {
+                call.authored_expression == expression
+            } else {
+                statement_root && call.call_ordinal == 0
+            };
+            if !matches || self.is_retired(state, call) {
+                continue;
+            }
+            self.retired_calls.push(super::RetiredFlowCall {
+                state_symbol: state,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+            });
+            retired += 1;
+        }
+        retired
     }
 }
 
@@ -249,5 +306,87 @@ mod tests {
         assert_eq!(facts.ownership, ownership);
         assert_eq!(facts.boundaries, boundaries);
         assert_eq!(facts.control, control);
+    }
+
+    #[test]
+    fn retiring_a_call_row_keeps_the_arena_and_matches_only_that_coordinate() {
+        use crate::{FlowCallFact, FlowStateFact, RetiredFlowCall};
+        use symbols::SymbolHandle;
+
+        let machine = SymbolHandle::from_parts(1, 1);
+        let state = SymbolHandle::from_parts(2, 1);
+        let other_state = SymbolHandle::from_parts(3, 1);
+        let expression = typed_trees::expression::ExpressionHandle::from_parts(7, 1);
+        let mut control = FlowControlFacts::default();
+        let rows = control.calls.insert_many([
+            FlowCallFact {
+                statement_index: 3,
+                call_ordinal: 0,
+                authored_expression: expression,
+                ..FlowCallFact::default()
+            },
+            FlowCallFact {
+                statement_index: 4,
+                call_ordinal: 0,
+                authored_expression: typed_trees::expression::ExpressionHandle::from_parts(8, 1),
+                ..FlowCallFact::default()
+            },
+            FlowCallFact {
+                statement_index: 5,
+                call_ordinal: 0,
+                ..FlowCallFact::default()
+            },
+        ]);
+        control.states.insert(FlowStateFact {
+            machine_symbol: machine,
+            state_symbol: state,
+            calls: rows,
+            ..FlowStateFact::default()
+        });
+        let before = control.calls.clone();
+
+        assert_eq!(
+            control.retire_calls(machine, other_state, 3, expression, false),
+            0
+        );
+        assert_eq!(
+            control.retire_calls(machine, state, 3, expression, false),
+            1
+        );
+        assert_eq!(
+            control.retire_calls(machine, state, 3, expression, false),
+            0,
+            "retiring twice records one row"
+        );
+        assert_eq!(
+            control.retire_calls(machine, state, 5, expression, false),
+            0,
+            "a statement-level row (no captured expression) needs the statement root"
+        );
+        assert_eq!(control.retire_calls(machine, state, 5, expression, true), 1);
+        assert_eq!(
+            control.retired_calls,
+            vec![
+                RetiredFlowCall {
+                    state_symbol: state,
+                    statement_index: 3,
+                    call_ordinal: 0,
+                },
+                RetiredFlowCall {
+                    state_symbol: state,
+                    statement_index: 5,
+                    call_ordinal: 0,
+                },
+            ]
+        );
+        assert_eq!(control.calls, before, "retirement never rewrites the arena");
+        let calls = control.calls.span_or_empty(rows);
+        assert!(control.is_retired(state, &calls[0]));
+        assert!(!control.is_retired(state, &calls[1]));
+        assert!(control.is_retired(state, &calls[2]));
+        assert!(
+            !control.is_retired(other_state, &calls[0]),
+            "a coordinate is retired for one state only"
+        );
     }
 }

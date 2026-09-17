@@ -61,7 +61,7 @@ pub use checking::{
 };
 pub use execution::selected_execution::{
     SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,
-    rebuild_checked_terminal_plans_with_selected_execution,
+    rebuild_checked_terminal_plans_with_selected_execution, refresh_settled_state_write_frames,
 };
 
 /// Conservative pre-check classification used by compiler-run semantic

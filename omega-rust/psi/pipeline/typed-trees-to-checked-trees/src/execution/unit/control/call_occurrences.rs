@@ -174,10 +174,15 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
     trace.phase("outer calls: statement window");
     let statements = program.statement_table.statements(state.statement_nodes);
+    // Selected execution retires the row of a call it replaced in the body;
+    // the row keeps its handle for the certificates holding it and no longer
+    // names an outer or nested call to sequence.
+    let retired =
+        |call: &checked_trees::FlowCallFact| facts.flow.control.is_retired(state.symbol, call);
     if statement_end > statements.len()
         || calls
             .iter()
-            .any(|call| call.statement_index >= statement_end)
+            .any(|call| !retired(call) && call.statement_index >= statement_end)
     {
         return None;
     }
@@ -275,6 +280,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 }
                 collect(
                     facts,
+                    state.symbol,
                     statement_index,
                     root.root,
                     calls,
@@ -308,6 +314,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 }
                 collect(
                     facts,
+                    state.symbol,
                     statement_index,
                     root.root,
                     calls,
@@ -334,6 +341,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             }
             collect(
                 facts,
+                state.symbol,
                 statement_index,
                 root.root,
                 calls,
@@ -374,6 +382,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             }
             collect(
                 facts,
+                state.symbol,
                 statement_index,
                 root.root,
                 calls,
@@ -430,6 +439,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 }
                 collect(
                     facts,
+                    state.symbol,
                     statement_index,
                     root.root,
                     calls,
@@ -482,6 +492,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         }
         collect(
             facts,
+            state.symbol,
             statement_index,
             root.root,
             calls,
@@ -490,7 +501,10 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             &mut consumed,
         )?;
     }
-    for call in calls.iter().filter(|call| call.call_ordinal == 0) {
+    for call in calls
+        .iter()
+        .filter(|call| call.call_ordinal == 0 && !retired(call))
+    {
         if consumed
             .iter()
             .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), call))
@@ -643,7 +657,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     trace.statement(None);
     if let Some(unconsumed) = calls
         .iter()
-        .filter(|call| call.call_ordinal != 0)
+        .filter(|call| call.call_ordinal != 0 && !retired(call))
         .find(|call| {
             !consumed
                 .iter()
@@ -751,6 +765,7 @@ fn collect_argument_calls(
         }
         collect(
             facts,
+            state,
             call.statement_index,
             root.root,
             calls,
@@ -764,6 +779,7 @@ fn collect_argument_calls(
 
 fn collect(
     facts: &CheckFacts,
+    state: SymbolHandle,
     statement: usize,
     handle: CheckedScalarComputationHandle,
     calls: &[checked_trees::FlowCallFact],
@@ -790,6 +806,7 @@ fn collect(
             for field in plans.case_fields.span(subject.fields)? {
                 collect(
                     facts,
+                    state,
                     statement,
                     field.value,
                     calls,
@@ -802,6 +819,7 @@ fn collect(
         CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
             collect(
                 facts,
+                state,
                 statement,
                 *left,
                 calls,
@@ -811,6 +829,7 @@ fn collect(
             )?;
             collect(
                 facts,
+                state,
                 statement,
                 *right,
                 calls,
@@ -822,6 +841,7 @@ fn collect(
         CheckedScalarComputationKind::Qualification { operand, .. } => {
             collect(
                 facts,
+                state,
                 statement,
                 *operand,
                 calls,
@@ -833,6 +853,7 @@ fn collect(
         CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
             collect(
                 facts,
+                state,
                 statement,
                 *subject,
                 calls,
@@ -844,6 +865,7 @@ fn collect(
                 if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
                     collect(
                         facts,
+                        state,
                         statement,
                         pattern,
                         calls,
@@ -854,6 +876,7 @@ fn collect(
                 }
                 collect(
                     facts,
+                    state,
                     statement,
                     arm.value,
                     calls,
@@ -877,12 +900,15 @@ fn collect(
                 return None;
             }
             let call = facts.flow.control.calls.get(*source_call);
+            // A computation root over a retired call describes the authored
+            // body, not the settled one; decline rather than sequence it.
             if *call_ordinal < minimum_call_ordinal
                 || call.call_ordinal != *call_ordinal as usize
                 || call.statement_index != statement
                 || call.target_symbol != *target_state
                 || !call.authored_expression.is_valid()
                 || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
+                || facts.flow.control.is_retired(state, call)
             {
                 return None;
             }
@@ -890,6 +916,7 @@ fn collect(
             for operand in plans.operands.span(*arguments)? {
                 collect(
                     facts,
+                    state,
                     statement,
                     *operand,
                     calls,
@@ -905,6 +932,7 @@ fn collect(
                     for field in plans.case_fields.span(subject.fields)? {
                         collect(
                             facts,
+                            state,
                             statement,
                             field.value,
                             calls,
@@ -922,6 +950,7 @@ fn collect(
                     for element in plans.operands.span(*elements)? {
                         collect(
                             facts,
+                            state,
                             statement,
                             *element,
                             calls,
@@ -937,6 +966,7 @@ fn collect(
             for operand in plans.operands.span(*operands)? {
                 collect(
                     facts,
+                    state,
                     statement,
                     *operand,
                     calls,
@@ -955,6 +985,7 @@ fn collect(
             for operand in [condition, when_true, when_false] {
                 collect(
                     facts,
+                    state,
                     statement,
                     *operand,
                     calls,

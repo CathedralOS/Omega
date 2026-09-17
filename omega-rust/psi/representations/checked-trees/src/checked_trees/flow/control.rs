@@ -52,6 +52,16 @@ pub struct FlowCallFact {
     pub authored_source_custody_valid: bool,
 }
 
+/// Coordinate of a [`FlowCallFact`] whose authored call selected execution
+/// replaced in the typed body: the row is retained for the handles held on
+/// it and skipped by execution planning.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RetiredFlowCall {
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowStatementFact {
     pub statement_index: usize,
