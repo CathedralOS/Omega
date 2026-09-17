@@ -1012,3 +1012,94 @@ fn native_pair_checking_needs_no_source_or_psi() {
     );
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn receiver_replay_never_inherits_the_producer_admission_profile() {
+    // A producer publishing under a non-default admission profile discloses
+    // that profile as the pair's checker profile; it does not transfer the
+    // decision. The acceptance below cites a site no obligation in `MAIN`
+    // ever raises, so the artifact's evidence is identical under either
+    // profile and the only difference between producer and receiver is the
+    // admission decision itself.
+    use proof_admission::AdmissionAcceptance;
+    use semantic_vocabulary::{AdmissionSiteId, EvidenceIdentity, ProfileDecisionId};
+
+    let acceptance = AdmissionAcceptance {
+        site: AdmissionSiteId::new(7).expect("site"),
+        evidence_identity: EvidenceIdentity::new(8).expect("evidence identity"),
+        profile_decision: ProfileDecisionId::new(9).expect("profile decision"),
+    };
+    let producer_profile = AdmissionProfile::from_acceptances([acceptance]);
+    let dir = write_project_source(MAIN, "    builder.pcc.psi = true;\n");
+    let published = compile(
+        compile_request(&dir, RequestedCompileProduct::TerminalArtifact)
+            .with_admission_profile(producer_profile.clone()),
+    )
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("terminal compilation")
+    .publish_retained_terminal_artifact(&dir.join("out"))
+    .expect("psi publication");
+    let pair = &published.pcc_publications()[0];
+    let (psi, proof) = (read(&pair.artifact_path), read(&pair.sidecar_path));
+    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode");
+    assert_eq!(
+        sidecar.checker_profile(),
+        terminal_codec::admission_profile_identity(&producer_profile)
+    );
+    assert_ne!(
+        sidecar.checker_profile(),
+        terminal_codec::admission_profile_identity(&AdmissionProfile::default())
+    );
+
+    // The receiver accepts the offered checker-profile name yet replays under
+    // its own default profile. Replay independently establishes the default
+    // profile's identity, so the offered claim no longer matches: naming the
+    // producer's profile is not adopting its admissions.
+    let policy = receiver_policy(&sidecar);
+    assert_eq!(
+        policy.accepted_checker_profiles,
+        [sidecar.checker_profile().to_owned()]
+    );
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "checker profile"
+    ));
+
+    // Only the receiver's own explicit admission decision completes the pair,
+    // and the qualified verdict discloses exactly that acceptance.
+    let mut pinned = policy.clone();
+    pinned.admission_profile = producer_profile;
+    let product = match verify_published_proof_pair(&psi, &proof, &pinned) {
+        PccVerificationOutcome::Complete(product) => product,
+        other => {
+            panic!("expected the receiver's own admission decision to complete, got {other:?}")
+        }
+    };
+    assert_eq!(product.admissions, [acceptance]);
+    assert_eq!(product.checker_profile, sidecar.checker_profile());
+    assert_eq!(product.policy_package_identity, "receiver-pinned-policy");
+
+    // The same program published under the default profile verifies for the
+    // default receiver: the rejection above is the producer's profile, not
+    // the artifact.
+    let (default_dir, default_psi, default_proof) = publish_psi_pair(MAIN);
+    let default_sidecar = PccProofSidecar::from_bytes(&default_proof).expect("decode");
+    assert_eq!(
+        psi, default_psi,
+        "the admission profile does not change the artifact bytes"
+    );
+    assert_ne!(
+        proof, default_proof,
+        "the checker profile is part of the offered claim"
+    );
+    assert!(matches!(
+        verify_published_proof_pair(
+            &default_psi,
+            &default_proof,
+            &receiver_policy(&default_sidecar)
+        ),
+        PccVerificationOutcome::Complete(_)
+    ));
+    let _ = fs::remove_dir_all(&default_dir);
+    let _ = fs::remove_dir_all(&dir);
+}
