@@ -165,7 +165,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         // arrives. That is the point where current storage can still be
         // related to the invocation-entry operand a published route names.
         let eval_sites = entry_guards::guard_eval_sites(program, machine);
-        let source_fallthrough = source_fallthrough::collect(program, machine);
+        let source_fallthrough =
+            source_fallthrough::collect(program, machine, &parameter_names, &content_conservation);
         let entry_requirements = entry_requirements::collect(
             program,
             machine,
