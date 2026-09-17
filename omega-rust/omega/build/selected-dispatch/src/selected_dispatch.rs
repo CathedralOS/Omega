@@ -15,6 +15,7 @@ use crate::source_edits::{self, SelectedDispatchSourceEdits};
 mod float_comparisons;
 mod float_intrinsic;
 mod operator_adapter;
+mod requirement_adapter;
 #[cfg(test)]
 mod tests;
 
@@ -72,7 +73,19 @@ fn settle_execution(
     )?;
     let float_rewrites =
         float_intrinsic::plan_selected_float_intrinsic_rewrites(checked, selected_provider_plans)?;
-    if operator_rewrites.is_empty() && float_rewrites.is_empty() {
+    // A settled direct-call row for a top-level boundary requirement changes
+    // no source and no operator fact, but the Unit plans built before
+    // settlement still target the bodyless requirement; the rows are settled
+    // first (the later association pass recomputes the same set) and the
+    // plans are rebuilt so the plan builder consumes them.
+    crate::boundary_dispatch::settle_selected_boundary_adapter_dispatch(
+        checked,
+        selected_provider_plans,
+    )?;
+    let requirement_rewrites = requirement_adapter::plan_selected_requirement_rewrites(checked)?;
+    let requirement_dispatch =
+        crate::boundary_dispatch::has_top_level_requirement_dispatch(checked);
+    if operator_rewrites.is_empty() && float_rewrites.is_empty() && !requirement_dispatch {
         let executions =
             float_comparisons::selected_executions(checked, selected_provider_plans.plans())?;
         if !checked
@@ -97,7 +110,14 @@ fn settle_execution(
         float_intrinsic::selected_ieee_float_fma_unit_applications(checked, &float_rewrites)
             .map_err(|diagnostic| vec![diagnostic])?;
     let mut staged = checked.as_ref().clone();
-    if !operator_applications.is_empty() || !fma_applications.is_empty() {
+    // Requirement calls settle before the plan rebuild: the rebuilt Unit plans
+    // then plan the ordinary call to the checked body directly.
+    requirement_adapter::apply_selected_requirement_rewrites(
+        &mut staged,
+        &requirement_rewrites,
+        &mut source_edits,
+    );
+    if !operator_applications.is_empty() || !fma_applications.is_empty() || requirement_dispatch {
         typed_trees_to_checked_trees::rebuild_checked_terminal_plans_with_selected_execution(
             &mut staged,
             &operator_applications,

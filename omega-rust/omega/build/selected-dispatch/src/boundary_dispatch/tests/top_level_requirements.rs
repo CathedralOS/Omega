@@ -4,6 +4,7 @@
 //! requirement with no selected provider rejects at settlement.
 
 use super::{Arc, CheckedTrees, ProviderPlan, settle_selected_boundary_adapter_dispatch};
+use crate::settle_selected_execution_dispatch_with_source_edits;
 use provider_planning::ProviderPlanDerivation;
 use typed_trees::expression::ExpressionNode;
 
@@ -148,6 +149,79 @@ fn called_requirement_without_a_selected_provider_rejects_at_settlement() {
         "{diagnostics:?}"
     );
     assert!(Arc::ptr_eq(&settled, &original));
+}
+
+#[test]
+fn execution_settlement_redirects_the_journaled_call_to_the_realization() {
+    let (checked, plans) = requirement_fixture(REQUIREMENT_SOURCE);
+    let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "CheckedMath::offset_zero");
+    let realization = entry_symbol(&checked, "CheckedMathProvider::offset_zero_impl");
+    let (expression, _) = direct_call(&checked);
+    let mut settled = Arc::new(checked);
+    let edits = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+        .expect("execution settles");
+    let ExpressionNode::Call(call) = settled.typed.expression_table.expression(expression) else {
+        panic!("the journaled call is still a call");
+    };
+    assert_eq!(call.target_symbol, realization);
+    assert_eq!(
+        call.target.as_str(),
+        "CheckedMathProvider::offset_zero_impl"
+    );
+    assert!(!call.receiver.is_valid(), "the owner receiver is cleared");
+    // The retained flow occurrence follows the call.
+    assert!(
+        settled
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .any(|(_, occurrence)| {
+                occurrence.authored_expression == expression
+                    && occurrence.target_symbol == realization
+                    && !occurrence.has_receiver
+            })
+    );
+    // The association row still names the requirement.
+    assert!(
+        settled
+            .facts
+            .boundary_adapter_dispatch
+            .iter()
+            .any(|row| { row.requirement == requirement && row.realization_state == realization })
+    );
+    // The journal restores the requirement-side occurrence.
+    let source = edits
+        .source_trees(&settled.typed)
+        .expect("restore the journaled source");
+    let ExpressionNode::Call(authored) = source.expression_table.expression(expression) else {
+        panic!("the restored call is a call");
+    };
+    assert_eq!(authored.target_symbol, requirement);
+    assert_eq!(authored.target.as_str(), "offset_zero");
+    assert!(authored.receiver.is_valid());
+}
+
+#[test]
+fn a_statement_position_direct_call_is_not_an_executable_route() {
+    let source = REQUIREMENT_SOURCE.replace(
+        "let selected: i32 = CheckedMath::offset_zero(35);\n        transition { _ -> (selected) }",
+        "_ = CheckedMath::offset_zero(35);\n        transition { _ -> (35) }",
+    );
+    assert_ne!(source, REQUIREMENT_SOURCE);
+    let (checked, plans) = requirement_fixture(&source);
+    let selected = selected_all(&plans);
+    let mut settled = Arc::new(checked);
+    let diagnostics = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+        .expect_err("a statement-position direct call rejects");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("statement-position direct call `offset_zero` to public boundary requirement `CheckedMath::offset_zero` is not an executable route")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
