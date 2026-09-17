@@ -910,6 +910,147 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
 }
 
 #[test]
+fn encoded_rows_restate_the_contracted_implicit_custody() {
+    let unit = |id| register_model::RegisterUnitId(id);
+    let constraint = |variant,
+                      accesses: &[RegisterOperandAccess],
+                      uses: &[u16],
+                      defs: &[u16],
+                      clobbers: &[u16]| {
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key: RegisterConstraintKey {
+                family: RegisterConstraintFamily::Instruction,
+                variant,
+            },
+            operands: accesses
+                .iter()
+                .enumerate()
+                .map(|(operand, access)| RegisterOperandConstraint {
+                    operand: operand as u16,
+                    access: *access,
+                    class: RegisterClassId(0),
+                    fixed_view: None,
+                    tied_to: None,
+                    early_clobber: false,
+                })
+                .collect(),
+            implicit_uses: uses.iter().map(|id| unit(*id)).collect(),
+            implicit_defs: defs.iter().map(|id| unit(*id)).collect(),
+            clobbers: clobbers.iter().map(|id| unit(*id)).collect(),
+        }
+    };
+    let declaration = |semantic, key, encoded| MachineEffectDeclaration {
+        semantic,
+        constraint: key,
+        memory: crate::MachineMemoryEffect::NoneV1,
+        trap: crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        barrier: MachineBarrier::None,
+        call: crate::MachineCallEffect::NoneV1,
+        cleanup: crate::MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: semantic.into(),
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(4),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded,
+        }],
+    };
+    // An ordinary rule restates every implicit unit the row contracts:
+    // each read, each definition, each clobber.
+    let row = constraint(
+        53,
+        &[RegisterOperandAccess::Use, RegisterOperandAccess::Def],
+        &[7, 9],
+        &[11],
+        &[13],
+    );
+    let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
+    encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    encoded.implicit_unit_uses = row.implicit_uses.clone();
+    encoded.implicit_unit_defs = row.implicit_defs.clone();
+    encoded.implicit_unit_clobbers = row.clobbers.clone();
+    validate_declaration(
+        &row,
+        &declaration(MachineSemanticKind::ExactAddI64, row.key, encoded.clone()),
+    )
+    .unwrap();
+    // Dropping a contracted unit understates the surface homes are
+    // allocated against; inventing one misstates the encoding. Neither
+    // passes admission in any of the three lists.
+    for mutation in 0..6 {
+        let mut changed = encoded.clone();
+        let (list, foreign) = match mutation {
+            0 | 1 => (&mut changed.implicit_unit_uses, unit(8)),
+            2 | 3 => (&mut changed.implicit_unit_defs, unit(12)),
+            _ => (&mut changed.implicit_unit_clobbers, unit(14)),
+        };
+        if mutation % 2 == 0 {
+            list.pop();
+        } else {
+            list.push(foreign);
+            list.sort_unstable();
+        }
+        assert!(
+            validate_declaration(
+                &row,
+                &declaration(MachineSemanticKind::ExactAddI64, row.key, changed),
+            )
+            .is_err(),
+            "mutation {mutation}"
+        );
+    }
+    // An indirect-register return narrows its implicit uses to the
+    // non-empty subset it honestly reads — the link register — while the
+    // row still carries the ABI's stack-pointer use. Its definitions and
+    // clobbers remain exact.
+    let returned = constraint(55, &[RegisterOperandAccess::Use], &[5, 9], &[11], &[]);
+    let mut return_encoded = MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
+    return_encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    return_encoded.control = MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+        target: RegisterViewId(9),
+    };
+    return_encoded.implicit_unit_uses = vec![unit(9)];
+    return_encoded.implicit_unit_defs = returned.implicit_defs.clone();
+    let mut return_row = declaration(
+        MachineSemanticKind::ReturnScalar,
+        returned.key,
+        return_encoded,
+    );
+    return_row.barrier = MachineBarrier::ControlFlow;
+    validate_declaration(&returned, &return_row).unwrap();
+    // Restating the full use list is still admitted; reading no implicit
+    // unit, or a foreign one, is not — and defs and clobbers never narrow.
+    return_row.alternatives[0].encoded.implicit_unit_uses = returned.implicit_uses.clone();
+    validate_declaration(&returned, &return_row).unwrap();
+    for mutation in 0..4 {
+        let mut changed = return_row.clone();
+        let encoded = &mut changed.alternatives[0].encoded;
+        match mutation {
+            0 => encoded.implicit_unit_uses.clear(),
+            1 => encoded.implicit_unit_uses = vec![unit(4)],
+            2 => encoded.implicit_unit_defs.clear(),
+            _ => encoded.implicit_unit_clobbers.push(unit(15)),
+        }
+        assert!(
+            validate_declaration(&returned, &changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    // The narrowed set belongs to the indirect form alone: an
+    // activation-stack return owes the row every implicit use it declares.
+    let mut stack_return = return_row.clone();
+    stack_return.alternatives[0].encoded.control =
+        MachineEncodedControlEffect::ReturnFromActivationStackV1;
+    validate_declaration(&returned, &stack_return).unwrap();
+    stack_return.alternatives[0].encoded.implicit_unit_uses = vec![unit(9)];
+    assert!(validate_declaration(&returned, &stack_return).is_err());
+}
+
+#[test]
 fn hosted_exit_cannot_fall_through_to_the_plain_surface_row() {
     let constraint = RegisterInstructionConstraint {
         id: RegisterConstraintId(0),

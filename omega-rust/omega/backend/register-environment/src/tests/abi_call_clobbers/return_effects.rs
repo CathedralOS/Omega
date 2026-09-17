@@ -308,9 +308,10 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
                 "{key:?} fall-through return must reject"
             );
 
-            // Dropping the encoded return-address read still satisfies the
-            // structural subset rule, so only canonical ISA replay may
-            // reject it.
+            // Dropping the encoded return-address read understates the
+            // row's contracted uses: an indirect-register return may narrow
+            // to a non-empty subset, and a use list that reads nothing has
+            // dropped the read its control effect still performs.
             let mut corrupted = catalog.clone();
             let encoded = &mut declaration_mut(&mut corrupted, key).alternatives[0].encoded;
             assert!(
@@ -320,7 +321,9 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             encoded.implicit_unit_uses.remove(0);
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::SemanticMismatch),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                )),
                 "{key:?} lost return-address use must reject"
             );
 

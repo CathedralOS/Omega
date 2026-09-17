@@ -648,8 +648,8 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 "{key:?} forged stack lifecycle must reject"
             );
 
-            // Dropping encoded stack-pointer custody stays inside the
-            // structural subset rule, so only canonical ISA replay rejects it.
+            // Dropping encoded stack-pointer custody understates the row's
+            // contracted uses and fails structural admission.
             if contract.uses_stack_pointer {
                 let mut corrupted = catalog.clone();
                 let encoded = &mut memory_declaration_mut(&mut corrupted, key, semantic)
@@ -662,30 +662,27 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 encoded.implicit_unit_uses.remove(0);
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::SemanticMismatch),
+                    Err(EffectRejection::Structural(
+                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                    )),
                     "{key:?} lost stack-pointer use must reject"
                 );
             }
 
-            // Dropping an encoded flags clobber is structural for CopyBytes —
-            // its footprint row pins exact clobber equality — and semantic
-            // for packed transport, where only the subset rule applies.
+            // Dropping an encoded clobber understates the interference the
+            // row declares; the encoded list restates it exactly and fails
+            // structural admission.
             if !row.clobbers.is_empty() {
                 let mut corrupted = catalog.clone();
                 memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .implicit_unit_clobbers
                     .remove(0);
-                let expected = if semantic == MachineSemanticKind::CopyBytes {
-                    EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic),
-                    )
-                } else {
-                    EffectRejection::SemanticMismatch
-                };
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
-                    Err(expected),
+                    Err(EffectRejection::Structural(
+                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                    )),
                     "{key:?} lost encoded clobber must reject"
                 );
             }

@@ -285,19 +285,34 @@ fn validate_encoded_effects(
     if encoded.external_operand_reads != contracted_reads {
         return Err(());
     }
-    if !encoded
-        .implicit_unit_uses
-        .iter()
-        .all(|unit| constraint.implicit_uses.contains(unit))
-        || !encoded
-            .implicit_unit_defs
-            .iter()
-            .all(|unit| constraint.implicit_defs.contains(unit))
-        || !encoded
-            .implicit_unit_clobbers
-            .iter()
-            .all(|unit| constraint.clobbers.contains(unit))
+    // Implicit custody restates the row with the same exactness as operand
+    // custody: every contracted implicit definition and declared clobber is
+    // one the encoding performs. A row that drops one understates the
+    // interference its register homes are allocated against.
+    if encoded.implicit_unit_defs != constraint.implicit_defs
+        || encoded.implicit_unit_clobbers != constraint.clobbers
     {
+        return Err(());
+    }
+    let implicit_uses_match = match encoded.control {
+        // An indirect-register return honestly reads only the register its
+        // control effect names — AArch64's link register — while the row's
+        // implicit uses also carry ABI state, such as the stack pointer,
+        // that the encoding does not consume. That row may narrow to a
+        // non-empty subset of the contracted uses: a use list that reads
+        // nothing has dropped the return-address read the control effect
+        // still performs.
+        MachineEncodedControlEffect::ReturnIndirectRegisterV1 { .. } => {
+            encoded.implicit_unit_uses == constraint.implicit_uses
+                || (!encoded.implicit_unit_uses.is_empty()
+                    && encoded
+                        .implicit_unit_uses
+                        .iter()
+                        .all(|unit| constraint.implicit_uses.contains(unit)))
+        }
+        _ => encoded.implicit_unit_uses == constraint.implicit_uses,
+    };
+    if !implicit_uses_match {
         return Err(());
     }
     if declaration.semantic == MachineSemanticKind::CopyBytes
