@@ -9,13 +9,16 @@
 //! `selected_plan_bindings.rs` carries the selected plan binding and program
 //! updates, `operator_provider_evidence.rs` plans selected operator provider
 //! evidence, `synchronous_cycles.rs` validates synchronous invocation
-//! cycles and `selection_provenance.rs` carries selection keys, provenance
-//! and slot resolution; the remaining files carry bindings, reach,
-//! intrinsics, provenance replay and receipts.
+//! cycles, `selection_provenance.rs` carries selection keys, provenance
+//! and slot resolution, and `independent_components.rs` joins each
+//! `Independent` selection to exactly one verified component description;
+//! the remaining files carry bindings, reach, intrinsics, provenance replay
+//! and receipts.
 
 pub(crate) mod selection;
 
 mod external_binding_rows;
+mod independent_components;
 mod installation_reach;
 #[cfg(feature = "installed-writer")]
 mod installed_writer;
@@ -47,6 +50,7 @@ pub use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{
     ProviderSelectionProvenance, SelectedProviderPlanWithProvenance,
     SelectedProviderReviewProvenance, selected_provider_plan_facts,
+    selected_provider_plan_facts_with_independent_components,
 };
 pub use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 

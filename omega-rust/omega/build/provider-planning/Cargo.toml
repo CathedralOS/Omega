@@ -19,6 +19,7 @@ installed-writer = [
 [dependencies]
 calling-conventions = { path = "../../representations/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
+component-description = { path = "../../backend/artifacts/component-description" }
 effects = { path = "../../representations/effects" }
 executable-installation = { path = "../../backend/runtime/executable-installation", optional = true }
 external-roots = { path = "../../backend/runtime/external-roots", optional = true }
@@ -51,6 +52,7 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
