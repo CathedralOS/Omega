@@ -493,10 +493,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
         O::EstablishByteSequenceLiteral { place, .. }
         | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
         O::AtomicEvent {
-            event:
-                abstract_operations::AbstractAtomicEvent::CompareExchangeOnce {
-                    outcome, ..
-                },
+            event: abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. },
             ..
         } => Some(outcome.place),
         _ => None,
