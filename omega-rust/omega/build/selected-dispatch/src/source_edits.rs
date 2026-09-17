@@ -7,6 +7,8 @@
 mod builder;
 mod guard;
 mod records;
+#[cfg(test)]
+mod tests;
 
 pub(super) use builder::SourceEditBuilder;
 use records::*;
