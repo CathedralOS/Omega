@@ -137,6 +137,48 @@ must be surfaced before relying on them.
      entrypoints. Keep the item; decide whether that split is spec (add the
      clause) or an owner architecture decision recorded here.
 
+4. **Receiving-policy selection surface** (named decision:
+   `receiving-policy-selection`). The
+   [two-axis containment contract](wiki/spec/build/permissions.md#two-axis-containment)
+   and [receiver-owned requirements](wiki/spec/proofs/publication.md#receiver-owned-requirements)
+   settle that the receiver "selects a versioned policy package and its exact
+   concrete configuration through ordinary package review and pinning",
+   independently of the offered program, and that accepted package permission
+   rows must not be mirrored into that receiving policy. No contract spells how
+   a consuming project names that policy package: the
+   [build declarations](wiki/spec/build/declarations.md) project only
+   `package`/`application`/`member`/`depend*`/`artifact_only`, the lock and
+   acceptance contracts describe only package rows, and the compiler's
+   `PreparedLocalProjectNativeRequest::with_receiving_terminal_authority_permission_policy`
+   has no caller outside tests, so `operations/compile_project.rs` defaults to
+   the empty deny-by-absence policy. Product requirement: the documented
+   `cli_mvp` CLI command, Cathedral's native smoke
+   (`tools/x86-empty-page-table-canary/native-smoke`) and Squalr's native
+   acceptance all pass package review and stop at "receiving terminal-authority
+   policy omits the accepted permission for `Console::exit_process`" (TASKS.md
+   `cli_mvp` row and Process-exit contract at e2447086af). Which surface should
+   select the receiving policy?
+
+   - (a) A projected root-build declaration naming a policy package by ordinary
+     source selection, for example `builder.receiving_policy(Source::Path {
+     location: "../console-policy" })`, reviewed and pinned like a dependency
+     edge but never imported as product or build code; the policy package's
+     concrete rows are ordinary Omega data in that package. This fits "ordinary
+     package review and pinning" and keeps the axis distinct from accepted
+     package rows. Recommended default.
+   - (b) A compiler invocation input (`--receiving-policy <file>`) carrying the
+     rows directly. Simplest, but the policy then bypasses package review and
+     pinning, which the contract requires.
+   - (c) Reuse the PCC receiver policy package selected for
+     [proof publication](wiki/spec/proofs/publication.md) as the single
+     receiver policy (physical permissions as one section of it). Coherent, but
+     PCC-PRODUCT-PUBLICATION is unimplemented and this couples ordinary native
+     realization to the proof-product route.
+
+   Until answered, TWO-AXIS-TERMINAL-AUTHORITY-REVIEW's receiving-axis input
+   and the `cli_mvp` CLI acceptance are design-blocked; the package axis
+   (proposing and accepting the permission row) is not.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
