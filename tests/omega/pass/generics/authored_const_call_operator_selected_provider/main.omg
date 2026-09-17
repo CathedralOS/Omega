@@ -1,0 +1,34 @@
+// A helper machine's authored `boundary machine %` use selects the program's
+// single `satisfies` conformance as its executable provider. Const evaluation
+// retains that authored selection across the `count()` call instead of folding
+// builtin arithmetic, so `Buffer<count()>` lands on the provider's zero result.
+// The unrelated builtin `+` in `sum()` keeps its builtin meaning.
+
+data Math {}
+
+boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+
+data Provider {}
+
+machine Provider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder
+{
+    0
+}
+
+machine count() -> u64 { 7u64 % 2 }
+
+machine sum() -> u64 { 4 + 3 }
+
+data Buffer<const N: u64> {
+    values: [u8; N];
+}
+
+data Main {
+    value: Buffer<count()>;
+    plain: [u8; sum()];
+}
+
+machine Main::main(&mut self) {
+    let folded: Buffer<count()> = Buffer { values: [] };
+}
