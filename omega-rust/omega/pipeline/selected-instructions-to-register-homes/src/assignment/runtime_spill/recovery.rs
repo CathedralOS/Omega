@@ -76,8 +76,10 @@ pub(super) fn analyze(
 
 // Keep a finite roster from the original program. A block parameter can use
 // private edge-initialized storage only when the selected rewrite checks every
-// incoming path, and an entry parameter only while the entry boundary itself
-// stores it; presence here grants neither that storage nor a home.
+// incoming path, and an entry-bound register — a scalar or structural
+// parameter, or the hidden aggregate-result destination — only while the
+// entry boundary itself stores it; presence here grants neither that storage
+// nor a home.
 // Reloads from either recovery form never become new candidates.
 pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualRegisterId)> {
     plan.functions
@@ -91,8 +93,7 @@ pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualR
                         register.origin,
                         VirtualRegisterOrigin::InstructionResult { .. }
                             | VirtualRegisterOrigin::BlockParameter { .. }
-                            | VirtualRegisterOrigin::EntryParameter { .. }
-                    )
+                    ) || body.is_entry_register(register)
                 })
                 .map(move |register| (function, register.id))
         })

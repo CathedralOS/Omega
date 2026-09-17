@@ -21,11 +21,17 @@
 //! Original parameter bindings remain exact. Replacing the destination's uses
 //! makes that parameter dead, so fresh liveness no longer requires its edge
 //! home tie. Their destination must likewise dominate every use.
-//! An entry parameter's definition is the function-entry boundary itself: the
-//! register arrives live-in, so its single store opens the entry block and its
-//! ABI live-in view keeps pinning only the entry-to-store window. That boundary
-//! store stays admitted only while no edge targets the entry block — re-entry
-//! would re-read a register whose interval already ended at the first store.
+//! An entry-bound register's definition is the function-entry boundary
+//! itself: a scalar entry parameter, a structural parameter's incoming
+//! pointer, or the hidden aggregate-result destination each arrives live-in,
+//! so its single store opens the entry block and its ABI live-in view keeps
+//! pinning only the entry-to-store window. A structural live-in's provenance
+//! is the contract's parameter row or declared result place rather than a
+//! source site — it restates no `ValueId`, so its reload registers carry a
+//! structural-observation origin and no value binding may name it. That
+//! boundary store stays admitted only while no edge targets the entry block —
+//! re-entry would re-read a register whose interval already ended at the
+//! first store.
 //!
 //! Terminator instruction operands are ordinary uses at one more position:
 //! each reloads at the end of its block, after the last body instruction and

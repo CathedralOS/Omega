@@ -1650,3 +1650,471 @@ fn entry_parameter_reuses_an_incumbent_slot_written_after_its_loads() {
     )
     .unwrap();
 }
+
+/// A structural parameter's pointer register arrives live-in pinned to its
+/// ABI view — the same boundary shape a scalar entry parameter keeps. Its
+/// provenance is the structural contract's own parameter row rather than a
+/// source site, and it carries no `ValueId`.
+fn structural_entry_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
+    let mut source = fixture(target);
+    let environment = baseline_target_register_environment(target).unwrap();
+    let place = PlaceId::new(1).unwrap();
+    let structural_type = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
+    {
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        let view = environment
+            .physical()
+            .model()
+            .classes
+            .iter()
+            .find(|row| row.id == function.virtual_registers[0].class)
+            .and_then(|row| row.views.first())
+            .copied()
+            .expect("the scalar class always declares a view");
+        let register = &mut function.virtual_registers[0];
+        register.origin = VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index: 0,
+        };
+        register.definition_site = None;
+        register.entry_fixed_view = Some(view);
+        function.structural = Some(legalized_operations::LegalizedStructuralContract {
+            result: None,
+            structural_types: Vec::new().into(),
+            parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+                semantic: terminal_psi::StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    is_self: false,
+                    structural_type,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+                target: target_operations::TargetStructuralParameter {
+                    place,
+                    structural_type,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    projected_qualifications: Vec::new(),
+                    shape: calling_conventions::ValueShape::borrowed_reference(8, 8),
+                    placement: calling_conventions::ValuePlacement {
+                        shape: calling_conventions::ValueShape::borrowed_reference(8, 8),
+                        locations: Vec::new(),
+                    },
+                },
+            }],
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+    }
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    source
+}
+
+/// The hidden aggregate-result destination is the one `AbiTransport` that is
+/// a boundary live-in: instruction zero, offset zero, pinned view, no site,
+/// naming the declared result place.
+fn hidden_result_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
+    let mut source = fixture(target);
+    let environment = baseline_target_register_environment(target).unwrap();
+    let place = PlaceId::new(2).unwrap();
+    let structural_type = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
+    {
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        let view = environment
+            .physical()
+            .model()
+            .classes
+            .iter()
+            .find(|row| row.id == function.virtual_registers[0].class)
+            .and_then(|row| row.views.first())
+            .copied()
+            .expect("the scalar class always declares a view");
+        let register = &mut function.virtual_registers[0];
+        register.origin = VirtualRegisterOrigin::AbiTransport {
+            instruction: SelectedInstructionId(0),
+            place,
+            byte_offset: 0,
+        };
+        register.definition_site = None;
+        register.entry_fixed_view = Some(view);
+        function.structural = Some(legalized_operations::LegalizedStructuralContract {
+            result: Some(terminal_psi::StructuralResultDeclaration {
+                place,
+                structural_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            }),
+            structural_types: Vec::new().into(),
+            parameters: Vec::new(),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+    }
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    source
+}
+
+/// A structural parameter's boundary definition stores at the head of the
+/// entry block exactly like a scalar entry parameter's, and its reload
+/// registers re-observe the declared place rather than restating a source
+/// value. Replay independently demands the same leading store.
+#[test]
+fn structural_parameter_stores_at_the_entry_boundary_on_every_target() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = structural_entry_fixture(target);
+        let place = PlaceId::new(1).unwrap();
+        let pinned = source.transformed().functions[0].virtual_registers[0].entry_fixed_view;
+        let original = source.transformed().functions[0].blocks[0]
+            .instructions
+            .len();
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(0), &environment, budget())
+                .unwrap();
+        let transformed = &result.transformed().functions[0];
+        let block = &transformed.blocks[0];
+        // [store, address, load, copy×4]: the boundary store leads, then the
+        // sole use's reload pair precedes its consumer.
+        assert_eq!(block.instructions.len(), original + 3);
+        assert!(matches!(
+            block.instructions[0].kind,
+            SelectedInstructionKind::Store64 { .. }
+        ));
+        assert_eq!(
+            block.instructions[0].operands[0].virtual_register,
+            VirtualRegisterId(0)
+        );
+        assert!(matches!(
+            block.instructions[1].kind,
+            SelectedInstructionKind::FrameAddress { .. }
+        ));
+        assert!(matches!(
+            block.instructions[2].kind,
+            SelectedInstructionKind::Load64 { .. }
+        ));
+        let reload = block.instructions[2].operands[1].virtual_register;
+        assert_eq!(block.instructions[3].operands[0].virtual_register, reload);
+        // The reload re-observes the parameter's place; a structural live-in
+        // restates no source value.
+        let reload_register = transformed
+            .virtual_registers
+            .iter()
+            .find(|register| register.id == reload)
+            .unwrap();
+        assert_eq!(
+            reload_register.origin,
+            VirtualRegisterOrigin::StructuralObservation {
+                instruction: block.instructions[2].id,
+                place,
+                byte_offset: 0,
+            }
+        );
+        // Nothing past the boundary store still names the victim register.
+        assert!(block.instructions.iter().skip(1).all(|instruction| {
+            instruction
+                .operands
+                .iter()
+                .all(|operand| operand.virtual_register != VirtualRegisterId(0))
+        }));
+        assert_eq!(
+            transformed.local_storage_slots.as_slice(),
+            [SelectedLocalStorageSlot {
+                id: LocalStorageSlotId::Spill {
+                    register: VirtualRegisterId(0)
+                },
+                byte_size: 8,
+                alignment: 8,
+            }]
+        );
+        assert_eq!(transformed.virtual_registers[0].entry_fixed_view, pinned);
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(0),
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // Replay demands the boundary store lead the block: pushing it into
+        // the body leaves the first stream instruction a source copy.
+        let mut moved = result.transformed().clone();
+        moved.functions[0].blocks[0].instructions.swap(0, 3);
+        assert_eq!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(0),
+                &environment,
+                budget(),
+                moved
+            )
+            .unwrap_err(),
+            RuntimeSpillError::ReplayMismatch
+        );
+    }
+}
+
+/// The hidden aggregate-result destination spills through the same boundary
+/// store: the ABI hands the result pointer in pinned, no instruction defines
+/// it, and its reloads observe the declared result place.
+#[test]
+fn hidden_result_destination_stores_at_the_entry_boundary_on_every_target() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = hidden_result_fixture(target);
+        let place = PlaceId::new(2).unwrap();
+        let original = source.transformed().functions[0].blocks[0]
+            .instructions
+            .len();
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(0), &environment, budget())
+                .unwrap();
+        let transformed = &result.transformed().functions[0];
+        let block = &transformed.blocks[0];
+        assert_eq!(block.instructions.len(), original + 3);
+        assert!(matches!(
+            block.instructions[0].kind,
+            SelectedInstructionKind::Store64 { .. }
+        ));
+        let reload = block.instructions[2].operands[1].virtual_register;
+        assert_eq!(block.instructions[3].operands[0].virtual_register, reload);
+        let reload_register = transformed
+            .virtual_registers
+            .iter()
+            .find(|register| register.id == reload)
+            .unwrap();
+        assert_eq!(
+            reload_register.origin,
+            VirtualRegisterOrigin::StructuralObservation {
+                instruction: block.instructions[2].id,
+                place,
+                byte_offset: 0,
+            }
+        );
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(0),
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
+/// Structural live-ins keep their own provenance discipline: a place the
+/// contract's parameter row does not name, a carried source site, a missing
+/// contract, and a transport that is not the declared result destination all
+/// stay rejected — the boundary definition admits only what the contract
+/// itself proves.
+#[test]
+fn structural_live_in_requires_its_contract_provenance() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for mutation in 0..7 {
+        let mut source = structural_entry_fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            match mutation {
+                // The contract's parameter row must name the origin's place.
+                0 => {
+                    function.structural.as_mut().unwrap().parameters[0]
+                        .semantic
+                        .place = PlaceId::new(7).unwrap();
+                }
+                // The index must select this place's row — an out-of-range
+                // index names no live-in.
+                1 => {
+                    function.virtual_registers[0].origin =
+                        VirtualRegisterOrigin::StructuralParameter {
+                            place: PlaceId::new(1).unwrap(),
+                            parameter_index: 1,
+                        };
+                }
+                // A structural live-in carries no source definition site.
+                2 => {
+                    function.virtual_registers[0].definition_site =
+                        Some(ValueDefinitionSite::FunctionParameter(0));
+                }
+                // Without the contract there is no provenance to check.
+                3 => {
+                    function.structural = None;
+                }
+                // An instruction-made transport address is not the boundary
+                // live-in, whatever its place.
+                4 => {
+                    function.virtual_registers[0].origin = VirtualRegisterOrigin::AbiTransport {
+                        instruction: SelectedInstructionId(7),
+                        place: PlaceId::new(1).unwrap(),
+                        byte_offset: 0,
+                    };
+                }
+                // A nonzero offset observes a fragment, not the result
+                // destination itself.
+                5 => {
+                    function.virtual_registers[0].origin = VirtualRegisterOrigin::AbiTransport {
+                        instruction: SelectedInstructionId(0),
+                        place: PlaceId::new(1).unwrap(),
+                        byte_offset: 8,
+                    };
+                }
+                // The boundary transport must keep its pinned ABI live-in
+                // view; without it the origin is no entry register.
+                _ => {
+                    function.virtual_registers[0].origin = VirtualRegisterOrigin::AbiTransport {
+                        instruction: SelectedInstructionId(0),
+                        place: PlaceId::new(1).unwrap(),
+                        byte_offset: 0,
+                    };
+                    function.virtual_registers[0].entry_fixed_view = None;
+                }
+            }
+            let identity = selected_instruction_plan_identity(source.transformed());
+            source.receipt.source_selected = identity;
+            source.receipt.transformed_selected = identity;
+        }
+        assert_eq!(
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(0), &environment, budget())
+                .unwrap_err(),
+            RuntimeSpillError::UnsupportedValue,
+            "mutation {mutation}"
+        );
+    }
+    // The hidden destination must also name the contract's declared result
+    // place — another place's pointer is an ordinary transport address.
+    let mut other_place = hidden_result_fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut other_place.transformed).functions[0];
+        function.virtual_registers[0].origin = VirtualRegisterOrigin::AbiTransport {
+            instruction: SelectedInstructionId(0),
+            place: PlaceId::new(9).unwrap(),
+            byte_offset: 0,
+        };
+        let identity = selected_instruction_plan_identity(other_place.transformed());
+        other_place.receipt.source_selected = identity;
+        other_place.receipt.transformed_selected = identity;
+    }
+    assert_eq!(
+        spill_selected_runtime_value(
+            &other_place,
+            0,
+            VirtualRegisterId(0),
+            &environment,
+            budget()
+        )
+        .unwrap_err(),
+        RuntimeSpillError::UnsupportedValue
+    );
+}
+
+/// A structural live-in restates no source value, so a `Registers` binding
+/// naming it can never satisfy the semantic link a value transport needs.
+/// And like every boundary definition, re-entry into the entry block stays
+/// rejected — the store would re-read a register whose interval ended.
+#[test]
+fn structural_live_in_rejects_value_binding_transport_and_reentry() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let jump = environment
+        .constraint(environment.selected_keys().jump)
+        .unwrap();
+    let mut bound = structural_entry_fixture(target);
+    {
+        let scalar_type = bound.transformed().functions[0].virtual_registers[0].scalar_type;
+        let function = &mut Arc::make_mut(&mut bound.transformed).functions[0];
+        let mut edge = successor(1);
+        edge.bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(9).unwrap(),
+                argument: ValueId::new(8).unwrap(),
+                scalar_type,
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: VirtualRegisterId(0),
+                parameter: VirtualRegisterId(9),
+            },
+        });
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: admission::instruction(
+                SelectedInstructionId(50),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            when_nonzero: edge,
+            when_zero: successor(1),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: admission::instruction(
+                    SelectedInstructionId(51),
+                    SelectedInstructionKind::ReturnUnit,
+                    return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+        let identity = selected_instruction_plan_identity(bound.transformed());
+        bound.receipt.source_selected = identity;
+        bound.receipt.transformed_selected = identity;
+    }
+    assert_eq!(
+        spill_selected_runtime_value(&bound, 0, VirtualRegisterId(0), &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedUse
+    );
+    // Any edge back to the boundary re-executes the store against a register
+    // whose interval already ended — the same rejection entry parameters keep.
+    let mut reentry = structural_entry_fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut reentry.transformed).functions[0];
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: admission::instruction(
+                SelectedInstructionId(50),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            when_nonzero: successor(0),
+            when_zero: successor(0),
+        };
+        let identity = selected_instruction_plan_identity(reentry.transformed());
+        reentry.receipt.source_selected = identity;
+        reentry.receipt.transformed_selected = identity;
+    }
+    assert_eq!(
+        spill_selected_runtime_value(&reentry, 0, VirtualRegisterId(0), &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedControlFlow
+    );
+}
