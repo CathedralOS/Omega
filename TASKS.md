@@ -3328,9 +3328,44 @@ Owners include
   `value_generic_runtime_static_bound` rejections. Reuse the Terminal
   artifact replay coverage in `compiler/tests/runtime_value_generics.rs`
   for captured subjects, reassigned sources, guarded proofs, indexed scalar
-  fields, and shared structural-subject bodies. Next acceptance: native
-  execution retaining the same subjects and proofs, then module-owned forms;
-  interpreter replay alone does not close that native requirement.
+  fields, and shared structural-subject bodies. Native leg (macOS ARM64,
+  2026-09-17): that file's `native` module compiles each scenario as a
+  `macos_arm64` application through the reviewed std package route and
+  checks the process exit code: shared dynamic body (exit 11), forwarded and
+  reassigned requirement subjects (12), guard-established requirement inside
+  a transition state (3), subject flowing through a literal-indexed receiver
+  field (38), and subject forwarded across cloned state transitions (7).
+  Receivers spell `console: Service<Console> in Bound` with an explicit
+  provider selection: a bare `console: Console` field stops at
+  `image-emission/src/hosted_receiver.rs:600` ("macOS hosted receiver bridge
+  lost exact contract, storage, or entry custody") whenever the entry
+  retains its receiver (states or attached fields), which is
+  OWNER_QUESTIONS.md question 1, not a value-generic gap. Three scenarios do
+  not execute natively yet; each non-generic control stops identically, so
+  none is value-generic specific. (1) A receiver method whose realized
+  subject owes a `requires` contract (`Main::at<Count: u8>(&self) requires
+  Count <= 7`) stops in target lowering at
+  `abstract-operations-to-target-operations/src/lowering/control_flow.rs:92`
+  (`!function.entry_claims.is_empty()`, rendered
+  `UnsupportedControlFlow(MachineId(1))`), exactly as a plain
+  `Main::put(&mut self, c: u8, v: u8) requires c <= 7;` does; that path is
+  under the WRITE-ONLY-BORROW claim, so the native test drops the contract
+  and keeps the subject flow. (2) The suite's reassigned source (`let mut
+  source` in `Main::main` beside the Console receiver) stops at
+  `target-operations-to-selected-instructions/src/legalization/source/scalar_graph/terminator.rs:86`
+  (`Selection(Legalization(SourceCustodyMismatch))`), the known
+  receiver-plus-mutable-primitive-local limit; the native test keeps the
+  source in a helper machine. (3) A structural subject (`take<t>()` over a
+  record local) beside a Console receiver leaves `Main::main` without a
+  checked Unit plan (`local construction stopped at statement sequence:
+  local data: scalar call binding, statement 1`; marker at
+  `typed-trees-to-checked-trees/src/execution/unit/control/statement_sequence.rs:562`,
+  declined downstream in the call planner); the same program without the
+  Console receiver compiles and runs natively (exit 0), and a non-generic
+  `read(t: Token)` stops identically, so this is STATE-LOCAL-VALUE-FRONTIER
+  territory (record-local call operands beside a provider receiver). Next
+  acceptance: contract-bearing receiver methods and the structural subject
+  observed natively once (1) and (3) land, then module-owned forms.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),

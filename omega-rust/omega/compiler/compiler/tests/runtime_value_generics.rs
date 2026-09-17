@@ -901,7 +901,7 @@ fn replay(
             &[],
             TerminalStructuralInputs {
                 arguments: &structural_arguments,
-                byte_arrays: byte_arrays,
+                byte_arrays,
                 ..Default::default()
             },
         )
@@ -955,4 +955,427 @@ impl TerminalEffectHandler for Trace {
         self.0.push(u64::try_from(*value).unwrap());
         Ok(())
     }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[path = "support/console_acceptance.rs"]
+mod console_acceptance;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[path = "support/macos_entry_acceptance.rs"]
+mod macos_entry_acceptance;
+
+/// The native leg: the same runtime-bound subjects execute on the macOS ARM64
+/// host and surface through the process exit code, so the captured subject,
+/// its forwarding, its guard-established requirement, its flow through an
+/// indexed scalar field, and its transport across cloned state transitions
+/// are witnessed on the realized machine code rather than only on the
+/// interpreter. Fixtures spell the receiver `console: Service<Console> in
+/// Bound` with an explicit provider selection: a bare `console: Console`
+/// instance field has no Fused establishment row, so the hosted receiver
+/// bridge rejects any entry that retains its receiver (states or attached
+/// fields) until OWNER_QUESTIONS.md question 1 is decided. Binder carriers
+/// are `i32`/`u8` because the exit code is an `i32` and native realization
+/// admits their widening; `in Wrapping` retags keep the sums realizable.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+mod native {
+    use super::Fixture;
+    use build_declarations::{BuildDeclaration, extract_build_declaration};
+    use compiler::{
+        CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+        compile_to_checked,
+    };
+    use diagnostics::Diagnostic;
+    use package_compilation::{
+        PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+    };
+    use semantic_vocabulary::PackageKeyIdentity;
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+        process::Command,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn repo_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(4)
+            .expect("compiler crate should live under omega-rust/omega/compiler/compiler")
+            .to_path_buf()
+    }
+
+    fn identity(marker: u8) -> PackageKeyIdentity {
+        PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero fixture identity")
+    }
+
+    fn render(diagnostics: &[Diagnostic]) -> String {
+        diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// The reviewed-fixture package route the canary suite uses for std
+    /// fixtures: the standard library bound by repository path, the macOS
+    /// program entry accepted from the checked target contract, and the exact
+    /// Console `exit_process` provider plan accepted from a preliminary
+    /// checked compile of the fixture itself.
+    fn package_inputs(root: &Path) -> Result<PackageCompilationInputs, Vec<Diagnostic>> {
+        let main = root.join("main.omg");
+        let standard_library = repo_root().join("source/library/std");
+        let declaration = extract_build_declaration(root)
+            .unwrap_or_else(|error| panic!("fixture {}: {error}", root.display()));
+        let root_role = declaration.kind();
+        let root_name = match declaration {
+            BuildDeclaration::Application(application) => application.name,
+            BuildDeclaration::Package(package) => package.name,
+            BuildDeclaration::Workspace(_) => panic!("native fixture cannot be a workspace"),
+        };
+        let root_identity = identity(1);
+        let std_identity = identity(2);
+        let inputs = PackageCompilationInputs::new(
+            root_identity,
+            root_role,
+            vec![
+                PackageSourceBinding::new(
+                    root_identity,
+                    root_name.into_string(),
+                    root.to_path_buf(),
+                ),
+                PackageSourceBinding::new(
+                    std_identity,
+                    "omega-language-std",
+                    standard_library.clone(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_identity,
+                "omega_language_std",
+                std_identity,
+            )],
+        )
+        .unwrap_or_else(|errors| panic!("native fixture inputs: {errors:#?}"));
+        let mut bindings = vec![
+            super::macos_entry_acceptance::candidate_macos_entry_binding(
+                &standard_library,
+                std_identity,
+            )?,
+        ];
+        let inputs = inputs
+            .with_accepted_semantic_bindings(bindings.clone())
+            .map_err(|errors| vec![Diagnostic::error(format!("entry acceptance: {errors:?}"))])?;
+        let preliminary = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&main, Some("macos_arm64"))
+        })?;
+        bindings.push(super::console_acceptance::candidate_console_exit_binding(
+            &preliminary,
+            std_identity,
+            false,
+            false,
+        )?);
+        inputs
+            .with_accepted_semantic_bindings(bindings)
+            .map_err(|errors| vec![Diagnostic::error(format!("console acceptance: {errors:?}"))])
+    }
+
+    /// Compile `source` as a macOS ARM64 application, publish the native
+    /// artifact, run it, and compare the process exit code.
+    fn run_native(name: &str, source: &str, expected_exit: i32) {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let fixture = Fixture(std::env::temp_dir().join(format!(
+            "omega-runtime-value-generics-native-{name}-{}-{stamp}",
+            std::process::id(),
+        )));
+        fs::create_dir(&fixture.0).unwrap();
+        fs::write(fixture.0.join("main.omg"), source).unwrap();
+        let standard_library = repo_root()
+            .join("source/library/std")
+            .to_string_lossy()
+            .replace('\\', "/");
+        fs::write(
+            fixture.0.join("build.omg"),
+            format!(
+                "machine build(builder: &mut Build) {{\n    builder.application(\"runtime-value-generics-{name}\");\n    builder.depend(Source::Path {{ location: \"{standard_library}\" }});\n    builder.select_provider<Console, ConsoleNativeProvider>();\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n"
+            ),
+        )
+        .unwrap();
+        let inputs = package_inputs(&fixture.0).unwrap_or_else(|diagnostics| {
+            panic!(
+                "{name}: native fixture acceptance failed; artifacts at {}:\n{}",
+                fixture.0.display(),
+                render(&diagnostics)
+            )
+        });
+        let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+            inputs
+                .accepted_semantic_bindings()
+                .flat_map(|binding| binding.terminal_authority_permissions())
+                .cloned()
+                .collect(),
+        )
+        .expect("accepted Console permissions form a valid policy");
+        let build_dir = fixture.0.join("build");
+        let request = CompileRequest::new(CompileOptions {
+            root_path: fixture.0.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some("macos_arm64".to_owned()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_terminal_authority_permission_policy(permission_policy)
+        .with_package_inputs(inputs);
+        let report = compile(request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "{name}: native compilation failed; artifacts at {}:\n{}",
+                    fixture.0.display(),
+                    render(&diagnostics)
+                )
+            })
+            .publish_retained_native_artifact(&build_dir)
+            .unwrap_or_else(|error| panic!("{name}: native publication failed: {error}"));
+        let executable = report
+            .checked_native_executable_path()
+            .unwrap_or_else(|| panic!("{name}: no checked native executable receipt"))
+            .to_path_buf();
+        let output = Command::new(&executable)
+            .output()
+            .unwrap_or_else(|error| panic!("{name}: cannot run {}: {error}", executable.display()));
+        assert_eq!(
+            output.status.code(),
+            Some(expected_exit),
+            "{name}: native exit code; stderr:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    /// Two runtime subjects reach one dynamic body and the literal argument
+    /// keeps its closed specialization: 3 + 4 + 4.
+    #[test]
+    fn runtime_bound_arguments_share_one_dynamic_body_natively() {
+        run_native(
+            "shared-body",
+            r#"
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine prefix_count<Count: i32>(base: i32) -> i32 in Wrapping {
+    Count as i32 in Wrapping
+}
+
+machine Main::main(&mut self) reaches Console {
+    let n: i32 = 3;
+    let m: i32 = 4;
+    let first: i32 in Wrapping = prefix_count<n>(7);
+    let second: i32 in Wrapping = prefix_count<m>(8);
+    let closed: i32 in Wrapping = prefix_count<4>(9);
+    let total: i32 in Wrapping = first + second + closed;
+    self.console.exit_process(total as i32);
+}
+"#,
+            11,
+        );
+    }
+
+    /// The requirement is owed on each call's own subject, the generic caller
+    /// forwards its realized parameter, and a reassigned source binds its
+    /// current value: 3 + 3 + 6. The mutable source lives in a helper machine
+    /// because native legalization does not yet admit a provider-attachment
+    /// receiver and a mutable primitive local in one machine
+    /// (`Selection(Legalization(SourceCustodyMismatch))`).
+    #[test]
+    fn runtime_bound_requirements_stay_explicit_and_forward_natively() {
+        run_native(
+            "forwarding",
+            r#"
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine bounded<Count: i32>(base: i32) -> i32 in Wrapping
+requires
+    Count <= 10;
+{
+    Count as i32 in Wrapping
+}
+
+machine forward_bounded<K: i32>(base: i32) -> i32 in Wrapping
+requires
+    K <= 10;
+{
+    let inner: i32 in Wrapping = bounded<K>(base);
+    inner
+}
+
+machine reassigned_source() -> i32 in Wrapping {
+    let mut source: i32 = 4;
+    source = 6;
+    let current: i32 in Wrapping = bounded<source>(0);
+    current
+}
+
+machine Main::main(&mut self) reaches Console {
+    let n: i32 = 3;
+    let obliged: i32 in Wrapping = bounded<n>(2);
+    let chained: i32 in Wrapping = forward_bounded<n>(3);
+    let current: i32 in Wrapping = reassigned_source();
+    let total: i32 in Wrapping = obliged + chained + current;
+    self.console.exit_process(total as i32);
+}
+"#,
+            12,
+        );
+    }
+
+    /// A dominating transition guard establishes the requirement for the
+    /// state's forwarded subject: the allowed state exits with it.
+    #[test]
+    fn runtime_bound_subject_keeps_its_transition_guard_proof_natively() {
+        run_native(
+            "guarded",
+            r#"
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine bounded<Count: i32>(base: i32) -> i32 in Wrapping
+requires
+    Count <= 10;
+{
+    Count as i32 in Wrapping
+}
+
+machine Main::main(&mut self) reaches Console {
+    let n: i32 = 3;
+    transition n <= 10 {
+        true -> allowed(n)
+        false -> denied()
+    }
+    state allowed(&mut self, k: i32) {
+        let guarded: i32 in Wrapping = bounded<k>(5);
+        self.console.exit_process(guarded as i32);
+    }
+    state denied(&mut self) {
+        self.console.exit_process(99);
+    }
+}
+"#,
+            3,
+        );
+    }
+
+    /// The captured subject flows through a literal-indexed scalar field on
+    /// the receiver: each `put` stores its own realized `Count`, each `at`
+    /// reads it back, and the authored argument stays distinct: 3 + 5 + 30.
+    /// The methods carry no `requires` clause: a receiver method whose
+    /// realized subject owes a contract stops in target lowering
+    /// (`UnsupportedControlFlow`, entry claims on a structural function).
+    #[test]
+    fn runtime_bound_subject_flows_through_indexed_field_writes_natively() {
+        run_native(
+            "indexed-field",
+            r#"
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console> in Bound;
+    values: [u8; 8];
+}
+
+machine Main::at<Count: u8>(&self) -> u8 {
+    self.values[3]
+}
+
+machine Main::put<Count: u8>(&mut self, v: u8) {
+    self.values[3] = Count;
+    self.values[4] = v;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let n: u8 = 3;
+    let source: u8 = 5;
+    self.put<n>(20);
+    let first: u8 = self.at<n>();
+    self.put<source>(30);
+    let second: u8 = self.at<source>();
+    let stored_arg: u8 = self.values[4];
+    let total: i32 in Wrapping = (first as i32 in Wrapping) + (second as i32 in Wrapping) + (stored_arg as i32 in Wrapping);
+    self.console.exit_process(total as i32);
+}
+"#,
+            38,
+        );
+    }
+
+    /// A multi-state template cloned for a runtime subject forwards that
+    /// subject across its `->` transitions: each arm stores the subject it
+    /// received, and distinct subjects reuse the one body: 3 + 4.
+    #[test]
+    fn runtime_bound_subject_survives_state_transitions_natively() {
+        run_native(
+            "transitioned-subject",
+            r#"
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console> in Bound;
+    values: [u8; 8];
+}
+
+machine Main::walk<Count: u8>(&mut self, n: u8) {
+    transition n == 3 {
+        true -> allowed(n)
+        false -> denied()
+    }
+    state allowed(&mut self, n: u8) {
+        self.values[3] = Count;
+    }
+    state denied(&mut self) {
+        self.values[4] = Count;
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let n: u8 = 3;
+    self.walk<n>(n);
+    let m: u8 = 4;
+    self.walk<m>(m);
+    let stored: u8 = self.values[3];
+    let forwarded: u8 = self.values[4];
+    let total: i32 in Wrapping = (stored as i32 in Wrapping) + (forwarded as i32 in Wrapping);
+    self.console.exit_process(total as i32);
+}
+"#,
+            7,
+        );
+    }
+}
+
+/// The native leg runs only where the macOS ARM64 application can execute;
+/// every other host reports the skip instead of silently passing.
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+#[test]
+fn native_leg_requires_a_macos_arm64_host() {
+    eprintln!(
+        "skipped: runtime value generic native execution needs a macOS ARM64 host (this host is {}-{})",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
 }
