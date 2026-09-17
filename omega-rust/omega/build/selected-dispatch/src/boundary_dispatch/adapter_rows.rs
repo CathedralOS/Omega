@@ -28,6 +28,11 @@ pub(crate) struct AdapterRow {
     /// Readable tuple spellings for diagnostics only; `family_tuple` is the
     /// semantic key.
     pub(crate) family_tuple_display: Box<[String]>,
+    /// Set on a row realizing a top-level `boundary requirement`: the exact
+    /// nominal owner (`Owner` in `Owner::name`) a direct call retains as its
+    /// receiver symbol. `receiver_trait` is then the requirement symbol
+    /// itself, never a boundary trait, and no field or parameter joins it.
+    pub(crate) top_level_owner: Option<symbols::SymbolHandle>,
 }
 
 /// A selected requirement that declares local generic binders but cannot
@@ -113,6 +118,40 @@ pub(crate) fn resolve_selected_adapter_row(
             methods.len(),
         )));
     };
+
+    // A top-level `boundary requirement` is its own single-row slot: the
+    // schema names the requirement machine, not a boundary trait.
+    let top_level_requirements = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            provider_planning::service_schema::schema_binds_exact_boundary_requirement(
+                typed,
+                &plan.schema,
+                requirement,
+            )
+        })
+        .collect::<Vec<_>>();
+    match top_level_requirements.as_slice() {
+        [requirement] => {
+            return resolve_top_level_requirement_adapter_row(
+                typed,
+                plan,
+                row,
+                method,
+                requirement,
+                machine_identity,
+            );
+        }
+        [] => {}
+        many => {
+            return Err(Diagnostic::error(format!(
+                "selected checked-adapter selected schema `{}` resolves to {} exact top-level boundary requirements",
+                plan.schema.trait_name,
+                many.len(),
+            )));
+        }
+    }
 
     let receiver_trait = exact_boundary_trait(
         typed,
@@ -269,6 +308,128 @@ pub(crate) fn resolve_selected_adapter_row(
         forward_receiver,
         family_tuple: Box::default(),
         family_tuple_display: Box::default(),
+        top_level_owner: None,
+    })])
+}
+
+/// Resolve the one exact checked adapter realizing a top-level `boundary
+/// requirement`. The first rung is deliberately closed: a public, nongeneric,
+/// receiver-free requirement (`pub boundary requirement Owner::name(...);`)
+/// and a nongeneric checked-body adapter whose sole `satisfies` edge rejoins
+/// that exact requirement symbol with the same non-self arity. The row keys
+/// on the requirement symbol and the owner the direct call retains as its
+/// receiver; execution consumes the association while Terminal retains the
+/// requirement.
+fn resolve_top_level_requirement_adapter_row(
+    typed: &TypedTrees,
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    method: &effects::provider_plan::ServiceMethod,
+    requirement: &typed_trees::machine::Machine,
+    machine_identity: &str,
+) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
+    let requirement_name = requirement.name.as_str();
+    if !requirement.symbol.is_valid() || !requirement.attached_data_symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "selected top-level boundary requirement `{requirement_name}` has no exact typed owner symbol",
+        )));
+    }
+    let [entry] = typed.machine_states(requirement) else {
+        return Err(Diagnostic::error(format!(
+            "selected top-level boundary requirement `{requirement_name}` does not declare exactly one entry signature",
+        )));
+    };
+    if !entry.symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "selected top-level boundary requirement `{requirement_name}` has no exact entry-state symbol",
+        )));
+    }
+    if typed
+        .state_parameters(entry)
+        .iter()
+        .any(|parameter| parameter.is_self)
+    {
+        return Err(Diagnostic::error(format!(
+            "selected top-level boundary requirement `{requirement_name}` takes a `self` receiver; only a receiver-free requirement settles a direct-call dispatch row",
+        )));
+    }
+    if plan.provider_type.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
+            plan.name,
+        )));
+    }
+    let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
+    if adapter.attached_data.as_ref().map(|owner| owner.as_str())
+        != Some(plan.provider_type.as_str())
+    {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
+            plan.provider_type,
+        )));
+    }
+    if !adapter.supply_mode.is_checked_body() {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` is not a checked body",
+        )));
+    }
+    if !typed.machine_type_parameters(adapter).is_empty() {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` is generic over {} machine binders; only an exact nongeneric realization can settle a boundary row",
+            typed.machine_type_parameters(adapter).len(),
+        )));
+    }
+    let Some(adapter_entry) = typed.machine_states(adapter).first() else {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` has no executable entry state",
+        )));
+    };
+    if !adapter_entry.symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` has no exact entry-state symbol",
+        )));
+    }
+    let conformances = typed
+        .machine_trait_conformances(adapter)
+        .iter()
+        .filter(|conformance| {
+            conformance.external_binding.is_none()
+                && conformance.symbol == requirement.symbol
+                && conformance.requirement_symbol == requirement.symbol
+        })
+        .count();
+    if conformances != 1 {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` binds top-level boundary requirement `{}` through {conformances} checked conformances",
+            method.requirement_identity,
+        )));
+    }
+    let actual_parameters = typed
+        .state_parameters(adapter_entry)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+    if actual_parameters != method.parameter_count {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` has {actual_parameters} non-self entry parameters; top-level boundary requirement `{}` requires {}",
+            method.requirement_identity, method.parameter_count,
+        )));
+    }
+    // A direct machine call targets the requirement's entry state, exactly
+    // as the realization is keyed by its own entry state.
+    Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
+        receiver_trait: requirement.symbol,
+        provider_plan_digest: *plan.identity_digest().as_bytes(),
+        receiver_trait_name: requirement_name.to_owned(),
+        requirement: method.name.clone(),
+        requirement_identity: method.requirement_identity.clone(),
+        requirement_symbol: entry.symbol,
+        adapter_target: adapter.name.as_str().to_owned(),
+        symbol: adapter_entry.symbol,
+        forward_receiver: false,
+        family_tuple: Box::default(),
+        family_tuple_display: Box::default(),
+        top_level_owner: Some(requirement.attached_data_symbol),
     })])
 }
 
@@ -481,6 +642,7 @@ fn resolve_family_adapter_row(
             forward_receiver,
             family_tuple: tuple.identities.clone(),
             family_tuple_display: tuple.display.clone(),
+            top_level_owner: None,
         }));
     }
     // A dynamic family publishes every declared roster tuple or none: the

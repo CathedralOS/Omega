@@ -23,6 +23,7 @@ use crate::boundary_dispatch::boundary_fields::{
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use typed_trees::TypedTrees;
 
 /// Bind selected execution without changing typed source or source-derived plans.
 /// All fallible work completes before publishing the association set.
@@ -89,6 +90,11 @@ fn plan_selected_boundary_adapter_dispatch(
             }
         }
     }
+    // A direct call to a public receiver-free top-level requirement is
+    // executable only through a settled row: without a selected provider the
+    // call rejects here, before either engine could reach the bodyless
+    // declaration. Receiver-bearing requirements keep their existing routes.
+    reject_unselected_direct_requirement_calls(typed, &adapters, &mut diagnostics);
     if adapters.is_empty() && generic_requirements.is_empty() {
         return diagnostics.is_empty().then(Vec::new).ok_or(diagnostics);
     }
@@ -168,16 +174,35 @@ fn plan_selected_boundary_adapter_dispatch(
         }
     }
 
+    // A top-level requirement row is reached by the direct call
+    // `Owner::name(...)`, whose retained receiver is the exact nominal owner.
+    // The owner joins the requirement symbol directly; no field, parameter or
+    // routed-service receipt participates.
+    let mut boundary_fields = Vec::new();
+    for adapter in &adapters {
+        let Some(owner) = adapter.top_level_owner else {
+            continue;
+        };
+        let field = BoundaryField {
+            symbol: owner,
+            trait_symbol: adapter.receiver_trait,
+        };
+        if !boundary_fields.contains(&field) {
+            boundary_fields.push(field);
+        }
+    }
+
     // A direct `self.<field>` occurrence is stamped with the exact inherited
     // FIELD child of the attached machine, not the DATA declaration's field
     // symbol. Retain both coordinates: the declaration symbol serves nested
     // receiver leaves, while every exact machine-owned inherited symbol serves
     // direct statement and value receivers. Spelling is used only inside the
     // already-exact machine owner to resolve its unique child.
-    let mut boundary_fields = boundary_field_declarations
-        .iter()
-        .map(|declaration| declaration.field)
-        .collect::<Vec<_>>();
+    boundary_fields.extend(
+        boundary_field_declarations
+            .iter()
+            .map(|declaration| declaration.field),
+    );
     for machine in typed.machines() {
         let Some(attached_data) = machine.attached_data.as_ref() else {
             continue;
@@ -394,4 +419,86 @@ fn plan_selected_boundary_adapter_dispatch(
         }
     }
     Ok(dispatch)
+}
+
+/// Whether a machine is a top-level `boundary requirement` a direct call may
+/// execute through a settled dispatch row: public, nongeneric, and without a
+/// `self` receiver.
+pub(crate) fn is_directly_callable_top_level_requirement(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> bool {
+    machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        && machine.is_public
+        && !machine.body_is_present
+        && machine.lifetime_parameters.is_empty()
+        && typed.machine_type_parameters(machine).is_empty()
+        && matches!(
+            typed.machine_states(machine),
+            [entry] if !typed.state_parameters(entry).iter().any(|parameter| parameter.is_self)
+        )
+}
+
+fn reject_unselected_direct_requirement_calls(
+    typed: &TypedTrees,
+    adapters: &[AdapterRow],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut reported = Vec::new();
+    let mut check = |target_symbol: symbols::SymbolHandle, target_name: &str| {
+        if !target_symbol.is_valid() || reported.contains(&target_symbol) {
+            return;
+        }
+        // A direct machine call targets the entry state of its callee.
+        let Some(requirement) = typed.machines().iter().find(|machine| {
+            typed
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == target_symbol)
+        }) else {
+            return;
+        };
+        if !is_directly_callable_top_level_requirement(typed, requirement)
+            || adapters.iter().any(|adapter| {
+                adapter.top_level_owner.is_some() && adapter.requirement_symbol == target_symbol
+            })
+        {
+            return;
+        }
+        reported.push(target_symbol);
+        diagnostics.push(Diagnostic::error(format!(
+            "direct call `{target_name}` names public boundary requirement `{}`, which has no selected provider; select an admitted provider whose checked machine `satisfies {}` before calling it",
+            requirement.name, requirement.name,
+        )));
+    };
+    for machine in typed.machines() {
+        for state in typed.machine_states(machine) {
+            for statement in typed.statement_table.statements(state.statement_nodes) {
+                if let typed_trees::statement::StatementNode::Call(call) = statement {
+                    check(call.target_symbol, call.target.as_str());
+                }
+            }
+        }
+    }
+    for (_, expression) in typed.expression_table.expression_entries() {
+        if let typed_trees::expression::ExpressionNode::Call(call) = expression {
+            check(call.target_symbol, call.target.as_str());
+        }
+    }
+}
+
+/// Whether settlement retained a direct-call dispatch row for a top-level
+/// boundary requirement: its `requirement` is the entry state of a
+/// `TopLevelRequirement` machine rather than a trait signature.
+pub(crate) fn has_top_level_requirement_dispatch(checked: &CheckedTrees) -> bool {
+    checked.facts.boundary_adapter_dispatch.iter().any(|row| {
+        checked.typed.machines().iter().any(|machine| {
+            machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && checked
+                    .typed
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == row.requirement)
+        })
+    })
 }
