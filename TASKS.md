@@ -1321,6 +1321,20 @@ Owners include
   realize `UefiOsHandoffNativeProvider::handoff` in
   `source/library/std/targets/uefi_x86_64/handoff.omg`; that authored surface
   stays planned and non-invoked, so no Omega program reaches this edge yet.
+  Surveyed at a9c92ec31e: the checked-level canary
+  `tests/omega/pass/build/uefi_os_handoff_invocation` retains the edge binding
+  and stops at `compile_to_checked`; the only via-less boundary-machine
+  realization pattern is the compiler-intrinsic catalog (`selected-
+  dispatch/src/compiler_intrinsic.rs` through provider planning, native
+  realization, target-operation lowering, image emission and artifact
+  hashing), whose rows are single syscall stubs, while the handoff is a
+  bounded two-call retry loop with a map buffer and a pre-final-attempt stack
+  switch that needs the system-table pointer only the physical shell owns.
+  That shell does not exist (`optimized_semantic_wrapper_object` has no
+  callers; **UEFI-PHYSICAL-SEMANTIC-ENTRY**), and a `ProgramEntry`-bound entry
+  has no checked transitive Unit plan, so this edge cannot advance past
+  checked until that item lands an emitted shell; it is an implementation
+  dependency, not a language decision.
 
 - **AP-BRINGUP.** Complete one secondary-processor entry through the executable
   installation and external-root owners. Acceptance covers low-memory and
