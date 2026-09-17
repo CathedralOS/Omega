@@ -54,6 +54,14 @@ before minting. The answer records the operand read, the contract's fixed
 `r10` scratch clobber, and the descriptor-table register state a published
 answer installs; a declined attempt installs nothing.
 
+A published table is also the dispatch boundary for hardware arrivals:
+`begin_published_interrupt_entry` resolves the reported vector through the
+member set sealed at publication and enters the armed member's retained root
+through the ledger's ordinary admission edge, so a provider receipt mints
+entry obligations only for an arrival whose gate actually reached hardware.
+Arrivals before publication, on unarmed vectors, or against a foreign
+installed realization reject with the receipt returned.
+
 Byte materialization keeps the same writer/consumer split: the ledger derives
 the checked post-handoff writer program whose fragments resolve each member's
 sealed entry target into the produced gate's offset fields, while the

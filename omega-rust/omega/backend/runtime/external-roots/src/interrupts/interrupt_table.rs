@@ -47,6 +47,13 @@
 //! critical stack class, and only then mints the [`EstablishedInterruptTable`]
 //! naming the exact written destination.
 //!
+//! A published table is also the dispatch boundary for hardware arrivals:
+//! `begin_published_interrupt_entry` resolves the reported vector through the
+//! member set sealed at publication and enters the armed member's retained
+//! root through the ledger's ordinary admission edge, so a provider receipt
+//! can mint entry obligations only for an arrival whose gate actually
+//! reached hardware.
+//!
 //! This file owns the ledger and its phases. `gate_descriptors.rs` carries
 //! gate descriptors, member plans and profiles, `established_tables.rs`
 //! established tables and members, `publications.rs` publications,
@@ -91,6 +98,9 @@ use layout_plans::{
 };
 use target::Architecture;
 
+use crate::interrupts::interrupt_entries::{
+    InterruptEntryObligations, InterruptEntryReceipt, InterruptEntryStartError,
+};
 use crate::{
     ExternalRootDiagnostic, InstalledExternalRoot, InstalledRootLedger,
     InterruptTableEstablishmentId, InterruptTablePublicationAuthorityId,
@@ -725,6 +735,48 @@ impl<'code> InterruptTableLedger<'code> {
                 },
             ))
         }
+    }
+
+    /// Admit one hardware-dispatched interrupt entry that arrived through
+    /// this table's currently published member rows.
+    ///
+    /// Publication is the edge that makes member roots reachable to hardware
+    /// arrivals, so this is the dispatch route for the timer and the fatal
+    /// exception entries alike: the reported `vector` resolves through the
+    /// member set sealed at publication, and the armed member's retained
+    /// root handle enters the ordinary admission edge
+    /// ([`InstalledRootLedger::begin_interrupt_entry`]), which rejoins the
+    /// receipt against the installed root's exact evidence. An arrival
+    /// reported before this table's carrier published, on a vector the
+    /// published rows do not arm, or against a root ledger that is not this
+    /// table's installed realization rejects with the receipt returned; a
+    /// receipt that does not bind the resolved member's exact installed root
+    /// rejects inside the ordinary edge.
+    pub fn begin_published_interrupt_entry(
+        &self,
+        ledger: &mut InstalledRootLedger,
+        vector: u8,
+        receipt: InterruptEntryReceipt,
+    ) -> Result<InterruptEntryObligations, InterruptEntryStartError> {
+        if !matches!(self.phase, InterruptTablePhase::Published { .. }) {
+            return Err(InterruptEntryStartError::unrouted(
+                receipt,
+                "interrupt entry cannot arrive before this table's publication reaches hardware",
+            ));
+        }
+        if ledger.installed_code() != self.installed_code || ledger.artifact() != self.artifact {
+            return Err(InterruptEntryStartError::unrouted(
+                receipt,
+                "interrupt entry arrival resolves against a different installed realization",
+            ));
+        }
+        let Some(member) = self.members.get(&vector) else {
+            return Err(InterruptEntryStartError::unrouted(
+                receipt,
+                "the reported vector is not an armed member of the published interrupt table",
+            ));
+        };
+        ledger.begin_interrupt_entry(member.root(), receipt)
     }
 
     /// Close the table account and return every retained member handle. The

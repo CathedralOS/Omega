@@ -1,8 +1,9 @@
 use super::{
-    DIVIDE_ERROR, GENERAL_PROTECTION, PAGE_FAULT, TIMER_TICK, admitted_table, authority_id,
-    established_for, established_table, establishment_id, fatal_member, install_members,
-    member_fixtures, member_fixtures_with_spare, member_vectors, profile_id, publication_id,
-    publication_receipt_id, table_destination, table_installed_code, table_profile, timer_member,
+    AdmittedTable, DIVIDE_ERROR, GENERAL_PROTECTION, PAGE_FAULT, TIMER_TICK, admitted_table,
+    authority_id, established_for, established_table, establishment_id, fatal_member,
+    install_members, member_fixtures, member_fixtures_with_spare, member_vectors, profile_id,
+    publication_id, publication_receipt_id, table_destination, table_installed_code, table_profile,
+    timer_member,
 };
 use crate::interrupts::interrupt_table::{
     EntryStack, EstablishedInterruptTable, InstalledCodeId, InstalledRootLedger,
@@ -691,5 +692,338 @@ fn closing_the_table_returns_every_member_handle() {
 }
 
 // ---------------------------------------------------------------------
-// Checked publication-instruction provider edge (x86-64 `lidt` contract).
+// Hardware arrivals dispatch through the published table.
 // ---------------------------------------------------------------------
+
+#[test]
+fn published_table_dispatches_the_timer_arrival_to_its_member_root() {
+    let mut admitted = admitted_table();
+    let established = established_for(&admitted, 0x619);
+    let carrier = admitted
+        .table
+        .begin_interrupt_table_publication(
+            &admitted.ledger,
+            established,
+            publication_id(0x629),
+            authority_id(0x638),
+        )
+        .expect("issued publication carrier");
+    let receipt = InterruptTablePublicationReceipt::from_provider(
+        publication_receipt_id(0x647),
+        &carrier,
+        true,
+    );
+    let outcome = admitted
+        .table
+        .complete_interrupt_table_publication(&admitted.ledger, carrier, receipt)
+        .expect("the exact receipt publishes the table");
+    assert!(matches!(
+        outcome,
+        InterruptTablePublicationOutcome::Published(_)
+    ));
+
+    // The timer vector resolves through the armed member row to the exact
+    // installed root: the receipt mints the Pending acknowledgement and the
+    // settled exit completes it.
+    let timer_root = admitted
+        .table
+        .member(TIMER_TICK)
+        .expect("admitted timer member")
+        .root()
+        .root();
+    let obligations = admitted
+        .table
+        .begin_published_interrupt_entry(
+            &mut admitted.ledger,
+            TIMER_TICK,
+            crate::tests::interrupt_entry_receipt(
+                admitted
+                    .table
+                    .member(TIMER_TICK)
+                    .expect("admitted timer member")
+                    .root(),
+                90,
+                Some(7),
+                Some(91),
+            ),
+        )
+        .expect("the armed timer vector admits the entry");
+    let (pending, control, acknowledgement) = obligations.into_parts();
+    let acknowledgement =
+        acknowledgement.expect("the timer entry mints its Pending acknowledgement");
+    let acknowledgement_receipt = InterruptAcknowledgementReceipt::from_provider(
+        crate::tests::root_id(
+            99,
+            InterruptAcknowledgementReceiptId::from_normalized_identity,
+        ),
+        &acknowledgement,
+        "InterruptCompletion::complete",
+    )
+    .expect("exact installed completion route");
+    let completed = acknowledgement
+        .complete(acknowledgement_receipt)
+        .expect("settled acknowledgement");
+    let completed = admitted
+        .ledger
+        .finish_interrupt_entry(pending, control, Some(completed))
+        .expect("settled timer exit");
+    assert_eq!(completed.root, timer_root);
+
+    // A fatal exception vector dispatches through the same edge and settles
+    // with no acknowledgement obligation.
+    let obligations = admitted
+        .table
+        .begin_published_interrupt_entry(
+            &mut admitted.ledger,
+            DIVIDE_ERROR,
+            crate::tests::interrupt_entry_receipt(
+                admitted
+                    .table
+                    .member(DIVIDE_ERROR)
+                    .expect("admitted divide-error member")
+                    .root(),
+                93,
+                None,
+                None,
+            ),
+        )
+        .expect("the armed divide-error vector admits the entry");
+    let (pending, control, acknowledgement) = obligations.into_parts();
+    assert!(acknowledgement.is_none());
+    let completed = admitted
+        .ledger
+        .finish_interrupt_entry(pending, control, None)
+        .expect("settled fatal exit");
+    assert_eq!(
+        completed.root,
+        crate::tests::root_id(0x101, ExternalRootId::from_normalized_identity)
+    );
+}
+
+#[test]
+fn interrupt_entry_dispatch_rejects_arrivals_before_publication() {
+    let mut admitted = admitted_table();
+    let timer_receipt = |admitted: &AdmittedTable<'_>| {
+        crate::tests::interrupt_entry_receipt(
+            admitted
+                .table
+                .member(TIMER_TICK)
+                .expect("admitted timer member")
+                .root(),
+            90,
+            Some(7),
+            Some(91),
+        )
+    };
+
+    // A table whose carrier has not issued arms no vector.
+    let receipt = timer_receipt(&admitted);
+    let error = admitted
+        .table
+        .begin_published_interrupt_entry(&mut admitted.ledger, TIMER_TICK, receipt)
+        .expect_err("an admitting table arms no vector");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("publication reaches hardware")
+    );
+    let _ = error.into_receipt();
+
+    // An issued-but-unanswered carrier is still not published: the hardware
+    // has not yet seen the member rows.
+    let established = established_for(&admitted, 0x61a);
+    let carrier = admitted
+        .table
+        .begin_interrupt_table_publication(
+            &admitted.ledger,
+            established,
+            publication_id(0x62a),
+            authority_id(0x639),
+        )
+        .expect("issued publication carrier");
+    let receipt = timer_receipt(&admitted);
+    let error = admitted
+        .table
+        .begin_published_interrupt_entry(&mut admitted.ledger, TIMER_TICK, receipt)
+        .expect_err("an unanswered carrier arms no vector");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("publication reaches hardware")
+    );
+    let _ = error.into_receipt();
+
+    // A refused carrier returns admission custody; arrivals still reject.
+    let refusal = InterruptTablePublicationReceipt::from_provider(
+        publication_receipt_id(0x648),
+        &carrier,
+        false,
+    );
+    let outcome = admitted
+        .table
+        .complete_interrupt_table_publication(&admitted.ledger, carrier, refusal)
+        .expect("refusal consumes the exact carrier");
+    assert!(matches!(
+        outcome,
+        InterruptTablePublicationOutcome::Refused(_)
+    ));
+    let receipt = timer_receipt(&admitted);
+    let error = admitted
+        .table
+        .begin_published_interrupt_entry(&mut admitted.ledger, TIMER_TICK, receipt)
+        .expect_err("a refused publication arms no vector");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("publication reaches hardware")
+    );
+    let _ = error.into_receipt();
+}
+
+#[test]
+fn published_table_rejects_unarmed_vectors_and_foreign_ledgers() {
+    let mut admitted = admitted_table();
+    let established = established_for(&admitted, 0x61b);
+    let carrier = admitted
+        .table
+        .begin_interrupt_table_publication(
+            &admitted.ledger,
+            established,
+            publication_id(0x62b),
+            authority_id(0x63a),
+        )
+        .expect("issued publication carrier");
+    let receipt = InterruptTablePublicationReceipt::from_provider(
+        publication_receipt_id(0x649),
+        &carrier,
+        true,
+    );
+    let outcome = admitted
+        .table
+        .complete_interrupt_table_publication(&admitted.ledger, carrier, receipt)
+        .expect("the exact receipt publishes the table");
+    assert!(matches!(
+        outcome,
+        InterruptTablePublicationOutcome::Published(_)
+    ));
+
+    // A vector the profile never declared is not armed by the published rows.
+    let error = admitted
+        .table
+        .begin_published_interrupt_entry(
+            &mut admitted.ledger,
+            0x2e,
+            crate::tests::interrupt_entry_receipt(
+                admitted
+                    .table
+                    .member(TIMER_TICK)
+                    .expect("admitted timer member")
+                    .root(),
+                94,
+                Some(7),
+                Some(94),
+            ),
+        )
+        .expect_err("an undeclared vector is not an armed member");
+    assert!(error.diagnostic().0.contains("not an armed member"));
+    let _ = error.into_receipt();
+
+    // A root ledger over a different installed realization cannot dispatch
+    // through this table even on an armed vector.
+    let members = member_fixtures();
+    let mut foreign_code = table_installed_code(2, 301, &members);
+    let mut foreign_ledger =
+        InstalledRootLedger::claim(&mut foreign_code).expect("foreign root ledger");
+    let error = admitted
+        .table
+        .begin_published_interrupt_entry(
+            &mut foreign_ledger,
+            TIMER_TICK,
+            crate::tests::interrupt_entry_receipt(
+                admitted
+                    .table
+                    .member(TIMER_TICK)
+                    .expect("admitted timer member")
+                    .root(),
+                95,
+                Some(7),
+                Some(95),
+            ),
+        )
+        .expect_err("a foreign installed realization cannot dispatch");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("different installed realization")
+    );
+    let _ = error.into_receipt();
+}
+
+#[test]
+fn published_table_dispatch_rejoins_the_receipt_against_the_armed_member() {
+    // The spare row is installed in the ledger but the profile does not
+    // declare its vector, so it stays outside the armed member set.
+    let members = member_fixtures_with_spare();
+    let code = Box::leak(Box::new(table_installed_code(1, 300, &members)));
+    let mut ledger = InstalledRootLedger::claim(code).expect("canonical root ledger");
+    let handles = install_members(&mut ledger, code, &members);
+    let profile = table_profile(0x600);
+    let mut table = InterruptTableLedger::new(profile.clone(), &ledger);
+    let mut handles = handles.into_iter();
+    for vector in member_vectors() {
+        table
+            .admit_interrupt_table_member(&ledger, vector, handles.next().expect("member handle"))
+            .expect("admitted interrupt-table member");
+    }
+    let spare = handles.next().expect("spare installed root");
+    let established = established_table(
+        0x61c,
+        &profile,
+        code.identity(),
+        code.artifact(),
+        &table,
+        table_destination(0x91c, 0x8_0000, 0x1000),
+    );
+    let carrier = table
+        .begin_interrupt_table_publication(
+            &ledger,
+            established,
+            publication_id(0x62c),
+            authority_id(0x63b),
+        )
+        .expect("issued publication carrier");
+    let receipt = InterruptTablePublicationReceipt::from_provider(
+        publication_receipt_id(0x64a),
+        &carrier,
+        true,
+    );
+    let outcome = table
+        .complete_interrupt_table_publication(&ledger, carrier, receipt)
+        .expect("the exact receipt publishes the table");
+    assert!(matches!(
+        outcome,
+        InterruptTablePublicationOutcome::Published(_)
+    ));
+
+    // The timer vector resolves to the timer member; a receipt naming the
+    // spare installed root drifts from the armed row's exact root and the
+    // ordinary edge rejects it with the receipt returned.
+    let error = table
+        .begin_published_interrupt_entry(
+            &mut ledger,
+            TIMER_TICK,
+            crate::tests::interrupt_entry_receipt(&spare, 96, Some(7), Some(96)),
+        )
+        .expect_err("a receipt must bind the armed member's exact root");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("does not bind the exact installed interrupt root")
+    );
+    let _ = error.into_receipt();
+}
