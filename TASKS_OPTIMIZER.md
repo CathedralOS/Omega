@@ -342,7 +342,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   rejected by replay; a provider-plan identity outside the selected
   closure is rejected at encoding as non-canonical, and a dropped row is
   rejected by replay. Landed: canonical component descriptions
-  (`component-candidate/src/component_verification/tests.rs`,
+  (`component-description/src/component_verification/tests.rs`,
   `component_description_rejects_every_one_field_substitution`,
   `component_description_declared_fields_stay_identity_bound`) — the
   schema, frontier, and embedded artifact substitution, every

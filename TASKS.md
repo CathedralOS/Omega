@@ -3547,28 +3547,38 @@ Owners include
   and `VerifiedComponent::realizes_selected_plan(&ProviderPlan)` joins a
   selected plan against the verified module with distinct rejections for an
   empty provider type, schema drift, unchecked rows, missing, mismatched,
-  duplicated, or unexported realizations. The fence cannot consume that join
-  yet because `tests/architecture/layering.rs`
-  (`ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners`,
-  76d1e4421f) keeps `component-candidate` out of the provider-planning,
-  build-evaluation, compiler, and package-manager closures, and a projection
-  of the join into a provider-planning type would be the hand-authored
-  inventory this item forbids. Next slice, in order: move
-  `component_description.rs` and `component_verification.rs` (with their
-  tests) below that quarantine into a `component-description` crate that
-  depends only on effects, terminal-codec, terminal-psi and
-  semantic-vocabulary (replacing the `image_emission::StackDemand` input of
-  `describe_component_facts` with plain entry/ceiling/alignment facts) while
-  `component-candidate` keeps `describe_component(&ComponentCandidate)`;
-  then give `selected_provider_plan_facts` an `independent_components:
-  &[VerifiedComponent]` input requiring exactly one component whose join
-  passes per `Independent` plan and rejecting missing, duplicate, unmatched
-  extra, and each mismatch distinctly; then thread verified components from
-  `PackageCompilationInputs` through `build-evaluation/src/provider_settlement`
-  (the evaluated-build admission surface that must also produce them); and
-  finally make the compiler build a `ComponentCandidate` for a dependency
-  compiled as its own component, since today `compiler.rs` stops at
-  `NativeArtifact` and no compile path produces a description.
+  duplicated, or unexported realizations. The description carrier, its
+  producer facts, and `verify_component` now live in
+  `omega-rust/omega/backend/artifacts/component-description` (dependencies:
+  effects, semantic-vocabulary, terminal-codec, terminal-psi, sha2), below
+  the runtime quarantine that `tests/architecture/layering.rs` keeps between
+  the ordinary compiler and package closures and the runtime owners
+  (`component_description_stays_below_the_runtime_quarantine` pins it);
+  `component-candidate` keeps `describe_component(&ComponentCandidate)` and
+  re-exports the API. `provider-planning` gains
+  `selected_provider_plan_facts_with_independent_components`: every
+  `Independent` plan must be realized by exactly one supplied
+  `VerifiedComponent` whose join passes, and every supplied component must
+  realize a plan; none, several, an unmatched extra, and each realization
+  mismatch reject distinctly and never fall back to fused
+  (`provider_planning/independent_components.rs`, 5 tests from a real
+  source fixture and a canonical described-and-verified module). The
+  3-argument `selected_provider_plan_facts` forwards an empty slice, so
+  its callers still reject every `Independent` selection. Next slice, in
+  order: thread verified components from `PackageCompilationInputs`
+  through `build-evaluation/src/provider_settlement/mod.rs` (the
+  evaluated-build admission surface that must also produce them; switch
+  its call to the four-argument entrance), then make the compiler build a
+  `ComponentCandidate` for a dependency compiled as its own component,
+  since `compiler.rs` stops at `NativeArtifact`. Witnessed beside this at
+  47d360c7cf and unrelated: `independent_provider_selection_reaches_the_componentization_fence`,
+  `provider_selection_rejects_an_authored_composition_mode_lookalike`, and
+  `provider_selection_rejects_conflicting_composition_modes` in
+  `package_compilation_inputs/authority_and_build_files.rs` fail before the
+  fence with build-evaluation's "composition mode must be the exact
+  compiler-owned CompositionMode::Fused or CompositionMode::Independent
+  case" (`admission/declarations.rs`, the arm taken when the typed argument
+  is not a `Name`), a frontend admission regression to attribute.
 
 - **FFIVAL.** After the generic callback/runtime path closes, run the Windows
   `user32` boundary-coherence canary with no raw function pointer or Win32-only
