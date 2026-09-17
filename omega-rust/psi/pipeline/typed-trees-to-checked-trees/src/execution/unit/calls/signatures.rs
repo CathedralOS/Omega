@@ -9,7 +9,7 @@ use crate::execution::terminal_unit::{
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, ShapeCollector,
     StateParameter, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference,
     parameter_qualifications, parameter_root_symbol, projected_parameter_qualifications,
-    structural_access_for_type_reference, terminal_field_identity,
+    strips_erased_parameter, structural_access_for_type_reference, terminal_field_identity,
 };
 
 pub(crate) fn structural_signature(
@@ -87,6 +87,9 @@ pub(crate) fn free_fused_service_scalar_signature(
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
     for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+        if strips_erased_parameter(parameter)? {
+            continue;
+        }
         if parameter.is_self || parameter.is_const || parameter.is_mutable {
             return None;
         }
@@ -196,6 +199,7 @@ fn structural_signature_with_partial_affine(
         let primitive = program.primitive_type_reference(*referee)?;
         parameters
             .iter()
+            .filter(|parameter| !parameter.relevance.is_erased())
             .all(|parameter| {
                 let TypeReferenceNode::Reference { referee, .. } = program
                     .type_reference_table
@@ -216,6 +220,13 @@ fn structural_signature_with_partial_affine(
     let mut scalar_parameters = Vec::new();
     let mut fused_service_parameter_count = 0_usize;
     for (position, parameter) in parameters.iter().enumerate() {
+        // An erased binding occurrence owns no ABI position: it is skipped
+        // here and at every caller-side argument producer, while `position`
+        // stays the authored index so entry claims, returns, and the Terminal
+        // consumer keep rejoining the typed source signature.
+        if strips_erased_parameter(parameter)? {
+            continue;
+        }
         if parameter.is_const || (parameter.is_self && attachment.is_none()) {
             return None;
         }
@@ -411,6 +422,9 @@ fn scalar_and_structural_parameters(
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
     for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+        if strips_erased_parameter(parameter)? {
+            continue;
+        }
         if parameter.is_self && attachment.is_none() {
             return None;
         }

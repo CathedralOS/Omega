@@ -266,6 +266,7 @@ pub(super) fn only_implicit_reference_self_is_omitted(
                     .iter()
                     .any(|candidate| candidate.source_position as usize == position)
                 || (parameter.is_self && is_reference(program, parameter.type_reference))
+                || parameter.relevance.is_erased()
         })
 }
 

@@ -57,7 +57,7 @@ pub(super) fn build_write_only_primitive_store(
     let parameter = program
         .state_parameters(state)
         .get(usize::try_from(destination.position).ok()?)?;
-    if program.state_parameters(state).len()
+    if crate::execution::terminal_unit::abi_parameter_count(program.state_parameters(state))
         != structural_parameters.len() + scalar_parameters.len()
     {
         return None;

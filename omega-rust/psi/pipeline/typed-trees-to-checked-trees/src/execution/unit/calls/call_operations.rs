@@ -28,7 +28,7 @@ use crate::execution::terminal_unit::{
     PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees, base_type_identity,
     byte_sequence_type_identity, is_reference, is_unit, machine_binders, parameter_root_symbol,
     scalar_targets, signature_contracts_are_exact_parameter_qualifications,
-    structural_access_for_type_reference,
+    strips_erased_parameter, structural_access_for_type_reference,
 };
 use validation::exact_compiler_intrinsic_boundary_requirement;
 
@@ -143,6 +143,14 @@ pub(in crate::execution) fn build_call_operation(
     if let [(definition, signature)] = static_boundaries.as_slice() {
         let arguments = crate::semantic_calls::call_site_argument_expressions(program, &call_site);
         let source_parameters = program.state_signature_parameters(signature);
+        // A boundary signature is a foreign ABI contract; an erased position
+        // has no agreed foreign transfer yet, so the call fails closed here.
+        if source_parameters
+            .iter()
+            .any(|parameter| parameter.relevance.is_erased())
+        {
+            return None;
+        }
         let abi_parameters = source_parameters
             .iter()
             .enumerate()
@@ -501,29 +509,31 @@ pub(in crate::execution) fn build_call_operation(
         allow_field_path_projection,
         caller_structural_results,
     )?;
-    let scalar_parameters = program
-        .state_parameters(target_state)
-        .iter()
-        .enumerate()
-        .filter_map(|(position, parameter)| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .map(|primitive_type| (position, parameter, primitive_type))
-        })
-        .map(|(position, parameter, primitive_type)| {
-            if parameter.is_self
-                || parameter.is_const
-                || (parameter.is_mutable
-                    && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
-            {
-                return None;
-            }
-            Some(CheckedStructuralScalarParameterPlan {
-                source_position: u32::try_from(position).ok()?,
-                primitive_type,
-            })
-        })
-        .collect::<Option<Vec<_>>>()?;
+    // The callee's retained scalar positions: the same authored indices its
+    // own signature plan keeps, so the erased position is absent on both
+    // sides and `checked_call_scalar_arguments` pairs the caller's dense
+    // argument ordinals with the retained parameters only.
+    let mut scalar_parameters = Vec::new();
+    for (position, parameter) in program.state_parameters(target_state).iter().enumerate() {
+        if strips_erased_parameter(parameter)? {
+            continue;
+        }
+        let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
+        else {
+            continue;
+        };
+        if parameter.is_self
+            || parameter.is_const
+            || (parameter.is_mutable
+                && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
+        {
+            return None;
+        }
+        scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+            source_position: u32::try_from(position).ok()?,
+            primitive_type,
+        });
+    }
     let scalar_arguments = if boundary {
         checked_call_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters, true)?
     } else {

@@ -2,19 +2,32 @@
 // erased exactly like a data field (contracts.md#explicit-erased-bindings).
 // `bound` remains in checking and semantic identity but contributes no
 // runtime storage, transfer, or read: it appears only in the requires
-// clause, while the runtime body reads `n` alone. The call site discharges
-// the instantiated requires from its literal arguments.
-data Main {
-    total: i32;
-}
+// clause, while the runtime body reads `n` alone, and the checked calling
+// plan gives it no scalar position on either side of the call
+// (canary_suite layouts_and_pending::erased_parameter_proof_only_*). The call
+// site discharges the instantiated requires from its literal arguments.
+// Native run, once Terminal lowering accepts the stripped plan: exit 70 = the
+// runtime argument reached the callee intact; 71 = it did not.
+use omega_language_std::console;
+use omega::language::core::service;
 
-machine Main::main(&mut self) {
-    self.record(3, 10);
-}
-
-machine Main::record(&mut self, n: i32, bound [erased]: i32)
+machine keep(n: i32, bound [erased]: i32) -> i32
 requires
     n < bound
 {
-    self.total = n;
+    n
+}
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let result: i32 = keep(70, 100);
+    transition result == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
 }

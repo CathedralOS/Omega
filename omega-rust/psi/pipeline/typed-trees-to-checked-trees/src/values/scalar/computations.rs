@@ -832,6 +832,13 @@ impl Builder<'_, '_> {
                 let mut computed_arguments = Vec::with_capacity(arguments.len());
                 let mut structural_arguments = Vec::new();
                 for (argument, parameter) in arguments.iter().zip(target_parameters) {
+                    // An erased parameter position consumes its authored
+                    // argument as proof material only: no scalar operand and
+                    // no structural argument, matching the callee's stripped
+                    // signature plan (`execution::unit::calls::signatures`).
+                    if crate::execution::terminal_unit::strips_erased_parameter(parameter)? {
+                        continue;
+                    }
                     if let Some(primitive_type) = self
                         .program
                         .primitive_type_reference(parameter.type_reference)

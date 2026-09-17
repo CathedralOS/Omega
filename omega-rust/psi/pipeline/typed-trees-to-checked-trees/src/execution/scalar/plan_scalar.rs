@@ -259,7 +259,8 @@ fn build_machine_graph(
             }
             let parameters = program.state_parameters(state);
             if parameters.iter().any(|parameter| {
-                parameter.is_self
+                super::terminal_unit::strips_erased_parameter(parameter).is_none()
+                    || parameter.is_self
                     || parameter.is_const
                     || (parameter.is_mutable
                         && !matches!(
@@ -273,10 +274,15 @@ fn build_machine_graph(
             }) {
                 return None;
             }
+            // An erased parameter (a plain immutable binding after the
+            // rejections above) owns no scalar entry and does not make the
+            // signature mixed, whatever its type: a proof-only type such as
+            // `Nat` is exactly what erasure exists for.
             let mixed = parameters.iter().any(|parameter| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
+                !parameter.relevance.is_erased()
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
             });
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed {
                 // Whole structural forwarding is bounded to the same authored
@@ -291,6 +297,7 @@ fn build_machine_graph(
                     parameters
                         .iter()
                         .enumerate()
+                        .filter(|(_, parameter)| !parameter.relevance.is_erased())
                         .map(|(position, parameter)| {
                             Some(checked_trees::CheckedStructuralScalarParameterPlan {
                                 source_position: u32::try_from(position).ok()?,
@@ -321,6 +328,7 @@ fn build_machine_graph(
                 // only authored mutable scalar formals need local storage.
                 .filter(|(_, parameter)| {
                     parameter.is_mutable
+                        && !parameter.relevance.is_erased()
                         && program
                             .primitive_type_reference(parameter.type_reference)
                             .is_some()
@@ -620,19 +628,32 @@ fn checked_binding_value(
             .first()
             .is_some_and(|entry| entry.symbol == call.target_symbol)
     })?;
+    let target_state = program.machine_states(target_machine).first()?;
+    let parameters = program.state_parameters(target_state);
+    let authored_arguments = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .len();
+    if authored_arguments != parameters.len() {
+        return None;
+    }
+    // The retained argument count. An erased position has no caller argument
+    // ordinal (`values::scalar::call_lowering` numbers `CallArgument` roles
+    // over the retained positions only), matching the callee's stripped
+    // scalar signature.
+    let mut retained_arguments = 0usize;
+    for parameter in parameters {
+        if !super::terminal_unit::strips_erased_parameter(parameter)? {
+            retained_arguments = retained_arguments.checked_add(1)?;
+        }
+    }
     Some(CheckedScalarBindingValue::DirectCall {
         target_machine: target_machine.symbol,
         target_state: call.target_symbol,
         // A supported call is the root of its local initializer. Nested calls
         // cannot acquire scalar argument plans and therefore fail closed.
         call_ordinal: 0,
-        argument_count: u32::try_from(
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .len(),
-        )
-        .ok()?,
+        argument_count: u32::try_from(retained_arguments).ok()?,
     })
 }
 

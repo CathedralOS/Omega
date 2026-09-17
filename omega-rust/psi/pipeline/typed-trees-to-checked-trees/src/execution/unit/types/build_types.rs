@@ -718,6 +718,33 @@ pub(super) fn parameter_root_symbol(
     }
 }
 
+/// Whether the calling plan strips this parameter as an `[erased]` binding
+/// occurrence (contracts.md#explicit-erased-bindings): it receives no
+/// structural or scalar plan entry and no ABI position, while the retained
+/// parameters keep their authored `position`/`source_position` indices. Only
+/// a plain immutable value binding is strippable. `self`, `const`, and
+/// mutable bindings carry runtime custody or entry storage that erasure does
+/// not define away, so an erased one refuses the plan (`None`) instead of
+/// silently vanishing or silently keeping a slot.
+pub(crate) fn strips_erased_parameter(parameter: &StateParameter) -> Option<bool> {
+    if !parameter.relevance.is_erased() {
+        return Some(false);
+    }
+    (!parameter.is_self && !parameter.is_const && !parameter.is_mutable).then_some(true)
+}
+
+/// The authored parameters that own an ABI position. An `[erased]` binding
+/// occurrence stays in the typed signature (its `position` index is still the
+/// authored one) but never receives a structural or scalar plan entry, so
+/// every "every parameter is planned" consistency check counts this instead
+/// of `state_parameters(state).len()`.
+pub(super) fn abi_parameter_count(parameters: &[StateParameter]) -> usize {
+    parameters
+        .iter()
+        .filter(|parameter| !parameter.relevance.is_erased())
+        .count()
+}
+
 pub(super) fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
     loop {
         match program.type_reference_table.type_reference(type_reference) {

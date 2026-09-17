@@ -22,7 +22,8 @@ use crate::execution::terminal_unit::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PrimitiveType, ShapeCollector, StatementNode, SymbolHandle, TypedTrees,
     attached_data_identity, base_type_identity, byte_sequence_type_identity, is_reference, is_unit,
-    parameter_root_symbol, scalar_targets, structural_access_for_type_reference,
+    parameter_root_symbol, scalar_targets, strips_erased_parameter,
+    structural_access_for_type_reference,
 };
 
 pub(crate) fn structural_call_arguments(
@@ -57,6 +58,13 @@ pub(crate) fn structural_call_arguments(
     let mut structural_argument_ordinal = 0usize;
 
     for target in target_parameters {
+        // The erased position's authored argument is proof material with no
+        // structural or scalar transfer; consume it and plan nothing.
+        if strips_erased_parameter(target)? {
+            explicit_arguments.get(explicit_index)?;
+            explicit_index = explicit_index.checked_add(1)?;
+            continue;
+        }
         if program
             .primitive_type_reference(target.type_reference)
             .is_some()

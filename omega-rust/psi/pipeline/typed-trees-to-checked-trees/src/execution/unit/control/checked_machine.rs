@@ -246,6 +246,7 @@ fn build_checked_machine_with_trace(
     });
     let carries_scalar_parameter = program.state_parameters(state).iter().any(|parameter| {
         !parameter.is_self
+            && !parameter.relevance.is_erased()
             && program
                 .primitive_type_reference(parameter.type_reference)
                 .is_some()

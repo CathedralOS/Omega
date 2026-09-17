@@ -1,0 +1,28 @@
+// A proof-only type (`Nat` has no runtime layout) may sit on an erased
+// parameter of a runtime machine: the binding is proof-side, so the checked
+// calling plan gives it no scalar position and the machine keeps its scalar
+// signature instead of becoming a mixed structural one (canary_suite
+// layouts_and_pending::erased_proof_only_typed_parameter_*).
+// Native run, once Terminal lowering accepts the stripped plan: exit 70 = the
+// runtime argument arrived intact; 71 = it did not.
+use omega_language_std::console;
+use omega::language::core::service;
+use omega::language::core::nat;
+
+machine keep(n: i32, witness [erased]: Nat) -> i32 {
+    n
+}
+
+data Main {
+    console: Service<Console> in Bound;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let result: i32 = keep(70, Nat::Zero {});
+    transition result == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

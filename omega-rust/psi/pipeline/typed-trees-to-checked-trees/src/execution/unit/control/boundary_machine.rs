@@ -145,6 +145,12 @@ pub(crate) fn build_static_boundary_requirements(
                 if parameter.is_self {
                     continue;
                 }
+                // Foreign ABI positions are agreed with the boundary; an
+                // erased parameter has no such agreement yet.
+                if parameter.relevance.is_erased() {
+                    supported = false;
+                    break;
+                }
                 let Some(source_position) = u32::try_from(abi_position).ok() else {
                     supported = false;
                     break;
