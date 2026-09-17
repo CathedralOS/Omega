@@ -1,13 +1,13 @@
 use events::events;
 use rooms::map;
 
-data Exit {
+data Exit [copy] {
     command: [u8; 8] in Utf8;
     direction: Direction;
     destination: CellId;
 }
 
-data Room {
+data Room [copy] {
     cell: CellId;
     depth: u32 in Wrapping;
     branch: u32 in Wrapping;
@@ -19,7 +19,7 @@ data Room {
     discovered: bool;
 }
 
-data Level {
+data Level [copy] {
     rooms: [Room; 16];
     room_count: u64 in Wrapping;
     start_cell: CellId;

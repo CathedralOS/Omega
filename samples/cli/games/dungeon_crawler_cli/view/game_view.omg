@@ -11,7 +11,7 @@ data GameView {
 machine GameView::render_title(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("###########################");
     console.write_line("#     Dungeon Crawler     #");
     console.write_line("###########################");
@@ -24,7 +24,7 @@ machine GameView::render_title(
 machine GameView::render_commands(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("[Commands] look | help | inv | char | use | fight | exit");
 }
 
@@ -39,6 +39,7 @@ machine GameView::render_room(
     console: &mut Console,
     line: &mut [u8; 128]
 )
+reaches Console
 ensures line in Utf8
 {
     self.formatter.write_current_cell(level, cell, line);
@@ -62,6 +63,7 @@ machine GameView::render_look(
     console: &mut Console,
     line: &mut [u8; 128]
 )
+reaches Console
 ensures line in Utf8
 {
     self.formatter.write_room_info(level, cell, line);
@@ -77,6 +79,7 @@ machine GameView::render_exits(
     console: &mut Console,
     line: &mut [u8; 128]
 )
+reaches Console
 ensures line in Utf8
 {
     self.write_cell_paths(cell, line);
@@ -266,6 +269,7 @@ machine GameView::render_inventory(
     console: &mut Console,
     line: &mut [u8; 128]
 )
+reaches Console
 ensures line in Utf8
 {
     self.formatter.write_inventory(player, line);
@@ -278,6 +282,7 @@ machine GameView::render_character(
     console: &mut Console,
     line: &mut [u8; 128]
 )
+reaches Console
 ensures line in Utf8
 {
     self.formatter.write_character(player, line);
@@ -287,7 +292,7 @@ ensures line in Utf8
 machine GameView::render_prompt(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write("> ");
 }
 
@@ -295,27 +300,27 @@ machine GameView::render_line(
     &mut self,
     line: [u8; 128] in Utf8,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line(line);
 }
 
 machine GameView::render_invalid_command(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("[Input] That action is not available right now.");
 }
 
 machine GameView::render_game_over(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("Game over.");
 }
 
 machine GameView::render_goodbye(
     &mut self,
     console: &mut Console
-) {
+) reaches Console {
     console.write_line("Goodbye.");
 }

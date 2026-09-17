@@ -1,4 +1,4 @@
-data EnemyKind {
+data EnemyKind [copy] {
     case Bat;
     case Spider;
     case Skeleton;
@@ -7,7 +7,7 @@ data EnemyKind {
     case PitFiend;
 }
 
-data EnemyTier {
+data EnemyTier [copy] {
     case Bat;
     case Spider;
     case Skeleton;
@@ -16,7 +16,7 @@ data EnemyTier {
     case PitFiend;
 }
 
-data Enemy {
+data Enemy [copy] {
     kind: EnemyKind;
     name: [u8; 24] in Utf8;
     max_health: i32 in Wrapping;

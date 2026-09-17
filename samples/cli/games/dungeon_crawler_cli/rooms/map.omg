@@ -1,4 +1,4 @@
-data CellId {
+data CellId [copy] {
     case Empty;
     case R00;
     case R01;
@@ -18,14 +18,14 @@ data CellId {
     case R15;
 }
 
-data Direction {
+data Direction [copy] {
     case North;
     case South;
     case East;
     case West;
 }
 
-data NavigationChoice {
+data NavigationChoice [copy] {
     case Quit;
     case Look;
     case Exits;
@@ -37,7 +37,7 @@ data NavigationChoice {
     case Invalid;
 }
 
-data GameMode {
+data GameMode [copy] {
     case Title;
     case Exploring;
     case Combat;

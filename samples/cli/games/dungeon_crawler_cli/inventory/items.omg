@@ -1,4 +1,4 @@
-data ItemKind {
+data ItemKind [copy] {
     case RustedDagger;
     case CrackedBuckler;
     case HealingCharm;
@@ -6,12 +6,12 @@ data ItemKind {
     case DeepKey;
 }
 
-data InventoryItem {
+data InventoryItem [copy] {
     kind: ItemKind;
     count: u32 in Wrapping;
 }
 
-data Inventory {
+data Inventory [copy] {
     items: [InventoryItem; 32];
     item_count: u64 in Wrapping;
     gold: u32 in Wrapping;
