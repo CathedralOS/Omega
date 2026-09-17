@@ -420,9 +420,12 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `LoweringError::InvalidUnitMachinePlan::omission` renders that chain to the
   machine whose own body failed local construction
   (`checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`, macOS ARM64).
-  The builders in `typed-trees-to-checked-trees/src/execution/unit` still do
-  not retain which local requirement failed inside that machine; that is the
-  next attribution slice before per-fixture reading.
+  A local-construction row also names the ordinary builder's last phase
+  (`LocalConstructionTrace` in `execution/unit/control`: signature, state
+  contracts, statement sequence, call operations, completion, ...) and the
+  call statement it was planning, or `composed control` when only the
+  composed builders applied; the guard inside that phase is still not
+  retained, so per-fixture reading starts at that phase.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
