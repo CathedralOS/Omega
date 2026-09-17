@@ -42,6 +42,12 @@ impl Ord for SummaryCrashPredicate {
 pub(crate) struct CallArgumentSubstitution {
     pub(crate) identity: Vec<Option<CrashPredicateExpression>>,
     pub(crate) scalar: Vec<Option<checked_trees::CheckedScalarExpression>>,
+    /// One literal operand per target parameter: the exact value this call's
+    /// own entry contexts prove for its actual, `None` where the flow proves
+    /// no single value. These decide a retained guard under its own fold
+    /// rules; they never become caller entry identity and never re-read a
+    /// mutable initializer.
+    pub(crate) values: Vec<Option<CrashPredicateExpression>>,
 }
 
 /// Reduce only closed proof-literal comparisons after entry substitution.
@@ -170,6 +176,25 @@ impl SummaryCrashBucket {
             .filter_map(|guard| match guard {
                 SummaryCrashRouteGuard::Truth => Some(SummaryCrashRouteGuard::Truth),
                 SummaryCrashRouteGuard::Predicate(predicate) => {
+                    // Live storage evidence decides a guard entry custody
+                    // cannot carry: each referenced formal is replaced by the
+                    // one literal the call's own entry contexts prove for its
+                    // actual. A missing value leaves the substitution
+                    // missing rather than inventing an origin, and the fold
+                    // still honors this route's own selected meaning.
+                    if let Some(value) = crate::facts::crash_entry_values::substitute_entry(
+                        &predicate.identity,
+                        &arguments.values,
+                    )
+                    .and_then(|substituted| {
+                        if predicate.builtin_meaning {
+                            summary_boolean_value(&substituted)
+                        } else {
+                            substituted.boolean_value()
+                        }
+                    }) {
+                        return value.then_some(SummaryCrashRouteGuard::Truth);
+                    }
                     let Some(identity) = crate::facts::crash_entry_values::substitute_entry(
                         &predicate.identity,
                         &arguments.identity,

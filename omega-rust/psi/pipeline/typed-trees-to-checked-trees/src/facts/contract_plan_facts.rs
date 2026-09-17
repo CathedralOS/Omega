@@ -192,6 +192,7 @@ pub(crate) fn build_contract_plans(
         program,
         operators,
         exact_integer_casts,
+        semantic,
         flow,
         &content_conservation,
         &crash_capsules,

@@ -296,6 +296,7 @@ fn captured_range(checked: &CheckedTrees) -> Option<facts::IntegerRange> {
         &checked.facts.borrow,
         &checked.facts.semantic,
         &mut context,
+        machine.symbol,
         state.symbol,
         statement_index,
         statement,

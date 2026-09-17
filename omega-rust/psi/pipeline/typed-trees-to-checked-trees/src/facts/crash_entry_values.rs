@@ -26,6 +26,7 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use validation::has_stable_observable_contents;
 
 mod mutable;
+pub(super) use mutable::statement_may_overwrite_place;
 use mutable::{PlaceSegment, storage_holds_bound_value};
 
 /// Arrival provenance can revisit a state parameter through a transition

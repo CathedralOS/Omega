@@ -146,6 +146,31 @@ fn place_interferes(
         .is_some_and(|(root, write_path)| root == symbol && paths_interfere(&write_path, read_path))
 }
 
+/// Whether `statement` may overwrite the canonical `place` at all — a write,
+/// an exclusive borrow, or a receiver-mutating call the scan cannot separate
+/// from the read. Non-symbol roots cannot be reasoned about and stay
+/// conservative. A caller-side value proof uses this to refuse reads whose
+/// call-entry context postdates a sibling operand's effects.
+pub(crate) fn statement_may_overwrite_place(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    statement: &StatementNode,
+    place: &crate::flow::CanonicalPlace,
+) -> bool {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return true;
+    };
+    let read_path: Vec<PlaceSegment> = place
+        .segments
+        .iter()
+        .map(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } => PlaceSegment::Field(*symbol),
+            _ => PlaceSegment::Opaque,
+        })
+        .collect();
+    statement_may_overwrite(program, machine_symbol, statement, symbol, &read_path)
+}
+
 /// No statement in `state[start..end]` may overwrite `symbol`'s storage at
 /// `read_path` or lend that projection exclusive access. An empty read path
 /// is the whole binding: every write rooted at `symbol` interferes. A

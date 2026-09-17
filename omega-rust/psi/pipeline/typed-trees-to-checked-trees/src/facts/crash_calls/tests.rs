@@ -335,6 +335,7 @@ fn identity_substitution(
 ) -> CallArgumentSubstitution {
     CallArgumentSubstitution {
         scalar: vec![None; identity.len()],
+        values: vec![None; identity.len()],
         identity,
     }
 }
@@ -630,5 +631,152 @@ fn private_summary_preserves_acyclic_guard_substitution() {
     assert_eq!(
         bucket.alternative_guards,
         vec![predicate(CrashPredicateExpression::Parameter(1))]
+    );
+}
+
+fn call_site_buckets(
+    source: &str,
+    caller: &str,
+) -> Vec<(
+    checked_trees::CrashCause,
+    Vec<checked_trees::CrashRouteGuard>,
+)> {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = crate::lower_typed_trees(program)
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == caller)
+        .expect("caller machine");
+    let plan = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .expect("caller contract plan");
+    let [call] = plan.crash.checked_calls() else {
+        panic!("one checked call site: {source}")
+    };
+    call.surviving_buckets()
+        .iter()
+        .map(|bucket| (bucket.cause(), bucket.alternative_guards().to_vec()))
+        .collect()
+}
+
+/// A guarded route retained as a caller-entry predicate, or an unconditional
+/// cause when the call's own entry contexts decided or widened it.
+fn single_surviving_bucket(
+    buckets: &[(
+        checked_trees::CrashCause,
+        Vec<checked_trees::CrashRouteGuard>,
+    )],
+) -> &checked_trees::CrashRouteGuard {
+    let [(checked_trees::CrashCause::Trap, guards)] = buckets else {
+        panic!("exactly one surviving Trap bucket: {buckets:?}")
+    };
+    let [guard] = guards.as_slice() else {
+        panic!("exactly one surviving guard: {guards:?}")
+    };
+    guard
+}
+
+#[test]
+fn pristine_mutable_actual_keeps_entry_operand_identity() {
+    // A pristine `mut` parameter is still an entry snapshot: the retained
+    // route names the caller's own entry operand, not current storage.
+    let buckets = call_site_buckets(
+        "machine inner(input: bool) -> bool crashes Trap input { input }
+         machine outer(mut flag: bool) -> bool crashes Trap flag { inner(flag) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the pristine actual retains its guarded entry operand: {buckets:?}")
+    };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Parameter(0))
+    );
+}
+
+#[test]
+fn written_mutable_actual_uses_live_storage_value_not_entry_identity() {
+    // `flag = false` ends entry provenance for `inner(flag)`. The call's own
+    // entry contexts still prove the actual false, so the guarded route
+    // discharges instead of retaining a current-storage operand.
+    assert!(
+        call_site_buckets(
+            "machine inner(input: bool) -> bool crashes Trap input { input }
+             machine outer(mut flag: bool) -> bool crashes Trap flag { flag = false; inner(flag) }",
+            "outer",
+        )
+        .is_empty(),
+        "a proven-false actual discharges the guarded route"
+    );
+    // `flag = true` decides the same guard true: the cause survives
+    // unconditionally under the caller's own `crashes Trap` ceiling.
+    let buckets = call_site_buckets(
+        "machine inner(input: bool) -> bool crashes Trap input { input }
+         machine outer(mut flag: bool) -> bool crashes Trap { flag = true; inner(flag) }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "a proven-true actual keeps the cause without inventing entry identity"
+    );
+}
+
+#[test]
+fn unknown_written_mutable_actual_stays_conservative() {
+    // `flag = !flag` overwrites the storage with a value the call's entry
+    // contexts cannot prove. Neither channel may manufacture evidence, so the
+    // cause widens to its unconditional bucket rather than discharging.
+    let buckets = call_site_buckets(
+        "machine inner(input: bool) -> bool crashes Trap input { input }
+         machine outer(mut flag: bool) -> bool crashes Trap { flag = !flag; inner(flag) }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "an unproven mutable actual must not silently discharge the route"
+    );
+}
+
+#[test]
+fn mutable_scalar_storage_feeds_arithmetic_actuals() {
+    // A mutable local in the prefix is outside the immutable scalar-prefix
+    // namespace, but the literal arithmetic actual still lowers and
+    // evaluates: `3 - 1 == 0` discharges the guarded route.
+    assert!(
+        call_site_buckets(
+            "machine inner(input: u64) -> u64 crashes Trap input == 0u64 { input }
+             machine outer() -> u64 { let mut seen: bool = false; inner(3u64 - 1u64) }",
+            "outer",
+        )
+        .is_empty(),
+        "a proven arithmetic actual discharges under the selected meaning"
+    );
+    // Storage read inside the actual: `n = 1u64; inner(n - 1u64)` proves
+    // `0 == 0`, so the cause survives unconditionally.
+    let buckets = call_site_buckets(
+        "machine inner(input: u64) -> u64 crashes Trap input == 0u64 { input }
+         machine outer() -> u64 crashes Trap { let mut n: u64 = 0u64; n = 1u64; inner(n - 1u64) }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "a mutable storage read may prove the arithmetic guard true"
     );
 }
