@@ -265,6 +265,32 @@ must be surfaced before relying on them.
    this is distinct from question 5, which concerns formation-time
    `requires` rather than the selection binder.
 
+7. **Which boot protocol issues the AP startup vector, and who owns it?**
+   (named decision: `ap-startup-protocol-ownership`). The [executable
+   installation contract](wiki/spec/build/executable_installation.md) says AP
+   startup "installs a compiler-produced low-memory trampoline and invokes a
+   target boot protocol" but names no protocol; no spec, board, or source text
+   mentions INIT/SIPI, a startup IPI, the local APIC ICR, or
+   `EFI_MP_SERVICES_PROTOCOL`, and the xAPIC/x2APIC register facts are recorded
+   as Cathedral's `local_apic` package (15221af38f), which the firewall keeps
+   package-owned. `external-roots` already owns the trampoline placement
+   ledger, the start edge and the quiescence edge (344063c651), whose 4 KiB
+   vector geometry and real-mode arrival regime are INIT/SIPI-shaped but only
+   by inference. Decision needed for x86-64: (a) the vector is issued by an
+   INIT/SIPI sequence through the local APIC ICR, which makes those register
+   facts a compiler-owned `target`/`program-entry-plan` leg like the UEFI Boot
+   Services rows; (b) it is issued through firmware
+   `EFI_MP_SERVICES_PROTOCOL.StartupThisAP` while Boot Services are live, which
+   needs a located-protocol row the entry plan does not carry; or (c) a
+   Cathedral-owned provider consumes the ledger's
+   `SecondaryProcessorStartupInvocation` carrier and mints
+   `SecondaryProcessorStartupReceipt`, the compiler owns no protocol edge, and
+   the remaining compiler work is sealing that receipt's issuance (today
+   `SecondaryProcessorStartupReceipt::from_provider` is public). Motivating
+   customer: Cathedral's multiprocessor boot, whose secondary processors cannot
+   start until one of these edges exists; AP-BRINGUP owns the implementation
+   either way.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
