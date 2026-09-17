@@ -4,8 +4,8 @@ use effects::{PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermissi
 use package_compilation::AcceptedSemanticBindingRole;
 use package_evidence::record::{PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner};
 use package_manager::resolution::graph::{
-    PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
-    resolve_external_local_project_closure_with_storage,
+    GitResolutionOptions, PackageSourceClosureLimits, resolve_external_local_package_closure,
+    resolve_external_local_project_closure,
 };
 use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::SemanticBindingReview;
@@ -131,7 +131,7 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
         PrimaryGitChoices::default(),
     )
     .expect("create resolver storage");
-    let closure = resolve_external_local_package_closure_with_storage(
+    let closure = resolve_external_local_package_closure(
         &live_root,
         ExternalSourceContext::derive(b"ordinary-standard-library-canary"),
         &storage,
@@ -222,7 +222,7 @@ fn real_standard_library_has_a_complete_ordinary_review_entry() {
         PrimaryGitChoices::default(),
     )
     .expect("create standard-library review storage");
-    let closure = resolve_external_local_package_closure_with_storage(
+    let closure = resolve_external_local_package_closure(
         &standard_library,
         ExternalSourceContext::derive(b"ordinary-standard-library-review-entry"),
         &storage,
@@ -282,7 +282,7 @@ fn real_filesystem_host_schema_accepts_settled_portable_facet_rows() {
         PrimaryGitChoices::default(),
     )
     .expect("create filesystem consumer resolver storage");
-    let closure = resolve_external_local_package_closure_with_storage(
+    let closure = resolve_external_local_package_closure(
         &consumer,
         ExternalSourceContext::derive(b"real-filesystem-facet-policy"),
         &storage,
@@ -579,7 +579,7 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
         PrimaryGitChoices::default(),
     )
     .expect("create resolver storage");
-    let closure = resolve_external_local_package_closure_with_storage(
+    let closure = resolve_external_local_package_closure(
         &live_root,
         ExternalSourceContext::derive(b"missing-standard-library-edge-canary"),
         &storage,
@@ -654,12 +654,13 @@ fn check_console_consumer(
         PrimaryGitChoices::default(),
     )
     .expect("create Console consumer resolver storage");
-    let closure = resolve_external_local_project_closure_with_storage(
+    let closure = resolve_external_local_project_closure(
         root,
         ExternalSourceContext::derive(b"console-dependency-removal"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve the Console consumer closure");
     let aliases = closure

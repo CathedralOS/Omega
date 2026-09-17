@@ -4,7 +4,7 @@ use super::{
     package, recover_locked_sources,
 };
 use package_manager::declarations::{PackageName, PackageSelection};
-use package_manager::resolution::graph::resolve_selected_git_project_closure_with_storage;
+use package_manager::resolution::graph::resolve_selected_git_project_closure;
 use package_manager::resolution::source::GitPackageSourceRequest;
 use package_source::GitSourceRequest;
 
@@ -77,7 +77,7 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
         );
         let warm_storage = tree.storage("warm-cache");
         let (lock, request) = {
-            let closure = resolve_selected_git_project_closure_with_storage(
+            let closure = resolve_selected_git_project_closure(
                 &selected_request,
                 &warm_storage,
                 LocalSourceLimits::default(),

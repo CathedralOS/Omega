@@ -67,7 +67,7 @@ impl PackageReviewEvidence for CompilerIssuedPackageReview {
 mod tests {
     use super::{PackageReviewEvidence, SemanticBindingReview};
     use crate::resolution::graph::{
-        PackageSourceClosureLimits, resolve_external_local_package_closure,
+        PackageSourceClosureLimits, resolve_external_local_package_closure_from_hardened_base,
     };
     use crate::review::compile_resolved_package_reviews;
     use package_source::{ExternalSourceContext, LocalSourceLimits};
@@ -96,7 +96,7 @@ mod tests {
                 format!("{prefix}pub const VALUE: u64 = 17;\n"),
             )
             .unwrap();
-            let closure = resolve_external_local_package_closure(
+            let closure = resolve_external_local_package_closure_from_hardened_base(
                 &root,
                 ExternalSourceContext::derive(b"borrowed-review-rows"),
                 temporary.join("cache"),

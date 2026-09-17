@@ -7,7 +7,7 @@ use super::{
     PackageReviewSourceLocationRole, PackageSourceClosureLimits, Path, PathBuf,
     ResolvePackageSourceError, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     SourceLineage, SourceRelativePath, SourceResolverStorage, SystemTime, UNIX_EPOCH,
-    resolve_workspace_package_closure_with_storage,
+    resolve_workspace_package_closure,
 };
 use package_source::PrimaryGitChoices;
 pub(super) const REVIEWABLE_PACKAGES: &[&str] = &[
@@ -42,7 +42,7 @@ pub(super) fn temp_root(name: &str) -> PathBuf {
     ))
 }
 
-pub(super) fn resolve_workspace_package_closure(
+pub(super) fn resolve_workspace_package_closure_from_hardened_base(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -54,7 +54,7 @@ pub(super) fn resolve_workspace_package_closure(
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_workspace_package_closure_with_storage(
+    resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,

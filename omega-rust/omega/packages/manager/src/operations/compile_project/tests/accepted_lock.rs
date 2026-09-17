@@ -1,11 +1,11 @@
 use super::super::{
     AcceptedOrdinaryEvidenceError, CompilePreparedLocalProjectNativeError, CompileReport,
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
-    compile_prepared_local_project_for_native_with_observation,
 };
 use super::{ReviewOnlyRootPolicyDisposition, TemporaryProject};
 use crate::lock::PackageLock;
-use crate::operations::{prepare_local_project_for_target, review_package_change};
+use crate::operations::LocalProjectPreparationOptions;
+use crate::operations::{prepare_local_project, review_package_change};
 use crate::review::{
     FreshPackageRootPolicyError, PackagePolicyDecision, PackagePolicyDecisionSubject,
     resolve_package_policy_decisions,
@@ -13,9 +13,15 @@ use crate::review::{
 use checked_interpreter::InterpretOptions;
 
 fn accept_project(project: &TemporaryProject, target: target::TargetProfile) -> PackageLock {
-    let prepared = prepare_local_project_for_target(&project.entry(), target)
-        .expect("prepare initial review")
-        .expect("application project");
+    let prepared = prepare_local_project(
+        &project.entry(),
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .expect("prepare initial review")
+    .expect("application project");
     let (_, closure, _) = prepared.into_review_parts();
     let review = review_package_change(closure, target, None, &project.workspace.join("review"))
         .expect("check the ordinary install/update candidate");
@@ -56,9 +62,15 @@ fn accepted_project_policy_needs_no_second_native_approval() {
     let target = target::TargetProfile::LinuxX64;
     let accepted = accept_project(&project, target);
     let lock_before = std::fs::read(project.source.join("omega.lock")).unwrap();
-    let prepared = prepare_local_project_for_target(&project.entry(), target)
-        .expect("prepare accepted project")
-        .expect("application project");
+    let prepared = prepare_local_project(
+        &project.entry(),
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .expect("prepare accepted project")
+    .expect("application project");
     let (_, closure, _) = prepared.into_review_parts();
     let unchanged = review_package_change(
         closure,
@@ -68,14 +80,24 @@ fn accepted_project_policy_needs_no_second_native_approval() {
     )
     .expect("recheck against ordinary accepted policy");
     assert!(!unchanged.changes().requires_decision());
-    let prepared = prepare_local_project_for_target(&project.entry(), target)
-        .expect("prepare native candidate")
-        .expect("application project");
-    let report = compile_prepared_local_project_for_native(PreparedLocalProjectNativeRequest::new(
-        prepared,
-        project.workspace.join("accepted-native"),
-        target,
-    ))
+    let prepared = prepare_local_project(
+        &project.entry(),
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .expect("prepare native candidate")
+    .expect("application project");
+    let report = compile_prepared_local_project_for_native(
+        PreparedLocalProjectNativeRequest::new(
+            prepared,
+            project.workspace.join("accepted-native"),
+            target,
+        ),
+        |_| (),
+    )
+    .map(|(report, ())| report)
     .expect("accepted package policy must not need a second native approval file");
     assert_eq!(
         report.output_kind(),
@@ -119,11 +141,17 @@ machine build(builder: &mut Build) {
     std::fs::write(project.entry(), "use generated_table::main;\ndata Main {}\nmachine observed_value() -> u64 { table_size() }\nmachine Main::main(&mut self) { let value: u64 = observed_value(); }\n").unwrap();
     let target = target::TargetProfile::LinuxX64;
     accept_project(&project, target);
-    let prepared = prepare_local_project_for_target(&project.entry(), target)
-        .unwrap()
-        .unwrap();
+    let prepared = prepare_local_project(
+        &project.entry(),
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .unwrap()
+    .unwrap();
     let mut observations = 0;
-    let (report, ()) = compile_prepared_local_project_for_native_with_observation(
+    let (report, ()) = compile_prepared_local_project_for_native(
         PreparedLocalProjectNativeRequest::new(
             prepared,
             project.workspace.join("observed"),
@@ -169,14 +197,20 @@ fn native_project(
     project: &TemporaryProject,
 ) -> Result<CompileReport, CompilePreparedLocalProjectNativeError> {
     let target = target::TargetProfile::LinuxX64;
-    let prepared = prepare_local_project_for_target(&project.entry(), target)
-        .expect("prepare current source with accepted dependency pins")
-        .expect("application project");
-    compile_prepared_local_project_for_native(PreparedLocalProjectNativeRequest::new(
-        prepared,
-        project.workspace.join("native"),
-        target,
-    ))
+    let prepared = prepare_local_project(
+        &project.entry(),
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .expect("prepare current source with accepted dependency pins")
+    .expect("application project");
+    compile_prepared_local_project_for_native(
+        PreparedLocalProjectNativeRequest::new(prepared, project.workspace.join("native"), target),
+        |_| (),
+    )
+    .map(|(report, ())| report)
 }
 
 #[test]
@@ -244,9 +278,15 @@ fn equal_policy_source_edit_remains_visible_and_resolution_update_preserves_assu
         format!("{source}\n// Source-only edit, no policy change.\n"),
     )
     .unwrap();
-    let prepared = prepare_local_project_for_target(&project.entry(), target)
-        .unwrap()
-        .unwrap();
+    let prepared = prepare_local_project(
+        &project.entry(),
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .unwrap()
+    .unwrap();
     let (_, closure, retained) = prepared.into_review_parts();
     assert_eq!(retained.as_ref(), accepted.target(target));
     let review = review_package_change(

@@ -9,9 +9,10 @@ use checked_interpreter::InterpretOutcome;
 use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, CompileReport, CompileRequest};
 use diagnostics::Diagnostic;
+use package_manager::operations::LocalProjectPreparationOptions;
 use package_manager::operations::{
-    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native_with_observation,
-    prepare_local_project_for_target,
+    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
+    prepare_local_project,
 };
 
 pub(super) struct ProbeCompilation {
@@ -27,14 +28,20 @@ pub(super) fn compile(
     let build_dir = options.retain_build_dir();
     let target = target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
         .map_err(|diagnostic| vec![diagnostic])?;
-    let prepared = prepare_local_project_for_target(&options.root_path, target)
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    let prepared = prepare_local_project(
+        &options.root_path,
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     // Policy belongs to the authored project, never its resolver snapshot.
     let admissions = trust_ledger::read_trust_admissions(&options.root_path)?;
     let (report, interpretation) = if let Some(prepared) = prepared {
         let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target)
             .with_accepted_trust_admissions(admissions);
-        compile_prepared_local_project_for_native_with_observation(request, |checked| {
+        compile_prepared_local_project_for_native(request, |checked| {
             interpret.then(|| interpret_checked(checked))
         })
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?

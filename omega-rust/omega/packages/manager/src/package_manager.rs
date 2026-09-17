@@ -20,7 +20,7 @@ use crate::operations::{
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
     GitResolutionOptions, PackageSourceClosureLimits,
-    resolve_staged_external_local_project_closure_with_options,
+    resolve_staged_external_local_project_closure,
 };
 use crate::review::CandidateSourcePreparation;
 use model::failure;
@@ -178,7 +178,7 @@ pub fn execute_package_command(
         .map(|(subject, updates)| GitDependencyPins::new(subject, updates, acquisition))
         .transpose()
         .map_err(failure)?;
-    let closure = resolve_staged_external_local_project_closure_with_options(
+    let closure = resolve_staged_external_local_project_closure(
         &stage,
         context,
         storage,

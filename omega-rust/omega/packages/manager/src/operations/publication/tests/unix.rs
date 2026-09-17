@@ -24,7 +24,13 @@ fn publication_and_forward_recovery_preserve_executable_permissions() {
             recover_twice(&project);
         } else {
             transaction
-                .publish(BEFORE_BUILD, AFTER_BUILD, Some(BEFORE_LOCK), AFTER_LOCK)
+                .publish(
+                    BEFORE_BUILD,
+                    AFTER_BUILD,
+                    Some(BEFORE_LOCK),
+                    AFTER_LOCK,
+                    |_| Ok(()),
+                )
                 .unwrap();
         }
         project.assert_pair(AFTER_BUILD, Some(AFTER_LOCK));
@@ -118,7 +124,13 @@ fn symlinked_pending_journal_blocks_publication_and_recovery() {
         assert!(transaction.has_pending().is_err());
         assert!(
             transaction
-                .publish(BEFORE_BUILD, AFTER_BUILD, Some(BEFORE_LOCK), AFTER_LOCK)
+                .publish(
+                    BEFORE_BUILD,
+                    AFTER_BUILD,
+                    Some(BEFORE_LOCK),
+                    AFTER_LOCK,
+                    |_| Ok(())
+                )
                 .is_err()
         );
         assert!(transaction.recover().is_err());
@@ -157,7 +169,9 @@ fn symlinked_destinations_reject_before_journaling_even_when_bytes_match() {
             };
             assert!(
                 transaction
-                    .publish(BEFORE_BUILD, AFTER_BUILD, before_lock, AFTER_LOCK)
+                    .publish(BEFORE_BUILD, AFTER_BUILD, before_lock, AFTER_LOCK, |_| Ok(
+                        ()
+                    ))
                     .is_err()
             );
             assert!(!transaction.has_pending().unwrap());

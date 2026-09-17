@@ -9,9 +9,10 @@
 use package_evidence::record::{
     PackagePolicyRepresentationAgreementError, PackageReviewNominalOwner,
 };
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
-    resolve_external_local_project_closure_with_storage,
+    resolve_external_local_project_closure,
 };
 use package_manager::review::{
     CompileResolvedPackageReviewsError, SemanticBindingReview, compile_resolved_package_reviews,
@@ -201,12 +202,13 @@ fn fixture(
     fs::write(consumer.join("build.omg"), consumer_build).expect("write consumer build");
 
     let storage = tree.storage("closure-cache");
-    resolve_external_local_project_closure_with_storage(
+    resolve_external_local_project_closure(
         consumer,
         ExternalSourceContext::derive(b"opaque-boundary-agreement"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve producer and consumer package closure")
 }

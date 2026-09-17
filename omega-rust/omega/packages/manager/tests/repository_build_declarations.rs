@@ -3,8 +3,9 @@ use package_manager::declarations::{
     BuildDeclaration, BuildDeclarationError, DependencySourceRequest, WorkspaceMemberPath,
     extract_build_declaration, extract_build_dependency_projection,
 };
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
-    PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
+    PackageSourceClosureLimits, resolve_external_local_project_closure,
 };
 use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
@@ -156,12 +157,13 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
     )
     .expect("create repository project resolver storage");
 
-    let compiler = resolve_external_local_project_closure_with_storage(
+    let compiler = resolve_external_local_project_closure(
         repository.join("source/omega"),
         ExternalSourceContext::derive(b"repository-compiler-product"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve compiler product dependency closure");
     assert_eq!(compiler.graph().packages().len(), 3);
@@ -195,12 +197,13 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
         "compiler and psi should reconcile the same standard-library package"
     );
 
-    let parser = resolve_external_local_project_closure_with_storage(
+    let parser = resolve_external_local_project_closure(
         repository.join("source/psi"),
         ExternalSourceContext::derive(b"repository-parser-package"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve parser package dependency closure");
     assert_eq!(parser.graph().packages().len(), 2);

@@ -1,6 +1,6 @@
 use super::super::{
     GitSourceRequest, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
-    resolve_git_package_closure,
+    resolve_git_package_closure_from_hardened_base,
 };
 use super::{
     BTreeSet, GitTransportProfile, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
@@ -102,14 +102,14 @@ invokes console;
         Some(canonical_lineage),
     )
     .expect("construct exact candidate Git request");
-    let baseline_sources = resolve_git_package_closure(
+    let baseline_sources = resolve_git_package_closure_from_hardened_base(
         &baseline_request,
         &baseline_cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve baseline Git custody");
-    let candidate_sources = resolve_git_package_closure(
+    let candidate_sources = resolve_git_package_closure_from_hardened_base(
         &candidate_request,
         &candidate_cache,
         LocalSourceLimits::default(),

@@ -27,7 +27,7 @@ pub struct PackageFileTransaction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum PublicationStep {
+pub enum PublicationStep {
     IntentRecorded,
     BuildReplaced,
     LockReplaced,
@@ -136,19 +136,9 @@ impl PackageFileTransaction {
     /// Publish an already-reviewed pair after exact old-file checks. An absent
     /// old lock is distinct from an empty file. Any error after durable intent
     /// is `Pending`: callers must recover, not assume no mutation occurred.
+    /// `checkpoint` runs after each durable step (tests interrupt there);
+    /// ordinary callers pass `|_| Ok(())`.
     pub fn publish(
-        &mut self,
-        before_build: &[u8],
-        after_build: &[u8],
-        before_lock: Option<&[u8]>,
-        after_lock: &[u8],
-    ) -> Result<(), PackagePublicationError> {
-        self.publish_with_checkpoint(before_build, after_build, before_lock, after_lock, |_| {
-            Ok(())
-        })
-    }
-
-    pub(super) fn publish_with_checkpoint(
         &mut self,
         before_build: &[u8],
         after_build: &[u8],

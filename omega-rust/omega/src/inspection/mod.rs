@@ -15,6 +15,7 @@ pub mod evidence;
 use compiler::{CheckedCompileRequest, CompileOptions};
 use diagnostics::Diagnostic;
 use package_manager::operations as packages;
+use package_manager::operations::LocalProjectPreparationOptions;
 use std::path::PathBuf;
 use terminal_psi::TerminalModule;
 
@@ -110,8 +111,14 @@ fn checked_compile_request(
 ) -> Result<CheckedCompileRequest<'static>, InspectTerminalError> {
     let target = target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
         .map_err(|diagnostic| InspectTerminalError::Diagnostics(vec![diagnostic]))?;
-    let prepared = packages::prepare_local_project_for_target(&request.root_path, target)
-        .map_err(InspectTerminalError::Preparation)?;
+    let prepared = packages::prepare_local_project(
+        &request.root_path,
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .map_err(InspectTerminalError::Preparation)?;
     let Some(prepared) = prepared else {
         return Ok(CheckedCompileRequest::new(
             &request.root_path,

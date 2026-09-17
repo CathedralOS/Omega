@@ -129,9 +129,9 @@ impl Fixture {
         application: bool,
     ) -> CanonicalSourceClosureSubject {
         let resolver = if application {
-            crate::resolution::graph::resolve_selected_git_project_closure_with_storage
+            crate::resolution::graph::resolve_selected_git_project_closure
         } else {
-            crate::resolution::graph::resolve_selected_git_package_closure_with_storage
+            crate::resolution::graph::resolve_selected_git_package_closure
         };
         let closure = resolver(
             request,

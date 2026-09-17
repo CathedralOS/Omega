@@ -86,7 +86,7 @@ file protocol and platform limits. The [command operation](src/package_manager/R
 owns package/alias selection, persisted per-target findings, exact candidate
 resume, and reviewed publication for `omega install` and `omega update`.
 
-`prepare_local_project_for_target` selects an accepted lock target before source
+`prepare_local_project` selects an accepted lock target before source
 acquisition. It preserves dependency pins, fetching only recorded commits when
 needed, while allowing ordinary edits to the local application's source. Its
 dependency projection, identity, and role must still match; local dependencies

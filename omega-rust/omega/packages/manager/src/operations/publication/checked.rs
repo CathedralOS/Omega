@@ -113,6 +113,7 @@ pub fn publish_reviewed_package_change(
             replacement.replacement_source().as_bytes(),
             before_lock.as_deref(),
             text.as_bytes(),
+            |_| Ok(()),
         )
         .map_err(Error::Publication)?;
     Ok(proposed)

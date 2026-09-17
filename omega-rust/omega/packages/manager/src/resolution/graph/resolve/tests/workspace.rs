@@ -2,8 +2,8 @@ use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
     PackageSourceClosureResolutionError, ResolveDependencySourceError,
     ResolveWorkspacePackageClosureError, SourceLineage, SourceRelativePath, SourceResolverStorage,
-    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
-    resolve_workspace_package_closure_with_storage,
+    resolve_workspace_package_closure, resolve_workspace_package_closure_from_hardened_base,
+    resolve_workspace_package_closure_in_context_from_hardened_base,
 };
 use super::{fixture_lineage, fixture_root, temp_root, write_application, write_package};
 use package_source::PrimaryGitChoices;
@@ -14,7 +14,7 @@ fn resolves_explicit_workspace_path_closure() {
     let storage =
         SourceResolverStorage::for_hardened_base(&cache_base, PrimaryGitChoices::default())
             .expect("create production-shaped private resolver storage");
-    let closure = resolve_workspace_package_closure_with_storage(
+    let closure = resolve_workspace_package_closure(
         &fixture_lineage(),
         SourceRelativePath::parse("graph-workbench").expect("root member"),
         fixture_root(),
@@ -65,7 +65,7 @@ fn workspace_project_entry_retains_application_root_role() {
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained workspace resolver storage");
 
-    crate::resolution::graph::resolve_workspace_package_closure_with_storage(
+    crate::resolution::graph::resolve_workspace_package_closure(
         &fixture_lineage(),
         SourceRelativePath::parse("projects/console").expect("root member"),
         &workspace,
@@ -74,7 +74,7 @@ fn workspace_project_entry_retains_application_root_role() {
         PackageSourceClosureLimits::default(),
     )
     .expect_err("package-only workspace entry rejects an application root");
-    let closure = crate::resolution::graph::resolve_workspace_project_closure_with_storage(
+    let closure = crate::resolution::graph::resolve_workspace_project_closure(
         &fixture_lineage(),
         SourceRelativePath::parse("projects/console").expect("root member"),
         &workspace,
@@ -111,7 +111,7 @@ fn resolves_nested_paths_relative_to_each_requester() {
     );
     write_package(&workspace.join("packages/leaf"), "leaf-package", None);
 
-    let closure = resolve_workspace_package_closure(
+    let closure = resolve_workspace_package_closure_from_hardened_base(
         &fixture_lineage(),
         SourceRelativePath::parse("packages/root").expect("root member"),
         &workspace,
@@ -142,7 +142,7 @@ fn contextual_workspace_escape_becomes_external_local_lineage() {
     write_package(&external, "external-package", None);
     let source_context = ExternalSourceContext::derive(b"workspace-consuming-lock");
 
-    let closure = resolve_workspace_package_closure_in_context(
+    let closure = resolve_workspace_package_closure_in_context_from_hardened_base(
         &fixture_lineage(),
         SourceRelativePath::parse("packages/root").expect("root member"),
         &workspace,
@@ -166,7 +166,7 @@ fn contextual_workspace_escape_becomes_external_local_lineage() {
     ));
 
     write_package(&root, "root-package", Some("../../../external/"));
-    let malformed = resolve_workspace_package_closure_in_context(
+    let malformed = resolve_workspace_package_closure_in_context_from_hardened_base(
         &fixture_lineage(),
         SourceRelativePath::parse("packages/root").expect("root member"),
         &workspace,
@@ -208,7 +208,7 @@ fn rejects_workspace_escape_before_resolving_the_target() {
     .expect("write build file");
     std::fs::write(package.join("main.omg"), "machine root() {}\n").expect("write source");
 
-    let error = resolve_workspace_package_closure(
+    let error = resolve_workspace_package_closure_from_hardened_base(
         &fixture_lineage(),
         SourceRelativePath::parse("packages/root").expect("root member"),
         &workspace,

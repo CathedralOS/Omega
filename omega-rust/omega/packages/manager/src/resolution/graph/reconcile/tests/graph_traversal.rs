@@ -3,7 +3,9 @@ use super::super::{
     PackageRootSourceRequest, ResolvedPackageSourceClosure, resolve_package_source_closure,
 };
 use super::support::*;
-use crate::resolution::source::{ResolvedPackageSource, resolve_workspace_member_package_source};
+use crate::resolution::source::{
+    ResolvedPackageSource, resolve_workspace_member_package_source_from_hardened_base,
+};
 use package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -125,7 +127,7 @@ fn resolves_the_authored_local_graph_fixture() {
     let workspace_source =
         SourceLineage::git("https://github.com/CathedralOS/package-fixtures.git")
             .expect("fixture workspace lineage");
-    let root = resolve_workspace_member_package_source(
+    let root = resolve_workspace_member_package_source_from_hardened_base(
         &workspace_source,
         SourceRelativePath::parse("graph-workbench").expect("root member path"),
         &fixtures,
@@ -152,7 +154,7 @@ fn resolves_the_authored_local_graph_fixture() {
                 return Err("fixture unexpectedly requested a network source".to_owned());
             };
             let member = workspace_member_request(requester, location)?;
-            resolve_workspace_member_package_source(
+            resolve_workspace_member_package_source_from_hardened_base(
                 &workspace_source,
                 member,
                 &fixtures,

@@ -20,14 +20,14 @@ use package_source::{
 };
 
 #[cfg(test)]
-pub fn resolve_git_package_source(
+pub fn resolve_git_package_source_from_hardened_base(
     request: &GitSourceRequest,
     cache_dir: impl AsRef<std::path::Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let storage =
         SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
-    resolve_git_package_source_with_storage(request, &storage, limits)
+    resolve_git_package_source(request, &storage, limits)
 }
 
 fn resolve_git_root_package_source_in_lane(
@@ -141,19 +141,19 @@ fn resolve_selected_git_declared_source_from_pin_in_lanes(
     }
 }
 
-pub fn resolve_git_package_source_with_storage(
+pub fn resolve_git_package_source(
     request: &GitSourceRequest,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    resolve_selected_git_package_source_with_storage(
+    resolve_selected_git_package_source(
         &GitPackageSourceRequest::root(request.clone()),
         storage,
         limits,
     )
 }
 
-pub fn resolve_selected_git_package_source_with_storage(
+pub fn resolve_selected_git_package_source(
     request: &GitPackageSourceRequest,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,
@@ -169,7 +169,7 @@ pub fn resolve_selected_git_package_source_with_storage(
     result
 }
 
-pub fn resolve_selected_git_project_source_with_storage(
+pub fn resolve_selected_git_project_source(
     request: &GitPackageSourceRequest,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,

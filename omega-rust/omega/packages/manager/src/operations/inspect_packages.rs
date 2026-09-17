@@ -45,8 +45,12 @@ fn failure(error: impl fmt::Display) -> PackageInspectionError {
     PackageInspectionError(error.to_string())
 }
 
+/// Inspect the packages of one project. Without `storage`, the current user's
+/// resolver storage is opened once the project files have been read, with the
+/// project root excluded from primary Git selection.
 pub fn inspect_packages(
     options: PackageInspectionOptions,
+    storage: Option<&SourceResolverStorage>,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     let transaction =
         PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
@@ -56,28 +60,30 @@ pub fn inspect_packages(
         options.targets,
         options.details,
         options.offline,
-        |root| {
-            SourceResolverStorage::for_current_user(PrimaryGitChoices {
+        |root| match storage {
+            Some(storage) => Ok(InspectionStorage::Supplied(storage)),
+            None => SourceResolverStorage::for_current_user(PrimaryGitChoices {
                 excluded_controlled_roots: &[root.to_path_buf()],
                 ..PrimaryGitChoices::default()
             })
-            .map_err(failure)
+            .map(InspectionStorage::Opened)
+            .map_err(failure),
         },
     )
 }
 
-pub fn inspect_packages_with_storage(
-    options: PackageInspectionOptions,
-    storage: &SourceResolverStorage,
-) -> Result<PackageInspectionOutcome, PackageInspectionError> {
-    let transaction =
-        PackageFileTransaction::open(&options.project_root, PackagePublicationLimits::default())
-            .map_err(failure)?;
-    execution::inspect(
-        &transaction,
-        options.targets,
-        options.details,
-        options.offline,
-        |_| Ok(storage),
-    )
+/// The resolver storage of one inspection: supplied by the caller, or opened
+/// for the current user after the project files were read.
+enum InspectionStorage<'a> {
+    Supplied(&'a SourceResolverStorage),
+    Opened(SourceResolverStorage),
+}
+
+impl std::borrow::Borrow<SourceResolverStorage> for InspectionStorage<'_> {
+    fn borrow(&self) -> &SourceResolverStorage {
+        match self {
+            Self::Supplied(storage) => storage,
+            Self::Opened(storage) => storage,
+        }
+    }
 }

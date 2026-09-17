@@ -1,6 +1,8 @@
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use omega::compilation::publication;
+use package_manager::operations::LocalProjectPreparationOptions;
 use std::path::{Path, PathBuf};
+use target::TargetProfile;
 
 /// Compile every sample `main.omg` under `samples_root` into its own build
 /// directory for the exact host target. Each worker owns a distinct output.
@@ -35,24 +37,29 @@ pub(crate) fn refresh(samples_root: &Path) -> ! {
                         .parent()
                         .expect("main.omg has a sample directory")
                         .join("build");
-                    let prepared =
-                        match package_manager::operations::prepare_local_project(&main_path) {
-                            Ok(Some(prepared)) => prepared,
-                            Ok(None) => {
-                                failures.lock().unwrap().push(format!(
-                                    "{}: sample project has no sibling build.omg",
-                                    main_path.display()
-                                ));
-                                continue;
-                            }
-                            Err(error) => {
-                                failures
-                                    .lock()
-                                    .unwrap()
-                                    .push(format!("{}: {error}", main_path.display()));
-                                continue;
-                            }
-                        };
+                    let prepared = match package_manager::operations::prepare_local_project(
+                        &main_path,
+                        LocalProjectPreparationOptions {
+                            target: TargetProfile::host(),
+                            offline: false,
+                        },
+                    ) {
+                        Ok(Some(prepared)) => prepared,
+                        Ok(None) => {
+                            failures.lock().unwrap().push(format!(
+                                "{}: sample project has no sibling build.omg",
+                                main_path.display()
+                            ));
+                            continue;
+                        }
+                        Err(error) => {
+                            failures
+                                .lock()
+                                .unwrap()
+                                .push(format!("{}: {error}", main_path.display()));
+                            continue;
+                        }
+                    };
                     let (prepared_entry, package_inputs) = prepared.into_parts();
                     let options = CompileOptions {
                         root_path: prepared_entry,

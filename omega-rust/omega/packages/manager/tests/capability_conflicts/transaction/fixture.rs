@@ -1,7 +1,7 @@
 use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PathBuf,
     ResolvedPackageSourceClosure, compile_resolved_package_reviews,
-    resolve_external_local_package_closure, temp_root, write_package,
+    resolve_external_local_package_closure_from_hardened_base, temp_root, write_package,
 };
 
 use package_manager::review::SemanticBindingReview;
@@ -42,7 +42,7 @@ impl ExactCompilerRowScenario {
 }
 "#,
         );
-        let baseline_sources = resolve_external_local_package_closure(
+        let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
             &live,
             context.clone(),
             &baseline_cache,
@@ -66,7 +66,7 @@ impl ExactCompilerRowScenario {
 pub proposition ready();
 "#,
         );
-        let stale_baseline_sources = resolve_external_local_package_closure(
+        let stale_baseline_sources = resolve_external_local_package_closure_from_hardened_base(
             &live,
             context.clone(),
             &stale_baseline_cache,
@@ -91,7 +91,7 @@ pub proposition ready();
 pub proposition settled();
 "#,
         );
-        let candidate_sources = resolve_external_local_package_closure(
+        let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
             &live,
             context,
             &candidate_cache,

@@ -9,8 +9,9 @@ use super::{
 };
 use package_evidence::encoding::PackagePolicyTextRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
-    ResolveLockedPackageClosureError, resolve_external_local_project_closure_with_storage,
+    ResolveLockedPackageClosureError, resolve_external_local_project_closure,
 };
 use package_manager::review::SemanticBindingReview;
 use package_manager::review::{
@@ -19,12 +20,13 @@ use package_manager::review::{
 };
 
 fn resolve(tree: &Tree, storage: &SourceResolverStorage) -> ResolvedPackageSourceClosure {
-    resolve_external_local_project_closure_with_storage(
+    resolve_external_local_project_closure(
         tree.path("sources/root"),
         ExternalSourceContext::derive(b"locked-source-checking"),
         storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap()
 }
@@ -274,12 +276,13 @@ fn independent_compiler_reviews_require_exact_target_resolution_and_coverage() {
         })
     );
 
-    let leaf = resolve_external_local_project_closure_with_storage(
+    let leaf = resolve_external_local_project_closure(
         tree.path("sources/first"),
         ExternalSourceContext::derive(b"locked-source-checking"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap();
     let only_leaf = compile_resolved_package_reviews(

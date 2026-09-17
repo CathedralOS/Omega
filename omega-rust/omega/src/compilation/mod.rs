@@ -114,7 +114,7 @@ pub fn compile_project(
                 TimingCategory::Pipeline,
             ),
             || {
-                packages::prepare_local_project_with_options(
+                packages::prepare_local_project(
                     &options.root_path,
                     packages::LocalProjectPreparationOptions { target, offline },
                 )
@@ -138,7 +138,8 @@ pub fn compile_project(
                     )
                     .with_accepted_trust_admissions(admissions)
                     .with_optimization_rollback(optimization_rollback);
-                    packages::compile_prepared_local_project_for_native(request)
+                    packages::compile_prepared_local_project_for_native(request, |_| ())
+                        .map(|(report, ())| report)
                         .map_err(CompileProjectError::PackageNative)?
                 }
                 (Some(prepared), ProjectProduct::Check) => {

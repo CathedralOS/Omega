@@ -26,7 +26,7 @@ use std::path::Path;
 /// inside the explicit root or an immutable Git snapshot registered while
 /// resolving this closure; an escape rejects before filesystem access.
 #[cfg(test)]
-pub(crate) fn resolve_workspace_package_closure(
+pub(crate) fn resolve_workspace_package_closure_from_hardened_base(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -38,7 +38,7 @@ pub(crate) fn resolve_workspace_package_closure(
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_workspace_package_closure_with_storage(
+    resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
@@ -49,7 +49,7 @@ pub(crate) fn resolve_workspace_package_closure(
 }
 
 /// Resolve a workspace closure beneath the manager-owned private source root.
-pub fn resolve_workspace_package_closure_with_storage(
+pub fn resolve_workspace_package_closure(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -79,7 +79,7 @@ pub fn resolve_workspace_package_closure_with_storage(
 
 /// Resolve a selected workspace project root. The root may be a package or an
 /// application; dependencies remain package-only.
-pub fn resolve_workspace_project_closure_with_storage(
+pub fn resolve_workspace_project_closure(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -114,7 +114,7 @@ pub fn resolve_workspace_project_closure_with_storage(
 /// workspace is discovered. Path requests originating in fetched Git snapshots
 /// remain confined to those immutable snapshots.
 #[cfg(test)]
-pub(crate) fn resolve_workspace_package_closure_in_context(
+pub(crate) fn resolve_workspace_package_closure_in_context_from_hardened_base(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -127,7 +127,7 @@ pub(crate) fn resolve_workspace_package_closure_in_context(
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_workspace_package_closure_in_context_with_storage(
+    resolve_workspace_package_closure_in_context(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
@@ -139,7 +139,7 @@ pub(crate) fn resolve_workspace_package_closure_in_context(
 }
 
 /// Resolve a context-enabled workspace closure beneath private resolver storage.
-pub fn resolve_workspace_package_closure_in_context_with_storage(
+pub fn resolve_workspace_package_closure_in_context(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -171,7 +171,7 @@ pub fn resolve_workspace_package_closure_in_context_with_storage(
 /// Context-enabled project-root variant for a workspace member that may be an
 /// application while external path dependencies remain explicitly scoped.
 #[allow(clippy::too_many_arguments)]
-pub fn resolve_workspace_project_closure_in_context_with_storage(
+pub fn resolve_workspace_project_closure_in_context(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,

@@ -4,7 +4,7 @@ use super::{
     PackageReviewSourceLocationRole, PackageSourceClosureLimits,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictLimits,
     compare_review_only_capabilities, compile_resolved_package_reviews,
-    resolve_external_local_package_closure, temp_root, write_package,
+    resolve_external_local_package_closure_from_hardened_base, temp_root, write_package,
 };
 use package_manager::review::SemanticBindingReview;
 
@@ -17,7 +17,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     let context = ExternalSourceContext::derive(b"public-const-conflict-test");
 
     write_package(&live, "pub const LIMIT: u64 = 4;\n");
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -33,7 +33,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     .expect("compile public const baseline");
 
     write_package(&live, "pub const LIMIT: u64 = 5;\n");
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -109,7 +109,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
         &live,
         "pub data Token [copy] { value: u64; }\npub operator < Token::less(left: Token, right: Token) -> bool;\n",
     );
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -128,7 +128,7 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
         &live,
         "pub data Token [copy] { value: u64; }\npub operator < Token::less(left: Token, right: Token) -> bool\nrequires true;\n",
     );
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -184,7 +184,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     let candidate_source = "pub machine inspect(candidate_value: u32) -> u32 { candidate_value }\n";
 
     write_package(&live, baseline_source);
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -200,7 +200,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     .expect("compile public callable parameter baseline");
 
     write_package(&live, candidate_source);
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -303,7 +303,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     };
 
     write_package(&live, &source("first"));
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -319,7 +319,7 @@ fn callable_changes_render_exact_checked_body_call_locations() {
     .expect("compile body-call baseline");
 
     write_package(&live, &source("second"));
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -384,7 +384,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
         )
     };
     write_package(&live, &source("First"));
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -400,7 +400,7 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     .expect("compile public conformance baseline");
 
     write_package(&live, &source("Second"));
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -464,7 +464,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
         )
     };
     write_package(&live, &source("u32"));
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -480,7 +480,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     .expect("compile public trait requirement baseline");
 
     write_package(&live, &source("u64"));
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -550,7 +550,7 @@ pub trait Child: {parent} {{ }}
         )
     };
     write_package(&live, &source("First"));
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -566,7 +566,7 @@ pub trait Child: {parent} {{ }}
     .expect("compile public-trait baseline");
 
     write_package(&live, &source("Second"));
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,
@@ -621,7 +621,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     let context = ExternalSourceContext::derive(b"public-data-member-conflict-test");
 
     write_package(&live, "pub data Packet { value: u32; }\n");
-    let baseline_sources = resolve_external_local_package_closure(
+    let baseline_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context.clone(),
         &baseline_cache,
@@ -637,7 +637,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     .expect("compile public data baseline");
 
     write_package(&live, "pub data Packet { value: u64; }\n");
-    let candidate_sources = resolve_external_local_package_closure(
+    let candidate_sources = resolve_external_local_package_closure_from_hardened_base(
         &live,
         context,
         &candidate_cache,

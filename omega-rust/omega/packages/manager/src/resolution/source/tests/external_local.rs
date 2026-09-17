@@ -1,5 +1,5 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
-use crate::resolution::source::resolve_external_local_package_source;
+use crate::resolution::source::resolve_external_local_package_source_from_hardened_base;
 use package_source::{
     ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits, SourceLineage,
 };
@@ -10,7 +10,7 @@ fn external_local_resolution_uses_declared_name_and_immutable_snapshot() {
     let cache = temp_root("external-cache");
     write_package(&root, "arithmetic-kernels");
 
-    let resolved = resolve_external_local_package_source(
+    let resolved = resolve_external_local_package_source_from_hardened_base(
         &root,
         &cache,
         LocalSourceLimits::default(),
@@ -44,14 +44,14 @@ fn external_local_context_changes_key_without_changing_source_resolution() {
     let cache = temp_root("context-cache");
     write_package(&root, "arithmetic-kernels");
 
-    let first = resolve_external_local_package_source(
+    let first = resolve_external_local_package_source_from_hardened_base(
         &root,
         &cache,
         LocalSourceLimits::default(),
         ExternalSourceContext::derive(b"consumer-a"),
     )
     .expect("resolve first context");
-    let second = resolve_external_local_package_source(
+    let second = resolve_external_local_package_source_from_hardened_base(
         &root,
         &cache,
         LocalSourceLimits::default(),

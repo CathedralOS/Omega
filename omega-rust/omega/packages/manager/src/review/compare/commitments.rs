@@ -98,7 +98,7 @@ pub(super) fn derive_candidate_closure_identity<C: PackageReviewEvidence>(
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .map_err(|_| ReviewOnlyCapabilityConflictError::InvalidCandidateSourceClosure)?;
-    let commitment = derive_candidate_graph_commitment_with_source(
+    let commitment = derive_candidate_graph_commitment(
         target_closure.source_closure().graph(),
         Some(source_closure.canonical_bytes()),
         candidate_reviews,
@@ -115,15 +115,7 @@ pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
         .map(|(commitment, _)| commitment)
 }
 
-#[cfg(test)]
 pub(super) fn derive_candidate_graph_commitment<C: PackageReviewEvidence>(
-    closure: &ResolvedPackageClosure,
-    candidate_reviews: &[&C],
-) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
-    derive_candidate_graph_commitment_with_source(closure, None, candidate_reviews)
-}
-
-fn derive_candidate_graph_commitment_with_source<C: PackageReviewEvidence>(
     closure: &ResolvedPackageClosure,
     source_closure: Option<&[u8]>,
     candidate_reviews: &[&C],

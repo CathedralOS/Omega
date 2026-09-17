@@ -1,6 +1,6 @@
 use package_evidence::record::PackageReviewCanonicalRowKind;
 use package_manager::resolution::graph::{
-    PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
+    PackageSourceClosureLimits, resolve_external_local_package_closure,
 };
 use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
@@ -120,7 +120,7 @@ machine build(builder: &mut Build) {{
         PrimaryGitChoices::default(),
     )
     .expect("create resolver storage");
-    let closure = resolve_external_local_package_closure_with_storage(
+    let closure = resolve_external_local_package_closure(
         &root,
         ExternalSourceContext::derive(b"same-name-different-lineage-fixture"),
         &storage,

@@ -1,8 +1,8 @@
 use super::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits, PathBuf,
     ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure, SourceLineage,
-    SourceRelativePath, compile_resolved_package_reviews, resolve_workspace_package_closure,
-    temporary_root,
+    SourceRelativePath, compile_resolved_package_reviews,
+    resolve_workspace_package_closure_from_hardened_base, temporary_root,
 };
 use package_manager::review::SemanticBindingReview;
 
@@ -38,7 +38,7 @@ impl BuildOnlyFixture {
     }
 
     fn closure(&self) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-        resolve_workspace_package_closure(
+        resolve_workspace_package_closure_from_hardened_base(
             &SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap(),
             SourceRelativePath::parse("consumer").unwrap(),
             &self.root,

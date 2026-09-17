@@ -1,11 +1,11 @@
 //! The source-graph text record is not an accepted lock or package certificate.
 
 use package_manager::declarations::BuildDeclarationKind;
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
     CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
-    resolve_external_local_project_closure_with_storage,
-    resolve_workspace_package_closure_with_storage,
+    resolve_external_local_project_closure, resolve_workspace_package_closure,
 };
 use package_source::PrimaryGitChoices;
 use package_source::{
@@ -120,12 +120,13 @@ fn resolve_diamond(tree: &TempTree, role: &str) -> ResolvedPackageSourceClosure 
     let storage =
         SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
             .expect("source resolver storage");
-    resolve_external_local_project_closure_with_storage(
+    resolve_external_local_project_closure(
         sources.join("root"),
         ExternalSourceContext::derive(b"source-closure-text-diamond"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve source diamond with requester-local aliases")
 }
@@ -239,7 +240,7 @@ fn workspace_graph_text_recovers_without_old_source_or_cache() {
     let storage =
         SourceResolverStorage::for_hardened_base(tree.path("cache"), PrimaryGitChoices::default())
             .expect("workspace resolver storage");
-    let closure = resolve_workspace_package_closure_with_storage(
+    let closure = resolve_workspace_package_closure(
         &lineage,
         SourceRelativePath::parse("root").unwrap(),
         &workspace,

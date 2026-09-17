@@ -1,9 +1,11 @@
 use super::super::{
     ExternalSourceContext, LocalSourceLimits, PackageRootSourceRequest, PackageSourceClosureLimits,
-    SourceLineage, SourceResolverStorage, resolve_external_local_package_closure,
-    resolve_external_local_project_closure_with_storage,
+    SourceLineage, SourceResolverStorage,
+    resolve_external_local_package_closure_from_hardened_base,
+    resolve_external_local_project_closure,
 };
 use super::{temp_root, write_package};
+use crate::resolution::graph::GitResolutionOptions;
 use package_source::PrimaryGitChoices;
 #[test]
 fn resolves_external_local_closure_across_directory_boundaries_in_one_context() {
@@ -21,7 +23,7 @@ fn resolves_external_local_closure_across_directory_boundaries_in_one_context() 
     write_package(&leaf, "leaf-package", None);
     let first_context = ExternalSourceContext::derive(b"first-consuming-lock");
 
-    let first = resolve_external_local_package_closure(
+    let first = resolve_external_local_package_closure_from_hardened_base(
         sources.join("root"),
         first_context.clone(),
         &first_cache,
@@ -50,7 +52,7 @@ fn resolves_external_local_closure_across_directory_boundaries_in_one_context() 
     assert_eq!(source_context, &first_context);
 
     let second_context = ExternalSourceContext::derive(b"second-consuming-lock");
-    let second = resolve_external_local_package_closure(
+    let second = resolve_external_local_package_closure_from_hardened_base(
         sources.join("root"),
         second_context,
         &second_cache,
@@ -88,12 +90,13 @@ fn project_resolution_retains_an_application_root_role() {
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("resolver storage");
 
-    let closure = resolve_external_local_project_closure_with_storage(
+    let closure = resolve_external_local_project_closure(
         &source,
         ExternalSourceContext::derive(b"application-root-lock"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve application root");
 

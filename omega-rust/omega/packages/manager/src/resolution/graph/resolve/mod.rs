@@ -18,37 +18,31 @@ pub use errors::{
     ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError,
 };
 pub use external_local::{
-    resolve_external_local_package_closure_with_storage,
-    resolve_external_local_project_closure_with_options,
-    resolve_external_local_project_closure_with_storage,
-    resolve_staged_external_local_project_closure_with_git_pins,
-    resolve_staged_external_local_project_closure_with_options,
-    resolve_staged_external_local_project_closure_with_storage,
+    resolve_external_local_package_closure, resolve_external_local_project_closure,
+    resolve_staged_external_local_project_closure,
 };
 pub use git::{
-    resolve_git_package_closure_with_storage, resolve_git_project_closure_with_storage,
-    resolve_selected_git_package_closure_with_storage,
-    resolve_selected_git_project_closure_with_storage,
+    resolve_git_package_closure, resolve_git_project_closure, resolve_selected_git_package_closure,
+    resolve_selected_git_project_closure,
 };
 pub use git_pins::{GitDependencyPins, GitDependencyPinsError, GitResolutionOptions};
 pub use locked::{
-    ResolveLockedPackageClosureError, resolve_locked_local_project_closure_with_storage,
-    resolve_locked_package_source_closure_with_storage,
+    ResolveLockedPackageClosureError, resolve_locked_local_project_closure,
+    resolve_locked_package_source_closure,
 };
 pub use workspace::{
-    resolve_workspace_package_closure_in_context_with_storage,
-    resolve_workspace_package_closure_with_storage,
-    resolve_workspace_project_closure_in_context_with_storage,
-    resolve_workspace_project_closure_with_storage,
+    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_workspace_project_closure, resolve_workspace_project_closure_in_context,
 };
 
 #[cfg(test)]
-pub(crate) use external_local::resolve_external_local_package_closure;
+pub(crate) use external_local::resolve_external_local_package_closure_from_hardened_base;
 #[cfg(test)]
-pub(crate) use git::{git_root_request_matches, resolve_git_package_closure};
+pub(crate) use git::{git_root_request_matches, resolve_git_package_closure_from_hardened_base};
 #[cfg(test)]
 pub(crate) use workspace::{
-    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_workspace_package_closure_from_hardened_base,
+    resolve_workspace_package_closure_in_context_from_hardened_base,
 };
 
 #[cfg(test)]

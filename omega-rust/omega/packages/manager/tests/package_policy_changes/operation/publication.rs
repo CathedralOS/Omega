@@ -15,12 +15,14 @@ use package_manager::declarations::{
     BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest,
     plan_dependency_addition,
 };
+use package_manager::operations::LocalProjectPreparationOptions;
 use package_manager::operations::{
     LockedSourceRecoveryOptions, PackageFileTransaction, PackagePublicationLimits,
-    PublishReviewedPackageChangeError, check_locked_sources, prepare_local_project_for_target,
+    PublishReviewedPackageChangeError, check_locked_sources, prepare_local_project,
     publish_reviewed_package_change, stage_build_dependency_edit,
 };
-use package_manager::resolution::graph::resolve_staged_external_local_project_closure_with_storage;
+use package_manager::resolution::graph::GitResolutionOptions;
+use package_manager::resolution::graph::resolve_staged_external_local_project_closure;
 use package_source::PrimaryGitChoices;
 use package_source::SourceRelativePath;
 use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
@@ -56,12 +58,13 @@ fn review_stage(
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
 ) -> PackageChangeReview {
-    let closure = resolve_staged_external_local_project_closure_with_storage(
+    let closure = resolve_staged_external_local_project_closure(
         staged,
         ExternalSourceContext::derive(b"complete-package-policy-changes"),
         &tree.storage("publication-review-cache"),
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .unwrap();
     review_package_change(
@@ -682,15 +685,15 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
         PrimaryGitChoices::default(),
     )
     .unwrap();
-    let closure =
-        package_manager::resolution::graph::resolve_external_local_project_closure_with_storage(
-            &root,
-            ExternalSourceContext::derive(b"omega-local-project-v1"),
-            &storage,
-            LocalSourceLimits::default(),
-            PackageSourceClosureLimits::default(),
-        )
-        .unwrap();
+    let closure = package_manager::resolution::graph::resolve_external_local_project_closure(
+        &root,
+        ExternalSourceContext::derive(b"omega-local-project-v1"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
+    )
+    .unwrap();
     let reviewed =
         review_package_change(closure, TARGET, None, &tree.path("recovered-build")).unwrap();
     let after_lock = PackageLock::from_targets(vec![propose(&reviewed)])
@@ -715,9 +718,15 @@ fn preparation_recovers_pending_declarations_before_compiler_input_resolution() 
     fs::write(root.join("build/package-manager/pending"), journal).unwrap();
     assert!(transaction.has_pending().unwrap());
     drop(transaction);
-    let prepared = prepare_local_project_for_target(&root.join("main.omg"), TARGET)
-        .unwrap()
-        .unwrap();
+    let prepared = prepare_local_project(
+        &root.join("main.omg"),
+        LocalProjectPreparationOptions {
+            target: TARGET,
+            offline: false,
+        },
+    )
+    .unwrap()
+    .unwrap();
     assert_eq!(
         fs::read_to_string(root.join("build.omg")).unwrap(),
         after_build

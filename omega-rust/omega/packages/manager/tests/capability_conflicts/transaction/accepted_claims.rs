@@ -5,8 +5,8 @@ use super::super::{
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
     ReviewOnlyRootPolicyResolutionError, compare_review_only_capabilities,
     compare_review_only_initial_capabilities, compile_resolved_package_reviews,
-    resolve_external_local_package_closure, resolve_review_only_root_policy_decisions,
-    triage_review_update, write_package,
+    resolve_external_local_package_closure_from_hardened_base,
+    resolve_review_only_root_policy_decisions, triage_review_update, write_package,
 };
 
 use super::fixture::ExactCompilerRowScenario;
@@ -35,14 +35,15 @@ pub(super) fn assert_candidate_binding(
 ensures result == 0;
 "#,
     );
-    let accepted_claim_baseline_sources = resolve_external_local_package_closure(
-        &scenario.live,
-        ExternalSourceContext::derive(b"accepted-claim-conflict-test-lock"),
-        &scenario.accepted_claim_baseline_cache,
-        LocalSourceLimits::default(),
-        PackageSourceClosureLimits::default(),
-    )
-    .expect("resolve accepted-claim baseline");
+    let accepted_claim_baseline_sources =
+        resolve_external_local_package_closure_from_hardened_base(
+            &scenario.live,
+            ExternalSourceContext::derive(b"accepted-claim-conflict-test-lock"),
+            &scenario.accepted_claim_baseline_cache,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect("resolve accepted-claim baseline");
     let accepted_claim_baseline_reviews = compile_resolved_package_reviews(
         &accepted_claim_baseline_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &scenario.build_root,
@@ -83,14 +84,15 @@ ensures result == 0;
 ensures result == 1;
 "#,
     );
-    let accepted_claim_candidate_sources = resolve_external_local_package_closure(
-        &scenario.live,
-        ExternalSourceContext::derive(b"accepted-claim-conflict-test-lock"),
-        &scenario.accepted_claim_candidate_cache,
-        LocalSourceLimits::default(),
-        PackageSourceClosureLimits::default(),
-    )
-    .expect("resolve changed accepted claim");
+    let accepted_claim_candidate_sources =
+        resolve_external_local_package_closure_from_hardened_base(
+            &scenario.live,
+            ExternalSourceContext::derive(b"accepted-claim-conflict-test-lock"),
+            &scenario.accepted_claim_candidate_cache,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect("resolve changed accepted claim");
     let accepted_claim_candidate_reviews = compile_resolved_package_reviews(
         &accepted_claim_candidate_sources.for_exact_target(target::TargetProfile::WindowsX64),
         &scenario.build_root,

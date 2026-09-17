@@ -2,10 +2,10 @@ use super::super::super::{Path, PreparedLocalProject};
 use super::super::PathBuf;
 use super::{
     LocalProjectPreparationOptions, LocalSourceLimits, PrepareLocalProjectError, Project,
-    TargetProfile, fs, prepare_with_options_and_storage,
+    TargetProfile, fs, prepare_local_project_in_storage,
 };
 fn prepare(project: &Project) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    prepare_with_options_and_storage(
+    prepare_local_project_in_storage(
         &project.root().join("main.omg"),
         LocalProjectPreparationOptions {
             target: TargetProfile::host(),
@@ -114,7 +114,7 @@ fn offline_git_preparation_keeps_exact_pins_and_never_calls_transport() {
     git(&["add", "."]);
     commit();
     let request = package_source::GitSourceRequest::new(locator, Some("HEAD".into())).unwrap();
-    let advanced = crate::resolution::source::resolve_git_package_source_with_storage(
+    let advanced = crate::resolution::source::resolve_git_package_source(
         &request,
         &project.storage(),
         LocalSourceLimits::default(),

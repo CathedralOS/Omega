@@ -119,25 +119,20 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
 
 impl std::error::Error for CompilePreparedLocalProjectNativeError {}
 
-/// Check accepted project policy and realize one freshly compiled application.
-///
-/// This operation is the production CLI seam. It neither asks project
-/// preparation to infer permissions nor treats decoded policy bytes as
-/// evidence: all acceptance starts again from live resolver custody and the
-/// exact final checked review pass.
-pub fn compile_prepared_local_project_for_native(
-    request: PreparedLocalProjectNativeRequest,
-) -> Result<CompileReport, CompilePreparedLocalProjectNativeError> {
-    compile_prepared_local_project_for_native_with_observation(request, |_| ())
-        .map(|(report, ())| report)
-}
-
 /// Observe the exact checked program that native production consumes, without
 /// repeating package acquisition or sponsored build execution. The observer must
 /// only compute a private result: native realization can still reject afterward.
 /// Neither the observation nor a successful report replaces the caller's exact
 /// trust-admission settlement before publication or execution.
-pub fn compile_prepared_local_project_for_native_with_observation<Observation>(
+/// Check accepted project policy and realize one freshly compiled application.
+/// `observe` sees the checked compilation before realization; a caller with
+/// nothing to observe passes `|_| ()`.
+///
+/// This operation is the production CLI seam. It neither asks project
+/// preparation to infer permissions nor treats decoded policy bytes as
+/// evidence: all acceptance starts again from live resolver custody and the
+/// exact final checked review pass.
+pub fn compile_prepared_local_project_for_native<Observation>(
     request: PreparedLocalProjectNativeRequest,
     observe: impl FnOnce(&compiler::CheckedCompilation) -> Observation,
 ) -> Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError> {

@@ -1,13 +1,13 @@
 use super::super::super::Path;
 use super::{
     ExternalSourceContext, LOCAL_PROJECT_CONTEXT, LocalSourceLimits, PackageRootSourceRequest,
-    Project, TargetProfile, fs, prepare_with_storage,
+    Project, TargetProfile, fs, prepare_local_project_in_storage,
 };
 use crate::declarations::dependencies::read::DependencySourceRequest;
+use crate::operations::LocalProjectPreparationOptions;
 use crate::resolution::graph::reconcile::resolve_package_source_closure;
 use crate::resolution::source::{
-    ResolvePackageSourceError, resolve_external_local_project_source_with_storage,
-    resolve_git_package_source_with_storage,
+    ResolvePackageSourceError, resolve_external_local_project_source, resolve_git_package_source,
 };
 use package_source::GitSourceRequest;
 
@@ -42,7 +42,7 @@ fn missing_target_precedes_git_acquisition_even_when_the_recorded_selector_moved
     let storage = project.storage();
     let context = ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT);
     let root_path = project.root().canonicalize().unwrap();
-    let root = resolve_external_local_project_source_with_storage(
+    let root = resolve_external_local_project_source(
         &root_path,
         &storage,
         LocalSourceLimits::default(),
@@ -62,7 +62,7 @@ fn missing_target_precedes_git_acquisition_even_when_the_recorded_selector_moved
         root.into_custody(),
         |_, edge| -> Result<_, ResolvePackageSourceError> {
             assert!(matches!(edge, DependencySourceRequest::Git { repository, revision, .. } if repository == locator && revision == "main"));
-            Ok(resolve_git_package_source_with_storage(&request, &storage, LocalSourceLimits::default())?.into_custody())
+            Ok(resolve_git_package_source(&request, &storage, LocalSourceLimits::default())?.into_custody())
         },
     ).unwrap();
     let lock = project.lock_closure(&closure);
@@ -76,8 +76,7 @@ fn missing_target_precedes_git_acquisition_even_when_the_recorded_selector_moved
     // Refresh the test cache's selector too, so selecting main afresh would
     // produce different source even with no network access.
     let advanced =
-        resolve_git_package_source_with_storage(&request, &storage, LocalSourceLimits::default())
-            .unwrap();
+        resolve_git_package_source(&request, &storage, LocalSourceLimits::default()).unwrap();
     let accepted = lock
         .target(TargetProfile::host())
         .unwrap()
@@ -97,9 +96,14 @@ fn missing_target_precedes_git_acquisition_even_when_the_recorded_selector_moved
         .into_iter()
         .find(|target| *target != TargetProfile::host())
         .unwrap();
-    let error = prepare_with_storage(&project.root().join("main.omg"), other, |_| {
-        panic!("missing target must reject before opening a cold Git cache")
-    })
+    let error = prepare_local_project_in_storage(
+        &project.root().join("main.omg"),
+        LocalProjectPreparationOptions {
+            target: other,
+            offline: false,
+        },
+        |_| panic!("missing target must reject before opening a cold Git cache"),
+    )
     .err()
     .unwrap();
     assert!(

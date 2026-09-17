@@ -6,7 +6,8 @@ use super::super::{
     ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyRecordError,
     ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolutionError,
     compare_review_only_capabilities, compile_resolved_package_reviews, hex_digest,
-    recover_review_only_root_policy_resolution, resolve_external_local_package_closure,
+    recover_review_only_root_policy_resolution,
+    resolve_external_local_package_closure_from_hardened_base,
     resolve_review_only_root_policy_decisions, triage_review_update, write_package,
 };
 
@@ -170,7 +171,7 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
 }
 "#,
     );
-    let representation_sources = resolve_external_local_package_closure(
+    let representation_sources = resolve_external_local_package_closure_from_hardened_base(
         &scenario.live,
         ExternalSourceContext::derive(b"capability-conflict-test-lock"),
         &scenario.representation_cache,
@@ -254,7 +255,7 @@ reaches FilesystemHost
 }
 "#,
     );
-    let dangerous_slack_sources = resolve_external_local_package_closure(
+    let dangerous_slack_sources = resolve_external_local_package_closure_from_hardened_base(
         &scenario.live,
         ExternalSourceContext::derive(b"capability-conflict-test-lock"),
         &scenario.dangerous_slack_cache,

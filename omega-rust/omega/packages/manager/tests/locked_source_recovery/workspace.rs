@@ -5,8 +5,7 @@ use super::{
     capture_lock, fs, package, recover_locked_sources,
 };
 use package_manager::resolution::graph::{
-    resolve_workspace_project_closure_in_context_with_storage,
-    resolve_workspace_project_closure_with_storage,
+    resolve_workspace_project_closure, resolve_workspace_project_closure_in_context,
 };
 use package_source::{ExternalLocalLineage, SourceLineage, SourceRelativePath};
 
@@ -32,7 +31,7 @@ fn workspace(
     let lineage = workspace_lineage(tree, b"explicit-workspace-root");
     let member = SourceRelativePath::parse("root").unwrap();
     if escaping {
-        resolve_workspace_project_closure_in_context_with_storage(
+        resolve_workspace_project_closure_in_context(
             &lineage,
             member,
             tree.path("workspace"),
@@ -43,7 +42,7 @@ fn workspace(
         )
         .unwrap()
     } else {
-        resolve_workspace_project_closure_with_storage(
+        resolve_workspace_project_closure(
             &lineage,
             member,
             tree.path("workspace"),

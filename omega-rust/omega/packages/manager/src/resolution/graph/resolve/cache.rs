@@ -58,7 +58,7 @@ impl<'a> GitAcquisitionCache<'a> {
         member_cache: SourceCacheLane<'_>,
         limits: LocalSourceLimits,
     ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-        self.resolve_selected_with_role(request, git_cache, member_cache, limits, false)
+        self.resolve_selected_declared(request, git_cache, member_cache, limits, false)
     }
 
     pub(super) fn resolve_selected_project(
@@ -68,10 +68,10 @@ impl<'a> GitAcquisitionCache<'a> {
         member_cache: SourceCacheLane<'_>,
         limits: LocalSourceLimits,
     ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-        self.resolve_selected_with_role(request, git_cache, member_cache, limits, true)
+        self.resolve_selected_declared(request, git_cache, member_cache, limits, true)
     }
 
-    fn resolve_selected_with_role(
+    fn resolve_selected_declared(
         &mut self,
         request: &GitPackageSourceRequest,
         git_cache: SourceCacheLane<'_>,

@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 /// strict descendant of the canonical workspace root. Only that member is
 /// passed to local snapshot custody.
 #[cfg(test)]
-pub fn resolve_workspace_member_package_source(
+pub fn resolve_workspace_member_package_source_from_hardened_base(
     workspace_root_source: &SourceLineage,
     member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -29,7 +29,7 @@ pub fn resolve_workspace_member_package_source(
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let storage =
         SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
-    resolve_workspace_member_package_source_with_storage(
+    resolve_workspace_member_package_source(
         workspace_root_source,
         member_path,
         live_workspace_root,
@@ -95,7 +95,7 @@ fn resolve_workspace_member_declared_source_in_lane(
     )
 }
 
-pub fn resolve_workspace_member_package_source_with_storage(
+pub fn resolve_workspace_member_package_source(
     workspace_root_source: &SourceLineage,
     member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -114,7 +114,7 @@ pub fn resolve_workspace_member_package_source_with_storage(
     result
 }
 
-pub fn resolve_workspace_member_project_source_with_storage(
+pub fn resolve_workspace_member_project_source(
     workspace_root_source: &SourceLineage,
     member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,

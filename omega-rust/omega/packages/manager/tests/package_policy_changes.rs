@@ -8,7 +8,7 @@ use package_manager::lock::{
 use package_manager::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest,
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
-    resolve_external_local_project_closure_with_storage,
+    resolve_external_local_project_closure,
 };
 use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::{

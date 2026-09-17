@@ -10,8 +10,7 @@ mod dependency_claims_and_recovery;
 
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
-    resolve_external_local_package_closure_with_storage,
-    resolve_workspace_package_closure_with_storage,
+    resolve_external_local_package_closure, resolve_workspace_package_closure,
 };
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_manager::review::SemanticBindingReview;
@@ -47,7 +46,7 @@ fn temporary_root(label: &str) -> PathBuf {
     ))
 }
 
-fn resolve_workspace_package_closure(
+fn resolve_workspace_package_closure_from_hardened_base(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -59,7 +58,7 @@ fn resolve_workspace_package_closure(
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_workspace_package_closure_with_storage(
+    resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
@@ -75,7 +74,7 @@ fn resolve_external_closure(
 ) -> ResolvedPackageSourceClosure {
     let storage = SourceResolverStorage::for_hardened_base(cache_dir, PrimaryGitChoices::default())
         .expect("source storage");
-    resolve_external_local_package_closure_with_storage(
+    resolve_external_local_package_closure(
         live_root,
         ExternalSourceContext::derive(b"open-claim-composition"),
         &storage,
@@ -95,7 +94,7 @@ fn graph_workbench_question() -> (
     std::fs::create_dir_all(&temporary).expect("create temporary root");
     let fixture_root = workspace_root().join("tests/fixtures/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
-    let closure = resolve_workspace_package_closure(
+    let closure = resolve_workspace_package_closure_from_hardened_base(
         &workspace_lineage,
         SourceRelativePath::parse("graph-workbench").unwrap(),
         &fixture_root,

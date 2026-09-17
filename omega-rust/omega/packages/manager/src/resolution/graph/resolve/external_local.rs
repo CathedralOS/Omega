@@ -9,7 +9,7 @@ use super::cache::{
 };
 use super::dependencies::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
-use super::git_pins::{GitDependencyPins, GitResolutionOptions};
+use super::git_pins::GitResolutionOptions;
 use crate::declarations::PackageKey;
 use crate::resolution::source::{
     PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
@@ -31,7 +31,7 @@ use std::path::{Path, PathBuf};
 /// boundaries without pretending to be portable workspace dependencies. No
 /// parent workspace or lock is discovered from the ambient filesystem.
 #[cfg(test)]
-pub(crate) fn resolve_external_local_package_closure(
+pub(crate) fn resolve_external_local_package_closure_from_hardened_base(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     cache_dir: impl AsRef<Path>,
@@ -42,7 +42,7 @@ pub(crate) fn resolve_external_local_package_closure(
         .map_err(|error| {
             ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_external_local_package_closure_with_storage(
+    resolve_external_local_package_closure(
         live_root,
         source_context,
         &storage,
@@ -52,14 +52,14 @@ pub(crate) fn resolve_external_local_package_closure(
 }
 
 /// Resolve an external-local package closure beneath private resolver storage.
-pub fn resolve_external_local_package_closure_with_storage(
+pub fn resolve_external_local_package_closure(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    resolve_external_local_declared_closure_with_storage(
+    resolve_external_local_declared_closure(
         live_root.as_ref(),
         source_context,
         storage,
@@ -72,27 +72,10 @@ pub fn resolve_external_local_package_closure_with_storage(
 
 /// Resolve a local compilation root and its complete declared dependency
 /// closure. The root may be an application or a package; every dependency is
-/// still required to be a package.
-pub fn resolve_external_local_project_closure_with_storage(
-    live_root: impl AsRef<Path>,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    resolve_external_local_project_closure_with_options(
-        live_root,
-        source_context,
-        storage,
-        source_limits,
-        closure_limits,
-        GitResolutionOptions::default(),
-    )
-}
-
-/// Resolve a live local project with Git policy applied to every dependency,
-/// including requests first discovered in transitive sources.
-pub fn resolve_external_local_project_closure_with_options(
+/// still required to be a package. The Git policy in `options` applies to
+/// every dependency, including requests first discovered in transitive
+/// sources; accepted pins must belong to this exact root request.
+pub fn resolve_external_local_project_closure(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     storage: &SourceResolverStorage,
@@ -101,7 +84,7 @@ pub fn resolve_external_local_project_closure_with_options(
     options: GitResolutionOptions<'_>,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     verify_pin_root(live_root.as_ref(), &source_context, options)?;
-    resolve_external_local_declared_closure_with_storage(
+    resolve_external_local_declared_closure(
         live_root.as_ref(),
         source_context,
         storage,
@@ -114,49 +97,10 @@ pub fn resolve_external_local_project_closure_with_options(
 
 /// Resolve a proposed local project using its original live directory for Path
 /// dependencies. The caller retains the stage for the project-file transaction.
-pub fn resolve_staged_external_local_project_closure_with_storage(
-    stage: &StagedLocalSnapshot,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    resolve_staged_external_local_project_closure_with_options(
-        stage,
-        source_context,
-        storage,
-        source_limits,
-        closure_limits,
-        GitResolutionOptions::default(),
-    )
-}
-
-/// Resolve an install or selective update while preserving unchanged accepted
-/// Git requests. The accepted baseline must belong to this exact root request.
-pub fn resolve_staged_external_local_project_closure_with_git_pins(
-    stage: &StagedLocalSnapshot,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolverStorage,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-    pins: GitDependencyPins<'_>,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    resolve_staged_external_local_project_closure_with_options(
-        stage,
-        source_context,
-        storage,
-        source_limits,
-        closure_limits,
-        GitResolutionOptions {
-            pins: Some(pins),
-            ..GitResolutionOptions::default()
-        },
-    )
-}
-
-/// Resolve a staged local project with invocation-wide Git selection policy.
-/// Accepted pins must belong to the original live root request and context.
-pub fn resolve_staged_external_local_project_closure_with_options(
+/// `options` carries the invocation-wide Git selection policy; accepted pins
+/// (an install or selective update preserving unchanged accepted Git
+/// requests) must belong to the original live root request and context.
+pub fn resolve_staged_external_local_project_closure(
     stage: &StagedLocalSnapshot,
     source_context: ExternalSourceContext,
     storage: &SourceResolverStorage,
@@ -227,7 +171,7 @@ fn resolve_staged_external_local_project(
     result
 }
 
-fn resolve_external_local_declared_closure_with_storage(
+fn resolve_external_local_declared_closure(
     live_root: &Path,
     source_context: ExternalSourceContext,
     storage: &SourceResolverStorage,

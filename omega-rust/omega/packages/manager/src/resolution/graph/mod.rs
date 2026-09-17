@@ -26,26 +26,20 @@ pub use reconcile::{
     ResolvedRootPackageSourceRequest,
 };
 #[cfg(test)]
-pub(crate) use resolve::resolve_external_local_package_closure;
+pub(crate) use resolve::resolve_external_local_package_closure_from_hardened_base;
 pub use resolve::{
     GitDependencyPins, GitDependencyPinsError, GitResolutionOptions, ResolveDependencySourceError,
     ResolveExternalLocalPackageClosureError, ResolveGitPackageClosureError,
-    ResolveWorkspacePackageClosureError, resolve_external_local_package_closure_with_storage,
-    resolve_external_local_project_closure_with_options,
-    resolve_external_local_project_closure_with_storage, resolve_git_package_closure_with_storage,
-    resolve_git_project_closure_with_storage, resolve_selected_git_package_closure_with_storage,
-    resolve_selected_git_project_closure_with_storage,
-    resolve_staged_external_local_project_closure_with_git_pins,
-    resolve_staged_external_local_project_closure_with_options,
-    resolve_staged_external_local_project_closure_with_storage,
-    resolve_workspace_package_closure_in_context_with_storage,
-    resolve_workspace_package_closure_with_storage,
-    resolve_workspace_project_closure_in_context_with_storage,
-    resolve_workspace_project_closure_with_storage,
+    ResolveWorkspacePackageClosureError, resolve_external_local_package_closure,
+    resolve_external_local_project_closure, resolve_git_package_closure,
+    resolve_git_project_closure, resolve_selected_git_package_closure,
+    resolve_selected_git_project_closure, resolve_staged_external_local_project_closure,
+    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_workspace_project_closure, resolve_workspace_project_closure_in_context,
 };
 pub use resolve::{
-    ResolveLockedPackageClosureError, resolve_locked_local_project_closure_with_storage,
-    resolve_locked_package_source_closure_with_storage,
+    ResolveLockedPackageClosureError, resolve_locked_local_project_closure,
+    resolve_locked_package_source_closure,
 };
 pub use root_request::PackageRootSourceRequest;
 pub use subject::{

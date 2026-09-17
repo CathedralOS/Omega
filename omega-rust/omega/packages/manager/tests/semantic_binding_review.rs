@@ -20,8 +20,9 @@ use package_manager::admission::{
     accepted_terminal_authority_permission_policy, realize_accepted_native_report,
 };
 use package_manager::declarations::{PackageKey, PackageName};
+use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
-    PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
+    PackageSourceClosureLimits, resolve_external_local_project_closure,
 };
 use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::SemanticBindingReview;
@@ -262,12 +263,13 @@ invokes console;
         PrimaryGitChoices::default(),
     )
     .expect("create semantic-binding resolver storage");
-    let closure = resolve_external_local_project_closure_with_storage(
+    let closure = resolve_external_local_project_closure(
         &application,
         ExternalSourceContext::derive(b"consumer-scoped-console-binding"),
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve ordinary Console closure");
     (temporary, application, closure)
@@ -520,12 +522,13 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         PrimaryGitChoices::default(),
     )
     .expect("source-only resolver storage");
-    let source_only_closure = resolve_external_local_project_closure_with_storage(
+    let source_only_closure = resolve_external_local_project_closure(
         &application,
         ExternalSourceContext::derive(b"consumer-scoped-console-binding"),
         &source_only_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve source-only permission change");
     let source_only_candidate = compile_resolved_package_candidate_for_production(
@@ -895,12 +898,13 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         PrimaryGitChoices::default(),
     )
     .expect("create Windows semantic-binding resolver storage");
-    let windows_closure = resolve_external_local_project_closure_with_storage(
+    let windows_closure = resolve_external_local_project_closure(
         &application,
         ExternalSourceContext::derive(b"target-independent-console-binding"),
         &windows_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
     )
     .expect("resolve ordinary Windows Console closure");
     let windows_reviews = compile_resolved_package_reviews(

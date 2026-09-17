@@ -3,9 +3,10 @@ use super::{
     Output, PackageLockTarget, PackagePolicyChangeSet, TargetProfile, resolution,
 };
 use crate::lock::{HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits};
+use crate::resolution::graph::GitResolutionOptions;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubjectLimits, PackageSourceClosureLimits,
-    resolve_external_local_project_closure_with_storage,
+    resolve_external_local_project_closure,
 };
 use crate::review::SemanticBindingReview;
 use crate::review::{
@@ -134,12 +135,13 @@ impl Project {
             PrimaryGitChoices::default(),
         )
         .unwrap();
-        let closure = resolve_external_local_project_closure_with_storage(
+        let closure = resolve_external_local_project_closure(
             self.0.join("root"),
             ExternalSourceContext::derive(b"inspection-renderer-tests"),
             &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
+            GitResolutionOptions::default(),
         )
         .unwrap();
         let exact = closure.for_exact_target(TARGET);

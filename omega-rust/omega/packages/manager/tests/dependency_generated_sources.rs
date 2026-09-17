@@ -6,7 +6,7 @@ mod accepted_policy_fixture;
 
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
-    resolve_workspace_package_closure_with_storage,
+    resolve_workspace_package_closure,
 };
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_manager::review::SemanticBindingReview;
@@ -38,7 +38,7 @@ fn temporary_root() -> PathBuf {
     ))
 }
 
-fn resolve_workspace_package_closure(
+fn resolve_workspace_package_closure_from_hardened_base(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -50,7 +50,7 @@ fn resolve_workspace_package_closure(
         .map_err(|error| {
             ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
         })?;
-    resolve_workspace_package_closure_with_storage(
+    resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
@@ -65,7 +65,7 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
     let temporary = temporary_root();
     let fixtures = workspace_root().join("tests/fixtures/packages");
     let lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
-    let closure = resolve_workspace_package_closure(
+    let closure = resolve_workspace_package_closure_from_hardened_base(
         &lineage,
         SourceRelativePath::parse("generated-consumer").unwrap(),
         &fixtures,

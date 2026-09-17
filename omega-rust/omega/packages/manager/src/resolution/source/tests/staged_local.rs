@@ -2,7 +2,7 @@ use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::declarations::BuildDeclarationKind;
 use crate::resolution::source::{
     ResolvePackageSourceError, bind_staged_external_local_project_source,
-    resolve_external_local_project_source_with_storage,
+    resolve_external_local_project_source,
 };
 use package_source::PrimaryGitChoices;
 use package_source::local::staging::{StagedLocalSnapshot, stage_local_source_replacement_in_lane};
@@ -42,7 +42,7 @@ fn with_stage(name: &str, test: impl FnOnce(&Path, &SourceResolverStorage, &Stag
 fn staged_binding_uses_proposed_declaration_and_original_lineage() {
     with_stage("staged-binding-lineage", |root, storage, stage| {
         let context = ExternalSourceContext::derive(b"staged-binding-context");
-        let ordinary = resolve_external_local_project_source_with_storage(
+        let ordinary = resolve_external_local_project_source(
             stage.requested_root(),
             storage,
             LocalSourceLimits::default(),
