@@ -752,11 +752,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   replay recovers the same roster from the validated preservation
   storage and custody rather than the producer's claims, and the
   frame protocol's emitted epilogue performs exactly the recorded
-  sequence byte for byte on all four targets. An omitted, invented,
-  reordered, or misattributed restore — or a wrong release or custody
-  restatement — fails closed, epilogue bytes that do not encode the
-  validated roster reject, and the artifact still reaches ordinary
-  callable publication on all four targets
+  sequence byte for byte on all five admitted targets. An omitted,
+  invented, reordered, or misattributed restore — or a wrong release
+  or custody restatement — fails closed, epilogue bytes that do not
+  encode the validated roster reject, and the artifact still reaches
+  ordinary callable publication on all five admitted targets
   (`unwind_roster::unwind_restore_roster_replays_through_ordinary_callable_entry`).
   The call-site stack contract is landed: a calling frame records the
   selected preservation convention's declared stack alignment as both
