@@ -1,4 +1,6 @@
-// The only reachable terminal leaf is the exact std Console exit requirement.
+// The reachable terminal leaves are the exact std Console output and exit
+// requirements: `write_line` is checked std code over the `write_byte`
+// intrinsic, and `exit_process` ends the process with status 70.
 use omega::language::core::service;
 use omega_language_std::console;
 
@@ -7,5 +9,6 @@ data Main { console: Service<Console> in Bound; }
 machine Main::main(&mut self)
 reaches Console
 {
+    self.console.write_line("console-exit-app");
     self.console.exit_process(70);
 }

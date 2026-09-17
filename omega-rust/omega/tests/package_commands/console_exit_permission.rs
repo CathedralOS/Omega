@@ -1,5 +1,6 @@
-//! The ordinary CLI review proposes the `Console::exit_process` terminal
-//! permission as its own decision row for an application that exits through
+//! The ordinary CLI review proposes the `Console::exit_process`,
+//! `Console::write_byte` and `Console::read_byte` terminal permissions as
+//! their own decision rows for an application that writes and exits through
 //! the bundled standard library reached as a path dependency.
 //!
 //! Every invocation here checks `source/library/std`, so the test is slow by
@@ -15,6 +16,13 @@ const APP_BUILD: &str =
 const APP_SOURCE: &str =
     include_str!("../../../../tests/fixtures/packages/console-exit-app/main.omg");
 const EXIT_REQUIREMENT: &str = "path(Console::exit_process)";
+/// Every compiler-intrinsic leaf of the selected std Console provider, with
+/// the permission tag the review proposes for it.
+const PERMISSIONS: [(&str, &str); 3] = [
+    (EXIT_REQUIREMENT, "tag process_termination"),
+    ("path(Console::write_byte)", "tag process_output"),
+    ("path(Console::read_byte)", "tag process_input"),
+];
 
 fn console_exit_fixture() -> Fixture {
     let fixture = Fixture::new();
@@ -43,21 +51,39 @@ fn package_section<'a>(document: &'a str, package: &str) -> &'a str {
         .unwrap()
 }
 
-/// The exact pending decision line of the one added terminal-permission row.
-fn permission_decision(section: &str) -> &str {
+/// The exact pending decision line of each added terminal-permission row, in
+/// the order of `PERMISSIONS`. Every row names the std Console schema and
+/// exactly its own requirement and class.
+fn permission_decisions(section: &str) -> Vec<&str> {
     let rows = section
         .split("\nchange ")
         .filter(|row| row.starts_with("terminal_permission added\n"))
         .collect::<Vec<_>>();
-    let [row] = rows.as_slice() else {
-        panic!("expected one added terminal permission row: {section}");
-    };
-    assert!(row.contains(EXIT_REQUIREMENT), "{row}");
-    assert!(row.contains("tag process_termination"), "{row}");
-    assert!(row.contains("string \"Console\""), "{row}");
-    row.lines()
-        .find(|line| line.starts_with("decision ") && line.ends_with(" pending"))
-        .unwrap_or_else(|| panic!("permission row has no exact pending decision: {row}"))
+    assert_eq!(
+        rows.len(),
+        PERMISSIONS.len(),
+        "one added terminal permission row per Console leaf: {section}"
+    );
+    PERMISSIONS
+        .iter()
+        .map(|(requirement, tag)| {
+            let matching = rows
+                .iter()
+                .filter(|row| row.contains(requirement))
+                .collect::<Vec<_>>();
+            let [row] = matching.as_slice() else {
+                panic!("expected one added row for {requirement}: {section}");
+            };
+            assert!(row.contains(tag), "{row}");
+            assert!(row.contains("string \"Console\""), "{row}");
+            for (_, other_tag) in PERMISSIONS.iter().filter(|(_, other)| other != tag) {
+                assert!(!row.contains(other_tag), "{row}");
+            }
+            row.lines()
+                .find(|line| line.starts_with("decision ") && line.ends_with(" pending"))
+                .unwrap_or_else(|| panic!("permission row has no exact pending decision: {row}"))
+        })
+        .collect()
 }
 
 fn accept_all(document: &str) -> String {
@@ -86,15 +112,16 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
     let document = fs::read_to_string(path).unwrap();
     assert!(document.contains("baseline none\n"), "{document}");
 
-    // The application, not its std dependency, owns the permission decision.
+    // The application, not its std dependency, owns the permission decisions:
+    // one per compiler-intrinsic Console leaf and nothing else.
     let application = package_section(&document, "console-exit-app");
-    let decision = permission_decision(application);
+    let decisions = permission_decisions(application);
     assert_eq!(
         application
             .lines()
             .filter(|line| line.starts_with("decision "))
             .count(),
-        1,
+        PERMISSIONS.len(),
         "{application}"
     );
     let standard_library = package_section(&document, "omega-language-std");
@@ -107,12 +134,14 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
         "{standard_library}"
     );
 
-    // The row is a proposal: every other acceptance cannot publish without it.
+    // Each row is a proposal: every other acceptance cannot publish without it.
     let accepted = accept_all(&document);
-    let accepted_decision = decision.replace(" pending", " accept");
-    fs::write(path, accepted.replace(&accepted_decision, decision)).unwrap();
-    assert_status(&fixture.omega(&["update", "--resume"]), 3);
-    assert_eq!(fixture.accepted_files(), before);
+    for decision in &decisions {
+        let accepted_decision = decision.replace(" pending", " accept");
+        fs::write(path, accepted.replace(&accepted_decision, decision)).unwrap();
+        assert_status(&fixture.omega(&["update", "--resume"]), 3);
+        assert_eq!(fixture.accepted_files(), before);
+    }
 
     fs::write(path, &accepted).unwrap();
     assert_status(&fixture.omega(&["update", "--resume"]), 0);
@@ -124,16 +153,21 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
         .iter()
         .flat_map(|baseline| baseline.rows())
         .filter(|row| row.kind().as_str() == "terminal_permission")
+        .map(|row| row.canonical_text())
         .collect::<Vec<_>>();
-    let [permission_row] = permission_rows.as_slice() else {
-        panic!("the lock must retain exactly one terminal permission row");
-    };
-    assert!(permission_row.canonical_text().contains(EXIT_REQUIREMENT));
-    assert!(
-        permission_row
-            .canonical_text()
-            .contains("tag process_termination")
+    assert_eq!(
+        permission_rows.len(),
+        PERMISSIONS.len(),
+        "the lock must retain exactly one terminal permission row per leaf: {permission_rows:?}"
     );
+    for (requirement, tag) in PERMISSIONS {
+        assert!(
+            permission_rows
+                .iter()
+                .any(|row| row.contains(requirement) && row.contains(tag)),
+            "{requirement} {tag}: {permission_rows:?}"
+        );
+    }
     assert_eq!(
         target.decisions().decisions().len(),
         document
@@ -142,20 +176,24 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
             .count()
     );
 
-    // Native production now passes the package permission axis: the accepted
-    // row rejoins the retained proposal, and the realization stops only at the
-    // independently supplied receiving policy, which the CLI does not carry
-    // yet (TWO-AXIS-TERMINAL-AUTHORITY-REVIEW). Before this row existed the
-    // reviewer rejected the reachable exit leaf outright. Once the CLI supplies
-    // a receiving policy this command exits 0 and the program exits 70.
+    // Native production now passes the package permission axis: every
+    // accepted row rejoins the retained proposal, and the realization stops
+    // only at the independently supplied receiving policy, which the CLI does
+    // not carry yet (TWO-AXIS-TERMINAL-AUTHORITY-REVIEW). Before these rows
+    // existed the reviewer rejected the reachable exit and output leaves
+    // outright. Once the CLI supplies a receiving policy this command exits 0,
+    // the program writes its line and exits 70.
     let output = fixture.omega(&["--accept-admissions", "--target", "macos_arm64", "main.omg"]);
     assert_status(&output, 1);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("receiving terminal-authority policy omits the accepted permission for"),
-        "{stderr}"
-    );
-    assert!(stderr.contains(EXIT_REQUIREMENT), "{stderr}");
+    for (requirement, _) in PERMISSIONS {
+        assert!(
+            stderr.contains(&format!(
+                "receiving terminal-authority policy omits the accepted permission for `named-callable({requirement}"
+            )),
+            "{requirement}: {stderr}"
+        );
+    }
     assert!(
         !stderr.contains("receiving terminal-authority permission policy has no exact row"),
         "{stderr}"
