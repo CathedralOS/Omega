@@ -1976,6 +1976,82 @@ Owners include
   acceptance below; do not keep expanding the disconnected
   framework.
 
+  Landed: the set-quotient scheme in
+  `proof-admission/src/mathematical_core/quotient.rs` — the
+  [quotient specification](wiki/spec/proofs/quotients.md)'s interface
+  authored as thirteen ordinary declarations: `Q`, `project`,
+  `setQ`, `sound`, `effective`, `elim` and the propositional
+  `beta` law are named assumptions with exact statements, while
+  `transport`, `idTrans`, `transportConst` and the ordinary `lift`
+  are checked definitions derived from them, and `liftPre` is
+  admitted as one more exactly-stated assumption because a
+  function-valued motive would need the function extensionality
+  the calculus lacks. No `Term` variant, typing rule or conversion
+  rule is added; every assumption lands in `assumption_closure`,
+  and `beta` being a relevant `Id` keeps a quotient's
+  representative unextractable. Tests witness the
+  admitted-versus-derived boundary, a malformed congruence
+  rejection, and the exact closure over the admitted interface.
+
+  Landed: the real theorem certificate the milestone above named.
+  `theorems.rs`'s `identity_substitution` (`subst` built from `J`)
+  and `indexed.rs`'s `indexed_correctness` (index soundness proved
+  by `iindW` itself) are ordinary checked definitions a certificate
+  cites through `Term::Constant`; `terminal-codec` re-encodes the
+  certificate byte-identically and `verify_mathematical_certificate`
+  re-decides the judgment after decode with the exact assumption
+  closure. Tests witness a theorem certificate verifying after wire
+  decode, a polymorphic theorem reference round-tripping at its own
+  arity, an axiom-dependent theorem keeping its assumption through
+  the wire, a theorem-dependent obligation transporting over the
+  wire, and a missing dependency rejecting the signature.
+
+  Landed: the derivation context/conclusion-indexed family
+  (`indexed_derivation`) — a natural-deduction `Deriv` family whose
+  index is a judgment `Σ(Γ : Ctx). Frm`, so `impI` moves the
+  context index to the extended context and `impE` selects each
+  child's required conclusion by position. `iindW` computes on
+  modus ponens with a neutral child function and proves the
+  conclusion identity under a dependent motive; wrong judgments
+  and malformed descriptions reject. The certificate verifies with
+  exact closure over the four grammar axioms and measured cost:
+  25_100 budgeted steps checking the `next` family, 3_689 steps
+  and 282_055 retained arena slots for the certificate.
+
+  Landed: the bounded certificate route in
+  `mathematical_core/bounded_denotation.rs` — a shipped
+  `ProofNode` certificate is denoted proposition-by-proposition and
+  rule-by-rule into the common core (atoms as `Type 0` assumptions,
+  scalar `Equal` as `Id` over a carrier assumption, connectives as
+  `Σ`/tagged sums/`Π`, decided primitives as named decision
+  assumptions) and re-decided by `verify_mathematical_certificate`;
+  uncovered rule families refuse `Unsupported` rather than
+  mis-deciding, separating source invalidity, unsupported encodings
+  and producer defects. The bounded checker's own rule families
+  each live beside their owner in `proof/`. Denoted discharge,
+  implication and equality certificates cross the canonical wire
+  and re-verify after decode.
+
+  Landed: the combined rule/encoding metatheory and implementation
+  evidence in
+  [kernel_metatheory.md](wiki/spec/proofs/kernel_metatheory.md) —
+  substitution, preservation, normalization and decidable
+  conversion argued over the implemented judgments with the
+  ceiling's bounded-incompleteness stated, the encoding
+  correspondence discharged per obligation, and the trust boundary
+  and non-claims named (no strict-layer formers yet).
+
+  The connect milestone is discharged: real theorem and bounded
+  certificates travel the canonical wire and are independently
+  re-decided with exact assumption closure. Next: the pinned
+  reference core's strict-layer formers (squash, boxing, strict
+  empty/unit) remain unimplemented — the `Strict` sort and
+  irrelevance conversion exist, strict introduction/elimination do
+  not, and `core::Squash` has no kernel counterpart — and the
+  source-elaboration seam is owned by PROOF-CONTRACT-MIGRATION. A
+  verified-profile claim still requires the full pinned core plus
+  the migration item's discriminating controls.
+
   Implement the pinned reference core and selected
   [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,
   two-element type, W-induction and checked derived indexed families. No second
