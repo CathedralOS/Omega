@@ -2,7 +2,10 @@
 //! here, either discharged or reported as a diagnostic.
 //!
 //! `check_proof_plan` is the entry point. `bounded_checks.rs` decides the
-//! bounded-value obligations, `integer_ranges.rs` and `float_ranges.rs`
+//! bounded-value obligations -- routing the covered integer legs through
+//! `certificate.rs`, which emits a `ProofNode` package the proof-admission
+//! kernel re-decides instead of trusting the derivation -- while
+//! `integer_ranges.rs` and `float_ranges.rs`
 //! derive the ranges those checks compare, `guards.rs` narrows ranges by
 //! transition and assignment guards, `assignment_stability.rs` proves an
 //! assignment guard survives to the assignment, `named_constraints.rs`
@@ -14,6 +17,7 @@
 mod arrival_stability;
 mod assignment_stability;
 mod bounded_checks;
+mod certificate;
 mod dependent_bounds;
 mod diagnostics;
 mod float_ranges;
@@ -38,27 +42,31 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let range_context = AssignmentRangeContext::new(proof_plan);
 
-    for (_, obligation) in proof_plan.obligations.iter() {
+    for (index, (_, obligation)) in proof_plan.obligations.iter().enumerate() {
+        // Certificate identities are scoped to one leg's verification, so a
+        // per-obligation nonzero seed keeps each package self-describing.
+        let seed = index as u64 + 1;
         match obligation {
             ProofObligation::BoundedAssignment(obligation) => {
-                check_bounded_assignment(proof_plan, obligation, &mut diagnostics);
+                check_bounded_assignment(proof_plan, obligation, seed, &mut diagnostics);
             }
             ProofObligation::BoundedCallArgument(obligation) => {
-                check_bounded_call_argument(proof_plan, obligation, &mut diagnostics);
+                check_bounded_call_argument(proof_plan, obligation, seed, &mut diagnostics);
             }
             ProofObligation::BoundedInitializer(obligation) => {
-                check_bounded_initializer(proof_plan, obligation, &mut diagnostics);
+                check_bounded_initializer(proof_plan, obligation, seed, &mut diagnostics);
             }
             ProofObligation::BoundedStateReturn(obligation) => {
                 check_bounded_state_return(
                     proof_plan,
                     obligation,
                     &range_context,
+                    seed,
                     &mut diagnostics,
                 );
             }
             ProofObligation::BoundedTransitionArgument(obligation) => {
-                check_bounded_transition_argument(proof_plan, obligation, &mut diagnostics);
+                check_bounded_transition_argument(proof_plan, obligation, seed, &mut diagnostics);
             }
             ProofObligation::BoundedValue(_) | ProofObligation::GuardedTransition(_) => {}
         }

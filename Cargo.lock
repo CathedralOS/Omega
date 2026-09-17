@@ -1667,6 +1667,8 @@ dependencies = [
  "diagnostics",
  "language-semantics",
  "numerics",
+ "proof-admission",
+ "semantic-vocabulary",
  "symbols",
  "syntax-trees",
  "typed-trees",
