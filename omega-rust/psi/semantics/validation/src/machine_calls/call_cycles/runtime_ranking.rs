@@ -106,8 +106,13 @@ pub(super) fn check_component(
     let frames = crate::machine_calls::calls::CallFrameResolver::new(program);
     // Internal arrivals are owned by the member's own ranking judgment,
     // which the checked stage applies to every member whose local state
-    // graph can still cycle. A call issued from a subordinate state still
-    // answers to this shared hypothesis. The member's discovered
+    // graph can still cycle and to every ranged member with internal
+    // arrivals. A call issued from a subordinate state still answers to
+    // this shared hypothesis, and it reads the member's authored range as
+    // that arrival's proven invariant: the site query installs the same
+    // membership facts the member's state-edge judgment re-establishes at
+    // each arrival, never a requires fact (entry-site evidence only) and
+    // never a destination requirement. The member's discovered
     // telescope names the entry role each site formal carries, so
     // authored subjects and endpoints normalize to the atom the site
     // actually holds. Discovery keeps a contested claim only for a bare
@@ -234,9 +239,10 @@ pub(super) fn check_component(
                         if callee == index {
                             // An internal state arrival belongs to the
                             // member's own ranking judgment -- the checked
-                            // stage still runs that judgment whenever the
-                            // member's local state graph can cycle -- so it
-                            // adds no hypothesis edge here.
+                            // stage runs that judgment whenever the member's
+                            // local state graph can cycle or a ranged member
+                            // has internal arrivals -- so it adds no
+                            // hypothesis edge here.
                             continue;
                         }
                         let callee_machine = &program.machines()[callee];

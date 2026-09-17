@@ -472,11 +472,27 @@ fn component_calls_carry_rank_through_duplicated_arrival_copies() {
     );
 }
 
-#[test]
-fn mixed_component_conserves_endpoints_through_internal_state_calls() {
-    // `hold(pending, bound)` carries the ranked input and the authored ceiling;
-    // the unranged member must transport that exact endpoint back.
-    let source = r#"
+fn reject_range(source: &str) {
+    let diagnostics = lower_typed_trees(typed(source)).expect_err(source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove rank range")),
+        "{source}\n{diagnostics:#?}"
+    );
+}
+
+fn reject_requires(source: &str) {
+    let diagnostics = lower_typed_trees(typed(source)).expect_err(source);
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires contract")),
+        "{source}\n{diagnostics:#?}"
+    );
+}
+
+const MIXED_STATEFUL: &str = r#"
 data Main {}
 machine Main::outer(&mut self, cap: u64, remaining: u64)
 requires remaining <= cap;
@@ -484,30 +500,144 @@ terminates by remaining in 0..=cap;
 -> u64 {
     transition remaining > 0 { true -> hold(remaining, cap) false -> remaining }
     state hold(pending: u64, bound: u64) {
-        transition pending > 0 && pending <= bound {
+        transition pending > 0 {
             true -> self.inner(pending, bound)
             false -> pending
         }
     }
 }
 machine Main::inner(&mut self, n: u64, limit: u64)
-requires n <= limit;
 terminates by n;
 -> u64 {
-    transition n > 0 { true -> self.outer(limit, n - 1) false -> n }
+    transition n > 0 && n <= limit { true -> self.outer(limit, n - 1) false -> n }
 }
 "#;
-    prove(source);
+
+#[test]
+fn mixed_component_conserves_endpoints_through_internal_state_calls() {
+    // `hold(pending, bound)` carries the ranked input and the authored
+    // ceiling. The site reads `outer`'s own range invariant -- `0 <= pending
+    // <= bound`, re-established at the arrival by the member's state-edge
+    // judgment -- so the guard need not respell membership; the unranged
+    // member must still transport that exact endpoint back.
+    prove(MIXED_STATEFUL);
+    prove(&MIXED_STATEFUL.replace("pending > 0", "pending > 0 && pending <= bound"));
     // An actual that is not the carried endpoint cannot pin the authored
     // ceiling, even when it is spelled from the same carrier.
-    reject(&source.replace(
+    reject(&MIXED_STATEFUL.replace(
         "self.inner(pending, bound)",
         "self.inner(pending, bound + 1)",
     ));
-    reject(&source.replace("self.inner(pending, bound)", "self.inner(pending, pending)"));
-    // Without the site's own membership evidence the authored ceiling is not
-    // re-established past an internal arrival.
-    reject(&source.replace("pending > 0 && pending <= bound", "pending > 0"));
+    reject(&MIXED_STATEFUL.replace("self.inner(pending, bound)", "self.inner(pending, pending)"));
+    // A store into a subject or endpoint carrier before the call invalidates
+    // the arrival invariant, whatever value it stores.
+    reject(
+        &MIXED_STATEFUL
+            .replace("pending: u64, bound: u64)", "pending: u64, mut bound: u64)")
+            .replace(
+                "        transition pending > 0",
+                "        bound = bound; transition pending > 0",
+            ),
+    );
+    reject(
+        &MIXED_STATEFUL
+            .replace("pending: u64, bound: u64)", "mut pending: u64, bound: u64)")
+            .replace(
+                "        transition pending > 0",
+                "        pending = 0; transition pending > 0",
+            ),
+    );
+    // The invariant is consumed only as the member's own proof: an arrival
+    // that cannot establish membership or pin the ceiling fails at the
+    // member's state-edge judgment, and a missing entry premise fails the
+    // component's entry obligation.
+    reject_range(
+        &MIXED_STATEFUL
+            .replace(
+                "transition remaining > 0 {",
+                "transition remaining > 0 && cap > 0 {",
+            )
+            .replace("hold(remaining, cap)", "hold(remaining, cap - 1)"),
+    );
+    reject(&MIXED_STATEFUL.replace("requires remaining <= cap;\n", ""));
+    // The private range invariant discharges the private ranking obligation
+    // only. A callee's public `requires` is ordinary contract application at
+    // the site, so it still needs the site's own evidence.
+    let public =
+        MIXED_STATEFUL.replace("terminates by n;", "requires n <= limit;\nterminates by n;");
+    reject_requires(&public);
+    prove(&public.replace("pending > 0", "pending > 0 && pending <= bound"));
+}
+
+const SLICE_STATEFUL: &str = r#"
+data Entry { value: u32; }
+data Main {}
+machine Main::scan(&mut self, entries: &[Entry], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 { true -> hold(entries, capacity) false -> 0 }
+    state hold(pending: &[Entry], bound: u64) {
+        transition pending.len > 0 {
+            true -> self.step(pending, bound)
+            false -> 0
+        }
+    }
+}
+machine Main::step(&mut self, rest: &[Entry], capacity: u64)
+terminates by rest -> Slice::Length;
+-> u64 {
+    transition rest.len > 0 && rest.len <= capacity {
+        true -> self.scan(rest[1..], capacity)
+        false -> 0
+    }
+}
+"#;
+
+#[test]
+fn ranged_slice_member_calls_from_a_subordinate_state_under_its_own_invariant() {
+    // `hold -> step(pending, bound)` forwards the carried collection and the
+    // authored ceiling; the site reads `scan`'s range invariant
+    // `pending.len <= bound` from the arrival rather than a respelled guard.
+    prove(SLICE_STATEFUL);
+    prove(&SLICE_STATEFUL.replace("pending.len > 0", "pending.len > 0 && pending.len <= bound"));
+    // A changed endpoint, an intervening carrier write, an arrival that does
+    // not pin the ceiling, and a missing entry premise keep rejecting.
+    reject(&SLICE_STATEFUL.replace("self.step(pending, bound)", "self.step(pending, bound + 1)"));
+    reject(&SLICE_STATEFUL.replace(
+        "self.step(pending, bound)",
+        "self.step(pending, pending.len)",
+    ));
+    reject(
+        &SLICE_STATEFUL
+            .replace(
+                "pending: &[Entry], bound: u64)",
+                "pending: &[Entry], mut bound: u64)",
+            )
+            .replace(
+                "        transition pending.len > 0",
+                "        bound = bound; transition pending.len > 0",
+            ),
+    );
+    reject_range(
+        &SLICE_STATEFUL
+            .replace(
+                "transition entries.len > 0 {",
+                "transition entries.len > 0 && capacity > 0 {",
+            )
+            .replace("hold(entries, capacity)", "hold(entries, capacity - 1)"),
+    );
+    reject(&SLICE_STATEFUL.replace("requires entries.len <= capacity;\n", ""));
+    // A ranged callee's public `requires` is not discharged by the caller's
+    // private invariant; the site guard must still carry it.
+    let public = SLICE_STATEFUL
+        .replace(
+            "terminates by rest -> Slice::Length;",
+            "requires rest.len <= capacity;\nterminates by rest -> Slice::Length in 0..=capacity;",
+        )
+        .replace("rest.len > 0 && rest.len <= capacity", "rest.len > 0");
+    reject_requires(&public);
+    prove(&public.replace("pending.len > 0", "pending.len > 0 && pending.len <= bound"));
 }
 
 #[test]

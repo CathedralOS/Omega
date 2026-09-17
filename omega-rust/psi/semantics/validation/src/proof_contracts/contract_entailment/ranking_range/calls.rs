@@ -247,7 +247,8 @@ pub(crate) fn prove_ranking_range_call(
         // Requires clauses describe the entry parameters, not whatever formal
         // carries the role here; only the member's own entry-invariant proof
         // may substitute them past an internal arrival. The site's own
-        // constrained-type facts still hold on every arrival.
+        // constrained-type facts still hold on every arrival, and so does the
+        // member's authored range (installed below, once the rank is formed).
         parameter_comparisons(program, caller.machine, source, &mut engine, &bindings)?
     };
     comparisons.extend(carrier_equalities);
@@ -283,6 +284,24 @@ pub(crate) fn prove_ranking_range_call(
     } else {
         None
     };
+    if !at_entry && let Some((floor, ceiling, inclusive)) = &source_range {
+        // A subordinate site holds the member's own authored range on
+        // arrival. Entry facts stop at the entry state, but the range is the
+        // member's private witness invariant: its state-edge judgment
+        // re-establishes membership and endpoint pinning at every internal
+        // arrival, and the checked stage runs that judgment for every ranged
+        // member with internal arrivals. Consume exactly the facts that
+        // judgment proves -- never a destination requirement, never a caller
+        // guarantee -- so an arrival the member cannot prove fails at the
+        // member's own judgment rather than being assumed here.
+        comparisons.extend(arrival_invariant(
+            source_measure,
+            &rank,
+            floor,
+            ceiling,
+            *inclusive,
+        ));
+    }
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
@@ -452,6 +471,51 @@ fn admit_member(
         meanings::builtin(program, member.machine, state, limit, 0)?;
     }
     Some(())
+}
+
+/// The facts a member's own arrival judgment establishes for its authored
+/// range at every internal arrival: exactly what `membership` proves for the
+/// produced rank, plus carrier formation for a computed rank. The floor side
+/// of `Nat::IncreasingTo` membership is a disjunction (`max(0, d) >= floor`),
+/// which no single comparison states, so only its ceiling facts are consumed.
+fn arrival_invariant(
+    measure: RankingRangeMeasure,
+    rank: &Polynomial,
+    floor: &Polynomial,
+    ceiling: &Polynomial,
+    inclusive: bool,
+) -> Vec<Comparison> {
+    let below_ceiling = if inclusive {
+        BinaryOperator::LessOrEqual
+    } else {
+        BinaryOperator::Less
+    };
+    let mut facts = Vec::new();
+    match measure {
+        RankingRangeMeasure::Single(_)
+        | RankingRangeMeasure::Computed { .. }
+        | RankingRangeMeasure::Distance { .. }
+        | RankingRangeMeasure::SliceLength(_) => {
+            facts.push((
+                BinaryOperator::GreaterOrEqual,
+                rank.clone(),
+                Polynomial::default(),
+            ));
+            facts.push((BinaryOperator::GreaterOrEqual, rank.clone(), floor.clone()));
+            facts.push((below_ceiling, rank.clone(), ceiling.clone()));
+        }
+        RankingRangeMeasure::IncreasingTo { .. } => {
+            facts.push((below_ceiling, Polynomial::default(), ceiling.clone()));
+            facts.push((below_ceiling, rank.clone(), ceiling.clone()));
+        }
+        RankingRangeMeasure::Field { .. } => {}
+    }
+    if let RankingRangeMeasure::Computed { carrier, .. } = measure
+        && let Some(maximum) = super::carrier_maximum(carrier)
+    {
+        facts.push((BinaryOperator::LessOrEqual, rank.clone(), maximum));
+    }
+    facts
 }
 
 fn membership(

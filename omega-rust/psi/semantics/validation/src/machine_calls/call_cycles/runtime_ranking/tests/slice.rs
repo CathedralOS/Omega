@@ -251,6 +251,57 @@ fn slice_component_reads_duplicated_collection_copies() {
 }
 
 #[test]
+fn a_ranged_slice_member_calls_from_a_subordinate_state_under_its_own_invariant() {
+    // `hold -> step(pending, bound)` forwards the carried collection and the
+    // authored ceiling. The site consumes `scan`'s own range invariant
+    // `pending.len <= bound` through the telescoped length atom, so the guard
+    // need not respell it; the unranged member transports the endpoint back.
+    let source = "data Main {}
+        machine Main::scan(&mut self, items: &[u64], capacity: u64)
+        requires items.len <= capacity;
+        terminates by items -> Slice::Length in 0..=capacity;
+        -> u64 {
+            transition items.len > 0 { true -> hold(items, capacity) false -> 0 }
+            state hold(pending: &[u64], bound: u64) {
+                transition pending.len > 0 {
+                    true -> self.step(pending, bound)
+                    false -> 0
+                }
+            }
+        }
+        machine Main::step(&mut self, rest: &[u64], capacity: u64)
+        terminates by rest -> Slice::Length;
+        -> u64 {
+            transition rest.len > 0 && rest.len <= capacity {
+                true -> self.scan(rest[1..], capacity)
+                false -> 0
+            }
+        }";
+    assert_eq!(admitted(&typed_source(source)).len(), 1);
+    // A changed endpoint and a prefix store into a carrier keep rejecting.
+    let moved = source.replace("self.step(pending, bound)", "self.step(pending, bound + 1)");
+    assert!(admitted(&typed_source(&moved)).is_empty());
+    let dropped = source.replace(
+        "self.step(pending, bound)",
+        "self.step(pending, pending.len)",
+    );
+    assert!(admitted(&typed_source(&dropped)).is_empty());
+    let written = source
+        .replace(
+            "pending: &[u64], bound: u64)",
+            "pending: &[u64], mut bound: u64)",
+        )
+        .replace(
+            "                transition pending.len > 0 {",
+            "                bound = bound; transition pending.len > 0 {",
+        );
+    assert_ne!(written, source);
+    assert!(admitted(&typed_source(&written)).is_empty());
+    let missing_entry = source.replace("requires items.len <= capacity;", "");
+    assert!(admitted(&typed_source(&missing_entry)).is_empty());
+}
+
+#[test]
 fn a_member_ranked_by_another_view_cannot_join_the_slice_order() {
     let mismatched = "data Main {}
 machine Main::scan_a(&mut self, items: &[u64], capacity: u64)
