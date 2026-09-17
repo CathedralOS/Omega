@@ -468,9 +468,10 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} forged operand write must reject"
             );
 
-            // Losing the condition-code use stays inside the structural
-            // subset rule, so only canonical ISA replay rejects it; losing
-            // the program-counter use rejects the same way.
+            // Losing a contracted implicit unit understates the row's
+            // custody and fails structural admission: the condition-code
+            // use on a conditional row, and the program-counter use and
+            // definition on either row.
             if contract.conditional {
                 let mut corrupted = catalog.clone();
                 branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
@@ -479,7 +480,9 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                     .retain(|unit| !flags.units.contains(unit));
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::SemanticMismatch),
+                    Err(EffectRejection::Structural(
+                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                    )),
                     "{key:?} lost condition-code use must reject"
                 );
             }
@@ -490,7 +493,9 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 .retain(|unit| !program_counter.units.contains(unit));
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::SemanticMismatch),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                )),
                 "{key:?} lost program-counter use must reject"
             );
             let mut corrupted = catalog.clone();
@@ -500,7 +505,9 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 .retain(|unit| !program_counter.units.contains(unit));
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::SemanticMismatch),
+                Err(EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                )),
                 "{key:?} lost program-counter definition must reject"
             );
 

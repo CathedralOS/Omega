@@ -425,8 +425,18 @@ pub struct MachineEncodedEffects {
     /// requires this list to equal the constraint row's contracted
     /// definitions exactly.
     pub external_operand_writes: Vec<u16>,
+    /// Physical register units the encoding reads beyond its operand list.
+    /// Admission requires this list to equal the constraint row's implicit
+    /// uses exactly, with one named exception: an indirect-register return
+    /// honestly reads only its target register and may narrow to a non-empty
+    /// subset of the row's uses.
     pub implicit_unit_uses: Vec<register_model::RegisterUnitId>,
+    /// Physical register units the encoding defines beyond its operand list.
+    /// Admission requires this list to equal the constraint row's implicit
+    /// definitions exactly.
     pub implicit_unit_defs: Vec<register_model::RegisterUnitId>,
+    /// Physical register units the encoding clobbers. Admission requires
+    /// this list to equal the constraint row's declared clobbers exactly.
     pub implicit_unit_clobbers: Vec<register_model::RegisterUnitId>,
     pub memory: MachineEncodedMemoryEffect,
     pub stack: MachineEncodedStackEffect,

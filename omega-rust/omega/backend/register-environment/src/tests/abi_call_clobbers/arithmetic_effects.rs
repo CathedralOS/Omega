@@ -1009,8 +1009,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 );
 
                 // Encoded implicit custody: a unit the row does not declare
-                // fails structural admission; losing a declared unit needs
-                // canonical replay.
+                // fails structural admission, and so does losing a declared
+                // one — the encoded lists restate the row exactly.
                 let mut corrupted = catalog.clone();
                 arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
@@ -1055,7 +1055,9 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .retain(|unit| !flags.units.contains(unit));
                     assert_eq!(
                         validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::SemanticMismatch),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
                         "{key:?} lost condition-code use must reject"
                     );
                 }
@@ -1067,7 +1069,9 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .retain(|unit| !flags.units.contains(unit));
                     assert_eq!(
                         validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::SemanticMismatch),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
                         "{key:?} lost condition-code definition must reject"
                     );
                 }
@@ -1079,7 +1083,9 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         .remove(0);
                     assert_eq!(
                         validate_effects(case, environment.constraints(), corrupted),
-                        Err(EffectRejection::SemanticMismatch),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
                         "{key:?} lost encoded clobber must reject"
                     );
                 }
