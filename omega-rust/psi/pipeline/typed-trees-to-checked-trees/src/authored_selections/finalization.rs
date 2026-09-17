@@ -298,17 +298,27 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                 ) => Some(CheckedResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 )),
+                // A spelled use rewritten to a compiler-synthesized call keeps
+                // its authored operator occurrence: `==` behind a written
+                // `equals` stays the builtin operator custody, and a use bound
+                // to a token-bearing machine's own body settles to that exact
+                // declaration.
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedOperator,
                     ExpressionNode::Call(call),
                 ) if call.operational_acknowledgement.origin
                     == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized =>
                 {
-                    checked_structural_equality_call(program, facts, expression, call).then_some(
-                        CheckedResolutionTarget::Intrinsic(
+                    checked_structural_equality_call(program, facts, expression, call)
+                        .then_some(CheckedResolutionTarget::Intrinsic(
                             AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-                        ),
-                    )
+                        ))
+                        .or_else(|| {
+                            declaration_target(
+                                crate::operators::token_bound_machine_call_target(program, call)
+                                    .unwrap_or_else(SymbolHandle::invalid),
+                            )
+                        })
                 }
                 _ => None,
             };

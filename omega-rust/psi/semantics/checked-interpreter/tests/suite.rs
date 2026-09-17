@@ -15,6 +15,7 @@ mod raw_literal_bytes;
 mod resolved_state_execution;
 mod runtime_value_generics;
 mod structural_equality;
+mod token_bound_machine_calls;
 mod trait_operators;
 mod unknown_descriptor_operation_replay;
 mod unsigned_ranking_views;

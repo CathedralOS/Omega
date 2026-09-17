@@ -103,6 +103,11 @@ fn check_program(
     // normalization and destination typing, before validation/backend facts
     // consume the call identity.
     validation::resolve_named_result_overloads(&mut program)?;
+    // A spelled use that selects a token-bearing machine is supplied by that
+    // declaration's own body: bind it to an ordinary call now, after every
+    // specialization and call-identity rebinding above, so validation and
+    // every executing consumer see the same call edge a named call would make.
+    crate::operators::bind_token_bound_machine_calls(&mut program)?;
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let validated = validate_typed_program(
         &program,
