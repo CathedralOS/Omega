@@ -147,12 +147,13 @@ impl BuildMachineFilesystemScope {
     /// Bind the admitted build execution profile the requesting compilation
     /// checks its build-scope sources for and runs its build machine under.
     /// It is a request fact (the compiler host when the request names none),
-    /// never inferred here from the compiler process.
+    /// never inferred here from the compiler process. `None` records an
+    /// admitted host no catalogued profile describes rather than naming one.
     pub fn with_execution_profile(
         mut self,
-        build_execution_profile: target::TargetProfile,
+        build_execution_profile: Option<target::TargetProfile>,
     ) -> Self {
-        self.build_execution_profile = Some(build_execution_profile);
+        self.build_execution_profile = build_execution_profile;
         self
     }
 

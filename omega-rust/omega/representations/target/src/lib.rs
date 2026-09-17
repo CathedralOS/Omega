@@ -264,16 +264,27 @@ impl TargetProfile {
     }
 
     pub fn host() -> Self {
+        Self::host_if_supported().expect("unsupported host profile for Omega native planning")
+    }
+
+    /// The catalogued deployment profile this host admits, when one exists.
+    ///
+    /// A host with a usable `NativeTarget` triple but no catalogued profile
+    /// (macOS x86-64, for example) returns `None`. Callers that admit the
+    /// compiler host for interpreted work — build-scope source selection and
+    /// build machine execution — must carry that absence rather than panic or
+    /// name a foreign profile.
+    pub fn host_if_supported() -> Option<Self> {
         if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-            Self::MacosArm64
+            Some(Self::MacosArm64)
         } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-            Self::LinuxArm64
+            Some(Self::LinuxArm64)
         } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-            Self::LinuxX64
+            Some(Self::LinuxX64)
         } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-            Self::WindowsX64
+            Some(Self::WindowsX64)
         } else {
-            panic!("unsupported host profile for Omega native planning")
+            None
         }
     }
 
