@@ -8,13 +8,20 @@ use super::{
     ScalarType, ValueId, VerifiedPsiOptimizationSession,
 };
 /// The result one relocated node preserves. Scalar-constant leaves, admitted
-/// place observations, and invariant scalar computations keep the one scalar
-/// definition the node carried — the value downstream uses and run-internal
+/// place observations, invariant scalar computations, scalar-signature
+/// calls, and scalar-result structural calls keep the one scalar definition
+/// the node carried — the value downstream uses and run-internal
 /// operands stay bound to. A `ByteSequenceSubslice` defines no scalar: the
 /// relocation instead preserves the structural view result its operation
 /// spells — the fresh root's place, type, multiplicity, and qualifications
 /// stay byte-exact inside the moved operation rather than re-spelling a
-/// scalar result. An `EstablishByteSequenceLiteral` defines no scalar
+/// scalar result. An `EstablishPrimitiveLocal` defines no scalar either: the
+/// relocation preserves the declared primitive-local result its operation
+/// spells — the fresh storage cell's place, type, multiplicity, and
+/// claim-free custody stay byte-exact inside the moved operation, so a
+/// `CallStructuralScalar` borrowing that root relocates in the same run
+/// without re-spelling the argument. An `EstablishByteSequenceLiteral`
+/// defines no scalar
 /// either: the relocation preserves the literal place declaration its
 /// operation carries — the fresh immutable view root's identity and
 /// declaration kind stay byte-exact inside the moved operation. A `CallUnit`
@@ -31,7 +38,8 @@ pub enum LoopInvariantNodeResult {
         scalar_type: ScalarType,
     },
     /// A preserved structural operation result — the fresh view place a
-    /// `ByteSequenceSubslice` establishes. The moved operation keeps it
+    /// `ByteSequenceSubslice` establishes, or the fresh storage cell an
+    /// `EstablishPrimitiveLocal` declares. The moved operation keeps it
     /// byte-exact, so the transformed unit's structural custody still sees
     /// the same producer declaring the same place.
     Structural(terminal_psi::StructuralOperationResult),
@@ -74,13 +82,20 @@ impl LoopInvariantNodeResult {
 /// that root rebind in `root_rewrite`. A `ByteSequenceSubslice` records the
 /// same root rebind and scalar-operand rewrites a byte read does, but its
 /// result is [`LoopInvariantNodeResult::Structural`]: the fresh view stays
-/// byte-exact inside the moved operation. An admitted `CallUnit` records its
+/// byte-exact inside the moved operation. An `EstablishPrimitiveLocal`
+/// carries that same `Structural` result — the declared cell stays
+/// byte-exact — while its scalar initializer records an ordinary
+/// `operand_rewrites` entry. An admitted `CallUnit` records its
 /// result as [`LoopInvariantNodeResult::Unit`], rebinds member-parameter
 /// scalar operands through `operand_rewrites` like every computation, and
 /// rebinds each structural argument whose root is an invariant member
 /// parameter through `argument_rewrites` — a shared-borrow argument naming
 /// a root a node earlier in the same run produced needs no rewrite, because
-/// the run keeps the producer's declared place identity byte-exact.
+/// the run keeps the producer's declared place identity byte-exact. An
+/// admitted `CallStructuralScalar` carries the same operand and
+/// argument-root rewrites while recording its result as
+/// [`LoopInvariantNodeResult::Scalar`]: the relocated call's return value
+/// stays bound for the member consumers the same run relocates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,

@@ -11,11 +11,19 @@
 //! relocate byte-exact inside the moved operation), an admissible
 //! byte-sequence-literal establishment (whose declared place, structural
 //! type, and payload relocate byte-exact inside the moved operation while
-//! consumers keep spelling the same place identity),
+//! consumers keep spelling the same place identity), an admissible
+//! primitive-local establishment (whose declared place, structural type, and
+//! claim-free result custody relocate byte-exact while its scalar
+//! initializer obeys the re-derived substitution — and whose declared root
+//! is what a `CallStructuralScalar`'s shared-borrow argument keeps
+//! spelling),
 //! an admissible scalar-signature call (its callee's transitive effect
 //! summary proves no observable effect, crash, or suspension, and every node
 //! inside the member roster is unobservable, so hoisting the call's possible
-//! divergence reorders nothing anyone could see), or
+//! divergence reorders nothing anyone could see), an admissible
+//! shared-borrow unit or scalar-result structural call (the same effect and
+//! observability bars plus the whole-component place-custody bound and each
+//! borrowed root's preheader landing), or
 //! an admissible scalar
 //! computation (an obligated variant keeps its verifier-discharged
 //! obligation byte-exact inside the moved operation) whose uses are all
@@ -343,6 +351,61 @@ pub(super) fn validate(
                 Some((substitution, rewrites)) => {
                     (substitution, None, rewrites.into_iter().collect())
                 }
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::admissible_invariant_structural_scalar_call(
+            relocation.expected,
+        )
+        .is_some()
+        {
+            // A scalar-result structural call replays the unit call's whole
+            // admission from the seed — the pure callee, the unobservable
+            // member roster, the place-custody bound, the shared-borrow
+            // whitelist, and each argument root's landing — and additionally
+            // preserves its scalar result identity, so a forged result or a
+            // skipped scalar-argument or borrow rebind rejects here or in
+            // `same_relocated_node`'s operation comparison.
+            let effects = call_effects
+                .get_or_insert_with(|| crate::validation::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_structural_scalar_call_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
+                effects,
+            ) {
+                Some((substitution, rewrites)) => {
+                    (substitution, None, rewrites.into_iter().collect())
+                }
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::admissible_invariant_primitive_local(relocation.expected)
+            .is_some()
+        {
+            // A primitive-local establishment replays its whole admission
+            // from the seed: the whole-component place-custody bound must
+            // prove no member stores to the declared place — the one
+            // condition under which a cell initialized once still reads its
+            // `value` on every traversal — and the initializing `value`
+            // operand obeys the same re-derived scalar substitution a
+            // computation obeys. The declared place, structural type, and
+            // result custody stay byte-exact inside the moved operation, so
+            // a forged declaration or a skipped `value` rebind rejects here
+            // or in `same_relocated_node`'s operation comparison.
+            match crate::validation::invariant_primitive_local_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+            ) {
+                Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else {
