@@ -101,6 +101,23 @@ fn expected_omega_case_application_name(root: &Path) -> String {
 
 const DECLARATION_REJECTION_CASES: &[&str] = &["fail/build/build-machine-wrong-arity"];
 
+/// Corpus roots that are package members of a sibling case rather than
+/// applications, keyed like `DECLARATION_REJECTION_CASES` with their declared
+/// package names.
+const PACKAGE_MEMBER_CASES: &[(&str, &str)] = &[
+    ("pass/build/runtime-depend-mapping-exit/lib", "mylib"),
+    ("pass/modules/package-bare-cases", "package-bare-cases"),
+    ("pass/modules/package-bare-cases/leaf", "bare-case-values"),
+    (
+        "pass/modules/qualified-case-membership",
+        "qualified-case-membership",
+    ),
+    (
+        "pass/modules/qualified-case-membership/leaf",
+        "membership-values",
+    ),
+];
+
 fn omega_case_key(cases: &Path, root: &Path) -> String {
     root.strip_prefix(cases)
         .expect("Omega case root must be beneath the Omega case corpus")
@@ -331,20 +348,6 @@ fn assert_mixed_canary_category_standard_library_edges(
     expected_roots: usize,
     expected_standard_library_consumers: usize,
 ) {
-    assert_mixed_canary_category_standard_library_edges_with_build_consumers(
-        cases,
-        expected_roots,
-        expected_standard_library_consumers,
-        &[],
-    );
-}
-
-fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
-    cases: &Path,
-    expected_roots: usize,
-    expected_standard_library_consumers: usize,
-    build_only_standard_library_consumers: &[&str],
-) {
     let mut roots = Vec::new();
     collect_build_roots(cases, &mut roots);
     assert_eq!(
@@ -360,10 +363,6 @@ fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
     };
     let mut standard_library_consumers = 0;
     for root in roots {
-        let name = root
-            .file_name()
-            .and_then(|name| name.to_str())
-            .expect("canary root name");
         let mut uses_dependency_alias = false;
         for source in fs::read_dir(&root)
             .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
@@ -392,15 +391,13 @@ fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
             .iter()
             .filter(|dependency| *dependency == &expected_dependency)
             .count();
-        let uses_standard_library =
-            uses_dependency_alias || build_only_standard_library_consumers.contains(&name);
         assert_eq!(
             standard_library_edges,
-            usize::from(uses_standard_library),
+            usize::from(uses_dependency_alias),
             "std import/dependency mismatch in {}",
             root.display()
         );
-        standard_library_consumers += usize::from(uses_standard_library);
+        standard_library_consumers += usize::from(uses_dependency_alias);
     }
     assert_eq!(
         standard_library_consumers,
@@ -414,7 +411,7 @@ fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
 fn time_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/time"),
-        14,
+        15,
     );
 }
 
@@ -429,20 +426,18 @@ fn filesystem_canaries_declare_ordinary_standard_library_edges() {
 #[test]
 fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
     for (category, expected_count) in [
-        ("atomics", 8),
+        ("atomics", 10),
         ("backend", 2),
         ("borrow", 3),
-        ("comptime", 4),
+        ("comptime", 5),
         ("constants", 2),
         ("data", 20),
-        ("dependent", 11),
+        ("dependent", 12),
         ("errors", 1),
-        ("expressions", 49),
-        ("generics", 23),
+        ("generics", 30),
         ("layouts", 19),
         ("proofs", 6),
         ("recast", 23),
-        ("storage", 10),
         ("structs", 12),
     ] {
         assert_canaries_declare_ordinary_standard_library_edges(
@@ -456,9 +451,22 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
 fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/slices"),
+        70,
         69,
-        41,
     );
+}
+
+#[test]
+fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_edges() {
+    for (category, expected_roots, expected_consumers) in
+        [("expressions", 50, 49), ("storage", 11, 10)]
+    {
+        assert_mixed_canary_category_standard_library_edges(
+            &repository_root().join("tests/omega/pass").join(category),
+            expected_roots,
+            expected_consumers,
+        );
+    }
 }
 
 #[test]
@@ -484,7 +492,7 @@ fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/collections"),
         94,
-        93,
+        94,
     );
 }
 
@@ -509,7 +517,7 @@ fn call_canaries_declare_only_their_consumed_standard_library_edges() {
 #[test]
 fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
-        [("capabilities", 8, 1), ("control_flow", 53, 48)]
+        [("capabilities", 16, 2), ("control_flow", 60, 50)]
     {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -539,12 +547,15 @@ fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
 
 #[test]
 fn operator_and_type_runtime_canaries_declare_ordinary_standard_library_edges() {
-    for (category, expected_count) in [("operators", 9), ("types", 8)] {
-        assert_canaries_declare_ordinary_standard_library_edges(
-            &repository_root().join("tests/omega/pass").join(category),
-            expected_count,
-        );
-    }
+    assert_mixed_canary_category_standard_library_edges(
+        &repository_root().join("tests/omega/pass/operators"),
+        10,
+        9,
+    );
+    assert_canaries_declare_ordinary_standard_library_edges(
+        &repository_root().join("tests/omega/pass/types"),
+        8,
+    );
 }
 
 #[test]
@@ -575,15 +586,16 @@ fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_ed
 #[test]
 fn small_mixed_runtime_categories_declare_only_their_required_standard_library_edges() {
     for (category, expected_roots, expected_standard_library_consumers) in [
-        ("ranges", 2, 2),
+        ("ranges", 3, 2),
         ("targets", 22, 2),
         ("versioning", 3, 3),
         ("termination", 4, 4),
         ("range", 6, 6),
-        ("core", 13, 7),
-        ("dungeon", 14, 7),
-        ("domains", 22, 19),
-        ("host", 11, 10),
+        ("core", 14, 7),
+        ("dungeon", 19, 15),
+        ("domains", 28, 26),
+        ("host", 21, 20),
+        ("providers", 30, 15),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -591,17 +603,6 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
             expected_standard_library_consumers,
         );
     }
-
-    assert_mixed_canary_category_standard_library_edges_with_build_consumers(
-        &repository_root().join("tests/omega/pass/providers"),
-        28,
-        17,
-        &[
-            "specialized_mixed_structural_fixed_operator_hosted_native",
-            "specialized_mixed_structural_result_operator_hosted_native",
-            "specialized_structural_fixed_operator_hosted_native",
-        ],
-    );
 }
 
 #[test]
@@ -614,8 +615,10 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
 
     let mut applications = 0;
     let mut declaration_rejections = 0;
+    let mut package_members = 0;
     for root in roots {
-        if DECLARATION_REJECTION_CASES.contains(&omega_case_key(&cases, &root).as_str()) {
+        let key = omega_case_key(&cases, &root);
+        if DECLARATION_REJECTION_CASES.contains(&key.as_str()) {
             assert_eq!(
                 extract_build_declaration(&root),
                 Err(BuildDeclarationError::InvalidBuildParameter),
@@ -623,6 +626,26 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
                 root.display()
             );
             declaration_rejections += 1;
+            continue;
+        }
+        if let Some(&(_, package_name)) = PACKAGE_MEMBER_CASES
+            .iter()
+            .find(|(case, _)| *case == key.as_str())
+        {
+            assert_eq!(
+                extract_build_declaration(&root).unwrap_or_else(|error| {
+                    panic!(
+                        "package member role projection failed for {}: {error}",
+                        root.display()
+                    )
+                }),
+                BuildDeclaration::Package(package_manager::declarations::PackageDeclaration {
+                    name: PackageName::parse(package_name).unwrap(),
+                }),
+                "unexpected Omega case package member declaration in {}",
+                root.display()
+            );
+            package_members += 1;
             continue;
         }
 
@@ -645,5 +668,9 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
     }
 
     assert_eq!(declaration_rejections, DECLARATION_REJECTION_CASES.len());
-    assert_eq!(applications + declaration_rejections, root_count);
+    assert_eq!(package_members, PACKAGE_MEMBER_CASES.len());
+    assert_eq!(
+        applications + declaration_rejections + package_members,
+        root_count
+    );
 }
