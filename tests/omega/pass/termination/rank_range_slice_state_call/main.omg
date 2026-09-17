@@ -1,0 +1,47 @@
+// PASS CANARY. A ranged `Slice::Length` member calls from a subordinate
+// state: `hold(entries, capacity)` forwards the ranked collection and the
+// authored ceiling, and the site `hold -> step(pending, bound)` proves
+// `pending.len <= bound` from `scan`'s own range invariant, re-established at
+// that arrival by its state-edge judgment, instead of a respelled guard. The
+// unranged `step` cuts one element and conserves the endpoint back.
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) -> u64 {
+    let view: &[Entry] = self.entries.as_slice();
+
+    transition {
+        _ -> self.scan(view, 4)
+    }
+}
+
+machine Main::scan(&mut self, entries: &[Entry], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 {
+        true -> hold(entries, capacity)
+        false -> 0
+    }
+    state hold(pending: &[Entry], bound: u64) {
+        transition pending.len > 0 {
+            true -> self.step(pending, bound)
+            false -> 0
+        }
+    }
+}
+
+machine Main::step(&mut self, rest: &[Entry], capacity: u64)
+terminates by rest -> Slice::Length;
+-> u64 {
+    transition rest.len > 0 && rest.len <= capacity {
+        true -> self.scan(rest[1..], capacity)
+        false -> 0
+    }
+}
