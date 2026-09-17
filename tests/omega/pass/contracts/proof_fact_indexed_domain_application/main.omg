@@ -8,11 +8,13 @@
 // requirement's result through the exact instance and proves `view` and
 // `retire_view` at their call `requires` from that restatement.
 //
-// Pinned here: the shape compiles end to end. The identity join between the
-// requirement's `ensures` fact and the caller's restating `let` is still the
-// symbol-only write discharge (`checks/contracts/writes.rs`), so restating
-// under another index is not yet refused at this route; the typed-stage
-// interning is witnessed by
+// Pinned here: the shape compiles end to end, and the restating `let` joins
+// the requirement's `ensures` fact by its exact instance: the index
+// compatibility check (`facts/index_compatibility.rs`) reads the instance the
+// typed membership fact on the call's contract row carries, so restating
+// under another index is refused as a distinct normalized instance
+// (`fail/contracts/proof_fact_indexed_domain_application_mismatch`). The
+// typed-stage interning is witnessed by
 // `symbol-resolved-trees-to-typed-trees/src/lowerer/tests/machine_contracts.rs`
 // and the argument count by `fail/contracts/proof_fact_indexed_domain_application_arity`.
 use omega::language::core::extent;

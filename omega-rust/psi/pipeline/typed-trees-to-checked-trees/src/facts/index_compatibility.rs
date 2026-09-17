@@ -1,7 +1,7 @@
 use arena::HandleSpan;
 use checked_trees::{
-    CheckedOperatorFacts, FlowFacts, FlowSemanticContextRef, IndexCompatibilityDischarge,
-    IndexCompatibilityFact, IndexCompatibilityFacts,
+    CheckedOperatorFacts, ContractProofFactKind, FlowFacts, FlowSemanticContextRef,
+    IndexCompatibilityDischarge, IndexCompatibilityFact, IndexCompatibilityFacts, ProofFacts,
 };
 use diagnostics::Diagnostic;
 use facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
@@ -16,6 +16,9 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone)]
 struct IndexedInstance {
@@ -95,6 +98,7 @@ pub(super) fn build_index_compatibility_facts(
     operators: &CheckedOperatorFacts,
     semantic: &FactPlan,
     flow: &FlowFacts,
+    proof: &ProofFacts,
 ) -> Result<IndexCompatibilityFacts, Vec<Diagnostic>> {
     let mut conditions = Vec::new();
     let mut diagnostics = Vec::new();
@@ -141,6 +145,7 @@ pub(super) fn build_index_compatibility_facts(
                     operators,
                     semantic,
                     flow,
+                    proof,
                     machine,
                     state,
                     call.statement_index,
@@ -179,6 +184,7 @@ pub(super) fn build_index_compatibility_facts(
                         operators,
                         semantic,
                         flow,
+                        proof,
                         machine,
                         state,
                         statement_index,
@@ -204,6 +210,7 @@ pub(super) fn build_index_compatibility_facts(
                             operators,
                             semantic,
                             flow,
+                            proof,
                             machine,
                             state,
                             statement_index,
@@ -230,6 +237,7 @@ pub(super) fn build_index_compatibility_facts(
                         operators,
                         semantic,
                         flow,
+                        proof,
                         machine,
                         state,
                         statement_index,
@@ -267,6 +275,7 @@ pub(super) fn build_index_compatibility_facts(
                             operators,
                             semantic,
                             flow,
+                            proof,
                             machine,
                             state,
                             statement_index,
@@ -311,6 +320,7 @@ fn append_expression_compatibilities(
     operators: &CheckedOperatorFacts,
     semantic: &FactPlan,
     flow: &FlowFacts,
+    proof: &ProofFacts,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -331,8 +341,18 @@ fn append_expression_compatibilities(
     // this boundary. Recompute this for recursive literal members as well as
     // top-level stores/returns.
     let contexts = state_calls.contexts_after_value(statement_index, value, contexts);
-    let actual =
+    let mut actual =
         expression_indexed_instances(program, operators, machine, state, statement_index, value);
+    append_call_result_ensured_instances(
+        program,
+        proof,
+        state_calls,
+        machine,
+        state,
+        statement_index,
+        value,
+        &mut actual,
+    );
     let mut expected = Vec::new();
     collect_type_indexed_instances(program, target_type, &mut expected, &mut Vec::new());
     for actual in &actual {
@@ -443,6 +463,7 @@ fn append_expression_compatibilities(
                         operators,
                         semantic,
                         flow,
+                        proof,
                         machine,
                         state,
                         statement_index,
@@ -466,6 +487,7 @@ fn append_expression_compatibilities(
                         operators,
                         semantic,
                         flow,
+                        proof,
                         machine,
                         state,
                         statement_index,
@@ -1105,6 +1127,126 @@ fn expression_indexed_instances(
         collect_type_indexed_instances(program, type_reference, &mut instances, &mut Vec::new());
     }
     instances
+}
+
+/// The indexed instances a value-position call's own `ensures` declare on
+/// its reserved `result`. A declared return type `-> Extent` names no
+/// instance, so `expression_indexed_instances` finds none there; the
+/// requirement's `ensures result in Granted & Resident<SlotPlacement, Slot>`
+/// does, and the typed membership fact attached to this call carries the
+/// identity the typer interned on it. A restating `let` (or store, or
+/// return) then compares against that instance exactly as it compares
+/// against a declared field's, instead of joining the family by symbol and
+/// keeping whichever index the restatement chose. The facts are read from
+/// the call's contract row, before `call_contract_evidence` decides whether
+/// the promise is admitted as establishment: like the declared return type,
+/// the declared instance is what the value is, whatever its evidence.
+fn append_call_result_ensured_instances(
+    program: &TypedTrees,
+    proof: &ProofFacts,
+    state_calls: &StateCallIndex<'_, '_>,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    value: ExpressionHandle,
+    instances: &mut Vec<IndexedInstance>,
+) {
+    if !matches!(
+        program.expression_table.expression(value),
+        ExpressionNode::Call(_)
+    ) {
+        return;
+    }
+    let Some(call) = state_calls.calls.iter().find(|call| {
+        call.fact.statement_index == statement_index
+            && matches!(
+                &call.site,
+                crate::semantic_calls::CallSite::Expression { expression, .. }
+                    if *expression == value
+            )
+    }) else {
+        return;
+    };
+    let Some((_, contract_call)) = proof.contract_calls.iter().find(|(_, contract_call)| {
+        contract_call.caller_machine_symbol == machine.symbol
+            && contract_call.caller_state_symbol == state.symbol
+            && contract_call.statement_index == statement_index
+            && contract_call.call_ordinal == call.fact.call_ordinal
+    }) else {
+        return;
+    };
+    for reference in proof
+        .contract_fact_refs
+        .span_or_empty(contract_call.ensures)
+    {
+        let contract = proof.contract_facts.get(reference.fact);
+        if contract.kind != ContractProofFactKind::Ensures {
+            continue;
+        }
+        let typed_trees::domain::ProofFact::Membership(membership) =
+            program.proof_facts.get(contract.fact)
+        else {
+            continue;
+        };
+        // The subject must be the whole reserved result: a projection such
+        // as `result.storage` belongs to that field's declared type.
+        if !membership.semantic_domain.is_valid()
+            || !is_reserved_result_name(program, membership.value)
+        {
+            continue;
+        }
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(membership.domain_arguments)
+            .to_vec();
+        if arguments.is_empty()
+            || instances.iter().any(|instance| {
+                instance.family == membership.domain_symbol
+                    && instance.semantic_id == membership.semantic_domain
+            })
+        {
+            continue;
+        }
+        let name = program
+            .domain_path_members(membership.domain)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        let label = domain_label(program, &name, &arguments);
+        instances.push(IndexedInstance {
+            family: membership.domain_symbol,
+            semantic_id: membership.semantic_domain,
+            arguments,
+            label,
+        });
+    }
+}
+
+/// Whether a contract subject is the bare reserved `result` name: an
+/// unresolved single-member path spelled `result`, the same discriminator
+/// `validation::reserved_result_owner` applies before it looks the owning
+/// machine up. That owner lookup scans machines only, and a boundary trait
+/// signature's `result` has no machine; the facts read here are already
+/// scoped to one call's own contract row, so the spelling suffices.
+fn is_reserved_result_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    if !program.expression_table.expression_is_valid(expression) {
+        return false;
+    }
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    !path.symbol.is_valid()
+        && !path.head_symbol.is_valid()
+        && program
+            .expression_table
+            .name_path_member_symbols(path.member_symbols)
+            .iter()
+            .all(|symbol| !symbol.is_valid())
+        && matches!(
+            program.expression_table.name_path_members(path.members),
+            [name] if name.as_str() == "result"
+        )
 }
 
 fn call_return_type(
