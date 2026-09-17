@@ -1232,7 +1232,20 @@ Owners include
   existing `direct_placed_view_input_survives_codec_and_native_replay` control
   in `compiler/tests/access_plans.rs` through native-realization optimization
   and end-to-end native placement. The retained roster is semantic custody,
-  not backing, range, access, or lifetime authority.
+  not backing, range, access, or lifetime authority. At 042f6f27bd that
+  control publishes the placed-entry fragment for linux_x64, linux_arm64
+  and macos_arm64, ties the derived placement to the target's first
+  pointer-argument register, and on a matching host executes it with a
+  C-lent referent of the plan's exact geometry (backing, range, access and
+  lifetime stay with the driver); stale plan/range/access/backing and
+  stale roster/artifact substitutions reject before execution (macOS
+  ARM64 ran the leg; Linux hosts not run). Executable-image realization
+  stays fail-closed at `try_into_native_input` for a nonempty roster
+  because no provider establishment route supplies the view address to an
+  image entry; that route (placed-access "Establishment and retirement")
+  is the next dependency, and `tests/architecture/layering.rs` pins the
+  `VerifiedNativeArtifactInput as NativeRealizationInput` alias any
+  plumbing must preserve.
 
 - **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
   and its target-dependent realization. Preserve exact paths and bounds until
