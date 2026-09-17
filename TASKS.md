@@ -3158,7 +3158,9 @@ Owners include
   and the representation inversion (`SpelledOperator` wrapping machine
   signatures directly) needs the provider-planning, build-time
   `selected_operators.rs`, evidence `capture/callables/boundary_operators.rs`
-  and result-domain overload dispatch owners; tokenless compiler
+  and result-domain overload dispatch owners (the named-requirement
+  execution route now exists for the public receiver-free shape, see
+  TOP-LEVEL-BOUNDARY-REQUIREMENTS); tokenless compiler
   primitives (68 library, 28 tests) need the catalog keyed on exact
   declaration/signature identity: at c1fe789968/88939ee7d6/f01d11ded7
   the primitive form is a bare bodyless tokenless `machine` signature
@@ -4098,6 +4100,28 @@ Owners include
   requirement declarations, external satisfiers, provider selection, and
   installed execution/era replay. Remove transitional undifferentiated
   bodyless-machine modes once their source migrations close.
+  At c30b2b5ed7/fe13696481/158f7989ef/9b12861ea1 a public, nongeneric,
+  receiver-free `boundary requirement Owner::name(...);` with a checked
+  `satisfies` adapter executes in both engines: selected-dispatch settles
+  an owner-keyed direct-call row for the requirement entry
+  (`boundary_dispatch/adapter_rows.rs`), execution settlement journals
+  and redirects the direct value-position call (typed call, flow
+  occurrence, argument facts) to the adapter entry and rebuilds Unit
+  plans (`selected_dispatch/requirement_adapter.rs`), validation admits
+  the direct call, and fail controls reject an unselected direct call at
+  settlement and keep the fence on private requirements
+  (`providers/checked_boundary_requirement_{dispatch,terminal}_exit`,
+  `fail/providers/{boundary_requirement_direct_call_unselected,
+  private_boundary_requirement_direct_call}`). The requires-only sibling
+  carries the Terminal witness; the contracted customer stays
+  checked-only because ordinary scalar-machine lowering rejects its
+  `ensures result == input + 0 && input == input` ("scalar contract
+  contains an unsupported clause") since 21fc627a6e, which also reds the
+  operator sibling `checked_boundary_operator_dispatch_exit` on main
+  (CRASH-CONTRACT lane). Remaining: statement-position direct calls,
+  receiver-bearing requirements such as `Task::finish(self)` beyond
+  installation-bound reach, and the tokenless boundary-operator
+  respelling onto this route.
 
 - **BUILD-ADMISSION-CHECKPOINT.** Execute an admitted build machine against one
   coherent frontend/source/authority snapshot and append generated source in a
