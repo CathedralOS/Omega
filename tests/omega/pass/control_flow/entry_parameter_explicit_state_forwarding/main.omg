@@ -1,0 +1,123 @@
+// Entry parameters are not ambient inside named states: each state that reads
+// one receives it through the transition edge. This pins the product lexer's
+// three shapes: a trapping index threaded through lead states to the state
+// that offsets it, a byte view and its base offset carried around a scanning
+// loop beside the loop's own counter, and a scalar classified along a chain.
+
+data Scanner {
+    source: [u8; 8];
+    length: u64 in Trapping;
+    byte0: u32 in Trapping;
+    offset: u64 in Trapping;
+    cursor: u64 in Trapping;
+    matched: bool;
+    digit_value: u32 in Trapping;
+}
+
+machine Scanner::byte_or_nul(&self, index: u64 in Trapping) -> u8 {
+    transition index < 8 {
+        true -> retain(index)
+        _ -> absent()
+    }
+
+    state retain(&self, index: u64 in Trapping) {
+        self.source[index]
+    }
+
+    state absent(&self) {
+        0
+    }
+}
+
+machine Scanner::decode_at(&mut self, index: u64 in Trapping) {
+    self.byte0 = 0;
+    self.offset = 0;
+    transition index < self.length {
+        true -> first(index)
+        _ -> done()
+    }
+
+    state first(&mut self, index: u64 in Trapping) {
+        let source_byte: u8 = self.byte_or_nul(index);
+        self.byte0 = source_byte as u32 in Trapping;
+        transition self.byte0 < 128 {
+            true -> done()
+            _ -> two_lead(index)
+        }
+    }
+
+    state two_lead(&mut self, index: u64 in Trapping) {
+        transition self.byte0 >= 194 && self.byte0 <= 223 {
+            true -> two_bound(index)
+            _ -> done()
+        }
+    }
+
+    state two_bound(&mut self, index: u64 in Trapping) {
+        self.offset = index + 1;
+    }
+
+    state done(&mut self) {}
+}
+
+machine Scanner::span_equals(
+    &mut self,
+    start: u64 in Trapping,
+    end: u64 in Trapping,
+    candidate: &[u8]
+) {
+    self.matched = false;
+    transition end - start == candidate.len {
+        true -> scan(start, candidate, 0)
+        _ -> no()
+    }
+
+    state scan(&mut self, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
+        transition index < candidate.len {
+            true -> address(start, candidate, index)
+            _ -> yes()
+        }
+    }
+
+    state address(&mut self, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
+        self.cursor = start + index;
+        transition { _ -> compare(start, candidate, index) }
+    }
+
+    state compare(&mut self, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
+        let source_byte: u8 = self.byte_or_nul(self.cursor);
+        let candidate_byte: u8 = candidate[index];
+        transition source_byte == candidate_byte {
+            true -> scan(start, candidate, index + 1)
+            _ -> no()
+        }
+    }
+
+    state yes(&mut self) { self.matched = true; }
+    state no(&mut self) { self.matched = false; }
+}
+
+machine Scanner::hex_digit_value(&mut self, byte: u32 in Trapping) {
+    self.digit_value = 4294967295;
+    transition byte >= 48 && byte <= 57 {
+        true -> decimal(byte)
+        _ -> lower(byte)
+    }
+    state decimal(&mut self, byte: u32 in Trapping) { self.digit_value = byte - 48; }
+    state lower(&mut self, byte: u32 in Trapping) { transition byte >= 97 && byte <= 102 { true -> lower_yes(byte) _ -> done() } }
+    state lower_yes(&mut self, byte: u32 in Trapping) { self.digit_value = byte - 87; }
+    state done(&mut self) {}
+}
+
+data Main {
+    scanner: Scanner;
+}
+
+machine Main::main(&mut self) {
+    self.scanner.length = 2;
+    self.scanner.source[0] = 97;
+    self.scanner.source[1] = 115;
+    self.scanner.decode_at(0);
+    self.scanner.span_equals(0, 2, "as");
+    self.scanner.hex_digit_value(102);
+}

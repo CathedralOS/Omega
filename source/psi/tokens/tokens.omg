@@ -202,11 +202,11 @@ machine TokenStream::push(
 machine TokenStream::push_decoded(&mut self, byte: u8) {
     self.last_retained = false;
     transition self.decoded_length < 65536 {
-        true -> retain()
+        true -> retain(byte)
         _ -> full()
     }
 
-    state retain(&mut self) {
+    state retain(&mut self, byte: u8) {
         self.decoded[self.decoded_length] = byte;
         self.decoded_length = self.decoded_length + 1;
         self.last_retained = true;

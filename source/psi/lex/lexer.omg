@@ -71,16 +71,16 @@ machine Lexer::decode_at(&mut self, index: u64 in Trapping) {
     self.scalar = 0;
     self.scalar_width = 0;
     transition index < self.source.length {
-        true -> first()
+        true -> first(index)
         _ -> done()
     }
 
-    state first(&mut self) {
+    state first(&mut self, index: u64 in Trapping) {
         let source_byte: u8 = self.source.byte_or_nul(index);
         self.byte0 = source_byte as u32 in Trapping;
         transition self.byte0 < 128 {
             true -> ascii()
-            _ -> two_lead()
+            _ -> two_lead(index)
         }
     }
 
@@ -90,14 +90,14 @@ machine Lexer::decode_at(&mut self, index: u64 in Trapping) {
         self.decode_valid = true;
     }
 
-    state two_lead(&mut self) {
+    state two_lead(&mut self, index: u64 in Trapping) {
         transition self.byte0 >= 194 && self.byte0 <= 223 {
-            true -> two_bound()
-            _ -> three_lead()
+            true -> two_bound(index)
+            _ -> three_lead(index)
         }
     }
 
-    state two_bound(&mut self) {
+    state two_bound(&mut self, index: u64 in Trapping) {
         self.index1 = index + 1;
         transition self.index1 < self.source.length {
             true -> two_tail()
@@ -120,14 +120,14 @@ machine Lexer::decode_at(&mut self, index: u64 in Trapping) {
         self.decode_valid = true;
     }
 
-    state three_lead(&mut self) {
+    state three_lead(&mut self, index: u64 in Trapping) {
         transition self.byte0 >= 224 && self.byte0 <= 239 {
-            true -> three_bound()
-            _ -> four_lead()
+            true -> three_bound(index)
+            _ -> four_lead(index)
         }
     }
 
-    state three_bound(&mut self) {
+    state three_bound(&mut self, index: u64 in Trapping) {
         self.index1 = index + 1;
         self.index2 = index + 2;
         transition self.index2 < self.source.length {
@@ -190,14 +190,14 @@ machine Lexer::decode_at(&mut self, index: u64 in Trapping) {
         self.decode_valid = true;
     }
 
-    state four_lead(&mut self) {
+    state four_lead(&mut self, index: u64 in Trapping) {
         transition self.byte0 >= 240 && self.byte0 <= 244 {
-            true -> four_bound()
+            true -> four_bound(index)
             _ -> done()
         }
     }
 
-    state four_bound(&mut self) {
+    state four_bound(&mut self, index: u64 in Trapping) {
         self.index1 = index + 1;
         self.index2 = index + 2;
         self.index3 = index + 3;
@@ -285,10 +285,10 @@ machine Lexer::is_identifier_start(&mut self, scalar: u32 in Trapping) {
     self.predicate_result = false;
     transition scalar == 95 {
         true -> yes()
-        _ -> upper()
+        _ -> upper(scalar)
     }
-    state upper(&mut self) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower() } }
-    state lower(&mut self) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> no() } }
+    state upper(&mut self, scalar: u32 in Trapping) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower(scalar) } }
+    state lower(&mut self, scalar: u32 in Trapping) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> no() } }
     state yes(&mut self) { self.predicate_result = true; }
     state no(&mut self) { self.predicate_result = false; }
 }
@@ -297,11 +297,11 @@ machine Lexer::is_identifier_continue(&mut self, scalar: u32 in Trapping) {
     self.predicate_result = false;
     transition scalar == 95 {
         true -> yes()
-        _ -> upper()
+        _ -> upper(scalar)
     }
-    state upper(&mut self) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower() } }
-    state lower(&mut self) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> digit() } }
-    state digit(&mut self) { transition scalar >= 48 && scalar <= 57 { true -> yes() _ -> no() } }
+    state upper(&mut self, scalar: u32 in Trapping) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower(scalar) } }
+    state lower(&mut self, scalar: u32 in Trapping) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> digit(scalar) } }
+    state digit(&mut self, scalar: u32 in Trapping) { transition scalar >= 48 && scalar <= 57 { true -> yes() _ -> no() } }
     state yes(&mut self) { self.predicate_result = true; }
     state no(&mut self) { self.predicate_result = false; }
 }
@@ -391,27 +391,27 @@ machine Lexer::span_equals(
 ) {
     self.predicate_result = false;
     transition end - start == candidate.len {
-        true -> scan(0)
+        true -> scan(start, candidate, 0)
         _ -> no()
     }
 
-    state scan(&mut self, index: u64 in Trapping) {
+    state scan(&mut self, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
         transition index < candidate.len {
-            true -> address(index)
+            true -> address(start, candidate, index)
             _ -> yes()
         }
     }
 
-    state address(&mut self, index: u64 in Trapping) {
+    state address(&mut self, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
         self.candidate_cursor = start + index;
-        transition { _ -> compare(index) }
+        transition { _ -> compare(start, candidate, index) }
     }
 
-    state compare(&mut self, index: u64 in Trapping) {
+    state compare(&mut self, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
         let source_byte: u8 = self.source.byte_or_nul(self.candidate_cursor);
         let candidate_byte: u8 = candidate[index];
         transition source_byte == candidate_byte {
-            true -> scan(index + 1)
+            true -> scan(start, candidate, index + 1)
             _ -> no()
         }
     }
@@ -673,14 +673,14 @@ machine Lexer::lex_block_comment(&mut self) {
 machine Lexer::hex_digit_value(&mut self, byte: u32 in Trapping) {
     self.digit_value = 4294967295;
     transition byte >= 48 && byte <= 57 {
-        true -> decimal()
-        _ -> lower()
+        true -> decimal(byte)
+        _ -> lower(byte)
     }
-    state decimal(&mut self) { self.digit_value = byte - 48; }
-    state lower(&mut self) { transition byte >= 97 && byte <= 102 { true -> lower_yes() _ -> upper() } }
-    state lower_yes(&mut self) { self.digit_value = byte - 87; }
-    state upper(&mut self) { transition byte >= 65 && byte <= 70 { true -> upper_yes() _ -> done() } }
-    state upper_yes(&mut self) { self.digit_value = byte - 55; }
+    state decimal(&mut self, byte: u32 in Trapping) { self.digit_value = byte - 48; }
+    state lower(&mut self, byte: u32 in Trapping) { transition byte >= 97 && byte <= 102 { true -> lower_yes(byte) _ -> upper(byte) } }
+    state lower_yes(&mut self, byte: u32 in Trapping) { self.digit_value = byte - 87; }
+    state upper(&mut self, byte: u32 in Trapping) { transition byte >= 65 && byte <= 70 { true -> upper_yes(byte) _ -> done() } }
+    state upper_yes(&mut self, byte: u32 in Trapping) { self.digit_value = byte - 55; }
     state done(&mut self) {}
 }
 
@@ -844,27 +844,27 @@ machine Lexer::lex_cooked_string(&mut self) {
 machine Lexer::digit_in_base(&mut self, byte: u32 in Trapping, base: NumericBase) {
     self.predicate_result = false;
     transition base {
-        NumericBase::Binary -> binary()
-        NumericBase::Octal -> octal()
-        NumericBase::Decimal -> decimal()
-        NumericBase::Hexadecimal -> hex()
+        NumericBase::Binary -> binary(byte)
+        NumericBase::Octal -> octal(byte)
+        NumericBase::Decimal -> decimal(byte)
+        NumericBase::Hexadecimal -> hex(byte)
     }
-    state binary(&mut self) { transition byte >= 48 && byte <= 49 { true -> yes() _ -> no() } }
-    state octal(&mut self) { transition byte >= 48 && byte <= 55 { true -> yes() _ -> no() } }
-    state decimal(&mut self) { transition byte >= 48 && byte <= 57 { true -> yes() _ -> no() } }
-    state hex(&mut self) {
+    state binary(&mut self, byte: u32 in Trapping) { transition byte >= 48 && byte <= 49 { true -> yes() _ -> no() } }
+    state octal(&mut self, byte: u32 in Trapping) { transition byte >= 48 && byte <= 55 { true -> yes() _ -> no() } }
+    state decimal(&mut self, byte: u32 in Trapping) { transition byte >= 48 && byte <= 57 { true -> yes() _ -> no() } }
+    state hex(&mut self, byte: u32 in Trapping) {
         transition byte >= 48 && byte <= 57 {
             true -> yes()
-            _ -> hex_alpha()
+            _ -> hex_alpha(byte)
         }
     }
-    state hex_alpha(&mut self) {
+    state hex_alpha(&mut self, byte: u32 in Trapping) {
         transition byte >= 65 && byte <= 70 {
             true -> yes()
-            _ -> hex_lower()
+            _ -> hex_lower(byte)
         }
     }
-    state hex_lower(&mut self) { transition byte >= 97 && byte <= 102 { true -> yes() _ -> no() } }
+    state hex_lower(&mut self, byte: u32 in Trapping) { transition byte >= 97 && byte <= 102 { true -> yes() _ -> no() } }
     state yes(&mut self) { self.predicate_result = true; }
     state no(&mut self) { self.predicate_result = false; }
 }
