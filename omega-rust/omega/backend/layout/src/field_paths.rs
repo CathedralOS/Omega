@@ -11,7 +11,8 @@ use checked_trees::name::Identifier;
 
 /// The byte offset of a spelled field path (`["sum"]`, `["p", "second"]`)
 /// within `fields_span`, descending contained machines and plain data
-/// records alike. `None` when any hop does not resolve.
+/// records alike. `None` when any hop does not resolve or the composed
+/// offset overflows the addressable size.
 pub fn field_path_offset(
     layouts: &LayoutPlan,
     mut fields_span: HandleSpan<FieldLayout>,
@@ -27,7 +28,7 @@ pub fn field_path_offset(
             .span(fields_span)?
             .iter()
             .find(|field| field.name == *segment)?;
-        offset += field.offset;
+        offset = offset.checked_add(field.offset)?;
         if position + 1 < segments.len() {
             // Descend the intermediate hop -- a contained sub-machine OR a
             // plain nested record (`p: PairD`). Data descent matches the
