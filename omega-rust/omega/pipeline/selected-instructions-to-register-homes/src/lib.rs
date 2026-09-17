@@ -62,6 +62,8 @@ pub use assignment::post_allocation_manifest::{
 pub use assignment::recovery::{
     stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
     stage_leaf_local_fixed_view_register_allocation,
+    stage_leaf_local_fixed_view_register_allocation_composing,
+    stage_shared_entry_fixed_view_register_allocation,
 };
 pub use assignment::runtime_spill::RuntimeSpillAllocationError;
 pub use assignment::transformed::{

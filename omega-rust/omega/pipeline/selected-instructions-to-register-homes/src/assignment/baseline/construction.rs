@@ -79,8 +79,44 @@ pub(super) fn construct_with_assignment(
     })
 }
 
+/// Assignment probe over the post-copy reanalysis. Computing the assignment
+/// without consuming the reanalysis lets the recovery route answer residual
+/// `NoCompatibleHome` pressure with runtime spill instead of post-copy homes.
+pub(super) fn assign_optimized_register_homes_after_fixed_view_copies(
+    reanalysis: &StagedOptimizedSelectedReanalysis,
+) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
+    let environment = reanalysis
+        .transformation_stage()
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    assign_register_homes(
+        reanalysis.legality(),
+        reanalysis.ranges(),
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &environment.allocation_constraint_keys(),
+    )
+}
+
 pub(super) fn construct_optimized_register_homes_after_fixed_view_copies(
     reanalysis: StagedOptimizedSelectedReanalysis,
+) -> Result<
+    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    OptimizedPostCopyRegisterHomeCustodyError,
+> {
+    let homes = assign_optimized_register_homes_after_fixed_view_copies(&reanalysis)
+        .map_err(OptimizedPostCopyRegisterHomeCustodyError::Assignment)?;
+    construct_optimized_register_homes_after_fixed_view_copies_with_assignment(reanalysis, homes)
+}
+
+pub(super) fn construct_optimized_register_homes_after_fixed_view_copies_with_assignment(
+    reanalysis: StagedOptimizedSelectedReanalysis,
+    homes: crate::ValidatedRegisterHomes,
 ) -> Result<
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
     OptimizedPostCopyRegisterHomeCustodyError,
@@ -99,16 +135,6 @@ pub(super) fn construct_optimized_register_homes_after_fixed_view_copies(
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    let homes = assign_register_homes(
-        reanalysis.legality(),
-        reanalysis.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    )
-    .map_err(OptimizedPostCopyRegisterHomeCustodyError::Assignment)?;
     let replayed = validate_register_homes(
         reanalysis.legality(),
         reanalysis.ranges(),

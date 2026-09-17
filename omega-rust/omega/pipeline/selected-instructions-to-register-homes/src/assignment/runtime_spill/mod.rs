@@ -6,4 +6,4 @@ pub(crate) mod replay;
 
 pub(crate) use model::RuntimeSpillAllocation;
 pub use model::RuntimeSpillAllocationError;
-pub(crate) use recovery::{assign_source, recover};
+pub(crate) use recovery::{assign_source, recover, recover_after_fixed_view_copies};

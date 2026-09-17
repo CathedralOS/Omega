@@ -90,6 +90,10 @@ impl AllocationSource for RetainedAllocation {
         // a detached identity or a result from another allocation. Fresh source
         // inputs still take the full replay path in every TryFrom below. Rejoin
         // all current facts so even test-only current-program substitution rejects.
+        let prefix_policy = match &self.replay {
+            ReplayInputs::RuntimeSpill(source) => source.fixed_view_copy_policy(),
+            _ => None,
+        };
         let current = match &self.replay {
             ReplayInputs::RuntimeSpill(source) => source.project_replayed_allocation()?,
             ReplayInputs::Baseline(source) => source.project_allocation(),
@@ -98,7 +102,7 @@ impl AllocationSource for RetainedAllocation {
             ReplayInputs::SelectedLowering(source) => source.project_allocation(),
             ReplayInputs::Rematerialization(source) => source.project_allocation(),
         };
-        validate_recovery_selection(&current)?;
+        validate_recovery_selection(&current, prefix_policy)?;
         self.current.validate_against(&current)?;
         Ok(self.current())
     }
@@ -109,7 +113,7 @@ impl TryFrom<StagedOptimizedRegisterHomes> for RetainedAllocation {
 
     fn try_from(source: StagedOptimizedRegisterHomes) -> Result<Self, Self::Error> {
         let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed)?;
+        validate_recovery_selection(&replayed, None)?;
         let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
             current,
@@ -125,7 +129,7 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterFixedViewCopies> for RetainedAlloc
         source: StagedOptimizedRegisterHomesAfterFixedViewCopies,
     ) -> Result<Self, Self::Error> {
         let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed)?;
+        validate_recovery_selection(&replayed, None)?;
         let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
             current,
@@ -141,7 +145,7 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterLiteralFolds> for RetainedAllocati
         source: StagedOptimizedRegisterHomesAfterLiteralFolds,
     ) -> Result<Self, Self::Error> {
         let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed)?;
+        validate_recovery_selection(&replayed, None)?;
         let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
             current,
@@ -157,7 +161,7 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterSelectedLowering> for RetainedAllo
         source: StagedOptimizedRegisterHomesAfterSelectedLowering,
     ) -> Result<Self, Self::Error> {
         let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed)?;
+        validate_recovery_selection(&replayed, None)?;
         let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
             current,
@@ -173,7 +177,7 @@ impl TryFrom<StagedOptimizedActiveResidentRematerialization> for RetainedAllocat
         source: StagedOptimizedActiveResidentRematerialization,
     ) -> Result<Self, Self::Error> {
         let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed)?;
+        validate_recovery_selection(&replayed, None)?;
         let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
             current,
@@ -187,6 +191,7 @@ impl TryFrom<StagedOptimizedActiveResidentRematerialization> for RetainedAllocat
 // with the retained build policy; copying policy into a manifest is not proof.
 fn validate_recovery_selection(
     current: &AllocationOutput<'_>,
+    runtime_spill_prefix_policy: Option<crate::FixedViewCopyPolicy>,
 ) -> Result<(), AllocationReplayError> {
     use super::AllocationEvidence;
     use optimization_core::{Optimization, OptimizationExecutionPhase};
@@ -201,11 +206,20 @@ fn validate_recovery_selection(
                 crate::FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => &[],
             }
         }
+        AllocationEvidence::RuntimeSpill(_) => match runtime_spill_prefix_policy {
+            // A fixed-view sequence that still faced pressure hands custody to
+            // runtime spill; the recorded copy policy comes from the validated
+            // reanalysis custody, so a shared-entry prefix binds the declared
+            // selection while the leaf-local default path binds none.
+            Some(crate::FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1) => {
+                &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
+            }
+            _ => &[],
+        },
         AllocationEvidence::ActiveResidentRematerialization(_) => {
             &[Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
         }
         AllocationEvidence::RegisterHomes(_)
-        | AllocationEvidence::RuntimeSpill(_)
         | AllocationEvidence::LiteralFolds(_)
         | AllocationEvidence::SelectedLowering(_) => &[],
     };
@@ -227,7 +241,7 @@ impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for Retai
         source: crate::assignment::runtime_spill::RuntimeSpillAllocation,
     ) -> Result<Self, Self::Error> {
         let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed)?;
+        validate_recovery_selection(&replayed, source.fixed_view_copy_policy())?;
         let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
             current,

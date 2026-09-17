@@ -6,18 +6,30 @@ fn every_retained_constructor_fully_replays_fresh_source_before_capture() {
     let source = include_str!("../retained.rs");
     let constructors = source.split("impl TryFrom<").skip(1).collect::<Vec<_>>();
     assert_eq!(constructors.len(), 6);
-    for constructor in constructors {
+    for constructor in &constructors {
         let replay = constructor
             .find("let replayed = source.replay_allocation()?;")
             .unwrap();
         let policy = constructor
-            .find("validate_recovery_selection(&replayed)?;")
+            .find("validate_recovery_selection(&replayed")
             .unwrap();
         let capture = constructor
             .find("CurrentAllocation::from_replayed(&replayed)")
             .unwrap();
         assert!(replay < policy && policy < capture);
     }
+    // Only the runtime-spill constructor may bind a fixed-view prefix policy;
+    // every other recovery family has no prefix to report.
+    assert_eq!(
+        source
+            .matches("validate_recovery_selection(&replayed, None)?;")
+            .count(),
+        5
+    );
+    assert!(
+        source
+            .contains("validate_recovery_selection(&replayed, source.fixed_view_copy_policy())?;")
+    );
 }
 
 #[test]
@@ -38,7 +50,8 @@ fn immutable_retained_reads_rejoin_all_facts_without_reexecuting_source_replay()
         1
     );
     assert!(!retained.contains("source.replay_allocation()"));
-    assert!(retained.contains("validate_recovery_selection(&current)?;"));
+    assert!(retained.contains("validate_recovery_selection(&current, prefix_policy)?;"));
+    assert!(retained.contains("source.fixed_view_copy_policy()"));
     assert!(retained.contains("self.current.validate_against(&current)?;"));
 
     let runtime = include_str!("../runtime_spill.rs");

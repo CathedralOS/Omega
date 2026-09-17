@@ -18,11 +18,6 @@ impl RuntimeSpillAllocation {
     pub(super) fn project_replayed_allocation(
         &self,
     ) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        let selected = self
-            .source
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage();
         let rewrite = &self
             .steps
             .last()
@@ -39,10 +34,10 @@ impl RuntimeSpillAllocation {
             legality: &self.facts.legality,
             homes: &self.homes,
             manifest: &self.manifest,
-            environment: selected.register_environment(),
-            target_input: selected.optimized_target_owner(),
-            selections: selected.optimized_target().optimized().selections(),
-            budget: selected.optimized_target().optimized().budget_per_pass(),
+            environment: self.source.register_environment(),
+            target_input: self.source.optimized_target_owner(),
+            selections: self.source.optimized_target().optimized().selections(),
+            budget: self.source.optimized_target().optimized().budget_per_pass(),
             evidence: AllocationEvidence::RuntimeSpill(self.manifest.record().identity),
         })
     }

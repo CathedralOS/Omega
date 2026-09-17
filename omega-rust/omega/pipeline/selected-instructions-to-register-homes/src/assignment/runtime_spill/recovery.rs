@@ -2,33 +2,32 @@
 //! Allocation chooses the values; the selected rewrite owner validates semantics.
 
 use super::model::{
-    RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts, RuntimeSpillStep,
-    RuntimeSpillStepRewrite,
+    RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts, RuntimeSpillSource,
+    RuntimeSpillStep, RuntimeSpillStepRewrite,
 };
 use super::replay;
-use crate::{SelectedProgramRef, StagedOptimizedAllocationLegality, ValidatedSelectedAnalysis};
-use selected_instructions::{VirtualRegisterId, VirtualRegisterOrigin};
+use crate::{StagedOptimizedAllocationLegality, ValidatedSelectedAnalysis};
+use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin};
 
 pub(crate) fn assign_source(
     source: &StagedOptimizedAllocationLegality,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
     assign(
-        source,
+        source
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .register_environment(),
         source.live_range_stage().ranges(),
         source.legality(),
     )
 }
 
 pub(super) fn assign(
-    source: &StagedOptimizedAllocationLegality,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     ranges: &crate::ValidatedLiveRanges,
     legality: &crate::ValidatedAllocationLegality,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
-    let environment = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
     crate::assign_register_homes(
         legality,
         ranges,
@@ -41,17 +40,13 @@ pub(super) fn assign(
 }
 
 pub(super) fn analyze(
-    source: &StagedOptimizedAllocationLegality,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    availability: &crate::ValidatedAllocatorAvailability,
     previous: &impl ValidatedSelectedAnalysis,
     previous_liveness: &crate::ValidatedLiveness,
     previous_ranges: &crate::ValidatedLiveRanges,
     selected: &impl ValidatedSelectedAnalysis,
 ) -> Result<RuntimeSpillFacts, RuntimeSpillAllocationError> {
-    let environment = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
     let liveness = crate::analyze_liveness_reusing(previous, previous_liveness, selected)
         .map_err(RuntimeSpillAllocationError::Liveness)?;
     let ranges = crate::analyze_live_ranges_reusing(
@@ -64,7 +59,7 @@ pub(super) fn analyze(
     .map_err(RuntimeSpillAllocationError::Ranges)?;
     let legality = crate::analyze_allocation_legality(
         &ranges,
-        source.allocator_availability(),
+        availability,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -84,16 +79,8 @@ pub(super) fn analyze(
 // incoming path, and an entry parameter only while the entry boundary itself
 // stores it; presence here grants neither that storage nor a home.
 // Reloads from either recovery form never become new candidates.
-pub(super) fn candidates(
-    source: &StagedOptimizedAllocationLegality,
-) -> Vec<(usize, VirtualRegisterId)> {
-    source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .selected()
-        .plan()
-        .functions
+pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualRegisterId)> {
+    plan.functions
         .iter()
         .enumerate()
         .flat_map(|(function, body)| {
@@ -112,12 +99,16 @@ pub(super) fn candidates(
         .collect()
 }
 
+/// Every recorded transformation this recovery produced, appended after the
+/// source's own prefix: a fixed-view entry keeps its copy transformation first.
 pub(super) fn transformations(
+    prefix: &[crate::PostAllocationSelectedTransformation],
     steps: &[RuntimeSpillStep],
 ) -> Vec<crate::PostAllocationSelectedTransformation> {
-    steps
+    prefix
         .iter()
-        .map(|step| match &step.rewrite {
+        .cloned()
+        .chain(steps.iter().map(|step| match &step.rewrite {
             RuntimeSpillStepRewrite::Spill(rewrite) => {
                 crate::PostAllocationSelectedTransformation::RuntimeSpill(
                     rewrite.receipt().transformed_selected(),
@@ -128,7 +119,7 @@ pub(super) fn transformations(
                     rewrite.receipt().transformed_selected(),
                 )
             }
-        })
+        }))
         .collect()
 }
 
@@ -250,39 +241,40 @@ fn candidate_position(
 pub(crate) fn recover(
     source: StagedOptimizedAllocationLegality,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    let upstream = crate::validate_optimized_allocation_legality_custody(
-        source.live_range_stage(),
-        source.allocator_availability(),
-        source.legality(),
-    )
-    .map_err(RuntimeSpillAllocationError::Upstream)?;
-    let mut failure = match assign_source(&source) {
+    recover_over(RuntimeSpillSource::Legality(source))
+}
+
+/// A fixed-view sequence that exhausted its own assignment hands custody here:
+/// the copy transformation's complete reanalysis becomes the recovery source,
+/// and the produced manifest keeps the copy step ahead of every spill step.
+pub(crate) fn recover_after_fixed_view_copies(
+    reanalysis: crate::StagedOptimizedSelectedReanalysis,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    recover_over(RuntimeSpillSource::FixedViewCopies(reanalysis))
+}
+
+fn recover_over(
+    source: RuntimeSpillSource,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    let (upstream_manifest, prefix) = source.upstream_manifest()?;
+    let environment = source.register_environment();
+    let mut failure = match assign(environment, source.ranges(), source.legality()) {
         Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
         Ok(_) => return Err(RuntimeSpillAllocationError::RecoveryNotRequired),
     };
-    let selected_stage = source.live_range_stage().liveness_stage().selected_stage();
-    let environment = selected_stage.register_environment();
-    let budget = selected_stage
-        .optimized_target()
-        .optimized()
-        .budget_per_pass();
+    let budget = source.optimized_target().optimized().budget_per_pass();
     let mut steps: Vec<RuntimeSpillStep> = Vec::new();
-    let mut roster = candidates(&source);
-    let mut current_ranges = source.live_range_stage().ranges().clone();
-    let mut current_liveness = source
-        .live_range_stage()
-        .liveness_stage()
-        .liveness()
-        .clone();
+    let mut roster = candidates(source.base().plan());
+    let mut current_ranges = source.ranges().clone();
+    let mut current_liveness = source.liveness().clone();
     while let Some(position) = candidate_position(&failure, &roster, |(function, register)| {
         overlaps_pressure(&failure, &current_ranges, *function, *register)
     }) {
         let (function, register) = roster.remove(position);
-        let selected = steps.last().map_or_else(
-            || SelectedProgramRef::new(selected_stage.selected()),
-            |step| step.rewrite.selected(),
-        );
+        let selected = steps
+            .last()
+            .map_or_else(|| source.base(), |step| step.rewrite.selected());
         // The cost decision: regenerating one pure immediate materialization
         // per use is strictly cheaper than private storage plus reload pairs,
         // so rematerialization is attempted first. Its admission failure does
@@ -308,13 +300,14 @@ pub(crate) fn recover(
             },
         };
         let facts = analyze(
-            &source,
+            environment,
+            source.allocator_availability(),
             &selected,
             &current_liveness,
             &current_ranges,
             &rewrite.selected(),
         )?;
-        let homes = assign(&source, &facts.ranges, &facts.legality);
+        let homes = assign(environment, &facts.ranges, &facts.legality);
         steps.push(RuntimeSpillStep {
             function,
             register,
@@ -323,8 +316,8 @@ pub(crate) fn recover(
         match homes {
             Ok(homes) => {
                 let manifest = crate::project_post_allocation_optimization_manifest(
-                    upstream.manifest(),
-                    &transformations(&steps),
+                    upstream_manifest,
+                    &transformations(&prefix, &steps),
                     &facts.ranges,
                     &facts.legality,
                     &homes,
