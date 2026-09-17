@@ -259,6 +259,7 @@ impl ImmutableSourceParseCheckpoint {
             self.application.clone(),
             source_scoped_top_level_bindings,
             generated_source_custody,
+            &import_scopes,
         )?;
         Ok((source_file_count, syntax))
     }

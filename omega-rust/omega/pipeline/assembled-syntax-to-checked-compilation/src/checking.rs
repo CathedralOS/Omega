@@ -23,6 +23,11 @@ pub struct CheckedCompileRequest<'a> {
     pub root_path: std::path::PathBuf,
     /// Explicit target selection; `None` preserves targetless semantic checking.
     pub target_name: Option<String>,
+    /// The admitted build execution profile: the profile build-scope sources
+    /// (the build entry and its root-local helpers) are checked for, distinct
+    /// from the product target. `None` admits the compiler host, which is
+    /// where this request's build machines execute.
+    pub build_execution_profile: Option<target::TargetProfile>,
     /// Complete reconciled package graph; dependency declarations are not acquired.
     pub package_inputs: Option<PackageCompilationInputs>,
     /// Writable build staging root, separate from immutable package snapshots.
@@ -55,6 +60,7 @@ impl<'a> CheckedCompileRequest<'a> {
         Self {
             root_path: root_path.to_owned(),
             target_name: target_name.map(str::to_owned),
+            build_execution_profile: None,
             package_inputs: None,
             build_dir: None,
             filesystem_sponsor: None,
@@ -78,6 +84,7 @@ impl<'a> CheckedCompileRequest<'a> {
         (
             CheckedCompileRequest {
                 root_path: self.root_path,
+                build_execution_profile: self.build_execution_profile,
                 target_name: self.target_name,
                 package_inputs: self.package_inputs,
                 build_dir: self.build_dir,
@@ -111,6 +118,7 @@ pub struct PreparedCheckedSource {
 
 struct CheckedChildExecution<'a> {
     selected_target_profile: Option<target::TargetProfile>,
+    build_execution_profile: target::TargetProfile,
     package_inputs: Option<&'a PackageCompilationInputs>,
     build_dir: Option<&'a Path>,
     filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
@@ -125,6 +133,7 @@ impl CheckedChildExecution<'_> {
     fn exact_target(selected_target_profile: target::TargetProfile) -> Self {
         Self {
             selected_target_profile: Some(selected_target_profile),
+            build_execution_profile: target::TargetProfile::host(),
             package_inputs: None,
             build_dir: None,
             filesystem_sponsor: None,
@@ -163,6 +172,9 @@ impl PreparedCheckedSource {
             .map_err(|diagnostic| vec![diagnostic])?;
         self.compile_child_with_replay(CheckedChildExecution {
             selected_target_profile,
+            build_execution_profile: request
+                .build_execution_profile
+                .unwrap_or_else(target::TargetProfile::host),
             package_inputs: request.package_inputs.as_ref(),
             build_dir: request.build_dir.as_deref(),
             filesystem_sponsor: request.filesystem_sponsor,
@@ -237,6 +249,7 @@ impl PreparedCheckedSource {
             .map(|_| build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
         self.compile_child_with_replay(CheckedChildExecution {
             selected_target_profile,
+            build_execution_profile: target::TargetProfile::host(),
             package_inputs,
             build_dir: Some(&build_dir),
             filesystem_sponsor: None,
@@ -344,3 +357,5 @@ fn compile_assembled_checked_child(
 
 #[cfg(test)]
 mod continuation_tests;
+#[cfg(test)]
+mod execution_profile_tests;

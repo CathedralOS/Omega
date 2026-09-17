@@ -45,6 +45,7 @@ pub(super) fn evaluate_build_and_continue(
 ) -> Result<(BuiltCheckedProgram, BuildSourceCustody), Vec<Diagnostic>> {
     let CheckedChildExecution {
         selected_target_profile,
+        build_execution_profile,
         package_inputs,
         build_dir,
         filesystem_sponsor,
@@ -56,10 +57,17 @@ pub(super) fn evaluate_build_and_continue(
     // CLI aliases end at request admission. Every source, build, provider, and
     // artifact consumer below observes only the catalog's canonical spelling.
     let target_name = selected_target_profile.map(target::TargetProfile::target_name);
+    let execution_profile_name = build_execution_profile.target_name();
     let mut generated_source_custody = syntax.generated_source_custody.clone();
     let base_sources = syntax.sources.clone();
     let application = syntax.application.clone();
-    let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, timings)?;
+    let mut frontend = lower_checked_frontend(
+        syntax,
+        target_name,
+        execution_profile_name,
+        package_inputs,
+        timings,
+    )?;
     let package_authority_verdict = if let Some(package_inputs) = package_inputs {
         Some(crate::package::declaration_admission::validate_authored_declaration_selections_before_build(
             frontend.typed(),
@@ -282,6 +290,7 @@ impl AdmittedBuildCheckpoint {
 fn lower_checked_frontend(
     mut syntax: source_files_to_assembled_syntax::AssembledSyntax,
     target_name: Option<&str>,
+    execution_profile_name: &str,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<CheckedFrontend, Vec<Diagnostic>> {
@@ -301,10 +310,15 @@ fn lower_checked_frontend(
     )?;
     let (syntax_trees, pre_check) = evaluated.into_syntax_and_pre_check();
     syntax.syntax_trees = syntax_trees;
+    // Build-scope sources select their target-scoped declarations against
+    // the admitted execution profile; product sources against the target.
+    let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
     let selected_target_machine_declarations =
-        build_evaluation::target_machines::filter_target_machines(
+        build_evaluation::target_machines::filter_target_machines_by_scope(
             &mut syntax.syntax_trees,
             target_name,
+            Some(execution_profile_name),
+            &build_scope_sources,
         )?;
     let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;

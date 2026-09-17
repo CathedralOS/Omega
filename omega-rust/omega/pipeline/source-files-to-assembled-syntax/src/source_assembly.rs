@@ -31,6 +31,11 @@ pub struct AssembledSyntax {
     pub application: Option<build_declarations::ApplicationDeclaration>,
     pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+    /// Root-owned sources claimed by the build scope: the selected build entry
+    /// and the root-local helpers it transitively imports. Their
+    /// target-scoped declarations select against the admitted build execution
+    /// profile, never the product target; every other source is product scope.
+    pub build_scope_sources: HashSet<source::SourceId>,
 }
 
 /// Exact parsed extension produced by one admitted build activation.
@@ -928,7 +933,21 @@ fn assemble_syntax(
     application: Option<build_declarations::ApplicationDeclaration>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+    import_scopes: &BTreeMap<PathBuf, DependencyPurpose>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+    let build_scope_sources = sources
+        .files
+        .iter()
+        .filter_map(|(_, file)| {
+            let purpose = import_scopes.get(&file.path).copied().or_else(|| {
+                file.path
+                    .canonicalize()
+                    .ok()
+                    .and_then(|canonical| import_scopes.get(&canonical).copied())
+            });
+            (purpose == Some(DependencyPurpose::Build)).then_some(file.source_id)
+        })
+        .collect();
     Ok(AssembledSyntax {
         syntax_trees: sources.syntax_trees,
         sources: Arc::new(sources.sources),
@@ -936,6 +955,7 @@ fn assemble_syntax(
         application,
         source_scoped_top_level_bindings,
         generated_source_custody,
+        build_scope_sources,
     })
 }
 

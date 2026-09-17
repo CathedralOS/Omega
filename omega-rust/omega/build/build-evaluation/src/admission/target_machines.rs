@@ -20,9 +20,15 @@
 //! An unknown target name on a machine is silently never-selected, matching
 //! the target-scoped declaration semantic (a hypothetical target is inert
 //! everywhere, which is also what makes fail-canaries host-portable).
+//!
+//! Selection is per dependency scope: product-scope sources select against
+//! the product target, and build-scope sources (the build entry and the
+//! root-local helpers it imports) select against the admitted build execution
+//! profile, so a build helper never carries the product target's row onto the
+//! host that executes it.
 
 use diagnostics::Diagnostic;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use target::NativeTarget;
@@ -39,7 +45,38 @@ use typed_trees::TypedTrees;
 pub struct SelectedTargetMachineDeclarations {
     provider_default_machine_names: Vec<String>,
     selected_machine_origins: Vec<(String, String)>,
-    all_machine_origins: Vec<(String, String)>,
+    all_machine_origins: Vec<TargetMachineOrigin>,
+}
+
+/// One target-scoped declaration: its full name, authored target, and whether
+/// that target is the selected one for the declaration's dependency scope.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct TargetMachineOrigin {
+    full_name: String,
+    target: String,
+    selected: bool,
+}
+
+/// The selected target per dependency scope.
+struct ScopeTargets<'a> {
+    product: NativeTarget,
+    execution: NativeTarget,
+    build_scope_sources: &'a HashSet<source::SourceId>,
+}
+
+impl ScopeTargets<'_> {
+    fn selects(&self, machine: &syntax_trees::item::Machine, target: &str) -> bool {
+        let scope_target = if self
+            .build_scope_sources
+            .contains(&machine.name.source_span().source_id)
+        {
+            self.execution
+        } else {
+            self.product
+        };
+        NativeTarget::from_omega_target_name(Some(target))
+            .is_ok_and(|resolved| resolved == scope_target)
+    }
 }
 
 pub struct SettledTargetMachineDeclarations {
@@ -51,7 +88,7 @@ impl SelectedTargetMachineDeclarations {
     fn new(
         mut provider_default_machine_names: Vec<String>,
         mut selected_machine_origins: Vec<(String, String)>,
-        mut all_machine_origins: Vec<(String, String)>,
+        mut all_machine_origins: Vec<TargetMachineOrigin>,
     ) -> Self {
         provider_default_machine_names.sort();
         selected_machine_origins.sort();
@@ -72,14 +109,22 @@ impl SelectedTargetMachineDeclarations {
         syntax: &mut SyntaxTrees,
         target_name: Option<&str>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        // Generated source is product source: it selects against the
+        // product target only.
         let selected = NativeTarget::from_omega_target_name(target_name)
             .map_err(|diagnostic| vec![diagnostic])?;
-        let extension_origins = target_machine_origins(syntax);
+        let no_build_scope = HashSet::new();
+        let scopes = ScopeTargets {
+            product: selected,
+            execution: selected,
+            build_scope_sources: &no_build_scope,
+        };
+        let extension_origins = target_machine_origins(syntax, &scopes);
         let mut complete_origins = self.all_machine_origins.clone();
         complete_origins.extend(extension_origins.iter().cloned());
-        validate_target_machine_origins(&complete_origins, selected)?;
+        validate_target_machine_origins(&complete_origins)?;
 
-        let extension = select_target_machines(syntax, selected, extension_origins);
+        let extension = select_target_machines(syntax, &scopes, extension_origins);
         self.provider_default_machine_names
             .extend(extension.provider_default_machine_names);
         self.selected_machine_origins
@@ -146,18 +191,43 @@ impl SelectedTargetMachineDeclarations {
     }
 }
 
+/// Select every target-scoped declaration against one target: the product
+/// route with no build-scope sources.
 pub fn filter_target_machines(
     syntax: &mut SyntaxTrees,
     target_name: Option<&str>,
 ) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
-    let selected =
-        NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
-    let origins = target_machine_origins(syntax);
-    validate_target_machine_origins(&origins, selected)?;
-    Ok(select_target_machines(syntax, selected, origins))
+    filter_target_machines_by_scope(syntax, target_name, target_name, &HashSet::new())
 }
 
-fn target_machine_origins(syntax: &SyntaxTrees) -> Vec<(String, String)> {
+/// Select target-scoped declarations per dependency scope: sources in
+/// `build_scope_sources` select against `execution_profile_name` (the
+/// admitted build execution profile), every other source against
+/// `product_target_name`. `None` for either names the compiler host.
+pub fn filter_target_machines_by_scope(
+    syntax: &mut SyntaxTrees,
+    product_target_name: Option<&str>,
+    execution_profile_name: Option<&str>,
+    build_scope_sources: &HashSet<source::SourceId>,
+) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
+    let product = NativeTarget::from_omega_target_name(product_target_name)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let execution = NativeTarget::from_omega_target_name(execution_profile_name)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let scopes = ScopeTargets {
+        product,
+        execution,
+        build_scope_sources,
+    };
+    let origins = target_machine_origins(syntax, &scopes);
+    validate_target_machine_origins(&origins)?;
+    Ok(select_target_machines(syntax, &scopes, origins))
+}
+
+fn target_machine_origins(
+    syntax: &SyntaxTrees,
+    scopes: &ScopeTargets<'_>,
+) -> Vec<TargetMachineOrigin> {
     let mut origins = Vec::new();
     for handle in syntax.root_item_handles().to_vec() {
         let Item::Machine(machine) = syntax.root_item(handle) else {
@@ -172,26 +242,25 @@ fn target_machine_origins(syntax: &SyntaxTrees) -> Vec<(String, String)> {
         // `Owner::Owner::provider_defaults`, which still groups target rows but
         // cannot be resolved against the later typed machine.
         let full_name = machine.name.as_str().to_owned();
-        origins.push((full_name, target.as_str().to_owned()));
+        origins.push(TargetMachineOrigin {
+            selected: scopes.selects(machine, target.as_str()),
+            full_name,
+            target: target.as_str().to_owned(),
+        });
     }
     origins
 }
 
-fn validate_target_machine_origins(
-    origins: &[(String, String)],
-    selected: NativeTarget,
-) -> Result<(), Vec<Diagnostic>> {
+fn validate_target_machine_origins(origins: &[TargetMachineOrigin]) -> Result<(), Vec<Diagnostic>> {
     // full machine name -> (selected count, non-selected target names).
     // BTreeMap keeps diagnostics deterministic across runs and generated units.
     let mut rows: BTreeMap<&str, (usize, Vec<&str>)> = BTreeMap::new();
-    for (full_name, target) in origins {
-        let row_selected = NativeTarget::from_omega_target_name(Some(target.as_str()))
-            .is_ok_and(|resolved| resolved == selected);
-        let entry = rows.entry(full_name.as_str()).or_default();
-        if row_selected {
+    for origin in origins {
+        let entry = rows.entry(origin.full_name.as_str()).or_default();
+        if origin.selected {
             entry.0 += 1;
         } else {
-            entry.1.push(target.as_str());
+            entry.1.push(origin.target.as_str());
         }
     }
     for (full_name, (selected_count, other_targets)) in rows {
@@ -227,8 +296,8 @@ fn validate_target_machine_origins(
 
 fn select_target_machines(
     syntax: &mut SyntaxTrees,
-    selected: NativeTarget,
-    all_machine_origins: Vec<(String, String)>,
+    scopes: &ScopeTargets<'_>,
+    all_machine_origins: Vec<TargetMachineOrigin>,
 ) -> SelectedTargetMachineDeclarations {
     // PRV4c: a target package may contribute ordinary provider defaults with
     // a target-scoped, package-owned `Owner::provider_defaults` machine. Keep
@@ -243,9 +312,7 @@ fn select_target_machines(
         let Some(target) = machine.target.as_ref() else {
             continue;
         };
-        if !NativeTarget::from_omega_target_name(Some(target.as_str()))
-            .is_ok_and(|resolved| resolved == selected)
-        {
+        if !scopes.selects(machine, target.as_str()) {
             continue;
         }
         let full_name = machine.name.as_str().to_owned();
@@ -270,7 +337,10 @@ fn select_target_machines(
 
 #[cfg(test)]
 mod tests {
-    use super::{SelectedTargetMachineDeclarations, filter_target_machines};
+    use super::{
+        SelectedTargetMachineDeclarations, filter_target_machines, filter_target_machines_by_scope,
+    };
+    use std::collections::HashSet;
 
     fn syntax(source_id: usize, source: &str) -> syntax_trees::SyntaxTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)
@@ -278,6 +348,58 @@ mod tests {
             .expect("tokenize target-machine fixture");
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(source_id), &tokens)
             .expect("parse target-machine fixture")
+    }
+
+    #[test]
+    fn build_scope_sources_select_against_the_execution_profile_not_the_product_target() {
+        const HELPER: &str =
+            "macos_arm64 machine Tool::probe() {}\nwindows_x86_64 machine Tool::probe() {}\n";
+        let build_scope = HashSet::from([source::SourceId(7)]);
+
+        // A macOS-hosted build of a Linux product: the helper's macOS row is
+        // selected because the helper is build scope.
+        let mut helper = syntax(7, HELPER);
+        let retained = filter_target_machines_by_scope(
+            &mut helper,
+            Some("linux_x86_64"),
+            Some("macos_arm64"),
+            &build_scope,
+        )
+        .expect("build-scope helper selects against the execution profile");
+        assert_eq!(
+            retained.selected_machine_origins,
+            vec![("Tool::probe".into(), "macos_arm64".into())]
+        );
+        let selected_markers = helper
+            .root_items()
+            .filter_map(|item| match item {
+                syntax_trees::item::Item::Machine(machine) => Some(
+                    machine
+                        .target
+                        .as_ref()
+                        .map(|target| target.as_str().to_owned()),
+                ),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(selected_markers, vec![None, Some("windows_x86_64".into())]);
+
+        // The same declarations as product scope keep the product rule: a
+        // contract name implemented only by foreign targets is the loud edge.
+        let mut product = syntax(7, HELPER);
+        let diagnostics = filter_target_machines_by_scope(
+            &mut product,
+            Some("linux_x86_64"),
+            Some("macos_arm64"),
+            &HashSet::new(),
+        )
+        .expect_err("product-scope declarations still select against the product target");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("machine `Tool::probe` has no implementation for the selected target"),
+            "{diagnostics:?}"
+        );
     }
 
     #[test]
