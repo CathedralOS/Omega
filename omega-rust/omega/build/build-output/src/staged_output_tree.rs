@@ -455,3 +455,6 @@ fn hash_field(digest: &mut Sha256, bytes: &[u8]) {
 pub(crate) fn diagnostics(message: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(message)]
 }
+
+#[cfg(test)]
+mod tests;
