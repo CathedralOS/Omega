@@ -542,19 +542,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   signature 3, provider attachment requirements 2. Outside plan construction:
   79 hosted receiver bridge (owner question 1), 66 exact-arithmetic
   obligations, 55 borrowed-storage transfers, 37 select no exact program
-  entry, 24 fail common physical staging at instruction selection (new since
-  4dcb7723da), 22 `MacosPhysicalEntry::enter` schema, 20 default-domain field
+  entry, 24 fail selected legalization at physical staging (wrapping
+  shifts/subtracts and `SourceCustodyMismatch`, the **WRITE-ONLY-BORROW**
+  bucket), 22 `MacosPhysicalEntry::enter` schema, 20 default-domain field
   requirements, 16 attached Unit closures missing a transitive plan without an
   omission row, 13 non-array `[]` selections, 11 `block` envelope
   acknowledgements (8508aec01e), 11 `OperationProofUnavailable`, 10 service
   reach, 5 scalar callees with neither target nor body; the remainder are
-  singletons in the run log.
-  The 112 pure-source stops store Wrapping/Saturating arithmetic, atomics,
-  float conversions or a call result into a scalar field without a bound pure
-  scalar expression; the 105 scalar-field-type stops store into case, record,
-  string or nested-record fields (**STATE-LOCAL-VALUE-FRONTIER** value
-  transport). The 32 write-frame stops are opaque state write frames, not
-  summary/resolver disagreement (`build_mutation_facts` stores what
+  singletons in the run log. The 112 pure-source stops store
+  Wrapping/Saturating arithmetic, atomics, float conversions or a call result
+  into a scalar field without a bound pure scalar expression; the 105 scalar-
+  field-type stops store into case, record, string or nested-record fields
+  (**STATE-LOCAL-VALUE-FRONTIER** value transport). The 32 write-frame stops
+  are opaque state write frames, not summary/resolver disagreement
+  (`build_mutation_facts` stores what
   `CallFrameResolver::inferred_state_write_frame` inferred):
   `walk_state_write_prefix_inner` fails closed on an initializer-less or
   borrow-bearing record local without stored-origin evidence and on a record
