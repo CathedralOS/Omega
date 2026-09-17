@@ -55,6 +55,14 @@ impl AdmittedNativeArtifact {
         }
     }
 
+    /// The executable-image realization input. It stays fail-closed for a
+    /// nonempty roster because an image entry has no pointer source: the
+    /// placed-entry ABI derived from the exact placement plan needs a caller
+    /// that lends the referent address, and an emitted `_start` shim has
+    /// none until a provider establishment route supplies it. Custody-aware
+    /// consumers take `into_optimization_artifact` instead; native execution
+    /// of the derived ABI with a lent host referent is exercised by the
+    /// compiler control `direct_placed_view_input_survives_codec_and_native_replay`.
     pub fn try_into_native_input(
         self,
     ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {

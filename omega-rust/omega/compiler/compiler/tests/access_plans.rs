@@ -9,6 +9,10 @@
 mod atomic_contracts_and_forged_reports;
 #[path = "fixture_rosters/access_plans.rs"]
 mod fixture_roster;
+// Reuse the host linker/executor without modifying the shared differential owner.
+#[path = "../../../../../tests/native-differential/tests/common/native_function.rs"]
+#[allow(dead_code)]
+mod native_function;
 #[path = "access_plans/placed_view_authority.rs"]
 mod placed_view_authority;
 #[path = "access_plans/source_access_policies.rs"]
