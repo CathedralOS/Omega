@@ -341,10 +341,13 @@ fn terminal_scalar_contract_consumes_normalized_checked_payloads() {
         .find(|plan| plan.machine == terminal_constant)
         .expect("terminal constant contract plan")
         .closed_scalar_values = Default::default();
+    // The runtime-requirement source reads the authored `requires` prefix of
+    // the closed plan before the scalar contract lowering sees the emptied
+    // plan, so the erased clauses are refused at that earlier gate.
     assert_eq!(
         lower_machine(&without_checked_contract, "terminal_constant")
             .expect_err("terminal production must fail without checked scalar contract values"),
-        LoweringError::Unsupported("empty scalar contract would erase an authored normal clause")
+        LoweringError::Unsupported("scalar contract lost authored requirements")
     );
 }
 
