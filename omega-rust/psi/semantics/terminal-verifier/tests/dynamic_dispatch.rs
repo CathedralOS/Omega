@@ -84,6 +84,7 @@ fn closed_application(owner: MachineId, realization: MachineId) -> ClosedConform
         rows: vec![ClosedConformanceRow {
             declaring_trait_identity: "package::Measure".into(),
             public_requirement_identity: "package::Measure::measure()".into(),
+            family_tuple: Vec::new(),
             requirement_identity: "package::Measure::measure".into(),
             realization_identity: "package::Carrier::measure".into(),
             realization_callable_identity: Some("package::Carrier::measure#callable".into()),
@@ -849,4 +850,124 @@ fn rejects_broken_application_row_callable_and_operation_joins() {
     broken_operation.machines[0].blocks[0].operations[0].kind =
         OperationKind::BooleanConstant { value: true };
     assert!(validate_module(&broken_operation).is_err());
+}
+
+/// The canonical tuple a `<Width: u32, Lanes: u32>` family row retains:
+/// const identities in binder declaration order, never display spellings.
+fn width_lanes_tuple() -> Vec<String> {
+    vec![
+        "named(integer-const(16))".to_owned(),
+        "named(integer-const(4))".to_owned(),
+    ]
+}
+
+/// Retarget the module's single table row to `family_tuple` and move every
+/// selection that named the old application identity onto the new one.
+fn with_family_row(mut module: TerminalModule, family_tuple: Vec<String>) -> TerminalModule {
+    let previous = module.closed_conformance_applications[0].report_fingerprint;
+    let application = &mut module.closed_conformance_applications[0];
+    application.rows[0].family_tuple = family_tuple;
+    refresh_application_identity(application);
+    let (fingerprint, commitment) = (application.report_fingerprint, application.commitment);
+    for selection in &mut module.dynamic_dispatch.selections {
+        if selection.conformance_application_report_fingerprint == previous {
+            selection.conformance_application_report_fingerprint = fingerprint;
+            selection.conformance_application_commitment = commitment;
+        }
+    }
+    module
+}
+
+/// A direct dispatch rejoins the table row by tuple: equal tuples admit; a
+/// dispatch naming the nongeneric row of the same overload, a reordered
+/// tuple, or a family tuple the table does not carry rejects.
+#[test]
+fn rejoins_direct_dispatch_family_tuple_to_the_table_row() {
+    let mut module = with_family_row(dynamic_dispatch_module(), width_lanes_tuple());
+    module.dynamic_dispatch.direct_dispatches[0].family_tuple = width_lanes_tuple();
+    validate_module(&module).expect("a dispatch carrying the table row's tuple rejoins it");
+
+    // The application roster is checked before the dispatch join, and a
+    // mapped row no dispatch rejoins by tuple is an unconsumed application;
+    // the direct-dispatch join repeats the same tuple comparison behind it.
+    let invalid = |module: &TerminalModule| {
+        assert!(
+            matches!(
+                validation_error(module),
+                ModuleError::InvalidClosedConformanceApplication { .. }
+            ),
+            "a dispatch whose tuple differs from the table row rejoins nothing"
+        );
+    };
+    let mut nongeneric_dispatch = module.clone();
+    nongeneric_dispatch.dynamic_dispatch.direct_dispatches[0].family_tuple = Vec::new();
+    invalid(&nongeneric_dispatch);
+
+    let mut reordered_dispatch = module.clone();
+    reordered_dispatch.dynamic_dispatch.direct_dispatches[0]
+        .family_tuple
+        .reverse();
+    invalid(&reordered_dispatch);
+
+    let mut nongeneric_row = dynamic_dispatch_module();
+    nongeneric_row.dynamic_dispatch.direct_dispatches[0].family_tuple = width_lanes_tuple();
+    invalid(&nongeneric_row);
+}
+
+/// An indirect dispatch through a rebound descriptor rejoins the latest
+/// application's row by tuple under the same discipline.
+#[test]
+fn rejoins_indirect_dispatch_family_tuple_to_the_table_row() {
+    let mut module = with_family_row(rebound_dynamic_dispatch_module(), width_lanes_tuple());
+    module.dynamic_dispatch.indirect_dispatches[0].family_tuple = width_lanes_tuple();
+    validate_module(&module).expect("an indirect dispatch carrying the row's tuple rejoins it");
+
+    let mut nongeneric_dispatch = module.clone();
+    nongeneric_dispatch.dynamic_dispatch.indirect_dispatches[0].family_tuple = Vec::new();
+    assert!(matches!(
+        validation_error(&nongeneric_dispatch),
+        ModuleError::InvalidClosedConformanceApplication { .. }
+    ));
+
+    let mut nongeneric_row = rebound_dynamic_dispatch_module();
+    nongeneric_row.dynamic_dispatch.indirect_dispatches[0].family_tuple = width_lanes_tuple();
+    assert!(matches!(
+        validation_error(&nongeneric_row),
+        ModuleError::InvalidClosedConformanceApplication { .. }
+    ));
+}
+
+/// A descriptor parameter's requirement slot names the same tuple as the
+/// table row the supplied selection carries; a slot-versus-row tuple
+/// mismatch is not a fitting descriptor argument.
+#[test]
+fn rejoins_descriptor_parameter_slot_family_tuple_to_the_table_row() {
+    let mut module = with_family_row(parameter_dynamic_dispatch_module(), width_lanes_tuple());
+    module.dynamic_dispatch.parameters[0].requirements[0].family_tuple = width_lanes_tuple();
+    validate_module(&module).expect("a slot carrying the table row's tuple accepts the descriptor");
+
+    let mut nongeneric_slot = module.clone();
+    nongeneric_slot.dynamic_dispatch.parameters[0].requirements[0].family_tuple = Vec::new();
+    assert!(
+        validate_module(&nongeneric_slot).is_err(),
+        "a nongeneric slot cannot accept a family-row descriptor"
+    );
+
+    let mut nongeneric_row = parameter_dynamic_dispatch_module();
+    nongeneric_row.dynamic_dispatch.parameters[0].requirements[0].family_tuple =
+        width_lanes_tuple();
+    assert!(
+        validate_module(&nongeneric_row).is_err(),
+        "a family slot cannot accept a nongeneric-row descriptor"
+    );
+}
+
+/// A tuple entry is a canonical const identity and is never empty.
+#[test]
+fn rejects_an_empty_family_tuple_entry_on_a_table_row() {
+    let module = with_family_row(dynamic_dispatch_module(), vec![String::new()]);
+    assert!(matches!(
+        validation_error(&module),
+        ModuleError::InvalidClosedConformanceApplication { .. }
+    ));
 }

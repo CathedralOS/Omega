@@ -288,6 +288,11 @@ fn collect_closed_conformance_applications(
                                 selected_row.declaring_trait,
                                 selected_row.requirement,
                             )?,
+                        family_tuple: super::evidence_lowering::checked_requirement_family_tuple(
+                            checked,
+                            selected_row.declaring_trait,
+                            selected_row.requirement,
+                        )?,
                         requirement_identity: checked
                             .symbols
                             .display_path(selected_row.requirement, "::"),

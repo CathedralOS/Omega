@@ -3,6 +3,7 @@
 use crate::proofs::evidence_lowering::evidence_terms::lower_evidence_interface;
 use crate::proofs::evidence_lowering::{
     checked_evidence_machine_identity, checked_evidence_requirement_identity,
+    checked_requirement_family_tuple,
 };
 use crate::proofs::{
     CheckedPropositionBinderArgumentKind, CheckedTrees, EvidenceProjectionIdentity, EvidenceTermId,
@@ -250,6 +251,11 @@ fn lower_static_requirement_dispatch(
             Ok(terminal_psi::ClosedConformanceRow {
                 declaring_trait_identity: checked.symbols.display_path(row.declaring_trait, "::"),
                 public_requirement_identity: checked_evidence_requirement_identity(
+                    checked,
+                    row.declaring_trait,
+                    row.requirement,
+                )?,
+                family_tuple: checked_requirement_family_tuple(
                     checked,
                     row.declaring_trait,
                     row.requirement,

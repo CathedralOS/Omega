@@ -351,6 +351,7 @@ pub(super) fn rebound_dynamic_scalar_call_module() -> TerminalModule {
         rows: vec![ClosedConformanceRow {
             declaring_trait_identity: "test::Measure".into(),
             public_requirement_identity: "test::Measure::measure()".into(),
+            family_tuple: Vec::new(),
             requirement_identity: "test::Measure::measure".into(),
             realization_identity: "test::Item::measure".into(),
             realization_callable_identity: Some("test::Item::measure#callable".into()),
