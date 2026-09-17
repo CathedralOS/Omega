@@ -31,6 +31,8 @@ pub(super) mod returns;
 #[path = "tests.rs"]
 mod tests;
 
+/// Test convenience: the traced builder without a trace.
+#[cfg(test)]
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -39,10 +41,35 @@ pub(super) fn build(
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
+    build_traced(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        call_frames,
+        &control::LocalConstructionTrace::default(),
+    )
+}
+
+/// `build` with a trace of the phase, state, and statement where the general
+/// state-graph route stopped when it declines a body.
+pub(super) fn build_traced(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    trace: &control::LocalConstructionTrace,
+) -> Option<CheckedComposedUnitControlMachinePlan> {
+    trace.phase("state graph: shape");
+    trace.state(None);
     let states = program.machine_states(machine);
     if states.is_empty() || !machine_binders(program, machine).is_empty() {
         return None;
     }
+    trace.phase("state graph: result signature");
     let result = returns::signature(program, shapes, states[0].return_type)?;
     if matches!(&result, checked_trees::CheckedControlResultPlan::Structural(result)
         if result.multiplicity == Multiplicity::Linear)
@@ -63,6 +90,7 @@ pub(super) fn build(
     {
         return None;
     }
+    trace.phase("state graph: natural ranks");
     let natural_ranks = if machine.termination_plan.implementation_witness.is_some() {
         // Other retained witnesses belong to their existing producer until this
         // path can preserve them. Never publish an unranked replacement.
@@ -81,7 +109,9 @@ pub(super) fn build(
     let mut attachment = None;
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
-    for state in states {
+    for (state_index, state) in states.iter().enumerate() {
+        trace.phase("state graph: state signature");
+        trace.state(u32::try_from(state_index).ok());
         if returns::signature(program, shapes, state.return_type)? != result
             || !validation::structural_state_contracts_are_parameter_qualifications(program, state)
         {
@@ -149,6 +179,8 @@ pub(super) fn build(
     }
     let mut planned = Vec::new();
     for (state_index, state) in states.iter().enumerate() {
+        trace.phase("state graph: prefix initializers");
+        trace.state(u32::try_from(state_index).ok());
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
         // A body containing structural bindings is not a scalar-only prefix.
@@ -175,6 +207,7 @@ pub(super) fn build(
                         && matches!(statement, StatementNode::Expression(_)))
             })
             .unwrap_or(statements.len());
+        trace.phase("state graph: state flow");
         let flow = state_flow(facts, machine.symbol, state.symbol)?;
         let source_calls = facts.flow.control.calls.span_or_empty(flow.calls);
         if source_calls
@@ -206,6 +239,7 @@ pub(super) fn build(
         let after_calls = source_calls.partition_point(|call| call.statement_index < operation_end);
         // Computation roots retain handles into this arena. Borrow the original
         // occurrences so their exact identity survives nested-call validation.
+        trace.phase("state graph: outer calls");
         let calls = control::outer_calls_before(
             program,
             facts,
@@ -228,8 +262,9 @@ pub(super) fn build(
             &[],
             binding_count,
             call_frames,
-            &control::LocalConstructionTrace::default(),
+            trace,
         )?;
+        trace.phase("state graph: operation custody");
         let mut operations = sequence.operations;
         // Named results remain live through successor operand evaluation. The
         // selected edge owns their exact transfer/disposal partition below;
@@ -359,6 +394,7 @@ pub(super) fn build(
                 _ => return None,
             }
         }
+        trace.phase("state graph: terminator");
         let ordinal = u32::try_from(terminator_index).ok()?;
         let edge = |transition, edge_ordinal| {
             successor(
@@ -620,6 +656,8 @@ pub(super) fn build(
     }
     // Retain only this machine's direct provider-field calls. Each ordinary
     // callee owns its own attachment requirements, even through a receiver loan.
+    trace.phase("state graph: provider attachment requirements");
+    trace.state(None);
     let provider_attachment_requirements = if let Some(identity) = &attachment {
         let flows = states
             .iter()
@@ -639,6 +677,7 @@ pub(super) fn build(
     } else {
         Vec::new()
     };
+    trace.phase("state graph: finish");
     let mut plan = composed_control::finish_state_graph(
         facts,
         machine,

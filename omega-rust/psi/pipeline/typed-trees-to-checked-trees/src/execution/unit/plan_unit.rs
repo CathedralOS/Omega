@@ -466,17 +466,20 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             }
         }
     }
-    let mut composed_machines = build_checked_composed_unit_control_machines(
+    let mut composed_construction = BTreeMap::new();
+    let mut composed_machines = build_checked_composed_unit_control_machines_traced(
         program,
         facts,
         scalar_callees,
         &mut shapes,
         &boundary_machines,
         call_frames,
+        &mut composed_construction,
     );
     let mut omissions = OmissionLedger::new(
         program,
         &local_construction,
+        &composed_construction,
         &candidates,
         &composed_machines,
     );
@@ -784,6 +787,7 @@ impl OmissionLedger {
     fn new(
         program: &TypedTrees,
         local_construction: &BTreeMap<(u32, u32), CheckedUnitPlanOmissionStage>,
+        composed_construction: &BTreeMap<(u32, u32), CheckedUnitPlanOmissionStage>,
         candidates: &[CheckedUnitEffectMachinePlan],
         composed_machines: &[CheckedComposedUnitControlMachinePlan],
     ) -> Self {
@@ -802,16 +806,20 @@ impl OmissionLedger {
             .collect::<Vec<_>>();
         for machine in unplanned {
             // A multi-state body never reaches the ordinary builder's later
-            // phases; only the composed builders could have admitted it.
-            let stage = match local_construction.get(&omission_key(machine)) {
+            // phases; the general state-graph route's trace explains it.
+            let key = omission_key(machine);
+            let stage = match local_construction.get(&key) {
                 Some(CheckedUnitPlanOmissionStage::LocalConstruction {
                     phase: "single-state body",
                     ..
                 })
-                | None => CheckedUnitPlanOmissionStage::LocalConstruction {
-                    phase: "composed control",
-                    statement_index: None,
-                },
+                | None => composed_construction.get(&key).copied().unwrap_or(
+                    CheckedUnitPlanOmissionStage::LocalConstruction {
+                        phase: "composed control",
+                        state_index: None,
+                        statement_index: None,
+                    },
+                ),
                 Some(stage) => *stage,
             };
             ledger.name(CheckedUnitPlanOmission { machine, stage });
