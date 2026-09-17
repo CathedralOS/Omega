@@ -80,9 +80,10 @@ The scalar failure paths also record the canonical OCOUT outcome tuple
 (outcome tag, coordinate space, code, coordinate, canonical ordinals, limit,
 requested). Parser exhaustion projects onto its assigned resource code, tape
 capacity reports under emitted-artifact coordinates, and source refusals
-anchor at the retained span. The `Reject` and coverage-provision code
-inventories stay unassigned, and the encoder refuses tuples carrying them, so
-no noncanonical frame can publish. The
+anchor at the retained span. D's `Reject` projection still embeds only
+`malformed_request`: the contract's lexical and named-refusal codes and the
+still-unassigned coverage provisions cannot publish a frame, and the encoder
+refuses tuples carrying codes it does not assign. The
 [outcome gate](../../tests/bootstrap/omega-outcome/README.md) exercises the
 embedded tables, exact and refused frame encodings, bounded arithmetic, and
 the recorded tuples through the selected evaluator.
@@ -90,14 +91,17 @@ the recorded tuples through the selected evaluator.
 The manifested members (`D`) exist but are incomplete; both descriptive compiler
 tapes remain absent. The [standalone request contract](../../wiki/spec/build/compiler_request.md)
 owns OCREQ/OCOUT, including complete snapshots, subject binding, validation order,
-and shared diagnostic selection. D's request decoder currently validates only
-the outer envelope plus the phase-1 declared-extent provisions in
-`outcome.epsilon`. The assigned OCOUT header, outcome-code, coordinate-space,
-phase, and scalar-resource tables are embedded there as projections with the
-canonical failure-frame encoder: resource outcomes carry their wire code,
-selected limit, and requested amount; unassigned Reject and coverage-provision
-codes cannot publish a frame. The OCREQ subject/invocation inner field/tag
-inventory and the per-diagnostic `Reject` code list remain unfinished under
+and shared diagnostic selection. D's request decoder currently validates the
+outer envelope and phase-1 declared-extent provisions in `outcome.epsilon`
+plus the phase-2/6 subject and invocation field/tag shape pass in
+`request_and_utf8.epsilon`; the semantic phases over the decoded fields —
+package-key recomputation, canonical ordering, graph, snapshot, admission, and
+commitment checks — remain unimplemented. The assigned OCOUT header,
+outcome-code, coordinate-space, phase, and scalar-resource tables are embedded
+there as projections with the canonical failure-frame encoder. The contract now
+assigns the lexical `Reject` codes 2–9 and the named declaration, entry, and
+literal refusals 10–12; the syntax and remaining checking `Reject` inventory
+and the `Incomplete` coverage provisions remain unfinished under
 OMEGA-D/OMEGA-C in [the board](../../TASKS_BOOTSTRAP.md).
 A raw-single-file stdin convention cannot replace the sealed request.
 [Build execution](../../wiki/spec/build/execution.md) owns the admitted checkpoint,

@@ -6,10 +6,13 @@ algorithms need not match. Rust compiler objects are not a wire specification.
 
 **Incomplete physical specification:** the outer framing, semantic contents,
 commitment preimage, validation order, publication rules, outcome frame
-layout, coordinate spaces, diagnostic phases, scalar-resource table, and the
-subject/invocation field/tag tables below are settled. The per-diagnostic
-`Reject` code inventory still needs assignment, and the semantic phases over
-the decoded fields still need implementation, under OMEGA-D/OMEGA-C in the
+layout, coordinate spaces, diagnostic phases, scalar-resource table, the
+subject/invocation field/tag tables, and the assigned `Reject` inventory
+below are settled. The syntax `Reject` inventory — including its distinction
+granularity — and the remaining checking codes still need assignment, the
+named `Incomplete` coverage provisions still need selection, and the semantic
+phases over the decoded fields still need implementation, under
+OMEGA-D/OMEGA-C in the
 [bootstrap board](../../../TASKS_BOOTSTRAP.md#p4---epsilon-to-omega-and-self-hosting).
 Neither implementation may claim a complete interoperable V1 boundary yet.
 
@@ -220,15 +223,29 @@ so far:
 | Tag | Code | Name | Space | Coordinate | Limit/requested |
 | --- | --- | --- | --- | --- | --- |
 | 1 `Reject` | 1 | `malformed_request` | 1 request | first missing, incorrect, or trailing request byte under the validation order | zero/zero |
+| 1 `Reject` | 2 | `invalid_utf8` | 4 canonical source | first byte of the malformed scalar's retained span | zero/zero |
+| 1 `Reject` | 3 | `outside_lexical_profile` | 4 canonical source | first byte of the rejected spelling | zero/zero |
+| 1 `Reject` | 4 | `unterminated_block_comment` | 4 canonical source | first byte of the comment's opening `/*` | zero/zero |
+| 1 `Reject` | 5 | `unterminated_string_literal` | 4 canonical source | first byte of the string's opening quote | zero/zero |
+| 1 `Reject` | 6 | `unterminated_string_escape` | 4 canonical source | first byte of the enclosing string's opening quote | zero/zero |
+| 1 `Reject` | 7 | `unsupported_escape` | 4 canonical source | first byte of the escape sequence | zero/zero |
+| 1 `Reject` | 8 | `unterminated_hex_escape` | 4 canonical source | first byte of the escape sequence | zero/zero |
+| 1 `Reject` | 9 | `invalid_hex_escape_digit` | 4 canonical source | first byte of the offending digit | zero/zero |
+| 1 `Reject` | 10 | `duplicate_name` | 4 canonical source | first byte of the later declaration's name span | zero/zero |
+| 1 `Reject` | 11 | `missing_entry` | 0 none | zero | zero/zero |
+| 1 `Reject` | 12 | `integer_literal_out_of_range` | 4 canonical source | first byte of the refused literal | zero/zero |
 | 3 `InternalFailure` | 1 | `invariant_violation` | 3 internal row | implementation-owned row identity | zero/zero |
 
 `Reject` outcomes carry zero limit and requested fields. `InternalFailure`
 outcomes likewise carry zero limit and requested; the coordinate identifies an
-implementation-owned internal row, not a source or request offset. The
-per-diagnostic `Reject` code inventory for lexical, syntax, and checking
-failures is assigned with the OCREQ field/tag pass, since its coordinates
-depend on subject package/source-unit binding. Source `Reject` diagnostics
-remain unpublished until then.
+implementation-owned internal row, not a source or request offset. The lexical
+inventory above is complete: every lexical refusal names one of codes 2–9 at
+the first byte of its retained diagnostic span under canonical-source
+coordinates, and codes 10–12 name the declaration, entry, and literal
+refusals. The per-diagnostic `Reject` inventory for syntax and the remaining
+checking failures is assigned with the semantic phases over the decoded
+fields, since its coordinates depend on subject package/source-unit binding;
+diagnostics whose codes remain unassigned stay unpublished.
 
 Coordinate spaces:
 
