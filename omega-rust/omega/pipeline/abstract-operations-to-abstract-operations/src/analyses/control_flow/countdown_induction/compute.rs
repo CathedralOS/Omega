@@ -4,15 +4,13 @@ use super::{
     CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, ExactUnsignedTripCount, LoopRegion,
     MachineId, O, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownLoopSummary,
-    ValidatedOptimizerCycleComponents, compute_loop_forest,
-    recompute_psi_optimization_unit_identity,
+    ValidatedOptimizerCycleComponents, recompute_psi_optimization_unit_identity, region,
 };
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
 ) -> Result<CountedLoopAnalysisSnapshot, CountedLoopAnalysisError> {
     validate_roots(unit, custody)?;
-    let loop_forest = compute_loop_forest(unit);
     let mut loops = Vec::new();
     for certificate in custody.ranking_certificates().certificates() {
         let component = custody
@@ -25,25 +23,10 @@ pub(super) fn propose(
             .iter()
             .find(|function| function.machine == certificate.component.machine)
             .ok_or_else(|| shape(certificate.component.machine))?;
-        let function_regions = loop_forest
-            .functions
-            .iter()
-            .filter(|(machine, _)| *machine == function.machine)
-            .collect::<Vec<_>>();
-        let [(_, regions)] = function_regions.as_slice() else {
-            return Err(shape(function.machine));
-        };
-        let matching_regions = regions
-            .iter()
-            .filter(|region| region.blocks == component.members)
-            .collect::<Vec<_>>();
-        let [region] = matching_regions.as_slice() else {
-            return Err(shape(function.machine));
-        };
-        if region.header != Some(certificate.header) || region.irreducible {
-            return Err(shape(function.machine));
-        }
-        loops.push(summary(function, component, certificate, region)?);
+        // The region is projected from the validated Terminal-SCC custody the
+        // certificate keys on, not from a private loop-forest re-derivation.
+        let region = region::derive(function.machine, component, certificate)?;
+        loops.push(summary(function, component, certificate, &region)?);
     }
     loops.sort_by(|left, right| left.certificate.component.cmp(&right.certificate.component));
     Ok(CountedLoopAnalysisSnapshot {
