@@ -233,12 +233,13 @@ fn expected_frame_displacement(
 /// independently against the retained roots, every symbolic access is checked
 /// against the exact signed displacement the resolver computes, a residency
 /// claim outside the produced geometry fails closed, and the artifact still
-/// publishes as an ordinary callable on all four targets.
+/// publishes as an ordinary callable on all five targets.
 #[test]
 fn resident_leaf_spill_frame_publishes_through_ordinary_callable_entry() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
         NativeTarget::linux_arm64(),
         NativeTarget::macos_arm64(),
     ] {
