@@ -526,6 +526,29 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   four were dump-reading canaries (since rewritten), two roster umbrellas pass
   after a fixture sync, and `pass_canaries_compile` is a corpus umbrella
   rather than a fixture.
+  Fresh full run at ff0d8e4795 (2026-09-17, macOS ARM64, `cargo nextest run -p
+  compiler --test canary_suite --no-fail-fast`): 1384 tests, 229 pass, 1155
+  fail. 787 stop at checked Unit-plan construction with the declining guard
+  named: structural field store 345 (157 pure source, 135 scalar field type,
+  29 destination parameter, 14 carrier path, 10 byte-sequence carrier), the
+  state-graph route 182 (39 operation custody scalar call, 37 conditional-
+  successor guard expression, 24 persistent receiver access, 17 structural
+  parameter type, 15 transition chain, 14 prefix-initializer bound expression,
+  9 borrowed non-view carrier, 8 attached data shape, the rest singletons),
+  local-data statements 152 (68 structural call binding, 52 scalar-local pure
+  initializer, 31 scalar call binding), call statement shape 39 (26 call
+  count, 13 non-call statement without a unit call), write-frame agreement 27,
+  call statements 24, unconsumed nested calls 8, trivial affine locals 4,
+  signature 3, provider attachment requirements 2. Outside plan construction:
+  79 hosted receiver bridge (owner question 1), 66 exact-arithmetic
+  obligations, 55 borrowed-storage transfers, 37 select no exact program
+  entry, 24 fail common physical staging at instruction selection (new since
+  4dcb7723da), 22 `MacosPhysicalEntry::enter` schema, 20 default-domain field
+  requirements, 16 attached Unit closures missing a transitive plan without an
+  omission row, 13 non-array `[]` selections, 11 `block` envelope
+  acknowledgements (8508aec01e), 11 `OperationProofUnavailable`, 10 service
+  reach, 5 scalar callees with neither target nor body; the remainder are
+  singletons in the run log.
   The 112 pure-source stops store Wrapping/Saturating arithmetic, atomics,
   float conversions or a call result into a scalar field without a bound pure
   scalar expression; the 105 scalar-field-type stops store into case, record,
