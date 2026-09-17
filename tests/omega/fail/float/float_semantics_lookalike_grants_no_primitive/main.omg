@@ -1,0 +1,21 @@
+// OPERATOR-MACHINE-SUPPLY: `FloatSemantics::add` is an exact compiler
+// primitive supplied by the closed float-semantics catalog only for the sealed
+// toolchain declaration in core/float_operations.omg. A user package declaring
+// the same bare bodyless signature -- the same path, the same complete
+// signature -- earns no primitive implementation or proof authority: catalog
+// identity is declaration custody, never a spelling.
+use omega::language::core::float_format;
+use omega::language::core::float_meaning;
+use omega::language::core::float_operations;
+
+machine FloatSemantics::add(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning
+) -> FloatMeaning;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
