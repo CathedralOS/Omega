@@ -397,8 +397,14 @@ pub(in crate::execution) fn build_call_operation(
                 }
             }
             || !signature_contracts_are_exact_parameter_qualifications(program, signature)
+            // Suspension parks the activation, which this synchronous call
+            // shape cannot express. Blocking only occupies the worker while
+            // the boundary waits (effects.md, `blocks;`): the call returns
+            // through the same edge, the site already acknowledged `block`
+            // during checking, and the envelope travels on the target
+            // contract fingerprint below, so a blocking boundary is planned
+            // exactly like a nonblocking one.
             || signature.suspends
-            || signature.blocks
         {
             return None;
         }

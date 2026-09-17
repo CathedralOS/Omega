@@ -580,6 +580,8 @@ pub(in crate::execution::terminal_unit) fn build(
                 }
             }
             StatementNode::Call(call) if call.discards_result => {
+                trace.phase("statement sequence: call: discarded result type");
+                trace.statement(Some(statement_index));
                 let result_type =
                     crate::flow::call_target_return_type(program, call.target_symbol)?;
                 if let Some(primitive_type) = program.primitive_type_reference(result_type) {
@@ -630,6 +632,13 @@ pub(in crate::execution::terminal_unit) fn build(
             }
             _ => return None,
         };
+        // Guard-group markers beneath the statement phase keep the statement
+        // position that `phase` resets.
+        let call_phase = |phase: &'static str| {
+            trace.phase(phase);
+            trace.statement(Some(statement_index));
+        };
+        call_phase("statement sequence: call: flow call");
         let mut matching = calls
             .iter()
             .copied()
@@ -655,6 +664,7 @@ pub(in crate::execution::terminal_unit) fn build(
             }
         }
         call_count = call_count.checked_add(1)?;
+        call_phase("statement sequence: call: structural operands");
         for operand in structural_operands::operations_for_call(program, facts, machine, state, call)? {
             let nested = match operand {
                 structural_operands::Operand::Array(array) => {
@@ -743,6 +753,7 @@ pub(in crate::execution::terminal_unit) fn build(
         } else {
             None
         };
+        call_phase("statement sequence: call: call operation");
         let mut operation = build_call_operation(
             program,
             facts,
@@ -764,6 +775,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 }),
             &structural_results,
         )?;
+        call_phase("statement sequence: call: result binding");
         if let Some((result, None)) = &structural_result
             && !completes_machine {
             // An explicit discard still invokes the value-returning machine.
