@@ -2,6 +2,7 @@
 
 mod address_fold;
 mod allocation_recovery;
+mod arm_relocation;
 mod condition_state;
 mod constant_boolean;
 mod constant_branch;
@@ -32,6 +33,7 @@ mod window_hazards;
 
 pub use address_fold::*;
 pub use allocation_recovery::*;
+pub use arm_relocation::*;
 pub use constant_boolean::*;
 pub use constant_branch::*;
 pub use copy_removal::*;

@@ -4,14 +4,15 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
-    ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch, ValidatedCopyRemoval,
-    ValidatedDeadCompare, ValidatedDeadStoreElimination, ValidatedDiamondRelocation,
-    ValidatedEdgeRelocation, ValidatedFixedViewCopies, ValidatedForkRelocation,
-    ValidatedJoinRelocation, ValidatedLiteralCompare, ValidatedLiteralFold,
-    ValidatedLiteralMinuend, ValidatedLocalRelocation, ValidatedLocalSchedule,
-    ValidatedPredecessorRelocation, ValidatedPressureRematerialization,
-    ValidatedRedundantExtension, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
-    ValidatedRuntimeSpill, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedAddressFold, ValidatedArmRelocation, ValidatedConstantBoolean,
+    ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedDeadCompare,
+    ValidatedDeadStoreElimination, ValidatedDiamondRelocation, ValidatedEdgeRelocation,
+    ValidatedFixedViewCopies, ValidatedForkRelocation, ValidatedJoinRelocation,
+    ValidatedLiteralCompare, ValidatedLiteralFold, ValidatedLiteralMinuend,
+    ValidatedLocalRelocation, ValidatedLocalSchedule, ValidatedPredecessorRelocation,
+    ValidatedPressureRematerialization, ValidatedRedundantExtension, ValidatedRunRelocation,
+    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedStoreMutationMotion,
+    ValidatedStoredLoadForwarding,
 };
 
 mod sealed {
@@ -21,6 +22,26 @@ mod sealed {
 impl sealed::Sealed for ValidatedAddressFold {}
 
 impl ValidatedSelectedAnalysis for ValidatedAddressFold {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedArmRelocation {}
+
+impl ValidatedSelectedAnalysis for ValidatedArmRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
