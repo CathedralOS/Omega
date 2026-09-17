@@ -2763,7 +2763,17 @@ Owners include
   declaration/signature identity; bodyless domain-family and
   carrier-qualified semantic declarations (5 library, 26 tests) migrate
   to declaration-owned bodies with their relational `ensures`, since the
-  supply table admits no other nonboundary supply; the `IndexAlgebra::plus`
+  supply table admits no other nonboundary supply (at c74c9adcbf a
+  token-bearing machine attached to a domain, `machine +
+  Quantity::Additive::add`, homes in the domain's carrier, gives the
+  domain its denotation role, selects as a `DomainPending` family
+  candidate under the existing binding-site law and binds its own body
+  when selected; the 17 `pass|fail/domains` fixtures and
+  `fail/operators/duplicate_spelling_binding` author that form, with two
+  expected fragments reworded; bindings whose owner is a compiler-owned
+  carrier such as `u64::custom` in `arithmetic/`, `collections/`,
+  `termination/` and `std/units.omg` cannot take the machine form as
+  authored and need a domain or declared owner); the `IndexAlgebra::plus`
   satisfier pairs (4) wait on the unqualified operand-tuple home typing;
   `[]`/`[..]`/comparison positions still reject fail-closed at body
   supply.
