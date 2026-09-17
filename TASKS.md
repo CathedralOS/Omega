@@ -1211,8 +1211,13 @@ Owners include
   external-roots tests (167/167): freshest-key ordering across a
   grow-then-stale-key retry, exhaustion returning releasable provider custody,
   and acquisition/admission/binding rejections re-driving or releasing intact.
-  Remaining: a durable target-owned invocation-plan artifact still belongs to
-  `program-entry-plan`, and no authored Omega surface invokes this edge yet.
+  Both runtime legs consume the `program-entry-plan` OS-handoff invocation
+  plan: service row, call shape, and status roles come from the retained leg,
+  and the exhaustion status is admitted through the plan's error predicate.
+  Remaining: the generated custody-transfer adapter and physical shell that
+  realize `UefiOsHandoffNativeProvider::handoff` in
+  `source/library/std/targets/uefi_x86_64/handoff.omg`; that authored surface
+  stays planned and non-invoked, so no Omega program reaches this edge yet.
 
 - **AP-BRINGUP.** Complete one secondary-processor entry through the executable
   installation and external-root owners. Acceptance covers low-memory and

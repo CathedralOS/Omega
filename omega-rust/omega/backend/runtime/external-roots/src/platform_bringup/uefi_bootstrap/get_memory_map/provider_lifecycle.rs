@@ -1,9 +1,5 @@
 //! The lifecycle-scoped get-memory-map provider and its join.
 
-use crate::platform_bringup::uefi_bootstrap::get_memory_map::{
-    GET_MEMORY_MAP_FIELD_ALIGNMENT, GET_MEMORY_MAP_FIELD_OFFSET, GET_MEMORY_MAP_FIELD_ORDINAL,
-    GET_MEMORY_MAP_FIELD_SIZE, SERVICE_IDENTITY, pending_exit_plan_is_exact,
-};
 use crate::platform_bringup::uefi_bootstrap::{
     PlannedUefiExitBootServicesInvocation, UefiApplicationFirmwareLedger,
 };
@@ -11,10 +7,11 @@ use crate::{
     ExternalRootDiagnostic, UefiBootServicesTableOccurrenceId, UefiFirmwareSessionId,
     UefiImageHandleOccurrenceId, UefiPhysicalInvocationId,
 };
+use program_entry_plan::{UEFI_GET_MEMORY_MAP_SERVICE_IDENTITY, plan_uefi_os_handoff_invocation};
 use std::num::NonZeroU64;
 use target::{
-    TargetProfile, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
-    UefiBootServicesNativeFieldLayout, plan_uefi_boot_services_native_layout,
+    TargetProfile, UefiBootServicesNativeField, UefiBootServicesNativeFieldLayout,
+    plan_uefi_boot_services_native_layout,
 };
 
 /// Exact pending-exit borrow plus the private `GetMemoryMap` slot read from
@@ -73,7 +70,7 @@ impl LifecycleScopedUefiGetMemoryMapProvider<'_, '_, '_> {
         self.field.alignment()
     }
     pub const fn service_identity(&self) -> &'static str {
-        SERVICE_IDENTITY
+        UEFI_GET_MEMORY_MAP_SERVICE_IDENTITY
     }
 }
 
@@ -90,10 +87,11 @@ impl<'pending_exit, 'system_table, 'boot_services>
 }
 
 /// Seal the `GetMemoryMap` row of the exact Boot Services occurrence already
-/// retained beneath a pending `ExitBootServices` invocation. The pending plan
-/// must still be live under `ledger` and replay-exact; the new provider only
-/// borrows that custody, so a stale, foreign, or drifted invocation rejects
-/// without consuming anything.
+/// retained beneath a pending `ExitBootServices` invocation. The pending
+/// invocation must still be live under `ledger` and retain its exact planned
+/// leg, and the sealed row must be the one the planned `GetMemoryMap` leg
+/// names; the new provider only borrows that custody, so a stale, foreign,
+/// or drifted invocation rejects without consuming anything.
 pub fn join_lifecycle_scoped_uefi_get_memory_map_provider<
     'pending_exit,
     'system_table,
@@ -128,7 +126,7 @@ pub fn join_lifecycle_scoped_uefi_get_memory_map_provider<
             "UEFI GetMemoryMap provider borrows a different or inactive physical invocation".into(),
         ));
     }
-    if !pending_exit_plan_is_exact(invocation) {
+    if !invocation.retains_exact_plan() {
         return Err(ExternalRootDiagnostic(
             "UEFI GetMemoryMap provider borrows a drifted pending ExitBootServices plan".into(),
         ));
@@ -145,21 +143,15 @@ pub fn join_lifecycle_scoped_uefi_get_memory_map_provider<
             "UEFI Boot Services layout has no GetMemoryMap row".into(),
         ));
     };
-    if (
-        field.ordinal(),
-        field.byte_offset(),
-        field.byte_size(),
-        field.alignment(),
-        field.kind(),
-    ) != (
-        GET_MEMORY_MAP_FIELD_ORDINAL,
-        GET_MEMORY_MAP_FIELD_OFFSET,
-        GET_MEMORY_MAP_FIELD_SIZE,
-        GET_MEMORY_MAP_FIELD_ALIGNMENT,
-        UefiBootServicesNativeFieldKind::FunctionPointer,
-    ) {
+    let plan = plan_uefi_os_handoff_invocation(TargetProfile::UefiX64).map_err(|error| {
+        ExternalRootDiagnostic(format!(
+            "UEFI OS-handoff invocation plan rejected: {}",
+            error.diagnostic()
+        ))
+    })?;
+    if field != plan.get_memory_map().service_field() {
         return Err(ExternalRootDiagnostic(
-            "UEFI GetMemoryMap row drifted from exact target geometry".into(),
+            "UEFI GetMemoryMap row drifted from the planned handoff leg".into(),
         ));
     }
     let start = field.byte_offset() as usize;

@@ -183,6 +183,23 @@ impl UefiOsHandoffLegPlan {
             .find(|row| row.code == code)
             .map(|row| row.role)
     }
+
+    /// Structural replay against the same service row of a freshly derived
+    /// canonical target plan. A leg whose row is neither `GetMemoryMap` nor
+    /// `ExitBootServices` has no canonical counterpart and never replays; the
+    /// runtime edge additionally checks that the row is the one its provider
+    /// sealed, so an exact leg of the other row still rejects there.
+    pub fn matches_exact_uefi_x64_plan(&self) -> bool {
+        plan_uefi_os_handoff_invocation(TargetProfile::UefiX64).is_ok_and(|expected| {
+            match self.service_field.field() {
+                UefiBootServicesNativeField::GetMemoryMap => self == &expected.get_memory_map,
+                UefiBootServicesNativeField::ExitBootServices => {
+                    self == &expected.exit_boot_services
+                }
+                _ => false,
+            }
+        })
+    }
 }
 
 /// The complete bounded OS-handoff invocation contract. `get_memory_map` runs
@@ -523,6 +540,7 @@ mod tests {
         assert_eq!(plan.profile(), TargetProfile::UefiX64);
 
         let map = plan.get_memory_map();
+        assert!(map.matches_exact_uefi_x64_plan());
         assert_eq!(map.service_identity(), "EFI_BOOT_SERVICES.GetMemoryMap");
         assert_eq!(map.service_field().byte_offset(), 56);
         assert_eq!(map.service_field().ordinal(), 9);
@@ -541,6 +559,7 @@ mod tests {
         );
 
         let exit = plan.exit_boot_services();
+        assert!(exit.matches_exact_uefi_x64_plan());
         assert_eq!(
             exit.service_identity(),
             "EFI_BOOT_SERVICES.ExitBootServices"
@@ -620,6 +639,11 @@ mod tests {
             assert!(
                 !candidate.matches_exact_uefi_x64_plan(),
                 "mutation {index} still replayed as exact"
+            );
+            assert!(
+                !candidate.get_memory_map().matches_exact_uefi_x64_plan()
+                    || !candidate.exit_boot_services().matches_exact_uefi_x64_plan(),
+                "mutation {index} left both legs replaying as exact"
             );
         }
     }

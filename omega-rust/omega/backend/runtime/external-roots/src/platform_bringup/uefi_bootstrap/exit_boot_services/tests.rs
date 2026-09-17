@@ -1,13 +1,12 @@
 //! UEFI exit-boot-services tests.
 
 use super::{
-    EFI_INVALID_PARAMETER, EFI_STATUS_ERROR_BIT, EFI_SUCCESS, EXIT_BOOT_SERVICES_FIELD_OFFSET,
-    ExternalRootDiagnostic, LifecycleScopedUefiExitBootServicesProvider,
-    UefiExitBootServicesAttemptOutcome, admit_uefi_exit_boot_services_execution,
-    bind_uefi_exit_boot_services_invocation, execute_uefi_exit_boot_services,
-    join_lifecycle_scoped_uefi_exit_boot_services_provider,
+    LifecycleScopedUefiExitBootServicesProvider, UefiExitBootServicesAttemptOutcome,
+    admit_uefi_exit_boot_services_execution, bind_uefi_exit_boot_services_invocation,
+    execute_uefi_exit_boot_services, join_lifecycle_scoped_uefi_exit_boot_services_provider,
     prepare_uefi_exit_boot_services_invocation,
 };
+use crate::ExternalRootDiagnostic;
 use crate::platform_bringup::uefi_bootstrap::{
     LifecycleScopedUefiBootServicesProjection, UefiApplicationFirmwareLedger,
     UefiOsHandoffMapAcquired,
@@ -37,10 +36,16 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use target::{
     ProgramEntryPhysicalContractPackage, UEFI_BOOT_SERVICES_SIGNATURE, UEFI_SYSTEM_TABLE_SIGNATURE,
-    plan_uefi_system_table_native_layout, validate_uefi_boot_services_occurrence,
-    validate_uefi_system_table_occurrence,
+    UefiBootServicesNativeField, plan_uefi_system_table_native_layout,
+    validate_uefi_boot_services_occurrence, validate_uefi_system_table_occurrence,
 };
 use target::{TargetProfile, plan_uefi_boot_services_native_layout};
+
+// The fabricated firmware answers with raw `EFI_STATUS` codes; the edge under
+// test classifies them only through the planned leg's status table.
+const EFI_STATUS_ERROR_BIT: u64 = 1_u64 << 63;
+const EFI_SUCCESS: u64 = 0;
+const EFI_INVALID_PARAMETER: u64 = EFI_STATUS_ERROR_BIT | 2;
 
 static FIRMWARE_TEST_LOCK: Mutex<()> = Mutex::new(());
 static FAKE_STATUS: AtomicU64 = AtomicU64::new(0);
@@ -90,11 +95,18 @@ fn table(signature: u64, size: usize, pointer_offset: usize, pointer: u64) -> Ve
     bytes
 }
 
+/// Fabricated Boot Services table carrying the `ExitBootServices` row at its
+/// exact target-layout offset.
 fn boot_table(service_address: u64) -> Vec<u8> {
+    let exit_offset = plan_uefi_boot_services_native_layout(TargetProfile::UefiX64)
+        .unwrap()
+        .field_layout(UefiBootServicesNativeField::ExitBootServices)
+        .unwrap()
+        .byte_offset() as usize;
     table(
         UEFI_BOOT_SERVICES_SIGNATURE,
         376,
-        EXIT_BOOT_SERVICES_FIELD_OFFSET as usize,
+        exit_offset,
         service_address,
     )
 }

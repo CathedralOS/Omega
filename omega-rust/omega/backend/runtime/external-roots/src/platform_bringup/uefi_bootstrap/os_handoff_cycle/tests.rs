@@ -8,9 +8,11 @@ use super::{
 use crate::{
     LifecycleScopedUefiBootServicesProjection, UefiApplicationBootstrapLedgerId,
     UefiBootServicesPhaseLeaseId, UefiBootServicesTableOccurrenceId, UefiErrorStatus,
-    UefiFirmwareSessionId, UefiOsHandoffAllocationRosterId, UefiOsHandoffBootServicesId,
-    UefiOsHandoffId, UefiOsHandoffStackEvidenceId, UefiPhysicalInvocationId,
-    UefiSystemTableOccurrenceId, join_lifecycle_scoped_uefi_exit_boot_services_provider,
+    UefiFirmwareSessionId, UefiMemoryMapAcquisition, UefiMemoryMapKeyId, UefiMemoryMapSnapshotId,
+    UefiOsHandoffAllocationRosterId, UefiOsHandoffBootServicesId, UefiOsHandoffId,
+    UefiOsHandoffStackEvidenceId, UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
+    bind_uefi_exit_boot_services_invocation,
+    join_lifecycle_scoped_uefi_exit_boot_services_provider,
     join_lifecycle_scoped_uefi_system_table, join_uefi_application_physical_arrival,
     prepare_uefi_application_bootstrap_adapter_invocation,
     prepare_uefi_exit_boot_services_invocation, project_uefi_application_boot_services,
@@ -19,7 +21,7 @@ use program_entry_plan::{
     ProgramEntryPhysicalContractPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
     UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
     UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, exact_uefi_x64_physical_boundary_entry_plan,
-    exact_uefi_x64_physical_contract_package_source_digest,
+    exact_uefi_x64_physical_contract_package_source_digest, plan_uefi_os_handoff_invocation,
 };
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -536,7 +538,7 @@ fn acquisition_rejection_returns_complete_custody_for_a_redrive() {
     else {
         panic!("a rejected acquisition status must return unspent custody")
     };
-    assert!(diagnostic.0.contains("InvalidParameter"));
+    assert!(diagnostic.0.contains("rejecting status"));
     assert_eq!(arrival.remaining_attempts(), 2);
 
     // The returned custody still drives a clean cycle to completion.
@@ -690,6 +692,97 @@ fn address_free_image_handle_rejects_at_exit_binding_with_acquired_intact() {
         .unwrap();
     assert_eq!(released.ledger, firmware.ledger_id());
     firmware.begin_firmware_return().unwrap();
+}
+
+#[test]
+fn drifted_pending_exit_leg_rejects_before_any_firmware_call_with_custody_intact() {
+    let _firmware = FIRMWARE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    script_get(&[success(0x5AFE_1009)]);
+    script_exit(&[EFI_SUCCESS]);
+    reset_observers();
+    let boot_address = 0x401000;
+    let system = table(UEFI_SYSTEM_TABLE_SIGNATURE, 120, 96, boot_address);
+    let boot = boot_table(
+        fake_get_memory_map_address(),
+        fake_exit_boot_services_address(),
+    );
+    let mut firmware = ledger(10);
+    let mut pending_exit = planned_exit(&mut firmware, &system, &boot, 13, boot_address, true);
+    // Drift the retained leg to the exact plan's other row. It still replays
+    // as an exact GetMemoryMap leg, so only the provider-row gate can catch
+    // that the pending exit no longer carries the ExitBootServices contract.
+    let exact = plan_uefi_os_handoff_invocation(TargetProfile::UefiX64).unwrap();
+    let exit_leg = std::mem::replace(&mut pending_exit.plan, exact.get_memory_map().clone());
+    assert_eq!(exit_leg, *exact.exit_boot_services());
+    assert!(pending_exit.plan.matches_exact_uefi_x64_plan());
+
+    // The exit operand edge refuses the drifted leg and returns the planned
+    // custody unchanged; the acquired attempt it was offered stays unspent.
+    let (mut binding_handoff, binding_arrival) = handoff(90, 11, 10 + INVOCATION_OFFSET, 1);
+    let acquired = binding_handoff
+        .acquire_memory_map(
+            binding_arrival,
+            UefiMemoryMapAcquisition::for_test(
+                binding_handoff.firmware_session(),
+                binding_handoff.physical_invocation(),
+                id(95, UefiMemoryMapSnapshotId::from_normalized_identity),
+                id(96, UefiMemoryMapKeyId::from_normalized_identity),
+                96,
+                48,
+                1,
+            ),
+        )
+        .unwrap();
+    let error = bind_uefi_exit_boot_services_invocation(pending_exit, &acquired).unwrap_err();
+    assert!(error.diagnostic().0.contains("drifted"));
+    assert_eq!(acquired.map_key().normalized_identity(), 96);
+    let (pending_exit, _) = error.into_parts();
+
+    // The cycle refuses the same custody at its first stage, before the
+    // acquisition provider is even joined: no firmware call happens and the
+    // pending exit, buffer, and arrival all return.
+    let (mut handoff, arrival) = handoff(50, 11, 10 + INVOCATION_OFFSET, 2);
+    let mut map = UefiMemoryMapBuffer::with_capacity(128);
+    // SAFETY: same fabricated custody as the other cycle tests.
+    let rejection = unsafe {
+        drive_uefi_os_handoff_cycle(&firmware, &mut handoff, arrival, pending_exit, &mut map)
+    }
+    .unwrap_err();
+    let UefiOsHandoffCycleRejection::MapAcquisition {
+        mut pending_exit,
+        buffer,
+        arrival,
+        diagnostic,
+    } = *rejection
+    else {
+        panic!("a drifted pending exit leg must reject before acquisition")
+    };
+    assert!(
+        diagnostic
+            .0
+            .contains("drifted pending ExitBootServices plan")
+    );
+    assert_eq!(OBSERVED_GET_CALLS.load(Ordering::SeqCst), 0);
+    assert!(OBSERVED_EXIT_KEYS.lock().unwrap().is_empty());
+    assert_eq!(arrival.remaining_attempts(), 2);
+    assert_eq!(buffer.capacity(), 128);
+
+    // Restoring the exact ExitBootServices leg lets the identical custody
+    // drive to completion with the acquired key.
+    pending_exit.plan = exit_leg;
+    // SAFETY: the same fabricated custody re-drives with the exact leg.
+    let resolution = unsafe {
+        drive_uefi_os_handoff_cycle(&firmware, &mut handoff, arrival, pending_exit, buffer)
+    }
+    .unwrap();
+    let UefiOsHandoffCycleResolution::Complete { completion, .. } = resolution else {
+        panic!("the repaired custody must complete the handoff")
+    };
+    assert_eq!(OBSERVED_GET_CALLS.load(Ordering::SeqCst), 1);
+    assert_eq!(*OBSERVED_EXIT_KEYS.lock().unwrap(), [0x5AFE_1009]);
+    assert_eq!(completion.physical_invocation().normalized_identity(), 12);
 }
 
 #[test]
