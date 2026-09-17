@@ -3671,7 +3671,18 @@ Owners include
   other unsupported expression shapes.
   Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
   Acceptance: all supported finite source shapes converge without widening
-  permissions, and unsupported recursion fails explicitly.
+  permissions, and unsupported recursion fails explicitly. Precision
+  question raised by the product parser at 19ac2d1527: copy enums such
+  as `KeywordKind` entering or leaving a cycle edge count as write-capable
+  roots (`type_may_carry_write` is true for any `Named` type), so
+  `parse`/`parse_data` SCC frames stay opaque; whether
+  `parameter_may_carry_write` should treat caller-isolated value types
+  (no exclusive reference anywhere in the type) as non-write-capable in
+  the cycle laws is a summary-semantics choice for this item, not an
+  evaluation-order change. The equation builder also hands statement
+  calls a fresh memo while the prefix walk shares one; unifying them
+  changes the solve-versus-walk route for a cyclic state calling a cached
+  callee that calls back, so it stays separate.
 
 - **TPR6.** Finish subject-bearing progress-premise normalization through
   exported bodies, provider plans, recursive calls, and artifact evidence.
@@ -4272,15 +4283,21 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   states (the d405dd087c rule that states consume only their explicit
   value bindings; `pass/control_flow/entry_parameter_explicit_state_forwarding`
   pins the three product shapes) and `Main::main` declares
-  `reaches Console`, so `omega --check source/omega/main.omg` emits no
-  diagnostics but does not complete: after 45 minutes it is still inside
-  validation's `write_frames` permuted-cycle walk
-  (`state_write_walk` with `permuted_cycle_frames::
-  summarize_transition_target_written_paths`, 63 to 70 nested frames)
-  over the untouched `parse/` members, while a scratch package of
-  `lex`+`source`+`tokens`(+`syntax`) passes every Psi stage in about
-  four minutes. That walk cost is the next dependency (see
-  CRASH-GUARD-COST's throughput lane). `source/psi/gates/parser/build.omg`
+  `reaches Console`, so `omega --check source/omega/main.omg` completes
+  in 239.8 s at 19ac2d1527 (it was killed at 45 minutes before: the
+  permuted-cycle solver in `write_frames/permuted_cycle_frames.rs` built
+  one frame equation per reachable state before its parameter-count
+  permutation check, and every prefix-walk visit rebuilt the doomed
+  system, so the 126-state `parse_data` and 39-state `parse` cycles
+  never converged; the solver now declines from transition topology, SCC
+  edges whose parameter counts cannot permute, before building
+  equations, with every compared frame byte-identical on cli_mvp,
+  nqueens and a stubbed variant) and stops on one real diagnostic:
+  `cannot transfer a non-copy value out of borrowed storage without
+  replacing its owner in Main::main, state parse (statement 0)`. The
+  parser SCC frames stay opaque because copy enums such as `KeywordKind`
+  count as write-capable roots in the permutation law (an R5 precision
+  decision). `source/psi/gates/parser/build.omg`
   also imports `psi::parse::harness` through a product `depend_as` edge
   and needs a `build_depend_as` edge before
   `command_line::routed_production_entry_roots_pass_real_package_resolution`
