@@ -25,7 +25,7 @@ ensures
     self.output = "";
 }
 
-machine Game::run_game_loop(&mut self) {
+machine Game::run_game_loop(&mut self) reaches Console {
     self.console.write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
     self.view.render_title(&mut self.console);
 
@@ -35,7 +35,8 @@ machine Game::run_game_loop(&mut self) {
 
 
     state enter_room(&mut self) {
-        self.dungeon.enter_room(self.dungeon.current_cell);
+        let cell: CellId = self.dungeon.current_cell;
+        self.dungeon.enter_room(cell);
         self.output = "";
         self.view.render_room(
             self.dungeon.level,
@@ -191,8 +192,8 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state use_event(&mut self) {
-        self.dungeon
-            .use_event(self.dungeon.current_cell, &mut self.output);
+        let cell: CellId = self.dungeon.current_cell;
+        self.dungeon.use_event(cell, &mut self.output);
         self.view.render_line(self.output, &mut self.console);
 
         transition {
@@ -201,8 +202,8 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state fight(&mut self) {
-        self.dungeon
-            .fight(self.dungeon.current_cell, &mut self.output);
+        let cell: CellId = self.dungeon.current_cell;
+        self.dungeon.fight(cell, &mut self.output);
         self.view.render_line(self.output, &mut self.console);
 
         transition self.dungeon.player.health == 0 {
@@ -212,14 +213,17 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state attempt_move(&mut self) {
-        transition self.dungeon.can_travel_to(self.dungeon.navigation.destination) {
+        let destination: CellId = self.dungeon.navigation.destination;
+
+        transition self.dungeon.can_travel_to(destination) {
             true -> move_player()
             false -> blocked_by_enemy()
         }
     }
 
     state move_player(&mut self) {
-        self.dungeon.move_to(self.dungeon.navigation.destination);
+        let destination: CellId = self.dungeon.navigation.destination;
+        self.dungeon.move_to(destination);
 
         transition {
             _ -> enter_room()

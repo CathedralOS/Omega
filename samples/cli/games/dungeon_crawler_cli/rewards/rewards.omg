@@ -1,13 +1,13 @@
 use inventory::items;
 
-data RewardKind {
+data RewardKind [copy] {
     case None;
     case Gold;
     case Item;
     case GoldAndItem;
 }
 
-data Reward {
+data Reward [copy] {
     kind: RewardKind;
     gold: u32 in Wrapping;
     item: ItemKind;

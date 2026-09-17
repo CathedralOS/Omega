@@ -1,7 +1,7 @@
 use enemies::enemies;
 use rewards::rewards;
 
-data RoomEventKind {
+data RoomEventKind [copy] {
     case Nothing;
     case FountainOfLife;
     case Treasure;
@@ -9,14 +9,14 @@ data RoomEventKind {
     case Enemy;
 }
 
-data RoomEventAction {
+data RoomEventAction [copy] {
     case Quiet;
     case Fountain;
     case Reward;
     case Enemy;
 }
 
-data RoomEvent {
+data RoomEvent [copy] {
     kind: RoomEventKind;
     enemy: Enemy;
     reward: Reward;
