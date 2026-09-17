@@ -1,4 +1,5 @@
-//! Token bindings survive resolution and duplicate owner-local shapes reject.
+//! Token bindings survive resolution; bindings without a semantic home in their
+//! operand tuple and duplicate owner-local shapes reject.
 
 use crate::{ResolutionRequest, resolve};
 use source_files_to_tokens::Lexer;
@@ -27,7 +28,7 @@ fn token_bearing_machines_retain_their_spelling_and_named_machines_have_none() {
          pub machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 { left }
          machine [] Vec2::at(items: Vec2, index: u64) -> u64 { index }
          boundary machine == Vec2::equal(left: Vec2, right: Vec2) -> bool;
-         machine - subtract(left: u64, right: u64) -> u64 { left }
+         machine - subtract(left: Vec2, right: u64) -> u64 { right }
          machine Vec2::length(items: Vec2) -> u64 { 0u64 }
          machine ordinary(value: u64) -> u64 { value }",
     )
@@ -94,16 +95,72 @@ fn same_owner_token_and_operand_shape_rejects_at_the_second_declaration() {
 #[test]
 fn free_machines_in_one_scope_share_the_owner_check() {
     let diagnostics = resolve_source(
-        "machine + add(left: u64, right: u64) -> u64 { left }
-         machine + plus(left: u64, right: u64) -> u64 { right }",
+        "data Vec2 { x: u64; y: u64; }
+         machine + add(left: Vec2, right: Vec2) -> u64 { 0u64 }
+         machine + plus(left: Vec2, right: Vec2) -> u64 { 1u64 }",
     )
     .expect_err("root-scope free machines share one owner");
     assert_eq!(diagnostics.len(), 1);
     assert!(
         diagnostics[0]
             .message
-            .contains("`plus` binds the fixed operator token `+`")
+            .contains("`plus` binds the fixed operator token `+` already bound by `add`"),
+        "{}",
+        diagnostics[0].message
     );
+}
+
+#[test]
+fn attached_binding_whose_operands_omit_its_home_rejects_at_the_declaration() {
+    let source = "data Wrapped { value: u8; }
+         machine + Wrapped::add(left: u8, right: u8) -> u64 { 0u64 }";
+    let diagnostics = resolve_source(source).expect_err("foreign family injection rejects");
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("one diagnostic: {diagnostics:?}");
+    };
+    assert!(
+        diagnostic.message.contains(
+            "`Wrapped::add` binds the fixed operator token `+` but no operand names its \
+             semantic home `Wrapped`"
+        ),
+        "{}",
+        diagnostic.message
+    );
+    let span = diagnostic.source_span.expect("reported at the declaration");
+    assert_eq!(&source[span.span.start..span.span.end], "Wrapped::add");
+}
+
+#[test]
+fn free_binding_over_bare_primitives_rejects_at_the_declaration() {
+    let diagnostics = resolve_source("machine + add(left: u8, right: u8) -> u64 { 0u64 }")
+        .expect_err("a primitive family has no declaration-owned home");
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("one diagnostic: {diagnostics:?}");
+    };
+    assert!(
+        diagnostic.message.contains(
+            "`add` binds the fixed operator token `+` over operands that name no declared \
+             type or domain"
+        ),
+        "{}",
+        diagnostic.message
+    );
+}
+
+#[test]
+fn a_home_anywhere_in_the_operand_tuple_participates() {
+    let program = resolve_source(
+        "data Wrapped { value: u8; }
+         data Pair<T> { first: T; second: T; }
+         domain u8::Level;
+         machine + Wrapped::scale(factor: u64, value: &Wrapped) -> u64 { factor }
+         machine * Wrapped::spread(items: [Wrapped], factor: u64) -> u64 { factor }
+         machine - Wrapped::inside(pair: Pair<Wrapped>, factor: u64) -> u64 { factor }
+         machine + add(left: u8 in Level, right: u8) -> u64 { 0u64 }
+         machine - subtract(left: &Wrapped, right: u64) -> u64 { right }",
+    )
+    .expect("a reference, element, generic argument, or domain constraint names the home");
+    assert_eq!(program.machines.len(), 5);
 }
 
 #[test]

@@ -1,4 +1,5 @@
-//! Owner-local duplicate checks for direct machine token bindings.
+//! Semantic-home and owner-local duplicate checks for direct machine token
+//! bindings.
 //!
 //! One declaration binds at most one fixed token, and distinct operand shapes
 //! may share a token; a second direct binding of the same token for the same
@@ -8,6 +9,19 @@
 //! free machine. Shapes compare by resolved symbol identity, so the check runs
 //! after every selection has settled and a same-leaf type from another module
 //! never collides.
+//!
+//! A closed direct family is published only by its semantic-home owner
+//! ([operator families](../../../../../../../wiki/spec/language/expressions.md#operator-families)).
+//! Use sites select by operand types alone, so every binding that survives
+//! this module must carry its home in its operand tuple: an attached binding
+//! (`machine + Vec2::add`) must take `Vec2` somewhere in its telescope, and a
+//! free binding must name at least one declared type or domain. A telescope
+//! of bare compiler-owned primitives has no declaration-owned home, so
+//! `machine + add(left: u8, right: u8)` would inject into `u8`'s closed
+//! family and rejects here rather than becoming a candidate at every `u8 +`.
+//! Which declared type is the home of a free binding, and whether that
+//! declaration's package may publish it, are typed-stage and package-graph
+//! questions and remain open in OPERATOR-MACHINE-SUPPLY.
 
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
@@ -15,12 +29,13 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::machine::Machine;
 use symbol_resolved_trees::signature::StateParameter;
 use symbol_resolved_trees::types::TypeReference;
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::operator_spelling::OperatorSpelling;
 
-/// Reject every direct machine whose fixed token, owner, and normalized operand
-/// shape repeat an earlier declaration's binding. Each duplicate reports at
-/// its own declaration and names the binding it repeats.
+/// Reject every direct machine whose operand tuple omits its semantic home,
+/// then every one whose fixed token, owner, and normalized operand shape
+/// repeat an earlier declaration's binding. Each rejection reports at its own
+/// declaration; a duplicate names the binding it repeats.
 pub(crate) fn reject_duplicate_direct_token_bindings(
     program: &SymbolResolvedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -36,6 +51,10 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
             owner: binding_owner(program, machine),
             operand_shape: operand_shape(program, machine),
         };
+        if let Some(diagnostic) = binding.missing_semantic_home(program) {
+            diagnostics.push(diagnostic);
+            continue;
+        }
         if let Some(earlier) = bindings.iter().find(|earlier| earlier.repeats(&binding)) {
             diagnostics.push(
                 Diagnostic::error(format!(
@@ -72,6 +91,161 @@ impl TokenBinding<'_> {
         self.spelling == other.spelling
             && self.owner == other.owner
             && self.operand_shape == other.operand_shape
+    }
+
+    /// The rejection for a binding whose operand tuple carries no semantic
+    /// home, or `None` when some operand names it.
+    fn missing_semantic_home(&self, program: &SymbolResolvedTrees) -> Option<Diagnostic> {
+        let operand_types = entry_operand_types(program, self.machine);
+        let message = match self.owner {
+            BindingOwner::AttachedData(home) => {
+                if operand_types
+                    .iter()
+                    .any(|type_reference| names_symbol(program, type_reference, home))
+                {
+                    return None;
+                }
+                format!(
+                    "`{}` binds the fixed operator token `{}` but no operand names its semantic \
+                     home `{}` ({}); a closed family's direct token bindings belong to the owner \
+                     of a participating operand",
+                    self.machine.name,
+                    self.spelling.symbol(),
+                    self.machine
+                        .attached_data
+                        .as_ref()
+                        .map_or("", |attached| attached.as_str()),
+                    self.operand_shape
+                )
+            }
+            BindingOwner::Module(_) => {
+                if operand_types
+                    .iter()
+                    .any(|type_reference| names_declaration(program, type_reference))
+                {
+                    return None;
+                }
+                format!(
+                    "`{}` binds the fixed operator token `{}` over operands that name no declared \
+                     type or domain ({}); compiler-owned primitive families accept no direct \
+                     token bindings",
+                    self.machine.name,
+                    self.spelling.symbol(),
+                    self.operand_shape
+                )
+            }
+        };
+        Some(Diagnostic::error(message).with_source_span(self.machine.name.source_span()))
+    }
+}
+
+/// The entry state's parameter types in telescope order.
+fn entry_operand_types<'program>(
+    program: &'program SymbolResolvedTrees,
+    machine: &Machine,
+) -> Vec<&'program TypeReference> {
+    let Some(entry) = program.machine_state_handles(machine.states).first() else {
+        return Vec::new();
+    };
+    let entry = program.machine_state(*entry);
+    program
+        .state_parameters(entry.parameters)
+        .iter()
+        .map(|parameter| &parameter.type_reference)
+        .collect()
+}
+
+/// Whether `type_reference` names the declaration `home` anywhere in its
+/// structure: directly, behind a reference, as a generic base, as the
+/// constrained carrier, or as an array or slice element.
+fn names_symbol(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+    home: SymbolHandle,
+) -> bool {
+    match type_reference {
+        TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => *symbol == home,
+        TypeReference::Generic(generic) => {
+            generic.base_symbol == home
+                || program
+                    .child_type_references(generic.arguments)
+                    .iter()
+                    .any(|argument| names_symbol(program, argument, home))
+        }
+        TypeReference::DynamicTrait { symbol, .. } => *symbol == home,
+        TypeReference::Reference(reference) => names_symbol(
+            program,
+            program.child_type_reference(reference.referee),
+            home,
+        ),
+        TypeReference::Constrained(constrained) => names_symbol(
+            program,
+            program.child_type_reference(constrained.base_type),
+            home,
+        ),
+        TypeReference::FixedArray(fixed_array) => names_symbol(
+            program,
+            program.child_type_reference(fixed_array.element_type),
+            home,
+        ),
+        TypeReference::Slice(slice) => names_symbol(
+            program,
+            program.child_type_reference(slice.element_type),
+            home,
+        ),
+        TypeReference::ConstExpression(_) | TypeReference::Unit => false,
+    }
+}
+
+/// Whether `type_reference` names any authored declaration or a declared
+/// domain constraint. Builtin primitives resolve to `BuiltinType` symbols and
+/// generic binders to `TypeParameter` symbols; neither is a declaration that
+/// can own a family, so a telescope of only those has no home.
+fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> bool {
+    let is_declaration = |symbol: &SymbolHandle| {
+        symbol.is_valid()
+            && matches!(
+                program.symbols.get(*symbol).kind,
+                SymbolKind::Data | SymbolKind::Domain | SymbolKind::Trait
+            )
+    };
+    match type_reference {
+        TypeReference::Named { symbol, .. }
+        | TypeReference::SelfType { symbol }
+        | TypeReference::DynamicTrait { symbol, .. } => is_declaration(symbol),
+        TypeReference::Generic(generic) => {
+            is_declaration(&generic.base_symbol)
+                || program
+                    .child_type_references(generic.arguments)
+                    .iter()
+                    .any(|argument| names_declaration(program, argument))
+        }
+        TypeReference::Reference(reference) => {
+            names_declaration(program, program.child_type_reference(reference.referee))
+        }
+        TypeReference::Constrained(constrained) => {
+            program
+                .tables
+                .types
+                .constraints
+                .span_or_empty(constrained.constraints)
+                .iter()
+                .any(|constraint| {
+                    matches!(
+                        constraint,
+                        symbol_resolved_trees::types::TypeConstraint::Domain(_)
+                    )
+                })
+                || names_declaration(program, program.child_type_reference(constrained.base_type))
+        }
+        TypeReference::FixedArray(fixed_array) => names_declaration(
+            program,
+            program.child_type_reference(fixed_array.element_type),
+        ),
+        TypeReference::Slice(slice) => {
+            names_declaration(program, program.child_type_reference(slice.element_type))
+        }
+        TypeReference::ConstExpression(_) | TypeReference::Unit => false,
     }
 }
 
