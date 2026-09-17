@@ -859,11 +859,17 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // proposition has no proof-only value for the erased binding, so this
     // stays Check (PROOF-RELEVANCE-MIGRATION).
     "relevance/erased_parameter_proof_only",
+    // An erased machine parameter forwarded into an erased state parameter
+    // through a named transition: checked semantics treats the erased-position
+    // argument as that binding's initializer; the erased state parameter has
+    // no Terminal contract term yet, so this stays Check.
+    "relevance/erased_parameter_named_transition_forward",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "relevance/erased_parameter_runtime_read",
     "relevance/erased_local_runtime_read",
+    "relevance/erased_state_parameter_runtime_read",
     "operators/operand_requires_invalidated",
     "operators/selected_crash_invocation",
     "expressions/match_float_equality_missing",

@@ -1,0 +1,27 @@
+// An `[erased]` machine parameter may flow into an `[erased]` state
+// parameter through a named transition: the argument at an erased position
+// is that binding's initializer, exactly as at a call site
+// (contracts.md#explicit-erased-bindings), not a runtime read of `bound`.
+// `bound` is used only in `store`'s requires; the runtime body reads `n`
+// alone. Checked-only: the erased state parameter still has no Terminal
+// contract term (PROOF-RELEVANCE-MIGRATION).
+data Main {
+    total: i32;
+}
+
+machine Main::main(&mut self) {
+    self.record(3, 10);
+}
+
+machine Main::record(&mut self, n: i32, bound [erased]: i32)
+requires
+    n < bound
+{
+    transition { _ -> store(n, bound) }
+    state store(&mut self, n: i32, bound [erased]: i32)
+    requires
+        n < bound
+    {
+        self.total = n;
+    }
+}

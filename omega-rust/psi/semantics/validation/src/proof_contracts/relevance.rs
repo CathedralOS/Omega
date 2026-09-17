@@ -150,9 +150,21 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                                 continue;
                             }
                             match program.statement_table.transition_target(target) {
-                                TransitionTargetNode::Named { arguments, .. } => {
-                                    for argument in
-                                        program.statement_table.expression_handles(*arguments)
+                                TransitionTargetNode::Named {
+                                    path, arguments, ..
+                                } => {
+                                    // A named transition binds the target
+                                    // state's parameters exactly like a call
+                                    // binds a callee's: an argument at an
+                                    // erased position is that binding's
+                                    // initializer, not a runtime transfer.
+                                    let target_parameters =
+                                        transition_target_parameters(program, state, path);
+                                    for (position, argument) in program
+                                        .statement_table
+                                        .expression_handles(*arguments)
+                                        .iter()
+                                        .enumerate()
                                     {
                                         validate_expression(
                                             program,
@@ -160,7 +172,11 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                                             machine,
                                             state,
                                             *argument,
-                                            machine_context,
+                                            argument_position_context(
+                                                machine_context,
+                                                target_parameters,
+                                                position,
+                                            ),
                                             diagnostics,
                                         );
                                     }
@@ -204,6 +220,22 @@ pub(super) fn callee_parameters(
             .iter()
             .find(|state| state.symbol == target)
             .map(|state| program.state_parameters(state))
+    })
+}
+
+/// The parameters a named transition target binds: the sibling state (or
+/// machine entry) `path` resolves to, or the current state itself for a
+/// bare `self` re-entry. Positional transition arguments align with the
+/// target's non-`self` parameters, the same rule as call arguments.
+fn transition_target_parameters<'program>(
+    program: &'program TypedTrees,
+    state: &'program typed_trees::state::State,
+    path: &typed_trees::statement::TableNamePath,
+) -> Option<&'program [typed_trees::signature::StateParameter]> {
+    callee_parameters(program, path.symbol).or_else(|| {
+        let members = program.statement_table.name_path_members(path.members);
+        matches!(members, [member] if member.as_str() == "self")
+            .then(|| program.state_parameters(state))
     })
 }
 
