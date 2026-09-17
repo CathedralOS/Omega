@@ -127,12 +127,20 @@ impl TokenBinding<'_> {
                     self.operand_shape
                 )
             }
-            BindingOwner::Domain { carrier, .. } => {
-                if carrier.is_valid()
-                    && operand_types
-                        .iter()
-                        .any(|type_reference| names_symbol(program, type_reference, carrier))
-                {
+            BindingOwner::Domain { domain, carrier } => {
+                // A generic domain (`domain<T, const U: Unit> T::Quantity<U>`)
+                // classifies an open carrier, so an operand participates by
+                // being qualified with the domain itself.
+                let domain_name = program
+                    .domain_definitions
+                    .iter()
+                    .find(|definition| definition.symbol == domain)
+                    .map(|definition| definition.name.as_str().to_owned())
+                    .unwrap_or_default();
+                if operand_types.iter().any(|type_reference| {
+                    (carrier.is_valid() && names_symbol(program, type_reference, carrier))
+                        || qualified_by_domain(program, type_reference, &domain_name)
+                }) {
                     return None;
                 }
                 format!(
@@ -224,6 +232,61 @@ fn names_symbol(
             home,
         ),
         TypeReference::ConstExpression(_) | TypeReference::Unit => false,
+    }
+}
+
+/// Whether `type_reference` carries a domain constraint spelled as `domain_name`
+/// or its leaf (`i32 in Degrees` selects `i32::Degrees`), behind references
+/// and elements. Constraints are still names at this stage; the typed stage
+/// settles their symbols.
+fn qualified_by_domain(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+    domain_name: &str,
+) -> bool {
+    let leaf = domain_name.rsplit("::").next().unwrap_or(domain_name);
+    match type_reference {
+        TypeReference::Constrained(constrained) => {
+            program
+                .tables
+                .types
+                .constraints
+                .span_or_empty(constrained.constraints)
+                .iter()
+                .any(|constraint| {
+                    matches!(
+                        constraint,
+                        symbol_resolved_trees::types::TypeConstraint::Domain(domain)
+                            if domain.name.as_str() == domain_name || domain.name.as_str() == leaf
+                    )
+                })
+                || qualified_by_domain(
+                    program,
+                    program.child_type_reference(constrained.base_type),
+                    domain_name,
+                )
+        }
+        TypeReference::Reference(reference) => qualified_by_domain(
+            program,
+            program.child_type_reference(reference.referee),
+            domain_name,
+        ),
+        TypeReference::FixedArray(fixed_array) => qualified_by_domain(
+            program,
+            program.child_type_reference(fixed_array.element_type),
+            domain_name,
+        ),
+        TypeReference::Slice(slice) => qualified_by_domain(
+            program,
+            program.child_type_reference(slice.element_type),
+            domain_name,
+        ),
+        TypeReference::Named { .. }
+        | TypeReference::SelfType { .. }
+        | TypeReference::Generic(_)
+        | TypeReference::DynamicTrait { .. }
+        | TypeReference::ConstExpression(_)
+        | TypeReference::Unit => false,
     }
 }
 
@@ -414,13 +477,29 @@ fn type_shape(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> 
             )
         }
         TypeReference::Constrained(constrained) => {
+            // An indexed domain application is part of the shape: `Quantity<
+            // Units::METER>` and `Quantity<Units::KILOMETER>` are distinct
+            // operand shapes for one token under one domain owner.
             let constraints = program
                 .tables
                 .types
                 .constraints
                 .span_or_empty(constrained.constraints)
                 .iter()
-                .map(|constraint| constraint.display_name())
+                .map(|constraint| match constraint {
+                    symbol_resolved_trees::types::TypeConstraint::Domain(domain)
+                        if !domain.arguments.is_empty() =>
+                    {
+                        let arguments = program
+                            .child_type_references(domain.arguments)
+                            .iter()
+                            .map(|argument| type_shape(program, argument))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("{}<{arguments}>", domain.name.as_str())
+                    }
+                    _ => constraint.display_name(),
+                })
                 .collect::<Vec<_>>()
                 .join(", ");
             format!(

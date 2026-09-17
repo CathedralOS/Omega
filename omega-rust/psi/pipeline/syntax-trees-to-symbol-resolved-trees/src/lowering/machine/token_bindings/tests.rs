@@ -263,3 +263,49 @@ fn domain_attached_binding_homes_in_the_carrier_and_marks_the_domain_semantic() 
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn generic_domain_binding_homes_through_qualified_operands_and_index_arguments_shape() {
+    // `domain<T, const U: Unit> T::Quantity<U>` classifies an open carrier, so
+    // an operand participates by carrying the domain; distinct index
+    // arguments are distinct operand shapes under the one owner.
+    let source = "data Unit [copy] { scale: i32; }
+         data Units {}
+         const Units::METER: Unit = Unit { scale: 1 };
+         const Units::KILOMETER: Unit = Unit { scale: 1000 };
+         domain<T, const U: Unit> T::Quantity<U>;
+         machine + Quantity::add_meters(
+             left: f64 in Quantity<Units::METER>,
+             right: f64 in Quantity<Units::METER>
+         ) -> f64 in Quantity<Units::METER> { left }
+         machine + Quantity::add_kilometers(
+             left: f64 in Quantity<Units::KILOMETER>,
+             right: f64 in Quantity<Units::KILOMETER>
+         ) -> f64 in Quantity<Units::KILOMETER> { left }";
+    resolve_source(source).expect("qualified operands home in the generic domain");
+
+    let diagnostics = resolve_source(
+        "data Unit [copy] { scale: i32; }
+         domain<T, const U: Unit> T::Quantity<U>;
+         machine + Quantity::add(left: f64, right: f64) -> f64 { left }",
+    )
+    .expect_err("bare carrier operands name no home of a generic domain");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("no operand names the carrier of its home domain `Quantity`")),
+        "{diagnostics:?}"
+    );
+
+    let diagnostics = resolve_source(&source.replace(
+        "Quantity<Units::KILOMETER>,\n             right: f64 in Quantity<Units::KILOMETER>",
+        "Quantity<Units::METER>,\n             right: f64 in Quantity<Units::METER>",
+    ))
+    .expect_err("the same index arguments repeat the first binding's shape");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "`Quantity::add_kilometers` binds the fixed operator token `+` already bound by `Quantity::add_meters`"
+        )),
+        "{diagnostics:?}"
+    );
+}
