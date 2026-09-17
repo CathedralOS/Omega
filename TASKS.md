@@ -489,7 +489,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   missing-Fused-establishment-row guard (`hosted_receiver.rs:600`,
   [owner question 1](OWNER_QUESTIONS.md)) and none reaches a storage guard;
   with that row, only `runtime_float_constant_store_exit` (f32/f64 leaves)
-  would trip the storage-shape guard (`hosted_receiver.rs:632`), while the
+  tripped the storage-shape guard (`hosted_receiver.rs:632`) until 26484b4162
+  admitted IEEE float leaves, while the
   other 80 already fit the admitted shapes (per fixture: 14 console-only, 23
   plain ints/bools, 19 `in Wrapping`/`in Saturating` ints, 3 zero-containing
   ranges, 3 `[u8; N]`/`[i64; N]` arrays, 21 nested zero-valid records of which
@@ -1261,10 +1262,16 @@ Owners include
   (2026-09-17 UTC, the 81 bridge-declined canaries read only): every one is
   blocked first by the row-less bare `console: Console;` field
   ([owner question 1](OWNER_QUESTIONS.md)), not by storage; after that the
-  corpus needs IEEE float leaves (`runtime_float_constant_store_exit`, f32/f64)
-  and nothing else new, since the other 80 fit plain/domain/range integers,
-  `[u8; N]`/`[i64; N]` arrays and nested zero-valid records (generic
-  instantiations such as `Pair<bool>` and `FixedBuffer<4>` included). The private-resolver-storage
+  corpus needs nothing else new: the IEEE float leaves it demands
+  (`runtime_float_constant_store_exit`, f32/f64) are admitted as top-level,
+  array-element and nested zero-valid record storage (zero-filled bits are the
+  exact `0.0`), witnessed on macOS ARM64 by
+  `entry_and_abi::hosted_receiver::hosted_receiver_provisions_ieee_float_leaves_for_constant_stores`
+  (`tests/omega/pass/expressions/runtime_float_receiver_storage_exit`, f64 and
+  f32 fields beside a Bound Console, exit 70), and the other 80 fit
+  plain/domain/range integers, `[u8; N]`/`[i64; N]` arrays and nested
+  zero-valid records (generic instantiations such as `Pair<bool>` and
+  `FixedBuffer<4>` included). The private-resolver-storage
   Linux leg of the nominal machine-parameter witness
   (`tests/omega/pass/generics/runtime_nominal_machine_parameter_satisfaction_exit`,
   exit 70 on macOS ARM64 through

@@ -1,9 +1,11 @@
 //! Real process entry must provision the receiver; the test supplies no pointer,
 //! storage grant, interpreter arguments, or replacement native entry stub.
 
+use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, Path, PathBuf, compile,
-    compile_reviewed_repository_fixture, fs, repo_root, unique_no_output_build_dir,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, fs, pass_canary,
+    repo_root, unique_no_output_build_dir,
 };
 use compiler::CheckedCompileRequest;
 struct HostedProject(PathBuf);
@@ -329,6 +331,41 @@ fn hosted_receiver_signed_wrapping_remainder_preserves_sign_and_overflow_policy(
 #[test]
 fn hosted_receiver_indexed_primitive_storage_survives_state_transition() {
     compile_and_run_hosted_receiver(false, true, ReceiverObservation::IndexedPrimitiveArray);
+}
+
+#[test]
+fn hosted_receiver_provisions_ieee_float_leaves_for_constant_stores() {
+    // The authored fixture declares `f64` and `f32` fields beside the Bound
+    // Console carrier and runs the `runtime_float_constant_store_exit` store
+    // sequence. The bridge zero-fills the receiver, and all-zero bits are the
+    // exact positive `0.0` of both IEEE formats, so the float leaves are
+    // zero-valid storage: before this admission the same program was refused
+    // by the bridge's storage-shape guard. Unit plans admit no float guards,
+    // so the witness is the provisioned receiver executing every store to
+    // exit 70.
+    let canary = pass_canary(fixture_roster::EXPRESSIONS_RUNTIME_FLOAT_RECEIVER_STORAGE_EXIT);
+    let build_dir = unique_no_output_build_dir();
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .unwrap_or_else(|diagnostics| {
+            panic!("IEEE float receiver leaves must publish natively: {diagnostics:#?}")
+        });
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("float receiver canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("execute the float receiver canary");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "the provisioned f64/f32 receiver leaves must execute every constant store (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "{output:?}");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

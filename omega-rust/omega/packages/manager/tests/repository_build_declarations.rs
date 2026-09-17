@@ -459,7 +459,7 @@ fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
 #[test]
 fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
-        [("expressions", 51, 50), ("storage", 11, 10)]
+        [("expressions", 52, 51), ("storage", 11, 10)]
     {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
