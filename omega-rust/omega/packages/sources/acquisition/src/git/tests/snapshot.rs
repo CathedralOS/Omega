@@ -3,8 +3,8 @@ use super::{
     GitBlobBytes, GitExecutionTransport, GitTreeEntry, GitTreeEntryKind, LocalSourceLimits, Path,
     PathBuf, SourceResolveError, SourceResolverStorage, create_git_source, git_cache_entry_root,
     local_git_request, make_tree_owner_writable, publish_git_member_snapshot,
-    read_git_blobs_batch_from_path, resolve_git_source, run_test_git, run_test_git_with_input,
-    temp_root, test_system_git_executor,
+    read_git_blobs_batch_from_path, resolve_git_source_from_hardened_base, run_test_git,
+    run_test_git_with_input, temp_root, test_system_git_executor,
 };
 #[cfg(unix)]
 use super::{
@@ -227,7 +227,8 @@ fn git_snapshot_preserves_paths_executable_modes_and_symlink_spelling() {
     let request = local_git_request(&repo, "HEAD");
 
     let resolved =
-        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("resolve kinds");
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve kinds");
     let published_script = resolved.snapshot_root.join("tools/generate");
     let published_link = resolved.snapshot_root.join("tools/current");
 
@@ -260,8 +261,9 @@ fn git_snapshot_preserves_paths_executable_modes_and_symlink_spelling() {
             & 0o7777,
         u32::from(CANONICAL_DIRECTORY_MODE)
     );
-    let verified = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect("verify nested snapshot reuse");
+    let verified =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("verify nested snapshot reuse");
     assert_eq!(resolved.local, verified.local);
 
     let _ = std::fs::remove_dir_all(&repo);
@@ -282,8 +284,9 @@ fn git_snapshot_uses_blob_bytes_not_checkout_attribute_conversions() {
     let cache = temp_root("git-snapshot-attributes-cache");
     let request = local_git_request(&repo, "HEAD");
 
-    let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect("materialize object bytes");
+    let resolved =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("materialize object bytes");
 
     assert_eq!(
         std::fs::read(resolved.snapshot_root.join("main.omg")).expect("read snapshot blob"),
@@ -303,9 +306,11 @@ fn git_snapshot_reuse_rejects_content_with_forged_matching_metadata() {
     let cache = temp_root("git-snapshot-reuse-cache");
     let request = local_git_request(&repo, "HEAD");
     let first =
-        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("first resolve");
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("first resolve");
     let second =
-        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("reuse snapshot");
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("reuse snapshot");
     assert_eq!(first.snapshot_root, second.snapshot_root);
     assert_eq!(first.local, second.local);
 
@@ -328,8 +333,9 @@ fn git_snapshot_reuse_rejects_content_with_forged_matching_metadata() {
         .expect("forge matching snapshot metadata");
     make_snapshot_read_only(publication).expect("restore canonical snapshot modes");
 
-    let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect_err("tampered snapshot and matching forged metadata must reject");
+    let error =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect_err("tampered snapshot and matching forged metadata must reject");
     assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
     let entry = git_cache_entry_root(&cache, &request);
     assert!(!entry.join(GIT_CACHE_METADATA).exists());
@@ -344,7 +350,8 @@ fn git_batch_failure_precedes_snapshot_staging() {
     let (repo, _) = create_git_source("git-snapshot-cleanup");
     let cache = temp_root("git-snapshot-cleanup-cache");
     let request = local_git_request(&repo, "HEAD");
-    resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+        .expect("prime cache");
     let entry_root = git_cache_entry_root(&cache, &request);
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
     let missing_oid = "0000000000000000000000000000000000000000";
@@ -398,7 +405,8 @@ fn git_snapshot_excludes_untracked_source_worktree_state() {
         .expect("write untracked source state");
     let request = local_git_request(&repo, "HEAD");
     let resolved =
-        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("prime cache");
 
     assert!(!resolved.snapshot_root.join("injected.omg").exists());
     assert_eq!(resolved.local.file_count, 1);
@@ -411,8 +419,9 @@ fn git_source_rejects_submodule_manifest() {
     let (repo, commit) = create_git_source("git-submodule");
     let cache = temp_root("git-submodule-cache");
     let request = local_git_request(&repo, "HEAD");
-    let initial = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect("resolve initial source");
+    let initial =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve initial source");
     let snapshot_source = initial.snapshot_root.join("main.omg");
     let initial_snapshot = std::fs::read(&snapshot_source).expect("read initial snapshot");
 
@@ -422,8 +431,9 @@ fn git_source_rejects_submodule_manifest() {
     run_test_git(&repo, ["add", "main.omg"]);
     run_test_git(&repo, ["commit", "--quiet", "-m", "submodule manifest"]);
 
-    let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect_err("submodule manifest should reject");
+    let error =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect_err("submodule manifest should reject");
 
     assert!(matches!(
         error,

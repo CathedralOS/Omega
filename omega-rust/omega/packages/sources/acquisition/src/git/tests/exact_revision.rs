@@ -2,7 +2,7 @@
 use super::{
     GIT_CACHE_METADATA, GitExactRevisionAcquisition, GitObjectIdAlgorithm, LocalSourceLimits,
     SourceResolveError, local_git_request, resolve_git_source_at_revision_in_lane,
-    resolve_git_source_at_revision_in_lane_with_primary_git, resolve_git_source_in_lane,
+    resolve_git_source_in_lane,
 };
 use crate::observations::resolved::ResolvedGitSource;
 mod failures;
@@ -47,6 +47,7 @@ fn persisted_objects_fetch_cold_and_ignore_branch_and_fetch_head_movement() {
         .unwrap();
     fixture.assert_original(&original);
     let refreshed = resolve_git_source_in_lane(
+        fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         fixture.storage.git_sources(),
         LocalSourceLimits::default(),
@@ -73,7 +74,7 @@ fn persisted_objects_fetch_cold_and_ignore_branch_and_fetch_head_movement() {
 #[test]
 fn persisted_objects_support_explicit_primary_git_without_transport() {
     let mut fixture = Fixture::new("exact-revision-explicit-primary");
-    let first = resolve_git_source_at_revision_in_lane_with_primary_git(
+    let first = resolve_git_source_at_revision_in_lane(
         fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         &fixture.commit,
@@ -85,7 +86,7 @@ fn persisted_objects_support_explicit_primary_git_without_transport() {
     .unwrap();
     fixture.assert_original(&first);
     fixture.disconnect();
-    let recovered = resolve_git_source_at_revision_in_lane_with_primary_git(
+    let recovered = resolve_git_source_at_revision_in_lane(
         fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         &fixture.commit,
@@ -155,6 +156,7 @@ fn warm_exact_recovery_enforces_current_source_limits() {
         .unwrap();
     fixture.disconnect();
     let error = resolve_git_source_at_revision_in_lane(
+        fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         &fixture.commit,
         &fixture.tree,

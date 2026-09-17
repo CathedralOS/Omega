@@ -1,8 +1,8 @@
 use super::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionPlanner,
     GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, SourceResolverStorage,
-    create_git_source, local_git_request, make_tree_owner_writable,
-    resolve_git_workspace_member_with_storage, run_test_git, temp_root, test_system_git_executor,
+    create_git_source, local_git_request, make_tree_owner_writable, resolve_git_workspace_member,
+    run_test_git, temp_root, test_system_git_executor,
 };
 use crate::PrimaryGitChoices;
 struct FixedWorkspacePlanner {
@@ -88,7 +88,7 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
     let mut planner = FixedWorkspacePlanner {
         member: member.clone(),
     };
-    let result = resolve_git_workspace_member_with_storage(
+    let result = resolve_git_workspace_member(
         &request,
         &storage,
         LocalSourceLimits {

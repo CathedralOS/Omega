@@ -1,7 +1,7 @@
 use super::{
     CacheCustodyKind, GIT_CACHE_SNAPSHOTS, LocalSourceLimits, PendingMaterializedSnapshot,
     SourceResolveError, create_git_source, local_git_request, make_tree_owner_writable,
-    open_verified_git_repository, resolve_git_source, temp_root,
+    open_verified_git_repository, resolve_git_source_from_hardened_base, temp_root,
     write_snapshot_file_from_open_root,
 };
 #[cfg(unix)]
@@ -63,7 +63,8 @@ fn git_snapshot_bootstrap_and_staging_remain_bound_to_the_retained_entry() {
     let (repo, _) = create_git_source("retained-snapshot-bootstrap-source");
     let cache = temp_root("retained-snapshot-bootstrap-cache");
     let request = local_git_request(&repo, "HEAD");
-    resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+        .expect("prime cache");
     let verified = open_verified_git_repository(&cache, &request);
     let snapshots_path = verified.entry_root.join(GIT_CACHE_SNAPSHOTS);
     make_tree_owner_writable(&snapshots_path);

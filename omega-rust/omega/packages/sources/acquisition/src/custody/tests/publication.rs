@@ -6,7 +6,7 @@ use super::{
 use super::{
     GIT_CACHE_METADATA, LocalSourceLimits, create_git_source, git_cache_entry_root,
     invalidate_git_cache_entry_from_open_parent, local_git_request,
-    publish_cache_directory_from_open_parent, resolve_git_source,
+    publish_cache_directory_from_open_parent, resolve_git_source_from_hardened_base,
 };
 use std::ffi::OsStr;
 
@@ -75,7 +75,7 @@ fn git_cache_stage_and_metadata_use_explicit_private_modes() {
     let (repository, _) = create_git_source("git-private-cache-modes");
     let cache = temp_root("git-private-cache-modes-cache");
     let request = local_git_request(&repository, "HEAD");
-    resolve_git_source(&request, &cache, LocalSourceLimits::default())
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
         .expect("materialize private Git cache entry");
     let entry = git_cache_entry_root(&cache, &request);
 

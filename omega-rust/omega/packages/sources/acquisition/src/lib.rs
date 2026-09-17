@@ -22,10 +22,7 @@ pub mod tree;
 pub use error::SourceResolveError;
 pub use git::executable::selection::PrimaryGitSelection;
 pub use git::request::{GitSourceRequest, GitSourceRequestError, GitTransportProfile};
-pub use git::resolution::{resolve_git_source_with_primary_git, resolve_git_source_with_storage};
-pub use git::resolution::{
-    resolve_git_workspace_member_with_primary_git, resolve_git_workspace_member_with_storage,
-};
+pub use git::resolution::{resolve_git_source, resolve_git_workspace_member};
 pub use git::workspace::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionCustody,
     GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult,
@@ -38,7 +35,7 @@ pub use identity::{
     SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 pub use limits::LocalSourceLimits;
-pub use local::operations::{resolve_local_source, resolve_local_source_snapshot_with_storage};
+pub use local::operations::{resolve_local_source, resolve_local_source_snapshot};
 pub use local::resolution_observations::{
     LocalSourceResolutionObservation, ResolvedLocalSnapshot, ResolvedLocalSource,
 };

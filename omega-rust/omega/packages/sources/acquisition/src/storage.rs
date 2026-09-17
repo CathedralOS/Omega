@@ -253,7 +253,9 @@ impl RetainedStorageLane {
         Ok(child)
     }
 
-    pub(crate) fn primary_git(&self) -> Result<&PrimaryGitSelection, SourceResolveError> {
+    /// The primary Git this lane was opened with; lane entries take it as their
+    /// first argument so a caller may also substitute another selection.
+    pub fn primary_git(&self) -> Result<&PrimaryGitSelection, SourceResolveError> {
         self.primary_git
             .as_ref()
             .ok_or(SourceResolveError::GitExecutableUnavailable)

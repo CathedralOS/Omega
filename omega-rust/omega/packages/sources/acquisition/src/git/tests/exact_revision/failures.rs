@@ -40,6 +40,7 @@ fn authored_exact_commit_must_equal_persisted_commit_before_acquisition() {
     let request_entry = fixture.request_entry(&request);
     fixture.disconnect();
     let error = resolve_git_source_at_revision_in_lane(
+        fixture.storage.git_sources().primary_git().unwrap(),
         &request,
         &fixture.commit,
         &fixture.tree,

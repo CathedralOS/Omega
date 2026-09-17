@@ -2,9 +2,9 @@ use super::{
     Command, GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, LocalSourceLimits,
     SourceResolveError, bounded_git_fetch_arguments, create_git_cache_entry, create_git_source,
     git_cache_entry_root, git_cache_identity, local_git_request, make_tree_owner_writable,
-    open_absolute_directory_nofollow, resolve_git_source, resolve_verified_git_cache_entry,
-    run_test_git, run_test_git_with_input, temp_root, test_system_git_executor,
-    verify_git_cache_root_custody,
+    open_absolute_directory_nofollow, resolve_git_source_from_hardened_base,
+    resolve_verified_git_cache_entry, run_test_git, run_test_git_with_input, temp_root,
+    test_system_git_executor, verify_git_cache_root_custody,
 };
 #[test]
 fn git_source_fetches_only_the_selected_revision_depth() {
@@ -15,7 +15,7 @@ fn git_source_fetches_only_the_selected_revision_depth() {
     let cache = temp_root("git-shallow-cache");
     let request = local_git_request(&repo, "HEAD");
 
-    resolve_git_source(&request, &cache, LocalSourceLimits::default())
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
         .expect("resolve a shallow exact revision");
 
     let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);

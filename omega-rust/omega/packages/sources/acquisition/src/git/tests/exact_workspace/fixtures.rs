@@ -86,6 +86,7 @@ impl Fixture {
     ) -> Result<GitWorkspaceProjectionResult<&'static str>, GitWorkspaceProjectionError<&'static str>>
     {
         resolve_git_workspace_member_at_revision_in_lanes(
+            self.storage.git_sources().primary_git().unwrap(),
             &self.request,
             &self.commit,
             &self.root_tree,

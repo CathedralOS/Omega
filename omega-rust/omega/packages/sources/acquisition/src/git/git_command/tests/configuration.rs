@@ -1,8 +1,8 @@
 use super::{
     GIT_CACHE_REPOSITORY, GitExecutionTransport, LocalSourceLimits, ResolverExecutionPhase,
     SourceResolveError, create_git_source, git_cache_entry_root, local_git_request,
-    resolve_git_source, run_command_bounded, run_test_git, sealed_git_command, temp_root,
-    test_system_git_executor,
+    resolve_git_source_from_hardened_base, run_command_bounded, run_test_git, sealed_git_command,
+    temp_root, test_system_git_executor,
 };
 use std::ffi::{OsStr, OsString};
 use std::time::Duration;
@@ -17,7 +17,8 @@ fn git_cache_rejects_local_filter_configuration_without_running_it() {
     let cache = temp_root("git-filter-cache");
     let sentinel = cache.join("filter-ran");
     let request = local_git_request(&repo, "HEAD");
-    resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+        .expect("prime cache");
     let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
     run_test_git(
         &repository,
@@ -29,8 +30,9 @@ fn git_cache_rejects_local_filter_configuration_without_running_it() {
         ],
     );
 
-    let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect_err("local filter configuration must reject");
+    let error =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect_err("local filter configuration must reject");
 
     assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
     assert!(!sentinel.exists());

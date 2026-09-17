@@ -46,6 +46,7 @@ impl Fixture {
         pin: Option<&GitAcquisitionPin>,
     ) -> Result<ResolvedGitSource, SourceResolveError> {
         resolve_git_source_from_pin_in_lane(
+            self.storage.git_sources().primary_git().unwrap(),
             &self.request,
             pin,
             self.storage.git_sources(),
@@ -139,6 +140,7 @@ fn whole_root_pin_rejects_another_request_before_transport() {
     let different_locator = local_git_request(&fixture.repository, "HEAD");
     for request in [&different_revision, &different_locator] {
         let error = resolve_git_source_from_pin_in_lane(
+            fixture.storage.git_sources().primary_git().unwrap(),
             request,
             Some(&pin),
             fixture.storage.git_sources(),
@@ -230,6 +232,7 @@ fn whole_root_pin_still_enforces_current_source_limits() {
         .acquisition_pin();
     fixture.disconnect();
     let error = resolve_git_source_from_pin_in_lane(
+        fixture.storage.git_sources().primary_git().unwrap(),
         &fixture.request,
         Some(&pin),
         fixture.storage.git_sources(),

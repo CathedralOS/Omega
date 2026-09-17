@@ -8,8 +8,8 @@ use package_manager::review::SemanticBindingReview;
 use package_manager::review::compile_resolved_package_reviews;
 use package_source::PrimaryGitChoices;
 use package_source::{
-    GitSourceRequest, LocalSourceLimits, SourceLineage, SourceResolverStorage,
-    resolve_git_source_with_storage, resolve_local_source,
+    GitSourceRequest, LocalSourceLimits, SourceLineage, SourceResolverStorage, resolve_git_source,
+    resolve_local_source,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -200,15 +200,14 @@ fn verify_remote_pins(pins: Vec<RemotePin>, target: target::TargetProfile) {
             PackageName::parse(&pin.package).expect("remote fixture package name"),
             expected_lineage.clone(),
         );
-        let resolved =
-            resolve_git_source_with_storage(&request, &storage, LocalSourceLimits::default())
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "remote fixture {} at {} should resolve: {error}",
-                        pin.package,
-                        ssh_url(&pin)
-                    )
-                });
+        let resolved = resolve_git_source(&request, &storage, LocalSourceLimits::default())
+            .unwrap_or_else(|error| {
+                panic!(
+                    "remote fixture {} at {} should resolve: {error}",
+                    pin.package,
+                    ssh_url(&pin)
+                )
+            });
         let expected_root = fixture.expected_package(&pin.package);
         let local = resolve_local_source(&expected_root, LocalSourceLimits::default())
             .expect("local fixture should resolve");

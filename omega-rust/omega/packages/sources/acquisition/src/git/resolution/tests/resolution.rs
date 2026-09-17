@@ -2,9 +2,9 @@ use super::{
     GitCommitId, GitObjectIdAlgorithm, GitSourceRequest, GitTransportProfile, GitTreeId,
     ImmutableSourceResolution, LocalSourceLimits, PendingResolvedGitSource, SourceResolveError,
     add_empty_tree_commit, create_git_source, create_git_source_with_format, local_git_request,
-    make_tree_owner_writable, parse_git_remote_object_format, resolve_git_source, run_test_git,
-    temp_root, validate_pending_git_request, validate_pending_git_source_custody,
-    verify_pending_git_snapshot,
+    make_tree_owner_writable, parse_git_remote_object_format,
+    resolve_git_source_from_hardened_base, run_test_git, temp_root, validate_pending_git_request,
+    validate_pending_git_source_custody, verify_pending_git_snapshot,
 };
 #[test]
 fn git_source_resolves_exact_commit_and_local_identity() {
@@ -12,8 +12,9 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     let cache = temp_root("git-cache");
 
     let request = local_git_request(&repo, &commit);
-    let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-        .expect("resolve git source");
+    let resolved =
+        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve git source");
 
     assert_eq!(resolved.commit, commit);
     assert_eq!(resolved.local.file_count, 1);
@@ -90,7 +91,7 @@ fn git_source_authenticates_and_materializes_empty_subtrees() {
     let commit = add_empty_tree_commit(&repo);
     let cache = temp_root("git-empty-subtree-cache");
 
-    let resolved = resolve_git_source(
+    let resolved = resolve_git_source_from_hardened_base(
         &local_git_request(&repo, &commit),
         &cache,
         LocalSourceLimits::default(),
@@ -109,7 +110,7 @@ fn git_source_authenticates_and_materializes_empty_subtrees() {
 fn git_resolution_issuance_rejects_final_snapshot_drift() {
     let (repo, commit) = create_git_source("git-final-issuance-drift");
     let cache = temp_root("git-final-issuance-drift-cache");
-    let resolved = resolve_git_source(
+    let resolved = resolve_git_source_from_hardened_base(
         &local_git_request(&repo, &commit),
         &cache,
         LocalSourceLimits::default(),
@@ -133,7 +134,7 @@ fn git_source_authenticates_sha256_object_graph() {
     let (repo, commit) = create_git_source_with_format("git-sha256", Some("sha256"));
     let cache = temp_root("git-sha256-cache");
 
-    let resolved = resolve_git_source(
+    let resolved = resolve_git_source_from_hardened_base(
         &local_git_request(&repo, &commit),
         &cache,
         LocalSourceLimits::default(),
@@ -154,7 +155,7 @@ fn git_source_discovers_sha256_for_symbolic_revision() {
     let (repo, commit) = create_git_source_with_format("git-sha256-symbolic", Some("sha256"));
     let cache = temp_root("git-sha256-symbolic-cache");
 
-    let resolved = resolve_git_source(
+    let resolved = resolve_git_source_from_hardened_base(
         &local_git_request(&repo, "HEAD"),
         &cache,
         LocalSourceLimits::default(),
@@ -214,7 +215,7 @@ fn git_tree_authentication_matches_git_prefix_ordering() {
     run_test_git(&repo, ["commit", "--quiet", "-m", "exercise tree ordering"]);
     let cache = temp_root("git-prefix-ordering-cache");
 
-    let resolved = resolve_git_source(
+    let resolved = resolve_git_source_from_hardened_base(
         &local_git_request(&repo, "HEAD"),
         &cache,
         LocalSourceLimits::default(),

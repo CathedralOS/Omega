@@ -38,7 +38,8 @@ fn resolve_git_root_package_source_in_lane(
     application_root_allowed: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
-    let source = resolve_git_source_from_pin_in_lane(request, pin, lane, limits)?;
+    let source =
+        resolve_git_source_from_pin_in_lane(lane.primary_git()?, request, pin, lane, limits)?;
     bind_git_root_package_source(source, application_root_allowed)
 }
 
@@ -111,6 +112,7 @@ fn resolve_selected_git_declared_source_from_pin_in_lanes(
         PackageSelection::Named(package) => {
             let mut planner = ManagerGitWorkspacePlanner::new(package);
             let projected = resolve_git_workspace_member_from_pin_in_lanes(
+                git_lane.primary_git()?,
                 request.acquisition(),
                 pin,
                 git_lane,

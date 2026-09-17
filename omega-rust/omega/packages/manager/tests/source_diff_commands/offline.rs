@@ -5,7 +5,7 @@ fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparis
         |fixture| {
             use package_source::PrimaryGitChoices;
             use package_manager::PackageCommandKind;
-            use package_source::git::resolution::resolve_git_source_with_storage;
+            use package_source::git::resolution::resolve_git_source;
             use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
 
             fixture.package("repository", "git-library", "");
@@ -42,7 +42,7 @@ fn offline_update_resume_with_only_candidate_cached_retains_lock_policy_comparis
             let request = GitSourceRequest::new(REPOSITORY, None).unwrap();
             let calls = fixture.transport_calls();
             drop(
-                resolve_git_source_with_storage(&request, &storage, LocalSourceLimits::default())
+                resolve_git_source(&request, &storage, LocalSourceLimits::default())
                     .unwrap(),
             );
             assert!(fixture.transport_calls() > calls);

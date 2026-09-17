@@ -3,8 +3,8 @@ use super::{
     SourceResolveError, SourceTreePolicy, VerifiedPackageSourceEntryKind, capture_local_source,
     capture_verified_package_source_snapshot, local_snapshot_custody_identity,
     make_snapshot_read_only, make_tree_owner_writable, publish_local_snapshot,
-    resolve_local_source, resolve_local_source_snapshot, resolve_local_source_snapshot_at_path,
-    resolve_materialized_source, temp_root,
+    resolve_local_source, resolve_local_source_snapshot_at_path,
+    resolve_local_source_snapshot_from_hardened_base, resolve_materialized_source, temp_root,
 };
 #[cfg(unix)]
 use super::{Path, PathBuf};
@@ -20,8 +20,12 @@ fn local_snapshot_preserves_empty_directories_and_uses_published_identity() {
     std::fs::write(root.join("build/omega-program"), "excluded").expect("write build output");
     let live = resolve_local_source(&root, LocalSourceLimits::default()).expect("resolve live");
 
-    let resolved = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
-        .expect("snapshot local source");
+    let resolved = resolve_local_source_snapshot_from_hardened_base(
+        &root,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("snapshot local source");
 
     assert_eq!(resolved.requested_root(), root);
     assert_eq!(resolved.canonical_live_root(), live.root);
@@ -118,10 +122,18 @@ fn byte_identical_local_sources_retain_distinct_custody_roots() {
         .expect("write identical source");
     }
 
-    let first = resolve_local_source_snapshot(&first_root, &cache, LocalSourceLimits::default())
-        .expect("publish first lineage snapshot");
-    let second = resolve_local_source_snapshot(&second_root, &cache, LocalSourceLimits::default())
-        .expect("publish second lineage snapshot");
+    let first = resolve_local_source_snapshot_from_hardened_base(
+        &first_root,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("publish first lineage snapshot");
+    let second = resolve_local_source_snapshot_from_hardened_base(
+        &second_root,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("publish second lineage snapshot");
 
     assert_eq!(
         first.normalized().content_identity,
@@ -135,13 +147,21 @@ fn byte_identical_local_sources_retain_distinct_custody_roots() {
         "distinct lineages need distinct physical custody roots for compiler attribution"
     );
     assert_eq!(
-        resolve_local_source_snapshot(&first_root, &cache, LocalSourceLimits::default())
-            .expect("reuse first lineage snapshot"),
+        resolve_local_source_snapshot_from_hardened_base(
+            &first_root,
+            &cache,
+            LocalSourceLimits::default()
+        )
+        .expect("reuse first lineage snapshot"),
         first
     );
     assert_eq!(
-        resolve_local_source_snapshot(&second_root, &cache, LocalSourceLimits::default())
-            .expect("reuse second lineage snapshot"),
+        resolve_local_source_snapshot_from_hardened_base(
+            &second_root,
+            &cache,
+            LocalSourceLimits::default()
+        )
+        .expect("reuse second lineage snapshot"),
         second
     );
 
@@ -207,8 +227,12 @@ fn local_snapshot_canonicalizes_permissions_and_preserves_symlink_spelling() {
     std::os::unix::fs::symlink("generate", root.join("tools/current"))
         .expect("create relative symlink");
 
-    let resolved = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
-        .expect("snapshot local source");
+    let resolved = resolve_local_source_snapshot_from_hardened_base(
+        &root,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("snapshot local source");
     let mode = |path: &Path| {
         std::fs::symlink_metadata(path)
             .expect("snapshot metadata")
@@ -249,10 +273,18 @@ fn local_snapshot_reuse_rehashes_and_rejects_tampering() {
     std::fs::create_dir_all(&root).expect("create source");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
 
-    let first = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
-        .expect("publish snapshot");
-    let second = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
-        .expect("reuse snapshot");
+    let first = resolve_local_source_snapshot_from_hardened_base(
+        &root,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("publish snapshot");
+    let second = resolve_local_source_snapshot_from_hardened_base(
+        &root,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect("reuse snapshot");
     assert_eq!(first, second);
 
     std::fs::set_permissions(
@@ -265,8 +297,12 @@ fn local_snapshot_reuse_rehashes_and_rejects_tampering() {
         .expect("make snapshot file writable");
     std::fs::write(&source, "machine Tampered::main() {}\n").expect("tamper snapshot");
 
-    let error = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
-        .expect_err("tampered snapshot must reject");
+    let error = resolve_local_source_snapshot_from_hardened_base(
+        &root,
+        &cache,
+        LocalSourceLimits::default(),
+    )
+    .expect_err("tampered snapshot must reject");
     assert!(matches!(
         error,
         SourceResolveError::LocalSnapshotInvalid { .. }
