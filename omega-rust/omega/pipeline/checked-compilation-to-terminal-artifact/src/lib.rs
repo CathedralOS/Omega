@@ -8,10 +8,12 @@
 //! artifact the direct native route realizes. `native_proposal` projects what
 //! a later native realization may consume, `application_coverage` rejoins
 //! boundary applications to their checked realizations, and
-//! `float_comparisons` rejoins IEEE comparisons to their selected meanings.
+//! `float_comparisons` rejoins IEEE comparisons to their selected meanings,
+//! and `float_fma` rejoins selected nearest fused multiply-adds to their plans.
 
 mod application_coverage;
 mod float_comparisons;
+mod float_fma;
 mod native_proposal;
 mod terminal_artifact;
 
