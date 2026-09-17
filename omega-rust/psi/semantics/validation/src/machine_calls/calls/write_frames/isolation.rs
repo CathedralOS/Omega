@@ -232,7 +232,11 @@ fn type_is_caller_isolated_local_inner(
             isolated_parameters,
             bindings,
         ),
-        TypeReferenceNode::FixedArray { element_type, .. } => type_is_caller_isolated_local_inner(
+        // A by-value array or slice reaches exactly what its elements reach;
+        // a `[u8]` argument carries no reference that a callee could write
+        // through, so it must not turn a boundary frame incomplete.
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => type_is_caller_isolated_local_inner(
             program,
             *element_type,
             visiting,
@@ -365,7 +369,6 @@ fn type_is_caller_isolated_local_inner(
             isolated
         }
         TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => false,
