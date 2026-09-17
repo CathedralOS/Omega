@@ -11,6 +11,15 @@ use super::{CoveredSurface, EntryBinding, LedgerFamily, SoundnessStatus, Trusted
 const KERNEL: &str = "omega-rust/psi/semantics/proof-admission/src/kernel.rs";
 const EVIDENCE: &str = "omega-rust/psi/semantics/proof-admission/src/admission/evidence.rs";
 const PROOF: &str = "omega-rust/psi/semantics/proof-admission/src/proof.rs";
+const PROPOSITIONAL: &str =
+    "omega-rust/psi/semantics/proof-admission/src/proof/propositional_rules.rs";
+const EQUALITY_RULES: &str = "omega-rust/psi/semantics/proof-admission/src/proof/equality_rules.rs";
+const INTEGER_ORDER_RULES: &str =
+    "omega-rust/psi/semantics/proof-admission/src/proof/integer_order_rules.rs";
+const INTEGER_BOUND_RULES: &str =
+    "omega-rust/psi/semantics/proof-admission/src/proof/integer_bound_rules.rs";
+const INTEGER_MATH_NORMALIZATION: &str =
+    "omega-rust/psi/semantics/proof-admission/src/proof/integer_math_normalization.rs";
 const TRAVERSAL: &str = "omega-rust/psi/semantics/proof-admission/src/proof/traversal.rs";
 const SUBTRACT_ORDER: &str = "omega-rust/psi/semantics/proof-admission/src/proof/subtract_order.rs";
 const ORDER_DISCRETENESS: &str =
@@ -19,6 +28,12 @@ const STRICT_ORDER: &str =
     "omega-rust/psi/semantics/proof-admission/src/proof/strict_order_transitivity.rs";
 const INTEGER_AFFINE: &str =
     "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine.rs";
+const AFFINE_BOUND_MAPPING: &str =
+    "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine/bound_mapping.rs";
+const AFFINE_TRUTH_BOUNDS: &str =
+    "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine/truth_bounds.rs";
+const AFFINE_WITNESS_CHECKING: &str =
+    "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine/witness_checking.rs";
 const INTEGER_CAST: &str =
     "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_cast.rs";
 const INTEGER_FORBIDDEN: &str =
@@ -126,7 +141,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             "fact:semantic-axiom-roster",
             "conversion:proposition-match",
         ],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, PROPOSITIONAL, INTEGER_MATH_NORMALIZATION, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -136,7 +151,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "an index resolving inside the ambient assumption roster supplied by reconstruction",
         conclusion: "the cited assumption is established; the node's conclusion must match it under integer-math normalization and the citation is recorded",
         dependencies: &["rule:traversal", "conversion:proposition-match"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, PROPOSITIONAL, INTEGER_MATH_NORMALIZATION, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -146,7 +161,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "children proving each conjunct in order",
         conclusion: "the conclusion is a conjunction of exactly the child conclusions, arity exact",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, PROPOSITIONAL, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -156,7 +171,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a child concluding a conjunction that contains this conclusion at the cited index",
         conclusion: "the selected conjunct is established",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, PROPOSITIONAL, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -166,7 +181,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a child proving the cited disjunct",
         conclusion: "the conclusion is a disjunction containing the child's conclusion at the cited index",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, PROPOSITIONAL, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -176,7 +191,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a child concluding a disjunction and one branch per disjunct, each proving the common conclusion under only its own discharged assumption",
         conclusion: "the common conclusion is established; a branch may not reuse another case or an unproved disjunction",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, PROPOSITIONAL, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -186,7 +201,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a body proving the implication's conclusion under its discharged premise",
         conclusion: "the implication is established with the exact recorded premise and conclusion",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, PROPOSITIONAL, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -196,7 +211,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "one child concluding premise->conclusion and another proving exactly that premise",
         conclusion: "the implication's conclusion is established",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, PROPOSITIONAL, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -206,7 +221,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "two proved relations sharing one exact middle term: Equal, IntegerMathEqual (canonically ordered), or ContentConservation over one algebra",
         conclusion: "the composed equality of the outer terms; a shared-middle mismatch or algebra mismatch rejects",
         dependencies: &["rule:traversal", "conversion:proposition-match"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, EQUALITY_RULES, INTEGER_MATH_NORMALIZATION, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -216,7 +231,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a proved Equal",
         conclusion: "the same equality with sides exchanged",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, NODES],
+        implementation: &[PROOF, EQUALITY_RULES, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -226,7 +241,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a premise proved under the unchanged original roster whose bounded Boolean and closed fixed-integer literal denotation normal form exists",
         conclusion: "one proposition convertible to the premise's denotation; the outer conclusion still must equal the exact reconstructed obligation",
         dependencies: &["rule:traversal", "conversion:predicate-denotation"],
-        implementation: &[PROOF, PREDICATE_DENOTATION, NODES],
+        implementation: &[PROOF, EQUALITY_RULES, PREDICATE_DENOTATION, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -236,7 +251,13 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a premise plus a nonempty ordered list of proved scalar equations, each oriented from an exact value identity to its term",
         conclusion: "the premise transported through only the carried equations when both sides' denotation normal forms match; constructor tags, types, and operand order are preserved",
         dependencies: &["rule:traversal", "conversion:value-equality-denotation"],
-        implementation: &[PROOF, PREDICATE_DENOTATION, VALUE_EQUALITIES, NODES],
+        implementation: &[
+            PROOF,
+            EQUALITY_RULES,
+            PREDICATE_DENOTATION,
+            VALUE_EQUALITIES,
+            NODES,
+        ],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -246,7 +267,12 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a proved Equal or LessThan over fixed-integer terms of the same scalar type",
         conclusion: "the same endpoints under LessOrEqual, matched under integer-math normalization",
         dependencies: &["rule:traversal", "conversion:proposition-match"],
-        implementation: &[PROOF, NODES],
+        implementation: &[
+            PROOF,
+            INTEGER_ORDER_RULES,
+            INTEGER_MATH_NORMALIZATION,
+            NODES,
+        ],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -256,7 +282,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a proved nonstrict integer bound with a literal endpoint",
         conclusion: "the strict relation obtained by moving one literal endpoint outward by exactly one representable integer",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, ORDER_DISCRETENESS, NODES],
+        implementation: &[PROOF, INTEGER_ORDER_RULES, ORDER_DISCRETENESS, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -266,7 +292,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "proved result = original - decrement over exact fixed-integer subtraction and a proved 0 < decrement",
         conclusion: "result < original",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, SUBTRACT_ORDER, NODES],
+        implementation: &[PROOF, INTEGER_ORDER_RULES, SUBTRACT_ORDER, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -276,7 +302,12 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "two proved LessOrEqual or IntegerMathLessOrEqual relations sharing one exact middle term",
         conclusion: "the composed nonstrict order of the outer terms",
         dependencies: &["rule:traversal", "conversion:proposition-match"],
-        implementation: &[PROOF, NODES],
+        implementation: &[
+            PROOF,
+            INTEGER_ORDER_RULES,
+            INTEGER_MATH_NORMALIZATION,
+            NODES,
+        ],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -286,7 +317,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "two proved integer orders sharing one exact middle term with at least one strict edge",
         conclusion: "the strict order of the outer terms",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, STRICT_ORDER, NODES],
+        implementation: &[PROOF, INTEGER_ORDER_RULES, STRICT_ORDER, NODES],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -296,7 +327,12 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         premises: "a proved strict or nonstrict integer order and a proved equality for exactly the cited endpoint",
         conclusion: "the same order with only that endpoint replaced; strictness and the unchanged endpoint are preserved",
         dependencies: &["rule:traversal"],
-        implementation: &[PROOF, NODES],
+        implementation: &[
+            PROOF,
+            INTEGER_ORDER_RULES,
+            INTEGER_MATH_NORMALIZATION,
+            NODES,
+        ],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -310,7 +346,17 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             "normalization:integer-affine-witness",
             "fact:semantic-axiom-roster",
         ],
-        implementation: &[PROOF, INTEGER_AFFINE, WITNESSES, NODES],
+        implementation: &[
+            PROOF,
+            INTEGER_BOUND_RULES,
+            INTEGER_AFFINE,
+            AFFINE_WITNESS_CHECKING,
+            AFFINE_BOUND_MAPPING,
+            AFFINE_TRUTH_BOUNDS,
+            INTEGER_MATH_NORMALIZATION,
+            WITNESSES,
+            NODES,
+        ],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -324,7 +370,14 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             "normalization:integer-affine-witness",
             "fact:semantic-axiom-roster",
         ],
-        implementation: &[PROOF, INTEGER_AFFINE, NODES],
+        implementation: &[
+            PROOF,
+            INTEGER_BOUND_RULES,
+            INTEGER_AFFINE,
+            AFFINE_WITNESS_CHECKING,
+            AFFINE_BOUND_MAPPING,
+            NODES,
+        ],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -338,7 +391,14 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             "normalization:integer-cast-chain-witness",
             "fact:semantic-axiom-roster",
         ],
-        implementation: &[PROOF, INTEGER_CAST, WITNESSES, NODES],
+        implementation: &[
+            PROOF,
+            INTEGER_BOUND_RULES,
+            INTEGER_CAST,
+            INTEGER_MATH_NORMALIZATION,
+            WITNESSES,
+            NODES,
+        ],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -353,7 +413,13 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             "normalization:integer-affine-witness",
             "fact:semantic-axiom-roster",
         ],
-        implementation: &[PROOF, INTEGER_FORBIDDEN, WITNESSES, NODES],
+        implementation: &[
+            PROOF,
+            INTEGER_BOUND_RULES,
+            INTEGER_FORBIDDEN,
+            WITNESSES,
+            NODES,
+        ],
         soundness: TRUSTED,
     },
     // -- Accepted evidence routes (EvidenceRoute variants) --
