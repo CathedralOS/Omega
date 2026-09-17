@@ -177,59 +177,13 @@ pub fn harvest_provider_selections(
         } else if boundary_identity.symbol.is_valid()
             && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Operator
         {
-            let Some(representative) =
-                typed_trees::operator::declaration_by_symbol(typed, boundary_identity.symbol)
-            else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "provider selection subject `{}` has no exact retained operator declaration",
-                    boundary_identity.authored_path
-                )));
-                return;
-            };
-            let canonical_path = typed
-                .operator_path_members(representative.name)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
-            let family_package = typed.symbols.symbol_package_identity(representative.symbol);
-            let mut coordinates = typed
-                .operators()
-                .iter()
-                .chain(
-                    typed
-                        .domain_definitions()
-                        .iter()
-                        .flat_map(|domain| typed.domain_operators(domain)),
-                )
-                .filter(|operator| {
-                    operator.is_boundary
-                        && typed.symbols.symbol_package_identity(operator.symbol) == family_package
-                        && typed
-                            .operator_path_members(operator.name)
-                            .iter()
-                            .map(|member| member.as_str())
-                            .collect::<Vec<_>>()
-                            .join("::")
-                            == canonical_path
-                })
-                .map(
-                    |operator| provider_planning::ProviderOperatorFamilyCoordinate {
-                        symbol: operator.symbol,
-                        requirement_identity:
-                            typed_trees::operator::boundary_operator_requirement_identity(
-                                typed, operator,
-                            ),
-                        static_parameter_count: operator.lifetime_parameters.len()
-                            + typed.operator_type_parameters(operator).len(),
-                    },
-                )
-                .collect::<Vec<_>>();
-            match provider_planning::ProviderOperatorFamilySelection::new(
-                family_package,
-                canonical_path,
+            // One resolved overload symbol names its complete package-
+            // qualified family; provider-planning derives the canonical
+            // roster so harvest and later replay share one definition.
+            match provider_planning::ProviderOperatorFamilySelection::derive(
+                typed,
+                boundary_identity.symbol,
                 boundary_identity.authored_path,
-                std::mem::take(&mut coordinates),
             ) {
                 Ok(family) => {
                     provider_planning::ProviderSelectionSubject::BoundaryOperatorFamily(family)
