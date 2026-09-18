@@ -1234,3 +1234,171 @@ fn a_requires_scope_selected_arithmetic_selector_has_no_statement_use_custody() 
         "a contract-scope arithmetic occurrence invented statement use custody"
     );
 }
+
+/// The authored application standing under a cast or unary wrapper in a
+/// selector or bound position, for tests that inspect or corrupt its custody.
+fn wrapped_selector_application(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        panic!("index fixture")
+    };
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(indexed.index) else {
+        panic!("cast-wrapped selector")
+    };
+    cast.value
+}
+
+/// A cast or unary wrapper has one immediate runtime child and binds no
+/// overloadable token, so the operand gate keeps walking through it to the
+/// authored application below: the wrapped selector reads exactly the operands
+/// the selected declaration receives, plus the element or window place.
+#[test]
+fn a_wrapped_authored_arithmetic_selector_reads_every_operand() {
+    for (declared, selector, operands) in [
+        ("i64", "(low + step) as u64", &["low", "step"][..]),
+        ("i64", "~(low + step)", &["low", "step"][..]),
+        ("i64", "(low + step) as u64 as u64", &["low", "step"][..]),
+        (
+            "&[i64]",
+            "(low + step) as u64..high",
+            &["low", "step", "high"][..],
+        ),
+        ("&[i64]", "low..(low + step) as u64", &["low", "step"][..]),
+    ] {
+        let program = typed_source(&format!(
+            "operator + u64::custom(left: u64, right: u64) -> u64;
+            machine window(items: &[i64; 4], low: u64, step: u64, high: u64, unrelated: u64) {{
+                let cut: {declared} = items[{selector}];
+            }}"
+        ));
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        let operators = selected_operator_facts(&program);
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_operators = Some(&operators);
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        let reads = facts.expression_dependencies[0]
+            .reads
+            .as_ref()
+            .unwrap_or_else(|| panic!("{selector}: a wrapped authored arithmetic footprint"));
+        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        else {
+            panic!("index fixture")
+        };
+        let mut selected = parameter_place(&program, state, "items");
+        selected.segments.push(facts::PlaceSegment::Index {
+            expression: indexed.index,
+        });
+        let expected: Vec<CanonicalPlace> = operands
+            .iter()
+            .map(|name| parameter_place(&program, state, name))
+            .chain(std::iter::once(selected))
+            .collect();
+        assert_eq!(reads.as_slice(), expected.as_slice(), "{selector}");
+        let label = program.expression_table.display_name(expression);
+        for name in operands.iter().copied().chain(["items"]) {
+            let writes = [parameter_place(&program, state, name)];
+            assert!(
+                !facts
+                    .preserved_expression_labels(&program, machine, state, Some(&writes))
+                    .contains(&label),
+                "{selector}: a write to {name} must retire the premise"
+            );
+        }
+        let writes = [parameter_place(&program, state, "unrelated")];
+        assert!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            "{selector}: a disjoint write must preserve it"
+        );
+    }
+}
+
+/// The wrapper admits nothing on its own. A cast over a family the gate still
+/// refuses stays incomplete: an authored comparison is not an arithmetic
+/// spelling, a constant-shaped authored application is folded syntactically by
+/// the place algebra before the selected declaration can establish a
+/// coordinate, and drifted custody proves nothing about which declaration ran.
+#[test]
+fn a_wrapper_over_a_refused_operand_family_stays_incomplete() {
+    for (source, drift) in [
+        (
+            "operator < u64::compare(left: u64, right: u64) -> bool;
+            machine window(items: &[i64; 4], low: u64, step: u64) {
+                let cut: i64 = items[(low < step) as u64];
+            }",
+            false,
+        ),
+        (
+            "operator + u64::custom(left: u64, right: u64) -> u64;
+            machine window(items: &[i64; 4], low: u64, step: u64) {
+                let cut: i64 = items[(1u64 + 0u64) as u64];
+            }",
+            false,
+        ),
+        (
+            "operator + u64::custom(left: u64, right: u64) -> u64;
+            machine window(items: &[i64; 4], low: u64, step: u64) {
+                let cut: i64 = items[(low + step) as u64];
+            }",
+            true,
+        ),
+    ] {
+        let program = typed_source(source);
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        let mut operators = selected_operator_facts(&program);
+        if drift {
+            let application = wrapped_selector_application(&program, expression);
+            let handle = operators
+                .uses
+                .iter()
+                .find_map(|(handle, row)| (row.expression == application).then_some(handle))
+                .expect("checked use row for the wrapped application");
+            operators.uses.get_mut(handle).status =
+                checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
+        }
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_operators = Some(&operators);
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        assert!(
+            facts.expression_dependencies[0].reads.is_none(),
+            "a wrapper admitted a refused operand family: {source}"
+        );
+    }
+}
+
+/// Wrapping does not manufacture statement-use custody: a contract-scope
+/// occurrence stays incomplete under a cast exactly as the bare authored
+/// application does.
+#[test]
+fn a_requires_scope_wrapped_arithmetic_selector_has_no_statement_use_custody() {
+    let program = typed_source(
+        "operator + u64::custom(left: u64, right: u64) -> u64;
+        machine window(items: &[i64; 4], low: u64, step: u64)
+        requires 0 <= items[(low + step) as u64]; {}",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let contract = &program.machine_contracts(machine)[0];
+    let typed_trees::domain::ProofFact::Expression(guard) =
+        program.proof_facts.span_or_empty(contract.facts)[0]
+    else {
+        panic!("expression contract")
+    };
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        panic!("bound comparison")
+    };
+    let expression = binary.right;
+    let operators = selected_operator_facts(&program);
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    assert!(
+        facts.expression_dependencies[0].reads.is_none(),
+        "a wrapped contract-scope occurrence invented statement use custody"
+    );
+}

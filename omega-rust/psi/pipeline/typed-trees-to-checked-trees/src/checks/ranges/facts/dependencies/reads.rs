@@ -866,9 +866,12 @@ fn atomic_compare_exchange_operands(
 /// builtin arithmetic node keeps recursing into its operands, and an
 /// authored arithmetic application is call-shaped, so it admits exactly
 /// the operand reads its exact checked operator-use row authenticates
-/// (`collect_selected_arithmetic_reads`). Every other non-builtin node — an
-/// authored comparison, a wrapper the general walk refused — stays
-/// incomplete rather than pretending only its visible places were read.
+/// (`collect_selected_arithmetic_reads`). A cast or unary wrapper standing
+/// above such an application has one immediate runtime child and no
+/// overloadable token of its own, so the walk keeps descending through it
+/// to whatever the child can prove. Every other non-builtin node — an
+/// authored comparison, an unresolved selection — stays incomplete rather
+/// than pretending only its visible places were read.
 fn collect_operand_reads(
     program: &TypedTrees,
     machine: &Machine,
@@ -896,8 +899,44 @@ fn collect_operand_reads(
     if depth >= 128 || !program.expression_table.expression_is_valid(operand) {
         return false;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(operand) else {
-        return false;
+    // "Unary operations, borrows, casts, membership tests, and member access
+    // have one immediate runtime child" (wiki/spec/language/expressions.md), and
+    // the closed token vocabulary binds no spelling to either node — a cast
+    // and a `!`/`~` are compiler-owned, never a selectable declaration — so a
+    // wrapper reads exactly what its child reads and admits nothing the child
+    // could not prove on its own. The general bound walk already passes
+    // straight through both nodes; only the authored application below them
+    // refused the floor, so the gate keeps walking down to that application
+    // instead of stopping at the wrapper it does understand.
+    let binary = match program.expression_table.expression(operand) {
+        ExpressionNode::Cast(cast) => {
+            return collect_operand_reads(
+                program,
+                machine,
+                state,
+                statement_index,
+                cast.value,
+                calls,
+                operators,
+                reads,
+                depth + 1,
+            );
+        }
+        ExpressionNode::Unary(unary) => {
+            return collect_operand_reads(
+                program,
+                machine,
+                state,
+                statement_index,
+                unary.operand,
+                calls,
+                operators,
+                reads,
+                depth + 1,
+            );
+        }
+        ExpressionNode::Binary(binary) => binary,
+        _ => return false,
     };
     let Some(spelling) =
         crate::operators::binary_operator_spelling(binary.operator).filter(|spelling| {
