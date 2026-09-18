@@ -765,50 +765,41 @@ Owners include
   their separate descriptor dependency; do not expand into Independent service
   installation merely to migrate Fused carriers.
 
-- **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Finish the two-surface UEFI bridge under
-  [source-owned firmware adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
-  The target-package physical firmware entry remains distinct from the semantic
-  program continuation. Author the bootstrap body in Omega; emit only the
-  necessary physical shell and target primitives around ordinary compiled code.
+- **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Execute the source-authored two-surface UEFI
+  bootstrap under [source-owned firmware adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
+  Keep physical firmware arrival distinct from the semantic program continuation;
+  the compiler emits only the necessary entry shell and generic target primitives.
 
-  Replace the Rust System Table, Boot Services, and Loaded Image field catalogs
-  in `omega-rust/omega/representations/target/src/uefi_{system_table,boot_services,loaded_image}/`
-  with target-package data declarations and evaluated layout policies. Author
-  firmware constants and integrity checks in that package too. Migrate the
-  consumers in `program-entry-plan/src/uefi/` and
-  `external-roots/src/platform_bringup/uefi_bootstrap/` to those checked plans.
-  Remove the superseded production catalogs rather than keeping a second source
-  of field offsets. Replace the duplicated physical-policy recipe in
-  `program_entry_physical/exact_uefi.rs` with source-derived plan/evidence replay;
-  preserve independent checking, exact accepted package/contract identity, and
-  arrival assumptions. A source digest alone is not a plan correctness check.
+  - Replace `target/src/uefi_{system_table,boot_services,loaded_image}/`'s Rust
+    field catalogs with target-package declarations, evaluated layout policies,
+    constants and integrity checks. Migrate `backend/plans/program-entry-plan`
+    and `external-roots/src/platform_bringup/uefi_bootstrap/` consumers, then
+    delete the duplicate production catalogs.
+  - Replace `program_entry_physical/exact_uefi.rs`'s duplicated physical-policy
+    recipe with source-derived plan/evidence replay. Preserve exact accepted
+    package/contract identity and arrival assumptions; a source digest does not
+    establish plan correctness.
+  - Connect the authored bootstrap, semantic child emission and physical shell
+    through `compiler/native-realization`. The
+    `optimized_semantic_wrapper_object/` staging entrance still has no callers;
+    additional isolated binder milestones do not advance this customer. Its
+    semantic-entry validator currently admits only a receiver-free Unit source,
+    whereas the retained storage-roots canary has a receiver: preserve the actual
+    selected source shape, not a test-authored substitute.
 
-  Resume the executable route through Terminal, child emission, and
-  `native-realization/src/optimized_semantic_wrapper_object/mod.rs`.
-  That wrapper-publication entrance has no callers; further isolated binder work
-  is paused pending this exercising path. In
-  `program-entry-plan/src/optimized_semantic_entry/validation.rs`,
-  `validate_method` still compares schema application identity with raw ABI-plan
-  identity; retain exact source-application custody instead of removing the
-  check or adding an upward backend dependency.
+  Resume from
+  `entry_and_abi::program_entries_and_image_validation::uefi_entry_machine_plan_produces_terminal_artifact`:
+  the claim-pinned cycle now publishes Terminal Psi. The semantic calling-plan
+  application identity check is also repaired; neither is a remaining blocker.
 
-  Current customer stop: the native-artifact probe of
-  `build/uefi_program_entry_storage_roots` reaches
-  `terminal_verifier::ModuleError::ControlCycle`, the unranked-cycle claim-custody
-  fence. The checked transitive Unit plan and claim-aliased graph exist;
-  `canary_suite::entry_and_abi::program_entries_and_image_validation::uefi_entry_machine_plan_reaches_terminal_claim_cycle_fence`
-  witnesses the stop. Resume ranked-cycle claim custody in `terminal-verifier`
-  before child emission and wrapper integration; do not restore the stale
-  missing-Unit-plan diagnosis.
-
-  Acceptance: source-authored firmware layouts feed actual table projections and
-  calls; malformed geometry, header integrity, foreign occurrence, and wrong
-  package/target controls still reject. The authored bootstrap runs through
-  emitted entry code with checked stack/custody transfer and return behavior.
-  Preserve scoped firmware authority and disjoint image/storage roots. A layout
-  helper pass, source preflight, or constructed Rust contract is not completion.
-  Name any missing general layout, call, or custody capability rather than
-  replacing the source body with a firmware-specific intrinsic.
+  Acceptance: authored layouts feed actual firmware projections/calls and the
+  bootstrap reaches its continuation through emitted entry code with checked
+  stack, root custody and return behavior. Malformed geometry/header integrity,
+  foreign occurrence, wrong package/target and overlapping image/storage reject.
+  Preserve scoped firmware authority and independently replay the source/plan/
+  realization join. Layout helpers, source preflight and Rust-constructed contracts
+  do not close this task; missing general layout/call/custody support must be fixed
+  in its owner, not replaced with a firmware-specific intrinsic.
 
 - **UEFI-OS-HANDOFF.** Author the nonreturning Boot Services-to-OS protocol in
   ordinary Omega under the [handoff contract](wiki/spec/build/uefi_entry.md#returning-application-versus-os-handoff).
