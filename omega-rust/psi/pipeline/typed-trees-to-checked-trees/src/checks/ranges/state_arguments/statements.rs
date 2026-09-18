@@ -89,6 +89,28 @@ pub(super) fn collect_state_argument_facts_from_statement(
                     );
                 }
                 seed_boolean_guard_local(context, facts, symbol, name, assignment.value);
+                // The checking pass seeds a bound name's ensured result
+                // bounds on its label; mirror that here or a later
+                // transition cannot transport `i = pick()`'s exit proof.
+                crate::checks::ranges::statements::aliases::seed_ensured_call_result_bounds(
+                    program,
+                    facts,
+                    name.unwrap_or_default(),
+                    assignment.value,
+                );
+            } else if matches!(
+                program.expression_table.expression(assignment.target),
+                ExpressionNode::Member(_)
+            ) {
+                // A field store carries the same exit-proven bound on its
+                // display label, matching the member-target seeding in the
+                // checking pass (`self.slot = pick()` then `-> load(self.slot)`).
+                crate::checks::ranges::statements::aliases::seed_ensured_call_result_bounds(
+                    program,
+                    facts,
+                    &program.expression_table.display_name(assignment.target),
+                    assignment.value,
+                );
             }
             crate::checks::ranges::assignment_lengths::seed_assigned_extent(
                 program,
@@ -174,6 +196,15 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 facts,
                 local.symbol,
                 Some(local.name.as_str()),
+                local.initial_value,
+            );
+            // Mirror the checking pass's ensured-result seeding on the bound
+            // name so a later transition transports `let i = pick()`'s exit
+            // proof through the local's label (`i < K`, `i >= 0`).
+            crate::checks::ranges::statements::aliases::seed_ensured_call_result_bounds(
+                program,
+                facts,
+                local.name.as_str(),
                 local.initial_value,
             );
         }
