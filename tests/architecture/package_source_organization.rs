@@ -53,6 +53,22 @@ fn directory_entries(root: &Path) -> BTreeSet<String> {
         .collect()
 }
 
+/// The non-test text of one source file: nothing from a test file, and an
+/// inline `mod tests {` block cut away.
+fn production_source(path: &Path, source: &str) -> String {
+    let is_test_file = path.file_name().is_some_and(|name| name == "tests.rs")
+        || path
+            .components()
+            .any(|component| component.as_os_str() == "tests");
+    if is_test_file {
+        return String::new();
+    }
+    match source.find("mod tests {") {
+        Some(at) => source[..at].to_string(),
+        None => source.to_string(),
+    }
+}
+
 fn rust_files(root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     let mut pending = vec![root.to_path_buf()];
@@ -228,6 +244,9 @@ fn stable_evidence_and_encoding_exclude_compiler_representations() {
         for path in rust_files(&package.join(owner)) {
             let source = fs::read_to_string(&path)
                 .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            // Tests may compile a snippet through the frontend to build a record;
+            // the rule is about what the stable code itself depends on.
+            let source = production_source(&path, &source);
             for forbidden in ["typed_trees", "checked_trees", "facts"] {
                 assert!(
                     !source.contains(&format!("{forbidden}::"))
