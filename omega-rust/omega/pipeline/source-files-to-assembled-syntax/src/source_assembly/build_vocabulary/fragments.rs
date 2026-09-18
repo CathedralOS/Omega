@@ -37,6 +37,7 @@ pub(super) const DECLARATIONS: &str = r#"pub data Optimization {
     case SelectedIncomingSaturatingSubtractZeroIdentityCopy;
     case SelectedIncomingSaturatingDivideOneIdentityCopy;
     case SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization;
+    case SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -78,6 +79,7 @@ pub data Optimizations {
     selected_incoming_saturating_subtract_zero_identity_copy: u8 in Trapping;
     selected_incoming_saturating_divide_one_identity_copy: u8 in Trapping;
     selected_incoming_saturating_divide_zero_dividend_zero_materialization: u8 in Trapping;
+    selected_incoming_saturating_subtract_zero_minuend_zero_materialization: u8 in Trapping;
 }
 "#;
 
@@ -121,6 +123,7 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
         Optimization::SelectedIncomingSaturatingSubtractZeroIdentityCopy -> selected_incoming_saturating_subtract_zero_identity_copy()
         Optimization::SelectedIncomingSaturatingDivideOneIdentityCopy -> selected_incoming_saturating_divide_one_identity_copy()
         Optimization::SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization -> selected_incoming_saturating_divide_zero_dividend_zero_materialization()
+        Optimization::SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization -> selected_incoming_saturating_subtract_zero_minuend_zero_materialization()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -273,6 +276,10 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
 
     state selected_incoming_saturating_divide_zero_dividend_zero_materialization(&mut self) {
         self.selected_incoming_saturating_divide_zero_dividend_zero_materialization = self.selected_incoming_saturating_divide_zero_dividend_zero_materialization + 1;
+    }
+
+    state selected_incoming_saturating_subtract_zero_minuend_zero_materialization(&mut self) {
+        self.selected_incoming_saturating_subtract_zero_minuend_zero_materialization = self.selected_incoming_saturating_subtract_zero_minuend_zero_materialization + 1;
     }
 }
 "#;

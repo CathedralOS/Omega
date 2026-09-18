@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 9;
+const LITERAL_FOLD_VERSION: u32 = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -55,6 +55,7 @@ impl LiteralFoldPolicy {
     const SATURATING_SUBTRACT_ZERO_BIT: u32 = 1 << 16;
     const SATURATING_DIVIDE_ONE_BIT: u32 = 1 << 17;
     const SATURATING_DIVIDE_ZERO_BIT: u32 = 1 << 18;
+    const SATURATING_SUBTRACT_ZERO_MINUEND_BIT: u32 = 1 << 19;
     const KNOWN_BITS: u32 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -73,7 +74,8 @@ impl LiteralFoldPolicy {
         | Self::SATURATING_ADD_ZERO_BIT
         | Self::SATURATING_SUBTRACT_ZERO_BIT
         | Self::SATURATING_DIVIDE_ONE_BIT
-        | Self::SATURATING_DIVIDE_ZERO_BIT;
+        | Self::SATURATING_DIVIDE_ZERO_BIT
+        | Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -223,8 +225,11 @@ impl LiteralFoldPolicy {
     /// is `x` inside the carrier's bounds and the surviving operand's
     /// register moves to the result unchanged. The grammar is
     /// deliberately asymmetric: `0 -| x` is `-x` clamped to the carrier's
-    /// bounds, not `x`, so no left-literal rule exists and a literal at
-    /// operand 0 rejects. The saturating-subtract consumer implicitly
+    /// bounds on a signed carrier and `0` on an unsigned one, not `x`,
+    /// so this family declares no left-literal rule and a literal at
+    /// operand 0 rejects under it — the unsigned `0 -| x` constant fold
+    /// lives in the disjoint zero-minuend family below. The
+    /// saturating-subtract consumer implicitly
     /// defines the target condition state on aarch64 — every carrier's
     /// realization is flag-setting — and clobbers `rflags` on x86-64;
     /// the fold retires both with the folded form, admitting the consumer
@@ -286,6 +291,28 @@ impl LiteralFoldPolicy {
     /// recorded future use names.
     pub const SATURATING_DIVIDE_ZERO_V1: Self = Self {
         enabled_rules: Self::SATURATING_DIVIDE_ZERO_BIT,
+    };
+    /// Saturating-subtract zero-minuend fold: fold a materialized literal
+    /// `0` feeding its sole `SaturatingSubtract` consumer's minuend
+    /// operand on an unsigned carrier into a `MaterializeI64` of zero at
+    /// the result register — `0 -| x` is `0` for every `x` because the
+    /// subtraction underflows the carrier's lower bound and saturates to
+    /// it. The constant result never reads the operand-1 subtrahend
+    /// `Use`, so the fold drops it with the form, and retires the
+    /// consumer's implicit unit surface under the same deadness gate the
+    /// identity family carries: the aarch64 realization's `nzcv`
+    /// definition may retire only while no instruction or terminator in
+    /// the function implicitly uses it, and the x86-64 row's `rflags`
+    /// clobber retires unconditionally. Signed carriers admit no
+    /// operand-0 fold at all — `0 -| x` there is `-x` clamped to the
+    /// carrier's bounds, not a constant — so the family binds only the
+    /// unsigned three-operand row. The zero-minuend grammar is disjoint
+    /// from the right-zero identity family on the folded literal's
+    /// operand position: the producer selects between the two
+    /// `SaturatingSubtract` families by which position the recorded
+    /// future use names.
+    pub const SATURATING_SUBTRACT_ZERO_MINUEND_V1: Self = Self {
+        enabled_rules: Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT,
     };
 
     pub(crate) const fn empty() -> Self {
@@ -376,6 +403,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_saturating_divide_zero(self) -> bool {
         self.enabled_rules & Self::SATURATING_DIVIDE_ZERO_BIT != 0
+    }
+
+    pub const fn enables_saturating_subtract_zero_minuend(self) -> bool {
+        self.enabled_rules & Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u32 {

@@ -72,8 +72,18 @@ pub use validate::validate_literal_fold;
 /// literal `0` at the right operand of a saturating subtract on any
 /// carrier into a `CopyI64` of the left operand — `x -| 0` is `x` inside
 /// the carrier's bounds — under the same retired-definition and
-/// occurrence-free-scratch gates, with no left-literal grammar because
-/// subtraction does not commute: `0 -| x` is not `x` — or the literal
+/// occurrence-free-scratch gates, with no left-literal *identity*
+/// grammar because subtraction does not commute: `0 -| x` is not `x` —
+/// or the literal `0` at the minuend operand of a saturating subtract on
+/// an unsigned carrier into a `MaterializeI64` of the constant zero —
+/// `0 -| x` is `0` for every `x` an unsigned carrier admits, because
+/// `0 - x` underflows the carrier's lower bound and saturates to it —
+/// dropping the operand-1 subtrahend `Use` the constant result never
+/// reads and retiring the consumer's implicit unit definitions under
+/// the same deadness gate; the zero-minuend fold stays disjoint on the
+/// folded literal's operand position from its right-zero sibling and
+/// admits no signed carrier, where `0 -| x` is `-x` clamped to the
+/// carrier's bounds, not a constant — or the literal
 /// `1` at the divisor operand of a saturating divide on any carrier into
 /// a `CopyI64` of the dividend operand — `x /| 1` is `x` inside the
 /// carrier's bounds — the divisor-one literal itself discharging the

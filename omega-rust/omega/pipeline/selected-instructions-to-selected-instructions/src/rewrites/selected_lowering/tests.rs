@@ -68,6 +68,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_saturating_subtract_zero());
     assert!(policy.enables_saturating_divide_one());
     assert!(policy.enables_saturating_divide_zero());
+    assert!(policy.enables_saturating_subtract_zero_minuend());
 }
 
 #[test]
@@ -92,6 +93,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         saturating_subtract_zero,
         saturating_divide_one,
         saturating_divide_zero,
+        saturating_subtract_zero_minuend,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -1383,6 +1385,114 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         SelectedInstructionPairRule::SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS.as_slice()
     );
 
+    // The saturating-subtract zero-minuend family declares one pair per
+    // unsigned carrier — the left-literal constant-result grammar: a
+    // minuend literal of exactly zero at the operand-0 `Use` folds an
+    // unsigned `SaturatingSubtract` into a `MaterializeI64` of zero —
+    // `0 -| x` is `0` for every `x`, because `0 - x` underflows the
+    // carrier's lower bound and saturates to it. Signed carriers admit
+    // no operand-0 fold — `0 -| x` there is `-x` clamped to the
+    // carrier's bounds, not a constant — so the family binds only the
+    // unsigned three-operand row. The operand-1 subtrahend `Use` drops
+    // because the constant result never reads it. The unit and effect
+    // surfaces are the saturating family's own: the consumer's implicit
+    // unit definitions retire under `DeadConsumerUnitDefs` — aarch64's
+    // `nzcv` must stay dead across the whole function — while its
+    // `early_clobber` operand marks drop with the replaced operand list
+    // under `BoundEarlyClobberConsumerOperands`. The family shares its
+    // consumer kind with the right-zero identity fold; the grammars stay
+    // disjoint on the folded literal's operand position.
+    let saturating_subtract_zero_minuend_pairs = saturating_subtract_zero_minuend.payload().pairs();
+    assert_eq!(saturating_subtract_zero_minuend_pairs.len(), 4);
+    assert_eq!(
+        saturating_subtract_zero_minuend.optimization(),
+        Optimization::SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization
+    );
+    for (index, pair) in saturating_subtract_zero_minuend_pairs
+        .iter()
+        .copied()
+        .enumerate()
+    {
+        let carrier = unsigned_carriers[index];
+        assert!(!carrier.is_signed());
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(
+            pair.consumer(),
+            MachineSemanticKind::SaturatingSubtract(carrier)
+        );
+        assert_eq!(
+            pair.operand_shape(),
+            PairOperandShape::BinaryLeftLiteralConstantResult
+        );
+        assert_eq!(pair.victim_operand(), 0);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(0));
+        assert!(pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(1));
+        assert!(!pair.admits_immediate(u64::MAX));
+        // The recorded immediate is the constant the rewritten
+        // `MaterializeI64` embeds — zero.
+        assert_eq!(pair.fold_immediate(0), Some(0));
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(
+            pair.unit_effects(),
+            PairUnitEffects::BoundEarlyClobberConsumerOperands
+        );
+        assert_eq!(
+            pair.machine_effects(),
+            PairMachineEffects::DeadConsumerUnitDefs
+        );
+        // Every rule rewrites only its own carrier's kind into the
+        // materialized zero; a different carrier, the saturating-add or
+        // saturating-divide sibling kinds, or any other consumer kind
+        // never rewrites through it.
+        let saturating_subtract_kind = SelectedInstructionKind::SaturatingSubtract { carrier };
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, Some(u64_scalar)),
+            Some(SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(0)
+            })
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, Some(i64_scalar)),
+            Some(SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Signed(0)
+            })
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, None),
+            None
+        );
+        for other_carrier in signed_carriers {
+            assert_eq!(
+                pair.rewrite_consumer(
+                    SelectedInstructionKind::SaturatingSubtract {
+                        carrier: other_carrier
+                    },
+                    0,
+                    Some(u64_scalar)
+                ),
+                None
+            );
+        }
+        assert_eq!(
+            pair.rewrite_consumer(
+                SelectedInstructionKind::SaturatingAdd { carrier },
+                0,
+                Some(u64_scalar)
+            ),
+            None
+        );
+        assert_eq!(
+            pair.rewrite_consumer(wrapping_add_kind, 0, Some(u64_scalar)),
+            None
+        );
+    }
+    assert_eq!(
+        saturating_subtract_zero_minuend_pairs,
+        SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS.as_slice()
+    );
+
     // Every landed rule's rewrite but the divide, remainder, and
     // saturating folds is unit-effect isolated: no implicit unit uses
     // or clobbers and no operand unit bindings beyond the declared result
@@ -1491,6 +1601,11 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1).collect::<Vec<_>>(),
         SelectedInstructionPairRule::SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS.to_vec()
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1)
+            .collect::<Vec<_>>(),
+        SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS.to_vec()
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -1626,6 +1741,14 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
             Some(keys.materialize_i64)
         );
     }
+    // Every saturating-subtract zero-minuend pair — the unsigned-carrier
+    // rules alone — rewrites through the same materialize row.
+    for pair in saturating_subtract_zero_minuend_pairs {
+        assert_eq!(
+            pair.immediate_constraint_key(&keys),
+            Some(keys.materialize_i64)
+        );
+    }
 }
 
 #[test]
@@ -1696,6 +1819,11 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // — one pair per row shape is representative.
             SelectedInstructionPairRule::SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS[0],
             SelectedInstructionPairRule::SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS[7],
+            // The saturating-subtract zero-minuend grammar rewrites into
+            // the same materialize row under the same consumer-operand
+            // relaxation — one unsigned pair is representative.
+            SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS[0],
+            SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS[3],
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -2165,6 +2293,64 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             assert_eq!(
                 rule.machine_effects(),
                 PairMachineEffects::FaultDischargedByObligationDeadUnitDefs
+            );
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A consumer carrying an implicit unit use cannot fold under
+            // this surface — the rewritten materialization would silently
+            // stop observing the unit.
+            let flag_consuming = declaration(MachineSemanticKind::MaterializeBooleanEqual);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(flag_consuming, rewritten),
+                "{rule:?} flag-consuming consumer on {target:?}"
+            );
+            // Memory traffic and control flow cannot take the consumer
+            // role either: the isolated non-unit declaration surface
+            // still applies.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
+            );
+        }
+
+        // The saturating-subtract zero-minuend pairs admit their own
+        // triples on both targets under `DeadConsumerUnitDefs`: an
+        // isolated producer, each unsigned carrier's saturating subtract —
+        // defining `nzcv` on aarch64, clobbering `rflags` on x86-64 — and
+        // the isolated materialization. The declaration-level requirement
+        // is the shared isolated-outside-units shape with no implicit
+        // uses; the distinguishing whole-function deadness of each defined
+        // unit is record-level, checked separately by the producer and the
+        // replay.
+        for rule in SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS {
+            assert_eq!(
+                rule.machine_effects(),
+                PairMachineEffects::DeadConsumerUnitDefs
             );
             let producer = declaration(rule.producer());
             let consumer = declaration(rule.consumer());
