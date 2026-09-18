@@ -5159,9 +5159,26 @@ Owners include
   supplying a per-occurrence purpose value — `DependencyPurpose` exists only
   on dependency edges and the only compilation occurrence is the root
   product-purpose one, so there is no purpose fact to bind and no second
-  occurrence to witness drift against. Compiler-owned publication of the
-  retained native product with generated source, gated on every required
-  output plus final product checking, is still open.
+  occurrence to witness drift against.
+
+  Resume evidence (2026-09-18 UTC, macOS ARM64): compiler-owned publication
+  of the retained native product with generated source is now witnessed end
+  to end at 6554352317. `build_snapshot_outputs.rs`
+  `serialized_replay_reproduces_the_retained_native_product` recovers the
+  serialized replay record into a second checked compilation that binds the
+  identical production subject and publishes byte-identical executable
+  bytes;
+  `retained_native_product_publication_rejects_source_target_and_artifact_drift`
+  stops publication for drifted authored source, a foreign-target artifact
+  under the retained production subject, and foreign-artifact physical
+  evidence; and `package_commands/generated.rs`
+  `generated_sources_publish_the_retained_native_product` drives the shipped
+  binary through install and native publication of a project whose own build
+  and installed dependency both generated source. The stale
+  `reject_uncompiled_generated_sources` fence, which claimed the frozen
+  final compilation pass was unimplemented, is removed. Remaining: only the
+  dependency-purpose binding noted above still waits on
+  **BUILD-DEPENDENCY-PURPOSES**.
 
 - **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish the compiler/library migration
   to explicit ordinary std dependency edges. Std may be replaced, split, or
