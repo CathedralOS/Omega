@@ -613,17 +613,27 @@ fn interferes(
 ///   storage slot, through that slot's materialized address;
 /// - `Store64` into `Local(slot)` carrying `WriteLocal` on that same slot —
 ///   directly into the place's own storage;
-/// - `CopyBytes` carrying the destination `WriteByteSpan` — the only
+/// - `CopyBytes` carrying the destination `WriteByteSpan` — a dynamic-extent
+///   row that can cover an exact dead range, and only when the span's reach
+///   is itself exact: the count register's sole definition must be a clean
+///   `MaterializeI64`, so the span writes a compile-time `count` bytes at
+///   its fixed `byte_offset`. Containment then decides on constants —
+///   `byte_offset` at or before the dead start and `byte_offset + count`
+///   reaching the dead end. A `CopyBytes` carries a source read span beside
+///   the destination write, so its roster holds several rows: the span is
+///   the single row that may reach the dead range, and every other row must
+///   stay quiet on it — a read reaching the dead bytes observes them before
+///   the write rewrites them;
+/// - `Store { 0, 1 }` carrying `WriteByteSequence` — the other
 ///   dynamic-extent row that can cover an exact dead range, and only when
-///   the span's reach is itself exact: the count register's sole definition
-///   must be a clean `MaterializeI64`, so the span writes a compile-time
-///   `count` bytes at its fixed `byte_offset`. Containment then decides on
-///   constants — `byte_offset` at or before the dead start and
-///   `byte_offset + count` reaching the dead end. A `CopyBytes` carries a
-///   source read span beside the destination write, so its roster holds
-///   several rows: the span is the single row that may reach the dead
-///   range, and every other row must stay quiet on it — a read reaching
-///   the dead bytes observes them before the write rewrites them;
+///   the index resolves exact the same way: the register carrying the row's
+///   `index` value must hold the function's sole `InstructionResult`
+///   definition of it in a clean `MaterializeI64` with no edge-transport or
+///   case-payload redefinition, so the write lands on the one fixed byte
+///   `byte_offset + index`. A single-byte write covers a single-byte dead
+///   range exactly when that is the dead byte; a runtime index lands the
+///   write anywhere at or past the payload base and can never provably
+///   rewrite one fixed byte;
 /// - for a byte-sequence dead store, another `Store { 0, 1 }` carrying
 ///   `WriteByteSequence` — the only write that can provably land on the
 ///   dead byte: same payload base and same runtime `index` spell the same
@@ -691,6 +701,14 @@ fn covering_source(
             }
             _ => Err(reject()),
         };
+    }
+    // An exact dead byte's other covering route: a sequence write whose
+    // index resolves to a materialized constant lands on one fixed byte.
+    // The exact-range arms below cannot place a sequence row — its
+    // `byte_offset` is a payload base the index extends, not the written
+    // offset — so the constant index decides here.
+    if let SelectedMemoryAccessRole::WriteByteSequence { index, .. } = row.role {
+        return byte_sequence_covering(instruction, dead, row, index, function, environment);
     }
     // The encoded byte range must equal the row's exact range, and the row's
     // role must match the route the instruction takes to the dead place's
@@ -846,6 +864,76 @@ fn byte_span_covering(
     let needed =
         u64::from(dead.byte_offset) + u64::from(dead.byte_count) - u64::from(row.byte_offset);
     if written < needed {
+        return Err(reject());
+    }
+    Ok(())
+}
+
+/// The `WriteByteSequence` covering route for an exact dead range: the row
+/// claims the one byte at `byte_offset + index`, so it covers only when the
+/// index is itself a compile-time constant and the dead range is that one
+/// byte. The index's constant resolution mirrors the span's count: the
+/// `index` value's register must be the function's sole `InstructionResult`
+/// carrier of it — more or fewer carriers leave the value's producer
+/// unproven — hold its sole definition in a clean `MaterializeI64`, and
+/// never be redefined by an edge transport or case payload. Only then is
+/// `byte_offset + index` a fixed position, and the dead range is covered
+/// exactly when it is that one byte: a one-byte dead store at
+/// `byte_offset + index`. A runtime index lands the write anywhere at or
+/// past the payload base, so it can never provably rewrite one fixed byte;
+/// a resolved index landing anywhere but the dead byte leaves it
+/// observable.
+fn byte_sequence_covering(
+    instruction: &SelectedInstruction,
+    dead: &Dead,
+    row: &SelectedMemoryAccess,
+    index: semantic_vocabulary::ValueId,
+    function: &SelectedFunction,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<(), DeadStoreEliminationError> {
+    let reject = || DeadStoreEliminationError::InterveningAccess;
+    // The route's encoded shape: the one-byte store through a fully
+    // computed view address on the plain `[use pointer, use value]` row,
+    // and the sequence row's contractual one-byte count.
+    if !matches!(
+        instruction.kind,
+        SelectedInstructionKind::Store {
+            byte_offset: 0,
+            byte_size: 1
+        }
+    ) || row.byte_count != 1
+    {
+        return Err(reject());
+    }
+    place_store_shape(instruction, environment)?;
+    // The register carrying the `index` value: its sole `InstructionResult`
+    // origin names the producing instruction, the way the copy's count
+    // operand names the span's extent. An `index` no instruction result
+    // carries — an entry or block parameter — has no producer to resolve,
+    // and two instruction results claiming one value make the constant
+    // ambiguous; both stay unproven.
+    let mut carriers = function.virtual_registers.iter().filter(|register| {
+        matches!(
+            register.origin,
+            VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == index
+        )
+    });
+    let carrier = carriers.next().ok_or_else(reject)?;
+    if carriers.next().is_some() {
+        return Err(reject());
+    }
+    let landed = materialized_bits(function, carrier.id).map_err(|_| reject())?;
+    if transport_defines(function, carrier.id) {
+        return Err(reject());
+    }
+    // The write lands on one byte; the dead range is covered exactly when
+    // it is that byte.
+    if dead.byte_count != 1
+        || u64::from(row.byte_offset)
+            .checked_add(landed)
+            .ok_or_else(reject)?
+            != u64::from(dead.byte_offset)
+    {
         return Err(reject());
     }
     Ok(())

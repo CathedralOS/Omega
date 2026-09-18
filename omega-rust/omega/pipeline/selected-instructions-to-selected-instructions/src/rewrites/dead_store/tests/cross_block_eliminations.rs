@@ -1,8 +1,8 @@
 use super::{
-    BETWEEN, KILLER, MATERIALIZE_COUNT, PACKED_SCRATCH, POINTER, SCRATCH, SPAN_COUNT, STORE, VALUE,
-    access, budget, chained, crossed_edge, define_count, eliminate, fixture, instruction,
-    make_packed_dead, mutated_chained, packed_dead_chained, place, sequence_store, settlement,
-    settlement_at, span_copy, span_length, successor,
+    BETWEEN, KILLER, MATERIALIZE_COUNT, PACKED_SCRATCH, POINTER, SCRATCH, SEQUENCE_INDEX,
+    SPAN_COUNT, STORE, VALUE, access, budget, chained, crossed_edge, dead_byte, define_count,
+    eliminate, fixture, instruction, make_packed_dead, mutated_chained, packed_dead_chained, place,
+    sequence_store, settlement, settlement_at, span_copy, span_length, successor,
 };
 use crate::rewrites::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
@@ -1153,6 +1153,99 @@ fn cross_block_byte_span_copy_covers_across_the_edge() {
                 transport: SelectedValueTransport::Registers {
                     argument: SCRATCH,
                     parameter: SPAN_COUNT,
+                },
+            });
+        });
+        assert_eq!(
+            eliminate(&transported, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+    }
+}
+
+/// The constant-index byte-sequence cover crosses edges like any other
+/// covering write: the sequence store opens the successor block and its
+/// materialized index lands the write on the dead byte on every path
+/// forward. But an index register an edge transport also defines escapes
+/// the instruction audit — the materialized constant no longer pins the
+/// written byte.
+#[test]
+fn cross_block_byte_sequence_store_covers_across_the_edge() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Dead byte at offset 8 in block 0; the covering sequence write
+        // opens block 1 with payload base 4 and a materialized index of 4.
+        let covered = mutated_chained(target, |function, environment| {
+            dead_byte(function, environment, 8);
+            sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+            define_count(
+                function,
+                environment,
+                1,
+                0,
+                SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                4,
+            );
+        });
+        let result = eliminate(&covered, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN]
+        );
+        assert_eq!(
+            function.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![MATERIALIZE_COUNT, KILLER]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // An edge binding that defines the index register alongside the
+        // materialize is a second definition the operand audit cannot see —
+        // the constant no longer pins the written byte.
+        let transported = mutated_chained(target, |function, environment| {
+            dead_byte(function, environment, 8);
+            sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+            define_count(
+                function,
+                environment,
+                1,
+                0,
+                SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                4,
+            );
+            crossed_edge(function).bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(5).unwrap(),
+                    argument: ValueId::new(1).unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: SCRATCH,
+                    parameter: SEQUENCE_INDEX,
                 },
             });
         });

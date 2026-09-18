@@ -63,6 +63,13 @@
 //! its fixed offset, and coverage is containment on constants. The copy's
 //! other rows — its source read among them — must stay quiet on the dead
 //! range, since a read reaching it would observe the bytes first.
+//! A byte-sequence store covers an exact dead range the same way once its
+//! index is itself constant: the `index` value's sole `InstructionResult`
+//! register must resolve to a clean `MaterializeI64` with no
+//! edge-transport or case-payload redefinition, so the write lands on the
+//! one fixed byte `byte_offset + index` — and a single dead byte is covered
+//! exactly when that is it. A runtime index still lands the write anywhere
+//! at or past the payload base and cannot provably rewrite one fixed byte.
 //! A byte-sequence dead store is covered only by another byte-sequence
 //! store whose `WriteByteSequence` row names the same payload base and the
 //! same `index` value — both then spell the byte at `byte_offset + index`
