@@ -93,15 +93,22 @@
 //! those define their own private `fingerprint_bytes`. Four copies of a hash
 //! function is four chances for one of them to drift.
 //!
-//! @Incomplete: the footprint-certificate lane has no production caller.
-//! `FinalFootprintCertificate::current`, `bind_compiler_entry_footprint` and
-//! `validate_placed_executable_region_inventory` are reached only from
-//! `#[cfg(test)]`, so `PlacedExecutableRegion.footprint` is permanently `None`
-//! in every shipped compilation. Their consumer was deleted with the legacy
-//! StateGraph route in `f6b3e65350` (2026-08-28). Note before reaching for the
-//! delete key: `tests/architecture/native_image_identity.rs:103` reads
-//! `footprint_certificate.rs` as source TEXT and asserts literal strings are
-//! present, so removing the lane breaks a test that does not break the build.
+//! @Incomplete: the certificate-and-entry-binding lane has no production
+//! caller. `FinalFootprintCertificate::current`/`validate_identity` and
+//! `bind_compiler_entry_footprint` are reached only from `#[cfg(test)]`;
+//! their consumer was deleted with the legacy StateGraph route in
+//! `f6b3e65350` (2026-08-28). The inventory replay below that lane is NOT
+//! inert: `validate_placed_executable_region_inventory` runs in production
+//! from image-emission's `validate_terminal_image_with_import_count` and the
+//! PCC native-evidence receiver's `NativePlacedImageEvidence::replay_against`,
+//! and the PE and Mach-O emitters attach thunk footprints through
+//! `validate_import_thunk_footprints`, which placement then carries into
+//! `PlacedExecutableRegion.footprint`. Only the compiler-entry footprint
+//! binding still waits for a caller. Note before
+//! reaching for the delete key: `tests/architecture/native_image_identity.rs:103`
+//! reads `footprint_certificate.rs` as source TEXT and asserts literal strings
+//! are present, so removing the lane breaks a test that does not break the
+//! build.
 //!
 //! @Note: do not decide what is dead here by grepping for type names. The
 //! `CompilerEntryRegionBindingEvidence` and `CompilerEntryFootprintBindingEvidence`
