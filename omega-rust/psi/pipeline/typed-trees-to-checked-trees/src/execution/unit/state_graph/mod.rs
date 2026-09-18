@@ -220,11 +220,6 @@ pub(super) fn build_traced(
             &structural,
             program.state_parameters(state),
         )?;
-        // Claim-bearing successor transport is not represented by these edges.
-        trace.phase("state graph: state signature: claim-bearing successor");
-        if states.len() > 1 && !claims.is_empty() {
-            return None;
-        }
         state_entry_claims.push(claims);
         signatures.push((structural, scalar));
     }
@@ -1168,7 +1163,15 @@ fn successor_bindings(
         arguments.get(position).copied()
     };
     let source_position = |position: u32| {
-        let argument = argument_at(position)?;
+        let mut argument = argument_at(position)?;
+        // `value as T` on a structural type ascribes the same value, so the
+        // transferred place is still the source parameter root. Scalar
+        // (primitive-target) casts stay opaque: they compute a new value.
+        while let ExpressionNode::Cast(cast) = program.expression_table.expression(argument)
+            && program.primitive_type_reference(cast.target_type).is_none()
+        {
+            argument = cast.value;
+        }
         let place = crate::flow::canonical_place_from_expression_in_state(
             program,
             source.symbol,

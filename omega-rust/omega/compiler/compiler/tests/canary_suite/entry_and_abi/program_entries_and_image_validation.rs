@@ -133,6 +133,48 @@ fn evaluated_root_bindings_retain_the_executed_entry() {
 }
 
 #[test]
+fn uefi_entry_machine_plan_reaches_terminal_claim_cycle_fence() {
+    let canary = pass_canary(fixture_roster::BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        Some("uefi_x86_64"),
+    ))
+    .expect("UEFI entry canary should retain its complete typed settlement");
+    let selected = checked
+        .selected_program_entry()
+        .expect("UEFI checked compilation must retain its selected entry");
+    let source = selected.source_signature();
+    let trees = checked.terminal_production_trees();
+    // `Boot::launch` retains both whole-root linear entry claims across its
+    // `retain` self-loop, so the checked transitive Unit machine plan exists
+    // and lowering emits the claim-aliased two-state graph.
+    let plan = trees
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(source.machine_symbol())
+        .expect("Boot::launch must retain its checked transitive Unit machine plan");
+    assert_eq!(plan.states.len(), 2);
+    let produced = terminal_production::TerminalProductionRequest::for_machine_symbol(
+        trees,
+        source.machine_symbol(),
+    )
+    .produce_program_entry(source.identity().bytes());
+    // The emitted machine then stops at the verifier's unranked-cycle
+    // claim-custody admission fence: cyclic machines do not yet admit
+    // claim-bearing custody. Any other failure means this join regressed;
+    // success means the fence opened and this witness needs updating.
+    match produced {
+        Err(terminal_production::TerminalArtifactProductionError::Lowering(
+            checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
+                terminal_verifier::ModuleError::ControlCycle(_),
+            ),
+        )) => {}
+        other => panic!("UEFI entry production stopped at an unexpected boundary: {other:?}"),
+    }
+}
+
+#[test]
 fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
     let canary = pass_canary(fixture_roster::BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(

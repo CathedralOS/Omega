@@ -157,16 +157,21 @@ pub(super) fn has_rank(
         .any(|rank| rank.state == state.state)
 }
 
+/// The subject's position among the successor edge's emitted structural
+/// arguments: the persistent receiver and claim-aliased parameters are not
+/// edge arguments, so neither occupies a slot here.
 pub(super) fn byte_argument_position(
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
+    aliased: &BTreeMap<u32, u32>,
 ) -> Option<usize> {
     let parameter = &state.structural_parameters[parameter_position(plan, state)?];
     state
         .structural_parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
-        .position(|candidate| candidate.position == parameter.position)
+        .enumerate()
+        .filter(|(dense, parameter)| !parameter.is_self && !aliased.contains_key(&(*dense as u32)))
+        .position(|(_, candidate)| candidate.position == parameter.position)
 }
 
 pub(super) fn retain(

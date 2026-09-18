@@ -117,7 +117,15 @@ pub(super) fn validate_bindings(
             let source = source_parameters.get(source_position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph source parameter missing"),
             )?;
-            match checked.expression_table.expression(*expression) {
+            // `value as T` on a structural type ascribes the same parameter;
+            // scalar (primitive-target) casts stay opaque to this binding.
+            let mut argument = *expression;
+            while let ExpressionNode::Cast(cast) = checked.expression_table.expression(argument)
+                && checked.primitive_type_reference(cast.target_type).is_none()
+            {
+                argument = cast.value;
+            }
+            match checked.expression_table.expression(argument) {
                 ExpressionNode::Name(name)
                     if name.symbol == source.symbol
                         && name.head_symbol == source.symbol

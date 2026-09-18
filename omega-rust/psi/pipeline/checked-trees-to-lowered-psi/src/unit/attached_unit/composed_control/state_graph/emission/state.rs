@@ -269,11 +269,12 @@ impl StateGraphEmission<'_, '_> {
             for argument_position in
                 0..target_state.structural_parameters.len() + target_state.scalar_parameters.len()
             {
-                if let Some((target_parameter, transfer)) = target_state
+                if let Some((target_index, (target_parameter, transfer))) = target_state
                     .structural_parameters
                     .iter()
                     .zip(&edge.transfers)
-                    .find(|(parameter, _)| parameter.position as usize == argument_position)
+                    .enumerate()
+                    .find(|(_, (parameter, _))| parameter.position as usize == argument_position)
                 {
                     if target_parameter.is_self {
                         let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
@@ -294,6 +295,38 @@ impl StateGraphEmission<'_, '_> {
                             return unsupported(
                                 "Unit graph receiver lost original invocation place",
                             );
+                        }
+                        continue;
+                    }
+                    if self
+                        .admitted
+                        .claim_transport
+                        .aliased
+                        .get(target)
+                        .is_some_and(|aliased| aliased.contains_key(&(target_index as u32)))
+                    {
+                        // A claim carried across the edge keeps the entry
+                        // parameter's place; the block does not rebind it, so
+                        // the transfer row must still name that exact
+                        // parameter and no edge argument is emitted.
+                        let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                            index,
+                        } = transfer.source
+                        else {
+                            return unsupported(
+                                "Unit graph claim successor is not a whole parameter transfer",
+                            );
+                        };
+                        if state_parameters
+                            .get(index as usize)
+                            .map(|parameter| parameter.place)
+                            != self
+                                .state_views
+                                .get(target)
+                                .and_then(|views| views.get(target_index))
+                                .map(|parameter| parameter.place)
+                        {
+                            return unsupported("Unit graph claim successor lost its entry place");
                         }
                         continue;
                     }
@@ -390,14 +423,42 @@ impl StateGraphEmission<'_, '_> {
             let arriving_rank = if current_rank.is_some() {
                 if let Some(position) = ranking::scalar_parameter_position(plan, target_state) {
                     arguments.get(position).copied()
-                } else {
-                    ranking::byte_argument_position(plan, target_state).map(|parameter_position| {
-                        crate::emission::operation_emission::emit_byte_length(
-                            structural_arguments[parameter_position].place,
-                            &mut next_value,
-                            &mut operations,
+                } else if let Some(dense) = ranking::parameter_position(plan, target_state) {
+                    if self
+                        .admitted
+                        .claim_transport
+                        .aliased
+                        .get(target)
+                        .is_some_and(|aliased| aliased.contains_key(&(dense as u32)))
+                    {
+                        // An aliased rank subject is not an edge argument;
+                        // its byte length reads the retained entry place.
+                        self.state_views
+                            .get(target)
+                            .and_then(|views| views.get(dense))
+                            .map(|parameter| {
+                                crate::emission::operation_emission::emit_byte_length(
+                                    parameter.place,
+                                    &mut next_value,
+                                    &mut operations,
+                                )
+                            })
+                    } else {
+                        ranking::byte_argument_position(
+                            plan,
+                            target_state,
+                            &self.admitted.claim_transport.aliased[target],
                         )
-                    })
+                        .map(|parameter_position| {
+                            crate::emission::operation_emission::emit_byte_length(
+                                structural_arguments[parameter_position].place,
+                                &mut next_value,
+                                &mut operations,
+                            )
+                        })
+                    }
+                } else {
+                    None
                 }
             } else {
                 None
@@ -872,6 +933,9 @@ impl StateGraphEmission<'_, '_> {
         });
         if position != 0 || self.entry_reentered {
             // Argument evaluation can split the body; bindings belong to its source root.
+            // Claim-aliased parameters keep the entry parameter's place, so
+            // they are not block parameters either.
+            let aliased = &self.admitted.claim_transport.aliased;
             let root = evaluation
                 .blocks
                 .iter_mut()
@@ -881,7 +945,14 @@ impl StateGraphEmission<'_, '_> {
                 ))?;
             root.structural_parameters = std::mem::take(&mut self.state_views[position])
                 .into_iter()
-                .filter(|parameter| !parameter.is_self)
+                .enumerate()
+                .filter(|(dense, parameter)| {
+                    !parameter.is_self
+                        && !aliased
+                            .get(position)
+                            .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
+                })
+                .map(|(_, parameter)| parameter)
                 .collect();
         }
         if let Some(rank) = current_rank {

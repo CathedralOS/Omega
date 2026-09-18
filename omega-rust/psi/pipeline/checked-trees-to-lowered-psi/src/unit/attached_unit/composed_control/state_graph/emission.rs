@@ -8,8 +8,8 @@ use super::super::super::super::{
 };
 use super::super::super::{
     Block, MachineContract, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine,
-    Terminator, ValueDeclaration, allocate_dense, contract_id, edge_id, lookup_type_id,
-    lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
+    Terminator, ValueDeclaration, allocate_dense, contract_id, edge_id, lookup_claim_id,
+    lookup_type_id, lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
     lower_unit_parameters, terminal_scalar_type, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
@@ -69,12 +69,18 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .collect::<Vec<_>>();
     let machine_result = returns::result(&plan.result, catalogs, &mut structural_places)?;
     let entry = &plan.states[0];
-    let claims = crate::unit::attached_unit::claims::lower_unit_entry_claims(
+    let mut claims = crate::unit::attached_unit::claims::lower_unit_entry_claims(
         plan.machine,
         entry.state,
         &entry.entry_claims,
         &parameters,
     )?;
+    // Successor-state claims keep the entry parameter's place; their checked
+    // identities join that entry claim so call and return replays resolve.
+    for (successor, entry) in &admitted.claim_transport.aliases {
+        let claim = lookup_claim_id(&claims.source_claims, *entry)?;
+        claims.source_claims.push((*successor, claim));
+    }
     let content_entry_claims =
         crate::proofs::content_conservation::lower_whole_content_entry_claims(
             checked,
@@ -118,7 +124,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 &mut catalogs.next_place,
             )?;
             let mut block_position = 0_u32;
-            for parameter in &mut block_parameters {
+            for (dense, parameter) in block_parameters.iter_mut().enumerate() {
                 if parameter.is_self {
                     *parameter = parameters
                         .iter()
@@ -127,9 +133,24 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                             "Unit graph receiver invocation is missing",
                         ))?
                         .clone();
+                } else if let Some(root) = admitted
+                    .claim_transport
+                    .aliased
+                    .get(position)
+                    .and_then(|aliased| aliased.get(&(dense as u32)))
+                {
+                    // A claim carried across an edge keeps the entry
+                    // parameter's place; the block does not re-declare it.
+                    parameter.place = parameters
+                        .get(*root as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph claim alias lost its entry parameter",
+                        ))?
+                        .place;
                 } else {
-                    // The persistent receiver is not a block parameter. Only
-                    // transferred structural values occupy its dense namespace.
+                    // The persistent receiver and claim aliases are not block
+                    // parameters. Only transferred structural values occupy
+                    // its dense namespace.
                     parameter.position = block_position;
                     block_position =
                         block_position
@@ -142,8 +163,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             structural_places.extend(
                 block_parameters
                     .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .map(|parameter| StructuralPlaceDeclaration {
+                    .enumerate()
+                    .filter(|(dense, parameter)| {
+                        !parameter.is_self
+                            && !admitted
+                                .claim_transport
+                                .aliased
+                                .get(position)
+                                .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
+                    })
+                    .map(|(_, parameter)| StructuralPlaceDeclaration {
                         id: parameter.place,
                         kind: StructuralPlaceKind::BlockParameter {
                             block: state_ids[position],
@@ -186,8 +215,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     .collect(),
                 structural_arguments: parameters
                     .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .map(|parameter| StructuralArgument {
+                    .enumerate()
+                    .filter(|(dense, parameter)| {
+                        !parameter.is_self
+                            && !admitted
+                                .claim_transport
+                                .aliased
+                                .first()
+                                .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
+                    })
+                    .map(|(_, parameter)| StructuralArgument {
                         place: parameter.place,
                         path: Vec::new(),
                         access: parameter.access,

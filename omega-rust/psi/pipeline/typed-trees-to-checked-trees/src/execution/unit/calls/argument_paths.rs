@@ -347,6 +347,56 @@ pub(crate) fn ordinary_projected_call_is_supported(
     {
         return true;
     }
+    // A dying-continuation consumer may mix several projected anonymous
+    // result operands with ordinary whole operands. Each projected operand
+    // rejoins its own temporary through `binding_ordinal`, and the appended
+    // call continuation keeps each owner's residual rows separately.
+    if allow_field_path_projection
+        && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+        && arguments.iter().any(|argument| {
+            argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+                && argument.access == CheckedStructuralAccess::Owned
+                && !argument.path.is_empty()
+        })
+        && arguments
+            .iter()
+            .zip(&target_parameters)
+            .all(|(argument, target)| {
+                if argument
+                    .source_structural_result_binding_ordinal()
+                    .is_some()
+                {
+                    return argument.access == CheckedStructuralAccess::Owned
+                        && !argument.path.is_empty()
+                        && argument.path.iter().all(|segment| {
+                            matches!(
+                                segment,
+                                CheckedUnitStructuralPathSegment::Field(_)
+                                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                            )
+                        })
+                        && !target.is_self
+                        && crate::checks::type_multiplicity(program, target.type_reference)
+                            == Multiplicity::Affine
+                        && !type_graph_requires_nominal_drop(program, target.type_reference);
+                }
+                argument.path.is_empty()
+            })
+        && program.machine_states(caller_machine).len() == 1
+        && program.machine_states(target_machine).len() == 1
+        && facts
+            .contract_plans
+            .for_machine(caller_machine.symbol)
+            .is_some()
+        && facts
+            .contract_plans
+            .for_machine(target_machine.symbol)
+            .is_some()
+    {
+        return true;
+    }
     if arguments.len() != 1 {
         return false;
     }
