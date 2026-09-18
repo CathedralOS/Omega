@@ -159,14 +159,15 @@ pub(crate) fn lower_token_bearing_boundary_signature(
     })
 }
 
-/// Whether a `machine` item is a bare bodyless tokenless signature: no body,
-/// no token, not boundary, no `satisfies`/`via`, and not the explicit
-/// `boundary requirement` form. The item parser admits the shape; only an
-/// exact compiler-catalog primitive may own it.
+/// Whether a `machine` item is a bare bodyless signature: no body, not
+/// boundary, no `satisfies`/`via`, and not the explicit `boundary requirement`
+/// form, with or without a fixed token. The item parser admits the shape;
+/// only an exact compiler-catalog primitive may own it, so a token-bearing
+/// declaration (`machine + Owner::name(...);`) rejects here with the same
+/// missing-body guidance rather than lowering as an unsupplied checked body.
 pub(crate) fn is_bare_bodyless_signature(machine: &syntax::item::Machine) -> bool {
     machine.bodyless
         && !machine.boundary
-        && machine.spelling.is_none()
         && machine.satisfies.is_empty()
         && !machine.is_top_level_boundary_requirement
 }
@@ -214,6 +215,10 @@ pub(crate) fn lower_bare_bodyless_signature(
             })
     });
     let Some(family) = family.filter(|_| sealed_source) else {
+        let token = machine
+            .spelling
+            .map(|spelling| format!("{} ", spelling.symbol()))
+            .unwrap_or_default();
         let guidance = if family.is_some() {
             format!(
                 "`{name}` names a compiler primitive, but only the sealed toolchain declaration \
@@ -224,8 +229,9 @@ pub(crate) fn lower_bare_bodyless_signature(
             format!(
                 "`{name}` has no body and is neither a boundary signature nor a compiler-catalog \
                  primitive; a nonboundary direct machine must own a checked body \
-                 (`machine {name}(...) {{ ... }}`), a boundary contract is spelled `boundary \
-                 machine ...;`, and an external leaf `satisfies Requirement via <Binding>;`"
+                 (`machine {token}{name}(...) {{ ... }}`), a boundary contract is spelled \
+                 `boundary machine {token}...;`, and an external leaf `satisfies Requirement \
+                 via <Binding>;`"
             )
         };
         return Err(Diagnostic::error(guidance).with_source_span(machine.name.source_span()));
@@ -279,7 +285,9 @@ pub(crate) fn lower_bare_bodyless_signature(
             .then(|| lower_type_reference_handle(lowerer, syntax_trees, entry.return_type))
             .transpose()?,
         contracts: lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?,
-        spelling: None,
+        // The catalog admits a sealed bodyless declaration with or without a
+        // fixed token; whatever token it declared is the slot's own spelling.
+        spelling: machine.spelling,
         token_count: 0,
     })
 }

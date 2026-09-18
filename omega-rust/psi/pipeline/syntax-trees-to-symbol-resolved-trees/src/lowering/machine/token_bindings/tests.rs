@@ -573,6 +573,32 @@ fn sealed_ranking_view_signature_lowers_from_its_catalog_source_only() {
 }
 
 #[test]
+fn bodiless_token_bearing_nonboundary_machine_rejects_missing_supply() {
+    // `machine + Owner::name(...);` outside `boundary` and the sealed catalog
+    // has no supply mechanism: it is neither a checked-body declaration nor a
+    // requirement slot, so the declaration itself rejects
+    // ([expressions: executable supply](../../../../../../wiki/spec/language/expressions.md#executable-supply)).
+    let diagnostics = resolve_source(
+        "data Wrapped { value: u8; }
+         machine + Wrapped::add(left: Wrapped, right: Wrapped) -> Wrapped;",
+    )
+    .expect_err("a token binding without a body or a requirement context has no supply");
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("one diagnostic: {diagnostics:?}");
+    };
+    assert!(
+        diagnostic.message.contains(
+            "`Wrapped::add` has no body and is neither a boundary signature nor a \
+             compiler-catalog primitive; a nonboundary direct machine must own a checked body \
+             (`machine + Wrapped::add(...) { ... }`), a boundary contract is spelled `boundary \
+             machine + ...;`, and an external leaf `satisfies Requirement via <Binding>;`"
+        ),
+        "{}",
+        diagnostic.message
+    );
+}
+
+#[test]
 fn sealed_ranking_view_signature_that_drifts_from_its_row_rejects() {
     for (declaration, expected) in [
         (
