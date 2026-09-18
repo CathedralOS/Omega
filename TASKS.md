@@ -1526,330 +1526,92 @@ Owners include
   crash site against the published ceiling, and no policy is silently
   weakened into another.
 
-- **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
-  and independent checker in Psi, under the
-  [selected foundation](wiki/spec/proofs/foundation.md). Customer: library
+- **PROOF-KERNEL-CORE.** Finish the common mathematical term/declaration model
+  and independent checker in Psi under the
+  [selected foundation](wiki/spec/proofs/foundation.md) and its
+  [W-based profile](wiki/spec/proofs/inductive_profile.md). Customer: library
   theorems about arbitrary types/predicates and dependent witnesses, not another
-  extension to the bounded `Proposition` enum. Represent the reference core's
-  universes, dependent terms and strict/relevant distinction once; source
-  elaboration and certificate consumers must use it rather than invent parallel
-  truths. Keep search outside the checker and preserve useful arithmetic rules
-  as certificate producers or explicitly justified checked rules.
+  extension to the bounded `Proposition` enum. Source elaboration and
+  certificate consumers use this model rather than invent parallel truths;
+  search stays outside the checker.
 
-  Landed: the Π fragment in `proof-admission/src/mathematical_core.rs`:
-  de Bruijn terms, `Type`/`Strict` sorts with closed levels, Π/λ/application
-  typing without cumulativity, β weak-head normalization under a step ceiling,
-  and typed conversion with strict collapse decided by the shared type's sort.
-  Tests witness formation, non-sort/non-function/unbound rejection,
-  capture-avoiding substitution, strict-versus-relevant separation, step-ceiling
-  refusal, and an exact 51-slot arena receipt for checking the polymorphic
-  identity.
+  `proof-admission/src/mathematical_core/` implements the pinned reference
+  core with its strict layer, typed function eta, `Two`, `Id`, `W`,
+  universe-polymorphic declarations with exact assumption closure, and the
+  derived indexed and set-quotient schemes as ordinary checked declarations.
+  [Kernel metatheory](wiki/spec/proofs/kernel_metatheory.md) argues the
+  combined rules at paper level (not mechanized) and lists the witnessing
+  tests and measured receipts. `accept_certificate` denotes each bounded
+  `ProofNode` certificate into the core and records `Judged` or `Refused` in
+  `MathematicalCoreDecision`. This does not deliver the customer: every
+  kernel theorem and scheme is a Rust-built term (`scheme_dsl.rs`),
+  `terminal-codec`'s `encode_mathematical_certificate` and
+  `decode_mathematical_certificate` have no caller outside tests, and the only
+  source fixture written against the kernel route proves scalar `==` symmetry
+  and transitivity (`pass/proofs/kernel_theorem_equality_certificates`, driven
+  by `compiler/tests/proof_kernel_canaries.rs`).
 
-  Landed: dependent pairs — Σ formation at the maximum component level
-  (`Strict` only when both components are `Strict`), componentwise pair
-  checking with the second component checked at the codomain instantiated by
-  the first, `fst`/`snd` typing with dependent `snd` result, definitional
-  projection reduction, and pair eta in both directions during typed
-  conversion. Pair arguments in Π applications are routed through
-  componentwise checking so dependent codomains do not need non-dependent
-  inference. Tests witness dependent-codomain substitution, pairs flowing
-  through call arguments, projection reduction through function redexes,
-  relevant-versus-strict Σ formation, neutral pair eta, and non-pair
-  projection rejection.
+  Remaining work:
 
-  Landed: typed function eta in conversion. At a `Pi` shared type a lambda
-  and a non-lambda convert exactly when the non-lambda applied to the
-  fresh de Bruijn variable converts to the lambda's body at the exact
-  codomain; a strict `Pi` still collapses by irrelevance before the rule
-  is reached. Tests witness both eta directions, strict-domain and
-  dependent-codomain Π combinations, eta through dependent type
-  arguments, the no-pointwise-collapse control, and refusal of the
-  wrapper rule at a non-function shared type.
+  - Give the bounded arithmetic families kernel meaning, so each is a
+    certificate producer whose output the kernel checks or an explicitly
+    justified checked rule (see Flag). State integer carriers, order and
+    arithmetic as kernel declarations, with the rules as checked theorems or
+    citations of one fixed roster of named assumptions with exact statements.
+    The one `Unsupported` crossing left in
+    `mathematical_core/bounded_denotation.rs`, citation-level
+    `Equal`↔`IntegerMathEqual`, exists because an `Id` and an opaque atom are
+    different types; it closes with this.
+  - Check indexed-scheme applications produced from source declarations, per
+    [declaration correspondence](wiki/spec/proofs/inductive_profile.md#declaration-correspondence-and-strict-logic):
+    exact parameters, indices, payloads, case constraints and recursive uses.
+    The vector, mutual, nested, derivation and level-instantiation families in
+    `proof-admission/tests/indexed_*.rs` are hand-built terms. Negative
+    recursion, bad universes and illegal strict elimination reject at the
+    source declaration; source invalidity, unsupported valid encoding and
+    producer defects stay separate errors. No kernel test covers negative
+    recursion: `W A B` cannot state it, so the control needs an elaborated
+    source declaration.
+  - Make the kernel changes PROOF-CONTRACT-MIGRATION's elaborator forces, and
+    no others. `signature.rs::Declaration` carries position only and each
+    `MathematicalCertificate` carries its whole signature; source names and
+    `boundary let` trust identities are the elaborator's to attach, and exact
+    closure must still survive import and serialization. A new rule family
+    arrives with the denotation that lets acceptance re-decide it and a
+    source-level customer, not on its own. No second primitive indexed or
+    strict-inductive checker, and no untyped wrapper-deletion shortcut for eta.
 
-  Landed: the `Two` primitive — `Two : Type 0` with `zero`/`one`,
-  dependent `caseTwo(C, d0, d1, t)` checking `C` as a `Π(_ : Two).
-  Type w` family with `w` read from the checked codomain, and
-  definitional computation to `d0`/`d1` on each constructor under the
-  step ceiling. Strict-codomain and non-universe motives reject (boxing
-  owns strict targets); there is no `Two` eta. Certificates carry the
-  eliminator through the canonical wire (term tags 10-13) and re-verify
-  after decode. Tests witness formation and introduction, branches
-  checked at definitionally different constructor landings (large
-  elimination), constructor computation and its step-ceiling refusal,
-  stuck eliminations on neutral scrutinees, componentwise conversion of
-  stuck eliminations, strict/non-universe/wrong-domain motive and
-  non-`Two` scrutinee rejection, and that pointwise agreement on both
-  constructors grants no function equality.
+  Acceptance: the foundation's
+  [migration examples](wiki/spec/proofs/foundation.md#migration-acceptance),
+  each with its invalid control, reach a source-free kernel judgment from
+  Omega source through PROOF-CONTRACT-MIGRATION: a universe-polymorphic theorem
+  over arbitrary predicates with dependent pairs, identity transport and
+  induction; strict same-statement conversion with relevant witnesses kept
+  distinct; malformed universes, capture-changing substitution and illegal
+  elimination rejecting; exact assumption closure through declaration
+  types/statements without relying on unfolding. Measure term size, retained
+  storage and checking cost on those source-produced terms in the application
+  checker; do not claim feasibility from empty receipts or compiler-authored
+  success flags. Structural round trips do not establish meaning, and no
+  verified-profile claim precedes these controls.
 
-  Landed: relevant identity — `Id A x y : Type u` formation at the
-  carrier's relevant `Type` level (a strict carrier rejects:
-  proof-relevant distinction does not exist over a proposition),
-  `refl A x : Id A x x` with a checked `ty` annotation so a
-  dependent-pair endpoint still checks componentwise, and dependent
-  elimination `J(C, d, y, p) : C y p` for `C : Π(y : A). Π(_ : Id A x
-  y). Type w` and `d : C x (refl A x)`, where `p`'s inferred identity
-  supplies the fixed carrier and left endpoint and the supplied `y`
-  must convert to `p`'s recorded endpoint. `J` computes to `d` on
-  `refl` as a budgeted step; neutral proofs stay stuck and compare
-  componentwise at the left elimination's inferred types. There is no
-  identity eta, K or UIP: `refl` never converts to a neutral proof and
-  distinct proofs of the same identity stay distinct. Certificates
-  carry `Id`/`refl`/`J` through the canonical wire (term tags 14-16)
-  and re-verify after decode. Tests witness formation at the carrier
-  level (including `Id` over `Type 0` landing at `Type 1`),
-  strict-carrier and non-type-carrier rejection, wrong-endpoint
-  rejection, a `Σ`-carrier `refl` over a dependent pair, elimination
-  proving symmetry (`Id A x y` giving `Id A y x`), reflexive
-  computation and its step-ceiling refusal, componentwise conversion
-  of stuck eliminations, every malformed-motive and relocated-endpoint
-  rejection, the no-UIP controls, and a transport certificate
-  re-deciding `J` after wire decode.
+  Flag: the bounded denotation reaches `Judged` on the arithmetic families by
+  assuming each conclusion. `bounded_denotation.rs` denotes every non-`Equal`
+  atom as an opaque `Type 0` assumption (`atom`), every non-reflexive
+  primitive leaf as a decision assumption (`decision`), and every integer
+  order, bound-witness, denotation-conversion and
+  `IntegerMath*`/`ContentConservation` transitivity rule as a per-instance
+  assumption `Π(premises). conclusion` (`rule_axiom`). The Rust relation check
+  that admits an instance is the one the bounded checker already ran, so the
+  kernel cannot disagree with the rule labels there, and the assumption's
+  statement carries no arithmetic a receiver could audit. The general
+  mechanism is the first bullet; until it lands, `Judged` on those families
+  is not independent evidence.
 
-  Landed: the W-type `W A B` of well-founded trees — formation,
-  `sup` introduction, and dependent `indW` induction computing on
-  each constructor under the step ceiling — then level parameters
-  (`Δ; Γ ⊢ t : T` scope-checks every `Sort` level against the
-  judgment's level arity, no unification) and universe-polymorphic
-  declarations whose `Constant` references carry exact level
-  instantiation through the canonical wire.
-
-  Landed: derived indexed families in
-  `proof-admission/src/mathematical_core/indexed.rs` — the profile's
-  encoding `IndexedAt(i, sup a k) ≡ Id I (out a) i × Π(b : B a).
-  IndexedAt (next a b) (k b)` and `IW i ≡ Σ (t : W A B). IndexedAt i
-  t` as five ordinary universe-polymorphic declarations
-  (`IndexedAt`, `IW`, `iwPack`, `isup`, `iindW`) checked
-  parametrically by `check_signature` and applied through `Constant`
-  spines, not a second primitive inductive checker. `isup`/`iindW`
-  are defined terms whose computation is definitional: `iindW Q s i
-  (isup a g)` converts to `s a g (b ↦ iindW Q s (next a b) (g b))`
-  with the child function a neutral variable, closing through pair
-  eta and typed function eta — the dependency the profile names.
-  Tests witness the scheme re-checking as a parametric signature,
-  the indexing equation unfolding on neutral `sup` nodes,
-  computation with an arbitrary neutral child function,
-  wrong-index/wrong-description/strict-universe/arity rejections,
-  and a theorem certificate re-deciding the eliminator's judgment
-  with exact assumption closure. Next: demonstrate Vector length
-  indices, derivation indices, and mutual/nested families per the
-  acceptance below, then connect the model to source elaboration.
-
-  Landed: the length-indexed vector, mutual and nested families —
-  `indexed_vector`, `indexed_mutual` and `indexed_nested` each check
-  `isup` construction and `iindW` computation with a visible
-  constructor and an arbitrary neutral child function, the nested
-  case a level-indexed rose tree whose payload is `Σ(k : Nat). Vec k`
-  — plus the conversion reflexivity fast path that keeps shared
-  `IndexedAt`/`IW` spines shared. Exact assumption closures and
-  budgeted step/arena receipts are pinned per family.
-
-  Landed: level instantiation on the derived scheme in
-  `indexed_levels` — a producer declares `vecOf : Π(E : Type u).
-  Π(n : Nat). Type u` and `consVec` once at level arity 1, with
-  `Parameter(0)` inside the scheme constants' level arguments, and
-  one checked signature runs the family at `[0]` (vectors of
-  booleans) and `[1]` (vectors of types). `iindW[0,1,0,1]` computes
-  on a cons node with the induction hypothesis landing at the
-  predecessor index one universe up; wrong element universes,
-  wrong level-argument counts, out-of-scope parameters and
-  descriptions claimed at mismatched sorts each reject with their
-  exact error. The level-polymorphic `consVec` judgment travels as
-  a `level_arity`-1 certificate through the canonical wire —
-  byte-identical re-encode, independent re-verification, closure
-  exactly the three `Nat` axioms — and a forged closed arity
-  rejects `UnboundLevelParameter`.
-
-  Landed: the core is inside the checker. Certificate acceptance
-  denotes each accepted certificate into the core as
-  `Γ ⊢ t : ⟦goal⟧` and the kernel re-decides it, recording
-  `MathematicalCoreDecision::Judged` with receipts measuring
-  declarations, assumption closure, context depth and arena slots in
-  use after checking, or `Refused` for a construction the denotation
-  cannot cross — the citation-level `Equal`↔`IntegerMathEqual` shape
-  change, where `Id` and the atom are different types and the bounded
-  rules stand alone. A covered certificate the kernel rejects is
-  rejected: the rule labels never outvote the kernel. Authored theorem
-  machines witness the route from source through the canonical wire to
-  a kernel judgment
-  (`pass/proofs/kernel_theorem_equality_certificates` and its false
-  twin). Native target lowering then admitted obligation-carrying unit
-  calls and authored call validation replays the call-site obligation
-  roster exactly, so the fixture's theorem machine executes: the
-  standalone `proof_kernel_canaries` target drives it through the
-  checked interpreter and the native host artifact to exit code 70,
-  plus a `linux_arm64` cross leg, with the false twin rejected before
-  any kernel judgment.
-
-  Landed: the set-quotient scheme in
-  `proof-admission/src/mathematical_core/quotient.rs` — the
-  [quotient specification](wiki/spec/proofs/quotients.md)'s interface
-  authored as thirteen ordinary declarations: `Q`, `project`,
-  `setQ`, `sound`, `effective`, `elim` and the propositional
-  `beta` law are named assumptions with exact statements, while
-  `transport`, `idTrans`, `transportConst` and the ordinary `lift`
-  are checked definitions derived from them, and `liftPre` is
-  admitted as one more exactly-stated assumption because a
-  function-valued motive would need the function extensionality
-  the calculus lacks. No `Term` variant, typing rule or conversion
-  rule is added; every assumption lands in `assumption_closure`,
-  and `beta` being a relevant `Id` keeps a quotient's
-  representative unextractable. Tests witness the
-  admitted-versus-derived boundary, a malformed congruence
-  rejection, and the exact closure over the admitted interface.
-
-  Landed: the rest of the quotient derive list — the scheme is now
-  twenty checked declarations. `idSym` and `idCancel` extend the
-  `J`-derived identity infrastructure, `propIsSet` lifts
-  mere-proposition evidence to setness, `boxProp` shows a boxed
-  strict proposition is a mere proposition, `indProp` delivers
-  proposition-valued induction through set-valued elimination and
-  boxing, `coverage` squashes each element's projecting
-  representative, and `unique` collapses sections agreeing on
-  projections to pointwise identity. Each is an ordinary definition
-  `check_signature` re-decides; the admitted interface is unchanged
-  and the new items close over exactly `Q`, `project`, `sound` and
-  `elim`. Tests witness the strict-target route, rejection of a
-  `Type`-valued `indProp` motive, the unsquashable coverage witness
-  (`fst` on `Squash` is `NotAPair`), pointwise-but-not-functional
-  uniqueness, exact closures, and a certificate that independently
-  replays coverage after the canonical wire.
-
-  Landed: the real theorem certificate the milestone above named.
-  `theorems.rs`'s `identity_substitution` (`subst` built from `J`)
-  and `indexed.rs`'s `indexed_correctness` (index soundness proved
-  by `iindW` itself) are ordinary checked definitions a certificate
-  cites through `Term::Constant`; `terminal-codec` re-encodes the
-  certificate byte-identically and `verify_mathematical_certificate`
-  re-decides the judgment after decode with the exact assumption
-  closure. Tests witness a theorem certificate verifying after wire
-  decode, a polymorphic theorem reference round-tripping at its own
-  arity, an axiom-dependent theorem keeping its assumption through
-  the wire, a theorem-dependent obligation transporting over the
-  wire, and a missing dependency rejecting the signature.
-
-  Landed: the derivation context/conclusion-indexed family
-  (`indexed_derivation`) — a natural-deduction `Deriv` family whose
-  index is a judgment `Σ(Γ : Ctx). Frm`, so `impI` moves the
-  context index to the extended context and `impE` selects each
-  child's required conclusion by position. `iindW` computes on
-  modus ponens with a neutral child function and proves the
-  conclusion identity under a dependent motive; wrong judgments
-  and malformed descriptions reject. The certificate verifies with
-  exact closure over the four grammar axioms and measured cost:
-  25_100 budgeted steps checking the `next` family, 3_689 steps
-  and 282_055 retained arena slots for the certificate.
-
-  Landed: the bounded certificate route in
-  `mathematical_core/bounded_denotation.rs` — a shipped
-  `ProofNode` certificate is denoted proposition-by-proposition and
-  rule-by-rule into the common core (atoms as `Type 0` assumptions,
-  scalar `Equal` as `Id` over a carrier assumption, connectives as
-  `Σ`/tagged sums/`Π`, decided primitives as named decision
-  assumptions) and re-decided by `verify_mathematical_certificate`;
-  the one crossing that refuses `Unsupported` is the citation-level
-  `Equal`↔`IntegerMathEqual` shape change, separating source
-  invalidity, unsupported encodings and producer defects. The
-  bounded checker's own rule families each live beside their owner
-  in `proof/`. Denoted discharge, implication, equality and
-  rule-instance certificates cross the canonical wire and re-verify
-  after decode.
-
-  Landed: every certificate rule family denotes. The integer order
-  rules, the affine/exact-add/cast/correlated-root bound witnesses,
-  predicate denotation, value-equality transport and the
-  `IntegerMath*`/`ContentConservation` transitivity arms each
-  re-decide their premise/conclusion relation through the shared
-  `pub(crate)` check the bounded traversal runs, then elaborate to a
-  *rule-instance decision*: an assumption constant of type
-  `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧` applied to the denoted
-  premise evidence — cited ambient axioms and assumptions bind as
-  further premises, so the judgment's assumption closure names each
-  instance's arithmetic or conversion content exactly. Malformed
-  relations still surface as the checker's own errors, never as
-  axioms. `accept_certificate_with_machine_parameters` threads the
-  verifier-reconstructed scalar signature roots through denotation
-  for the parameter-custody rules. Tests witness a weakening, a
-  transitivity, both denotation conversions and an order
-  substitution judged end to end, a rule-instance axiom surviving
-  the canonical wire byte-identically, the refusal boundary moved
-  to the normalized citation crossing, and every producer test
-  (`predicate_conversion`, `value_equality_transport`,
-  `integer_order_weakening`, …) now reading `Judged` where it read
-  `Refused`.
-
-  Landed: the combined rule/encoding metatheory and implementation
-  evidence in
-  [kernel_metatheory.md](wiki/spec/proofs/kernel_metatheory.md) —
-  substitution, preservation, normalization and decidable
-  conversion argued over the implemented judgments with the
-  ceiling's bounded-incompleteness stated, the encoding
-  correspondence discharged per obligation, and the trust boundary
-  and non-claims named.
-
-  Landed: the nonconstructive-existence kernel legs — squashed
-  existence composes through a logical hypothesis with no axiom,
-  reaching a relevant witness requires an admitted `choice`
-  assumption with an exact statement, and the admission lands in the
-  judgment's assumption closure for a refusing receiver
-  (`proof-admission/tests/nonconstructive_existence.rs`).
-
-  Landed: the squashed-relation and receiver-policy legs of the
-  quotient interface (`schemes_and_quotients/quotient_receiver_policies.rs`)
-  — a `Box (Squash (Id Two a b))` relation instance where `sound`
-  consumes only the explicit squashed projection, `effective` returns
-  it, `unbox` reaches `Squash (Id Two a b)` and extracting the
-  relevant witness refuses `SquashTargetNotStrict`; and the exact
-  assumption closure as the receiver's policy input, where a
-  quotient-refusing policy accepts a representative-level theorem
-  (empty closure through the checked `idSym` definition) and rejects
-  the assumption-bearing quotient proof while an admitting policy
-  accepts both — the same verified certificate distinguished by
-  policy, with a forged expected type refused by verification before
-  any policy runs.
-
-  The connect milestone is discharged: real theorem and bounded certificates
-  travel the canonical wire and are independently re-decided with exact
-  assumption closure. Next: the pinned reference core's strict layer landed at
-  b367f54a77 (squash, boxing and strict empty/unit formers with their
-  introduction and elimination rules in
-  `proof-admission/src/mathematical_core/term.rs`, witnessed by
-  `mathematical_core/tests/strict_layer.rs` and the certificate-wire tests,
-  macOS ARM64); the source-elaboration seam is owned by
-  PROOF-CONTRACT-MIGRATION. A verified-profile claim still requires the full
-  pinned core plus the migration item's discriminating controls.
-
-  Implement the pinned reference core and selected
-  [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,
-  two-element type, W-induction and checked derived indexed families. No second
-  primitive indexed/strict-inductive checker. Prove the encoding scheme's
-  formation, constructor, dependent-induction and computation correspondence,
-  then independently check its declaration applications. Structural round trips
-  do not establish meaning. General source punctuation is not a kernel blocker.
-  Justify substitution, preservation, normalization and decidable conversion
-  for the combined rules, including the landed
-  [typed function eta](wiki/spec/proofs/inductive_profile.md#typed-function-eta);
-  no untyped wrapper-deletion shortcut.
-  Acceptance: independently checked universe-polymorphic dependent functions
-  and pairs, strict same-statement conversion and relevant witness separation;
-  malformed universes, capture-changing substitution and illegal elimination
-  reject. Include exact assumption closure through declaration types/statements
-  without relying on unfolding. Measure conversion/storage on these terms; do
-  not claim feasibility from empty receipts or compiler-authored success flags.
-  Do not expand the framework ahead of its consumers: a new rule family
-  arrives with the denotation that lets acceptance re-decide it and a
-  source-level customer, not on its own.
-
-  Demonstrate Vector length indices, derivation context/conclusion indices,
-  mutual and nested strictly-positive families with definitional constructor
-  computation with a visible constructor and arbitrary neutral child function,
-  not only concrete lambdas. Include dependent motives and capture/type-mismatch
-  controls; pointwise equality alone grants no function equality. Reject malformed
-  encodings, negative recursion, bad universes and illegal strict elimination;
-  separate source invalidity, unsupported valid
-  encoding and producer defects. Measure term size, retained storage and checking
-  cost in the application checker, not an assumed nested bootstrap environment.
-  Complete rule/encoding metatheory and implementation evidence before claiming
-  a verified profile. Reopen W only on demonstrated requirements/cost/audit failure.
+  PCC-CANONICAL-SEMANTIC-LEDGER owns the soundness status of trusted checker
+  rows and PROOF-CERTIFICATION-BRIDGE owns loop correspondence. Reopen W only
+  through `OWNER_QUESTIONS.md` on demonstrated requirements, cost or audit
+  failure. General source punctuation is not a kernel blocker.
 
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
   [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).
