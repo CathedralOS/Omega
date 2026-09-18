@@ -92,7 +92,7 @@ counter names its owner, limit, refusal observation, and witness.
 | sealed input | `ConformanceBytesV1` adapter | 4,194,304 bytes | status 253, empty stdout | exact/adjacent executed below |
 | driver frame fields | private driver | `frame >= 4`, `length <= frame - 4` | tag `05` | exact/adjacent executed below |
 | published observation | `ConformanceBytesV1` adapter | 4,194,304 bytes | status 254, empty stdout | adjacent refusal pinned by [`tests/delta/staged-compiler/run.sh`](../../tests/delta/staged-compiler/run.sh) (`bytes_concat` doubling over a 2,097,153-byte input) |
-| cumulative immutable pairs | Gamma evaluator | 40,265,318 nodes | status 252, empty stdout | exact/adjacent pinned by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md); evaluator-level exhaustion is derived below |
+| cumulative immutable pairs | Gamma evaluator | 40,265,318 nodes | status 252, empty stdout | exact/adjacent pinned by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md); evaluator-level exhaustion executed below |
 | live call contexts | Gamma evaluator | 256 contexts | status 250, empty stdout | exact/adjacent executed below |
 | temporary value stack | Gamma evaluator | 524,288 entries | status 250, empty stdout | dominated by the context bound in this composition |
 | lexical environment rows | Gamma evaluator | 131,072 rows | status 250, empty stdout | dominated likewise |
@@ -151,9 +151,13 @@ remaining exact under cumulative per-update allocation. Their refusal mode
 is pair-arena exhaustion: `status 252` with empty stdout, the same boundary
 [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md)
 executes at the whole-node maximum and one
-beyond. A direct evaluator-level 252 witness is analytically derivable
-(updates times bounded path nodes against 40,265,318) but too slow to pin
-inside one session; it remains a recorded pending pin.
+beyond. The direct evaluator-level 252 witness is now executed:
+[`tests/epsilon/pair-boundary/`](../../tests/epsilon/pair-boundary/README.md)
+runs a bounded sparse-write loop as the admitted control beside its
+unbounded counterpart, which drove the canonical evaluator receipt's
+execution phase to the refused 40,265,319th pair node — status 252, empty
+stdout, empty stderr, 4,250.673 seconds on macOS arm64. The derivation
+above predicted the boundary; the gate now records the refusal.
 
 ## Refusal witnesses
 
@@ -172,11 +176,14 @@ the 256-context bound admits 34 nested machine calls and refuses the 35th
 before any observation. It is not an Epsilon language limit; a different
 receipt may shift it.
 
-Refusals inherited from the lower chain rather than re-executed here: the
+Refusals inherited from the lower chain rather than re-executed on this
+diagnostic receipt: the
 adapter output extent (254) and authored-trap (249) statuses are pinned by
 [`tests/delta/staged-compiler/run.sh`](../../tests/delta/staged-compiler/run.sh);
 the pair-arena maximum (252) is pinned
-exact/adjacent by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md);
+exact/adjacent by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md)
+and executed directly at the canonical evaluator edge by
+[`tests/epsilon/pair-boundary/`](../../tests/epsilon/pair-boundary/README.md);
 evaluator-owned statuses 1,
 2, 3, 4, and 248 belong to scalar, pre-application, and unclassified paths
 of [`bootstrap/2_gamma/EVALUATOR_PROFILE.md`](../2_gamma/EVALUATOR_PROFILE.md),
@@ -196,7 +203,7 @@ That document also carries each lower-chain refusal status to the outer
 `Incomplete` at the edge boundary; the envelope classifies every named
 refusal path, so no evaluator-internal budget layer was needed. Still open
 under EPSILON-EVALUATOR: witnessed checking/runtime conformance
-gaps, the pending direct evaluator-level status-252 pin, complete D
+gaps, complete D
 composition, and independent `RunEpsilon` refinement — section 11's final
 acceptance still requires executing every Epsilon construct for the exact D
 source.

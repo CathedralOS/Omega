@@ -172,7 +172,7 @@ of the selected lower chain, now charged against the canonical receipt.
 | sealed input | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 253, empty stdout | exact/adjacent executed in [`tests/epsilon/evaluator-entry/`](../../tests/epsilon/evaluator-entry/README.md) |
 | EREQ envelope fields | canonical entry | fixed 52-byte header, declared sections, exact end | EEOUT outcome 1 | exact/adjacent executed in the same gate |
 | published observation | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 254, empty stdout | adjacent pinned by [`tests/delta/staged-compiler/run.sh`](../../tests/delta/staged-compiler/run.sh) |
-| cumulative immutable pairs | Gamma evaluator | 40,265,318 nodes | `Incomplete` via status 252, empty stdout | exact/adjacent pinned by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md); evaluator-level derivation below |
+| cumulative immutable pairs | Gamma evaluator | 40,265,318 nodes | `Incomplete` via status 252, empty stdout | exact/adjacent pinned by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md); evaluator-level refusal executed in [`tests/epsilon/pair-boundary/`](../../tests/epsilon/pair-boundary/README.md) |
 | live call contexts | Gamma evaluator | 256 contexts | `Incomplete` via status 250, empty stdout | exact/adjacent executed in the entry gate: 34 nested calls admitted, the 35th refused |
 | temporary value stack | Gamma evaluator | 524,288 entries | `Incomplete` via status 250, empty stdout | dominated by the context bound |
 | lexical environment rows | Gamma evaluator | 131,072 rows | `Incomplete` via status 250, empty stdout | dominated likewise |
@@ -194,7 +194,13 @@ the entry's fixed header validation and the stdin section rope — bounded,
 header-sized work outside the evaluator's own allocation pattern. The same
 sparse-array and repeated-update witnesses apply to this receipt; their
 resource exhaustion mode is `Incomplete` via pair-arena status 252 with empty
-stdout, not an observation.
+stdout, not an observation. That mode is executed directly against this
+canonical receipt by
+[`tests/epsilon/pair-boundary/`](../../tests/epsilon/pair-boundary/README.md):
+a bounded sparse-write loop is the admitted control, and its unbounded
+counterpart reached the refused 40,265,319th pair node inside the execution
+phase — status 252, empty stdout, empty stderr, 4,250.673 seconds on macOS
+arm64.
 
 ## Refusal witnesses
 
@@ -229,7 +235,6 @@ sealed stdin, this profile, and the complete
 `RunEpsilon` observation without host parsing or policy, within the construct
 coverage the evaluator currently implements. Still open under
 EPSILON-EVALUATOR: witnessed checking/runtime conformance gaps, complete D
-composition, independent `RunEpsilon` refinement, and the pending direct
-evaluator-level status-252 pin — section 11's final
+composition, and independent `RunEpsilon` refinement — section 11's final
 acceptance still requires the evaluator to execute every Epsilon construct
 and Console effect for the exact D source.
