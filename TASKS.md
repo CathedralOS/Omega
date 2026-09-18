@@ -4031,126 +4031,88 @@ Owners include
   shape.
 
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
-  while keeping deployment/update policy in runtime packages or Cathedral. Componentization must
-  bind exact imports, exports, services, mappings, stack demand, leases, and
-  installed provider closure under the
-  [component publication contract](wiki/spec/build/component_publication.md).
-  Until that carrier is complete, every
-  `Independent` selection fails at one explicit fence.
+  under the [component publication contract](wiki/spec/build/component_publication.md),
+  keeping deployment/update policy in runtime packages or Cathedral.
+  Componentization must bind exact imports, exports, services, mappings, stack
+  demand, leases, and installed provider closure. Until that carrier is
+  complete, an `Independent` selection with no verified component fails at one
+  explicit fence (`provider-planning` `selection_provenance.rs`, pinned by
+  `package_compilation_inputs/authority_and_build_files.rs::independent_provider_selection_reaches_the_componentization_fence`).
 
-  Expose the [verified-description consumer](wiki/spec/build/component_publication.md#verified-component-descriptions)
-  from the existing verifier for independent admission/replacement and topology.
-  First inventory actual producer/replay coverage; implement missing complete
-  facts in their Psi, component, or provider owners, not a second topology census.
-  Acceptance: an independent source-free consumer checks subject/profile/schema,
-  all entries and outgoing authority, custody and inseparable assumptions; corrupt,
-  omitted, early-frontier and forged-complete descriptions reject. Include startup,
-  callbacks, timers, cleanup and retained providers. Reading descriptions grants no
-  callable authority; installation-dependent facts remain obligations and require
-  fresh per-occurrence resource/profile admission. First slice landed at
-  8d75d9ddc4 on Linux x86-64: `component-candidate` now owns the canonical
-  `ComponentDescription` carrier (schema 1, bounded and byte-replayed) and its
-  producer `describe_component`/`describe_component_facts`, plus the
-  source-free consumer `verify_component` returning the opaque evidence-only
-  `VerifiedComponent`. The consumer re-decodes the embedded canonical
-  artifact, reconstructs the component subject, replays the subject-bound
-  proof-section decode, and re-derives every module-evident row: complete
-  entry roster (canonical entry, suspension resumptions, and assumption-bound
-  startup/callback/timer/cleanup/retained-provider entries), outgoing
-  authority (boundary requirements, port-space writes, the selected entry's
-  published service ceiling), custody constraints, the retained provider
-  roster with strong plan digests, and the required installation
-  obligations. Corrupt, wrong-subject, incompatible-schema, early-frontier,
-  forged-complete, omitted, unaccepted-assumption, unsealed-provider, and
-  missing-obligation descriptions all reject distinctly. The consumer lives
-  in `component-candidate` rather than `terminal-verifier` because the latter
-  was under a live `PROOF-CERTIFICATION-BRIDGE` claim this wave; module proof
-  admission stays with the existing verifier's purpose-specific carriers.
-  `provider-planning` still rejects every `Independent` selection at the
-  explicit component-closure fence (`selection_provenance.rs`; pinned by
-  `package_compilation_inputs/authority_and_build_files.rs::
-  independent_provider_selection_reaches_the_componentization_fence`).
-  Landed beside it (macOS ARM64): `derive_component_inventory` exports one
-  row per retained checked provider realization
-  (`export:requirement:{requirement}|{provider}|{machine}`, derived
-  identically by producer and verifier so omitted or invented rows reject),
-  and `VerifiedComponent::realizes_selected_plan(&ProviderPlan)` joins a
-  selected plan against the verified module with distinct rejections for an
-  empty provider type, schema drift, unchecked rows, missing, mismatched,
-  duplicated, or unexported realizations. The description carrier, its
-  producer facts, and `verify_component` now live in
-  `omega-rust/omega/backend/artifacts/component-description` (dependencies:
-  effects, semantic-vocabulary, terminal-codec, terminal-psi, sha2), below
-  the runtime quarantine that `tests/architecture/layering.rs` keeps between
-  the ordinary compiler and package closures and the runtime owners
-  (`component_description_stays_below_the_runtime_quarantine` pins it);
-  `component-candidate` keeps `describe_component(&ComponentCandidate)` and
-  re-exports the API. `provider-planning` gains
-  `selected_provider_plan_facts_with_independent_components`: every
-  `Independent` plan must be realized by exactly one supplied
-  `VerifiedComponent` whose join passes, and every supplied component must
-  realize a plan; none, several, an unmatched extra, and each realization
-  mismatch reject distinctly and never fall back to fused
-  (`provider_planning/independent_components.rs`, 5 tests from a real
-  source fixture and a canonical described-and-verified module). The
-  3-argument `selected_provider_plan_facts` forwards an empty slice, so
-  its callers still reject every `Independent` selection. Landed next
-  (macOS ARM64, 264df70d4e..9418736601): `PackageCompilationTargetInputs`
-  carries `IndependentComponentDescription` (dependency package, observed
-  Terminal subject, canonical description bytes; root, foreign, and
-  duplicate attachments reject), and
-  `build-evaluation/src/provider_settlement` re-verifies each attached
-  description under the build's profile (schema 1, expected subject, no
-  accepted assumptions) before calling the four-argument entrance; a
-  verification rejection names the dependency package and never falls back
-  to fused (`tests/independent_component_settlement.rs`, 9 tests through
-  `filter_target_machines` and `settle_checked_providers`).
-  `component-description` exposes `test_support` (feature `test-support`)
-  for consumer fixtures. The producer landed beside it:
-  `compiler::published_independent_component_description` publishes a
-  dependency's canonical description from that dependency's own checked
-  compilation through `describe_component_facts`, binding the package
-  identity from its checked package custody and the expected subject from
-  `terminal_psi_identity` of the module it produced, verifying nothing
-  itself; `stack_demand` and `realization_identity` stay absent because a
-  Psi capsule has no native realization. `component-candidate` is not
-  reachable from `compiler` (the layering quarantine
-  `ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners`
-  forbids it), so the compiler describes below that quarantine. A real
-  two-package compile of a root selecting `Independent` over a described
-  dependency now settles, with no description, substituted bytes under the
-  published subject, an unrelated verifiable component, and a description
-  stale across an adapter rename all still rejecting through three owners
-  (`tests/package_compilation_inputs/independent_components.rs`).
+  The [verified-description](wiki/spec/build/component_publication.md#verified-component-descriptions)
+  carrier and consumer exist in `backend/artifacts/component-description`:
+  `describe_component_facts`, `verify_component` and
+  `VerifiedComponent::realizes_selected_plan`. `provider-planning` closes each
+  `Independent` plan against exactly one verified component,
+  `build-evaluation/src/provider_settlement/independent_components.rs`
+  re-verifies attached descriptions, and
+  `compiler::published_independent_component_description` publishes one from a
+  dependency's own checked compilation
+  (`compiler/tests/package_compilation_inputs/independent_components.rs`). This
+  is a checked-stage join driven by a test that attaches the description. The
+  producer has no non-test caller, and no stage after settlement reads the
+  composition mode, so a settled `Independent` edge carries no symbolic import,
+  separate artifact or installation obligation into the product.
 
-  Next slice, in order: the compiler still does not invoke that producer
-  itself. `compiler.rs` produces no dependency artifacts, and a root's
-  `Independent` selections are known only inside the sealed check that also
-  runs the fence (`assembled-syntax-to-checked-compilation/src/checking/
-  execution_settlement.rs` hands `build_config.provider_selections`
-  straight to `settle_checked_providers`, and `ComputedBuildConfig` never
-  leaves that crate), while attaching speculatively is refused by the
-  join's unmatched-component rule. So: a discovery stop in
-  `assembled-syntax-to-checked-compilation` returning the evaluated build's
-  `Independent` selections with the dependency package each names, then the
-  producer call in `packages/manager`'s existing `compile_dependency_closure`,
-  which already compiles each package as its own root and threads
-  `PackageCompilationInputs` per consumer. Also open in
-  `component-description`: `verify_component` rejects any component that
-  selects its own checked adapter, because `derive_component_inventory`
-  reads called requirements only from Terminal `BoundaryCall` while fused
-  lowering erases that call, so the retained plan reads as a smuggled
-  requirement (`component_verification.rs`); until that admissible set
-  widens, a publishable component must seal its own requirement with a
-  surviving external binding and carry the checked adapter beside it. Then
-  a build vocabulary for accepted assumption digests so mechanism-bearing
-    components can be admitted (settlement accepts none today). The
-  composition-mode admission failures witnessed beside the fence input
-  (`independent_provider_selection_reaches_the_componentization_fence` and
-  the two `provider_selection_rejects_*composition_mode*` tests) were
-  0e6c25c4dc normalizing bare case values into constructor literals while
-  `provider_selection_composition_mode` still read only a `Name`; closed at
-  65d71153a9 under BOUNDARY-OPERATOR-FAMILY-SELECTION.
+  Remaining work:
+
+  - Drive the producer from the compiler. A root's `Independent` selections
+    are known only inside the sealed check
+    (`assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs`
+    hands `build_config.provider_selections` to `settle_checked_providers`, and
+    `ComputedBuildConfig` never leaves that crate), while speculative
+    attachment is refused by the unmatched-component rule. Add a discovery
+    stop returning the evaluated `Independent` selections with the dependency
+    package each names, then call the producer from `packages/manager`'s
+    `compile_dependency_closure`
+    (`src/review/candidate/compilation/package_pass.rs`), which already
+    compiles each package as its own root.
+  - Admit a component that selects its own checked adapter.
+    `derive_component_inventory` reads called requirements only from Terminal
+    `BoundaryCall`, fused lowering erases that call, and `verify_component`
+    then rejects the retained plan as a smuggled requirement. Today a
+    publishable component must seal its requirement with a surviving external
+    binding and carry the adapter beside it.
+  - Add build vocabulary for accepted assumption digests. Settlement passes an
+    empty `accepted_assumptions` set, so every mechanism-bearing component
+    rejects.
+  - Supply the native facts. Compiler-published descriptions leave
+    `stack_demand` and `realization_identity` absent because a Psi capsule has
+    no native realization; the native producer `describe_component` sits in
+    `component-candidate`, behind the runtime quarantine in
+    `tests/architecture/layering.rs`. `ObligationKind` and `CustodyKind` carry
+    no mapping or lease row yet.
+  - Realize the settled edge, or keep rejecting production: symbolic
+    imports/exports, entry/leave and resource demands, and
+    installation/replacement obligations, never a silent Fused product.
+  - Expose the same consumer to independent admission/replacement and to
+    **TOPOLOGY-PLAN-VERIFICATION**. First inventory actual producer/replay
+    coverage; implement missing complete facts in their Psi, component, or
+    provider owners, not a second topology census.
+    **BOUNDED-INSTALLATION-REACH-ROWS** waits on this carrier for its
+    component-contract fence.
+
+  Acceptance: an ordinary two-package `omega` build whose root selects
+  `Independent` publishes and consumes the dependency's description with no
+  test-side attachment. An independent source-free consumer checks
+  subject/profile/schema, all entries and outgoing authority, custody and
+  inseparable assumptions; corrupt, omitted, early-frontier, forged-complete,
+  substituted, stale and unrelated descriptions reject and never fall back to
+  Fused. Include startup, callbacks, timers, cleanup and retained providers.
+  Reading descriptions grants no callable authority; installation-dependent
+  facts remain obligations and require fresh per-occurrence resource/profile
+  admission.
+
+  Flag: `verify_component` decodes the embedded Terminal module and its proof
+  section (`let _proof_bundle = ...`, then discarded) and never runs
+  `terminal-verifier`, which `component-description` does not depend on.
+  `VerifiedComponent` therefore qualifies a module that was decoded and
+  subject-matched, not independently verified, while the spec assigns the
+  code-to-inventory claim to the verifier. The inventory scan also ends in a
+  `_ => {}` arm, so a future authority-bearing operation kind would default
+  to no outgoing authority where the spec requires `IncompleteAuthority`.
+  Derive the inventory from the verifier's admitted module and make the scan
+  exhaustive.
 
 - **FFIVAL.** After the generic callback/runtime path closes, run the Windows
   `user32` boundary-coherence canary with no raw function pointer or Win32-only
