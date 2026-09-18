@@ -199,215 +199,64 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   across the required hosted matrix. Record unavailable hosts explicitly;
   scoped reruns do not establish a new complete baseline.
 
-- **CANARY-CORPUS.** Bring the language corpus to its promised checked/native
-  stages, using `mbx nextest run -p compiler --test canary_suite --no-fail-fast`
-  and the focused filters in [AGENTS.md](AGENTS.md#running-one-test).
-  Repository/library gates do not establish corpus health. Reconstruct the
-  current failure distribution rather than carrying forward the old claim that
-  most failures are missing transitive Unit plans. Known dependency categories
-  include **SAMPLE-CORPUS**, **NOMINAL-FIELD-FLOW**, selected entries and
-  index/subslice proofs. Attribute each failure to its operation owner, not a new
-  task per fixture. Passing one earlier checking phase is not full acceptance;
-  rerun affected cases after each repair. Remove this umbrella once the corpus
-  passes, not merely once every failure has a label.
-  Attribution evidence: `CheckedUnitEffectPlans::omissions` records, per
-  checked-body machine without a Unit plan, the stage that dropped it and the
-  direct callee that was unavailable, and
-  `LoweringError::InvalidUnitMachinePlan::omission` renders that chain to the
-  machine whose own body failed local construction
-  (`checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`, macOS ARM64).
-  A local-construction row also names the ordinary builder's last phase
-  (`LocalConstructionTrace` in `execution/unit/control`: signature, state
-  contracts, statement sequence, call operations, completion, ...) and the
-  call statement it was planning; a multi-state body names the general
-  state-graph route's phase, state, and statement instead (`state graph:
-  state signature`, `terminator`, ..., or the shared statement kinds); the
-  single-state route's guard inside a phase is still not retained, so per-
-  fixture reading there starts at that phase. The state-graph route names the
-  guard beneath its phase since 9ff722c55f, and the 168-test state-graph
-  subset rerun at that commit (macOS ARM64, base 07c1e746fe) splits as:
-  operation custody 38 scalar call; conditional successors 33 guard expression
-  and 1 parameter transfer; parameter custody shape 23 persistent receiver
-  access, 8 borrowed non-view carrier, 2 qualified non-linear parameter;
-  parameter signature 13 structural parameter type, 5 attached data shape, 3
-  parameter qualifications; prefix initializers 13 bound expression, 3 short-
-  circuit boolean; unsupported tail 11 transition chain, 2 single guarded
-  transition, 1 jump followed by a transition; jump successor 2 scalar
-  arguments; 2 claim-bearing successor; 2 now stop in the shared statement
-  sequence at a local-data statement and 6 fail earlier on the `block`
-  envelope acknowledgement check from 8508aec01e. The local-data arm of the
-  shared statement sequence names its guard group beneath the phase since
-  e0dfe91af5, and the 96-test local-data subset rerun at that commit (macOS
-  ARM64, base b53585d23c) splits as: 40 structural call binding, 26 scalar
-  call binding, 29 scalar local pure initializer and 1 initializer expression;
-  none stop elsewhere.
-  The 100 single-state stops rerun at 6ee6ad2f3d (macOS ARM64) split as: 36
-  call statement shape; 29 in the structural field store (16 pure source, 12
-  scalar field type, 1 destination parameter); 17 local-data statements (13
-  scalar local pure initializer, 3 scalar call binding, 1 structural call
-  binding); 7 call statements; 4 unconsumed nested calls; 3 trivial affine
-  locals; 2 signature; 2 provider attachment requirements.
-  The 36 call-statement-shape stops (e0c8333c4c, macOS ARM64) are all bodies
-  with no admitted statement sequence: 23 keep a different call count than
-  their call statements and 13 keep a non-call statement without a unit
-  statement call (the roster names its index).
-  Distribution reconstructed 2026-09-17 (macOS ARM64, `cargo nextest run -p
-  compiler --test canary_suite --no-fail-fast` at 4dcb7723da): 1379 tests,
-  223 pass, 1156 fail. By owner: 680 stop at Terminal production with
-  `Main::main` lacking a checked transitive Unit plan (by the checked stage's omission roster: 541 are multi-state
-  bodies that no composed control builder admits, **GENERAL-CYCLIC-EXECUTION**
-  and the state-graph route, and the general route's trace places them at
-  outer-call admission (294), a local-data statement in the shared
-  statement sequence (96), the terminator (58), the state signature (56),
-  operation custody (38), prefix initializers (16) and call statements (10);
-  45 single-state Unit bodies stop in the shared statement sequence and 34
-  at the call-statement shape; 12 reach a scalar callee with neither a
-  registered target nor an ordinary body; the rest stop at signature,
-  outer calls, trivial affine locals, or provider attachment requirements); 80 lose the
-  macOS hosted receiver bridge's exact contract/storage/entry custody, 36
-  select no exact program entry, and 22 fail the `MacosPhysicalEntry::enter`
-  schema requirement (**ENTRY-CONTENT-ROOTS**); 66 are
-  decision-17 exact-arithmetic overflow obligations and 55 are
-  borrowed-storage transfers without an owner replacement
-  (**STATE-LOCAL-VALUE-FRONTIER** value transport); 29 cannot prove a
-  default-domain `[u8]::Utf8` field requirement on collection elements
-  (**NOMINAL-FIELD-FLOW**); 13 index a non-array collection with an
-  unsupported selected `requires` and 3 are unresolved authored Operator
-  selections (**OPERATOR-MACHINE-SUPPLY**); 20 fail native selection on
-  wrapping/saturating scalar operations or SourceCustodyMismatch
-  (**WRITE-ONLY-BORROW** / selected legalization); 11 lower with
-  `OperationProofUnavailable` (**BORROW-PROOF-CONVERGENCE** obligations);
-  10 declare no service reach (Automatic service reach); the remaining ~70
-  are singletons named in the run log. Read-only split of the 80 bridge
-  declines (plus the cross-target `runtime_console_byte_echo_exit` compile) at
-  914fad6e23 (2026-09-17 UTC): all 81 declare a bare `console: Console;` as the
-  first `data Main` field, so every decline is the bridge's
-  missing-Fused-establishment-row guard (`hosted_receiver.rs:600`,
-  **ENTRY-CONTENT-ROOTS** service-carrier migration) and none reaches a storage guard;
-  with that row, only `runtime_float_constant_store_exit` (f32/f64 leaves)
-  tripped the storage-shape guard (`hosted_receiver.rs:632`) until 26484b4162
-  admitted IEEE float leaves, while the
-  other 80 already fit the admitted shapes (per fixture: 14 console-only, 23
-  plain ints/bools, 19 `in Wrapping`/`in Saturating` ints, 3 zero-containing
-  ranges, 3 `[u8; N]`/`[i64; N]` arrays, 21 nested zero-valid records of which
-  4 are generic instantiations). Eight failures were fixture
-  inventory drift from a checkout synced mid-run, not compiler behavior.
-  The canary_suite tests that read removed report dumps (capability flow
-  sites, the wire compatibility demand, numbered case identities, the
-  accepted-axiom trust row) now read checked facts through the compiler API,
-  and the capability-manifest entry test was deleted as renderer-only with
-  its entry-state fact folded into the checked selected-entry test.
-  Refined by the finer guards (reruns of the outer-call and state-graph
-  subsets with the finer markers landed through 8fe2af5d9b): none of the 294
-  stop at outer-call admission; they pass the statement loop and fail in the
-  shared statement sequence's structural scalar field-store sequence, 258
-  inside the structural field store (112 at the pure source, 105 at the scalar
-  field type, 18 at the destination parameter, 13 at the carrier path and 10
-  at the byte-sequence carrier) and 32 at write-frame agreement, where the
-  resolver's inferred state write frame differs from the mutation summary
-  (Utf8 string fields and record-literal field stores). Synthesized wire codec
-  calls now frame exactly their exclusively borrowed argument places instead
-  of reaching the ownership floor with the type-name receiver
-  (`validation/.../write_frames/wire_codecs.rs`); on macOS ARM64
-  `runtime_wire_decode_let_compare_exit` moved from write-frame agreement to
-  `structural field store: destination parameter`, while
-  `runtime_wire_encode_string_exit` and `runtime_wire_roundtrip_utf8_exit`
-  still stop at write-frame agreement because an uninitialized
-  `&[u8] in Utf8` local is opaque even with no codec call in the body; 3
-  stop at an unconsumed nested call inside an assignment. The terminator stops
-  are 34 conditional successors, 22 unsupported tails and 2 jump successors;
-  the state-signature stops are 33 parameter custody shapes, 21 parameter
-  signatures and 2 claim-bearing successors; 38 stop at operation custody and
-  16 at prefix initializers. Of the "eight fixture inventory drift" failures,
-  four were dump-reading canaries (since rewritten), two roster umbrellas pass
-  after a fixture sync, and `pass_canaries_compile` is a corpus umbrella
-  rather than a fixture.
-  Fresh full run at ff0d8e4795 (2026-09-17, macOS ARM64, `cargo nextest run -p
-  compiler --test canary_suite --no-fail-fast`): 1384 tests, 229 pass, 1155
-  fail. 787 stop at checked Unit-plan construction with the declining guard
-  named: structural field store 345 (157 pure source, 135 scalar field type,
-  29 destination parameter, 14 carrier path, 10 byte-sequence carrier), the
-  state-graph route 182 (39 operation custody scalar call, 37 conditional-
-  successor guard expression, 24 persistent receiver access, 17 structural
-  parameter type, 15 transition chain, 14 prefix-initializer bound expression,
-  9 borrowed non-view carrier, 8 attached data shape, the rest singletons),
-  local-data statements 152 (68 structural call binding, 52 scalar-local pure
-  initializer, 31 scalar call binding), call statement shape 39 (26 call
-  count, 13 non-call statement without a unit call), write-frame agreement 27,
-  call statements 24, unconsumed nested calls 8, trivial affine locals 4,
-  signature 3, provider attachment requirements 2. Outside plan construction:
-  79 hosted receiver bridge (**ENTRY-CONTENT-ROOTS**), 66 exact-arithmetic
-  obligations, 55 borrowed-storage transfers, 37 select no exact program
-  entry, 24 fail selected legalization at physical staging (wrapping
-  shifts/subtracts and `SourceCustodyMismatch`, the **WRITE-ONLY-BORROW**
-  bucket), 22 `MacosPhysicalEntry::enter` schema, 20 default-domain field
-  requirements, 16 attached Unit closures missing a transitive plan without an
-  omission row, 13 non-array `[]` selections, 11 `block` envelope
-  acknowledgements (8508aec01e), 11 `OperationProofUnavailable`, 10 service
-  reach, 5 scalar callees with neither target nor body; the remainder are
-  singletons in the run log. The 112 pure-source stops store
-  Wrapping/Saturating arithmetic, atomics, float conversions or a call result
-  into a scalar field without a bound pure scalar expression; the 105 scalar-
-  field-type stops store into case, record, string or nested-record fields
-  (**STATE-LOCAL-VALUE-FRONTIER** value transport). The 32 write-frame stops
-  are opaque state write frames, not summary/resolver disagreement
-  (`build_mutation_facts` stores what
-  `CallFrameResolver::inferred_state_write_frame` inferred):
-  `walk_state_write_prefix_inner` fails closed on an initializer-less or
-  borrow-bearing record local without stored-origin evidence and on a record
-  literal replacing a `self.` field (`stored_origins::assigned_stored_origins`
-  accepts only local/parameter roots), both **STATE-LOCAL-VALUE-FRONTIER**,
-  and on synthesized wire `encode`/`decode` calls, which have no write-frame
-  model and fall to `demand::syntactic_call_written_paths`, whose type-name
-  receiver root fails state-relative visibility; the codec route is now closed
-  as recorded above.
+- **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and their
+  `compiler/tests/canary_suite/` owners to the promised checked/native stages.
+  **SAMPLE-CORPUS** owns maintained application examples, not this task's
+  prerequisite; both use the same compiler operation owners. Repository/library
+  passes do not establish corpus health.
 
-  Re-measured at 771d0a8c2e (2026-09-18, macOS ARM64, same command): 1393
-  tests, 238 pass, 1155 fail. The failure count is unchanged because this
-  session's slices were diagnostic and evidence-only; the +9 tests and +9
-  passes are fixtures added since. 785 stop at checked Unit-plan construction
-  with the declining guard named (787 before): structural field store 355 (135
-  pure source, 118 scalar field type, 25 destination parameter, 14 carrier
-  path, the rest byte-sequence carrier), the state-graph route 187, local-data
-  statements 111, call statements 57, call statement shape 39, write-frame
-  agreement 19, and small tails at unconsumed nested calls, trivial affine
-  locals, signature and provider attachment. Two real movements: write-frame
-  agreement fell 27 to 19 after synthesized wire codecs began framing only
-  their exclusively borrowed argument places, and a `statement sequence: call:
-  call operation` family of 57 is now separated out of what the earlier run
-  recorded as 24 undifferentiated call statements. Outside plan construction
-  the owners are unchanged: 79 hosted receiver bridge (**ENTRY-CONTENT-ROOTS**), 67
-  exact-arithmetic obligations, 55 borrowed-storage transfers, 37 select no
-  exact program entry, 24 selected legalization at physical staging, 22
-  `MacosPhysicalEntry::enter` schema, 16 attached Unit closures with no
-  omission row, 13 default-domain field requirements.
+  Start with the [focused canary selectors](AGENTS.md#running-one-test).
+  For a refreshed distribution or closure run
+  `mbx nextest run -p compiler --test canary_suite --no-fail-fast` on a fixed
+  revision, with pass/fail filters unset. The last recorded full run,
+  `771d0a8c2e` (2026-09-18, macOS ARM64), was 238 passing and 1155 failing
+  tests; it is a historical starting point, not the current failure inventory.
+  Keep detailed logs outside this board and rerun the affected cohort after a
+  repair. Do not sync fixtures during a measured run or treat unavailable hosts
+  as passing runtime coverage.
 
-  The six `core/numeric_*` members are not a control-builder gap: every one
-  calls a library machine ending in a Trapping conversion, and four cross a
-  sign boundary under Wrapping, so they belong to
-  **ARITHMETIC-POLICY-REALIZATION**. Reading their omission trace stops at
-  the statement whose value fact is missing rather than the reason, so
-  continue into the value facts before attributing a row to a builder.
+  Follow missing-plan diagnostics to the failing producer:
+  `CheckedUnitEffectPlans::omissions` and
+  `LoweringError::InvalidUnitMachinePlan::omission` retain the unavailable-callee
+  chain; `LocalConstructionTrace` names the local phase/state/statement.
+  `checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs` pins this route.
+  A phase label is not the cause: inspect the missing value/effect/ownership
+  facts before classifying the failure as a control-builder gap. Preserve
+  diagnostics, but another diagnostic-only milestone is not corpus progress.
 
-  One decision-17 member was decided on 2026-09-18 and the finding
-  generalizes: `proofs/proof_inductive_climbing_sum` was an unsound fixture,
-  not a checker regression. Its recursive transition argument `acc + 1`
-  added to an unbounded `u64` formal with no `requires`, and
-  [numeric values](wiki/spec/language/numeric_values.md) refuses the
-  fixture's own excuse that the contract's `embed` made the arithmetic
-  mathematical: "a safe final result, mathematical substitution, or unknown
-  analysis endpoint cannot excuse an unsafe intermediate", while
-  [contracts](wiki/spec/proofs/contracts.md) has `embed` retain the exact
-  carrier range rather than re-domain the argument that produced the value.
-  The gate went red at 9571353f69 (2026-09-05), which added the u64
-  unsigned-ceiling check and rewrote three other fixtures that relied on its
-  absence while missing this one. Repaired by bounding the accumulator, with
-  each conjunct verified necessary by removing it one at a time and the
-  `ensures` checked non-vacuous against a stalled accumulator, and the
-  unbounded spelling registered as
-  `fail/proofs/inductive_climbing_sum_unbounded_accumulator`. Read the rest
-  of that bucket the same way before reaching for the engine: an operand
-  with no provable range is the fixture's obligation.
+  Route verified failures to existing owners:
+
+  - Ordinary statements, indexed/aggregate values and stored origins:
+    **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**; cyclic
+    transfers and plans: **GENERAL-CYCLIC-EXECUTION**. Complete the common
+    sequencer and canonical paths, not another fixture-family recognizer.
+  - Bare service fields, obsolete `in Bound` requirements, selected entry and
+    exact receiver custody: **ENTRY-CONTENT-ROOTS**. Do not attribute absent
+    service establishment to storage layout or fabricate a provisioning row.
+  - Declared field/encoding facts: **NOMINAL-FIELD-FLOW**; borrow obligations:
+    **BORROW-PROOF-CONVERGENCE**; selected non-array indexing/operators:
+    **OPERATOR-MACHINE-SUPPLY**.
+  - Trapping and cross-sign conversion cases under `core/numeric_*`:
+    **ARITHMETIC-POLICY-REALIZATION**. Other scalar legalization belongs to
+    `target-operations-to-selected-instructions`, not a Unit-body workaround.
+    Reach and crash-envelope failures retain their actual contract owners.
+
+  Audit fixtures against the spec before weakening checking. The bounded
+  `proofs/proof_inductive_climbing_sum` and its negative
+  `proofs/inductive_climbing_sum_unbounded_accumulator` demonstrate why
+  [Exact intermediate arithmetic](wiki/spec/language/numeric_values.md) still
+  owes a carrier bound even when the theorem uses `embed`. Repair invalid
+  positive fixtures with real premises and negative controls; do not reclassify
+  valid accepted-language programs as checked-only merely to make the suite green.
+
+  The umbrella's `production_compile` still mirrors accepted package permission
+  rows into a receiving policy. Remove that coupling from ordinary-production
+  fixtures, preserving explicit receiver-admission tests and package acceptance
+  under **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**. A test-owned approval is not user
+  project review. Acceptance: the complete corpus reaches its declared stages,
+  negative controls reject for the intended reasons, runtime oracles execute on
+  their matching hosts, and roster/coverage guards remain intact. Remove this
+  item only when those checks pass, not when every failure has an owner.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
