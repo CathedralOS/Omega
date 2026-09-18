@@ -56,10 +56,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 14,922 lines / 506,705 bytes with SHA-256
-`f49913f8b9074c4d3aa1b023675c474740793b50b40849431c49423a21271037`.
-The manifest itself is 1,337 bytes, SHA-256
-`d92552781e2e3eec70f8c5b47ec9349debb08aacaec779574cfe6b22cb7b8263`;
+manifest materializes 14,974 lines / 509,267 bytes with SHA-256
+`5c23b759ee6ef23086ded56dfc3cb2c8a7c071b59e83f41b8828e7506c392cbe`.
+The manifest itself is 1,338 bytes, SHA-256
+`8fbfd7d2dca35bb0a5abcc60f6920cadb61bab3f0e048574629fcb25db8fc573`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
@@ -80,10 +80,14 @@ The scalar failure paths also record the canonical OCOUT outcome tuple
 (outcome tag, coordinate space, code, coordinate, canonical ordinals, limit,
 requested). Parser exhaustion projects onto its assigned resource code, tape
 capacity reports under emitted-artifact coordinates, and source refusals
-anchor at the retained span. D's `Reject` projection still embeds only
-`malformed_request`: the contract's lexical and named-refusal codes and the
-still-unassigned coverage provisions cannot publish a frame, and the encoder
-refuses tuples carrying codes it does not assign. The
+anchor at the retained span. D's `Reject` projection embeds the assigned
+codes 1–12: `malformed_request`, the eight lexical refusals projected from
+the scanner's retained diagnostic, `duplicate_name` at the later
+declaration's name, `missing_entry` with no coordinate, and
+`integer_literal_out_of_range` at the refused literal's first byte. The
+still-unassigned syntax and checking `Reject` inventory and the coverage
+provisions cannot publish a frame, and the encoder refuses tuples carrying
+codes it does not assign. The
 [outcome gate](../../tests/bootstrap/omega-outcome/README.md) exercises the
 embedded tables, exact and refused frame encodings, bounded arithmetic, and
 the recorded tuples through the selected evaluator.
@@ -98,11 +102,11 @@ plus the phase-2/6 subject and invocation field/tag shape pass in
 package-key recomputation, canonical ordering, graph, snapshot, admission, and
 commitment checks — remain unimplemented. The assigned OCOUT header,
 outcome-code, coordinate-space, phase, and scalar-resource tables are embedded
-there as projections with the canonical failure-frame encoder. The contract now
-assigns the lexical `Reject` codes 2–9 and the named declaration, entry, and
-literal refusals 10–12; the syntax and remaining checking `Reject` inventory
-and the `Incomplete` coverage provisions remain unfinished under
-OMEGA-D/OMEGA-C in [the board](../../TASKS_BOOTSTRAP.md).
+there as projections with the canonical failure-frame encoder. The contract's
+lexical `Reject` codes 2–9 and the named declaration, entry, and literal
+refusals 10–12 are assigned and implemented in D; the syntax and remaining
+checking `Reject` inventory and the `Incomplete` coverage provisions remain
+unfinished under OMEGA-D/OMEGA-C in [the board](../../TASKS_BOOTSTRAP.md).
 A raw-single-file stdin convention cannot replace the sealed request.
 [Build execution](../../wiki/spec/build/execution.md) owns the admitted checkpoint,
 one-way generated-source continuation, and dependency-bundle no-rerun contract.

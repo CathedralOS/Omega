@@ -14,8 +14,9 @@ It verifies, with exact bytes, that D's embedded contract projections and
 canonical failure-frame encoder behave as the request contract assigns:
 
 - every scalar-resource code's selected limit and coordinate space, the
-  parser-resource projection onto wire codes 3..11, and the assigned
-  `malformed_request`/`invariant_violation` code-to-space pairs;
+  parser-resource projection onto wire codes 3..11, the lexical-diagnostic
+  projection onto `Reject` codes 2..9, and every assigned
+  `Reject`/`InternalFailure` code-to-space pair;
 - exact 40-byte and 48-byte canonical-source OCOUT frames for one Reject, two
   resource `Incomplete`, and one `InternalFailure` outcome;
 - refusal of unassigned tags, unassigned codes, illegal code/coordinate-space
@@ -25,11 +26,13 @@ canonical failure-frame encoder behave as the request contract assigns:
 - the bounded publication sum, including exact, saturated, and defect
   results;
 - the phase-1 declared-extent provision check on the framed request envelope;
-- the outcome tuples the scalar compilation paths record: a source-anchored
-  duplicate-name `Reject`, an unanchored missing-entry `Reject`, a
-  source-anchored coverage `Incomplete`, and the untouched tuple after
-  `Complete` — including proof that a post-Complete tuple cannot encode a
-  frame;
+- the outcome tuples the scalar compilation paths record and their canonical
+  publication: a source-anchored `duplicate_name` `Reject`, a literal
+  `integer_literal_out_of_range` `Reject`, an unanchored `missing_entry`
+  `Reject`, `unterminated_string_literal` and `invalid_utf8` lexical
+  `Reject`s — each encoded to and emitted as its canonical frame — plus a
+  source-anchored coverage `Incomplete` that stays unpublishable and the
+  untouched tuple after `Complete`, which likewise cannot encode a frame;
 - the OCREQ V1 subject/invocation field/tag shape pass (phases 0, 2, and 6)
   over a canonical single-package request, and its `malformed_request` tuple
   for an unassigned product tag — encoded successfully by the frame writer,

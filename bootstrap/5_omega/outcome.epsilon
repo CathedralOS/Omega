@@ -78,11 +78,44 @@ machine omega_parser_resource_code(resource: OmegaParserResource) -> i32 {
 }
 
 // Assigned Reject codes project to their fixed coordinate space; -1 marks an
-// unassigned code. Code 1 is malformed_request (OCREQ request offset).
+// unassigned code. Code 1 is malformed_request (OCREQ request offset), codes
+// 2..9 are the lexical refusals, code 10 duplicate_name and code 12
+// integer_literal_out_of_range anchor in canonical source, and code 11
+// missing_entry carries no coordinate. The syntax and remaining checking
+// inventory stays unassigned until the contract names it.
 machine omega_reject_code_space(code: i32) -> i32 {
     transition code {
         1 -> return 1
+        2 -> return 4
+        3 -> return 4
+        4 -> return 4
+        5 -> return 4
+        6 -> return 4
+        7 -> return 4
+        8 -> return 4
+        9 -> return 4
+        10 -> return 4
+        11 -> return 0
+        12 -> return 4
         _ -> return -1
+    }
+}
+
+// The scanner's retained OmegaLexDiagnosticCode projects onto Reject codes
+// 2..9 in the contract's order. The projection returns 0 for a case the
+// contract has not assigned; 0 is not a publishable Reject code, so an
+// unassigned lexical diagnostic cannot produce a frame.
+machine omega_lexical_reject_code(code: OmegaLexDiagnosticCode) -> i32 {
+    transition code {
+        OmegaLexDiagnosticCode::InvalidUtf8 -> return 2
+        OmegaLexDiagnosticCode::OutsideLexicalProfile -> return 3
+        OmegaLexDiagnosticCode::UnterminatedBlockComment -> return 4
+        OmegaLexDiagnosticCode::UnterminatedStringLiteral -> return 5
+        OmegaLexDiagnosticCode::UnterminatedStringEscape -> return 6
+        OmegaLexDiagnosticCode::UnsupportedEscape -> return 7
+        OmegaLexDiagnosticCode::UnterminatedHexEscape -> return 8
+        OmegaLexDiagnosticCode::InvalidHexEscapeDigit -> return 9
+        _ -> return 0
     }
 }
 

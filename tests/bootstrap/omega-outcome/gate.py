@@ -1,7 +1,7 @@
 """Exercise D's OCOUT outcome machinery through the selected evaluator."""
 
-ENTRY_SIZE = 13619
-ENTRY_SHA256 = "15d0f10ff3701a01d389ee6bc65a2c70dce20862aea81b6aa9013e8cb540d67a"
+ENTRY_SIZE = 18230
+ENTRY_SHA256 = "c92fdbd62f7933859922481c021b951ffb01baec7efee5d4ee8f72c9f3d8ca4d"
 
 import hashlib
 import os
@@ -66,8 +66,8 @@ def main():
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 506705,
-                     "f49913f8b9074c4d3aa1b023675c474740793b50b40849431c49423a21271037")
+    require_identity("D", compiler, 509267,
+                     "5c23b759ee6ef23086ded56dfc3cb2c8a7c071b59e83f41b8828e7506c392cbe")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("outcome customer entry", entry, ENTRY_SIZE,
                      ENTRY_SHA256)

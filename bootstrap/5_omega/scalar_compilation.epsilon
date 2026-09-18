@@ -16,11 +16,14 @@ data OmegaScalarCompiler {
     machine_values: [i32; 4096];
     machine_labels: [i32; 4096];
     // Canonical outcome tuple for the eventual OCOUT publication
-    // (outcome.epsilon). outcome_code stays -1 where the Reject and
-    // coverage-provision inventories are still unassigned; the frame
-    // encoder refuses every unassigned code, so these fields cannot
-    // publish a noncanonical frame. This diagnostic adapter's single
-    // anonymous source unit reports zero canonical ordinals.
+    // (outcome.epsilon). The contract assigns Reject codes 1..12; producers
+    // here record the lexical codes 2..9 through the scanner diagnostic
+    // projection, duplicate_name, missing_entry, and
+    // integer_literal_out_of_range. outcome_code stays -1 where the syntax
+    // and checking Reject inventory and the coverage provisions are still
+    // unassigned; the frame encoder refuses every unassigned code, so these
+    // fields cannot publish a noncanonical frame. This diagnostic adapter's
+    // single anonymous source unit reports zero canonical ordinals.
     outcome_tag: i32;
     outcome_space: i32;
     outcome_code: i32;
@@ -72,11 +75,23 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     self.parser.parse_view(source);
     transition self.parser.status {
         OmegaParserStatus::Complete -> check_roots()
-        OmegaParserStatus::LexicalFailure -> reject(4, self.parser.diagnostic_start)
-        OmegaParserStatus::SyntaxFailure -> reject(4, self.parser.diagnostic_start)
+        OmegaParserStatus::LexicalFailure -> lexical_reject()
+        OmegaParserStatus::SyntaxFailure -> reject(-1, 4, self.parser.diagnostic_start)
         OmegaParserStatus::Incomplete -> incomplete(4, self.parser.incomplete_start)
         OmegaParserStatus::ResourceFailure -> resource()
         _ -> internal()
+    }
+
+    // The scanner retains the exact lexical diagnostic on LexicalFailure;
+    // its code projects onto the contract's Reject codes 2..9 at the first
+    // byte of the retained diagnostic span under canonical-source
+    // coordinates.
+    state lexical_reject() {
+        let code: i32 = omega_lexical_reject_code(
+            self.parser.scan.diagnostic_code);
+        transition true {
+            true -> reject(code, 4, self.parser.diagnostic_start)
+        }
     }
 
     state check_roots() {
@@ -139,7 +154,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
             self.parser.machine_items[previous].first_path_member];
         transition self.span_equals(source, name.start, name.end,
             source[other.start..other.end]) {
-            1 -> reject(4, name.start)
+            1 -> reject(10, 4, name.start)
             _ -> check_duplicate(index, previous + 1)
         }
     }
@@ -188,31 +203,34 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         transition self.parser.expressions[expression].kind {
             OmegaExpressionKind::Integer -> integer(index,
                 self.parser.expressions[expression].payload0,
+                self.parser.expressions[expression].payload0,
                 self.parser.expressions[expression].payload1, 0)
             _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
-    state integer(index: i32, cursor: i32, end: i32, value: i32) {
+    // start stays the literal's first byte so an out-of-range refusal anchors
+    // at the refused literal rather than at the digit that overflows.
+    state integer(index: i32, start: i32, cursor: i32, end: i32, value: i32) {
         transition cursor < end {
-            true -> digit(index, cursor, end, value)
+            true -> digit(index, start, cursor, end, value)
             _ -> retain(index, value)
         }
     }
 
-    state digit(index: i32, cursor: i32, end: i32, value: i32) {
+    state digit(index: i32, start: i32, cursor: i32, end: i32, value: i32) {
         self.diagnostic_offset = cursor;
         let next: i32 = source[cursor] - 48;
         transition (next >= 0) && (next <= 9) {
-            true -> bounded_digit(index, cursor, end, value, next)
+            true -> bounded_digit(index, start, cursor, end, value, next)
             _ -> incomplete(4, self.diagnostic_offset)
         }
     }
 
-    state bounded_digit(index: i32, cursor: i32, end: i32, value: i32, next: i32) {
+    state bounded_digit(index: i32, start: i32, cursor: i32, end: i32, value: i32, next: i32) {
         transition value <= (255 - next) / 10 {
-            true -> integer(index, cursor + 1, end, value * 10 + next)
-            _ -> reject(4, self.diagnostic_offset)
+            true -> integer(index, start, cursor + 1, end, value * 10 + next)
+            _ -> reject(12, 4, start)
         }
     }
 
@@ -234,7 +252,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state check_entry() {
         transition self.selected_machine >= 0 {
             true -> labels(0)
-            _ -> reject(0, 0)
+            _ -> reject(11, 0, 0)
         }
     }
 
@@ -336,12 +354,14 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
     state complete() { self.status = OmegaScalarCompilationStatus::Complete; }
 
     // Source-anchored refusals report space 4; space 0 marks a refusal with
-    // no single source anchor, such as a missing selected entry.
-    state reject(space: i32, coordinate: i32) {
+    // no single source anchor, such as a missing selected entry. The code is
+    // the contract's assigned Reject code, or -1 for a syntax or checking
+    // refusal whose inventory is still unassigned.
+    state reject(code: i32, space: i32, coordinate: i32) {
         self.status = OmegaScalarCompilationStatus::Reject;
         self.outcome_tag = 1;
         self.outcome_space = space;
-        self.outcome_code = -1;
+        self.outcome_code = code;
         self.outcome_coordinate = coordinate;
         self.outcome_limit = 0;
         self.outcome_requested = 0;
