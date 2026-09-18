@@ -64,6 +64,12 @@ impl Fixture {
             machine rebuild_cached(context: &Context) -> Context {{ let c: Context = Context {{ scheduler: context.scheduler }}; c }}
             machine wrap_pick(context: &Context) -> Holder {{ Holder {{ view: Context {{ scheduler: pick(context) }} }} }}
             machine rebuild_pair(context: &Context) -> [SchedulerHandle; 2] {{ [context.scheduler, context.scheduler] }}
+            machine take(context: Context) -> SchedulerHandle {{ context.scheduler }}
+            machine take_pair(pair: [SchedulerHandle; 2]) -> SchedulerHandle {{ pair[0] }}
+            machine take_holder(holder: Holder) -> SchedulerHandle {{ holder.view.scheduler }}
+            machine keep(handle: SchedulerHandle) -> SchedulerHandle {{ handle }}
+            machine forward_constructed(context: &Context) -> SchedulerHandle {{ Context {{ scheduler: pick(context) }}.scheduler }}
+            machine forward_operand(context: &Context) -> SchedulerHandle {{ take(Context {{ scheduler: pick(context) }}) }}
             machine probe(context: &mut Context, replacement: &Context, holder: Holder, dual: &mut Dual) -> u64 {{
                 {statements}
                 transition {{ _ -> observe_scheduler({argument}) }}
@@ -772,4 +778,108 @@ fn mutable_owned_parameter_demanded_write_has_no_exact_origin() {
         &[1],
     );
     assert_eq!(fixture.query(fixture.subject("out", &[])), None);
+}
+
+#[test]
+fn constructor_operand_nested_call_derives_the_exact_input() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = take(Context { scheduler: pick(replacement) });",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn constructor_operand_plain_field_still_derives_its_place() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = take(Context { scheduler: replacement.scheduler });",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn array_operand_nested_call_derives_the_exact_input() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = take_pair([pick(replacement), pick(context)]);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn projected_constructor_operand_derives_the_nested_call_input() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = keep(Context { scheduler: pick(replacement) }.scheduler);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn nested_constructor_operand_derives_the_nested_call_input() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = take_holder(Holder { view: Context { scheduler: pick(replacement) } });",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn constructor_operand_call_written_on_the_demanded_path_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = take(Context { scheduler: poke_mut(context, replacement.scheduler) });",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        None
+    );
+}
+
+#[test]
+fn callee_projected_constructor_result_derives_the_nested_call_input() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = forward_constructed(replacement);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn callee_constructor_operand_derives_the_nested_call_input() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = forward_operand(replacement);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
 }
