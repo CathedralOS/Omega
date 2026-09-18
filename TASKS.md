@@ -3332,12 +3332,35 @@ Owners include
   reject_a_linear_referent_that_holds_a_loan,
   still_reject_exclusive_and_case_bearing_linear_referents}` in
   `validation/src/value_custody/expression_types/match_dispatch/tests.rs`
-  (macOS ARM64). Remaining borrowed joins, in order: a primitive referent
+  (macOS ARM64). Two further commits already widened admitted owned custody
+  and were uncited here: `ac5ed74dcb` joins a linear result when every
+  reachable arm moves the same live source place -- a whole local or
+  parameter, or one projected linear child under an affine root -- with
+  residual sibling claims staying live and consumable, and `1016f39c26`
+  admits a fresh structural call product as an owned arm. Remaining borrowed
+  joins, in order: a primitive referent
   (`&u64`) needs the structural pipeline to carry a non-record referent;
   exclusive (`&mut`) arms have affine custody of their own; case-bearing
-  referents stay outside the record-shaped frontier. Remaining linear join: a
-  whole affine root carrying linear children joined whole still rejects, while
-  its projected child is already admitted. Plus the borrowed-subject and
+  referents stay outside the record-shaped frontier. The remaining linear
+  join -- a whole affine root carrying linear children, moved whole -- is
+  blocked on the receipt representation rather than on the admission gate. A
+  linear-bearing affine root gets no whole-place claim entry at all:
+  `initial_linear_places` records one place per frontier child (`[left]`,
+  `[right]`) and skips the whole-place row, so a whole-root arm, whose
+  transfer path is empty, consumes nothing. Widening only
+  `plain_local_owner_selection` was implemented and measured, then reverted:
+  the shape passes the gate and the checker then reports "linear value
+  `x.left` reaches scope exit without being consumed or transferred",
+  replacing an accurate rejection with a misleading one. Delivering the join
+  needs a transfer that names the consumed claim set (the root's whole
+  frontier) instead of one `(symbol, path)`; the next slice must also re-cut
+  the uniformity rule, which rejects `consumed.len() > 1`, and the lowering
+  verifier's rule that no two transfers share an authored expression.
+  Acceptance: that source checks, and
+  `whole_affine_root_with_linear_children_rejects_while_its_projected_child_joins`
+  in `validation/src/value_custody/expression_types/match_dispatch/tests.rs`,
+  which pins today's asymmetry and rejection (macOS ARM64), is updated to the
+  admitted form. Plus the borrowed-subject and
   operator-result obligations below; preserve exact origins and actual death
   edges. Owners:
   `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
