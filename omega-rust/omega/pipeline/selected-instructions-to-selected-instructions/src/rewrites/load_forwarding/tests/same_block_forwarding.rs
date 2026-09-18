@@ -173,8 +173,8 @@ fn overlapping_or_dynamic_writes_between_reject() {
         forward(&partial, &environment).unwrap_err(),
         StoredLoadForwardingError::AliasingWrite
     );
-    // A dynamic-extent byte-sequence write to the same place cannot be proven
-    // disjoint.
+    // A dynamic-extent byte-sequence write to the same place starting inside
+    // the read's range still reaches its last byte.
     let dynamic = mutated(target, |function, _| {
         function.memory_accesses.insert(
             1,
@@ -199,6 +199,103 @@ fn overlapping_or_dynamic_writes_between_reject() {
         forward(&dynamic, &environment).unwrap_err(),
         StoredLoadForwardingError::AliasingWrite
     );
+    // The same write one byte below the read's end still blocks, but a
+    // dynamic-extent row reaches only upward from its fixed offset, so
+    // starting at the read's end it is provably disjoint and walks past.
+    let dynamic_edge = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 1,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    7,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(5).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    assert_eq!(
+        forward(&dynamic_edge, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    let dynamic_above = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 1,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    8,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(5).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    let forwarded_result = forward(&dynamic_above, &environment).unwrap();
+    // The walk crossed the disjoint row to the store: the load forwarded and
+    // its read row dropped while the dynamic row survives.
+    assert_eq!(
+        forwarded_result.transformed().functions[0].blocks[0].instructions[3].kind,
+        SelectedInstructionKind::CopyI64
+    );
+    assert_eq!(
+        forwarded_result.transformed().functions[0]
+            .memory_accesses
+            .iter()
+            .map(|access| (access.instruction, access.byte_offset))
+            .collect::<Vec<_>>(),
+        vec![(STORE, 0), (BETWEEN, 8)]
+    );
+    validate_stored_load_forwarding(
+        &dynamic_above,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        forwarded_result.transformed().clone(),
+    )
+    .unwrap();
+    // A span write past the read walks past the same way.
+    let span_above = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    8,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    forward(&span_above, &environment).unwrap();
     // An operation-owned `Structural` slot write the contract does not charge
     // to the place's producer only stages bytes that name the place — a
     // call's staged view descriptor — so it holds none of the forwarded

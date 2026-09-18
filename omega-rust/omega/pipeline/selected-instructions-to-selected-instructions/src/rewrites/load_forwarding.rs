@@ -43,8 +43,12 @@
 //! the place's own storage walks past when disjoint from the read's range
 //! and still has to be the exact writer when it intersects; a slot that
 //! only stages bytes naming the place holds none of its bytes at any
-//! offset, so its writes and materialized address never block. Only a
-//! potentially overlapping write, a dynamic-extent access, an escaped
+//! offset, so its writes and materialized address never block. A
+//! dynamic-extent write reaches only upward from its fixed byte offset, so
+//! one starting at or past the read's end is provably disjoint and walks
+//! past while one starting below it still blocks. Only a
+//! potentially overlapping write, a dynamic-extent write still able to reach
+//! the read, an escaped
 //! place-storage address, or a call/host effect blocks the pair.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,

@@ -28,9 +28,15 @@
 //! overlapping exclusive custody before selection — so a write row for a
 //! different `PlaceId` cannot disturb the dead bytes, and a read row for a
 //! different place cannot observe them. Only an access on the dead place
-//! itself matters: an overlapping or dynamic-extent read observes the bytes,
-//! a partial or dynamic-extent write leaves them observable, and a
+//! itself matters: an overlapping read observes the bytes, a partial write
+//! leaves them observable, and a
 //! materialized local address can reach the same storage by another route.
+//! A dynamic-extent row reaches only upward from its fixed byte offset — a
+//! span covers `length` bytes there and a sequence row touches
+//! `offset + index` — so one whose offset starts below the dead range's
+//! end still reaches its last bytes and interferes like an overlapping
+//! row, while one starting at or past the end is provably disjoint and
+//! walks past like any disjoint row.
 //! The covering write must be the first access on the dead place after the
 //! removed store, carrying exactly one row on the dead place whose encoded
 //! byte range contains the dead range entirely — the row need only cover,

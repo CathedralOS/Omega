@@ -838,6 +838,95 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     );
 }
 
+/// A dynamic-extent row reaches only upward from its fixed offset, so one
+/// carried on a crossed terminator or inside a crossed block walks past when
+/// that offset begins at or past the dead range's end — and still interferes
+/// one byte earlier, where the dead range's last byte stays reachable.
+#[test]
+fn cross_block_dynamic_extent_rows_past_the_dead_range_walk_past() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let sequence_write = |instruction, byte_offset| SelectedMemoryAccess {
+        byte_count: 1,
+        ..access(
+            instruction,
+            3,
+            place(),
+            byte_offset,
+            SelectedMemoryAccessRole::WriteByteSequence {
+                index: ValueId::new(5).unwrap(),
+                value: ValueId::new(6).unwrap(),
+                length: ValueId::new(7).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [3; 32],
+                ),
+            },
+        )
+    };
+    // A dynamic write row on the crossed terminator starting at the dead
+    // range's end cannot touch the dead bytes; the walk still crosses.
+    let terminator_above = mutated_chained(target, |function, _| {
+        function
+            .memory_accesses
+            .insert(1, sequence_write(SelectedInstructionId(6), 8));
+    });
+    eliminate(&terminator_above, &environment).unwrap();
+    // One byte earlier the dead range's last byte stays reachable, so the
+    // terminator row still decides against the pair.
+    let terminator_inside = mutated_chained(target, |function, _| {
+        function
+            .memory_accesses
+            .insert(1, sequence_write(SelectedInstructionId(6), 7));
+    });
+    assert_eq!(
+        eliminate(&terminator_inside, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A dynamic write inside the crossed block — before the covering store —
+    // walks past on the same reach argument once its offset starts at the
+    // dead range's end.
+    let body_above = mutated_chained(target, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[1].instructions.insert(
+            0,
+            instruction(
+                SelectedInstructionId(8),
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[SCRATCH, VALUE],
+            ),
+        );
+        function
+            .memory_accesses
+            .insert(1, sequence_write(SelectedInstructionId(8), 8));
+    });
+    eliminate(&body_above, &environment).unwrap();
+    let body_inside = mutated_chained(target, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[1].instructions.insert(
+            0,
+            instruction(
+                SelectedInstructionId(8),
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[SCRATCH, VALUE],
+            ),
+        );
+        function
+            .memory_accesses
+            .insert(1, sequence_write(SelectedInstructionId(8), 7));
+    });
+    assert_eq!(
+        eliminate(&body_inside, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+}
+
 #[test]
 fn cross_block_intervening_accesses_reject() {
     let target = NativeTarget::linux_x64();

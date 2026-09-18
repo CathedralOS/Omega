@@ -1026,6 +1026,113 @@ fn observing_or_partial_accesses_between_reject() {
     );
 }
 
+/// A dynamic-extent row's reach is unbounded only upward from its fixed
+/// offset — a span covers `length` bytes there and a sequence row touches
+/// `offset + index` — so a row on the dead place whose offset begins at or
+/// past the dead range's end is provably disjoint and walks past to the
+/// covering store, while one starting inside the dead range still
+/// interferes however short its recorded reach looks.
+#[test]
+fn dynamic_extent_rows_past_the_dead_range_walk_past() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let sequence_write = |byte_offset| SelectedMemoryAccess {
+        byte_count: 1,
+        ..access(
+            BETWEEN,
+            3,
+            place(),
+            byte_offset,
+            SelectedMemoryAccessRole::WriteByteSequence {
+                index: ValueId::new(5).unwrap(),
+                value: ValueId::new(6).unwrap(),
+                length: ValueId::new(7).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [3; 32],
+                ),
+            },
+        )
+    };
+    // A byte-sequence write whose payload begins at the dead range's end
+    // cannot touch it: the written byte sits at `offset + index`, index >= 0.
+    let write_above = mutated(target, |function, _| {
+        function.memory_accesses.insert(1, sequence_write(8));
+    });
+    let result = eliminate(&write_above, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0]
+            .memory_accesses
+            .iter()
+            .map(|access| (access.instruction, access.byte_offset))
+            .collect::<Vec<_>>(),
+        vec![(BETWEEN, 8), (KILLER, 0)]
+    );
+    validate_dead_store_elimination(
+        &write_above,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A span write past the dead range walks past the same way.
+    let span_write = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    16,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    eliminate(&span_write, &environment).unwrap();
+    // A byte-sequence read past the dead range cannot observe it.
+    let sequence_read = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 1,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    8,
+                    SelectedMemoryAccessRole::ReadByteSequence {
+                        index: ValueId::new(5).unwrap(),
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    eliminate(&sequence_read, &environment).unwrap();
+    // Starting one byte earlier leaves the dead range's last byte inside
+    // the row's upward reach, so the write still interferes.
+    let inside = mutated(target, |function, _| {
+        function.memory_accesses.insert(1, sequence_write(7));
+    });
+    assert_eq!(
+        eliminate(&inside, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+}
+
 #[test]
 fn harmless_accesses_and_private_slots_still_eliminate() {
     let target = NativeTarget::linux_x64();

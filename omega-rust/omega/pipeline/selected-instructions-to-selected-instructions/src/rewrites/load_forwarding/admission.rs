@@ -20,8 +20,12 @@
 //! bytes.
 //!
 //! Interference is decided from the validated access roster. A row naming the
-//! forwarded place blocks on any overlapping or dynamic-extent write and on
-//! any materialized local address for the place's own storage. A `WriteLocal`
+//! forwarded place blocks on any overlapping write and on
+//! any materialized local address for the place's own storage. A
+//! dynamic-extent write reaches only upward from its fixed offset — a span
+//! covers `length` bytes there and a sequence row touches
+//! `offset + index` — so it still blocks while that offset starts below the
+//! read's end, and walks past once it begins at or after it. A `WriteLocal`
 //! row names an exact range on a slot: when the slot is the place's own
 //! storage — its parameter or block-parameter home, or the producing
 //! operation's `Structural` home — an intersecting row still has to be the
@@ -103,6 +107,17 @@ impl Forwarded {
             && u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count)
     }
+
+    /// A dynamic-extent row's reach is unbounded only upward: a span row
+    /// covers `length` bytes starting at `byte_offset` and a sequence row
+    /// touches the single byte `byte_offset + index`, so every byte the row
+    /// can touch lies at or after `byte_offset`. It still reaches this range
+    /// exactly while its fixed offset starts below the range's end; an
+    /// offset at or past the end is provably disjoint however far the reach
+    /// extends.
+    fn reached_by(&self, access: &SelectedMemoryAccess) -> bool {
+        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
+    }
 }
 
 #[test]
@@ -150,6 +165,30 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
         !interferes(&forwarded, &access, &[]),
         "fixed zero-byte rows are not dynamic spans"
     );
+    // A dynamic write's reach is unbounded only upward from its fixed
+    // offset: starting at the read's end it is provably disjoint, while
+    // starting one byte earlier leaves the read's last byte reachable.
+    access.role = SelectedMemoryAccessRole::WriteByteSpan {
+        length,
+        obligation,
+        accepted_fact,
+    };
+    access.byte_offset = 16;
+    assert!(!interferes(&forwarded, &access, &[]));
+    access.byte_offset = 15;
+    assert!(interferes(&forwarded, &access, &[]));
+    access.role = SelectedMemoryAccessRole::WriteByteSequence {
+        index: length,
+        value: length,
+        length,
+        obligation,
+        accepted_fact,
+    };
+    access.byte_count = 1;
+    access.byte_offset = 16;
+    assert!(!interferes(&forwarded, &access, &[]));
+    access.byte_offset = 15;
+    assert!(interferes(&forwarded, &access, &[]));
 }
 
 pub(super) fn admit<'source>(
@@ -625,8 +664,12 @@ fn single_def(
 }
 
 /// Whether one roster row can disturb the forwarded bytes. Writes must target
-/// the same place root to overlap; dynamic extents and escaped place-backed
-/// addresses always block. A `WriteLocal` row names an exact range on a slot:
+/// the same place root to overlap; escaped place-backed
+/// addresses always block. A dynamic-extent write on the forwarded place
+/// reaches only upward from its fixed offset, so it blocks exactly while
+/// that offset starts below the read's end — a write beginning at or past
+/// the end is provably disjoint and walks past like a disjoint `WritePlace`.
+/// A `WriteLocal` row names an exact range on a slot:
 /// when the slot is the forwarded place's own storage, range intersection
 /// decides and an intersecting row still has to be the exact writer; when the
 /// slot only stages bytes naming the place, its bytes are not the place's at
@@ -645,7 +688,9 @@ fn interferes(
             access.place == forwarded.place && forwarded.intersects(access)
         }
         SelectedMemoryAccessRole::WriteByteSequence { .. }
-        | SelectedMemoryAccessRole::WriteByteSpan { .. } => access.place == forwarded.place,
+        | SelectedMemoryAccessRole::WriteByteSpan { .. } => {
+            access.place == forwarded.place && forwarded.reached_by(access)
+        }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
             local_slot_is_place_storage(slot, forwarded.place, structural_places)
                 && forwarded.intersects(access)
