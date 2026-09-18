@@ -7,8 +7,8 @@ use selected_instructions::{
     SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedCallContract,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
-    SelectedMemoryAccessRole, SelectedOperand, SelectedTerminator, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -124,6 +124,31 @@ fn dynamic_access(
     role: SelectedMemoryAccessRole,
 ) -> SelectedMemoryAccess {
     access(instruction, place, role, 0, 0)
+}
+
+fn successor(block: SelectedBlockId, source_target: BlockId, edge: u64) -> SelectedSuccessor {
+    SelectedSuccessor {
+        role: SelectedSuccessorRole::Semantic,
+        structural_case: None,
+        structural_bindings: Vec::new(),
+        psi_edge: EdgeId::new(edge).unwrap(),
+        block,
+        source_target,
+        bindings: Vec::new(),
+        fuel: Vec::new(),
+    }
+}
+
+fn settlement(position: u32, operation: u64) -> SelectedBoundarySettlement {
+    SelectedBoundarySettlement {
+        block: SelectedBlockId(0),
+        instruction_index: position,
+        settlement: SelectedBoundarySettlementPayload::HostedWriteByteI32 {
+            operation: OperationId::new(operation).unwrap(),
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            source: ValueId::new(9).unwrap(),
+        },
+    }
 }
 
 /// A raw selected-stage unit fixture, not a source/Terminal admission claim:
@@ -1146,4 +1171,256 @@ fn unequal_runs_interchange_with_the_interior_shifted() {
         result.transformed().clone(),
     )
     .unwrap();
+}
+
+/// The admission walk is bounded by the validation budget: a plan whose
+/// scan cost exceeds it refuses rather than running unbounded.
+#[test]
+fn work_budget_bounds_the_scan() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    assert_eq!(
+        interchange_selected_commuting_runs(
+            &source,
+            0,
+            LOAD_A,
+            SUM,
+            LOAD_C,
+            DIFF,
+            &environment,
+            OptimizationWorkBudget::new(100, 100, 1, 100, 100).unwrap(),
+        )
+        .unwrap_err(),
+        CommutingRunInterchangeError::WorkBudgetExceeded
+    );
+}
+
+/// The measured validation-step boundary: admission charges one step per
+/// block plus one per instruction across the plan, then the member and
+/// crossed surfaces plus the roster-row product for each
+/// member-against-crossed pair outside the member's own run, then the
+/// admitted function's memory, call, and settlement roster lengths — so
+/// the exact count admits the interchange on both the proposal and the
+/// independent replay path while one step below rejects both.
+#[test]
+fn measured_validation_step_boundary_admits_and_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The window moves to a second block behind a one-instruction entry:
+    // the plan scan grows by the entry block's body instruction and
+    // terminator.
+    let later_block = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let jump_row = environment.constraint(keys.jump).unwrap().clone();
+        let return_row = environment.constraint(keys.return_unit).unwrap().clone();
+        let materialize = environment
+            .constraint(keys.materialize_i64)
+            .unwrap()
+            .clone();
+        let moved = std::mem::take(&mut function.blocks[0].instructions);
+        function.blocks[0].instructions = vec![instruction(
+            SelectedInstructionId(20),
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(17),
+            },
+            &materialize,
+            &[FIFTH],
+        )];
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(21),
+                SelectedInstructionKind::Jump,
+                &jump_row,
+                &[],
+            ),
+            successor: successor(SelectedBlockId(1), BlockId::new(2).unwrap(), 2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: moved,
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(22),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    // A boundary settlement ahead of the window's first member observes
+    // the same executed prefix on either order, so it admits — and
+    // charges the settlement roster term.
+    let settled = mutated(target, |function, _| {
+        function.boundary_settlements.push(settlement(0, 71));
+    });
+    for (source, exact_steps) in [
+        // (7 instructions + 1 block) + member-against-crossed surfaces
+        // (each earlier-run member against the interior and both later-run
+        // members, each later-run member against both earlier-run members
+        // and the interior: load 2, add 3, materialize 1 surfaces — 13 +
+        // 15 + 13 + 15, including the load rows' product counted once per
+        // direction) + 2 roster rows = 66.
+        (fixture(target), 66u64),
+        // (8 instructions + 1 per block over 2 blocks) + the same 56 + 2 =
+        // 68.
+        (later_block, 68u64),
+        // The base charge plus one settlement roster row = 67.
+        (settled, 67u64),
+    ] {
+        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let result = interchange_selected_commuting_runs(
+            &source,
+            0,
+            LOAD_A,
+            SUM,
+            LOAD_C,
+            DIFF,
+            &environment,
+            exact,
+        )
+        .unwrap();
+        validate_commuting_run_interchange(
+            &source,
+            0,
+            LOAD_A,
+            SUM,
+            LOAD_C,
+            DIFF,
+            &environment,
+            exact,
+            result.transformed().clone(),
+        )
+        .unwrap();
+        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        assert_eq!(
+            interchange_selected_commuting_runs(
+                &source,
+                0,
+                LOAD_A,
+                SUM,
+                LOAD_C,
+                DIFF,
+                &environment,
+                starved
+            )
+            .unwrap_err(),
+            CommutingRunInterchangeError::WorkBudgetExceeded
+        );
+        assert_eq!(
+            validate_commuting_run_interchange(
+                &source,
+                0,
+                LOAD_A,
+                SUM,
+                LOAD_C,
+                DIFF,
+                &environment,
+                starved,
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            CommutingRunInterchangeError::WorkBudgetExceeded
+        );
+    }
+}
+
+/// Two interchanges over the identical source produce the identical
+/// validated result, and the published plan is a legal second input
+/// through the sealed analysis boundary: on the transformed plan the runs
+/// have traded places, so the same names interchange them back to restore
+/// the source plan bit-identically, while the stale run order still
+/// declines.
+#[test]
+fn interchange_is_deterministic_and_re_admitted() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    let first = interchange(&source, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
+    let second = interchange(&source, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
+    assert_eq!(first, second);
+    // The validated output carries the sealed analysis boundary, so it is
+    // a legal second input — not merely a reconstruction of one. On the
+    // transformed plan the `LOAD_C; DIFF` run leads and `LOAD_A; SUM`
+    // follows, so naming them in their new order admits the reverse
+    // interchange back to the published source.
+    let restored = interchange_selected_commuting_runs(
+        &first,
+        0,
+        LOAD_C,
+        DIFF,
+        LOAD_A,
+        SUM,
+        &environment,
+        budget(),
+    )
+    .unwrap();
+    assert_eq!(restored.transformed(), source.transformed());
+    assert_eq!(
+        restored.receipt().transformed_selected(),
+        source.selected_identity()
+    );
+    validate_commuting_run_interchange(
+        &first,
+        0,
+        LOAD_C,
+        DIFF,
+        LOAD_A,
+        SUM,
+        &environment,
+        budget(),
+        restored.transformed().clone(),
+    )
+    .unwrap();
+    // The stale run order declines on the second input: `LOAD_A; SUM` now
+    // closes the window, so naming it as the earlier run leaves no later
+    // run to trade with.
+    assert_eq!(
+        interchange_selected_commuting_runs(
+            &first,
+            0,
+            LOAD_A,
+            SUM,
+            LOAD_C,
+            DIFF,
+            &environment,
+            budget()
+        )
+        .unwrap_err(),
+        CommutingRunInterchangeError::UnsupportedPair
+    );
+}
+
+/// Replay drift beyond the admitted window still fails the
+/// restore-by-content comparison: an instruction the interchange never
+/// touched carries mutated content, so restoring the runs' order and the
+/// window's rows cannot reproduce the source.
+#[test]
+fn replay_rejects_drift_outside_the_window() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    let result = interchange(&source, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
+    let mut drifted = result.transformed().clone();
+    drifted.functions[0].blocks[0].instructions[6].kind = SelectedInstructionKind::MaterializeI64 {
+        value: IntegerValue::Unsigned(10),
+    };
+    assert_eq!(
+        validate_commuting_run_interchange(
+            &source,
+            0,
+            LOAD_A,
+            SUM,
+            LOAD_C,
+            DIFF,
+            &environment,
+            budget(),
+            drifted
+        )
+        .unwrap_err(),
+        CommutingRunInterchangeError::ReplayMismatch
+    );
 }
