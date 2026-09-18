@@ -1884,6 +1884,37 @@ Owners include
   (`RUST_MIN_STACK=67108864`). This does not close the unchanged decimal or Console
   customer; their missing invariant and transitive-call evidence remains above.
 
+
+  The single-state `structural field store: pure source` stop is closed: a
+  structural scalar field store may read the SSA result of the scalar call
+  its own statement performs, through a third
+  `CheckedStructuralScalarFieldStoreValue` source admitted at the existing
+  pure-source phase, behind every destination, carrier, domain and
+  write-frame check the authored-source route already makes
+  ([store vocabulary](wiki/spec/terminal-psi/structural_access.md) retains an
+  already-defined exactly typed SSA value, and a call result is one). The
+  rejection had turned on whether the source named a local: the same body
+  spelled through a local binding was already admitted. Three regressions in
+  `execution/unit/structural_scalar_store/tests/call_results.rs` pin the
+  admitted shape, two consecutive call-result stores keeping dense positions,
+  and a domain-constrained destination still refusing an unproved result.
+
+  No canary changes state on this alone, measured both ways at the landing
+  base: the `filesystem/,calls/` pass-canary filter reports the same forty
+  failures with and without it, name for name. Closing a fixture needs the
+  second half, in `emission/call_source_custody`, which still demands an
+  authored `LocalInitializer` for a live scalar call result: its `locate_source`
+  needs an assignment whose value is a call admitted as a direct root, and
+  the same-statement store consuming that result must be recognized as the
+  authored destination instead. Both arms sit under a live
+  **MATCH-SELECTIVE-LOWERING** claim. `filesystem/native_close` clears this
+  gate and stops exactly there.
+
+  Corpus note: the `filesystem/native_*` family, about 45 fixtures, is
+  uniformly unrunnable and unregistered, carrying no `build.omg` and the
+  retired `omega::language::std::` import spelling that package admission now
+  refuses. `native_close` is repaired; the rest need the same two edits
+  before any of them can report a real result.
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.
   Owners include `facts/operator_crashes.rs`, `CrashPlan::checked_operators`,
@@ -4443,13 +4474,19 @@ Owners include
   coordinate (`terminal_authority_policy/filesystem.rs`); the reviewer admits
   the constrained close under either role. Next leg: the settlement wiring landed; what is
   missing is any authored route that produces a retained occurrence at all,
-  which is [owner question 9](OWNER_QUESTIONS.md). The attached-Unit gap
-  below is not specific to `windows_canonicalize_exit`:
-  `filesystem/native_close` stops at the same gate on the macOS ARM64 std
-  package route.
+  which is [owner question 9](OWNER_QUESTIONS.md). `filesystem/native_close` reaches the
+  attached-Unit gate on the same route but needs a different repair from
+  `windows_canonicalize_exit`, so the two are not one gap: the former stored
+  a scalar field from its own call result and now compiles past that gate,
+  while the latter stores a structural `UnitResult` field, which no store
+  operation covers.
 
   Native acceptance also needs the checked transitive machine plan missing
-  from `filesystem/windows_canonicalize_exit`: Terminal production currently
+  from `filesystem/windows_canonicalize_exit`, which stops at `structural
+  field store: scalar field type` because `self.unit_result =
+  self.fs.write_all(..)` stores a structural field and
+  `StructuralScalarFieldStore` covers scalar fields only; a structural-field
+  store operation does not exist yet and is its own slice. Terminal production currently
   refuses its attached Unit closure in
   `checked-trees-to-lowered-psi/src/unit/attached_unit/call_closure.rs`. Its source
   dependencies include nested structural sum construction/transport
