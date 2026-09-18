@@ -131,228 +131,73 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Application resources and `image_viewer` bundle-relative lookup are outside
   v1; do not silently change the working directory or claim their Finder coverage.
 
-- **SAMPLE-CORPUS.** Close the unchanged maintained programs through checked
-  semantics and native execution. Start with the documented
-  [cli_mvp](samples/cli/basics/cli_mvp/README.md) and
-  [print_squares](samples/cli/basics/print_squares/README.md) commands.
-  Ordinary CLI review needs real project acceptance; the native sample harness's
-  test-owned acceptance does not establish that route. Run
-  `mbx nextest run -p compiler --test samples_compile --no-fail-fast` with
-  `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp` or `print_squares` and
-  `-E 'test(=samples_with_documented_exit_run_correctly)'` for the focused
-  native probe. In PowerShell set `$env:OMEGA_SAMPLE_RUNTIME_FILTER = 'cli_mvp'`;
-  in a macOS shell prefix the command with `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp`.
-  Old observations below are resume evidence, not a fresh
-  baseline after the native planner cuts.
+- **SAMPLE-CORPUS.** Close maintained `samples/cli|gui|uefi` programs through
+  the [Rust product gates](wiki/drafts/rust_compiler_completion.md#release-matrix):
+  checked semantics, each authored target's native product, and documented
+  exit/output behavior on its matching host. Application submodules remain
+  **SQUALR-HEADLESS** scope; language canary maintenance is **CANARY-CORPUS**.
 
-  Native progress at `d575c7e8e0` (macOS arm64): lowered machine contracts now
-  publish the inferred crash ceiling the checked contract plan proves
-  (`unit::effective_crash_routes` in checked-trees-to-lowered-psi), call-site
-  continuations derive from the same source, and the
-  `UnsupportedBoundaryCrashContract` fence in
-  terminal-psi-to-abstract-operations is removed — a verified boundary crash
-  contract rides into Omega and the realized settlement commits the trap.
-  `cli_mvp_preserves_both_lines_with_eof_and_enter` and the `cli_mvp` leg of
-  `samples_with_documented_exit_run_correctly` compile, publish, and execute
-  with the documented output and exit. `print_squares` still stops at
-  `Selection(Legalization(UnsupportedScalarOperation WrappingIntegerMultiply
-  u32))` inside target-operations-to-selected-instructions — wrapping
-  multiply/divide/remainder legalization is the next recorded fence — and the
-  behavior-exclusions native probe now pins `UnsupportedControlFlow` one stage
-  later. The `scalar_graph_lowering` lane still reads `CrashPlan::published()`
-  alone for contracts and call continuations — the same under-coverage shape
-  for machines lowered through it, coordinate with its active claim.
+  Integration owner: `compiler/tests/samples_compile.rs`, the documented sample
+  commands, and the actual failing pipeline stage. Retain one customer command
+  while its dependencies are repaired; do not close this item with helper tests,
+  cross-emission, or another source-shape recognizer. Legitimate surface migration
+  must preserve the sample's algorithm, storage, and observable behavior.
 
-  Checked-compilation staleness: the service-reach evidence tightening
-  (`22dc642ab8`, `7d444a9319`) left 135/140 samples failing
-  "publishes service reach `<none>` but its checked body reaches undeclared
-  services ..." at `2646d0a974`. The missing declarations are now declared:
-  132 machine signatures carry their diagnostic-printed sets (`reaches` is
-  transitive through machine calls — e.g. `Main::apply` in
-  `cli/systems/account_ledger`), following the GUI cohort's pattern at
-  `40c3332850`. Six distinct sample defects were fixed with it:
-  `framed_payload`/`clamp_sum` explicit `as i32` domain casts,
-  `array_index_from_call` i64-widened operands, `math_proofs` `embed()`
-  ensures arithmetic, `uefi_hello` `&mut self` receiver, and
-  `dungeon_crawler_cli`'s `==`/`!=` guard pair rewritten as a boolean
-  transition. A full `all_samples_reach_checked_trees` rerun at
-  `69fca41bda` (2026-09-16 UTC, macOS ARM64) reported 12/140 failing —
-  `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
-  `dice_histogram`, `calendar`, `dungeon_render`, `mandelbrot`,
-  `mandelbrot_zoom`, `wire_protocol`, `dungeon_crawler_cli`, `math_proofs` —
-  down from the earlier 19/140 and all inside the attribution families
-  below; scoped rechecks are not a new full baseline. Samples still failing
-  earlier phases may hide additional undeclared reaches; their owners should
-  rerun and read the printed sets.
+  Repair the harness before treating it as ordinary-production coverage:
 
-  Remaining checked-stage dependencies from that run: text/field proofs —
-  `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`,
-  `dice_histogram`, `calendar`, `dungeon_render` (cannot prove byte writes
-  preserve the `Utf8` field domain across state edges). Receiver/aggregate
-  loans — `dungeon_render`, `wire_protocol` (non-copy transfer out of borrowed
-  storage). Index/subslice proofs — `mandelbrot`, `mandelbrot_zoom`,
-  `wire_protocol`. `heat_grid` checks again: its `__hoist_N` temps were
-  fed widened cyclic arrival facts (`y * 4 + x` analyzed as (0, 23)
-  against the synthesized `[0..=11]`) because transition-delivered
-  arguments seeded the target parameter's flow environment without
-  intersecting the parameter's enforced declared range; guard-narrowing
-  arrivals now apply the same clamp `record_assignment` uses for locals.
-  Match custody —
-  `dungeon_crawler_cli` (case-literal construction and branch-local
-  transfer joins unsupported). `math_proofs` — its owned Bag/multiset row.
+  - `compile_native_and_publish` still copies package permission rows into an
+    explicit receiving policy. Ordinary compilation now defaults that policy to
+    absent; remove the harness's artificial requirement, retaining test-owned
+    package acceptance and separate explicit receiver-admission controls under
+    [the artifact/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission).
+    A harness pass does not complete the user's project review.
+  - The runtime oracle and `cli_mvp_preserves_both_lines_with_eof_and_enter`
+    discard the published report and run `build_dir/omega-program`. Use
+    `checked_native_executable_path()` from that report, including bundled paths;
+    do not force every application's output name to fit the test.
+  - Migrate bare service fields and `Service<Console> in Bound` to intrinsic
+    `Service<Console>` establishment with **ENTRY-CONTENT-ROOTS**. Never weaken
+    missing-provider or exact occurrence checks to preserve obsolete examples.
 
-  Remaining `generic_counters` acceptance: run the
-  [documented command](samples/cli/basics/generic_counters/README.md) with ordinary
-  project review, and execute the exit-16 oracle on Linux x86-64/AArch64 and
-  Windows x86-64. At `838a868432` (2026-09-14 UTC), the macOS ARM64
-  compiler-library oracle passes with explicit test-owned acceptance after the
-  established Console service migration; both counter instances and their logic are
-  unchanged. `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=generic_counters
-  cargo nextest run -p compiler --test samples_compile --no-fail-fast
-  -E 'test(=samples_with_documented_exit_run_correctly)'` exercises that route.
-  Common wrapping-add and nested mutation/getter regressions publish all four
-  targets, but cross-emission is not matching-host execution. Do not resume the
-  closed missing-callee, wrapping-add, or physical-custody diagnoses.
+  Resume from focused runs, not the accumulated historical failure counts.
+  At `d575c7e8e0` on macOS ARM64, the `cli_mvp` library oracle ran correctly
+  and `print_squares` reached unsupported wrapping-u32 multiplication. Earlier
+  `print_squares` probes stopped at the nonzero-divisor proof
+  `1 <= self.place`; these are different checkpoints, not simultaneous claims
+  about today's first failure. The current scalar legalization has no wrapping-
+  integer multiply route, while scalar call lowering still reads only authored
+  `crash.published()` in `scalar_graph/scalar_graph_lowering/{call_lowering,unit_operations}.rs`.
+  **CRASH-CONTRACT** owns consistent inferred-ceiling publication; retain it as a
+  dependency rather than another sample-local workaround.
 
-  Native resume for `recursive_sum`: at `a1deabd205` (2026-09-14 UTC, macOS ARM64),
-  `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=recursive_sum cargo nextest
-  run -p compiler --test samples_compile --no-fail-fast
-  -E 'test(=samples_with_documented_exit_run_correctly)'` reaches
-  `InvalidUnitMachinePlan` for `Main::main` (missing checked transitive plan).
-  `recursive_slice_samples_reach_checked_trees` covers the unchanged
-  `recursive_sum`, `dual_accumulator_recursion`, `subslice_sum`,
-  `slice_accum_probe`, and `framed_payload` sources. The first producer gap is
-  indexed primitive-array storage in
-  `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store/build_structural_scalar_store.rs`:
-  a primitive element has no record field ID. Extend ordinary primitive access
-  with canonical paths as described below, not synthetic fields or helper calls.
-  The unchanged i32-slice customer also needs typed scalar views (the existing
-  byte-view vocabulary is u8-specific) and borrowed-view scalar loop parameters
-  with SliceLength ranking under **GENERAL-CYCLIC-EXECUTION**. Coordinate primitive
-  operation constructor/effect tests with the live **GENERAL-LICM** owner before
-  changing shared representations. Derived-argument place comparison no longer
-  needs a receiver-ancestry fix. The exit-70 native oracle remains open.
-
-  `framed_payload` also reaches the missing `Main::main` Terminal-plan error
-  on macOS ARM64 with the same native command and
-  `OMEGA_SAMPLE_RUNTIME_FILTER=framed_payload`; its exit-60 oracle remains open.
-  Its indexed `self.frame.bytes` stores need the primitive projection work below,
-  not weaker receiver/argument overlap checking. The read-only checksum receiver
-  and its live shared payload view must remain compatible.
-
-  `dutch_flag` still reaches the missing transitive `Main::main` plan with
-  `OMEGA_SAMPLE_RUNTIME_FILTER=dutch_flag` and the native command above (macOS
-  ARM64, `67add79c88`). Preserve
-  its enum-array swaps and exit-70 oracle; `dutch_flag_sample_reaches_checked_trees`
-  isolates source acceptance. Static record/fixed-array paths now retain exact
-  case observations through source checking, Terminal and native replay;
-  `scalar_case_results::projected_membership` executes nested and owned-record
-  reads on macOS ARM64. Continue through runtime-indexed sum reads, whole-value
-  enum replacements/swaps and cyclic plan production, not another static-path
-  adapter or implicit copyability for affine enums. The owning routes are
-  `checked-trees-to-lowered-psi` structural storage and **GENERAL-CYCLIC-EXECUTION**;
-  acceptance remains the unchanged sample's native exit 70.
-
-  `cli/basics` documented-exit cohort at `69fca41bda` (2026-09-16 UTC, macOS
-  ARM64), `OMEGA_SAMPLE_RUNTIME_FILTER=cli__basics` with the
-  `samples_with_documented_exit_run_correctly` selector: 2 of 11 samples
-  execute correctly (`cli_mvp`, `generic_counters`). Six reach
-  `InvalidUnitMachinePlan` for `Main::main` — `brightness_control`,
-  `nested_diagnostics`, `print_number`, `temperature_convert`,
-  `text_greeting`, `unit_converter` — the same missing checked transitive
-  machine plan family as `recursive_sum`, `dutch_flag`, and `window_app`
-  above (**GENERAL-CYCLIC-EXECUTION**). `number_guess` now legalizes: signed
-  32-bit saturating add, subtract, and divide reach native realization on
-  all four targets (`SaturatingAddI32`/`SubtractI32`/`DivideI32`, clamped
-  through a bound scratch; `MIN / -1` yields `MAX` without a fault path;
-  the zero-divisor obligation stays proof-discharged), with
-  `tests/native-differential/tests/scalar_case_results/i32_saturating_kernels.rs`
-  as the executed regression. The sample's next first failure (macOS ARM64):
-  `macOS hosted receiver bridge lost exact contract, storage, or entry
-  custody` from `image-emission/src/hosted_receiver.rs`, which is the
-  **ENTRY-CONTENT-ROOTS** receiver bridge, not arithmetic. Every fixed
-  width now legalizes: the saturating kinds carry a `SaturatingCarrier`
-  (i8..u64) instead of one name per width, narrow carriers clamp the exact
-  64-bit result, i64 add/subtract detect overflow from the left operand's
-  sign, and i64 divide never executes the trapping quotient; kernels for
-  each width execute on this host and replay on all four targets
-  (`scalar_case_results`). The `cli/basics` cohort's first failures (macOS
-  ARM64) are now the missing transitive `Main::main` plan
-  (**GENERAL-CYCLIC-EXECUTION**: `brightness_control`, `nested_diagnostics`,
-  `print_number`, `temperature_convert`, `text_greeting`, `unit_converter`),
-  the hosted receiver bridge (`number_guess`), `Utf8` field proofs
-  (`multiplication_table`), and `OperationProofUnavailable(ObligationId(25))`
-  (`print_squares`); none is a legalization error.
-  `number_guess`'s remaining failure is not receiver storage: the bridge
-  provisions its `[copy]` record and buffer once the Console field is
-  spelled `Service<Console> in Bound`, and the unchanged sample then exits
-  70 (macOS ARM64, ab5f28700d, probe reverted). The bare `console: Console;`
-  field is not a service carrier. **ENTRY-CONTENT-ROOTS** owns migrating it to
-  `Service<Console>` and removing the implementation's separate qualification
-  requirement while retaining exact establishment. `print_squares` now stops at
-  `UnsupportedScalarOperation(WrappingIntegerMultiply { u32 })`: no integer
-  multiply reaches legalization for any width (641 `*` sites across 238
-  sample and corpus files), the next arithmetic family after saturation.
-  `multiplication_table` still fails checked-stage `Utf8` field proofs and
-  `print_squares` still stops at `OperationProofUnavailable(ObligationId(25))`.
-
-  | Customer/dependency | Remaining work and owning route |
+  | Customer | Remaining integration and owner |
   | --- | --- |
-  | `cli_mvp` ordinary CLI and hosted matrix | Finish real project package review with explicit owner acceptance, then run the documented CLI command. The accepted lock passes package review, but native production still stops at "receiving terminal-authority policy omits the accepted permission for Console::exit_process". **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** must remove this misplaced receiving-policy gate from ordinary production under the [artifact/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission); do not add a policy switch or mirror project acceptance into receiver permissions. The macOS ARM64 compiler-library test already publishes and executes unchanged source with exact two-line output, EOF and Enter, and exit 0. Establish that behavior through the ordinary CLI and remaining hosted targets; cross-lowering alone is not runtime evidence. Linux x86-64 resume (`5c450f11ff`): checked semantics and Terminal publication pass, but native realization rejects the retained `&mut self` entry without a root-backed receiver bridge. **ENTRY-CONTENT-ROOTS** owns the remaining hosted-receiver bridges; test-owned acceptance does not close the real-project route. |
-  | `print_squares` closure | Checked transitive Unit plans, byte-field presentation and storage-observation invariant scope are available. The probe still stops at `OperationProofUnavailable` for guarded-exit field obligations requiring a stronger counter/divisor invariant, and indexed bounds/increment overflow. Integer contradictions and saved field facts already have checked routes; do not invent another contradiction primitive or rebuild snapshot handling. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. Linux x86-64 resume (`5c450f11ff`): checked semantics pass and Terminal production stops at `OperationProofUnavailable(ObligationId(25))` — the nonzero-divisor obligation `1 <= self.place` on `digit_div`'s `self.sq / self.place`, the guarded-exit lockstep gap named above. |
-  | Fixed-range Console input/output | Compose the selected source provider and real byte leaves with original receiver storage, exact returned cases/prefix, once-only effects, and cleanup. Use the ordinary graph and provider replay, not the deleted Unit/boundary planner. Windows byte I/O still needs imported-call/fixup/frame custody; Linux runtime evidence requires matching hosts. |
-  | Receiver and aggregate operations | Finish shared/indexed projections, owned/local roots, scalar-result receiver calls, nested sum results and whole replacements, including mixed foreign-result assignments. Extend the shared statement sequencer; **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, and **CML4** own the corresponding joins. |
-  | Text and field proofs | Replace sample-local `Utf8`/compiler-name `valid_utf8` recognition with the [library encoding contract](wiki/spec/language/domains.md#byte-containers-and-encoding-domains). Keep raw bytes and qualify only validated prefixes; no byte-to-character re-encoding, hidden length writeback, or capacity-as-live-length proof. |
-  | `cli/proofs/math_proofs` | Supply ordinary core multiset data and slice extraction, exact selected laws, and structural proof terms for indexed values/subslices. `core/seq.omg` is not a Bag implementation; equal lengths cannot establish equal contents. Preserve the false twin. |
+  | [`cli_mvp`](samples/cli/basics/cli_mvp/README.md) | Ordinary package review and CLI execution without receiving-policy input; exact two lines, EOF/Enter, exit 0 on the hosted matrix. **ENTRY-CONTENT-ROOTS** owns service/entry custody; **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns any remaining production/admission coupling. |
+  | [`print_squares`](samples/cli/basics/print_squares/README.md) | Wrapping arithmetic legalization in `target-operations-to-selected-instructions`, cyclic field/divisor facts under **NOMINAL-FIELD-FLOW**, and complete cyclic plans under **GENERAL-CYCLIC-EXECUTION**. Preserve nine computed rows ending in `081`, byte storage, and exit 0. |
+  | `recursive_sum`, `framed_payload`, `dutch_flag` | Native exit 70, 60, and 70 respectively. **STATE-LOCAL-VALUE-FRONTIER** owns indexed primitive/sum storage and replacements; **GENERAL-CYCLIC-EXECUTION** owns typed slice views, recursive/cyclic transfer and ranking. Preserve saved reads, untouched siblings, shared payload loans and affine enum custody. No synthetic field IDs for scalar array elements or invented ranking for unranked cycles. |
+  | [`generic_counters`](samples/cli/basics/generic_counters/README.md), `number_guess` | Intrinsic service migration and ordinary CLI/hosted execution, not reimplementation of already-supported counter calls or saturating arithmetic. Keep exit 16 and 70 respectively; macOS library probes are not the remaining hosts' runtime evidence. |
+  | Text, indexing and match samples | Recheck `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`, `dice_histogram`, `calendar`, `dungeon_render`, `mandelbrot{,_zoom}`, `wire_protocol`, and `dungeon_crawler_cli`. Route actual failures to **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, or **CML4**, not one task per source permutation. Encoding facts follow [library domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains), not recognition of the name `valid_utf8`. |
+  | `cli/proofs/math_proofs` | Ordinary core multiset data/slice extraction, selected laws and checked proof terms; `core/seq.omg` is not a Bag implementation and equal lengths do not prove equal contents. Keep the false twin rejecting. |
+  | Bounded Console input | Finish [bounded-input](wiki/spec/resources/bounded_input.md) composition in selected-dispatch and ordinary provider/call transport: exact destination/prefix, once-only effects, cleanup and truthful blocking/crash contracts. Keep prefix guards until count-to-extent evidence exists; test zero-capacity non-consumption, LF/EOF/Full, exact bytes and untouched tails, failed reads, alias rejection, invalid results and caller continuation. |
 
-  Keep ordinary CLI acceptance separate from the native sample harness's
-  explicit test-owned policy; no project review decision was accepted by that
-  test. Use `mbx nextest run -p compiler --test samples_compile --no-fail-fast
-  -E 'test(=cli_mvp_preserves_both_lines_with_eof_and_enter)'` for exact output
-  and both input cases. Installed provider calls share ordinary call transport
-  while retaining independently checked provider selection, original boundary
-  operands, result and completion custody. Preserve the established Console service,
-  both writes and original 256-byte input buffer when closing the remaining routes.
+  Focused native command:
+  `mbx nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
+  Set `$env:OMEGA_SAMPLE_RUNTIME_FILTER = 'print_squares'` in PowerShell or prefix
+  the command with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares` on macOS; this
+  filter affects only that oracle. Use
+  `-E 'test(=cli_mvp_preserves_both_lines_with_eof_and_enter)'` for exact byte/input
+  coverage, and `-E 'test(=all_samples_reach_checked_trees)'` for the full checked
+  cohort. Unset the filter for complete runtime coverage; an empty selection fails.
 
-  **STATE-LOCAL-VALUE-FRONTIER** still owns runtime-indexed primitive storage,
-  policy-qualified array elements and native indexed owned/local roots. Reuse
-  canonical primitive paths and the ordinary statement sequencer; retain exact
-  bounds, root custody and element-sensitive storage observations. Do not invent
-  scalar field IDs for array elements. Preserve
-  `hosted_receiver_indexed_primitive_storage_survives_state_transition` while
-  extending those routes: it covers borrowed helper mutation, a saved earlier
-  read, an untouched sibling and a later-state read through real native entry.
-  Neither that test's explicit package policy nor the storage capability closes
-  the real CLI project's outstanding review or the other hosted runtime legs.
-
-  **Scope pause:** do not resume helper-by-helper expansion for `print_squares`
-  until a plan covers its complete source closure and native dependencies. Two
-  earlier prerequisite milestones left the same missing Main plan. Preserve its
-  source graph; unranked cycles require no invented termination witness.
-  Independent operation work remains actionable. Package latency work belongs
-  only to **PACKAGE-PREPARATION-REUSE**, not this execution task.
-
-  Regression entrypoints: `tests/native-differential/tests/terminal_byte_views/`
-  (`natural_writer`, `mutable_writes`, `byte_input`, `byte_output`),
-  `scalar_case_results.rs`, and the selected Console reader controls in
-  `compiler/tests/canary_suite/providers_float_and_console/console_reader.rs`.
-  Use the [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md)
-  for current producers; past fixture publication is not current sample closure.
-  General native joins/replay belong to **TRANSLATION-VALIDATION** in
-  `TASKS_OPTIMIZER.md`. Keep exact source, ABI, occurrence, access and residual
-  cleanup rather than restoring retired fixtures or whole-function families.
-
-  Finish the [bounded-input](wiki/spec/resources/bounded_input.md) integration
-  and honest hosted blocking/crash envelope in
-  `build/selected-dispatch/src/compiler_intrinsic.rs`. The result schema does
-  not itself supply a count-to-extent theorem; retain explicit prefix guards
-  until callable relational evidence exists. Acceptance covers zero-capacity
-  non-consumption, LF included at the last byte, EOF prefixes, Full without
-  overread, repeated chunks, exact bytes including CRLF/NUL/multibyte input,
-  failed-read traps, untouched tails, alias rejection, and caller continuation.
-  Invalid result cases and unproved text qualification reject. Every maintained
-  sample must check and every documented exit/output oracle must run on its
-  matching host; record unavailable hosts separately from cross-emission.
+  **Scope pause:** resume `print_squares` implementation only with a plan from
+  its complete source closure to native execution, not a third isolated helper
+  milestone. Independent operation work remains actionable. Use the
+  [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md);
+  native join/replay belongs to **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`
+  and package latency to **PACKAGE-PREPARATION-REUSE**. Acceptance requires every
+  maintained sample to check and every applicable exit/output oracle to execute
+  across the required hosted matrix. Record unavailable hosts explicitly;
+  scoped reruns do not establish a new complete baseline.
 
 - **CANARY-CORPUS.** Bring the language corpus to its promised checked/native
   stages, using `mbx nextest run -p compiler --test canary_suite --no-fail-fast`
