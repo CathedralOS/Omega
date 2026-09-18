@@ -916,6 +916,50 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // local may be its receiver; proof machines emit no runtime code, so this
     // stays Check.
     "relevance/erased_receiver_proof_machine_call",
+    // The `filesystem/native_*` family: authored as native canaries but never
+    // runnable, with no `build.omg` and the retired `omega::language::std`
+    // import spelling. With an ordinary build declaration and the
+    // `omega_language_std` alias they reach checked semantics; the exact
+    // program entries their build declarations bind are for the day their
+    // remaining native stops close, not for this route.
+    "filesystem/native_append",
+    "filesystem/native_at_ops",
+    "filesystem/native_at_runtime_name",
+    "filesystem/native_buffer_copy",
+    "filesystem/native_canonicalize",
+    "filesystem/native_chown",
+    "filesystem/native_crud",
+    "filesystem/native_dirs",
+    "filesystem/native_enum_result",
+    "filesystem/native_errno",
+    "filesystem/native_exists",
+    "filesystem/native_fchmod",
+    "filesystem/native_flock",
+    "filesystem/native_forwarded_slice_literal",
+    "filesystem/native_hard_link",
+    "filesystem/native_open_rw",
+    "filesystem/native_permissions",
+    "filesystem/native_positioned_io",
+    "filesystem/native_read_dir",
+    "filesystem/native_read_dir_iter",
+    "filesystem/native_rename",
+    "filesystem/native_seek",
+    "filesystem/native_set_len",
+    "filesystem/native_subslice_copy",
+    "filesystem/native_symlink",
+    "filesystem/native_sync",
+    "filesystem/native_sync_data",
+    "filesystem/native_try_clone",
+    "filesystem/native_try_exists",
+    "filesystem/native_value_call_guard",
+    "filesystem/native_value_call_let_chain",
+    "filesystem/native_value_call_literal",
+    "filesystem/native_value_call_local",
+    "filesystem/native_value_call_path",
+    "filesystem/native_wrapper_exists",
+    "filesystem/native_wrapper_metadata",
+    "filesystem/native_wrapper_try_exists",
+    "filesystem/native_wrapper_write_all",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
