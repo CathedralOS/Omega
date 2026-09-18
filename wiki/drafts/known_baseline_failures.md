@@ -116,14 +116,36 @@ repair beside this row. Only two of the six non-ledger failures were
 
 ## compiler canary suite (pass canaries)
 
-`OMEGA_PASS_CANARY_FILTER=proofs/proof_inductive_climbing_sum cargo nextest
-run -p compiler --test canary_suite -E 'test(pass_canaries_compile)'` at
-e62b4ae06f fails: "exact arithmetic in `Main::climb` transition argument may
-overflow `u64`" (`acc + 1`). The fixture is unchanged since 8db00a06de
-(2026-08-28); the rank-range and arithmetic engine changed on 2026-09-15/16
-(19ab91c175, 0accda3754, 7635bad190, d7e36ec39c, 84e6ba3682, 2ec8875792).
-`proofs/proof_inductive_gauss_sum` and `proofs/runtime_decreases_u64_measure_exit`
-still compile.
+`cargo nextest run -p compiler --test canary_suite -E
+'test(pass_canaries_compile) | test(fail_canaries_reject_with_expected_diagnostic_fragment)
+| test(/registered_/) | test(checked_only_canaries_are_not_backend_umbrella_members)'`
+at 942f23e6f4 plus the climbing-sum repair beside this row (2026-09-18,
+macOS arm64, 1157 s): 6 run, 5 passed, 1 failed. Only
+`pass_canaries_compile` fails, on 22 registered fixtures, and this is the
+freshly measured distribution **CANARY-CORPUS** asks for rather than the
+older reading:
+
+- 19 report `Lowering(InvalidUnitMachinePlan { .. })` from native-artifact
+  Terminal production, the missing transitive Unit plan class
+  (**GENERAL-CYCLIC-EXECUTION** and the state-graph route): the
+  `core/numeric_*` conversion surfaces (6), `float/float_trapping_*` (5),
+  `expressions/arithmetic_domain_trapping_*` (3),
+  `control_flow/runtime_*_literal_dispatch_exit` (2),
+  `capabilities/acquires_through_helper_return`,
+  `host/runtime_gui_foreground_window_exit`, and
+  `wire/runtime_wire_exact_array_without_count_exit`.
+- `calls/statement_call_recursive_argument_compile`: "duplicate named
+  machine overload `add`", with sibling reports of a duplicate `Nat` data
+  declaration and a public interface selecting private `Nat`.
+- `operators/runtime_integer_division_value`: "native-artifact production
+  requires one exact selected program entry".
+- `atomics/atomic_field_declared`: "macOS hosted receiver bridge lost exact
+  contract, storage, or entry custody" (**ENTRY-CONTENT-ROOTS**, and
+  [owner question 1](../../OWNER_QUESTIONS.md) for the bare receiver field).
+
+`proofs/proof_inductive_climbing_sum` left this set when its accumulator
+was bounded; the other four tests in the command pass, so the roster,
+fail-canary fragments, and umbrella membership are all consistent.
 
 ## checked-trees-to-lowered-psi
 
