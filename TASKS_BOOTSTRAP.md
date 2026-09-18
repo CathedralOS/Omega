@@ -158,48 +158,48 @@ prerequisite to every lower-rung milestone.
   the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md)
   and [Beta definitions](bootstrap/proofs/beta_encoding/README.md), following the
   [complete encoding acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md).
-  Remaining work: the produced full-subject certificate cannot be admitted
-  under the selected provisions; the residual routes are the owner-level
-  decisions in the [cost review](wiki/drafts/bootstrap_cost_review.md),
-  filed as owner decision `beta-encoding-certificate-admission`.
-  Resume evidence on macOS arm64: the complete 18-sort/361-constructor/
-  108-function theory emits from Gamma source at 116,992 bytes, SHA-256
-  `b2ab717f574b39e7ef6986b2ec3a43036a2ca4f5e7512c1dcbe3435b564ebb4b`, matching
-  the independent restatement in
-  [encoding.py](tests/gamma/beta-encoding-theory/encoding.py); the source
-  closure is 5,536 manifest bytes / 131,059 packed bytes.
-  `sh tests/gamma/beta-encoding-theory/run.sh` passes two identical emissions,
-  three producer refusals, and 203 exact checker diagnostics (1,024 lexical
-  truths, 256 joins, 512 splits, 256 roundtrips, 13 word emissions, 512 byte
-  counter equations, 19 checked successors, 256 nibble, 12 byte, 30 word
-  comparisons, plus 200 encoder equations over all functions 58..108 produced
-  by the generic [stepper](tests/gamma/beta-encoding-theory/stepper.py) —
-  including two tiny end-to-end `encode` calls — and seven encoder-range
-  rejections); generic formation checks every new clause on each request.
-  `--subject-shape` checks both full-subject spines at 225,305 work in
-  557.725s and rejects the altered witness at its fixed coordinate under a
-  900-second watchdog; `--counter-cost` preserves the shared-successor
-  measurements; `sh tests/bootstrap/proofs-identity.sh` re-binds the
-  manifest and packed identities. Formation and these finite equations are
-  not artifact admission: the owner-fixed
-  `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` proposition for the
-  selected evaluator source and tape is now independently reconstructed
-  (534,208 owner bytes) and its complete untrusted derivation produced
-  (3,182,484 rows, maximum depth 204, 135,451,492 request bytes) — 16.1 times
-  the request provision and ~70-80 times the work provision and physical
-  pair ceiling, so it measures the gap rather than closing it.
-  The exact subject is the entire selected Gamma evaluator's raw Beta source
-  and persisted Alpha tape. Encoding equality does not prove the evaluator
-  implements Gamma; retain that trust assumption explicitly.
-  Each retained checker rule and encoding helper must have a demonstrated role
-  in this certificate. No proof search, producer-selected root, trusted assembler
-  primitive, or general-purpose extension.
+  The subject is the entire selected Gamma evaluator's raw Beta source and
+  persisted Alpha tape. The complete theory emits from Gamma source, the owner
+  proposition `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` is
+  independently reconstructed, and a complete untrusted derivation has been
+  produced. None of that is admission. The derivation is a 135,451,492-byte
+  request: 16.1 times the request provision, about 70-80 times the work
+  provision and physical pair ceiling, and about 8 times the evaluator's
+  buffered-output limit, so the selected chain can neither check nor produce
+  it. [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md) holds the
+  measurements.
+
+  Blocked on owner decision `beta-encoding-certificate-admission` in
+  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). The
+  [cost review](wiki/drafts/bootstrap_cost_review.md) shows the shortfall is
+  structural: a tenfold reduction still exceeds both provisions. Until the
+  decision is answered, keep the
+  [encoder candidate](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md)'s
+  pause: no further isolated helper families, checker rules, or provision
+  changes. Independent bootstrap work continues.
+
+  Remaining work once a route is selected:
+
+  - Produce the certificate through the selected chain from source-owned
+    definitions. Today the full-subject derivation comes from the host-side
+    [stepper](tests/gamma/beta-encoding-theory/stepper.py), a diagnostic
+    producer with no gate mode; `tests/gamma/beta-encoding-theory/run.sh`
+    covers finite equations, `--subject-shape`, and `--counter-cost` only.
+  - Check the full certificate, and the full-subject mutations the acceptance
+    document lists, under the exact profile.
+  - Show that each retained checker rule and encoding helper has a role in
+    that certificate, and remove the rest.
+
   Acceptance: the full certificate checks under the exact
   [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with
   measured bytes, storage, depth, and time and a reviewable account of the
   definitions and trusted assumptions. Malformed, cyclic, missing-premise,
-  wrong-subject, wrong-rule, and exhausted requests cannot accept.
-  Rule tests, partial proofs, and assembler agreement do not close this task.
+  wrong-subject, wrong-rule, and exhausted requests cannot accept. Rule
+  tests, finite equation batches, partial proofs, and assembler agreement do
+  not close this task. Encoding equality does not prove that the evaluator
+  implements Gamma; that trust assumption stays explicit. No proof search,
+  producer-selected root, trusted assembler primitive, or general-purpose
+  extension.
 
 ## P2 - Gamma to Delta
 
