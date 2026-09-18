@@ -42,6 +42,14 @@ impl Ord for SummaryCrashPredicate {
 pub(crate) struct CallArgumentSubstitution {
     pub(crate) identity: Vec<Option<CrashPredicateExpression>>,
     pub(crate) scalar: Vec<Option<checked_trees::CheckedScalarExpression>>,
+    /// One caller structural root per target parameter, in the callee's
+    /// telescope order: `self` rows and actuals that do not resolve to a
+    /// frozen parameter-rooted caller place keep `None`. A
+    /// `StructuralParameterField` leaf names the authored telescope, not the
+    /// dense scalar namespace, so it re-roots through this channel — the
+    /// surviving leaf keeps the caller position and prepends the actual's own
+    /// member path.
+    pub(crate) fields: Vec<Option<checked_trees::CheckedStructuralParameterField>>,
     /// One literal operand per target parameter: the exact value this call's
     /// own entry contexts prove for its actual, `None` where the flow proves
     /// no single value. These decide a retained guard under its own fold
@@ -229,7 +237,11 @@ impl SummaryCrashBucket {
                         return Some(SummaryCrashRouteGuard::Truth);
                     };
                     let scalar = predicate.scalar.as_ref().and_then(|scalar| {
-                        substitute_checked_boolean_expression(scalar, &arguments.scalar)
+                        substitute_checked_boolean_expression(
+                            scalar,
+                            &arguments.scalar,
+                            &arguments.fields,
+                        )
                     });
                     let folded = if predicate.builtin_meaning {
                         summary_boolean_value(&identity)

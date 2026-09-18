@@ -335,6 +335,7 @@ fn identity_substitution(
 ) -> CallArgumentSubstitution {
     CallArgumentSubstitution {
         scalar: vec![None; identity.len()],
+        fields: vec![None; identity.len()],
         values: vec![None; identity.len()],
         identity,
     }
@@ -1053,5 +1054,124 @@ fn indexed_predicates_substitute_through_summary_buckets() {
         ])),
         SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap),
         "an opaque index child still widens instead of leaking a callee display",
+    );
+}
+
+/// A float-field guard's checked scalar annotation crosses the call: each
+/// `IeeeFloatComparison` leaf re-roots to the caller parameter the actual
+/// reads, so `inner(a, b)` under `left.narrow == right.narrow` retains
+/// `a.narrow == b.narrow` as structured evidence instead of dropping to the
+/// bare identity. The retained annotation is what later structural lowering
+/// replays as the atomic proposition.
+#[test]
+fn float_field_guards_keep_their_scalar_evidence_through_calls() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedStructuralParameterField,
+        CheckedStructuralPredicatePathSegment,
+    };
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::types::PrimitiveType;
+
+    let field = |position: u32| CheckedStructuralParameterField {
+        parameter_position: position,
+        path: vec![CheckedStructuralPredicatePathSegment::Field(
+            "narrow".to_owned(),
+        )],
+    };
+    let expected_scalar = CheckedBooleanExpression::IeeeFloatComparison {
+        kind: CheckedIeeeFloatComparisonKind::Equal,
+        primitive_type: PrimitiveType::F32,
+        left: field(0),
+        right: field(1),
+    };
+    let expected_identity = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "narrow".to_owned(),
+        }),
+        right: Box::new(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(1)),
+            member: "narrow".to_owned(),
+        }),
+    };
+
+    let buckets = call_site_buckets(
+        "data Pair { narrow: f32; }
+         machine inner(left: Pair, right: Pair) -> bool
+         crashes Trap left.narrow == right.narrow { true }
+         machine outer(a: Pair, b: Pair) -> bool crashes Trap { inner(a, b) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the float-field guard keeps its guarded route: {buckets:?}")
+    };
+    assert_eq!(identity.expression(), Some(&expected_identity));
+    assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
+}
+
+/// The actual's own member spine prepends below the caller root: binding
+/// `pair.left`/`pair.right` re-roots the leaves to `pair.left.narrow` and
+/// `pair.right.narrow` under the same caller parameter rather than leaving
+/// callee positions behind.
+#[test]
+fn float_field_guards_substitute_through_member_projections() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedStructuralParameterField,
+        CheckedStructuralPredicatePathSegment,
+    };
+
+    let field = |root: &str| CheckedStructuralParameterField {
+        parameter_position: 0,
+        path: vec![
+            CheckedStructuralPredicatePathSegment::Field(root.to_owned()),
+            CheckedStructuralPredicatePathSegment::Field("narrow".to_owned()),
+        ],
+    };
+
+    let buckets = call_site_buckets(
+        "data Pair { narrow: f32; }
+         data Both { left: Pair; right: Pair; }
+         machine inner(left: Pair, right: Pair) -> bool
+         crashes Trap left.narrow == right.narrow { true }
+         machine outer(pair: Both) -> bool crashes Trap { inner(pair.left, pair.right) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the projected actuals keep the float guard: {buckets:?}")
+    };
+    assert_eq!(
+        identity.scalar_expression(),
+        Some(&CheckedBooleanExpression::IeeeFloatComparison {
+            kind: CheckedIeeeFloatComparisonKind::Equal,
+            primitive_type: typed_trees::types::PrimitiveType::F32,
+            left: field("left"),
+            right: field("right"),
+        }),
+    );
+}
+
+/// A mutable caller root cannot promise the entry snapshot the contract
+/// namespace names, so the annotation stays empty rather than describing
+/// stale storage — the route still keeps its substituted identity.
+#[test]
+fn float_field_guards_drop_scalar_evidence_below_mutable_roots() {
+    let buckets = call_site_buckets(
+        "data Pair { narrow: f32; }
+         data Both { left: Pair; right: Pair; }
+         machine inner(left: Pair, right: Pair) -> bool
+         crashes Trap left.narrow == right.narrow { true }
+         machine outer(mut pair: Both) -> bool crashes Trap { inner(pair.left, pair.right) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the mutable root still keeps the guarded route: {buckets:?}")
+    };
+    assert!(
+        identity.scalar_expression().is_none(),
+        "a mutable root keeps no entry-snapshot annotation: {buckets:?}"
     );
 }
