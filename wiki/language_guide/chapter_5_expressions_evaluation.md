@@ -204,6 +204,34 @@ encoding, and unique-borrow obligations.
 
 ## Indexing And Slices
 
+Indexing an attached machine borrows its receiver just like a method call:
+
+```omega
+data Buffer {
+    bytes: [u8; 4];
+}
+
+machine [] Buffer::at(&self, index: u64) -> u8
+requires index < 4
+{
+    self.bytes[index]
+}
+
+machine first(buffer: &Buffer) -> u8 {
+    buffer[0]
+}
+```
+
+`buffer[0]` supplies the same shared receiver as `buffer.at(0)`; no
+`(&buffer)[0]` spelling is required. An operation needing `&mut self` requires
+exclusive access and forms the corresponding receiver loan. Conflicting loans
+still reject. The index itself follows its parameter's ordinary ownership rules.
+
+This is receiver borrowing, not automatic borrowing of every operator operand.
+A first ordinary parameter is not a receiver just because it comes first.
+Index machines may return computed values, as above, or borrowed views; a
+value-returning getter does not by itself provide an assignable indexed place.
+
 ```omega
 let item: InventoryItem = items[index];
 let first: InventoryItem = items[0];
