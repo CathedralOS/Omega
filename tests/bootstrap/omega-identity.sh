@@ -73,13 +73,17 @@ do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/5_omega/README.md" ||
     fail "bootstrap/5_omega/README.md lacks bound record $needle"
 done
-for needle in "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256"
+for record in \
+  tests/bootstrap/omega-parser/gate.py \
+  tests/bootstrap/omega-outcome/gate.py \
+  tests/bootstrap/source-closure.py
 do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-parser/gate.py" ||
-    fail "omega-parser gate lacks bound record $needle"
-  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/source-closure.py" ||
-    fail "source-closure gate lacks bound record $needle"
+  for needle in "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256"
+  do
+    grep -q "$needle" "$OMEGA_REPO_ROOT/$record" ||
+      fail "$record lacks bound record $needle"
+  done
 done
-echo "records: bound identities match bootstrap/5_omega/README.md and the omega-parser and source-closure gates"
+echo "records: bound identities match bootstrap/5_omega/README.md and the omega-parser, omega-outcome, and source-closure gates"
 
 echo "Omega identity: bound closure materialized exactly; corrupted manifest and member refused"

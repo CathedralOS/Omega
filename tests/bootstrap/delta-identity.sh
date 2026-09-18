@@ -198,10 +198,32 @@ do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/3_delta/README.md" ||
     fail "bootstrap/3_delta/README.md lacks bound record $needle"
 done
-for needle in "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_PACKED_SHA256"
+for record in \
+  tests/delta/normalization/compiler.tsv \
+  tests/delta/internal-boundary/compiler.tsv \
+  tests/delta/resource-boundary/compiler.tsv \
+  tests/delta/frontend-boundary/run.sh \
+  tests/delta/request-boundary/run.sh \
+  tests/delta/generated-function-census/gate.py \
+  tests/delta/staged-compiler/run.sh \
+  tests/bootstrap/source-closure.py
 do
-  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/delta/normalization/compiler.tsv" ||
-    fail "normalization compiler.tsv lacks bound record $needle"
+  for needle in "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_PACKED_SHA256"
+  do
+    grep -q "$needle" "$OMEGA_REPO_ROOT/$record" ||
+      fail "$record lacks bound canonical-closure record $needle"
+  done
+done
+for record in \
+  tests/delta/staged-compiler/run.sh \
+  tests/bootstrap/source-closure.py
+do
+  for needle in \
+    "$DELTA_COMPILER_SUPPORT_PACKED_SIZE" "$DELTA_COMPILER_SUPPORT_PACKED_SHA256"
+  do
+    grep -q "$needle" "$OMEGA_REPO_ROOT/$record" ||
+      fail "$record lacks bound support-section record $needle"
+  done
 done
 for needle in \
   "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SIZE" \
@@ -218,9 +240,30 @@ do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/source-closure.py" ||
     fail "source-closure gate lacks packed development record $needle"
 done
+for needle in "147,607" "63948ee46d4bed10344cd8b3adbadda274370fe169cb141f485b8accc71c60a3"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/tests/delta/staged-compiler/README.md" ||
+    fail "staged-compiler README lacks packed development record $needle"
+done
+for needle in "$DELTA_COMPILER_PACKED_SHA256" "147,840" "2,998"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/bootstrap/3_delta/implementation/boundary/execution_storage.md" ||
+    fail "execution_storage.md lacks bound record $needle"
+done
+for needle in "$DELTA_COMPILER_SUPPORT_PACKED_SHA256" "2,998"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/EVALUATOR_PROFILE.md" ||
+    fail "4_epsilon EVALUATOR_PROFILE.md lacks bound support record $needle"
+done
+grep -q "147,840" \
+  "$OMEGA_REPO_ROOT/tests/gamma/product-comparison-experiment/README.md" ||
+  fail "product-comparison README lacks bound packed record 147,840"
 grep -q "$GAMMA_EVALUATOR_TAPE_SHA256" \
   "$OMEGA_REPO_ROOT/bootstrap/2_gamma/EVALUATOR_PROFILE.md" ||
   fail "EVALUATOR_PROFILE.md lacks bound evaluator identity"
-echo "records: bound identities match delta_compiler.composed, README.md, compiler.tsv, EVALUATOR_PROFILE.md, and the staged-compiler records"
+echo "records: bound identities match delta_compiler.composed, README.md, every gate record of the packed closure and support section, execution_storage.md, both EVALUATOR_PROFILE.md records, the staged-compiler records, and the product-comparison README"
 
 echo "Delta identity: bound closure materialized exactly; corrupted entry, manifest, member, record, and driver refused"
