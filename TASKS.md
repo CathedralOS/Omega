@@ -2310,43 +2310,72 @@ Owners include
   Cathedral's repository owns the real package. Do not add page-table or TLB
   types to the compiler.
 
-- **EXCEPTION-ROOTS-AND-TIMER.** Materialize all fatal exception entries,
-  dedicated critical stacks, IDT installation, and a minimal timer root whose
-  hard handler only acknowledges, records, and wakes ordinary work. Acceptance:
-  QEMU reports timer ticks over owned output and halts between ticks.
-  Landed at eb96f07190: `external-roots` `interrupt_table.rs` accounts one
-  descriptor table's complete declared member set — fatal exception entries on
-  their own dedicated critical stack classes plus acknowledged interrupts such
-  as the timer — over the installed-root ledger. Admission replays retained
+- **EXCEPTION-ROOTS-AND-TIMER.** Run Cathedral's fatal exception entries on
+  dedicated critical stacks, its descriptor-table installation, and a minimal
+  timer root whose hard handler only acknowledges, records and wakes ordinary
+  work, under [interrupt obligations](wiki/spec/build/interrupt_obligations.md)
+  and [hardware materialization](wiki/spec/build/hardware_materialization.md).
+  Cathedral owns exception coverage, gate and IST policy, the controller, the
+  timer device and the table's semantic validator. The compiler owns installed
+  root records, the generic checked writer, entry/exit realization and the
+  checked `lidt` contract.
 
-  installed-root records, requires interrupt-return exit, the exact declared
-  stack class, and the obligation's acknowledgement shape, and retains each
-  member's linear handle so entries cannot retire while the table holds them.
-  Publication is a separate edge requiring the complete declared set, an
-  established table value naming exactly those rows on this installed
-  realization, and a receipt for the exact issued carrier; refusal returns the
-  established value for retry and issued identities cannot be replayed.
-  Landed at 1cdd7e5ac9: the checked `lidt` provider edge is the sole
-  `InterruptTablePublicationReceipt` minting boundary — it replays the
-  exercised consumer authority's bound identity, installed-realization scope,
-  and both scope legs (processor table control plus table publication), then
-  replays the declared 10-byte pseudo-descriptor operand against the exact
-  established destination before minting; the answer accounts the operand
-  read, the `r10` scratch clobber, and the installed descriptor-table
-  register state on a published answer. Landed at b0debb7ae2: each
-  `InterruptTableMemberPlan` carries the consumer's declared gate
-  descriptor (code selector, gate kind, entry privilege, IST slot), the
-  complete ledger derives the checked post-handoff writer that resolves
-  each member's sealed entry target into the gate's three offset fragments
-  over a staged image carrying only declared constant fields, and
-  `InterruptTableLedger::validate_written_descriptor_table` replays the
-  produced bytes against that writer and installed realization, checks
-  selector/IST/attribute/reserved-zero fields and zero fill, joins each IST
-  slot through the installed TSS to its declared critical stack class, and
-  only then mints the established table (macOS ARM64, 202 `external-roots`
-  library tests). Remaining acceptance: the timer device source and the
-  QEMU tick/halt surface, which are Cathedral-owned package code over the
-  installed-root and table custody above, not compiler types.
+  `external-roots/src/interrupts/` holds Rust ledgers for entry admission,
+  nesting, epoch stages and settlement (`interrupt_entries.rs`) and for table
+  member admission, a derived gate-offset writer plan, written-table
+  validation, publication through the `lidt` edge and published-vector
+  dispatch (`interrupt_table.rs`). `core/interrupt.omg` declares the mask and
+  acknowledgement obligations, and the instruction catalog in
+  `language-core/src/inline_assembly/` holds the deriver-only `lidt` contract.
+  Every caller of those ledgers is a test inside `external-roots`. No authored
+  program installs an exception or timer root, no backend stage emits a
+  hardware entry/exit stub (`iretq` exists only in the instruction catalog),
+  and the repository has no QEMU harness.
+
+  Remaining work:
+
+  - Authored roots. Cathedral's fatal-exception and timer entry machines
+    install as external roots through target-declared requirements and provider
+    selection, with deriver-owned entry/exit code, critical-stack arrival and
+    [machine-state evidence](wiki/spec/build/machine_state_evidence.md) in the
+    emitted image. Owners: `backend/machine-emission`,
+    `calling-conventions/src/stack_realizations/` and `external-roots`.
+  - Descriptor table. Author it as an ordinary source layout whose split
+    entry-offset fields the generic post-handoff writer
+    (`executable-installation/src/executable_installation/post_handoff_writer.rs`)
+    materializes. The package's validator produces the established value and
+    the checked `lidt` provider edge publishes it. The flag below names the
+    ledger code this replaces.
+  - Timer. The device source, tick record and wake are package code. The
+    acknowledgement settles through `InterruptAcknowledgement::complete`, whose
+    LAPIC/x2APIC reach waits on `BOUNDED-INSTALLATION-REACH-ROWS`.
+  - Execution needs the post-exit environment from
+    `UEFI-PHYSICAL-SEMANTIC-ENTRY` and `UEFI-OS-HANDOFF`, stack bounds from
+    `TR3-TR8` and a QEMU harness. External interrupts stay disabled until the
+    complete exception floor is installed.
+
+  Acceptance: QEMU reports timer ticks over owned output and halts between
+  ticks, and at least one deliberately raised fault reaches its fatal entry on
+  its dedicated critical stack. Publication with a missing member, a table
+  written by another writer or realization, a replayed publication or
+  acknowledgement, a forgotten or double completion, and retirement of a root
+  the table still names reject. Rust ledger tests and emitted but uninstalled
+  stubs are not the witness.
+
+  Flag: `external-roots/src/interrupts/interrupt_table/` is a compiler-owned
+  Rust model of the x86-64 IDT. `InterruptTableGateDescriptor` carries selector,
+  gate kind, privilege and IST slot; `InterruptTableProfile` requires one
+  distinct dedicated stack class per vector;
+  `descriptor_table_staged_image` builds the table bytes; and
+  `validate_written_descriptor_table` decodes each gate, requires an IST slot
+  and mints `EstablishedInterruptTable`. Hardware materialization assigns that
+  validator and established value to the consumer package ("these policies are
+  not compiler-owned types"), and interrupt obligations says Omega does not
+  choose exception coverage or IST policy. No code outside the crate's tests
+  calls it. The general mechanism is a source-authored table layout, the
+  generic writer and a Cathedral validator; the compiler keeps root records,
+  the IST-to-stack-class join that stack selection derives, and the `lidt`
+  contract.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
