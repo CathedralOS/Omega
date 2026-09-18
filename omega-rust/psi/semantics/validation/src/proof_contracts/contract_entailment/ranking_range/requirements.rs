@@ -1,9 +1,9 @@
 //! Ordinary call requirements share exact arithmetic coordinates, not rank facts.
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
-    Polynomial, ProofFact, RankingRangeMeasure, SignatureContractKind, State,
+    Polynomial, ProofFact, RankingRangeMeasure, RankingRangeState, SignatureContractKind, State,
     StrictArithmeticBindingValue, TypedTrees, calls, collect_guard, comparison_proven,
-    field_coordinates, inductive_judgment, integer_bindings, lengths, meanings,
+    field_coordinates, fields, inductive_judgment, integer_bindings, lengths, meanings,
 };
 use field_coordinates::FieldCoordinates;
 
@@ -275,6 +275,39 @@ fn prove(
                         .find(|(symbol, _)| *symbol == parameter.symbol)
                         .map(|(_, identity)| Polynomial::atom(identity.clone()))
                 })
+        } else if let RankingRangeMeasure::Field { subject, measure } = measure {
+            // A field-view member's rank is the record's exact projection
+            // coordinate, telescoped from its entry formal onto the unique
+            // site carrier holding that role -- the same atom the member's
+            // own edge judgment re-establishes membership on at every
+            // internal arrival. Entry-spelled member chains inside the
+            // authored endpoints (`countdown.limit`) resolve at the entry
+            // scope and arrive on the same carrier, so their site atoms are
+            // what `normalize` reads below. A role with no unique carrier
+            // resolves nothing and the site abstains, as before.
+            program.machine_states(caller).first().and_then(|entry| {
+                let coordinate =
+                    fields::FieldCoordinate::resolve(program, entry, *subject, *measure)?;
+                let coordinate = coordinate.at_arrival(
+                    program,
+                    RankingRangeState {
+                        state: caller_state,
+                        entry_parameters,
+                    },
+                    coordinate.parameter.symbol,
+                )?;
+                let mut coordinates = FieldCoordinates::new(coordinate);
+                coordinates.install(
+                    program,
+                    caller_state,
+                    entry,
+                    Some(entry_parameters),
+                    &mut source_engine,
+                    &[range.start, range.end, *subject],
+                )?;
+                comparisons.extend(coordinates.comparisons(program));
+                coordinates.value()
+            })
         } else {
             calls::rank_coordinate(program, caller, &mut source_engine, *measure)
         };

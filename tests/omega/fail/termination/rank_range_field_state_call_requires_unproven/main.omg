@@ -1,0 +1,44 @@
+// FAIL CANARY. The field-measure member's proven range invariant supplies
+// exactly the comparisons it establishes: `0 <= pending.remaining <=
+// pending.limit` at `hold` does not prove `inner`'s strictly stronger
+// `requires current.remaining < current.limit`, so the subordinate call
+// still rejects on the ordinary contract side.
+
+data Countdown {
+    remaining: u64 [0..=9];
+    limit: u64 [0..=9];
+}
+
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(Countdown { remaining: 4, limit: 6 }) }
+}
+
+machine Main::outer(&mut self, countdown: Countdown)
+requires countdown.remaining <= countdown.limit;
+terminates by countdown -> Countdown::Remaining in 0..=countdown.limit;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> hold(countdown)
+        false -> countdown.remaining
+    }
+    state hold(pending: Countdown) {
+        transition pending.remaining > 0 {
+            true -> self.inner(pending)
+            false -> pending.remaining
+        }
+    }
+}
+
+machine Main::inner(&mut self, current: Countdown)
+requires current.remaining < current.limit;
+terminates by current -> Countdown::Remaining in 0..=current.limit;
+-> u64 {
+    transition current.remaining > 0 {
+        true -> self.outer(Countdown { remaining: current.remaining - 1, limit: current.limit })
+        false -> current.remaining
+    }
+}

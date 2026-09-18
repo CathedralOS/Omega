@@ -1,0 +1,49 @@
+// PASS CANARY. A ranged field-measure member's own proven invariant is
+// established site evidence at a subordinate call: `outer`'s judgment
+// re-proves `0 <= pending.remaining <= pending.limit` on every `hold`
+// arrival through the discovered `pending -> countdown` telescope, so
+// `inner`'s public `requires current.remaining <= current.limit` is
+// discharged without a respelled guard. The produced rank and the authored
+// endpoint are both field coordinates; each telescopes onto the record
+// formal carrying its entry role. The invariant never leaks the callee's
+// own requires or the caller's entry premise -- it is the membership fact
+// the member already proved.
+
+data Countdown {
+    remaining: u64 [0..=9];
+    limit: u64 [0..=9];
+}
+
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(Countdown { remaining: 4, limit: 6 }) }
+}
+
+machine Main::outer(&mut self, countdown: Countdown)
+requires countdown.remaining <= countdown.limit;
+terminates by countdown -> Countdown::Remaining in 0..=countdown.limit;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> hold(countdown)
+        false -> countdown.remaining
+    }
+    state hold(pending: Countdown) {
+        transition pending.remaining > 0 {
+            true -> self.inner(pending)
+            false -> pending.remaining
+        }
+    }
+}
+
+machine Main::inner(&mut self, current: Countdown)
+requires current.remaining <= current.limit;
+terminates by current -> Countdown::Remaining in 0..=current.limit;
+-> u64 {
+    transition current.remaining > 0 {
+        true -> self.outer(Countdown { remaining: current.remaining - 1, limit: current.limit })
+        false -> current.remaining
+    }
+}
