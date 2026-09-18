@@ -345,89 +345,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   stale frontier catalogs. Component, loop-carried custody, ranking,
   provenance, effect and fuel evidence all reconstruct after the move.
 
-## Lowering and instruction selection
-
-- **EXACT-SELECTION-FAMILIES.** Add address-mode folding, compare/branch
-  selection, extension elimination, and constant materialization one exact
-  named family at a time. Each family needs a disjoint source grammar,
-  independent validator, target applicability, corruption controls, and
-  publication replay. Resume evidence (verified at `8c0d4dbb45`, Linux
-  x86-64): the only existing family seam is the selected-lowering literal
-  fold in `selected-instructions-to-selected-instructions`
-  (`rewrites/selected_lowering/literal_fold`). It is not a general peephole:
-  it fires only from a pressure-recovery
-  `ImmediateU64RematerializationCandidate` with `Incoming` role, folds one
-  `MaterializeI64` into the `[left, result]` consumer at operand 1 with a
-  `Def` result and u12 immediate, and both `SelectedInstructionPairRule` and
-  the inline validator (`validate/replay.rs`) assume that shape. Compare with
-  a zero literal is already selected directly as `CompareI64Zero`
-  (`target-operations-to-selected-instructions` `zero_compare.rs`), so no
-  compare/zero fold has a customer. The next compare/branch family
-  (`CompareI64` + u12 literal → `CompareI64Immediate`) needs a new
-  `SelectedInstructionKind` across `selected-instructions`, both ISA encoders,
-  `register-environment`, selection identity, and the optimizer vocabulary,
-  plus a fold action for flag-defining consumers without a `Def` result.
-  Landed: the `CompareI64Immediate` kind and both encoders (x86-64 `cmp
-  r64,imm32`, AArch64 `subs xzr,xN,#imm12`; immediate domain is u12, semantic
-  tag 53), with canonical zero decode on AArch64 reusing `CompareI64Zero`,
-  and the compare fold family itself: `Optimization::
-  SelectedIncomingU12CompareImmediate` (tag 21) enables the
-  `COMPARE_IMMEDIATE_U12` pair rule, the flag-defining/no-`Def` fold action
-  (`LiteralFoldAction.result: Option`, codec v4), flag-shape immediate-row
-  validation in compute and independent replay, and firing/corruption/replay
-  coverage on both Linux targets. Selected-lowering selections now
-  execute through the common physical stages — the staging gate resolves the
-  exact catalog instead of rejecting the phase
-  (`native-realization/.../physical_pipeline/phase_selections.rs`), and fixed-frame
-  realization binds the completion identity and literal-fold transformation
-  ledger into the expected manifest
-  (`machine-emission/.../assembly/fixed_frame.rs`). Add, subtract, and compare
-  return-only builds replay to `ValidatedOptimizedProjection`, and a
-  boundary-operator program replays one exact physical child.
-  Landed: the extension-elimination family —
-  `Optimization::SelectedIncomingLiteralExtensionElimination` (tag 23)
-  enables `EXTENSION_V1` and the six `EXTENSION_LITERAL_FOLDS` unary pair
-  rules (`MaterializeI64` + `ZeroExtendU8`/`U16`/`U32` or
-  `SignExtendI8`/`I16`/`I32` → `MaterializeI64` of the folded output bits).
-  The catalog payload now names a slice of pair rules per selection, and
-  `PairOperandShape` (binary right-literal vs unary sole-operand) is a third
-  declared rule dimension beside result disposition and the unit-effect
-  surface. The independent replay re-derives the grammar, folded bits, and
-  materialized `IntegerValue` from the consumer kind and the surviving
-  result register's scalar type; a `windows_x86_64` return-only build
-  replays to `ValidatedOptimizedProjection`
-  (`compiler/tests/optimizer_extension_elimination.rs`). Landed: the
-  constant-materialization family —
-  `Optimization::SelectedIncomingLiteralCopyMaterialization` (tag 25)
-  enables `COPY_V1` and the `COPY_LITERAL_FOLD` unary pair rule
-  (`MaterializeI64` + `CopyI64` → `MaterializeI64` of the literal itself at
-  the copy's destination). The fold admits the full u64 literal domain — no
-  narrowing — so the copy's result register must admit the literal. The
-  independent replay binds the shared `MaterializeI64` constraint row under
-  a second policy-gated slot so a copy fold cannot replay under the
-  extension selection alone; a `windows_x86_64` return-only build replays to
-  `ValidatedOptimizedProjection`
-  (`compiler/tests/optimizer_copy_materialization.rs`). The deferred
-  `phase_selections/tests.rs` enable-list addition landed with it
-  (indexed-load and copy rows both listed now). Landed: the address-mode
-  folding family —
-  `Optimization::SelectedIncomingU12ByteViewAddressOffset` (tag 26)
-  enables `BYTE_VIEW_ADDRESS_V1` and the `BYTE_VIEW_ADDRESS_OFFSET_U12`
-  pair rule (`MaterializeI64` + `ByteViewAddress` → `AddressOffset` of the
-  folded offset): the projection's operand-1 `Use` is the folded literal,
-  its operand-0 `Use` base survives, and its operand-2 `Def` is the result.
-  Both forms are effect-isolated on x86-64 and AArch64, so the rule rides
-  the ordinary binary-right-literal grammar and isolated effect surface;
-  the declared u12 bound is the aarch64 `add`-immediate encoding limit.
-  The independent replay binds the `AddressOffset` row under its own
-  policy-gated slot and rebuilds the constant-offset form from the
-  consumer kind alone; a `windows_x86_64` return-only build replays to
-  `ValidatedOptimizedProjection`
-  (`compiler/tests/optimizer_byte_view_address_offset.rs`).
-  Remaining: none of the originally suggested families are outstanding;
-  any further family follows the same one-exact-named-family-at-a-time
-  contract.
-
 ## Register allocation and frames
 
 - **SPILL-REALIZATION.** Finish executable pressure recovery and join its
@@ -709,7 +626,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   descriptors under DECLARATIVE-PEEPHOLES instead of keeping a second
   producer.
 
-  EXACT-SELECTION-FAMILIES and DECLARATIVE-PEEPHOLES own the cataloged
+  DECLARATIVE-PEEPHOLES owns the cataloged
   pair-rule folds. ALIAS-AWARE-MEMORY owns the load, store and mutation
   rewrites in the same directory. PER-RULE-COVERAGE owns the disabled and
   downstream-replay legs once these rules are selectable.
