@@ -19,10 +19,10 @@ use isa_x86_64::{
 };
 use language_semantics::{CarryPolicy, DomainPredicateBody};
 use program_entry_plan::{
-    ProgramEntryPhysicalContractPlan, ProgramEntrySourceExtentValueLayout,
-    ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole,
-    SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,
-    bind_optimized_program_storage_semantic_entry_contract,
+    OptimizedProgramStorageSemanticCallingApplication, ProgramEntryPhysicalContractPlan,
+    ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
+    ProgramStorageEntryRootRole, SelectedProgramEntrySourceSignature,
+    SelectedProgramStorageEntryPlan, bind_optimized_program_storage_semantic_entry_contract,
     plan_optimized_program_storage_semantic_wrapper,
 };
 use symbols::SymbolHandle;
@@ -59,6 +59,13 @@ fn semantic() -> ValidatedBoundaryEntryPlan {
 fn wrapper() -> OptimizedProgramStorageSemanticWrapperPlan {
     let slot = target::TargetProfile::UefiX64.program_entry_slot();
     let semantic = semantic();
+    // Test-local calling-plan application identity, distinct from the raw
+    // validated plan's own report fingerprint and commitment digest.
+    let application = OptimizedProgramStorageSemanticCallingApplication::new(
+        &semantic,
+        0xC77A_CC11_1901_A003,
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([0xC3; 32]),
+    );
     let claim = |parameter_index| ServiceEntryClaim {
         parameter_index,
         carrier_identity: "named(name(Extent))".into(),
@@ -78,12 +85,8 @@ fn wrapper() -> OptimizedProgramStorageSemanticWrapperPlan {
                 parameter_count: 2,
                 parameter_type_identities: vec!["ImageExtent".into(), "StorageExtent".into()],
                 entry_claims: vec![claim(0), claim(1)],
-                calling_plan_report_fingerprint: Some(semantic.contract_report_fingerprint()),
-                calling_plan_commitment: Some(
-                    effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
-                        semantic.contract_commitment_digest(),
-                    ),
-                ),
+                calling_plan_report_fingerprint: Some(application.report_fingerprint()),
+                calling_plan_commitment: Some(application.commitment()),
                 ..Default::default()
             }],
             ..Default::default()
@@ -153,7 +156,7 @@ fn wrapper() -> OptimizedProgramStorageSemanticWrapperPlan {
         target::NativeTarget::uefi_x64(),
         &storage,
         &source,
-        semantic.plan(),
+        &application,
     )
     .unwrap();
     plan_optimized_program_storage_semantic_wrapper(contract).unwrap()

@@ -29,9 +29,10 @@ use optimization_core::{
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
 };
 use program_entry_plan::{
-    ProgramEntryPhysicalContractPlan, ProgramEntrySourceExtentValueLayout,
-    ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole,
-    SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,
+    OptimizedProgramStorageSemanticCallingApplication, ProgramEntryPhysicalContractPlan,
+    ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
+    ProgramStorageEntryRootRole, SelectedProgramEntrySourceSignature,
+    SelectedProgramStorageEntryPlan,
 };
 use program_entry_plan::{
     bind_optimized_program_storage_semantic_entry_contract,
@@ -74,6 +75,13 @@ fn encoding() -> StagedOptimizedProgramStorageSemanticWrapperEncoding {
         },
     )
     .unwrap();
+    // Test-local calling-plan application identity, distinct from the raw
+    // validated plan's own report fingerprint and commitment digest.
+    let application = OptimizedProgramStorageSemanticCallingApplication::new(
+        &semantic,
+        0xD66B_CC11_1901_A004,
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([0xD4; 32]),
+    );
     let claim = |parameter_index| ServiceEntryClaim {
         parameter_index,
         carrier_identity: "named(name(Extent))".into(),
@@ -93,12 +101,8 @@ fn encoding() -> StagedOptimizedProgramStorageSemanticWrapperEncoding {
                 parameter_count: 2,
                 parameter_type_identities: vec!["ImageExtent".into(), "StorageExtent".into()],
                 entry_claims: vec![claim(0), claim(1)],
-                calling_plan_report_fingerprint: Some(semantic.contract_report_fingerprint()),
-                calling_plan_commitment: Some(
-                    effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
-                        semantic.contract_commitment_digest(),
-                    ),
-                ),
+                calling_plan_report_fingerprint: Some(application.report_fingerprint()),
+                calling_plan_commitment: Some(application.commitment()),
                 ..Default::default()
             }],
             ..Default::default()
@@ -168,7 +172,7 @@ fn encoding() -> StagedOptimizedProgramStorageSemanticWrapperEncoding {
         NativeTarget::uefi_x64(),
         &storage,
         &source,
-        semantic.plan(),
+        &application,
     )
     .unwrap();
     crate::select_optimized_program_storage_semantic_wrapper_encoding(

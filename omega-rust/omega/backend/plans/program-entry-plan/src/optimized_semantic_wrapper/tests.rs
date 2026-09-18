@@ -7,10 +7,11 @@ use super::{
     validate_optimized_program_storage_semantic_wrapper,
 };
 use crate::{
-    ProgramEntryPhysicalContractPlan, ProgramEntrySourceExtentFieldRole,
-    ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
-    ProgramStorageEntryRootRole, SelectedProgramEntrySourceSignature,
-    SelectedProgramStorageEntryPlan, bind_optimized_program_storage_semantic_entry_contract,
+    OptimizedProgramStorageSemanticCallingApplication, ProgramEntryPhysicalContractPlan,
+    ProgramEntrySourceExtentFieldRole, ProgramEntrySourceExtentValueLayout,
+    ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole,
+    SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,
+    bind_optimized_program_storage_semantic_entry_contract,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValidatedBoundaryEntryPlan, ValueShape,
@@ -58,6 +59,13 @@ fn semantic() -> ValidatedBoundaryEntryPlan {
 fn contract() -> OptimizedProgramStorageSemanticEntryContract {
     let slot = target::TargetProfile::UefiX64.program_entry_slot();
     let semantic = semantic();
+    // Test-local calling-plan application identity, distinct from the raw
+    // validated plan's own report fingerprint and commitment digest.
+    let application = OptimizedProgramStorageSemanticCallingApplication::new(
+        &semantic,
+        0xB99A_CC11_1901_A002,
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([0xB2; 32]),
+    );
     let claim = |parameter_index| ServiceEntryClaim {
         parameter_index,
         carrier_identity: EXTENT_CARRIER.into(),
@@ -77,12 +85,8 @@ fn contract() -> OptimizedProgramStorageSemanticEntryContract {
                 parameter_count: 2,
                 parameter_type_identities: vec!["ImageExtent".into(), "StorageExtent".into()],
                 entry_claims: vec![claim(0), claim(1)],
-                calling_plan_report_fingerprint: Some(semantic.contract_report_fingerprint()),
-                calling_plan_commitment: Some(
-                    effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
-                        semantic.contract_commitment_digest(),
-                    ),
-                ),
+                calling_plan_report_fingerprint: Some(application.report_fingerprint()),
+                calling_plan_commitment: Some(application.commitment()),
                 ..Default::default()
             }],
             ..Default::default()
@@ -152,7 +156,7 @@ fn contract() -> OptimizedProgramStorageSemanticEntryContract {
         target::NativeTarget::uefi_x64(),
         &selected,
         &source,
-        semantic.plan(),
+        &application,
     )
     .unwrap()
 }

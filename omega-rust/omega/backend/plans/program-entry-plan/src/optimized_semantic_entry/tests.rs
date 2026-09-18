@@ -1,5 +1,6 @@
 use super::{
-    OptimizedProgramStoragePhysicalEntryDisposition, SelectedProgramEntrySourceSignature,
+    OptimizedProgramStoragePhysicalEntryDisposition,
+    OptimizedProgramStorageSemanticCallingApplication, SelectedProgramEntrySourceSignature,
     SelectedProgramStorageEntryPlan, bind_optimized_program_storage_semantic_entry_contract,
 };
 use crate::{
@@ -24,6 +25,26 @@ use symbols::SymbolHandle;
 const REQUIREMENT: &str = "ProgramStorageEntry::enter#exact";
 const IMAGE_TYPE: &str = "Extent in Granted#image";
 const STORAGE_TYPE: &str = "Extent in Granted#initial-storage";
+
+// Test-local calling-plan application identity. Production derives this pair
+// from the materialized source signature through the native binder's replayed
+// `BoundaryCallingPlanRealization`; what this leg pins down is that the schema
+// commits to the application pair, so it is deliberately distinct from the raw
+// validated plan's own report fingerprint and commitment digest.
+const APPLICATION_REPORT_FINGERPRINT: u64 = 0xA991_1CA7_10AB_1E00;
+const APPLICATION_COMMITMENT_BYTES: [u8; 32] = [0xA9; 32];
+
+fn semantic_application(
+    plan: &ValidatedBoundaryEntryPlan,
+) -> OptimizedProgramStorageSemanticCallingApplication<'_> {
+    OptimizedProgramStorageSemanticCallingApplication::new(
+        plan,
+        APPLICATION_REPORT_FINGERPRINT,
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+            APPLICATION_COMMITMENT_BYTES,
+        ),
+    )
+}
 
 fn semantic_plan(policy: CallingPolicy) -> ValidatedBoundaryEntryPlan {
     evaluate_ordinary_boundary_entry_plan(
@@ -76,7 +97,7 @@ fn claim(parameter_index: usize) -> ServiceEntryClaim {
     }
 }
 
-fn method(boundary: &ValidatedBoundaryEntryPlan) -> ServiceMethod {
+fn method(application: &OptimizedProgramStorageSemanticCallingApplication<'_>) -> ServiceMethod {
     ServiceMethod {
         name: PROGRAM_STORAGE_ENTRY_METHOD.into(),
         requirement_owner: PROGRAM_STORAGE_ENTRY_OWNER.into(),
@@ -84,12 +105,8 @@ fn method(boundary: &ValidatedBoundaryEntryPlan) -> ServiceMethod {
         parameter_count: 2,
         parameter_type_identities: vec![IMAGE_TYPE.into(), STORAGE_TYPE.into()],
         entry_claims: vec![claim(0), claim(1)],
-        calling_plan_report_fingerprint: Some(boundary.contract_report_fingerprint()),
-        calling_plan_commitment: Some(
-            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
-                boundary.contract_commitment_digest(),
-            ),
-        ),
+        calling_plan_report_fingerprint: Some(application.report_fingerprint()),
+        calling_plan_commitment: Some(application.commitment()),
         ..Default::default()
     }
 }
@@ -174,7 +191,8 @@ fn exact_inputs() -> (
     SelectedProgramEntrySourceSignature,
 ) {
     let semantic = semantic_plan(CallingPolicy::MicrosoftX64);
-    let selected = selected_with_method(method(&semantic), true);
+    let application = semantic_application(&semantic);
+    let selected = selected_with_method(method(&application), true);
     let source = source(
         ProgramEntrySourceReceiverSignature::Free,
         [
@@ -188,11 +206,12 @@ fn exact_inputs() -> (
 #[test]
 fn exact_receiver_free_uefi_contract_retains_only_semantic_planning() {
     let (semantic, selected, source) = exact_inputs();
+    let application = semantic_application(&semantic);
     let contract = bind_optimized_program_storage_semantic_entry_contract(
         target::NativeTarget::uefi_x64(),
         &selected,
         &source,
-        semantic.plan(),
+        &application,
     )
     .expect("exact semantic contract");
 
@@ -204,6 +223,14 @@ fn exact_receiver_free_uefi_contract_retains_only_semantic_planning() {
     assert_eq!(
         contract.semantic_calling_plan_report_fingerprint(),
         semantic.contract_report_fingerprint()
+    );
+    assert_eq!(
+        contract.semantic_calling_application_report_fingerprint(),
+        application.report_fingerprint()
+    );
+    assert_eq!(
+        contract.semantic_calling_application_commitment(),
+        application.commitment()
     );
     assert_eq!(
         contract.physical_disposition(),
@@ -247,11 +274,12 @@ fn exact_receiver_free_uefi_contract_retains_only_semantic_planning() {
 #[test]
 fn receiver_role_and_semantic_policy_drift_fail_closed() {
     let (semantic, selected, exact_source) = exact_inputs();
+    let application = semantic_application(&semantic);
     let error = bind_optimized_program_storage_semantic_entry_contract(
         target::NativeTarget::linux_x64(),
         &selected,
         &exact_source,
-        semantic.plan(),
+        &application,
     )
     .expect_err("non-UEFI target must reject");
     assert!(error.0.contains("exact UEFI x86-64"), "{error}");
@@ -269,7 +297,7 @@ fn receiver_role_and_semantic_policy_drift_fail_closed() {
         target::NativeTarget::uefi_x64(),
         &selected,
         &receiver,
-        semantic.plan(),
+        &application,
     )
     .expect_err("receiver-bound source must reject");
     assert!(error.0.contains("receiver-free Unit"), "{error}");
@@ -285,12 +313,13 @@ fn receiver_role_and_semantic_policy_drift_fail_closed() {
         target::NativeTarget::uefi_x64(),
         &selected,
         &swapped,
-        semantic.plan(),
+        &application,
     )
     .expect_err("swapped roots must reject");
     assert!(error.0.contains("exact by-value Extent"), "{error}");
 
     let sysv = semantic_plan(CallingPolicy::SystemVAMD64);
+    let sysv_application = semantic_application(&sysv);
     let source = source(
         ProgramEntrySourceReceiverSignature::Free,
         [
@@ -302,7 +331,7 @@ fn receiver_role_and_semantic_policy_drift_fail_closed() {
         target::NativeTarget::uefi_x64(),
         &selected,
         &source,
-        sysv.plan(),
+        &sysv_application,
     )
     .expect_err("SysV semantic plan must reject");
     assert!(error.0.contains("Microsoft-x64"), "{error}");
@@ -311,6 +340,7 @@ fn receiver_role_and_semantic_policy_drift_fail_closed() {
 #[test]
 fn exact_granted_claims_and_semantic_fingerprint_are_required() {
     let semantic = semantic_plan(CallingPolicy::MicrosoftX64);
+    let application = semantic_application(&semantic);
     let source = source(
         ProgramEntrySourceReceiverSignature::Free,
         [
@@ -319,24 +349,41 @@ fn exact_granted_claims_and_semantic_fingerprint_are_required() {
         ],
     );
     let mut variants = Vec::new();
-    let mut wrong_carrier = method(&semantic);
+    let mut wrong_carrier = method(&application);
     wrong_carrier.entry_claims[0].carrier_identity = "ExtentLookalike".into();
     variants.push(wrong_carrier);
-    let mut wrong_domain = method(&semantic);
+    let mut wrong_domain = method(&application);
     wrong_domain.entry_claims[0].domain = "Extent::Observed".into();
     variants.push(wrong_domain);
-    let mut bodyless = method(&semantic);
+    let mut bodyless = method(&application);
     bodyless.entry_claims[0].predicate_body = DomainPredicateBody::Bodyless;
     variants.push(bodyless);
-    let mut permissive = method(&semantic);
+    let mut permissive = method(&application);
     permissive.entry_claims[0].effective_carry = CarryPolicy::PERMISSIVE;
     variants.push(permissive);
-    let mut reordered = method(&semantic);
+    let mut reordered = method(&application);
     reordered.entry_claims.swap(0, 1);
     variants.push(reordered);
-    let mut stale = method(&semantic);
+    let mut stale = method(&application);
     stale.calling_plan_report_fingerprint = Some(1);
     variants.push(stale);
+    let mut stale_commitment = method(&application);
+    stale_commitment.calling_plan_commitment =
+        Some(effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([0x42; 32]));
+    variants.push(stale_commitment);
+    // The schema must commit to the calling-plan *application*, a different
+    // identity namespace than the raw validated ABI plan. A schema row carrying
+    // the plan's own report fingerprint and commitment digest is not exact
+    // source-application custody and must reject.
+    let mut raw_plan_namespace = method(&application);
+    raw_plan_namespace.calling_plan_report_fingerprint =
+        Some(semantic.contract_report_fingerprint());
+    raw_plan_namespace.calling_plan_commitment = Some(
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+            semantic.contract_commitment_digest(),
+        ),
+    );
+    variants.push(raw_plan_namespace);
 
     for method in variants {
         let selected = selected_with_method(method, true);
@@ -344,7 +391,7 @@ fn exact_granted_claims_and_semantic_fingerprint_are_required() {
             target::NativeTarget::uefi_x64(),
             &selected,
             &source,
-            semantic.plan(),
+            &application,
         )
         .expect_err("semantic claim or fingerprint drift must reject");
     }
@@ -353,7 +400,8 @@ fn exact_granted_claims_and_semantic_fingerprint_are_required() {
 #[test]
 fn paired_physical_plan_is_required_but_never_invoked() {
     let semantic = semantic_plan(CallingPolicy::MicrosoftX64);
-    let selected = selected_with_method(method(&semantic), false);
+    let application = semantic_application(&semantic);
+    let selected = selected_with_method(method(&application), false);
     let source = source(
         ProgramEntrySourceReceiverSignature::Free,
         [
@@ -365,7 +413,7 @@ fn paired_physical_plan_is_required_but_never_invoked() {
         target::NativeTarget::uefi_x64(),
         &selected,
         &source,
-        semantic.plan(),
+        &application,
     )
     .expect_err("missing physical pairing must reject");
     assert!(error.0.contains("paired physical plan"), "{error}");

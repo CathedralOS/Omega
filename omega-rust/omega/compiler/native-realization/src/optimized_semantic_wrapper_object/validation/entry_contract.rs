@@ -6,6 +6,7 @@ use crate::{
 };
 use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::{
+    OptimizedProgramStorageSemanticCallingApplication,
     OptimizedProgramStorageSemanticEntryContract,
     bind_optimized_program_storage_semantic_entry_contract,
     plan_optimized_program_storage_semantic_wrapper,
@@ -62,16 +63,35 @@ pub(crate) fn replay_semantic_contract(
     OptimizedProgramStorageSemanticWrapperObjectError,
 > {
     let semantic = settlement
-        .semantic_boundary_entry_plan()
+        .semantic_calling_application()
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans)?;
     let storage = settlement
         .storage_entry()
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans)?;
+    // Re-replay the retained calling application for this join rather than
+    // inheriting settlement custody unchecked: the schema commits to the
+    // application identity (requirement, target, source shape graph, ABI plan),
+    // never to the raw ABI plan, so the contract bind must receive the
+    // replayed application pair beside the exact canonical plan it covers.
+    let (validated_plan, report_fingerprint, commitment) = semantic
+        .replayed_validated_application()
+        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)?;
+    if semantic.report_fingerprint != report_fingerprint
+        || semantic.commitment != commitment
+        || semantic.exact_boundary_entry_plan() != validated_plan.plan()
+    {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract);
+    }
+    let application = OptimizedProgramStorageSemanticCallingApplication::new(
+        &validated_plan,
+        report_fingerprint,
+        commitment,
+    );
     let contract = bind_optimized_program_storage_semantic_entry_contract(
         settlement.target(),
         storage,
         settlement.source(),
-        semantic,
+        &application,
     )
     .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)?;
     let expected = plan_optimized_program_storage_semantic_wrapper(contract.clone())
