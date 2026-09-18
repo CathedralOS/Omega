@@ -960,6 +960,19 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "filesystem/native_wrapper_metadata",
     "filesystem/native_wrapper_try_exists",
     "filesystem/native_wrapper_write_all",
+    // Seven more of that family: each shifts a `widen_u8_to_i32`/`_u32` result
+    // by at most 8, so the decision-17 obligation became dischargeable once
+    // `source/library/core/numeric_conversion.omg` published `[0..=255]` on the
+    // u8 widening returns (255 << 8 is 65280). The eight that assemble a
+    // `struct stat` field with `widen_u8_to_i64(byte) << 56` stay off: that
+    // intermediate exceeds `i64` however the return range is written.
+    "filesystem/native_copy_preserve",
+    "filesystem/native_filetype",
+    "filesystem/native_fs_workflow",
+    "filesystem/native_metadata_nlink",
+    "filesystem/native_metadata_readonly",
+    "filesystem/native_open_create",
+    "filesystem/native_symlink_metadata",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
