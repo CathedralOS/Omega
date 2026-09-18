@@ -2523,6 +2523,13 @@ Owners include
   at source use, evaluation and lowering; proof-only references retain trust
   without creating runtime demand.
 
+  Preserve [call preconditions](wiki/spec/language/machines.md#call-preconditions)
+  during mathematical application and theorem citation, including logical
+  evidence supplied through binders. **OPERATOR-MACHINE-SUPPLY** owns the shared
+  call-checker repair and Nat migration below; general kernel integration must
+  retain premise evidence under exact substitution rather than restore a
+  proof-only exemption. Induction additionally needs its exact decreasing edge.
+
   Acceptance: actual proof scripts and false twins pass through source,
   Terminal serialization, and independent replay for all five cases:
 
@@ -3830,6 +3837,32 @@ Owners include
   exact semantic identities or reject stale schema artifacts explicitly; do
   not match a compiler primitive by leaf name or legacy declaration kind.
 
+  Enforce the common [call-precondition rule](wiki/spec/language/machines.md#call-preconditions)
+  in `typed-trees-to-checked-trees/src/checks/contracts.rs` and its mathematical
+  application/citation consumers. Remove the proof-to-proof exemption; repair
+  valid induction by carrying premises for the exact recursive arguments, not
+  by exempting recursive-component calls. Premise and descent obligations are
+  both checked; satisfying one does not automatically discharge the other.
+  Neither may rely on the current call's own conclusions. Automatic prover limits
+  cannot waive an obligation.
+
+  Migrate `core/nat.omg`'s `Nat::{subtract,less_or_equal}` to declaration-owned
+  machine bodies through that shared route. Exact subtraction retains
+  `right <= left`; the separate total `Nat::saturating_sub` keeps clamping.
+  Do not preserve a legacy operator-only prover or silently weaken exact
+  subtraction because the underlying helper is total.
+
+  Acceptance: retain `nat_exact_subtraction_requires_order` rejection and add
+  its named-call twin; both spellings accept with established order, including
+  equal operands and predecessor at one. Both reject absent order even when the
+  result is only mentioned in a proof term, discarded, or erased. Explicit
+  saturation accepts underflow and produces zero. Valid requires-bearing
+  induction still checks; a decreasing recursive call with an unmet premise and
+  a premise-satisfied call without descent both fail. Use a runtime-representable
+  contracted machine to check the same named/operator obligations across runtime,
+  admitted evaluation, and proof use; this does not grant recursive Nat a layout.
+  Preserve exact evidence and substitution through the applicable Terminal replay.
+
   Indexing uses [ordinary receiver borrowing](wiki/spec/language/expressions.md#indexing-and-ranges),
   not a new automatic borrow of every first operand. Wire attached `[]`/`[..]`
   receiver selection through the same loan formation as named method calls;
@@ -3952,10 +3985,9 @@ Owners include
   token-bearing `Item::Machine`; `core/nat.omg`'s
   `Nat::{subtract,less_or_equal}` satisfier pairs are ordinary
   proof-number operators with no catalog identity whose bodied migration
-  is design-blocked on the `proof-operator-requires-formation` owner
-  question (proof-to-proof calls are exempt from the `requires` prover,
-  so the formation-time premise the operator prover enforced would be
-  lost); the four `IndexAlgebra::plus` satisfier pairs in `generics/` are
+  awaits the shared call-precondition repair above (current proof-to-proof
+  exemption would lose the operator's formation premise); it is no longer
+  design-blocked. The four `IndexAlgebra::plus` satisfier pairs in `generics/` are
   the PDI3 open-index operation-contract slot, supplied today by an
   implicit unique-satisfier search over a bare `u64` tuple with no
   semantic home, and are design-blocked on the

@@ -23,6 +23,26 @@ or `const` machine species. Evaluation may erase execution but cannot change
 meaning. Logical conditions, mathematical abstractions, and compiler-owned
 proof term formers are not additional executable supply modes.
 
+## Call preconditions
+
+Every machine application establishes the selected contract's `requires` under
+the exact argument substitution. This applies equally to named and token-bound
+calls, runtime execution, compile-time evaluation, and mathematical use. A
+mathematical application must establish those premises before forming its result
+term, not only when importing `ensures`. An erased or discarded result does not
+waive the preconditions. A total implementation behind a restricted contract
+does not make that selected contract total over all inputs.
+
+The implementation establishes its result's validity and guarantees assuming its
+declared premises; the caller establishes those premises. Existing assumptions,
+guards, and checked evidence may discharge them. This obligation is not limited
+to conditions decidable by the current automatic prover: unavailable evidence
+prevents acceptance, but failed search does not establish falsity.
+
+Recursive proof applications must both establish the callee's substituted
+premises and satisfy the exact well-founded descent obligation. Neither condition
+substitutes for the other. See [citation and induction](../proofs/contracts.md#citation-and-induction).
+
 ## Supply
 
 | Supply | Source and obligation |

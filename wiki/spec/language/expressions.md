@@ -148,6 +148,13 @@ type may publish one canonical direct wrapper for a token/operand shape; a
 second wrapper with that shape rejects. Direct operators need no conformance
 selection.
 
+The selected machine's `requires` is a call obligation for both operator and
+named syntax, including proof-term formation. Resolution does not discharge it,
+and a proof-only caller cannot bypass it. Ordinary `Nat - Nat` and named
+`Nat::subtract` therefore require the same operand-order evidence; explicit
+saturating subtraction has its own total contract. See
+[call preconditions](machines.md#call-preconditions).
+
 ### Executable supply
 
 Operand-directed resolution selects a declaration. Its context fixes the supply
