@@ -120,6 +120,12 @@ fn validate_expression_call_bounds(
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if call.quotient_operation.is_some() {
+        // A sealed `Quotient` request is not an ordinary value call: the
+        // quotient formation and correspondence checks own its judgment.
+        // The outer scanner still visits the call's argument expressions.
+        return;
+    }
     let unit_statement = statement_root
         && crate::machine_calls::calls::unit_statement_call_is_supported(
             program,

@@ -569,11 +569,10 @@ struct CorpusFixture {
 /// and confirm each fixture's recorded fragment is actually produced.
 ///
 /// The compiler crate owns the canary roster, so this keeps the checked-in
-/// expectations honest from the crate that owns the judgment. Fixtures under
-/// `quotient_blocked_sources` are not corpus canaries: the compiler route
-/// rejects them earlier, at the sealed-namespace call resolution in
-/// `machine_calls`, so they pin their rule here until that resolution lands
-/// and they can move into `tests/omega/fail/proofs`.
+/// expectations honest from the crate that owns the judgment. All fixtures
+/// are corpus canaries under `tests/omega/fail/proofs`: the sealed `Quotient`
+/// namespace now reaches validation on the compiler route, so these pin
+/// their rule here AND through `omega --check`.
 const CORPUS_FIXTURES: &[CorpusFixture] = &[
     CorpusFixture {
         name: "quotient_define_transport_role_rejected",
@@ -605,53 +604,53 @@ const CORPUS_FIXTURES: &[CorpusFixture] = &[
     CorpusFixture {
         name: "quotient_theorem_result_bearing_rejected",
         source: include_str!(
-            "quotient_blocked_sources/quotient_theorem_result_bearing_rejected.omg"
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_result_bearing_rejected/main.omg"
         ),
         expected: include_str!(
-            "quotient_blocked_sources/quotient_theorem_result_bearing_rejected.expected.txt"
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_result_bearing_rejected/expected.txt"
         ),
     },
     CorpusFixture {
         name: "quotient_theorem_boundary_rejected",
-        source: include_str!("quotient_blocked_sources/quotient_theorem_boundary_rejected.omg"),
+        source: include_str!("../../../../../tests/omega/fail/proofs/quotient_theorem_boundary_rejected/main.omg"),
         expected: include_str!(
-            "quotient_blocked_sources/quotient_theorem_boundary_rejected.expected.txt"
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_boundary_rejected/expected.txt"
         ),
     },
     CorpusFixture {
         name: "quotient_congruence_substituted_rejected",
         source: include_str!(
-            "quotient_blocked_sources/quotient_congruence_substituted_rejected.omg"
+            "../../../../../tests/omega/fail/proofs/quotient_congruence_substituted_rejected/main.omg"
         ),
         expected: include_str!(
-            "quotient_blocked_sources/quotient_congruence_substituted_rejected.expected.txt"
+            "../../../../../tests/omega/fail/proofs/quotient_congruence_substituted_rejected/expected.txt"
         ),
     },
     CorpusFixture {
         name: "quotient_representative_admitted_closure_rejected",
         source: include_str!(
-            "quotient_blocked_sources/quotient_representative_admitted_closure_rejected.omg"
+            "../../../../../tests/omega/fail/proofs/quotient_representative_admitted_closure_rejected/main.omg"
         ),
         expected: include_str!(
-            "quotient_blocked_sources/quotient_representative_admitted_closure_rejected.expected.txt"
+            "../../../../../tests/omega/fail/proofs/quotient_representative_admitted_closure_rejected/expected.txt"
         ),
     },
     CorpusFixture {
         name: "quotient_theorem_admitted_closure_rejected",
         source: include_str!(
-            "quotient_blocked_sources/quotient_theorem_admitted_closure_rejected.omg"
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg"
         ),
         expected: include_str!(
-            "quotient_blocked_sources/quotient_theorem_admitted_closure_rejected.expected.txt"
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/expected.txt"
         ),
     },
     CorpusFixture {
         name: "quotient_transport_roles_reversed_rejected",
         source: include_str!(
-            "quotient_blocked_sources/quotient_transport_roles_reversed_rejected.omg"
+            "../../../../../tests/omega/fail/proofs/quotient_transport_roles_reversed_rejected/main.omg"
         ),
         expected: include_str!(
-            "quotient_blocked_sources/quotient_transport_roles_reversed_rejected.expected.txt"
+            "../../../../../tests/omega/fail/proofs/quotient_transport_roles_reversed_rejected/expected.txt"
         ),
     },
 ];

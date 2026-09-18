@@ -4875,17 +4875,18 @@ Owners include
   checking and source erasure cannot disagree about which row a request earns,
   and a selection whose representative or selected theorem has a transitive
   closure reaching an admitted or boundary machine rejects. Every request still
-  rejects, and admitting one needs three things: the sealed `Quotient`
-  namespace resolving in ordinary call and name validation (today
-  `machine_calls/machine_parameters.rs` reports "supplies static machine
-  arguments, but its generic callee did not resolve", the value-call path
-  resolves nothing, and expression scanning reports an undeclared `Quotient`),
-  a production caller of `install_non_executable_quotient_correspondences`,
-  and quotient handling in `typed-trees-to-checked-trees`, which bails out of
-  every value path carrying a quotient operation. Six rule sources wait on that
-  resolution in `validation/tests/quotient_blocked_sources`, where they pin
-  their rule from real source; the three the typing stage owns are corpus
-  canaries.
+  rejects, and admitting one needs two things: a production caller of
+  `install_non_executable_quotient_correspondences`, and quotient handling in
+  `typed-trees-to-checked-trees`, which bails out of every value path carrying
+  a quotient operation. The sealed `Quotient` namespace now reaches validation
+  on the compiler route: call lowering stores an invalid receiver and clears
+  `machine_arguments` on the request (the `Plan::place_private` precedent, so
+  MP2b no longer reads theorem selections as unresolved generic arguments), and
+  value-call scanning exits early on `quotient_operation` so the quotient
+  formation and correspondence checks own the judgment. The six rule sources
+  moved from `validation/tests/quotient_blocked_sources` to
+  `tests/omega/fail/proofs` and are corpus canaries; each produces its pinned
+  rejection through `omega --check`.
 
   Remaining after that: a canonical wire payload for congruence-only
   `lift<F, Congruence>`, whose language-semantics, codec, verifier and review
