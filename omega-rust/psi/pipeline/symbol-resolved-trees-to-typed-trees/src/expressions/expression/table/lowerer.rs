@@ -352,7 +352,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 }
                 let quotient_operation = self.lower_quotient_operation_request(call)?;
                 let private_layout_operation = self.lower_private_layout_operation_request(call)?;
-                let receiver = self.lower_optional(call.receiver)?;
+                let receiver = if quotient_operation.is_some() {
+                    // The `Quotient` receiver is the sealed namespace marker,
+                    // not a resolvable binding: retaining it as a dangling
+                    // Name would surface as an undeclared local downstream.
+                    typed::expression::ExpressionHandle::invalid()
+                } else {
+                    self.lower_optional(call.receiver)?
+                };
                 let arguments = self.lower_expression_handle_span(call.arguments)?;
                 let target_symbol = if !call.target_symbol.is_valid() {
                     self.program
@@ -368,9 +375,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 } else {
                     call.target_symbol
                 };
-                let machine_arguments = if private_layout_operation.is_some() {
+                let machine_arguments = if private_layout_operation.is_some()
+                    || quotient_operation.is_some()
+                {
                     // `Slot` is a sealed proof-static selector, not an
                     // ordinary generic parameter of the identity operation.
+                    // `Quotient` statics are the same shape: representative
+                    // and theorem selections are retained inside the sealed
+                    // request, and no resolvable generic callee exists to
+                    // bind them, so MP2b must not read them as generic
+                    // machine arguments.
                     Box::default()
                 } else {
                     call.machine_arguments
