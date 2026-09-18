@@ -164,16 +164,23 @@ pass canaries" rather than a failure: the family was inventoried through
 `fixture_rosters/native_filesystem_canaries.rs` but sat on no executing pass
 roster. With an ordinary build declaration and the `omega_language_std`
 alias, and with the core library's unsigned widening machines publishing
-their source carrier's range at 96c08b0109, 45 reach checked semantics and
-are registered in `CHECKED_ONLY_PASS_CANARIES`. The 9 left unregistered are
-`native_wrapper_write_all_result`, on **MATCH-SELECTIVE-LOWERING**'s
-value-dispatch pattern limit, and eight (`native_fstat`,
-`native_metadata_blocks`, `native_metadata_ctime_dev`, `native_metadata_ino`,
-`native_metadata_modified`, `native_metadata_times`, `native_set_times`,
-`native_stat`) that assemble a `struct stat` field with
-`widen_u8_to_i64(byte) << 56`, whose intermediate exceeds `i64` however the
-return range is written; those are unsound as authored and need the byte
-assembly re-spelled, not a further annotation.
+their source carrier's range at 96c08b0109, and with the eight `struct stat`
+byte-assembly fixtures re-spelled at 285da57703, 53 reach checked semantics
+and are registered in `CHECKED_ONLY_PASS_CANARIES`. The one left
+unregistered is `native_wrapper_write_all_result`, on
+**MATCH-SELECTIVE-LOWERING**'s value-dispatch pattern limit. The eight that
+assembled a field with `widen_u8_to_i64(byte) << 56`, and in three cases a
+32-bit field with `widen_u8_to_i32(byte) << 24`, were unsound as authored:
+those intermediates reach about 1.84e19 and 4.28e9 against `i64` and `i32`
+ceilings of about 9.22e18 and 2.15e9, which no return range can discharge.
+Each now assembles in the unsigned carrier of the field's own width, where
+every shifted byte is representable, and reinterprets once at the landing.
+
+`tests/omega/pass/filesystem/windows_set_file_time_exit` carries the same
+`widen_u8_to_i64(byte) << 56` idiom and was not repaired: its canary is
+Windows-gated, so neither its failure nor its repair can be measured on this
+host. The obligation is target-independent, so it should refuse the same way
+there, and the same unsigned-carrier re-spelling should close it.
 
 `proofs/proof_inductive_climbing_sum` left this set when its accumulator
 was bounded; the other four tests in the command pass, so the roster,
