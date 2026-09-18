@@ -2893,8 +2893,37 @@ Owners include
   pinned too, so it cannot reopen while the verifier stays correct
   (`terminal-codec/tests/canonical/structural_and_proposition_rows.rs`,
   which asserts the path-custody refusal that the codec's own foundation
-  validation raises rather than a verifier rejection). Remaining: the
-  control-flow call path beyond standalone entrances.
+  validation raises rather than a verifier rejection). The control-flow
+  call path landed at d844244bbb3: an exclusive borrowed view now reaches an
+  ordinary call from a non-entry block structural parameter, not only from the
+  machine entrance, so a caller-visible write lent along an edge has a lowering
+  at all. Three layers refused it and each is now symmetric with the shared
+  route it already carried. The unit graph's `CallUnit` arm routed to the
+  borrowed-call family only on a live structural home or an owned machine
+  parameter, so a block-view argument fell through to the unit family, which
+  resolves places against the parameter roster alone and reported an unknown
+  argument place; its routing guard now consults `live.block_views`, which
+  already tracked exclusive block parameters beside shared ones. `byte_argument`
+  gated its block-parameter route on a shared argument and required the
+  declaration itself to be shared; the root's own access now authorizes the
+  argument exactly as an incoming parameter does, so an exclusive block
+  parameter lends shared, exclusive or write-only and a shared one lends only
+  shared. Legalization's exclusive route resolved roots from
+  `caller.structural_parameters` alone and returned a custody mismatch for any
+  place absent from it; a non-entry block structural parameter now reconstructs
+  from the block declaration and the verifier-owned
+  `StructuralPlaceKind::BlockParameter` role, while entry-block rows keep the
+  entrance route that owns the published placement. The lowering comment
+  claiming exclusive views stay on their machine parameter was stale rather than
+  a contract: `mutable_parameter_view` already reconstructs exclusive
+  block-parameter views for byte writes. Witnessed on both Linux targets by
+  `an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects`
+  in `target-operations-to-selected-instructions/src/tests/legalization/unit_view_graph.rs`,
+  which pins the retained block-parameter source and mutable access through
+  legalization and its independent replay and keeps the shared-root rejection,
+  so the physical view alone never authorizes the access. Remaining: a projected
+  path from a block-parameter root, which the shared and exclusive routes both
+  still require to be empty.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing
@@ -3542,8 +3571,11 @@ Owners include
   wider carrier: exclusive (`&mut`) arms have affine custody of their own --
   "Exclusive carriers have affine custody even when their referent is
   unrestricted" -- case-bearing referents stay outside the record-shaped
-  frontier, and a fixed-index place (`&x.items[0]`) is not a direct place path,
-  so it never becomes a canonical root and path. The remaining linear
+  frontier, and a fixed-index place (`&x.items[0]`) fails
+  `expression_is_direct_place_path`, which admits only `Name`/`Member`, so it
+  never becomes a canonical root and path. Widening that shared predicate is not
+  a way around it: its only other two call sites are both inside that same
+  crate, so it would change that crate's behavior invisibly to its owners. The remaining linear
   join -- a whole affine root carrying linear children, moved whole -- is
   blocked on the receipt representation rather than on the admission gate. A
   linear-bearing affine root gets no whole-place claim entry at all:
