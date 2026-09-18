@@ -2169,17 +2169,17 @@ Owners include
   `Γ ⊢ t : ⟦goal⟧` and the kernel re-decides it, recording
   `MathematicalCoreDecision::Judged` with receipts measuring
   declarations, assumption closure, context depth and arena slots in
-  use after checking, or `Refused` for a rule family the denotation
-  does not cover, where the bounded rules stand alone. A covered
-  certificate the kernel rejects is rejected: the rule labels never
-  outvote the kernel. Authored theorem machines witness the route from
-  source through the canonical wire to a kernel judgment
+  use after checking, or `Refused` for a construction the denotation
+  cannot cross — the citation-level `Equal`↔`IntegerMathEqual` shape
+  change, where `Id` and the atom are different types and the bounded
+  rules stand alone. A covered certificate the kernel rejects is
+  rejected: the rule labels never outvote the kernel. Authored theorem
+  machines witness the route from source through the canonical wire to
+  a kernel judgment
   (`pass/proofs/kernel_theorem_equality_certificates` and its false
   twin), checked-only because native target lowering refuses a
-  bodyless theorem machine (`UnsupportedControlFlow`). Next, in order:
-  widen the denotation so `Refused` stops deciding most certificates,
-  each family arriving with its source customer; then an executed
-  kernel canary once the producer lowers a theorem machine.
+  bodyless theorem machine (`UnsupportedControlFlow`). Next: an
+  executed kernel canary once the producer lowers a theorem machine.
 
   Landed: the set-quotient scheme in
   `proof-admission/src/mathematical_core/quotient.rs` — the
@@ -2230,12 +2230,36 @@ Owners include
   scalar `Equal` as `Id` over a carrier assumption, connectives as
   `Σ`/tagged sums/`Π`, decided primitives as named decision
   assumptions) and re-decided by `verify_mathematical_certificate`;
-  uncovered rule families refuse `Unsupported` rather than
-  mis-deciding, separating source invalidity, unsupported encodings
-  and producer defects. The bounded checker's own rule families
-  each live beside their owner in `proof/`. Denoted discharge,
-  implication and equality certificates cross the canonical wire
-  and re-verify after decode.
+  the one crossing that refuses `Unsupported` is the citation-level
+  `Equal`↔`IntegerMathEqual` shape change, separating source
+  invalidity, unsupported encodings and producer defects. The
+  bounded checker's own rule families each live beside their owner
+  in `proof/`. Denoted discharge, implication, equality and
+  rule-instance certificates cross the canonical wire and re-verify
+  after decode.
+
+  Landed: every certificate rule family denotes. The integer order
+  rules, the affine/exact-add/cast/correlated-root bound witnesses,
+  predicate denotation, value-equality transport and the
+  `IntegerMath*`/`ContentConservation` transitivity arms each
+  re-decide their premise/conclusion relation through the shared
+  `pub(crate)` check the bounded traversal runs, then elaborate to a
+  *rule-instance decision*: an assumption constant of type
+  `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧` applied to the denoted
+  premise evidence — cited ambient axioms and assumptions bind as
+  further premises, so the judgment's assumption closure names each
+  instance's arithmetic or conversion content exactly. Malformed
+  relations still surface as the checker's own errors, never as
+  axioms. `accept_certificate_with_machine_parameters` threads the
+  verifier-reconstructed scalar signature roots through denotation
+  for the parameter-custody rules. Tests witness a weakening, a
+  transitivity, both denotation conversions and an order
+  substitution judged end to end, a rule-instance axiom surviving
+  the canonical wire byte-identically, the refusal boundary moved
+  to the normalized citation crossing, and every producer test
+  (`predicate_conversion`, `value_equality_transport`,
+  `integer_order_weakening`, …) now reading `Judged` where it read
+  `Refused`.
 
   Landed: the combined rule/encoding metatheory and implementation
   evidence in
