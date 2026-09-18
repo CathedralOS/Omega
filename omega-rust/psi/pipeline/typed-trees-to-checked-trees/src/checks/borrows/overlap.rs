@@ -139,15 +139,14 @@ fn captured_place_compatibility_from_selector_snapshot(
     })
 }
 
-pub(super) fn canonical_place_loan_compatibility(
-    program: &typed_trees::TypedTrees,
+/// Re-roots a canonical write/access place against the loan's root exactly as
+/// `canonical_place_loan_compatibility` judges the pair. Returns `None` for
+/// roots that cannot name a symbol place at all.
+pub(super) fn canonical_place_for_loan(
     place: &crate::flow::CanonicalPlace,
     loan: &checked_trees::BorrowLoanFact,
-    borrow: &checked_trees::BorrowFacts,
-    premises: &[StatedOrderingPremise],
-) -> checked_trees::CapturedPlaceCompatibility {
-    let right = captured_loan_place(borrow, loan);
-    let left = match place.root {
+) -> Option<checked_trees::CapturedPlace> {
+    match place.root {
         facts::PlaceRoot::Symbol(symbol) => {
             if symbol == loan.root_symbol {
                 Some(checked_trees::CapturedPlace {
@@ -187,20 +186,76 @@ pub(super) fn canonical_place_loan_compatibility(
         facts::PlaceRoot::Unknown
         | facts::PlaceRoot::Expression(_)
         | facts::PlaceRoot::TypeReference(_) => None,
-    };
-    let Some(left) = left else {
-        return checked_trees::CapturedPlaceCompatibility {
-            right,
-            ..Default::default()
+    }
+}
+
+/// Capture-session compatibility for one statement-mutated place against an
+/// active loan: the same left join and spatial judgment admission uses, with
+/// the selector snapshot and consumed premise tokens retained for replay.
+pub(super) fn canonical_place_loan_compatibility_with_selector_snapshot(
+    program: &typed_trees::TypedTrees,
+    place: &crate::flow::CanonicalPlace,
+    loan: &checked_trees::BorrowLoanFact,
+    borrow: &checked_trees::BorrowFacts,
+    premises: &[StatedOrderingPremise],
+) -> CapturedPlaceCompatibilityEvidence {
+    let right = captured_loan_place(borrow, loan);
+    let Some(left) = canonical_place_for_loan(place, loan) else {
+        return CapturedPlaceCompatibilityEvidence {
+            compatibility: checked_trees::CapturedPlaceCompatibility {
+                right,
+                ..Default::default()
+            },
+            selector_snapshot: Vec::new(),
+            premises: Vec::new(),
         };
     };
-    captured_place_compatibility(
+    captured_place_compatibility_with_selector_snapshot(
         program,
         &left,
         &checked_trees::BorrowAccessKind::Mutable,
         &right,
         &loan.kind,
         premises,
+    )
+}
+
+pub(super) fn canonical_place_loan_compatibility(
+    program: &typed_trees::TypedTrees,
+    place: &crate::flow::CanonicalPlace,
+    loan: &checked_trees::BorrowLoanFact,
+    borrow: &checked_trees::BorrowFacts,
+    premises: &[StatedOrderingPremise],
+) -> checked_trees::CapturedPlaceCompatibility {
+    canonical_place_loan_compatibility_with_selector_snapshot(
+        program, place, loan, borrow, premises,
+    )
+    .compatibility
+}
+
+/// Replays one judged captured-place/loan pair from its frozen selector
+/// snapshot. The left side arrives already re-rooted exactly as the retained
+/// certificate judged it; the right side is re-captured from the loan row.
+pub(super) fn captured_place_loan_compatibility_from_selector_snapshot(
+    program: &typed_trees::TypedTrees,
+    left: &checked_trees::CapturedPlace,
+    left_access: &checked_trees::BorrowAccessKind,
+    right: &checked_trees::BorrowLoanFact,
+    right_access: &checked_trees::BorrowAccessKind,
+    borrow: &checked_trees::BorrowFacts,
+    selector_snapshot: &[checked_trees::BorrowCompatibilitySelectorSnapshot],
+    premises: &[StatedOrderingPremise],
+    recorded_premises: &[checked_trees::BorrowCompatibilityPremise],
+) -> Result<checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
+    captured_place_compatibility_from_selector_snapshot(
+        program,
+        left,
+        left_access,
+        &captured_loan_place(borrow, right),
+        right_access,
+        selector_snapshot,
+        premises,
+        recorded_premises,
     )
 }
 

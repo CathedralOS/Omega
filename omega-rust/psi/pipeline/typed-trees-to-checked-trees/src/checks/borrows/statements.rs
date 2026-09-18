@@ -1,6 +1,7 @@
 use checked_trees::{
-    BorrowCompatibilityConclusion, BorrowCompatibilityDerivation, BorrowCompatibilityFormation,
-    CheckFacts, CheckedBorrowCompatibilityCertificate, FlowStateFact,
+    BorrowAccessKind, BorrowCompatibilityConclusion, BorrowCompatibilityDerivation,
+    BorrowCompatibilityFormation, CheckFacts, CheckedBorrowCompatibilityCertificate,
+    CheckedBorrowMutationCertificate, FlowStateFact,
 };
 use diagnostics::Diagnostic;
 
@@ -13,6 +14,8 @@ use super::overlap::{
     CompatibilityReplayDrift, StatedOrderingPremise,
     borrow_loan_compatibility_from_selector_snapshot,
     borrow_loan_compatibility_with_selector_snapshot, canonical_place_loan_compatibility,
+    canonical_place_loan_compatibility_with_selector_snapshot,
+    captured_place_loan_compatibility_from_selector_snapshot,
 };
 
 /// The replay evidence a retained certificate no longer reproduces.
@@ -27,6 +30,18 @@ fn compatibility_replay_diagnostic(drift: CompatibilityReplayDrift) -> Diagnosti
     }
 }
 
+/// The replay evidence a retained mutation certificate no longer reproduces.
+fn mutation_replay_diagnostic(drift: CompatibilityReplayDrift) -> Diagnostic {
+    match drift {
+        CompatibilityReplayDrift::SelectorSnapshot => Diagnostic::error(
+            "checked borrow mutation certificate selector snapshot drifted from its captured-place shape",
+        ),
+        CompatibilityReplayDrift::Premise => Diagnostic::error(
+            "checked borrow mutation certificate premise tokens drifted from their stated requires evidence",
+        ),
+    }
+}
+
 pub(super) fn check_statement_borrows(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -36,6 +51,9 @@ pub(super) fn check_statement_borrows(
     compatibility_certificates: &mut Vec<CheckedBorrowCompatibilityCertificate>,
     retained_compatibility_certificates: &[CheckedBorrowCompatibilityCertificate],
     retained_compatibility_certificates_consumed: &mut [bool],
+    mutation_certificates: &mut Vec<CheckedBorrowMutationCertificate>,
+    retained_mutation_certificates: &[CheckedBorrowMutationCertificate],
+    retained_mutation_certificates_consumed: &mut [bool],
     state_mutation_summaries: &StateMutationSummaryCache,
 ) {
     let Some(state) =
@@ -229,15 +247,102 @@ pub(super) fn check_statement_borrows(
             .borrow_loan_constraints(statement.entry_constraints)
         {
             let loan = facts.borrow.loans.get(loan_handle);
-            if canonical_place_loan_compatibility(
-                program,
-                &mutated_place,
-                loan,
-                &facts.borrow,
-                stated_premises,
-            )
-            .non_interfering
-            {
+            let retained =
+                retained_mutation_certificates
+                    .iter()
+                    .enumerate()
+                    .find(|(_, certificate)| {
+                        certificate.formation.machine_symbol == state_flow.machine_symbol
+                            && certificate.formation.state_symbol == state_flow.state_symbol
+                            && certificate.formation.statement_index == statement.statement_index
+                            && certificate.active_loan == loan_handle
+                            && facts
+                                .borrow
+                                .mutation_certificate_matches_resources(certificate)
+                    });
+            let (compatibility, selector_snapshot, premises) =
+                if let Some((retained_index, retained)) = retained {
+                    let Some(active_access) =
+                        facts.borrow.mutation_certificate_resource_access(retained)
+                    else {
+                        continue;
+                    };
+                    let compatibility =
+                        match captured_place_loan_compatibility_from_selector_snapshot(
+                            program,
+                            &retained.mutated_place,
+                            &BorrowAccessKind::Mutable,
+                            loan,
+                            active_access,
+                            &facts.borrow,
+                            &retained.selector_snapshot,
+                            stated_premises,
+                            &retained.premises,
+                        ) {
+                            Ok(compatibility) => compatibility,
+                            Err(drift) => {
+                                diagnostics.push(mutation_replay_diagnostic(drift));
+                                continue;
+                            }
+                        };
+                    retained_mutation_certificates_consumed[retained_index] = true;
+                    (
+                        compatibility,
+                        retained.selector_snapshot.clone(),
+                        retained.premises.clone(),
+                    )
+                } else {
+                    let evidence = canonical_place_loan_compatibility_with_selector_snapshot(
+                        program,
+                        &mutated_place,
+                        loan,
+                        &facts.borrow,
+                        stated_premises,
+                    );
+                    (
+                        evidence.compatibility,
+                        evidence.selector_snapshot,
+                        evidence.premises,
+                    )
+                };
+            if compatibility.non_interfering {
+                // A mutation carries no provenance edge: the pair is admitted
+                // only by the replayed non-interference verdict, and the
+                // retained certificate may record nothing more.
+                let certificate = CheckedBorrowMutationCertificate {
+                    formation: BorrowCompatibilityFormation {
+                        machine_symbol: state_flow.machine_symbol,
+                        state_symbol: state_flow.state_symbol,
+                        statement_index: statement.statement_index,
+                    },
+                    mutated_place: compatibility.left.clone(),
+                    active_loan: loan_handle,
+                    active_place: compatibility.right.clone(),
+                    selector_snapshot,
+                    derivation: if premises.is_empty() {
+                        BorrowCompatibilityDerivation::Structural
+                    } else {
+                        BorrowCompatibilityDerivation::Premised
+                    },
+                    premises,
+                    conclusion: BorrowCompatibilityConclusion {
+                        disjoint: compatibility.disjoint,
+                        containment: compatibility.containment,
+                        non_interfering: compatibility.non_interfering,
+                    },
+                };
+                debug_assert!(
+                    facts
+                        .borrow
+                        .mutation_certificate_matches_resources(&certificate),
+                    "automatic borrow mutation compatibility must retain the exact state-owned loan"
+                );
+                if facts
+                    .borrow
+                    .mutation_certificate_matches_resources(&certificate)
+                {
+                    mutation_certificates.push(certificate);
+                }
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
