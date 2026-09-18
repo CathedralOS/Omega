@@ -256,16 +256,17 @@ fn plain_local_owner_selection(
             let Some(reference) = declared_value_type(program, machine, state, expression) else {
                 return false;
             };
-            // A whole linear local or parameter joins the same way a plain
-            // affine source does; the multiplicity pass, not this predicate,
-            // enforces that the identical place moves on every reachable arm.
+            // A whole affine or linear local or parameter joins the same way a
+            // plain affine source does; the multiplicity pass, not this
+            // predicate, enforces that the identical place moves on every
+            // reachable arm. `affine_owned_value_source` keeps the numeric-owned
+            // walls while tolerating `[linear]` members: the root still moves
+            // whole, and the checker names each linear child's exact claim on
+            // the transfer instead of pretending the root is claim-free.
             let admitted_source = match program.type_multiplicity(reference) {
                 language_semantics::Multiplicity::Affine => {
-                    crate::plain_owned_value_source(program, expression, reference)
+                    crate::affine_owned_value_source(program, expression, reference)
                         == Some(path.symbol)
-                        && crate::has_plain_owned_contents_with_numeric_constraints(
-                            program, reference,
-                        )
                 }
                 language_semantics::Multiplicity::Linear => {
                     crate::linear_owned_value_source(program, expression, reference)

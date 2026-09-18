@@ -600,13 +600,15 @@ fn claim_outcomes_for_expression(
     }
 }
 
-/// A receipt'd selection produces its result claim at the join edge: each
-/// transfer names the consumed source claim that becomes the result's claim
+/// A receipt'd selection produces its result claims at the join edge: each
+/// transfer names the consumed source claims that become the result's claims
 /// on that edge, and uniform linear consumption means every edge maps the
-/// result to the same source place. A parameter source binds the caller's
-/// claim; a local source publishes the established identity the roster
-/// recorded. A fresh per-edge product establishes its claim inside the
-/// selection, so its origin is intentionally untracked.
+/// result to the same source places. A whole affine carrier contributes one
+/// entry per frontier claim, landing at the claim's position below the moved
+/// leaf. A parameter source binds the caller's claim at its exact input path;
+/// a local source publishes the established identity the roster recorded. A
+/// fresh per-edge product establishes its claim inside the selection, so its
+/// origin is intentionally untracked.
 fn claim_outcomes_for_owned_selection(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
@@ -631,28 +633,40 @@ fn claim_outcomes_for_owned_selection(
             continue;
         }
         let source = ownership.selection_sources.get(transfer.source);
-        let consumed_path = ownership.segments.span_or_empty(transfer.path);
-        let source = if program
+        let leaf_path = ownership.segments.span_or_empty(transfer.path);
+        let is_parameter = program
             .state_parameters(state)
             .iter()
-            .any(|parameter| parameter.symbol == source.symbol)
+            .any(|parameter| parameter.symbol == source.symbol);
+        for claim in ownership
+            .selection_transfer_claims
+            .span_or_empty(transfer.claims)
         {
-            CheckedClaimOutcomeSource::Input {
-                parameter_symbol: source.symbol,
-                path: consumed_path.to_vec(),
+            // The claim's consumed path is the leaf's moved path plus the
+            // claim's position below it; stripping the leaf prefix yields the
+            // result-relative path the claim lands at.
+            let claim_path = ownership.segments.span_or_empty(claim.path);
+            let suffix = claim_path.strip_prefix(leaf_path).unwrap_or(claim_path);
+            let mut output_path = output_prefix.to_vec();
+            output_path.extend_from_slice(suffix);
+            let source = if is_parameter {
+                CheckedClaimOutcomeSource::Input {
+                    parameter_symbol: source.symbol,
+                    path: claim_path.to_vec(),
+                }
+            } else {
+                CheckedClaimOutcomeSource::Established {
+                    claim_identity: claim.claim_identity,
+                    provenance: claim.provenance,
+                }
+            };
+            let entry = CheckedClaimOutcomeEntry {
+                output_path,
+                source,
+            };
+            if !entries.contains(&entry) {
+                entries.push(entry);
             }
-        } else {
-            CheckedClaimOutcomeSource::Established {
-                claim_identity: source.claim_identity,
-                provenance: source.provenance,
-            }
-        };
-        let entry = CheckedClaimOutcomeEntry {
-            output_path: output_prefix.to_vec(),
-            source,
-        };
-        if !entries.contains(&entry) {
-            entries.push(entry);
         }
     }
     if entries.is_empty() {

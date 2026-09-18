@@ -73,7 +73,7 @@ pub(super) fn is_record_value(
             ExpressionNode::StructLiteral(literal)
                 if literal.case_symbol.is_none() && literal.type_symbol == *symbol => {}
             ExpressionNode::Name(_)
-                if validation::plain_owned_value_source(program, expression, expected)
+                if validation::affine_owned_value_source(program, expression, expected)
                     .is_some() => {}
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
                 if shared_referent.is_none()
@@ -107,11 +107,10 @@ pub(super) fn is_record_value(
                 };
                 if program.normalized_type_identity(returned)
                     != program.normalized_type_identity(expected)
-                    || !(validation::has_plain_owned_contents_with_numeric_constraints(
-                        program, returned,
-                    ) || validation::reference_result_custody::is_reference_record(
-                        program, returned,
-                    ))
+                    || !(validation::has_linear_owned_contents(program, returned)
+                        || validation::reference_result_custody::is_reference_record(
+                            program, returned,
+                        ))
                 {
                     return false;
                 }
@@ -334,13 +333,11 @@ impl Builder<'_, '_> {
             let returned = crate::flow::call_target_return_type(self.program, call.target_symbol)?;
             if self.program.normalized_type_identity(returned)
                 != self.program.normalized_type_identity(expected)
-                || !(validation::has_plain_owned_contents_with_numeric_constraints(
-                    self.program,
-                    returned,
-                ) || validation::reference_result_custody::is_reference_record(
-                    self.program,
-                    returned,
-                ))
+                || !(validation::has_linear_owned_contents(self.program, returned)
+                    || validation::reference_result_custody::is_reference_record(
+                        self.program,
+                        returned,
+                    ))
             {
                 return None;
             }
@@ -695,10 +692,9 @@ impl Builder<'_, '_> {
         if !name.symbol.is_valid()
             || name.head_symbol != name.symbol
             || name.members.count() != 1
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
-                self.program,
-                expected,
-            )
+            // The same finite owned walls as plain storage, but a `[linear]`
+            // member rides as a claim the selection transfer names.
+            || !validation::has_linear_owned_contents(self.program, expected)
         {
             return None;
         }
@@ -775,10 +771,7 @@ impl Builder<'_, '_> {
         };
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
-                self.program,
-                reference,
-            )
+            || !validation::has_linear_owned_contents(self.program, reference)
             || !matches!(
                 self.program.type_reference_table.type_reference(reference),
                 typed_trees::types::TypeReferenceNode::Named { .. }

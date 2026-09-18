@@ -5,7 +5,7 @@ use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn type_carries_linear_obligation(
     program: &typed_trees::TypedTrees,
@@ -128,35 +128,6 @@ pub(crate) fn type_multiplicity(
     type_reference: TypeReferenceHandle,
 ) -> Multiplicity {
     program.type_multiplicity(type_reference)
-}
-
-pub(crate) fn type_multiplicity_with_substitutions(
-    program: &typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> Multiplicity {
-    if !type_reference.is_valid() {
-        return Multiplicity::Affine;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_multiplicity_with_substitutions(program, *base_type, substitutions)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_multiplicity_with_substitutions(program, *element_type, substitutions)
-        }
-        TypeReferenceNode::Named { symbol, .. } => substitutions
-            .iter()
-            .rev()
-            .find_map(|(parameter, replacement)| {
-                (*parameter == *symbol && *replacement != type_reference).then_some(*replacement)
-            })
-            .map(|replacement| {
-                type_multiplicity_with_substitutions(program, replacement, substitutions)
-            })
-            .unwrap_or_else(|| type_multiplicity(program, type_reference)),
-        _ => type_multiplicity(program, type_reference),
-    }
 }
 
 pub(crate) fn find_data_definition<'program>(

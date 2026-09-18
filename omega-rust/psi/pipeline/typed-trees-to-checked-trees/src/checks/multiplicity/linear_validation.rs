@@ -268,21 +268,44 @@ pub(crate) fn validate_linear_permission_events(
                     .span_or_empty(receipt.transfers)
                     .iter()
                     .filter(|transfer| transfer.source.is_valid())
-                    .map(|transfer| {
-                        (
-                            selected_replay
-                                .flow
-                                .ownership
-                                .selection_sources
-                                .get(transfer.source)
-                                .symbol,
-                            selected_replay
-                                .flow
-                                .ownership
-                                .segments
-                                .span_or_empty(transfer.path)
-                                .to_vec(),
-                        )
+                    .flat_map(|transfer| {
+                        let symbol = selected_replay
+                            .flow
+                            .ownership
+                            .selection_sources
+                            .get(transfer.source)
+                            .symbol;
+                        let claims = selected_replay
+                            .flow
+                            .ownership
+                            .selection_transfer_claims
+                            .span_or_empty(transfer.claims);
+                        if claims.is_empty() {
+                            vec![(
+                                symbol,
+                                selected_replay
+                                    .flow
+                                    .ownership
+                                    .segments
+                                    .span_or_empty(transfer.path)
+                                    .to_vec(),
+                            )]
+                        } else {
+                            claims
+                                .iter()
+                                .map(|claim| {
+                                    (
+                                        symbol,
+                                        selected_replay
+                                            .flow
+                                            .ownership
+                                            .segments
+                                            .span_or_empty(claim.path)
+                                            .to_vec(),
+                                    )
+                                })
+                                .collect()
+                        }
                     })
                     .collect()
             } else {
@@ -383,6 +406,28 @@ fn owned_selections_match(
                     != recorded.segments.span_or_empty(recorded_transfer.path)
             {
                 return false;
+            }
+            // The consumed claim set is part of the transfer's identity: a
+            // whole carrier's replay must reproduce the same ordered claim
+            // rows, each with the consumed place's own identity and
+            // provenance, or the recorded set was tampered with.
+            let replayed_claims = replay
+                .selection_transfer_claims
+                .span_or_empty(replayed_transfer.claims);
+            let recorded_claims = recorded
+                .selection_transfer_claims
+                .span_or_empty(recorded_transfer.claims);
+            if replayed_claims.len() != recorded_claims.len() {
+                return false;
+            }
+            for (replayed_claim, recorded_claim) in replayed_claims.iter().zip(recorded_claims) {
+                if replay.segments.span_or_empty(replayed_claim.path)
+                    != recorded.segments.span_or_empty(recorded_claim.path)
+                    || replayed_claim.claim_identity != recorded_claim.claim_identity
+                    || replayed_claim.provenance != recorded_claim.provenance
+                {
+                    return false;
+                }
             }
         }
     }

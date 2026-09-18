@@ -30,7 +30,10 @@ pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
 };
 pub use proof_contracts::domains::{scalar_state_contracts_are_qualifications, scalar_type_tags};
-pub use value_custody::owned_value_source::{linear_owned_value_source, plain_owned_value_source};
+pub use value_custody::claim_frontier::{ClaimFrontierClaim, linear_claim_frontier};
+pub use value_custody::owned_value_source::{
+    affine_owned_value_source, linear_owned_value_source, plain_owned_value_source,
+};
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::record_local_disposition::record_local_disposition;
 pub use value_custody::scalar_case_constructor::{

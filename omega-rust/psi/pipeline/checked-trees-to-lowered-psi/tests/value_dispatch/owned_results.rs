@@ -5,6 +5,8 @@
 mod call_product_arms;
 #[path = "owned_results/interleaved_and_projected_sources.rs"]
 mod interleaved_and_projected_sources;
+#[path = "owned_results/linear_child_carriers.rs"]
+mod linear_child_carriers;
 #[path = "owned_results/membership_subjects.rs"]
 mod membership_subjects;
 #[path = "owned_results/owned_match_records_and_selections.rs"]

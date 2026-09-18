@@ -494,3 +494,92 @@ fn whole_record_root_replay_rejects_same_carrier_source_substitution() {
             .contains("substituted its parameter")
     );
 }
+
+/// A whole affine carrier carrying `[linear]` children joins through the same
+/// ownership receipt: the transfer's claim set discharges every frontier
+/// child's exact claim on its edge. The recorded receipt replays cleanly, and
+/// a rewritten claim path, a swapped provenance, a dropped claim, or a
+/// duplicated claim row all disagree with the independently re-derived
+/// frontier. Claim identity itself is minted at checking, so the replayable
+/// contract here is path composition, count, and provenance — the checker's
+/// own replay owns identity comparison.
+#[test]
+fn carrier_selection_receipt_replay_rejects_mutated_claim_sets() {
+    use language_semantics::PermissionProvenance;
+    let checked = checked_source(
+        "data Token [linear] { code: u64; }
+         data Holder { left: Token; right: Token; }
+         machine Token::settle(self) {}
+         machine choose(selected: bool, x: Holder) -> u64 {
+             let picked: Holder = match selected { true -> x, false -> x };
+             Token::settle(picked.left);
+             Token::settle(picked.right);
+             0
+         }",
+    );
+    let receipt = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selections
+        .iter()
+        .next()
+        .map(|(_, receipt)| receipt.clone())
+        .expect("carrier selection receipt");
+    super::owned_selection::validate_receipt(
+        &checked,
+        receipt.machine,
+        receipt.state,
+        receipt.statement_ordinal,
+        &receipt,
+    )
+    .expect("the recorded carrier receipt replays");
+    for mutation in 0..4 {
+        let mut changed = checked.clone();
+        let ownership = &mut changed.facts.flow.ownership;
+        let transfer = receipt.transfers.start();
+        let claims = ownership.selection_transfers.get(transfer).claims;
+        match mutation {
+            // A claim's consumed path is exact source-place identity.
+            0 => {
+                let path = ownership.selection_transfer_claims.get(claims.start()).path;
+                *ownership.segments.get_mut(path.start()) =
+                    facts::PlaceSegment::FixedIndex { index: 0 };
+            }
+            // A duplicated row can never match the distinct second frontier
+            // path the leaf type requires.
+            1 => {
+                let first = ownership.selection_transfer_claims.get(claims.start()).path;
+                ownership
+                    .selection_transfer_claims
+                    .get_mut(arena::Handle::from_parts(
+                        claims.start().arena_index() + 1,
+                        claims.start().generation(),
+                    ))
+                    .path = first;
+            }
+            // The consumed place's establishment provenance rides the row.
+            2 => {
+                ownership
+                    .selection_transfer_claims
+                    .get_mut(claims.start())
+                    .provenance = PermissionProvenance::Unknown;
+            }
+            // Dropping a claim silently keeps one child live to scope exit.
+            _ => {
+                ownership.selection_transfers.get_mut(transfer).claims = arena::HandleSpan::empty();
+            }
+        }
+        assert!(
+            super::owned_selection::validate_receipt(
+                &changed,
+                receipt.machine,
+                receipt.state,
+                receipt.statement_ordinal,
+                &receipt,
+            )
+            .is_err(),
+            "claim mutation {mutation} accepted"
+        );
+    }
+}
