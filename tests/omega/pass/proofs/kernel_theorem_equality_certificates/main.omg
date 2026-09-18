@@ -7,11 +7,11 @@
 // `Γ ⊢ t : ⟦goal⟧` and checked by the kernel at admission, never accepted
 // on the bounded rule labels alone. `main` cites both theorems at closed
 // arguments so product pruning retains them; the citations' `requires`
-// (`3 == 3`) are closed primitive judgments and the calls erase at
-// runtime. False twin: fail/proofs/kernel_theorem_equality_false_twin.
-// Checked-only: native target lowering refuses a bodyless theorem machine
-// (`UnsupportedControlFlow`), so this fixture pins the admission claim and
-// not an executed one.
+// (`3 == 3`) are closed primitive judgments and the theorem citations
+// lower as ordinary Unit calls carrying their discharged obligation
+// identities as proof metadata; `omega-rust/.../proof_kernel_canaries.rs`
+// interprets, natively runs, and cross-compiles this fixture to exit 70.
+// False twin: fail/proofs/kernel_theorem_equality_false_twin.
 use omega_language_std::console;
 data Main { console: Console; }
 
