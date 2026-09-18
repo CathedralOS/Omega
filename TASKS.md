@@ -826,46 +826,38 @@ Owners include
   entry. Rust ledger tests and a selected bodyless provider are not execution
   evidence; do not hide the protocol in a destructor or special multi-call leaf.
 
-- **AP-BRINGUP.** Complete Cathedral's secondary-processor startup through
-  ordinary checked machines and a selected hardware boundary provider under
-  [the startup contract](wiki/spec/build/external_roots.md#secondary-processor-startup).
-  Cathedral owns discovery, boot-protocol sequencing, acknowledgement, retry,
-  and cancellation. The compiler owns entry, placement, resource and evidence
-  checking, not an APIC/firmware startup driver. No owner decision remains.
+- **AP-BRINGUP.** Execute Cathedral's secondary-processor startup under the
+  [startup contract](wiki/spec/build/external_roots.md#secondary-processor-startup).
+  Cathedral owns discovery, dispatch, acknowledgement, retry and cancellation;
+  selected hardware boundaries supply explicit premises. The compiler checks
+  installed entry, placement, resources and evidence, not an APIC/firmware driver.
 
-  Start from
-  `omega-rust/omega/backend/runtime/external-roots/src/platform_bringup/secondary_processor.rs`.
-  Reuse its installed-code, per-processor stack/state, invocation and retirement
-  joins, but replace the ambiguous `started: bool` completion:
-  definitely-not-dispatched may become withdrawable; possibly-dispatched without
-  confirmation must retain all custody; confirmed arrival names the exact
-  invocation and installed entry. Establish arrival by a checked consumer
-  handshake or an explicitly admitted provider contract, not a sender's claim
-  that it issued the request. Source construction of a success record alone
-  must not supply authority.
+  Repair `external-roots/src/platform_bringup/secondary_processor.rs` before
+  using its ledger in the authored route. `complete_secondary_processor_startup`
+  currently maps `started: false` back to withdrawable `Pending`; the refusal
+  regression also permits a fresh invocation. Replace that ambiguous Boolean
+  with distinct definite nondispatch, possible dispatch/unconfirmed arrival, and
+  exact confirmed arrival. Only definite nondispatch permits immediate withdrawal.
+  Timeout cannot release stack/state/code or erase an outstanding attempt.
 
-  Add settlement for unconfirmed attempts: the current retirement API requires
-  `SecondaryProcessorStarted`, so it cannot release them safely. Release only
-  after establishing no current resource use and no possible later arrival from
-  the outstanding attempt. Do not turn timeout into refusal or retry under a new
-  identity while forgetting the old attempt. An arrival/cancellation race must
-  never both release the account and admit execution on it.
+  Add cancellation/settlement without requiring `SecondaryProcessorStarted`:
+  establish both no current use and no possible late arrival before release.
+  Confirmation must come from a checked handshake or admitted provider guarantee
+  bound to the exact invocation/entry, not construction of a success record.
+  Preserve atomic custody across acknowledgement/cancellation races.
+  `BOUNDARY-ISSUANCE` owns the general issuance review, not this concrete repair.
 
-  Bind the provider-declared profile to its exact selected contract and admitted
-  resources. Low-memory/vector geometry applies only to mechanisms requiring
-  it; do not claim that all firmware or other wake mechanisms already fit the
-  current trampoline carrier. A new provider is not a new compiler boot driver.
-  General receipt-issuance review stays in BOUNDARY-ISSUANCE; this task must still
-  enforce the concrete AP issuance and completion contract.
+  Reuse installed-code, per-processor stack/state and retirement joins. Bind the
+  provider-declared profile to its selected contract; low-memory/vector geometry
+  is mechanism-specific, not a universal startup model. Do not add a compiler
+  boot driver to support another provider.
 
-  Acceptance: an authored Cathedral startup route reaches the installed entry
-  with dedicated, nonoverlapping stack/state and placed-byte visibility.
-  Exercise definite nondispatch, timeout followed by late arrival, safe
-  cancellation without a prior success record, acknowledgement/cancellation
-  races, stale/foreign/replayed confirmation, conflicting resources, and
-  retirement. Code and resources stay held while any admitted attempt can
-  reach them. An emitted trampoline or fabricated Rust receipt alone is not
-  the customer witness.
+  Acceptance: authored Cathedral startup reaches the installed entry with visible
+  placed bytes and dedicated nonoverlapping resources. Check definite nondispatch,
+  timeout then late arrival, cancellation before confirmation, arrival/cancellation
+  races, stale/foreign/replayed evidence, resource conflicts and retirement.
+  Resources remain held while any admitted attempt can reach them. An emitted
+  trampoline or a Rust test constructing receipts is not the customer witness.
 
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Carry one real
   content-bearing program through checked source, Terminal Psi, provider
