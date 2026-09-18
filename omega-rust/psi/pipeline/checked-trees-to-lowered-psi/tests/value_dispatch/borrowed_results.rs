@@ -209,10 +209,9 @@ const RECORD_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
         read(view)
     }";
 
-/// The same forwarding without a selection is a different gap, not this
-/// lane: a bare `&a` initializer is admitted by neither the structural-value
-/// planner nor the checked statement shape, so the unit never reaches a call
-/// consumer plan at all. The fixture keeps that boundary visible.
+/// The same forwarding without a selection: a bare `&a` initializer
+/// establishes the shared-borrow carrier directly, so the call observes the
+/// local's exact place without a join in between.
 const DIRECT_FORWARD_SOURCE: &str = "data Payload { left: u64; right: u64; }
     machine read(value: &Payload) -> u64 { value.left ^ value.right }
     machine choose() -> u64 {
@@ -372,29 +371,23 @@ fn borrowed_selection_call_consumer_forwards_the_established_view() {
     );
 }
 
-/// A non-selection `let view: &Payload = &a` establishment is still outside
-/// the checked unit shape: it produces no structural-value root or
-/// construction-local custody, so the call statement never plans a control
-/// lane. That is a checker-side admission boundary, not a lowered-consumer
-/// gap -- this pins it so the selection join above is not read as silently
-/// admitting every borrowed local into calls.
+/// A non-selection `let view: &Payload = &a` establishment produces the same
+/// `SharedBorrow` `Reference` root a selection arm does, so the checked unit
+/// sequence emits its `EstablishStructuralValue` and the forwarded `read(view)`
+/// call observes the exact borrowed place end to end.
 ///
-/// The pin is precise about which side is missing. Everything downstream of
-/// the establishment already checks: the loan `view` takes on `a` is recorded
-/// for exactly its live range, and the `read(view)` call's scalar computation
-/// already plans `view` as a `SharedBorrow` `StructuralLocal` argument through
-/// the shared nominal-argument lane. What does not exist is the establishment
-/// itself: the `&a` initializer is a bare `ExpressionNode::Borrow`, which the
-/// structural-value driver's `is_record_value` gate admits only beneath a
-/// `Match`, so no `Reference` root is built for the statement. Without that
-/// root both control lanes reject upstream of lowering:
-/// `has_statement_shape`/`has_structural_result` find no root and produce no
-/// `terminal_unit_effects` plan, and `retain_record_locals`/`record_value_root`
-/// -- which admit only `Record` and owned `Place` kinds anyway -- produce no
-/// `terminal_scalar_graphs` plan. `choose` therefore reaches lowering with
-/// zero checked plans and stops at the dispatch's final lookup.
+/// Everything downstream of the establishment was already in place: the loan
+/// `view` takes on `a` is recorded for exactly its live range, and the
+/// `read(view)` call's scalar computation already plans `view` as a
+/// `SharedBorrow` `StructuralLocal` argument through the shared
+/// nominal-argument lane. What the driver was missing is the establishment
+/// itself: the `&a` initializer is a bare `ExpressionNode::Borrow`, which only
+/// `borrowed_place` can plan -- `is_shared_borrow_value` now routes a
+/// `LocalData` bare-`Borrow` initializer with a `shared_record_reference`
+/// carrier through it, so the statement gains its `Reference` root and the
+/// unit-effect lane covers `choose`.
 #[test]
-fn established_reference_local_call_rejection_pins_the_checker_gap() {
+fn established_reference_local_call_forwards_the_direct_borrow() {
     let checked = check_source(DIRECT_FORWARD_SOURCE).expect("direct borrowed local checks");
     let (view_statement, view_symbol) = local(&checked, "view");
     let machine = checked
@@ -491,40 +484,61 @@ fn established_reference_local_call_rejection_pins_the_checker_gap() {
     );
     assert!(argument.path.is_empty());
 
-    // The missing half is the establishment: `&a` is a bare `Borrow`
-    // initializer, which never reaches `borrowed_place` behind the
-    // `is_record_value` gate, so no `Reference` root exists for the statement
-    // and no control plan covers `choose` at all.
+    // The establishment itself now plans: `&a` produces a `Reference` root at
+    // the statement whose `SharedBorrow` source names the exact local `a`
+    // with no projection, exactly as a selection arm's `&a` would.
+    let root = checked
+        .facts
+        .values
+        .structural_values
+        .root_at(state.symbol, u32::try_from(view_statement).unwrap())
+        .expect("a bare `&a` initializer produces a structural-value root");
+    let node = checked.facts.values.structural_values.nodes.get(root.root);
+    let checked_trees::CheckedStructuralValueKind::Reference { source } = &node.kind else {
+        panic!("the direct borrow establishes a shared-borrow reference: {node:?}");
+    };
     assert_eq!(
-        checked
-            .facts
-            .values
-            .structural_values
-            .root_at(state.symbol, u32::try_from(view_statement).unwrap()),
-        None,
-        "a bare `&a` initializer has no structural-value root"
+        source.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: a_symbol
+        },
+        "the borrowed establishment names its exact local"
     );
+    assert_eq!(
+        source.access,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+    );
+    assert!(source.path.is_empty(), "a whole-place borrow has no path");
+
+    // The unit-effect lane carries `choose` end to end. The scalar-graph lane
+    // still does not retain a `Reference` root, exactly as a selection join's
+    // `Dispatch` root stays outside `record_value_root`.
     assert!(
         checked
             .facts
             .flow
             .terminal_unit_effects
             .for_machine(machine.symbol)
-            .is_none()
-            && checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .for_machine(machine.symbol)
-                .is_none(),
-        "choose has no unit-effect or scalar-graph plan to lower"
+            .is_some(),
+        "choose has a unit-effect plan to lower"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine.symbol)
+            .is_none(),
+        "choose still has no scalar-graph plan"
     );
 
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
-        .expect_err("a bare `&a` establishment has no checked unit plan yet");
+    // `read(view)` observes the exact borrowed place: `a` is copied nowhere
+    // and the call reads `1 ^ 2` through the established view.
+    let (_, execution) = execute(DIRECT_FORWARD_SOURCE, &[]);
     assert_eq!(
-        format!("{error:?}"),
-        r#"Unsupported("machine has no source-independent checked scalar control plan")"#
+        execution.value(),
+        TerminalExecutionResult::Scalar(unsigned(3)),
+        "the forwarded direct borrow executes"
     );
 }
 

@@ -128,6 +128,32 @@ pub(super) fn is_record_value(
     true
 }
 
+/// A `let view: &T = &place` establishment admits the same shared-borrow
+/// carrier a selection arm does, at statement scope: the referent's owner is
+/// never moved, and `borrowed_place` rebuilds the authored target's canonical
+/// root and path into a `SharedBorrow` source. This is the driver's
+/// pre-classification only -- `borrowed_place` re-checks every condition when
+/// constructing the node, and it does no plan mutation before that admission,
+/// so a rejected borrow still leaves no partial structural plan.
+pub(super) fn is_shared_borrow_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    borrow.access == language_semantics::ReferenceAccess::Shared
+        && shared_record_reference(program, expected).is_some_and(|referent| {
+            crate::flow::canonical_place_from_expression(program, borrow.target)
+                .is_some_and(|place| canonical_place_is_borrowable(&place))
+                && borrowed_place_leaf_type(program, borrow.target).is_some_and(|leaf| {
+                    program.normalized_type_identity(leaf)
+                        == program.normalized_type_identity(referent)
+                })
+        })
+}
+
 /// The referent of a shared-borrow result type (`&T` where `T` is a named
 /// record, or a primitive, that the structural pipeline can carry). `None` for
 /// owned results and for borrows the structural pipeline cannot carry. The

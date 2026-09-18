@@ -210,21 +210,35 @@ pub(crate) fn emit(
         owners,
         result_access,
     };
-    let place = emission.value(*value, None)?;
     let place = if emission.sources.is_empty()
-        && matches!(
-            checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .get(*value)
-                .kind,
-            CheckedStructuralValueKind::Place(_)
-        ) {
-        emission.materialize_place(place)?
+        && let CheckedStructuralValueKind::Reference { source } = &checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get(*value)
+            .kind
+        && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+    {
+        emission.direct_borrow(source)?
     } else {
-        place
+        let place = emission.value(*value, None)?;
+        if emission.sources.is_empty()
+            && matches!(
+                checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(*value)
+                    .kind,
+                CheckedStructuralValueKind::Place(_)
+            )
+        {
+            emission.materialize_place(place)?
+        } else {
+            place
+        }
     };
     // Private arm producers are not authored result ordinals. Publish exactly
     // one completed place for this binding, whether a direct producer or join.
@@ -1159,6 +1173,72 @@ impl Emission<'_, '_, '_> {
                 });
             self.rebind_local_cases()?;
         }
+        *self.values = continuation.parameters.clone();
+        self.evaluation.parameters = continuation.parameters;
+        self.evaluation.block_structural_parameters = continuation.structural_parameters;
+        Ok(place)
+    }
+
+    /// A `let view: &T = &place` establishment carries the same borrowed
+    /// custody a selection arm does, but there is no dispatch to join through:
+    /// the result still binds at a fresh block parameter so the sole incoming
+    /// edge can present the exact borrowed referent place. No owner moves and
+    /// no residual dies on that edge -- the referent's owner stays live under
+    /// the shared loan the joined parameter records, exactly as it does for
+    /// every arm of a borrowed selection.
+    fn direct_borrow(
+        &mut self,
+        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<PlaceId, LoweringError> {
+        if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
+            return unsupported("borrowed establishment changed its referent type");
+        }
+        let argument =
+            crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                .with_structural_parameters(&self.evaluation.structural_parameters)
+                .with_structural_locals(&self.evaluation.structural_locals)
+                .shared_structural_argument(source)?;
+        let join = block_id(allocate_dense(self.next_block)?);
+        let place = place_id(allocate_dense(self.next_place)?);
+        let position = 0u32;
+        self.temporary_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: join,
+                position,
+            },
+        });
+        let structural_parameters = vec![StructuralParameterDeclaration {
+            place,
+            position,
+            is_self: false,
+            structural_type: self.structural_type,
+            multiplicity: self.multiplicity,
+            access: self.result_access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }];
+        let parameters = self
+            .values
+            .iter()
+            .map(|value| {
+                Ok(ValueDeclaration {
+                    id: value_id(allocate_dense(self.next_value)?),
+                    ..*value
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let continuation = ValueContinuation {
+            block: join,
+            parameters,
+            structural_parameters,
+            place,
+            remaining_owners: Vec::new(),
+            pass_through: Vec::new(),
+            residuals: Vec::new(),
+        };
+        self.complete_borrowed(argument, &continuation)?;
+        self.start(join);
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters;
         self.evaluation.block_structural_parameters = continuation.structural_parameters;

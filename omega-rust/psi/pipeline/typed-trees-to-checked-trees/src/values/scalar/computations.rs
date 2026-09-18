@@ -142,6 +142,9 @@ pub(crate) fn build_checked_value_computation_plans(
                 // A whole returned reference instead belongs to reference
                 // completion's affine establishment and exact ingress map.
                 // Reference nodes remain valid inside record constructors.
+                // A `let view: &T = &place` initializer is the same carrier a
+                // selection arm admits; restricting that admission to LocalData
+                // keeps a returned `&place` on its reference-completion owner.
                 if let Some((expression, expected)) = construction_destination
                     && (validation::is_scalar_case_value(program, expression, expected)
                         || (validation::reference_result_custody::parts(program, expected)
@@ -150,7 +153,11 @@ pub(crate) fn build_checked_value_computation_plans(
                                 program.expression_table.expression(expression),
                                 ExpressionNode::Name(_)
                             ))
-                        || structural_values::is_record_value(program, expression, expected))
+                        || structural_values::is_record_value(program, expression, expected)
+                        || (matches!(statement, StatementNode::LocalData(_))
+                            && structural_values::is_shared_borrow_value(
+                                program, expression, expected,
+                            )))
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values, pure)
                 {
