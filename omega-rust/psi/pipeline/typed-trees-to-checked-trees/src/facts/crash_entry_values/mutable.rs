@@ -13,9 +13,11 @@
 //! `rec.value` keeps its bound snapshot across writes, exclusive borrows, and
 //! receiver-mutating calls confined to sibling fields such as `rec.other`.
 //! The rooted place path of every write is compared against the read path;
-//! disjoint sibling projections do not interfere, while an indexed element, a
-//! case payload, or any projection the scan cannot separate stays opaque and
-//! reaches everything at or below it.
+//! disjoint sibling projections do not interfere — a case payload field is
+//! disjoint from its siblings in the same variant, and a write spelled under
+//! a different variant cannot execute while the bound snapshot's case still
+//! holds — while an indexed element or any projection the scan cannot
+//! separate stays opaque and reaches everything at or below it.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -186,22 +188,35 @@ pub(super) fn self_target_ordinals(
         .collect()
 }
 
-/// One projection step below a binding's root. `Opaque` marks a position the
-/// scan cannot separate — an indexed element, a case-qualified payload, or an
-/// unresolvable member — which interferes with every read at or below it.
+/// One projection step below a binding's root. `Case` marks a sum's variant
+/// hop — the payload field itself is the following `Field` step, matching the
+/// canonical place spelling `facts::payload_variant_for_field` produces.
+/// `Opaque` marks a position the scan cannot separate — an indexed element or
+/// an unresolvable member — which interferes with every read at or below it.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlaceSegment {
     Field(SymbolHandle),
+    Case(SymbolHandle),
     Opaque,
 }
 
 /// A write to `write` reaches a read of `read` only when the two paths cannot
 /// be separated: equal segments until one path ends (either covers the
-/// other), or an opaque step. Distinct sibling fields never interfere.
+/// other), or an opaque step. Distinct sibling fields never interfere. Two
+/// different variants share the payload slot but a case-qualified write only
+/// executes while the scrutinee holds its case — reaching a read under a
+/// different variant requires re-seating the whole binding, whose root write
+/// interferes on its own — so distinct `Case` hops separate the same way
+/// `canonical_place_segment_pair_may_overlap` rules them non-overlapping.
 fn paths_interfere(write: &[PlaceSegment], read: &[PlaceSegment]) -> bool {
     for (write, read) in write.iter().zip(read.iter()) {
         match (write, read) {
             (PlaceSegment::Field(write), PlaceSegment::Field(read)) => {
+                if write != read {
+                    return false;
+                }
+            }
+            (PlaceSegment::Case(write), PlaceSegment::Case(read)) => {
                 if write != read {
                     return false;
                 }
@@ -240,19 +255,20 @@ fn rooted_place_path(
                 && path.symbol.is_valid()
                 && path.symbol == machine_symbol
             {
-                return member
-                    .member_symbol
-                    .is_valid()
-                    .then_some((member.member_symbol, Vec::new()));
+                let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
+                return symbol.is_valid().then_some((symbol, Vec::new()));
             }
             rooted_place_path(program, machine_symbol, member.receiver).map(|(root, mut path)| {
-                path.push(
-                    if member.case_variant.is_none() && member.member_symbol.is_valid() {
-                        PlaceSegment::Field(member.member_symbol)
-                    } else {
-                        PlaceSegment::Opaque
-                    },
-                );
+                // A case payload field crosses its variant first — the
+                // canonical place spelling — so sibling payload fields of one
+                // case stay separable from each other and from every other
+                // case's. Synthesized members retain no `member_symbol`, so
+                // identity comes from the same contextual resolver the
+                // operand walks use; an unresolvable member stays opaque.
+                match super::member_hop_path(program, member) {
+                    Some((_, hop)) => path.extend(hop),
+                    None => path.push(PlaceSegment::Opaque),
+                }
                 (root, path)
             })
         }
@@ -296,6 +312,7 @@ pub(crate) fn statement_may_overwrite_place(
         .iter()
         .map(|segment| match segment {
             facts::PlaceSegment::Field { symbol } => PlaceSegment::Field(*symbol),
+            facts::PlaceSegment::Case { variant } => PlaceSegment::Case(*variant),
             _ => PlaceSegment::Opaque,
         })
         .collect();

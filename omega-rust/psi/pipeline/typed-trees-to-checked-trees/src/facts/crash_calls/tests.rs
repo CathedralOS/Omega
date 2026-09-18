@@ -829,3 +829,76 @@ fn mutable_scalar_storage_feeds_arithmetic_actuals() {
         "a mutable storage read may prove the arithmetic guard true"
     );
 }
+
+#[test]
+fn a_case_payload_actual_keeps_its_qualified_entry_identity() {
+    // `Outcome::Second { c }` binds the payload through a synthesized member
+    // that retains no field symbol — only the `Second` qualification. The
+    // `work` arrival replays it into `value.Second::c`, so the surviving
+    // route names `value.Second::c.item` exactly: not a bare `c` member that
+    // could collide with `First`'s payload, and not a `Truth` widening.
+    let buckets = call_site_buckets(
+        "data Cell { item: i32; }
+         data Outcome { case First(c: Cell); case Second(c: Cell); }
+         machine inner(cell: Cell) -> bool crashes Trap !(cell.item >= 0) { true }
+         machine outer(value: Outcome) -> bool crashes Trap {
+             transition value {
+                 Outcome::Second { c } -> work(c)
+                 Outcome::First { c } -> done()
+             }
+             state work(cell: Cell) -> bool { inner(cell) }
+             state done() -> bool { true }
+         }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the case-qualified actual keeps its guarded entry operand: {buckets:?}")
+    };
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Unary {
+            operator: UnaryOperator::LogicalNot as u8,
+            operand: Box::new(CrashPredicateExpression::Binary {
+                operator: BinaryOperator::GreaterOrEqual as u8,
+                left: Box::new(CrashPredicateExpression::Member {
+                    receiver: Box::new(CrashPredicateExpression::Member {
+                        receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                        member: "Second::c".to_owned(),
+                    }),
+                    member: "item".to_owned(),
+                }),
+                right: Box::new(CrashPredicateExpression::Integer("0".to_owned())),
+            }),
+        }),
+    );
+}
+
+#[test]
+fn a_case_payload_actual_below_rewritten_storage_widens_to_truth() {
+    // Rebinding `held` before the transition ends its bound-snapshot
+    // provenance, so the destructure cannot claim the invocation actual's
+    // payload and the cause stays unconditional.
+    let buckets = call_site_buckets(
+        "data Cell { item: i32; }
+         data Outcome { case First(c: Cell); case Second(c: Cell); }
+         machine inner(cell: Cell) -> bool crashes Trap !(cell.item >= 0) { true }
+         machine outer(value: Outcome) -> bool crashes Trap {
+             let mut held: Outcome = value;
+             held = Outcome::First { c: Cell { item: 0 } };
+             transition held {
+                 Outcome::Second { c } -> work(c)
+                 Outcome::First { c } -> done()
+             }
+             state work(cell: Cell) -> bool { inner(cell) }
+             state done() -> bool { true }
+         }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "a rebound scrutinee keeps the unconditional route: {buckets:?}"
+    );
+}
