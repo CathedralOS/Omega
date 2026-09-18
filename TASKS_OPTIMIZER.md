@@ -786,40 +786,76 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Register allocation and frames
 
-- **SPILL-REALIZATION.** Extend executable spill recovery beyond dominating
-  nonaddress instruction results in acyclic or cyclic functions and
-  edge-initialized block parameters in acyclic or cyclic functions; admitted
-  uses now include body and terminator operands, register-transport arguments
-  on outgoing successor edges, and stored structural-transport snapshot
-  arguments on edge-transfer continuations.
-  The owning paths are `selected-instructions-to-register-homes/src/assignment/runtime_spill/`
-  and `selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`.
-  Complete broader CFG/type and fixed-use recovery, composition with selected
-  recovery rules, physical slot reuse/coloring, and independent validation.
-  Existing logical spill plans grant no frame, unwind, instruction, or
-  publication authority.
-  Extend final spill-inclusive frame demand into stack provisioning under the
-  [compiler-owned stack contract](wiki/spec/resources/storage.md#compiler-owned-stack-accesses).
-  Keep `WRITE-ONLY-BORROW`'s source-backed three-call regression as the hosted
-  execution control, including its installed-image demand replay and stale-frame
-  rejection. Reuse the existing final-local-frame demand path, not a parallel
-  spill-byte estimate.
-  Acceptance: slot reuse is not double-counted; changed allocation/frame
+- **SPILL-REALIZATION.** Finish executable pressure recovery and join its
+  frames to stack provisioning.
+  [Register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)
+  chooses victims in `src/assignment/runtime_spill/`; the rewrite owner,
+  `selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
+  inserts and independently replays the private stores and reload pairs. That
+  route already spills general-purpose-class instruction results, block
+  parameters and entry-bound registers in acyclic and cyclic functions; serves
+  body, terminator, edge-transport and stored-snapshot uses; keeps an ABI pin
+  on its own reload pair; carries a reload across a call onto a surviving
+  view; and composes after fixed-view copies and active-resident
+  rematerialization. It does not establish the cases below.
+
+  Remaining work:
+
+  - Victim and use admission (`rewrites/runtime_spill/admission.rs`). Still
+    rejected: a victim whose register class differs from the `FrameAddress`,
+    `Load64` and `Store64` rows (vector-class values); a definition by
+    `FrameAddress`, `AddressOffset` or `ByteViewAddress`; tied, early-clobber
+    and redefining references; an entry-bound victim when an edge targets the
+    entry block; and a multi-chunk stored snapshot whose chunk loads are
+    pinned or separated by a unit-writing instruction. Recovery then tries
+    the next roster candidate and fails when the roster is exhausted.
+  - Slot assignment. Every victim declares a private eight-byte
+    `LocalStorageSlotId::Spill` slot. `runtime_spill/slot.rs` shares an
+    existing slot only for the zero-offset `Store64` or
+    `FrameAddress`-plus-`Load64` idiom when a last-writer replay proves the
+    windows cannot interleave. Interval-based coloring exists only as
+    `unsequenced_spill_stages/stack_slot_coloring`, which
+    `stage_register_allocation` never calls.
+  - Composition (`src/register_allocation.rs`). A completed selected-lowering
+    run takes `assignment::transformed` homes and surfaces pressure as
+    `TransformedHomes`; it never enters `assignment::runtime_spill`. A
+    selected-lowering selection beside an allocation-recovery selection, and
+    two allocation-recovery selections, reject as `UnsupportedComposition`.
+  - Stack provisioning under the
+    [compiler-owned stack contract](wiki/spec/resources/storage.md#compiler-owned-stack-accesses).
+    Reuse the final-frame demand path, not a parallel spill-byte estimate.
+    `image-emission` derives each function's peak from its validated final
+    frame (`src/function_fragments/production.rs`, replayed by
+    `validation/stack.rs`) and composes it in
+    `object_artifact/stack_demand.rs` and
+    `installation_record/record_construction.rs::derive_installation_stack_demand`.
+    External-root admission (`external-roots/src/root_entry/root_validation.rs`)
+    and hosted-receiver partitioning (`image-emission/src/hosted_receiver.rs`)
+    compare that demand with supply. No test carries a runtime-spilled
+    function through this path to an admission or a rejection. Target-required
+    probing and setup are frame/provisioning work, not an owner-blocked
+    language choice.
+
+  Acceptance: slot reuse is not double-counted; changed allocation or frame
   realization invalidates stale demand; insufficient supply rejects before
-  execution; and generated loads/stores independently replay their physical
-  geometry and value lineage without adding source crash routes. A byte ceiling
-  alone must not stand in for valid stack backing. Target-required probing and
-  setup remain frame/provisioning work, not an owner-blocked language choice.
-  Landed: runtime-spill recovery composes after active-resident
-  rematerialization on residual `NoCompatibleHome` — the declared route
-  proves a pressure prefix (choices, classifications, the rewrite, and
-  rebuilt liveness/ranges/legality), assigns homes over the rebuilt facts,
-  and hands the identical prefix to executable spill recovery when
-  assignment still has no home, keeping `PressureRematerialization` first
-  in the post-allocation manifest and binding the published allocation to
-  `ActiveResidentImmediateU64MultiUseRematerializationV1` on x86-64 and
-  AArch64
-  (`runtime_spill_composition::residual_active_resident_pressure_composes_runtime_spill_after_rematerialization`).
+  execution; and generated loads and stores independently replay their
+  physical geometry and value lineage without adding source crash routes. A
+  byte ceiling alone does not stand in for valid stack backing. Keep
+  `WRITE-ONLY-BORROW`'s source-backed three-call regression
+  (`tests/native-differential/tests/terminal_psi_indexed_receivers/primitive_stores.rs`)
+  as the hosted execution control, with its installed-image demand replay and
+  stale-frame rejection (`terminal_psi_indexed_receivers/stack_pointers/`).
+
+  Flag: `unsequenced_spill_stages/` holds 18 spill families in about 25,700
+  non-test lines (logical spill operations, slot coloring, abstract
+  insertion, reload-value homes, recursive and generalized worklists,
+  pseudo-instruction lowering, memory effects, access constraints).
+  `stage_register_allocation` calls none of them; native-differential tests,
+  architecture ladders and machine emission's non-authoritative
+  `frame_layout/spill_requirements/` are their only consumers. The executable
+  route is about 1,100 non-test lines of allocation code plus 2,950 of
+  rewrite, and slot reuse now has two owners. Sequence a staged family behind
+  the executable route or delete it; do not extend both.
 
 - **ALLOCATION-REFINEMENT.** Add general live-range splitting to
   [register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)
