@@ -1,0 +1,37 @@
+// FAIL CANARY. `walk` nests a value call inside its prefix call's argument
+// (`self.audit(self.level(remaining))`). A call expression is never inert, so
+// the rank-preserving prefix rule refuses the statement structurally, before
+// any write frame is consulted: an authored or selected callee could hide a
+// write this pure rank slice cannot see. The disjoint-frame admission of
+// `pass/termination/rank_range_prefix_call` covers inert arguments only --
+// that fixture is this one with the nesting removed.
+//
+// The refusal surfaces as `cannot prove rank range`, not the
+// "a write, call, or alias invalidates the entry-relative ranking" message
+// its sibling premise-write canaries pin: no statement here preserves the
+// rank, so the range proof never forms, rather than being invalidated by a
+// write the frame owner can see.
+data Main { audits: u64 }
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.walk(4, 9) }
+}
+
+machine Main::level(&self, value: u32) -> u32 {
+    transition { _ -> value }
+}
+
+machine Main::audit(&mut self, value: u32) {
+    self.audits = 0;
+}
+
+machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    self.audit(self.level(remaining));
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}
