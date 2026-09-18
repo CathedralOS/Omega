@@ -313,11 +313,79 @@ fn entry_operand_name_at(
         machine,
         machine_symbol,
         state_symbol,
-        path.symbol,
+        receiver_parameter_symbol(program, machine, state, path).unwrap_or(path.symbol),
         before_statement,
         field_path,
         depth,
     )
+}
+
+/// `self` names the containing machine (or its attached data), not the
+/// receiver's telescope row — the same resolution
+/// `structural_fields::exact_self_parameter` applies for authored contract
+/// predicates. Bind the name to the state's `is_self` parameter so receiver
+/// projections take the parameter path below.
+fn receiver_parameter_symbol(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    path: &TableNamePath,
+) -> Option<SymbolHandle> {
+    let [member] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    if member.as_str() != "self"
+        || (path.symbol != machine.symbol && path.symbol != machine.attached_data_symbol)
+    {
+        return None;
+    }
+    program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .map(|parameter| parameter.symbol)
+}
+
+/// Whether the receiver's storage — the machine's attached data — is stable
+/// under shared observation. A `self` parameter's type names the machine
+/// through `Self`, which the contents classifier cannot resolve to the data
+/// declaration, so this checks the declaration itself: the exact resolved
+/// owner application for a generic attachment, else each member's declared
+/// type under the same root gates `check_contents` applies (no linear
+/// custody, no attached `::drop` machine, no erased-relevance fields). Cycles
+/// stay inside the per-field call's active set, so member-by-member checking
+/// cannot diverge.
+fn receiver_contents_stable(program: &TypedTrees, machine: &typed_trees::machine::Machine) -> bool {
+    if machine.attached_data_application.is_valid() {
+        return has_stable_observable_contents(program, machine.attached_data_application);
+    }
+    let mut owners = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.symbol == machine.attached_data_symbol);
+    let Some(data) = owners.next() else {
+        return false;
+    };
+    if owners.next().is_some()
+        || !program.data_type_parameters(data).is_empty()
+        || data.properties.multiplicity == language_semantics::Multiplicity::Linear
+        || program.machines().iter().any(|candidate| {
+            candidate.attached_data_symbol == data.symbol
+                && candidate.name.as_str().ends_with("::drop")
+        })
+    {
+        return false;
+    }
+    program.data_members(data).iter().all(|member| {
+        let fields: &[typed_trees::data::DataField] = match member {
+            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
+        };
+        fields.iter().all(|field| {
+            !field.relevance.is_erased()
+                && has_stable_observable_contents(program, field.type_reference)
+        })
+    })
 }
 
 fn builtin_binary_meaning(
@@ -372,8 +440,33 @@ fn state_parameter_entry_operand(
         .iter()
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == parameter_symbol)?;
-    if parameter.is_self
-        || !has_stable_observable_contents(program, parameter.type_reference)
+    let entry_index = crate::checks::termination::named_transition_target_state_index(
+        program,
+        machine,
+        machine.symbol,
+    )?;
+    if parameter.is_self {
+        // `self` binds once, at the invocation: transitions never rebind the
+        // receiver, so an immutable receiver's storage is the entry storage in
+        // every state — including through field projections. A mutable
+        // receiver keeps no entry identity here: `self.<field>` writes root at
+        // the field rather than this parameter, and receiver-field provenance
+        // across state arrivals is not yet transported. The produced
+        // `Parameter` names the receiver's position in the ENTRY state's
+        // telescope, matching the ordinal authored `self.<field>` contract
+        // predicates take through `parameter_names`.
+        if parameter.is_mutable || !receiver_contents_stable(program, machine) {
+            return None;
+        }
+        let entry_ordinal = program
+            .state_parameters(&states[entry_index])
+            .iter()
+            .position(|candidate| candidate.is_self)?;
+        return Some(CrashPredicateExpression::Parameter(
+            u32::try_from(entry_ordinal).ok()?,
+        ));
+    }
+    if !has_stable_observable_contents(program, parameter.type_reference)
         || (parameter.is_mutable
             && !storage_holds_bound_value(
                 program,
@@ -393,11 +486,6 @@ fn state_parameter_entry_operand(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .count();
-    let entry_index = crate::checks::termination::named_transition_target_state_index(
-        program,
-        machine,
-        machine.symbol,
-    )?;
     // The invocation itself is the entry state's one non-transition arrival.
     let mut provenance = if state_index == entry_index {
         Some(CrashPredicateExpression::Parameter(
