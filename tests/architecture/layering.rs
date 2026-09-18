@@ -5368,20 +5368,93 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
         }
     }
 
+    // The region leaf no longer re-walks block terminators and re-runs
+    // reachability itself. Member, internal-edge, entry, and exit identity are
+    // validated Terminal-SCC custody pinned to this unit revision, so the
+    // countdown-specific residue is the certificate's binding to that custody.
+    // `derive` may be shared by the proposal and the replay because its input
+    // is validated custody rather than the proposer's output, so no producer
+    // attests to itself.
     let region = std::fs::read_to_string(replay_root.join("region.rs"))
-        .expect("read countdown region replay leaf");
+        .expect("read countdown region derivation leaf");
     for required in [
-        "fn current_edges",
-        "internal != component.id.internal_edges",
-        "entries != component.entries",
-        "exits != component.exits",
-        "fn reachable",
+        "let [entry] = component.entries.as_slice()",
+        "!component.members.contains(&certificate.header)",
+        "entry.target != certificate.header",
+        "component.members.windows(2).all(|pair| pair[0] < pair[1])",
+        "blocks: component.members.clone()",
         "Some(certificate.header)",
         "irreducible: false",
     ] {
         assert!(
             region.contains(required),
-            "countdown region replay must retain independent check `{required}`",
+            "countdown region derivation must retain custody-binding check `{required}`",
+        );
+    }
+
+    // The edge reconstruction the region leaf used to perform still runs one
+    // layer down, over the current optimizer body, and must additionally equal
+    // the verifier's Terminal component surface. Losing a leg here restores the
+    // weakening this guardrail exists to forbid.
+    let custody_root = root.join(
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
+    );
+    let ordinary = std::fs::read_to_string(custody_root.join("ordinary.rs"))
+        .expect("read ranked-cycle component custody leaf");
+    for required in [
+        "let terminal = topology::derive_terminal_components(machine)?;",
+        "let current = topology::derive_components(&graph::optimization_graph(function));",
+        "if current != terminal {",
+    ] {
+        assert!(
+            ordinary.contains(required),
+            "ranked-cycle custody must reconstruct components from the current body `{required}`",
+        );
+    }
+
+    let topology = std::fs::read_to_string(custody_root.join("topology.rs"))
+        .expect("read ranked-cycle topology leaf");
+    for required in [
+        "terminal_verifier::control_cycle_members(machine)",
+        "(true, true) => internal_edges.push(*edge),",
+        "(false, true) => entries.push(*edge),",
+        "(true, false) => exits.push(*edge),",
+    ] {
+        assert!(
+            topology.contains(required),
+            "ranked-cycle topology must classify current edges itself `{required}`",
+        );
+    }
+
+    let graph = std::fs::read_to_string(custody_root.join("graph.rs"))
+        .expect("read ranked-cycle edge projection leaf");
+    for required in [
+        "pub(super) fn optimization_graph(",
+        "pub(super) fn terminal_graph(",
+    ] {
+        assert!(
+            graph.contains(required),
+            "ranked-cycle custody must project both edge graphs `{required}`",
+        );
+    }
+
+    // A component whose single entry edge lands on the certified header is
+    // reducible under that header only because every block is reachable from
+    // the machine entry: a component holding the entry block can have no entry
+    // edge at all, since any non-member reaching into it would join its cycle.
+    // The verifier rejects a module where that premise fails.
+    let verifier =
+        std::fs::read_to_string(root.join(
+            "omega-rust/psi/semantics/terminal-verifier/src/control_cycles/reconstruction.rs",
+        ))
+        .expect("read Terminal control-cycle reconstruction");
+    for required in [
+        "check_control_graph(machine)?;",
+        "ModuleError::UnreachableBlock(*block)",
+    ] {
+        assert!(
+            verifier.contains(required),
+            "Terminal cycle members must retain the reachability premise `{required}`",
         );
     }
 }
