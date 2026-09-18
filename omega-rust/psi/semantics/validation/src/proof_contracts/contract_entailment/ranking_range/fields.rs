@@ -354,21 +354,32 @@ impl<'program> FieldCoordinate<'program> {
         if parameters.next().is_some() {
             return None;
         }
+        self.for_carrier(program, parameter)
+    }
+
+    /// The coordinate this chain names on `carrier`'s own record: the chain
+    /// resolved directly against the carrier's declaration, else the unique
+    /// nested path that declaration admits for the chain's boundary records.
+    /// These are the same two readings `at_arrival` keeps once a telescope has
+    /// located the role's carrier -- `pair.left` carries `countdown`, or the
+    /// formal is itself a record this chain reaches partway. A caller that
+    /// already holds the formal asks this directly; two admissible readings
+    /// keep no coordinate rather than guess which record the carriage meant.
+    pub(super) fn for_carrier(
+        &self,
+        program: &'program TypedTrees,
+        carrier: &'program StateParameter,
+    ) -> Option<Self> {
         // The re-resolved chain lands on the same declared leaf by
         // construction, so the natural-leaf check is the origin's own.
         let chain = self.chain();
-        if let Some(coordinate) = Self::for_parameter(program, parameter, &chain, true)
+        if let Some(coordinate) = Self::for_parameter(program, carrier, &chain, true)
             && coordinate.root == self.root
         {
             return Some(coordinate);
         }
-        // The role may instead arrive nested inside the carrier formal's own
-        // record -- `pair.left` carries `countdown` -- or as a record this
-        // chain descends partway -- `pending` is `countdown.inner` itself.
-        // The formal's declaration must admit exactly one such reading; two
-        // readings leave the carriage ambiguous and keep no coordinate.
-        let chain = self.arrival_chain(program, parameter)?;
-        Self::for_parameter(program, parameter, &chain, true)
+        let chain = self.arrival_chain(program, carrier)?;
+        Self::for_parameter(program, carrier, &chain, true)
     }
 
     /// The chain this coordinate becomes when `parameter`'s record carries

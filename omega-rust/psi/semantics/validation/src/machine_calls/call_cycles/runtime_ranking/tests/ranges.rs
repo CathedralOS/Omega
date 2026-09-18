@@ -225,6 +225,82 @@ fn mixed_component_conserves_endpoints_through_internal_sites() {
 }
 
 #[test]
+fn mixed_component_conserves_projected_endpoints() {
+    // `limits.cap` is a projected endpoint input: the unranged member
+    // transports the record, and every edge must prove the actual installs
+    // the leaf coordinate the endpoint reads -- a record that merely shares
+    // the field spelling is not the input.
+    let source = "data Main {}
+        data Limits { cap: u64 [0..=9]; }
+        machine Main::outer(&mut self, remaining: u64, limits: Limits)
+        requires remaining <= limits.cap;
+        terminates by remaining in 0..=limits.cap;
+        -> u64 {
+            transition remaining > 0 { true -> self.inner(remaining, limits) false -> remaining }
+        }
+        machine Main::inner(&mut self, n: u64, bounds: Limits)
+        terminates by n;
+        -> u64 {
+            transition n > 0 && n <= bounds.cap { true -> self.outer(n - 1, bounds) false -> n }
+        }";
+    assert_eq!(admitted(&typed_source(source)).len(), 1);
+    // A literal rebuild conserves the endpoint only because its installed
+    // leaf is the transported coordinate itself.
+    let rebuilt = source.replace(
+        "self.outer(n - 1, bounds)",
+        "self.outer(n - 1, Limits { cap: bounds.cap })",
+    );
+    assert_eq!(admitted(&typed_source(&rebuilt)).len(), 1);
+    // A different leaf is a different endpoint value.
+    let changed = source.replace(
+        "self.outer(n - 1, bounds)",
+        "self.outer(n - 1, Limits { cap: bounds.cap + 1 })",
+    );
+    assert!(admitted(&typed_source(&changed)).is_empty());
+    // A record the component never traced to the authored input does not
+    // carry the endpoint, even with the same declaration.
+    let spare = source
+        .replace(
+            "n: u64, bounds: Limits)",
+            "n: u64, bounds: Limits, spare: Limits)",
+        )
+        .replace(
+            "self.inner(remaining, limits)",
+            "self.inner(remaining, limits, Limits { cap: 0 })",
+        )
+        .replace("self.outer(n - 1, bounds)", "self.outer(n - 1, spare)");
+    assert_ne!(spare, source);
+    assert!(admitted(&typed_source(&spare)).is_empty());
+    // A subordinate arrival still names the same transported input: `bound`
+    // carries `limits`' role, so the endpoint reads `bound.cap` at the site.
+    let held = source.replace(
+        "transition remaining > 0 { true -> self.inner(remaining, limits) false -> remaining }",
+        "transition remaining > 0 { true -> hold(remaining, limits) false -> remaining }
+        state hold(pending: u64, bound: Limits) {
+            transition pending > 0 { true -> self.inner(pending, bound) false -> pending }
+        }",
+    );
+    assert_eq!(admitted(&typed_source(&held)).len(), 1);
+    // The endpoint role can also ride inside a larger record: `wrap.limits`
+    // is the member actual of the carrier's unique nested path.
+    let nested = "data Main {}
+        data Limits { cap: u64 [0..=9]; }
+        data Wrap { limits: Limits; }
+        machine Main::outer(&mut self, remaining: u64, limits: Limits)
+        requires remaining <= limits.cap;
+        terminates by remaining in 0..=limits.cap;
+        -> u64 {
+            transition remaining > 0 { true -> self.inner(remaining, Wrap { limits: limits }) false -> remaining }
+        }
+        machine Main::inner(&mut self, n: u64, wrap: Wrap)
+        terminates by n;
+        -> u64 {
+            transition n > 0 && n <= wrap.limits.cap { true -> self.outer(n - 1, wrap.limits) false -> n }
+        }";
+    assert_eq!(admitted(&typed_source(nested)).len(), 1);
+}
+
+#[test]
 fn ranged_call_uses_each_authored_telescope_and_classifies_weak_edges() {
     let program = typed_source(RANGED);
     assert_eq!(
