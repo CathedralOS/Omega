@@ -106,6 +106,8 @@ register-homes = { path = "../../representations/register-homes" }
 register-model = { path = "../../representations/register-model" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }
+compilation-report = { path = "../compilation-report", features = ["test-support"] }
+build-evaluation = { path = "../../build/build-evaluation", features = ["test-support"] }
 installation-evidence = { path = "../../representations/installation-evidence" }
 facts = { path = "../../../psi/representations/facts" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }

@@ -8,6 +8,9 @@ version.workspace = true
 name = "compilation_report"
 path = "src/lib.rs"
 
+[features]
+test-support = []
+
 [dependencies]
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
