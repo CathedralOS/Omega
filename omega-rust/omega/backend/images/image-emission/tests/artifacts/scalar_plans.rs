@@ -6,15 +6,17 @@ use super::provider_and_call_plans::{internal_call_plan, two_function_plan};
 use super::{edge_id, machine_id, operation_id};
 use calling_conventions::{ValuePlacement, ValueShape};
 use machine_code::{
-    Aarch64ReturnLinkEvidence, InternalCallRelocation, InternalUnitCallRecord, MachineCodeFunction,
-    MachineCodePlan, ScalarCallStackEvidence, ScalarCleanupPreservationEvidence,
-    ScalarConditionalBranchEvidence, ScalarConditionalCondition, ScalarControlAffineCleanupRecord,
-    ScalarControlFlowEvidence, ScalarStackEvidence, ScalarStackMutation, ScalarStackMutationKind,
-    SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair, UnitAffineCleanupRecord,
-    UnitCallStackEvidence, UnitParameterHomeRecord, UnitParameterRecord, UnitStackEvidence,
+    Aarch64ReturnLinkEvidence, FunctionFragmentConditionalBranchPredicate, InternalCallRelocation,
+    InternalUnitCallRecord, MachineCodeFunction, MachineCodePlan, ScalarCallStackEvidence,
+    ScalarCleanupPreservationEvidence, ScalarConditionalBranchEvidence, ScalarConditionalCondition,
+    ScalarControlAffineCleanupRecord, ScalarControlBlockEvidence, ScalarControlFlowEvidence,
+    ScalarControlTerminatorEvidence, ScalarDirectConditionalBranchEvidence, ScalarStackEvidence,
+    ScalarStackMutation, ScalarStackMutationKind, SemanticCodeAttribution, SemanticCodeSite,
+    StackAdjustmentPair, UnitAffineCleanupRecord, UnitCallStackEvidence, UnitParameterHomeRecord,
+    UnitParameterRecord, UnitStackEvidence,
 };
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use target::NativeTarget;
+use target::{Architecture, NativeTarget};
 use terminal_psi::{StructuralMultiplicity, TerminalAffineCleanupAction};
 
 pub(super) fn scalar_two_return_conditional_plan(target: NativeTarget) -> MachineCodePlan {
@@ -62,6 +64,177 @@ pub(super) fn scalar_two_return_conditional_plan(target: NativeTarget) -> Machin
                 stack_alignment: 16,
                 cleanup_preservation: None,
             });
+        }
+    }
+    plan
+}
+
+/// One no-call scalar function whose complete forward graph is retained as
+/// `Acyclic` evidence: a conditional selects between a plain arm and an arm
+/// carrying a balanced stack mutation, and both reconverge on one shared
+/// return. Every transfer terminator is owned by a nonzero edge attribution
+/// row and the conditional also owns a zero-width fallthrough row, so object
+/// construction can reconstruct the block topology from the final bytes alone
+/// before replaying each region's claimed stack mutations.
+pub(super) fn scalar_acyclic_plan(target: NativeTarget) -> MachineCodePlan {
+    let mut plan = two_function_plan();
+    plan.target = target;
+    plan.entry = machine_id(1);
+    plan.functions.truncate(1);
+    let function = &mut plan.functions[0];
+    // One edge identity per retained attribution row.
+    function.provenance.edges = (1..=5).map(edge_id).collect();
+    let attribution = |edge, operation_ordinal, code_offset, byte_count| SemanticCodeAttribution {
+        site: SemanticCodeSite::Edge(edge_id(edge)),
+        operation_ordinal,
+        code_offset,
+        byte_count,
+    };
+    match target.architecture {
+        Architecture::X86_64 => {
+            function.bytes = vec![
+                0x48, 0x39, 0xf7, // cmp rdi, rsi
+                0x75, 10, // jnz +10: taken arm at 15
+                0xb8, 0, 0, 0, 0, // fallthrough arm: mov eax, 0
+                0xe9, 12, 0, 0, 0,    // jmp +12: shared return at 27
+                0x50, // taken arm: push rax
+                0xb8, 7, 0, 0, 0,    // mov eax, 7
+                0x58, // pop rax
+                0xe9, 0, 0, 0, 0,    // jmp +0: shared return at 27
+                0xc3, // shared return
+            ];
+            function.scalar_stack = Some(ScalarStackEvidence {
+                mutations: vec![
+                    scalar_mutation(15, 1, ScalarStackMutationKind::X86Push),
+                    scalar_mutation(21, 1, ScalarStackMutationKind::X86Pop),
+                ],
+                control_flow: ScalarControlFlowEvidence::Acyclic {
+                    blocks: vec![
+                        ScalarControlBlockEvidence {
+                            offset: 0,
+                            byte_count: 5,
+                            terminator: ScalarControlTerminatorEvidence::Conditional(
+                                ScalarDirectConditionalBranchEvidence {
+                                    predicate:
+                                        FunctionFragmentConditionalBranchPredicate::NonZeroV1,
+                                    branch_offset: 3,
+                                    branch_byte_count: 2,
+                                    taken_offset: 15,
+                                    fallthrough_offset: 5,
+                                },
+                            ),
+                        },
+                        ScalarControlBlockEvidence {
+                            offset: 5,
+                            byte_count: 10,
+                            terminator: ScalarControlTerminatorEvidence::Jump {
+                                offset: 10,
+                                byte_count: 5,
+                                target_offset: 27,
+                            },
+                        },
+                        ScalarControlBlockEvidence {
+                            offset: 15,
+                            byte_count: 12,
+                            terminator: ScalarControlTerminatorEvidence::Jump {
+                                offset: 22,
+                                byte_count: 5,
+                                target_offset: 27,
+                            },
+                        },
+                        ScalarControlBlockEvidence {
+                            offset: 27,
+                            byte_count: 1,
+                            terminator: ScalarControlTerminatorEvidence::Return {
+                                offset: 27,
+                                byte_count: 1,
+                            },
+                        },
+                    ],
+                },
+                stack_alignment: 16,
+                cleanup_preservation: None,
+            });
+            // Stored in canonical (operation_ordinal, code_offset) order.
+            function.semantic_code_attribution = vec![
+                attribution(1, 1, 3, 2),  // jnz
+                attribution(2, 1, 5, 0),  // jnz fallthrough
+                attribution(3, 2, 27, 1), // shared return
+                attribution(4, 4, 10, 5), // fallthrough-arm join
+                attribution(5, 6, 22, 5), // taken-arm join
+            ];
+        }
+        Architecture::Aarch64 => {
+            function.bytes = aarch64_words(&[
+                0xeb01_001f, // cmp x0, x1
+                0x5400_0061, // b.ne +12: taken arm at 16
+                0xd280_0000, // fallthrough arm: mov w0, #0
+                0x1400_0005, // b +20: shared return at 32
+                0xd100_43ff, // taken arm: sub sp, sp, #16
+                0xd280_00e0, // mov w0, #7
+                0x9100_43ff, // add sp, sp, #16
+                0x1400_0001, // b +4: shared return at 32
+                0xd65f_03c0, // shared return
+            ]);
+            function.scalar_stack = Some(ScalarStackEvidence {
+                mutations: vec![
+                    scalar_mutation(16, 4, ScalarStackMutationKind::Allocate { byte_size: 16 }),
+                    scalar_mutation(24, 4, ScalarStackMutationKind::Release { byte_size: 16 }),
+                ],
+                control_flow: ScalarControlFlowEvidence::Acyclic {
+                    blocks: vec![
+                        ScalarControlBlockEvidence {
+                            offset: 0,
+                            byte_count: 8,
+                            terminator: ScalarControlTerminatorEvidence::Conditional(
+                                ScalarDirectConditionalBranchEvidence {
+                                    predicate:
+                                        FunctionFragmentConditionalBranchPredicate::NonZeroV1,
+                                    branch_offset: 4,
+                                    branch_byte_count: 4,
+                                    taken_offset: 16,
+                                    fallthrough_offset: 8,
+                                },
+                            ),
+                        },
+                        ScalarControlBlockEvidence {
+                            offset: 8,
+                            byte_count: 8,
+                            terminator: ScalarControlTerminatorEvidence::Jump {
+                                offset: 12,
+                                byte_count: 4,
+                                target_offset: 32,
+                            },
+                        },
+                        ScalarControlBlockEvidence {
+                            offset: 16,
+                            byte_count: 16,
+                            terminator: ScalarControlTerminatorEvidence::Jump {
+                                offset: 28,
+                                byte_count: 4,
+                                target_offset: 32,
+                            },
+                        },
+                        ScalarControlBlockEvidence {
+                            offset: 32,
+                            byte_count: 4,
+                            terminator: ScalarControlTerminatorEvidence::Return {
+                                offset: 32,
+                                byte_count: 4,
+                            },
+                        },
+                    ],
+                },
+                stack_alignment: 16,
+                cleanup_preservation: None,
+            });
+            function.semantic_code_attribution = vec![
+                attribution(1, 1, 4, 4),  // b.ne
+                attribution(2, 1, 8, 0),  // b.ne fallthrough
+                attribution(3, 2, 32, 4), // shared return
+                attribution(4, 4, 12, 4), // fallthrough-arm join
+                attribution(5, 6, 28, 4), // taken-arm join
+            ];
         }
     }
     plan
