@@ -9,7 +9,6 @@ acceptance bar; this board identifies the remaining work, not a passing baseline
 | [Immediate product closure](#immediate-product-closure) | Unchanged sample/canary programs and the dependencies preventing native execution. |
 | [P1–P5](#p1---authority-roots-and-entry) | Entry/storage, materialization, portable evidence, ABI, and Cathedral customers. |
 | [Parallel language work](#parallel-language-and-compiler-lanes) | Remaining accepted language surface; independent work can proceed when a product strategy is paused. |
-| [Compiler throughput](#compiler-throughput) | Measured work reduction; no speculative cache or framework. |
 | [Optimizer board](TASKS_OPTIMIZER.md) / [bootstrap board](TASKS_BOOTSTRAP.md) | Separate execution owners, not duplicated here. |
 
 Keep each task's missing behavior, owner, real dependencies, and acceptance
@@ -305,49 +304,6 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   (especially computed field limits, field coordinates, endpoint arithmetic,
   and call components), plus matching `tests/omega/{pass,fail}/termination/`
   controls; source inspection is not a current passing-test claim.
-
-## Compiler throughput
-
-These are bounded work-removal tasks, not a new performance framework. Preserve
-the [pipeline ownership and independent checks](omega-rust/pipeline.md).
-Source inspection identified the costs below; it did not establish their share
-of whole-compilation time. Record compared inputs, work counts and timings;
-do not claim a faster compiler from a smaller helper alone.
-
-- **CRASH-GUARD-COST.** Investigate repeated classification in
-  `typed-trees-to-checked-trees/src/checks/crashes.rs` before adding caches or
-  threads. At `0989d752ae` on macOS ARM64,
-  `RUST_MIN_STACK=67108864 cargo nextest run -p package-manager --test
-  semantic_binding_review --no-fail-fast -E 'test(macos_entry)'` passes in
-  540.531 seconds of execution. An unpublished snapshot-local integer-type
-  index passed the same route in 532.465 seconds; that single 1.5% difference
-  is inconclusive, so the prototype was discarded. See the
-  [paired experiment](wiki/drafts/test_cycle_measurements.md#macos-package-review-classification-experiment).
-  Slice landed at `d7c486d7ae`: route instrumentation showed crash-guard
-  classification is a minor share of the checked stage (the crash checks and
-  guard-coverage inference total ~2s of ~700s on the review route); the
-  repeated work was three
-  independent `StateMutationSummaryCache` builds per check pass (54 builds,
-  ~50.6s across 18 invocations). One pass-owned table now serves fact
-  construction, borrow-resource replay, statement borrows, and range
-  checking, cutting builds to 18 (~16.6s, ~34s of repeated work removed,
-  ~5% of the checked stage). Crash-guard positive/negative outcomes for
-  parameters, locals and fields are preserved. Slice landed at
-  `5521383c54`: `CallFrameResolver` is built once per immutable check
-  window (`facts.rs` threads one resolver through flow classification,
-  terminal ranking, termination progress and crash-route refinement;
-  `finalize_execution.rs`/`selected_execution.rs` build a fresh one after
-  the typed-program mutation) instead of ~20 reconstructions; whole-route
-  `omega --check` on `terminal_psi/integer_control_contract` stayed at a
-  4.90s median over 8 debug runs, so that slice removed rebuild work
-  without a measurable route speedup. Remaining candidate:
-  `validate_specialized_program`/`build_flow_facts` dominate the stage.
-  Acceptance: compare unchanged whole-route inputs with repeated release/debug timings,
-  remove material repeated work through existing typed ownership/type facts
-  where possible, and preserve positive/negative crash-guard outcomes for
-  parameters, locals and fields. Coordinate with live checking-stage work.
-
-Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 
 ## Automatic service reach
 

@@ -45,9 +45,6 @@ must be surfaced before relying on them.
    item to `wiki/spec`; 64 of 75 rest on a normative clause and twelve are
    named by the spec itself. The remainder need an owner decision because
    removing or merging a board item is a scope choice, not engineering:
-   - **CRASH-GUARD-COST**: no spec text asks for checker throughput work;
-     the mandated experiment ran and was inconclusive (1.5%), the prototype
-     was discarded, and the cache-dedup slice landed. Recommend removal.
    - **CANARY-CORPUS** and **SAMPLE-CORPUS**: two triage umbrellas over the
      same "fix what the suite reports" activity, the first listing the
      second as a dependency; neither defines a corpus the spec names beyond
