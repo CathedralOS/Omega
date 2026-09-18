@@ -105,6 +105,11 @@ pub(super) fn validate(
                 psi_operation,
                 structural_arguments,
                 ..
+            }
+            | TargetUnitOperation::NormalizedForeignCall {
+                psi_operation,
+                structural_arguments,
+                ..
             } => {
                 target_calls.insert(*psi_operation, structural_arguments.as_slice());
             }

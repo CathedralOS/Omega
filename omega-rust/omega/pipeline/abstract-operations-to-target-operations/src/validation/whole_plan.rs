@@ -104,6 +104,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             target_function,
             &target.functions,
             &source.structural_types,
+            &source.boundary_machines,
             expected_target,
         )
         .map_err(|operation| {

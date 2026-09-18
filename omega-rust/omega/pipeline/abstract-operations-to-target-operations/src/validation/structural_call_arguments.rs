@@ -18,25 +18,26 @@ use abstract_operations::{
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
 use calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
-    evaluate_call_plan,
+    CallPlan, CallSignature, CallingPolicy, EntryControl, ValueLocation, ValuePlacement,
+    ValueShape, evaluate_call_plan,
 };
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, MachineId, ObligationId, OperationId, PlaceId, ScalarType,
-    StructuralTypeId, ValueId,
+    BoundaryMachineId, IntegerSign, IntegerType, MachineId, ObligationId, OperationId, PlaceId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
 use target_operations::{
-    NativeCallOrigin, ScalarAbiValue, ScalarFunctionAbi, TargetDynamicDescriptorArgument,
-    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi, TargetFunction,
-    TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralHomeRequirement,
-    TargetUnitOperation, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    NativeCallOrigin, NormalizedForeignCallBinding, ProviderExecutionBinding, ScalarAbiValue,
+    ScalarFunctionAbi, TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceSource,
+    TargetDynamicDescriptorParameterAbi, TargetFunction, TargetStructuralArgument,
+    TargetStructuralArgumentSource, TargetStructuralHomeRequirement, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::{
-    ClaimTransfer, ClosedConformanceCallableResult, CrashRouteBucket, StructuralAccess,
-    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralResultClaimTransfer, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalDynamicRequirement,
+    BoundaryMachineDeclaration, ClaimTransfer, ClosedConformanceCallableResult, CrashRouteBucket,
+    StructuralAccess, StructuralArgument, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalDynamicRequirement,
 };
 
 use super::structural_shapes;
@@ -138,6 +139,17 @@ enum EmbeddedCall<'a> {
         stored: &'a AbstractStoredDynamicDescriptor,
         source_argument: &'a TargetStructuralArgument,
     },
+    /// `NormalizedForeignCall`: an evaluated foreign-boundary call retains
+    /// its embedded boundary entry plan, admitted provider custody, and
+    /// projected borrowed argument rows beside the declaration identity.
+    NormalizedForeign {
+        boundary: BoundaryMachineId,
+        provider_execution: &'a ProviderExecutionBinding,
+        binding: &'a NormalizedForeignCallBinding,
+        scalar_arguments: &'a [TargetUnitScalarCallArgument],
+        structural_arguments: &'a [TargetStructuralArgument],
+        result_home: &'a Option<TargetUnitScalarHomeRequirement>,
+    },
 }
 
 /// The result contract one source operation binds the embedded call to.
@@ -154,6 +166,7 @@ struct Replay<'a> {
     target: &'a TargetFunction,
     target_functions: &'a [TargetFunction],
     declarations: &'a [StructuralTypeDeclaration],
+    boundary_machines: &'a [BoundaryMachineDeclaration],
     native_target: NativeTarget,
     roots: &'a BTreeMap<PlaceId, RootDeclaration>,
 }
@@ -173,6 +186,7 @@ pub(super) fn validate(
     target: &TargetFunction,
     target_functions: &[TargetFunction],
     declarations: &[StructuralTypeDeclaration],
+    boundary_machines: &[BoundaryMachineDeclaration],
     native_target: NativeTarget,
 ) -> Result<(), OperationId> {
     // One source operation yields at most one retained call row; a second row
@@ -455,6 +469,25 @@ pub(super) fn validate(
                         source_argument,
                     },
                 ),
+                TargetUnitOperation::NormalizedForeignCall {
+                    psi_operation,
+                    boundary,
+                    provider_execution,
+                    binding,
+                    scalar_arguments,
+                    structural_arguments,
+                    result_home,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::NormalizedForeign {
+                        boundary: *boundary,
+                        provider_execution,
+                        binding,
+                        scalar_arguments,
+                        structural_arguments,
+                        result_home,
+                    },
+                ),
                 _ => return None,
             };
             Some(call)
@@ -501,6 +534,7 @@ pub(super) fn validate(
         target,
         target_functions,
         declarations,
+        boundary_machines,
         native_target,
         roots: &roots,
     };
@@ -884,6 +918,18 @@ impl Replay<'_> {
         let Some(call) = call else {
             return Ok(());
         };
+        if let EmbeddedCall::NormalizedForeign { .. } = call {
+            return self.normalized_foreign_call(
+                psi_operation,
+                result,
+                boundary,
+                arguments,
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+                call,
+            );
+        }
         let EmbeddedCall::Structural {
             origin:
                 NativeCallOrigin::InstalledProvider {
@@ -971,6 +1017,366 @@ impl Replay<'_> {
             actual_result,
             callee_function,
         )
+    }
+
+    /// An evaluated normalized foreign call embeds the boundary's own entry
+    /// plan and projects borrowed flat-record arguments through it. The
+    /// retained plan, locator, provider binding, and argument rows are never
+    /// authority: every coordinate is re-derived from the unique boundary
+    /// declaration, the caller's checked structural parameter roster, and the
+    /// target's own ABI evaluation. A registrar callback lane cannot rejoin
+    /// here — the admitted registrar context is not part of this artifact —
+    /// so a materialized plan fails closed.
+    #[allow(clippy::too_many_arguments)]
+    fn normalized_foreign_call(
+        &self,
+        psi_operation: OperationId,
+        result: &AbstractBoundaryResult,
+        boundary: BoundaryMachineId,
+        arguments: &[ValueId],
+        structural_arguments: &[StructuralArgument],
+        completion_claim_sources: &[CompletionClaimSource],
+        completion_receipts: &[terminal_psi::CompletionReceipt],
+        call: &EmbeddedCall<'_>,
+    ) -> Result<(), OperationId> {
+        let EmbeddedCall::NormalizedForeign {
+            boundary: actual_boundary,
+            provider_execution,
+            binding,
+            scalar_arguments: actual_scalar,
+            structural_arguments: actual_structural,
+            result_home,
+        } = call
+        else {
+            return Err(psi_operation);
+        };
+        if *actual_boundary != boundary
+            || !completion_claim_sources.is_empty()
+            || !completion_receipts.is_empty()
+        {
+            return Err(psi_operation);
+        }
+        // Exactly one declaration may carry the retained boundary identity,
+        // and the admitted same-stack contribution must name that
+        // declaration's requirement and the exact provider plan behind the
+        // retained execution binding.
+        let mut declarations = self
+            .boundary_machines
+            .iter()
+            .filter(|row| row.id == boundary);
+        let declaration = declarations.next().ok_or(psi_operation)?;
+        if declarations.next().is_some()
+            || binding.locator.target().native_target() != self.native_target
+            || binding.same_stack_contribution.requirement_identity() != declaration.identity
+            || binding
+                .same_stack_contribution
+                .provider_plan_report_identity()
+                != provider_execution.provider_plan_report_identity().get()
+            || binding.boundary_entry_plan.call.policy
+                != CallingPolicy::native_for_target(self.native_target)
+            || binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn
+            || !binding
+                .boundary_entry_plan
+                .call
+                .callback_materializations
+                .is_empty()
+        {
+            return Err(psi_operation);
+        }
+        // The Terminal declaration splits scalar and structural formals into
+        // two lane-local lists and erases their authored interleave, so a
+        // structural argument rejoins its exact plan position only while the
+        // scalar lane is empty; a mixed signature fails closed rather than
+        // guessing an ordinal the artifact cannot prove.
+        if structural_arguments.len() != declaration.structural_parameters.len()
+            || actual_structural.len() != structural_arguments.len()
+            || arguments.len() != declaration.scalar_parameters.len()
+            || actual_scalar.len() != arguments.len()
+            || (!structural_arguments.is_empty() && !declaration.scalar_parameters.is_empty())
+        {
+            return Err(psi_operation);
+        }
+        let scalar_shapes = declaration
+            .scalar_parameters
+            .iter()
+            .map(|parameter| {
+                let ScalarType::Integer(integer) = parameter else {
+                    return Err(psi_operation);
+                };
+                structural_signatures::fixed_native_integer_shape(*integer).ok_or(psi_operation)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        // Each borrowed structural parameter transports one referent pointer:
+        // the signature is rebuilt from the target's pointer word, never from
+        // the retained rows.
+        let pointer_size =
+            u16::try_from(self.native_target.pointer_size).map_err(|_| psi_operation)?;
+        let pointer_alignment =
+            u16::try_from(self.native_target.pointer_alignment).map_err(|_| psi_operation)?;
+        let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+        let expected_result = match (result, &declaration.result) {
+            (AbstractBoundaryResult::Unit, terminal_psi::BoundaryMachineResult::Unit) => None,
+            (
+                AbstractBoundaryResult::Scalar(result),
+                terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(declared)),
+            ) => {
+                // A scalar result needs the attached Unit frame to retain the
+                // home, and the declared result must be the same fixed-width
+                // integer the abstract result names.
+                let ScalarType::Integer(result_type) = result.scalar_type else {
+                    return Err(psi_operation);
+                };
+                if *declared != result_type || self.source.attachment.is_none() {
+                    return Err(psi_operation);
+                }
+                let shape = structural_signatures::fixed_native_integer_shape(result_type)
+                    .ok_or(psi_operation)?;
+                Some((
+                    TargetUnitScalarHomeRequirement {
+                        defining_operation: psi_operation,
+                        source_value: result.value,
+                        scalar_type: result.scalar_type,
+                        shape,
+                    },
+                    shape,
+                ))
+            }
+            _ => return Err(psi_operation),
+        };
+        let signature = CallSignature {
+            parameters: if structural_arguments.is_empty() {
+                scalar_shapes.clone()
+            } else {
+                vec![pointer_shape; structural_arguments.len()]
+            },
+            result: expected_result.as_ref().map(|(_, shape)| *shape),
+        };
+        let validated = calling_conventions::validate_boundary_entry_plan(
+            binding.boundary_entry_plan.clone(),
+            &signature,
+        )
+        .map_err(|_| psi_operation)?;
+        if validated.plan() != &binding.boundary_entry_plan
+            || binding.boundary_entry_plan.call.parameters.len()
+                != scalar_shapes.len() + structural_arguments.len()
+            || expected_result.as_ref().map(|(home, _)| home) != result_home.as_ref()
+        {
+            return Err(psi_operation);
+        }
+        match (
+            &binding.boundary_entry_plan.call.result,
+            expected_result.as_ref().map(|(_, shape)| *shape),
+        ) {
+            (None, None) => {}
+            (Some(placement), Some(shape)) => {
+                let placed = matches!(
+                    placement.locations.as_slice(),
+                    [ValueLocation::Register {
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    }] if *byte_size == shape.byte_size
+                );
+                if placement.shape != shape || !placed {
+                    return Err(psi_operation);
+                }
+            }
+            _ => return Err(psi_operation),
+        }
+        // `Home` sources cite the exact retained result home of the producing
+        // operation — replayed on that row's own source operation — while an
+        // `IntegerImmediate` must equal the source `IntegerConstant` op it
+        // names. Parameters, block values, and boolean or float immediates
+        // are inadmissible on this lane, so every other `source` kind is a
+        // substitution.
+        let mut retained_scalar_homes = BTreeMap::new();
+        for operation in self
+            .target
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+        {
+            let home = match operation {
+                TargetUnitOperation::ScalarCall { result_home, .. }
+                | TargetUnitOperation::IeeeFloatCompare { result_home, .. }
+                | TargetUnitOperation::StoredDynamicScalarCall { result_home, .. }
+                | TargetUnitOperation::DynamicScalarCall { result_home, .. }
+                | TargetUnitOperation::DynamicParameterScalarCall { result_home, .. }
+                | TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
+                    result_home,
+                    ..
+                }
+                | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(result_home),
+                TargetUnitOperation::NormalizedForeignCall { result_home, .. } => {
+                    result_home.as_ref()
+                }
+                _ => None,
+            };
+            if let Some(home) = home {
+                retained_scalar_homes.insert(home.defining_operation, home);
+            }
+        }
+        for (index, ((actual, value), shape)) in actual_scalar
+            .iter()
+            .zip(arguments)
+            .zip(&scalar_shapes)
+            .enumerate()
+        {
+            let placed_byte_size = match actual.placement.locations.as_slice() {
+                [
+                    ValueLocation::Register {
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ]
+                | [
+                    ValueLocation::Stack {
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ] => *byte_size,
+                _ => return Err(psi_operation),
+            };
+            let source_invalid = match &actual.source {
+                TargetUnitScalarArgumentSource::IntegerImmediate {
+                    defining_operation,
+                    source_value,
+                    scalar_type,
+                    value: literal,
+                } => {
+                    *source_value != *value
+                        || semantic_vocabulary::ScalarTerm::integer(*scalar_type, *literal).is_err()
+                        || !self.source.operations.iter().any(|operation| {
+                            matches!(
+                                operation,
+                                AbstractOperation::IntegerConstant {
+                                    psi_operation,
+                                    result,
+                                    scalar_type: declared,
+                                    value
+                                } if *psi_operation == *defining_operation
+                                    && *result == *source_value
+                                    && *declared == ScalarType::Integer(*scalar_type)
+                                    && *value == *literal
+                            )
+                        })
+                }
+                TargetUnitScalarArgumentSource::Home(home) => {
+                    home.source_value != *value
+                        || home.shape != *shape
+                        || home.defining_operation == psi_operation
+                        || retained_scalar_homes.get(&home.defining_operation) != Some(&home)
+                }
+                _ => true,
+            };
+            if usize::try_from(actual.parameter_index).ok() != Some(index)
+                || actual.placement != binding.boundary_entry_plan.call.parameters[index]
+                || actual.placement.shape != *shape
+                || shape.byte_size != placed_byte_size
+                || actual.source.source_value() != *value
+                || actual.source.scalar_type() != declaration.scalar_parameters[index]
+                || source_invalid
+            {
+                return Err(psi_operation);
+            }
+        }
+        for (index, ((actual, semantic), declaration_parameter)) in actual_structural
+            .iter()
+            .zip(structural_arguments)
+            .zip(&declaration.structural_parameters)
+            .enumerate()
+        {
+            // The referent root must be one of the caller's own checked
+            // structural parameters; the projected type, offset, and home are
+            // re-derived from its declaration rather than the retained row.
+            let root = self
+                .target
+                .graph
+                .parameters
+                .iter()
+                .find(|parameter| parameter.place == semantic.place)
+                .ok_or(psi_operation)?;
+            if semantic.path.is_empty()
+                || semantic
+                    .path
+                    .iter()
+                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+            {
+                return Err(psi_operation);
+            }
+            let (projected_type, projected_shape, byte_offset) =
+                structural_shapes::projected_field(
+                    root.structural_type,
+                    &semantic.path,
+                    self.declarations,
+                )
+                .map_err(|_| psi_operation)?;
+            let destination = binding
+                .boundary_entry_plan
+                .call
+                .parameters
+                .get(index)
+                .ok_or(psi_operation)?;
+            let placed_pointer_word = match destination.locations.as_slice() {
+                [
+                    ValueLocation::Register {
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ]
+                | [
+                    ValueLocation::Stack {
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    },
+                ] => *byte_size,
+                _ => return Err(psi_operation),
+            };
+            if usize::try_from(declaration_parameter.position).ok() != Some(index)
+                || semantic.access != declaration_parameter.access
+                || !matches!(
+                    semantic.access,
+                    StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                )
+                || projected_type != declaration_parameter.structural_type
+                || declaration_parameter.multiplicity
+                    != terminal_psi::StructuralMultiplicity::Unrestricted
+                || !declaration_parameter.qualifications.is_empty()
+                || !declaration_parameter.projected_qualifications.is_empty()
+                || u32::from(projected_shape.byte_size)
+                    .checked_add(byte_offset)
+                    .is_none_or(|end| end > u32::from(root.shape.byte_size))
+                || destination.shape != pointer_shape
+                || placed_pointer_word != pointer_size
+            {
+                return Err(psi_operation);
+            }
+            let expected_shape =
+                structural_shapes::parameter_shape(projected_shape, declaration_parameter.access);
+            if actual.place != semantic.place
+                || actual.access != semantic.access
+                || actual.path != semantic.path
+                || actual.root_structural_type != root.structural_type
+                || actual.structural_type != projected_type
+                || actual.shape != expected_shape
+                || actual.source_byte_offset != byte_offset
+                || actual.fixed_array_length.is_some()
+                || actual.element_stride.is_some()
+                || actual.source
+                    != TargetStructuralArgumentSource::Placement(root.placement.clone())
+                || actual.destination != *destination
+            {
+                return Err(psi_operation);
+            }
+        }
+        Ok(())
     }
 
     /// A scalar-result direct call replays the published fixed-native scalar

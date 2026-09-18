@@ -23,6 +23,7 @@ access-plans = { path = "../../../psi/foundation/access-plans" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 
 [dev-dependencies]
+task-plans = { path = "../../representations/task-plans" }
 terminal-psi-to-abstract-operations = { path = "../terminal-psi-to-abstract-operations" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
