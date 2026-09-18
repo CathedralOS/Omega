@@ -4,14 +4,17 @@
 //! bytes equal the complete encoded and materialized images. A compiler prefix
 //! cannot stand in for writer-retained placement.
 
-use crate::{dynamic_conformance_table_plan, internal_call_plan};
+use crate::{callback_private_plan, dynamic_conformance_table_plan, internal_call_plan};
+use function_identity::{MachineFunctionIdentity, StateKey};
 use image_emission::{
     ExecutableImage, InstallationError, InstalledArtifactMemoryImages, ObjectArtifact,
-    bind_installed_artifact, build_installation_record, build_object_artifact,
+    bind_installed_artifact, bind_installed_compiler_private_function_entry,
+    build_installation_record, build_object_artifact, build_object_artifact_with_private_functions,
     emit_executable_image, project_installed_artifact_memory_images, validate_installation_record,
 };
 use object_file::{ObjectSymbolHandle, RelocationKind, SectionKind};
 use semantic_vocabulary::ProfileDecisionId;
+use symbols::SymbolHandle;
 use target::NativeTarget;
 
 /// Run the executable-installation ladder over one flattened artifact image:
@@ -194,6 +197,12 @@ fn assert_complete_projection(memory: &InstalledArtifactMemoryImages, image: &Ex
 /// and the resolver returns final-image virtual addresses, so both absolute
 /// and relative relocation transforms reproduce the values the image writer
 /// baked into the final bytes.
+///
+/// Every text symbol the ladder mints a `RelocationTarget::Entry` for is also
+/// admitted as an `ArtifactEntry` row — program functions, compiler-private
+/// functions, and forwarded-descriptor adapters alike — matching the admitted
+/// entry set the production installation carries. The returned `entry_stubs`
+/// name each symbol's admitted stub so tests can select one.
 fn install_parts(
     object: &ObjectArtifact,
     image: &ExecutableImage,
@@ -203,10 +212,12 @@ fn install_parts(
     Vec<executable_installation::ArtifactEntry>,
     Vec<executable_installation::DecodedArtifactRelocation>,
     Vec<(layout_plans::RelocationTarget, u64)>,
+    Vec<(ObjectSymbolHandle, layout_plans::EntryStubId)>,
 ) {
     let layout = image.output().final_image_layout;
     let base = layout.text_address;
     let mut entries = Vec::new();
+    let mut entry_stubs = Vec::new();
     let mut symbol_targets: Vec<(ObjectSymbolHandle, (layout_plans::RelocationTarget, u64))> =
         Vec::new();
     let mut next_identity = 0x7400_u64;
@@ -223,25 +234,27 @@ fn install_parts(
             stub,
         )
     };
-    for function in object.functions() {
-        let (symbol, target, stub) = next_text(function.symbol, function.text_offset);
+    let mut admit_text_entry = |symbol: ObjectSymbolHandle, text_offset: usize| {
+        let (symbol, target, stub) = next_text(symbol, text_offset);
         symbol_targets.push((symbol, target));
+        entry_stubs.push((symbol, stub));
         entries.push(
             executable_installation::ArtifactEntry::from_canonical_decode(
                 stub,
-                u64::try_from(function.text_offset).expect("function offset"),
+                u64::try_from(text_offset).expect("text offset"),
             ),
         );
+    };
+    for function in object.functions() {
+        admit_text_entry(function.symbol, function.text_offset);
     }
     for private in object.private_functions() {
-        let (symbol, target, _) = next_text(private.function.symbol, private.function.text_offset);
-        symbol_targets.push((symbol, target));
+        admit_text_entry(private.function.symbol, private.function.text_offset);
     }
     for adapter in object.forwarded_dynamic_descriptor_adapters() {
-        let (symbol, target, _) = next_text(adapter.symbol, adapter.text_offset);
-        symbol_targets.push((symbol, target));
+        admit_text_entry(adapter.symbol, adapter.text_offset);
     }
-    drop(next_text);
+    drop(admit_text_entry);
     for table in object.dynamic_conformance_tables() {
         let data = layout_plans::DataSymbolId::from_normalized_identity(next_identity)
             .expect("data symbol identity");
@@ -317,7 +330,21 @@ fn install_parts(
         .into_iter()
         .map(|(_, target)| target)
         .collect();
-    (base, entries, relocations, resolution)
+    (base, entries, relocations, resolution, entry_stubs)
+}
+
+/// The admitted entry stub minted for one object text symbol, when the ladder
+/// admitted one. Every `RelocationTarget::Entry` in the resolver map has a
+/// matching `ArtifactEntry` row, so this is exactly the set
+/// `InstalledCode::selected_entry_target` can select.
+fn entry_stub(
+    entry_stubs: &[(ObjectSymbolHandle, layout_plans::EntryStubId)],
+    symbol: ObjectSymbolHandle,
+) -> Option<layout_plans::EntryStubId> {
+    entry_stubs
+        .iter()
+        .find(|(candidate, _)| *candidate == symbol)
+        .map(|(_, stub)| *stub)
 }
 
 fn resolver(
@@ -354,7 +381,7 @@ fn installed_artifact_join_requires_complete_placed_custody() {
 
     let record = build_installation_record(&image, ProfileDecisionId::new(29).expect("profile"))
         .expect("installation record");
-    let (base, entries, relocations, stub_addresses) = install_parts(&object, &image, &memory);
+    let (base, entries, relocations, stub_addresses, _) = install_parts(&object, &image, &memory);
     let install = |code: Vec<u8>| {
         install_flattened_image(
             object.target().architecture,
@@ -509,7 +536,7 @@ fn installed_artifact_join_replays_typed_relocation_over_complete_macho_image() 
 
     let record = build_installation_record(&image, ProfileDecisionId::new(31).expect("profile"))
         .expect("installation record");
-    let (base, entries, relocations, stub_addresses) = install_parts(&object, &image, &memory);
+    let (base, entries, relocations, stub_addresses, _) = install_parts(&object, &image, &memory);
     assert_eq!(relocations.len(), 1, "one typed internal-call relocation");
     bind_installed_artifact(
         object.clone(),
@@ -603,4 +630,127 @@ fn installed_artifact_join_replays_typed_relocation_over_complete_macho_image() 
             "{label}: the installed-artifact join must reject it",
         );
     }
+}
+
+/// The compiler-private entry-attribution gate replays the admitted artifact
+/// entry set: the callback thunk's own `ArtifactEntry` binds the exact
+/// installation row and installed occurrence, while a foreign function
+/// identity, an unadmitted stub, or a semantic function's admitted entry each
+/// reject. The bound attribution names only its own installed-code occurrence —
+/// identical bytes installed under a different placement are not it.
+#[test]
+fn installed_private_function_entry_binds_exact_row_and_occurrence() {
+    let plan = callback_private_plan();
+    let object =
+        build_object_artifact_with_private_functions(&plan).expect("callback private object");
+    let [private] = object.private_functions() else {
+        panic!("callback fixture retains one compiler-private function");
+    };
+    let private_identity = private.identity;
+    let private_symbol = private.function.symbol;
+    let image = emit_executable_image(&object, 3).expect("callback private image");
+    let memory = project_installed_artifact_memory_images(&object, &image)
+        .expect("complete custody projects the installed memory images");
+    assert_complete_projection(&memory, &image);
+
+    let record = build_installation_record(&image, ProfileDecisionId::new(59).expect("profile"))
+        .expect("callback private installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let [row] = record.private_functions() else {
+        panic!("the record retains the exact private-function row");
+    };
+    assert_eq!(row.identity, private_identity);
+    let (base, entries, relocations, stub_addresses, entry_stubs) =
+        install_parts(&object, &image, &memory);
+    let private_stub = entry_stub(&entry_stubs, private_symbol)
+        .expect("the private function's text symbol is an admitted entry");
+    let install = |placement_base: u64| {
+        install_flattened_image(
+            object.target().architecture,
+            memory.encoded().to_vec(),
+            entries.clone(),
+            relocations.clone(),
+            placement_base,
+            resolver(stub_addresses.clone()),
+        )
+    };
+    let bound =
+        bind_installed_artifact(object.clone(), image.clone(), record.clone(), install(base))
+            .expect("the complete image binds installed-code custody");
+
+    let attribution =
+        bind_installed_compiler_private_function_entry(&bound, private_identity, private_stub)
+            .expect("the admitted entry binds the exact private-function row");
+    assert_eq!(attribution.private_function(), row);
+    assert_eq!(attribution.entry(), private_stub);
+    assert_eq!(attribution.artifact(), bound.artifact());
+    assert_eq!(attribution.installed_code(), bound.installed_code());
+    assert_eq!(
+        attribution.occurrence_digest(),
+        bound.installed().occurrence_digest(),
+    );
+    assert!(attribution.binds_installed_code(bound.installed()));
+
+    // Identical bytes under a different placement are a different occurrence:
+    // the attribution stays bound to its own installed-code evidence.
+    let other = install(base + 0x1_0000);
+    assert_ne!(
+        attribution.occurrence_digest(),
+        other.occurrence_digest(),
+        "a foreign placement retains distinct occurrence evidence",
+    );
+    assert!(
+        !attribution.binds_installed_code(&other),
+        "a same-bytes occurrence under a foreign placement must not bind",
+    );
+
+    // A foreign compiler-private identity is not retained by this record.
+    let foreign = MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: SymbolHandle::from_parts(15, 2),
+            state: SymbolHandle::from_parts(13, 3),
+            segment_index: 0,
+        },
+        0,
+    )
+    .expect("foreign callback thunk identity");
+    let error = bind_installed_compiler_private_function_entry(&bound, foreign, private_stub)
+        .expect_err("a foreign private identity cannot bind the retained row");
+    assert_eq!(error.private_function(), foreign);
+    assert_eq!(error.entry(), private_stub);
+    assert!(
+        error.diagnostic().contains("does not retain"),
+        "unexpected diagnostic: {}",
+        error.diagnostic(),
+    );
+
+    // An entry the artifact never admitted cannot bind the row.
+    let unadmitted = layout_plans::EntryStubId::from_normalized_identity(0x7fff)
+        .expect("unadmitted stub identity");
+    let error =
+        bind_installed_compiler_private_function_entry(&bound, private_identity, unadmitted)
+            .expect_err("an entry outside the admitted set rejects");
+    assert_eq!(error.entry(), unadmitted);
+    assert!(
+        error.diagnostic().contains("not admitted"),
+        "unexpected diagnostic: {}",
+        error.diagnostic(),
+    );
+
+    // Even an admitted entry cannot substitute: the entry function's stub
+    // begins at its own text offset, not at the private row's interval.
+    let entry_function_stub = entry_stub(&entry_stubs, object.entry_function().symbol)
+        .expect("the entry function's admitted stub");
+    let error = bind_installed_compiler_private_function_entry(
+        &bound,
+        private_identity,
+        entry_function_stub,
+    )
+    .expect_err("a different admitted entry cannot begin the private interval");
+    assert_eq!(error.entry(), entry_function_stub);
+    assert!(
+        error.diagnostic().contains("text offset"),
+        "unexpected diagnostic: {}",
+        error.diagnostic(),
+    );
 }
