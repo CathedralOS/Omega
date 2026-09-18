@@ -1406,6 +1406,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "borrows/borrow_same_fixed_index_call_mut",
     "borrows/borrow_same_fixed_index_mut",
     "borrows/borrow_same_fixed_index_slice_alias_mut",
+    "borrows/borrow_stated_index_disequality_mut",
     "borrows/borrow_unknown_index_pair_mut",
     "constraints/finite_core_domain_on_int",
     "constraints/multiple_policy_domain_chain",
