@@ -16,6 +16,36 @@ pub(super) fn argument(
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
+    // An exclusive root may arrive through control flow rather than the machine
+    // entrance. A non-entry block structural parameter carries the same custody
+    // as an incoming parameter, and the caller's own parameter roster holds no
+    // row for such a place, so reconstruct it from the block declaration and the
+    // verifier-owned place role instead. Entry-block rows keep the entrance
+    // route below, which owns the published parameter placement.
+    if semantic.path.is_empty()
+        && let Some((block, declaration)) = caller
+            .blocks
+            .iter()
+            .filter(|block| block.id != caller.entry)
+            .find_map(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == semantic.place)
+                    .map(|parameter| (block, parameter))
+            })
+    {
+        return block_parameter_argument(
+            semantic,
+            caller,
+            block,
+            declaration,
+            destination,
+            call,
+            scalar_count,
+            plan,
+        );
+    }
     let source = caller
         .structural_parameters
         .iter()
@@ -122,6 +152,83 @@ pub(super) fn argument(
         fixed_array_length: byte_view.map(|(_, length)| length),
         element_stride: byte_view.map(|_| 1),
         source: parameter.placement.clone().into(),
+        destination: call.parameters[scalar_count].clone(),
+    })
+}
+
+/// One exclusive borrow whose root is established by control flow: a non-entry
+/// block structural parameter. The verifier's own place roster supplies the
+/// root's role and the block declaration its custody, so no entrance placement
+/// is consulted; a borrowed view presents the descriptor the entrance route
+/// publishes. Only a whole root reaches here — a projected path has no
+/// block-local carrier identity to reconstruct.
+#[allow(clippy::too_many_arguments)]
+fn block_parameter_argument(
+    semantic: &StructuralArgument,
+    caller: &PsiOptimizationFunction,
+    block: &optimization_unit::OptimizationBlock,
+    declaration: &StructuralParameterDeclaration,
+    destination: &StructuralParameterDeclaration,
+    call: &CallPlan,
+    scalar_count: usize,
+    plan: &AbstractOperationPlan,
+) -> Result<TargetStructuralArgument, LegalizationError> {
+    use semantic_vocabulary::StructuralPlaceKind;
+    use target_operations::TargetStructuralArgumentSource;
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    let shape = ValueShape::borrowed_reference(16, 8);
+    if declaration.access != StructuralAccess::MutableBorrow
+        || !matches!(
+            semantic.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        )
+        || destination.access != semantic.access
+        || declaration.is_self
+        || declaration.multiplicity != StructuralMultiplicity::Unrestricted
+        || destination.multiplicity != StructuralMultiplicity::Unrestricted
+        || !declaration.qualifications.is_empty()
+        || !declaration.projected_qualifications.is_empty()
+        || !destination.qualifications.is_empty()
+        || !destination.projected_qualifications.is_empty()
+        || declaration.structural_type != destination.structural_type
+        || !caller.structural_places.iter().any(|place| {
+            place.id == declaration.place
+                && place.kind
+                    == StructuralPlaceKind::BlockParameter {
+                        block: block.id,
+                        position: declaration.position,
+                    }
+        })
+        || !plan.structural_types.iter().any(|entry| {
+            entry.id == declaration.structural_type
+                && entry.shape
+                    == terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    )
+        })
+        || call
+            .parameters
+            .get(scalar_count)
+            .is_none_or(|placement| placement.shape != shape)
+    {
+        return Err(invalid);
+    }
+    Ok(TargetStructuralArgument {
+        place: semantic.place,
+        access: semantic.access,
+        path: Vec::new(),
+        root_structural_type: declaration.structural_type,
+        structural_type: declaration.structural_type,
+        shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source: TargetStructuralArgumentSource::BlockParameter {
+            block: block.id,
+            place: declaration.place,
+        },
         destination: call.parameters[scalar_count].clone(),
     })
 }
