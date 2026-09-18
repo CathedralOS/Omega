@@ -7,14 +7,18 @@ use selected_instructions::{
     SelectedStructuralTransport, SelectedValueTransport, VirtualRegisterId,
 };
 
-use super::{RuntimeSpillError, ValidatedRuntimeSpill, admission, validate_runtime_spill};
+use super::{
+    RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, admission,
+    validate_runtime_spill_with_span_policy,
+};
 use crate::ValidatedSelectedAnalysis;
 
 /// Emit one private address/load pair for a use, or — when `share` admits a
 /// block-local shared reload — reuse the pair still open from the span's
 /// first flexible use so its interval covers every later flexible use in the
 /// span. The caller clears the open pair after any instruction that can
-/// destroy register content, so the interval never reaches across a call.
+/// destroy register content unless admission crossed it, so under the
+/// bounded policy the interval never reaches across a call.
 /// Returns the register the rewritten use must name.
 fn reload_for_use(
     admitted: &admission::Admission<'_>,
@@ -43,6 +47,8 @@ fn reload_for_use(
 
 /// Store one runtime value after its definition and reload before each
 /// flexible use. The independently checked output is the only admitted result.
+/// The historical bounded policy keeps every produced interval inside
+/// unit-free spans.
 pub fn spill_selected_runtime_value(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
@@ -50,7 +56,37 @@ pub fn spill_selected_runtime_value(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
-    let admitted = admission::admit(source, function_index, register, environment, budget)?;
+    spill_selected_runtime_value_with_span_policy(
+        source,
+        function_index,
+        register,
+        environment,
+        budget,
+        RuntimeSpillSpanPolicy::UnitWriteBounded,
+    )
+}
+
+/// The same rewrite under an explicit span policy. `UnitWriteCrossing` lets a
+/// still-open reload reach across a unit-writing instruction — most often a
+/// `CallUnit` — while admission proves a view of the victim's class survives
+/// every unit written inside the span; the allocator then decides whether the
+/// surviving callee-saved home is actually free.
+pub fn spill_selected_runtime_value_with_span_policy(
+    source: &impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    register: VirtualRegisterId,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+    span_policy: RuntimeSpillSpanPolicy,
+) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
+    let admitted = admission::admit(
+        source,
+        function_index,
+        register,
+        environment,
+        span_policy,
+        budget,
+    )?;
     let mut transformed = source.selected_plan().clone();
     let function = &mut transformed.functions[function_index];
     // A reused slot is already declared, so its bytes stay charged exactly
@@ -100,7 +136,7 @@ pub fn spill_selected_runtime_value(
                 &[definition.register],
             ));
         }
-        for original in &block.instructions {
+        for (instruction_index, original) in block.instructions.iter().enumerate() {
             boundaries.push(
                 u32::try_from(instructions.len())
                     .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
@@ -132,8 +168,12 @@ pub fn spill_selected_runtime_value(
             instructions.push(rewritten);
             // A clobber or implicit definition may write any unit, including
             // the one hosting the still-open reload, so the shared interval
-            // ends here and the next flexible use opens a fresh pair.
-            if !original.clobbers.is_empty() || !original.implicit_defs.is_empty() {
+            // ends here and the next flexible use opens a fresh pair — unless
+            // admission proved a surviving view lets the produced interval
+            // cross this unit-writing instruction to its home.
+            if (!original.clobbers.is_empty() || !original.implicit_defs.is_empty())
+                && !admitted.crossed_unit_writes[block_index].contains(&instruction_index)
+            {
                 open_reload = None;
             }
             for definition in admitted.definitions.iter().filter(|definition| {
@@ -307,12 +347,13 @@ pub fn spill_selected_runtime_value(
         function.blocks[block_index].instructions = instructions;
         function.blocks[block_index].terminator = terminator;
     }
-    validate_runtime_spill(
+    validate_runtime_spill_with_span_policy(
         source,
         function_index,
         register,
         environment,
         budget,
         transformed,
+        span_policy,
     )
 }

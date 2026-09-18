@@ -33,8 +33,8 @@ use super::admission::{StorageDefinition, StoragePosition};
 /// sharing check needs positions, not just block membership: a proposed reload
 /// reads the slot immediately before its consumer's instruction, and a
 /// block-shared reload reads once at the first unpinned use of each span —
-/// an instruction that can destroy register content ends the span, so the
-/// next unpinned use reads the slot again.
+/// an instruction that can destroy register content ends the span unless the
+/// crossing policy kept it open, so the next unpinned use reads the slot again.
 #[derive(Debug, Default)]
 pub(super) struct BlockUsePositions {
     /// Instruction indices holding at least one admitted unpinned use.
@@ -71,6 +71,7 @@ pub(super) fn shared_slot(
     definitions: &[StorageDefinition],
     uses: &[BlockUsePositions],
     shared_reload: &[bool],
+    crossed_unit_writes: &[std::collections::BTreeSet<usize>],
 ) -> Option<LocalStorageSlotId> {
     function
         .local_storage_slots
@@ -81,7 +82,16 @@ pub(super) fn shared_slot(
                 && matches!(slot.id, LocalStorageSlotId::Spill { register } if register != victim)
         })
         .map(|slot| slot.id)
-        .find(|slot| shareable(function, *slot, definitions, uses, shared_reload))
+        .find(|slot| {
+            shareable(
+                function,
+                *slot,
+                definitions,
+                uses,
+                shared_reload,
+                crossed_unit_writes,
+            )
+        })
 }
 
 fn shareable(
@@ -90,6 +100,7 @@ fn shareable(
     definitions: &[StorageDefinition],
     uses: &[BlockUsePositions],
     shared_reload: &[bool],
+    crossed_unit_writes: &[std::collections::BTreeSet<usize>],
 ) -> bool {
     let frame_slot = FrameStorageSlotId::Local(slot);
     // Instruction indices that are existing stores or loads of the candidate
@@ -264,7 +275,14 @@ fn shareable(
                     .map(|_| Event::NewStore),
             );
             for (index, instruction) in block.instructions.iter().enumerate() {
-                if loads_before(uses, shared_reload, block, block_index, index) {
+                if loads_before(
+                    uses,
+                    shared_reload,
+                    crossed_unit_writes,
+                    block,
+                    block_index,
+                    index,
+                ) {
                     events.push(Event::NewLoad);
                 }
                 if let Some(access) = accesses[block_index].get(&index) {
@@ -357,6 +375,7 @@ fn names_slot(
 fn loads_before(
     uses: &[BlockUsePositions],
     shared_reload: &[bool],
+    crossed_unit_writes: &[std::collections::BTreeSet<usize>],
     block: &selected_instructions::SelectedBlock,
     block_index: usize,
     index: usize,
@@ -373,8 +392,9 @@ fn loads_before(
     }
     // A shared reload loads at the first unpinned use of its span. An
     // instruction that can destroy register content — a clobber or an
-    // implicit definition — ends the span, so the first unpinned use after
-    // it opens a fresh pair and reads the slot again.
+    // implicit definition — ends the span unless the crossing policy kept it
+    // open, so the first unpinned use after an uncrossed unit write opens a
+    // fresh pair and reads the slot again.
     let Some(&previous) = positions
         .unpinned
         .iter()
@@ -385,7 +405,9 @@ fn loads_before(
     };
     block.instructions[previous..index]
         .iter()
-        .any(|instruction| {
-            !instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty()
+        .enumerate()
+        .any(|(offset, instruction)| {
+            (!instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty())
+                && !crossed_unit_writes[block_index].contains(&(previous + offset))
         })
 }

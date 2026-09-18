@@ -353,17 +353,77 @@ fn recover_over(
             budget,
         ) {
             Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
-            Err(_) => match crate::spill_selected_runtime_value(
-                &selected,
-                function,
-                register,
-                environment,
-                budget,
-            ) {
-                Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
-                Err(error) if replay::inadmissible(&error) => continue,
-                Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
-            },
+            Err(_) => {
+                // The call-surviving shape first: where a clobber-set-reduced
+                // view of the victim's class survives every unit written
+                // inside a flexible-use span, the still-open reload reaches
+                // across the call — or any other unit-writing instruction —
+                // and the allocator proves whether that surviving, most often
+                // callee-saved, home is actually free. Only an assignment
+                // that succeeds commits the step, ending recovery one reload
+                // pair earlier; anything else falls back to the bounded
+                // shape, so a committed step never strands an unhomeable
+                // interval. Replay independently re-derives this exact
+                // decision.
+                if let Ok(crossing) = crate::spill_selected_runtime_value_with_span_policy(
+                    &selected,
+                    function,
+                    register,
+                    environment,
+                    budget,
+                    crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                ) {
+                    let probe = analyze(
+                        environment,
+                        source.allocator_availability(),
+                        &selected,
+                        &current_liveness,
+                        &current_ranges,
+                        &crate::SelectedProgramRef::new(&crossing),
+                    )?;
+                    match assign(environment, &probe.ranges, &probe.legality) {
+                        Ok(homes) => {
+                            steps.push(RuntimeSpillStep {
+                                function,
+                                register,
+                                rewrite: RuntimeSpillStepRewrite::Spill(crossing),
+                            });
+                            let manifest = crate::project_post_allocation_optimization_manifest(
+                                upstream_manifest,
+                                &transformations(&prefix, &steps),
+                                &probe.ranges,
+                                &probe.legality,
+                                &homes,
+                            )
+                            .map_err(RuntimeSpillAllocationError::Manifest)?;
+                            let result = RuntimeSpillAllocation {
+                                source,
+                                steps,
+                                facts: probe,
+                                homes,
+                                manifest,
+                            };
+                            replay::validate(&result)?;
+                            return Ok(result);
+                        }
+                        Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {}
+                        Err(error) => {
+                            return Err(RuntimeSpillAllocationError::Homes(error));
+                        }
+                    }
+                }
+                match crate::spill_selected_runtime_value(
+                    &selected,
+                    function,
+                    register,
+                    environment,
+                    budget,
+                ) {
+                    Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
+                    Err(error) if replay::inadmissible(&error) => continue,
+                    Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
+                }
+            }
         };
         let facts = analyze(
             environment,

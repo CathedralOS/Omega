@@ -71,19 +71,72 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                 {
                     return Err(RuntimeSpillAllocationError::CandidateMismatch);
                 }
-                let replayed = crate::validate_runtime_spill(
+                // The producer attempted the call-surviving shape first and
+                // committed it — ending recovery — exactly when its produced
+                // plan assigned. Replay re-derives that decision on the same
+                // inputs: a crossing step must be the last one and validate
+                // under the crossing policy, while every other spill is the
+                // bounded fallback.
+                let expects_crossing = match crate::spill_selected_runtime_value_with_span_policy(
                     &selected,
                     step.function,
                     step.register,
                     environment,
                     budget,
-                    rewrite.transformed().clone(),
-                )
-                .map_err(RuntimeSpillAllocationError::Rewrite)?;
-                if replayed.receipt() != rewrite.receipt() {
-                    return Err(RuntimeSpillAllocationError::ReceiptMismatch);
+                    crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                ) {
+                    Ok(crossing) => {
+                        let probe = analyze(
+                            environment,
+                            source.allocator_availability(),
+                            &selected,
+                            &current_liveness,
+                            &current_ranges,
+                            &crate::SelectedProgramRef::new(&crossing),
+                        )?;
+                        match assign(environment, &probe.ranges, &probe.legality) {
+                            Ok(_) => true,
+                            Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => false,
+                            Err(error) => {
+                                return Err(RuntimeSpillAllocationError::Homes(error));
+                            }
+                        }
+                    }
+                    Err(_) => false,
+                };
+                if expects_crossing {
+                    if step_index + 1 != staged.steps.len() {
+                        return Err(RuntimeSpillAllocationError::CandidateMismatch);
+                    }
+                    let replayed = crate::validate_runtime_spill_with_span_policy(
+                        &selected,
+                        step.function,
+                        step.register,
+                        environment,
+                        budget,
+                        rewrite.transformed().clone(),
+                        crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                    )
+                    .map_err(RuntimeSpillAllocationError::Rewrite)?;
+                    if replayed.receipt() != rewrite.receipt() {
+                        return Err(RuntimeSpillAllocationError::ReceiptMismatch);
+                    }
+                    RuntimeSpillStepRewrite::Spill(replayed)
+                } else {
+                    let replayed = crate::validate_runtime_spill(
+                        &selected,
+                        step.function,
+                        step.register,
+                        environment,
+                        budget,
+                        rewrite.transformed().clone(),
+                    )
+                    .map_err(RuntimeSpillAllocationError::Rewrite)?;
+                    if replayed.receipt() != rewrite.receipt() {
+                        return Err(RuntimeSpillAllocationError::ReceiptMismatch);
+                    }
+                    RuntimeSpillStepRewrite::Spill(replayed)
                 }
-                RuntimeSpillStepRewrite::Spill(replayed)
             }
             RuntimeSpillStepRewrite::Rematerialization(rewrite) => {
                 let replayed = crate::validate_runtime_rematerialization(

@@ -3,11 +3,15 @@
 //! of the victim's class could host an interval at all — no implicitly used,
 //! pinned, or reserved unit occupies every view — the first unpinned
 //! instruction-operand use in a block emits the pair and every later unpinned
-//! use names that same still-open reload register. An instruction that can
-//! destroy register content — a clobber or an implicit definition — closes the
-//! open pair, so the next unpinned use opens a fresh one and no produced
-//! interval ever reaches across a call to demand a callee-saved home recovery
-//! may not have. ABI-pinned uses keep a private pair so the pin attaches
+//! use names that same still-open reload register. How far that pair reaches is
+//! the span policy: under `UnitWriteBounded` an instruction that can destroy
+//! register content — a clobber or an implicit definition — closes the open
+//! pair, so the next unpinned use opens a fresh one and no produced interval
+//! ever reaches across a call. Under `UnitWriteCrossing` the open pair instead
+//! survives such an instruction while an allocatable view of the victim's class
+//! avoids every unit written inside the span — exactly the clobber-set-reduced,
+//! most often callee-saved, home the produced interval then demands of the
+//! allocator. ABI-pinned uses keep a private pair so the pin attaches
 //! to the load-to-use window alone, and blocks with no surviving view keep the
 //! per-use shape entirely.
 //! Admission and control projection are shared predicates; proposal inserts the
@@ -106,8 +110,25 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::spill_selected_runtime_value;
-pub use validation::validate_runtime_spill;
+pub use rewrite::{spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy};
+pub use validation::{validate_runtime_spill, validate_runtime_spill_with_span_policy};
+
+/// How far a block's still-open shared reload interval may reach. Admission
+/// fixes this once per rewrite so proposal and independent replay share one
+/// decision procedure over the same recorded unit writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuntimeSpillSpanPolicy {
+    /// A clobber or implicit definition always closes the open pair: every
+    /// produced interval stays inside a unit-free span and never demands a
+    /// call-surviving home.
+    UnitWriteBounded,
+    /// A unit-writing instruction — most often a `CallUnit` — keeps the open
+    /// pair while an allocatable view of the victim's class avoids every unit
+    /// written inside the span so far: the surviving homes a call crossing
+    /// demands. When no such view exists the instruction still closes the
+    /// span, so the produced shape degrades to the bounded one.
+    UnitWriteCrossing,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeSpill {
