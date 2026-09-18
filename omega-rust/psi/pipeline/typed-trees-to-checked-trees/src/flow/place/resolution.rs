@@ -23,7 +23,12 @@ mod tests;
 /// own type: no slice type-reference node exists to mint for it, and the
 /// distinction is load-bearing — an index hop resumes at the element while
 /// a member demand resolves nothing, because a slice declares no fields.
-#[derive(Clone, Copy)]
+///
+/// Position equality is identity equality on the stored evidence — the same
+/// reference handle, the same declaration, or the same element reference —
+/// not type equality: two positions naming equal types through different
+/// stored rows do not join, because neither is evidence for the other.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum MemberPosition {
     Reference(typed_trees::types::TypeReferenceHandle),
     Declaration(SymbolHandle),
@@ -255,8 +260,79 @@ pub(super) fn expression_type_position(
             .type_symbol
             .is_valid()
             .then_some(MemberPosition::Declaration(literal.type_symbol)),
+        // A cast stores its complete normalized result qualification on the
+        // node, so the leaf's position is that reference outright. An
+        // unresolved stored result (zero means unnormalized) keeps none.
+        ExpressionNode::Cast(cast) => cast
+            .result_type
+            .is_valid()
+            .then_some(MemberPosition::Reference(cast.result_type)),
+        // The proof-only zero value of `T` is a `T`; the node stores the
+        // exact reference, so its position is that reference outright.
+        ExpressionNode::ZeroValue(reference) => reference
+            .is_valid()
+            .then_some(MemberPosition::Reference(*reference)),
+        ExpressionNode::ArrayLiteral(elements) => array_literal_position(
+            program,
+            program.expression_table.expression_handles(*elements),
+        ),
+        ExpressionNode::Match(dispatch) => match_result_position(program, dispatch),
+        // The remaining leaves produce scalar values — literals, unary and
+        // binary results, range operands — whose types own no declaration
+        // identity to resume at, so they keep no position rather than
+        // borrowing a same-shaped row.
         _ => None,
     }
+}
+
+/// An array literal is a fixed collection over one element type: the
+/// position is `Sliced` over that element — an index hop resumes at the
+/// element, a range keeps the same window, and a member demand resolves
+/// nothing because an array declares no fields. Every element must agree on
+/// one exact `Reference` position; an opaque element or a different stored
+/// handle keeps the literal unproven rather than naming one element's type
+/// for the whole collection. Elements whose positions are not references —
+/// a declaration leaf, another window — carry no element handle the window
+/// could reuse, so the literal keeps no position there either.
+fn array_literal_position(
+    program: &typed_trees::TypedTrees,
+    elements: &[ExpressionHandle],
+) -> Option<MemberPosition> {
+    let mut positions = elements
+        .iter()
+        .map(|element| expression_type_position(program, *element));
+    let Some(Some(first)) = positions.next() else {
+        return None;
+    };
+    let MemberPosition::Reference(element) = first else {
+        return None;
+    };
+    positions
+        .all(|position| position == Some(first))
+        .then_some(MemberPosition::Sliced(element))
+}
+
+/// A match's value is whichever arm produces it, so every arm must agree on
+/// one exact position — the same stored reference, declaration, or window
+/// element. An opaque arm or a different stored row keeps the dispatch
+/// unproven rather than letting one arm's leaf stand in for the others';
+/// an arm spelled through a distinct handle to an equal type is that same
+/// disagreement, not a join.
+fn match_result_position(
+    program: &typed_trees::TypedTrees,
+    dispatch: &typed_trees::expression::TableMatchExpression,
+) -> Option<MemberPosition> {
+    let mut positions = program
+        .expression_table
+        .match_arms(dispatch.arms)
+        .iter()
+        .map(|arm| expression_type_position(program, arm.value));
+    let Some(Some(first)) = positions.next() else {
+        return None;
+    };
+    positions
+        .all(|position| position == Some(first))
+        .then_some(first)
 }
 
 pub(crate) fn effective_member_symbol(
