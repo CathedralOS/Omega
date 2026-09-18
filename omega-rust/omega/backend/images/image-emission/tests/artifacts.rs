@@ -4,6 +4,8 @@
 //! `dynamic_and_cleanup_plans.rs` hold the plan fixtures; this file keeps the
 //! progress acceptance and the identity helpers.
 
+#[path = "artifacts/acyclic_control_flow.rs"]
+mod acyclic_control_flow;
 #[path = "artifacts/dynamic_and_cleanup_plans.rs"]
 mod dynamic_and_cleanup_plans;
 #[path = "artifacts/hosted_exit_runtime.rs"]
@@ -48,8 +50,8 @@ use provider_and_call_plans::{
 };
 use scalar_plans::{
     aarch64_words, account_aarch64_unit_call, account_x86_unit_call, conditional_tree,
-    insert_aarch64_word, integer_return, promote_x86_cleanup_to_scalar, scalar_call_plan,
-    scalar_conditional_call_plan, scalar_expression_condition_call_plan,
+    insert_aarch64_word, integer_return, promote_x86_cleanup_to_scalar, scalar_acyclic_plan,
+    scalar_call_plan, scalar_conditional_call_plan, scalar_expression_condition_call_plan,
     scalar_expression_two_return_conditional_plan, scalar_mutation, scalar_three_leaf_cleanup_plan,
     scalar_two_return_conditional_plan,
 };
