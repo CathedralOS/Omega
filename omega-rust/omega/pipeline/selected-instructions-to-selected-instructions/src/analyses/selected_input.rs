@@ -8,12 +8,12 @@ use crate::{
     ValidatedConfluenceRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
     ValidatedCopyRemoval, ValidatedDeadCompare, ValidatedDeadStoreElimination,
     ValidatedDiamondRelocation, ValidatedEdgeRelocation, ValidatedFixedViewCopies,
-    ValidatedForkRelocation, ValidatedJoinRelocation, ValidatedLiteralCompare,
-    ValidatedLiteralFold, ValidatedLiteralMinuend, ValidatedLocalRelocation,
-    ValidatedLocalSchedule, ValidatedPredecessorRelocation, ValidatedPressureRematerialization,
-    ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedRunRelocation,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedStoreMutationMotion,
-    ValidatedStoredLoadForwarding,
+    ValidatedForkRelocation, ValidatedJoinRelocation, ValidatedLiteralArithmetic,
+    ValidatedLiteralCompare, ValidatedLiteralFold, ValidatedLiteralMinuend,
+    ValidatedLocalRelocation, ValidatedLocalSchedule, ValidatedPredecessorRelocation,
+    ValidatedPressureRematerialization, ValidatedRedundantCompare, ValidatedRedundantExtension,
+    ValidatedRunRelocation, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
 };
 
 mod sealed {
@@ -343,6 +343,26 @@ impl ValidatedSelectedAnalysis for ValidatedForkRelocation {
 impl sealed::Sealed for ValidatedJoinRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedJoinRelocation {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedLiteralArithmetic {}
+
+impl ValidatedSelectedAnalysis for ValidatedLiteralArithmetic {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
