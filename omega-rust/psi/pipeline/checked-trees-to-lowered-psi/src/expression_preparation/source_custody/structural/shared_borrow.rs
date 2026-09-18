@@ -1,13 +1,13 @@
 //! Replay custody for a `Reference` selection value carrying a `SharedBorrow`
 //! argument. The checked plan recorded the authored `&place` expression's
-//! exact root symbol and member path; replay rebuilds that place and requires
-//! shared access on the authored borrow, the result type and the argument, the
-//! exact member path, the projected leaf's identity equal to the result's
-//! record referent, and an established structural root place the pipeline can
-//! carry -- linear-tolerant, because observing a place moves nothing. There is
-//! no owned receipt or transfer to consume: a shared-borrow join is provenance
-//! pass-through, so unlike `validate_projection` this leaf leaves owned
-//! custody records untouched.
+//! exact root symbol and member/fixed-index path; replay rebuilds that place
+//! and requires shared access on the authored borrow, the result type and the
+//! argument, the exact path, the projected leaf's identity equal to the
+//! result's record referent, and an established structural root place the
+//! pipeline can carry -- linear-tolerant, because observing a place moves
+//! nothing. There is no owned receipt or transfer to consume: a shared-borrow
+//! join is provenance pass-through, so unlike `validate_projection` this leaf
+//! leaves owned custody records untouched.
 
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, unsupported,
@@ -85,6 +85,53 @@ pub(super) fn validate(
                         .unwrap_or_else(|| field.name.as_str().to_owned()),
                 ));
                 cursor = member.receiver;
+            }
+            // A literal fixed index is an exact place segment the same way a
+            // record field is: the checked planner recorded its ordinal after
+            // the same literal-length bound check replayed here.
+            ExpressionNode::Indexed(indexed) => {
+                let ExpressionNode::Integer(index) =
+                    checked.expression_table.expression(indexed.index)
+                else {
+                    return unsupported(
+                        "borrowed selection target indexes through a non-literal ordinal",
+                    );
+                };
+                let index = index
+                    .value_bignum()
+                    .and_then(|value| value.to_u64())
+                    .ok_or(LoweringError::Unsupported(
+                        "borrowed selection index exceeds u64",
+                    ))?;
+                let container = validation::declared_place_type_raw(
+                    &checked.typed,
+                    machine,
+                    Some(authored),
+                    indexed.collection,
+                )
+                .and_then(|container| {
+                    validation::unwrapped_type_reference(&checked.typed, container)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "borrowed selection index has no declared collection",
+                ))?;
+                let checked_trees::types::TypeReferenceNode::FixedArray {
+                    length: checked_trees::types::FixedArrayLength::Literal(length),
+                    ..
+                } = checked.type_reference_table.type_reference(container)
+                else {
+                    return unsupported("borrowed selection index has no literal array length");
+                };
+                if usize::try_from(index)
+                    .ok()
+                    .is_none_or(|index| index >= *length)
+                {
+                    return unsupported("borrowed selection index is out of bounds");
+                }
+                checked_path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    index,
+                ));
+                cursor = indexed.collection;
             }
             ExpressionNode::Name(_) => break cursor,
             _ => return unsupported("borrowed selection target is not an exact place"),

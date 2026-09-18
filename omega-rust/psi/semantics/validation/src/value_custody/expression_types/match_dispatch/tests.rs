@@ -137,12 +137,13 @@ fn shared_borrow_arms_join_a_primitive_referent_without_a_data_declaration() {
     }
 }
 
-/// The primitive admission is about the referent's declaration, not about the
-/// authored target's shape. A fixed-index element is still not a direct place
-/// path, so it never becomes a canonical root and path and keeps rejecting
-/// here rather than reaching a planner that cannot carry it.
+/// A literal fixed-index segment is the same exact place a record field is:
+/// the authored target canonicalizes to a named root plus Field/FixedIndex
+/// segments, the indexed collection's element declaration supplies the
+/// referent record, and the borrowed leaf still moves nothing. The join
+/// replays the retained path segment for segment.
 #[test]
-fn shared_borrow_arms_reject_a_fixed_index_place_the_planner_cannot_carry() {
+fn shared_borrow_arms_join_a_fixed_index_projection() {
     let source = "data Payload { left: u64; right: u64; }
          data Holder { items: [Payload; 2]; }
          machine choose(other: bool) -> u64 {
@@ -158,12 +159,10 @@ fn shared_borrow_arms_reject_a_fixed_index_place_the_planner_cannot_carry() {
              };
              view.left ^ view.right
          }";
-    let messages = choose_dispatch_diagnostics(source);
     assert!(
-        messages
-            .iter()
-            .any(|message| message.contains(CUSTODY_JOIN_REJECTION)),
-        "a fixed-index target must reject by naming the missing join: {messages:?}",
+        choose_dispatch_diagnostics(source).is_empty(),
+        "a fixed-index projection of a carrier record joins borrowed custody: {:?}",
+        choose_dispatch_diagnostics(source),
     );
 }
 

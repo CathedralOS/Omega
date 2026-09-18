@@ -10,10 +10,17 @@
 
 use std::collections::BTreeMap;
 
-use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
-use terminal_psi::StructuralAccess;
+use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+use terminal_interpreter::{
+    MeasuredTerminalExecution, TerminalExecutionResult, TerminalScalarValue,
+    TerminalStructuralScalarFieldValue, TerminalStructuralValue,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
+    TerminalModule,
+};
 
-use super::{check_source, execute, unsigned};
+use super::{check_source, execute, execute_machine_with_structural_inputs, unsigned};
 
 /// `a` is itself a prior selection's join result: the second match borrows
 /// `a.first` through block-parameter custody on one arm and a plain local's
@@ -446,6 +453,374 @@ fn borrowed_selection_rejects_exclusive_and_aggregate_referents() {
         check_source(&mixed).is_err(),
         "a `&Payload` result cannot join an owned `Payload` arm"
     );
+}
+
+/// A literal fixed-index projection is the same exact place a record field
+/// is: each arm lends its exact element place for the view's whole live
+/// range, and the retained `SharedBorrow` plan carries the literal ordinal in
+/// its path so lowering and the verifier replay it segment for segment.
+/// Array-literal fields produce no structural value node, so these locals
+/// check but cannot lower; this fixture pins the recorded provenance.
+const INDEXED_SOURCE: &str = "data Payload { left: u64; right: u64; }
+    data Holder { items: [Payload; 2]; }
+    machine choose(selected: bool) -> u64 {
+        let x: Holder = Holder {
+            items: [Payload { left: 1, right: 2 }, Payload { left: 3, right: 4 }]
+        };
+        let y: Holder = Holder {
+            items: [Payload { left: 5, right: 6 }, Payload { left: 7, right: 8 }]
+        };
+        let view: &Payload = match selected {
+            true -> &x.items[0],
+            false -> &y.items[1]
+        };
+        view.left ^ view.right
+    }";
+
+/// The same indexed selection with the holders arriving as structural
+/// parameters — the carrier this lowering route establishes end to end.
+/// Each arm's source plan names the parameter's dense structural position,
+/// never a fabricated local.
+const INDEXED_PARAMETERS_SOURCE: &str = "data Payload { left: u64; right: u64; }
+    data Holder { items: [Payload; 2]; }
+    machine choose(selected: bool, x: Holder, y: Holder) -> u64 {
+        let view: &Payload = match selected {
+            true -> &x.items[0],
+            false -> &y.items[1]
+        };
+        view.left ^ view.right
+    }";
+
+/// The exact loans behind `view`'s indexed arms, keyed by root name: each
+/// arm lends its `items[ordinal]` element place for the view's whole live
+/// range.
+fn indexed_loans(checked: &checked_trees::CheckedTrees) -> BTreeMap<String, usize> {
+    let (view_statement, view_symbol) = local(checked, "view");
+    let mut lent = BTreeMap::new();
+    for (_, loan) in checked.facts.borrow.loans.iter() {
+        assert_eq!(loan.owner_symbol, view_symbol, "every arm loan owns `view`");
+        assert_eq!(loan.statement_index, view_statement);
+        assert_eq!(loan.last_use_statement_index, view_statement + 1);
+        assert!(matches!(loan.kind, checked_trees::BorrowAccessKind::Read));
+        let [
+            facts::PlaceSegment::Field { symbol },
+            facts::PlaceSegment::FixedIndex { index },
+        ] = checked.facts.borrow.loan_segments(loan)
+        else {
+            panic!("each indexed arm lends an exact field-plus-ordinal element place");
+        };
+        assert_eq!(checked.typed.symbols.name(*symbol), "items");
+        lent.insert(
+            checked.typed.symbols.name(loan.root_symbol).to_owned(),
+            *index,
+        );
+    }
+    lent
+}
+
+/// Each retained `SharedBorrow` indexed arm's source plan paired with its
+/// projected `items` ordinal, in plan order.
+fn indexed_arms(
+    checked: &checked_trees::CheckedTrees,
+) -> Vec<(checked_trees::CheckedUnitStructuralArgumentSourcePlan, u64)> {
+    borrowed_arms(checked)
+        .iter()
+        .map(|arm| {
+            let [
+                checked_trees::CheckedUnitStructuralPathSegment::Field(field),
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index),
+            ] = arm.path.as_slice()
+            else {
+                panic!("indexed borrowed arm keeps the authored field+ordinal path: {arm:?}");
+            };
+            assert_eq!(field.as_str(), "items");
+            (arm.source.clone(), *index)
+        })
+        .collect()
+}
+
+/// One record field's semantic identity within a retained structural type.
+fn record_field(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    identity: &str,
+) -> StructuralFieldId {
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .expect("retained input type");
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        panic!("record input");
+    };
+    fields
+        .iter()
+        .find(|field| field.identity == identity)
+        .expect("exact authored field")
+        .id
+}
+
+/// The element type `Holder.items` projects to, resolved through the
+/// declaration chain so the test never assumes an id assignment.
+fn holder_element_type(module: &TerminalModule, holder: StructuralTypeId) -> StructuralTypeId {
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == holder)
+        .expect("retained holder type");
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        panic!("holder is a record");
+    };
+    let items = fields
+        .iter()
+        .find(|field| field.identity == "items")
+        .expect("items field");
+    let StructuralFieldType::Structural(array) = items.field_type else {
+        panic!("items is a structural field");
+    };
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == array)
+        .expect("retained array type");
+    let StructuralTypeShape::FixedArray { element, .. } = declaration.shape else {
+        panic!("items is a fixed array");
+    };
+    element
+}
+
+/// Executes `INDEXED_PARAMETERS_SOURCE` with `selected`, supplying both
+/// holder arguments with every element leaf bound: `x` carries
+/// `[{1,2},{3,4}]` and `y` carries `[{5,6},{7,8}]` so `x.items[0]` reads
+/// `1 ^ 2` and `y.items[1]` reads `7 ^ 8`.
+fn execute_indexed_parameters(selected: bool) -> (TerminalModule, MeasuredTerminalExecution) {
+    execute_machine_with_structural_inputs(
+        INDEXED_PARAMETERS_SOURCE,
+        "choose",
+        &[TerminalScalarValue::Boolean(selected)],
+        |module| {
+            let entry = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == module.entry)
+                .expect("entry machine");
+            assert_eq!(
+                entry.structural_parameters.len(),
+                2,
+                "x and y are the dense structural parameters"
+            );
+            for parameter in &entry.structural_parameters {
+                assert_eq!(parameter.access, StructuralAccess::Owned);
+            }
+            let holder = entry.structural_parameters[0].structural_type;
+            assert_eq!(entry.structural_parameters[1].structural_type, holder);
+            let payload = holder_element_type(module, holder);
+            let left = record_field(module, payload, "left");
+            let right = record_field(module, payload, "right");
+            let mut arguments = Vec::new();
+            let mut fields = Vec::new();
+            for (argument_index, elements) in [[(1u128, 2u128), (3, 4)], [(5, 6), (7, 8)]]
+                .into_iter()
+                .enumerate()
+            {
+                arguments.push(TerminalStructuralValue {
+                    opaque_identity: 71 + argument_index as u64,
+                    structural_type: holder,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                });
+                for (ordinal, (left_value, right_value)) in elements.into_iter().enumerate() {
+                    for (field, value) in [(left, left_value), (right, right_value)] {
+                        fields.push(TerminalStructuralScalarFieldValue {
+                            argument_index: argument_index as u32,
+                            path: vec![
+                                StructuralPathSegment::Field("items".to_owned()),
+                                StructuralPathSegment::FixedIndex(ordinal as u64),
+                            ],
+                            field,
+                            value: unsigned(value),
+                        });
+                    }
+                }
+            }
+            (arguments, fields)
+        },
+    )
+}
+
+#[test]
+fn borrowed_selection_keeps_indexed_local_provenance() {
+    let checked = check_source(INDEXED_SOURCE).expect("indexed borrowed selection checks");
+    let lent = indexed_loans(&checked);
+    assert_eq!(lent.keys().collect::<Vec<_>>(), ["x", "y"]);
+    assert_eq!(lent["x"], 0, "the true arm lends `x.items[0]`");
+    assert_eq!(lent["y"], 1, "the false arm lends `y.items[1]`");
+    let mut planned = BTreeMap::new();
+    for (source, index) in indexed_arms(&checked) {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+            source
+        else {
+            panic!("a local-rooted indexed arm stays a structural local: {source:?}");
+        };
+        planned.insert(checked.typed.symbols.name(symbol).to_owned(), index);
+    }
+    assert_eq!(planned.keys().collect::<Vec<_>>(), ["x", "y"]);
+    assert_eq!(planned["x"], 0);
+    assert_eq!(planned["y"], 1);
+}
+
+#[test]
+fn borrowed_selection_rejoins_parameter_rooted_indexed_places() {
+    let checked = check_source(INDEXED_PARAMETERS_SOURCE)
+        .expect("parameter-rooted indexed borrowed selection checks");
+    let lent = indexed_loans(&checked);
+    assert_eq!(lent.keys().collect::<Vec<_>>(), ["x", "y"]);
+    assert_eq!(lent["x"], 0, "the true arm lends `x.items[0]`");
+    assert_eq!(lent["y"], 1, "the false arm lends `y.items[1]`");
+    let mut planned = BTreeMap::new();
+    for (source, index) in indexed_arms(&checked) {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+            source
+        else {
+            panic!("a parameter-rooted indexed arm keeps its dense position: {source:?}");
+        };
+        planned.insert(parameter_index, index);
+    }
+    assert_eq!(planned.keys().copied().collect::<Vec<u32>>(), [0, 1]);
+    assert_eq!(planned[&0], 0, "parameter 0 (`x`) projects items[0]");
+    assert_eq!(planned[&1], 1, "parameter 1 (`y`) projects items[1]");
+
+    for (selected, expected) in [(true, 3), (false, 15)] {
+        let (module, execution) = execute_indexed_parameters(selected);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected)),
+            "selected={selected}"
+        );
+        // The join is still one record-shaped shared-borrow block parameter:
+        // the indexed arms add path segments, not owned transfers.
+        assert_eq!(
+            module.machines[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+                .count(),
+            1,
+            "one shared-borrow join parameter"
+        );
+    }
+}
+
+#[test]
+fn borrowed_selection_indexed_loans_constrain_their_exact_elements() {
+    // Mutating the lent element while the view is live must reject; a sibling
+    // element of the same array field and the other root's element stay free.
+    for (mutation, allowed) in [
+        ("x.items[0] = Payload { left: 0, right: 0 };", false),
+        ("y.items[1] = Payload { left: 0, right: 0 };", false),
+        ("x.items[1] = Payload { left: 0, right: 0 };", true),
+    ] {
+        let source = INDEXED_SOURCE
+            .replace("let x: Holder", "let mut x: Holder")
+            .replace("let y: Holder", "let mut y: Holder")
+            .replace(
+                "view.left ^ view.right",
+                "MUTATION\n            view.left ^ view.right",
+            )
+            .replace("MUTATION", mutation);
+        match check_source(&source) {
+            Ok(_) => assert!(allowed, "{mutation} cannot observe through the live view"),
+            Err(errors) => {
+                assert!(!allowed, "{mutation} must stay free: {errors:#?}");
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("while local borrow")),
+                    "{mutation} must reject through the recorded loan: {errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
+    let checked = check_source(INDEXED_PARAMETERS_SOURCE)
+        .expect("parameter-rooted indexed borrowed selection checks");
+    let arm_handles: Vec<_> = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .iter()
+        .filter_map(|(handle, node)| match &node.kind {
+            checked_trees::CheckedStructuralValueKind::Reference { source }
+                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(arm_handles.len(), 2);
+    for mutation in 0..4 {
+        let mut changed = checked.clone();
+        for handle in &arm_handles {
+            let checked_trees::CheckedStructuralValueKind::Reference { source } = &mut changed
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get_mut(*handle)
+                .kind
+            else {
+                continue;
+            };
+            match mutation {
+                // A changed ordinal can no longer replay the authored
+                // `&x.items[0]` / `&y.items[1]` expressions.
+                0 => {
+                    source.path = vec![
+                        checked_trees::CheckedUnitStructuralPathSegment::Field("items".to_owned()),
+                        checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(9),
+                    ];
+                }
+                // Dropping the ordinal fabricates a whole-field borrow the
+                // authored target never named.
+                1 => {
+                    source.path = vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+                        "items".to_owned(),
+                    )];
+                }
+                // Pointing each arm at the other parameter moves the
+                // borrow's exact root.
+                2 => {
+                    source.source =
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index: match source.source {
+                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                    parameter_index,
+                                } => 1 - parameter_index,
+                                _ => panic!("indexed arms keep parameter roots"),
+                            },
+                        };
+                }
+                // An owned join fabricates custody the shared borrow never
+                // carried.
+                _ => source.access = checked_trees::CheckedStructuralAccess::Owned,
+            }
+        }
+        let error = checked_trees_to_lowered_psi::lower_machine(&changed, "choose")
+            .expect_err("mutated indexed provenance must reject before the verifier boundary");
+        assert!(
+            matches!(
+                error,
+                checked_trees_to_lowered_psi::LoweringError::Unsupported(_)
+            ),
+            "mutation {mutation} fails at source replay: {error:?}"
+        );
+    }
 }
 
 #[test]

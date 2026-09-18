@@ -994,3 +994,19 @@ pub(super) fn is_nonempty_field_path(path: &[StructuralPathSegment]) -> bool {
             .iter()
             .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
 }
+
+/// A borrowed join may also project through literal fixed-array elements: a
+/// `FixedIndex` is as statically exact as a record field, and
+/// `resolve_structural_path` still proves each ordinal inside its declared
+/// extent and the leaf identical to the parameter's declared type. `Referent`
+/// stays out -- a borrow that crosses another borrow's boundary is a
+/// different custody contract, not a projection.
+pub(super) fn is_nonempty_exact_projection_path(path: &[StructuralPathSegment]) -> bool {
+    !path.is_empty()
+        && path.iter().all(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            )
+        })
+}
