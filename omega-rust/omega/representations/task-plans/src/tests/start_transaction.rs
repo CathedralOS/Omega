@@ -1,8 +1,8 @@
 use super::{candidate, id, invocation_receipt, moved_arguments, runtime, stack_lease, wcsu_plan};
 use crate::{
     ActivationInstanceId, MovedTaskArguments, StackLeaseBacking, StackPlan, StackRepresentationId,
-    TaskArgumentCustodyId, TaskLifecycleLedger, TaskRuntimeInstanceId, TaskStartStorage,
-    TaskStorageLeaseId, TaskStorageOwnerId, TaskStorageProvenance, ValueLayoutId,
+    TaskArgumentCustodyId, TaskLifecycleLedger, TaskRuntimeInstanceId, TaskSettlementOutcome,
+    TaskStartStorage, TaskStorageLeaseId, TaskStorageOwnerId, TaskStorageProvenance, ValueLayoutId,
     establish_stack_lease, validate_activation_plan,
 };
 
@@ -261,21 +261,27 @@ fn concurrent_claims_settle_independently_and_cross_instance_settlement_returns_
     // Cancellation requests and a parked interval do not consume either
     // claim; custody outlives execution state.
     ledger
-        .validate_cancellation_request(&first)
+        .request_cancellation(&first)
         .expect("first claim survives a cancel request");
     ledger
-        .validate_cancellation_request(&second)
+        .request_cancellation(&second)
         .expect("second claim survives a cancel request");
+    assert!(ledger.cancellation_requested(first.identity()));
+    assert!(ledger.cancellation_requested(second.identity()));
 
     // A foreign ledger cannot settle the claim; the failure returns it.
     let first = foreign_ledger
-        .settle(first)
+        .settle(first, TaskSettlementOutcome::Completed)
         .expect_err("cross-instance settlement")
         .into_claim();
 
     // The second activation settles while the first remains parked; reclaim
-    // of the first lease still rejects while its claim lives.
-    let settled_second = ledger.settle(second).expect("second settles first");
+    // of the first lease still rejects while its claim lives. The recorded
+    // request went unobserved — an inline completion can only report an
+    // ordinary outcome.
+    let settled_second = ledger
+        .settle(second, TaskSettlementOutcome::Completed)
+        .expect("second settles first");
     assert!(settled_second.into_released_lease().is_none());
     assert!(
         ledger
@@ -283,7 +289,10 @@ fn concurrent_claims_settle_independently_and_cross_instance_settlement_returns_
             .is_err()
     );
 
-    let settled_first = ledger.settle(first).expect("first settles after return");
+    let settled_first = ledger
+        .settle(first, TaskSettlementOutcome::Cancelled)
+        .expect("first observed the recorded request and settles cancelled");
+    assert_eq!(settled_first.outcome(), TaskSettlementOutcome::Cancelled);
     let lease = settled_first
         .into_released_lease()
         .expect("first activation held a stack lease");

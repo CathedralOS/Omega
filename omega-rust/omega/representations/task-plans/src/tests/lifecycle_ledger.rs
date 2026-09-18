@@ -1,8 +1,8 @@
 use super::{candidate, id, invocation_receipt, moved_arguments, runtime, stack_lease, wcsu_plan};
 use crate::{
-    ActivationInstanceId, TaskLifecycleLedger, TaskRuntimeInstanceId, TaskStartOperation,
-    TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId, TaskStorageOwnerId,
-    TaskStorageProvenance, validate_activation_plan,
+    ActivationInstanceId, TaskLifecycleLedger, TaskRuntimeInstanceId, TaskSettlementOutcome,
+    TaskStartOperation, TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId,
+    TaskStorageOwnerId, TaskStorageProvenance, validate_activation_plan,
 };
 
 #[test]
@@ -34,13 +34,18 @@ fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
     assert_eq!(record.invocation_receipt, receipt.candidate().receipt);
     assert_eq!(record.invocation_binding, receipt.identity());
     assert_eq!(record.operation, TaskStartOperation::Start);
+    assert!(!ledger.cancellation_requested(claim.identity()));
     ledger
-        .validate_cancellation_request(&claim)
+        .request_cancellation(&claim)
         .expect("cancellation preserves the claim");
+    assert!(ledger.cancellation_requested(claim.identity()));
     assert!(ledger.validate_storage_reclaim(storage).is_err());
     let close = ledger.close().expect_err("live child blocks runtime close");
     let mut ledger = close.into_ledger();
-    let settled = ledger.settle(claim).expect("terminal settlement");
+    let settled = ledger
+        .settle(claim, TaskSettlementOutcome::Cancelled)
+        .expect("terminal settlement");
+    assert_eq!(settled.outcome(), TaskSettlementOutcome::Cancelled);
     assert_eq!(
         settled.released_storage(),
         TaskStorageBinding::Persistent(storage)
@@ -104,7 +109,9 @@ fn lifecycle_rejects_replayed_activation_and_storage_eras() {
             .0
             .contains("new lease era")
     );
-    ledger.settle(claim).expect("settle first activation");
+    ledger
+        .settle(claim, TaskSettlementOutcome::Completed)
+        .expect("settle first activation");
     let post_settlement_receipt = invocation_receipt(&plan, instance, 122, 123);
     assert!(
         ledger
@@ -163,7 +170,9 @@ fn lifecycle_rejects_replayed_invocations_and_provider_receipts() {
             .contains("invocation receipt has already been accepted")
     );
 
-    ledger.settle(claim).expect("settle first invocation");
+    ledger
+        .settle(claim, TaskSettlementOutcome::Completed)
+        .expect("settle first invocation");
     assert!(
         ledger
             .accept_invocation(
@@ -196,9 +205,9 @@ fn failed_cross_runtime_settlement_returns_the_linear_claim() {
         )
         .expect("accepted activation");
     let error = wrong_instance
-        .settle(claim)
+        .settle(claim, TaskSettlementOutcome::Completed)
         .expect_err("another runtime instance cannot settle this claim");
     owner
-        .settle(error.into_claim())
+        .settle(error.into_claim(), TaskSettlementOutcome::Completed)
         .expect("failed settlement preserves the claim");
 }

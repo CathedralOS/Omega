@@ -2,6 +2,7 @@
 //! a WCSU projection, a runtime and its invocation receipt.
 
 mod activation_plans;
+mod cancellation;
 mod executor_selection;
 mod lifecycle_ledger;
 mod provider_admission;
