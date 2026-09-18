@@ -9,7 +9,7 @@ use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ScalarType};
 
 use super::ProofError;
 
-pub(super) fn check(
+pub(crate) fn check(
     left_to_middle: &Proposition,
     middle_to_right: &Proposition,
     conclusion: &Proposition,

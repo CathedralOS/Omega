@@ -26,7 +26,7 @@ use proof_admission::{
     DEFAULT_CONVERSION_STEPS, EvidenceError, EvidenceRoute, MathematicalCoreDecision,
     MathematicalJudgmentReceipt, Obligation, ObligationClass, ProofError, ProofNode, ProofRule,
     ProofSystemMarker, Term, certificate_assumption_closure, denote_bounded_certificate,
-    verify_mathematical_certificate, verify_obligation,
+    lift_fixed_integer_relation, verify_mathematical_certificate, verify_obligation,
 };
 use semantic_vocabulary::{
     EvidenceIdentity, IntegerSign, IntegerType, ObligationId, Proposition, PropositionContext,
@@ -270,21 +270,14 @@ fn the_kernel_rejects_a_forged_claim_over_the_same_elaborated_judgment() {
 }
 
 #[test]
-fn an_uncovered_rule_family_is_refused_and_the_bounded_rules_decide_alone() {
-    // `a <= b` weakened from `a == b`: valid, shipped, and outside the
-    // denotation's fragment. The acceptance says so instead of pretending
-    // the kernel judged it.
-    let proof = ProofNode {
-        conclusion: Proposition::LessOrEqual(parameter(1), parameter(2)),
-        rule: ProofRule::IntegerOrderWeakening {
-            relation: Box::new(cite(0, equal(1, 2))),
-        },
-    };
-    let decision = admit(
-        Proposition::LessOrEqual(parameter(1), parameter(2)),
-        &[equal(1, 2)],
-        proof,
-    )
-    .expect("the bounded rules accept the weakening");
+fn an_uncrossable_denotation_is_refused_and_the_bounded_rules_decide_alone() {
+    // The bounded citation matcher accepts `a == b` cited where its lifted
+    // `IntegerMathEqual` form is the goal: one normalized relation under
+    // the bounded rules. The denotation cannot cross it — `Id U a b` and
+    // the mathematical-integer atom are different types — so the
+    // acceptance says `Refused` instead of pretending the kernel judged it.
+    let goal = lift_fixed_integer_relation(&equal(1, 2)).expect("the fixed equality lifts");
+    let decision = admit(goal.clone(), &[equal(1, 2)], cite(0, goal))
+        .expect("the bounded rules accept the normalized citation");
     assert!(matches!(decision, MathematicalCoreDecision::Refused(_)));
 }

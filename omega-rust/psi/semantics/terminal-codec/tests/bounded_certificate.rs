@@ -216,10 +216,55 @@ fn a_bounded_equality_certificate_crosses_the_wire() {
     );
 }
 
+/// A licensed rule instance is a named decision on the wire: `x < y ⊢
+/// x <= y` denotes the axiom `Π(_ : ⟦x<y⟧). ⟦x<=y⟧` applied to the cited
+/// premise, and the decoded judgment re-decides with both proposition
+/// atoms and the axiom in its closure — the wire carries the decision as
+/// an ordinary declaration, never a producer flag.
+#[test]
+fn a_bounded_rule_instance_certificate_crosses_the_wire() {
+    let (x_id, x) = value(1);
+    let (y_id, y) = value(2);
+    let context = PropositionContext::from_value_types([
+        (x_id, unsigned64_type()),
+        (y_id, unsigned64_type()),
+    ])
+    .expect("context");
+    let strict = Proposition::LessThan(x.clone(), y.clone());
+    let goal = Proposition::LessOrEqual(x, y);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerOrderWeakening {
+            relation: Box::new(ProofNode {
+                conclusion: strict.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+        },
+    };
+    let denoted =
+        denote_bounded_certificate(&context, &goal, std::slice::from_ref(&strict), &[], &proof)
+            .expect("denote");
+    let bytes =
+        encode_mathematical_certificate(&denoted.arena, &denoted.certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, &mut budget())
+        .expect("the rule-instance judgment re-verifies after decode");
+    assert_eq!(
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate)
+            .expect("canonical re-encode"),
+        bytes,
+    );
+    assert_eq!(
+        certificate_assumption_closure(&decoded.arena, &decoded.certificate),
+        BTreeSet::from([0, 1, 2]),
+        "the two proposition atoms and the named instance decision",
+    );
+}
+
 /// A decided closed relation is a named decision assumption on the wire:
 /// `1 < 2` re-decides as `d : P ⊢ d : P` in the empty context, and a
-/// certificate family the denotation does not cover never reaches the
-/// encoder at all.
+/// certificate the denotation cannot cross never reaches the encoder at
+/// all.
 #[test]
 fn a_bounded_decision_and_a_refusal_at_the_wire_boundary() {
     let literal = |value: u128| {
@@ -244,26 +289,25 @@ fn a_bounded_decision_and_a_refusal_at_the_wire_boundary() {
         "the atom assumption and the named bounded decision",
     );
 
-    // A rule family outside the denoted fragment refuses at the bridge —
+    // The bounded citation matcher accepts a fixed `Equal` cited as its
+    // lifted `IntegerMathEqual`, but `Id` and the mathematical-integer
+    // atom are different types: the crossing refuses at the bridge and
     // the wire never carries a mis-decoded certificate for it.
-    let junk = ProofNode {
-        conclusion: Proposition::Truth,
-        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-    };
+    let (x_id, x) = value(1);
+    let (y_id, y) = value(2);
+    let context = PropositionContext::from_value_types([
+        (x_id, unsigned64_type()),
+        (y_id, unsigned64_type()),
+    ])
+    .expect("context");
+    let fixed = Proposition::Equal(x, y);
+    let lifted = proof_admission::lift_fixed_integer_relation(&fixed).expect("lifts");
     let proof = ProofNode {
-        conclusion: Proposition::Truth,
-        rule: ProofRule::IntegerOrderWeakening {
-            relation: Box::new(junk),
-        },
+        conclusion: lifted.clone(),
+        rule: ProofRule::Assumption { index: 0 },
     };
     assert!(matches!(
-        denote_bounded_certificate(
-            &PropositionContext::default(),
-            &Proposition::Truth,
-            &[],
-            &[],
-            &proof,
-        ),
+        denote_bounded_certificate(&context, &lifted, &[fixed], &[], &proof),
         Err(proof_admission::BoundedDenotationError::Unsupported(_)),
     ));
 }

@@ -4,7 +4,7 @@ use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm,
 
 use super::ProofError;
 
-pub(super) fn check(
+pub(crate) fn check(
     difference: &Proposition,
     positive: &Proposition,
     conclusion: &Proposition,

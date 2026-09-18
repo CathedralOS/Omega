@@ -4,7 +4,7 @@ use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm}
 
 use super::ProofError;
 
-pub(super) fn check(relation: &Proposition, conclusion: &Proposition) -> Result<(), ProofError> {
+pub(crate) fn check(relation: &Proposition, conclusion: &Proposition) -> Result<(), ProofError> {
     let Proposition::LessOrEqual(left, right) = relation else {
         return Err(ProofError::RulePremiseMismatch(
             "integer order discreteness",
