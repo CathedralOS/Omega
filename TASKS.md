@@ -2045,6 +2045,19 @@ Owners include
   against the requirement's signature and inbound entry plan, not against a
   list of admitted bodies.
 
+
+  The `callback_terminal_custody` suite ran 0 of 5 before 2026-09-18, and not
+  for a callback reason: since 2f30c89f04 gave `windows_x86_64` a closed
+  physical-contract package, binding its `ProgramEntry` pulls the authored
+  target contract and its bundled `std::calling` module into the program,
+  while the fixtures still carried their own copy of `calling.omg`, so each
+  compile died on duplicate declarations before reaching any callback
+  behavior. Composing them like the Windows hosted-receiver fixture, with the
+  standard library as an ordinary dependency, takes the suite to 5 of 6; the
+  remaining failure is the documented wall, callback ABI transport absent
+  from the common instruction pipeline. Other fixtures that bind
+  `windows_x86_64::ProgramEntry` beside a package-local library copy may have
+  broken the same way at that commit and are worth checking.
 - **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
   external root, and unregister as the operation that ends it before code and
   component leases release, under
