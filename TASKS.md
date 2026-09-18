@@ -2965,6 +2965,46 @@ Owners include
   cast or unary wrapper standing above an authored arithmetic application in a
   selector or bound position.
 
+  Wrapped-operand slice landed on macOS ARM64 (ordered after the
+  statically-applied-call slice, which is now on `main`): the range-premise
+  operand gate now sees through cast and unary wrappers.
+  `collect_operand_reads` (`checks/ranges/facts/dependencies/reads.rs`) walked
+  only `Binary` once the builtin bound floor failed, so `items[(low + step) as
+  u64]` refused a footprint even though the wrapper contributes no storage of
+  its own: "Every evaluated child runs exactly once. Unary operations,
+  borrows, casts, membership tests, and member access have one immediate
+  runtime child" ([expressions](wiki/spec/language/expressions.md)), and the
+  closed token vocabulary binds no spelling to a cast or a `!`/`~`, so neither
+  node can be a selected declaration. The walk now descends through both to
+  the authored application below, which still has to prove its own exact
+  checked operator-use custody. So `items[(low + step) as u64]`, `items[~(low
+  + step)]`, `items[(low + step) as u64..high]` and `items[low..(low + step)
+  as u64]` read exactly their operands plus the selected element or window
+  place. Incomplete read sets are preserved for every family refused before:
+  an authored comparison under a wrapper (not an arithmetic spelling), a
+  constant-shaped authored application (`(1u64 + 0u64) as u64`, which the
+  place algebra folds syntactically), a drifted or ambiguous use row, a
+  wrapped operand whose call carries no checked occurrence, and requires-scope
+  occurrences without statement-use custody. Evidence only — no second
+  indexing collector, and preservation and invalidation still run through the
+  existing place algebra. Witnessed by `facts/dependencies/tests/indexes.rs`
+  (`a_wrapped_authored_arithmetic_selector_reads_every_operand`,
+  `a_wrapper_over_a_refused_operand_family_stays_incomplete`,
+  `a_requires_scope_wrapped_arithmetic_selector_has_no_statement_use_custody`)
+  and `facts/dependencies/tests/calls.rs`
+  (`a_wrapped_arithmetic_selector_still_proves_its_call_operand_footprint`);
+  `cargo nextest run -p typed-trees-to-checked-trees` is 4176 tests, 4173
+  passed, 3 failed against base 779b8eaffa's 4172 tests, 4169 passed, 3 failed
+  — the same three failing names. Next remaining family: a bare authored
+  arithmetic application in a point selector (`items[low + step]`) still
+  records no footprint, and that refusal sits above the operand gate rather
+  than inside it — the identical operands are admitted once a cast gives the
+  occurrence builtin index meaning — so the index-meaning probe
+  (`has_builtin_index_meaning`) and the `[]` use-row lookup below it are what
+  the next slice has to close. Statically applied calls, statically dispatched
+  requirement calls, machine-valued applications and the single-attempt
+  `CompareExchangeOnce` observing form remain incomplete as before.
+
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
   [private-callback contract](wiki/spec/build/private_callbacks.md). Authenticate

@@ -6,6 +6,7 @@ use crate::checks::ranges::facts::dependencies::tests::parameter_place;
 use crate::checks::ranges::facts::dependencies::tests::typed_source;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use crate::checks::ranges::facts::dependencies::tests::selected_operator_facts;
 
 fn window(program: &TypedTrees) -> (&Machine, &State) {
     let machine = program
@@ -507,4 +508,76 @@ fn only_storage_free_static_selections_admit_the_applied_call_footprint() {
             "{drift}"
         );
     }
+}
+
+/// Walking through a cast wrapper relaxes nothing below it: the authored
+/// application under the wrapper still recurses into its own operands, so a
+/// call standing in one of them must prove its exact checked occurrence.
+/// `items[(low + compute(step)) as u64]` reads `low`, the call's operand place
+/// `step`, and the selected element; without the checked-call join the same
+/// wrapped selector stays incomplete.
+#[test]
+fn a_wrapped_arithmetic_selector_still_proves_its_call_operand_footprint() {
+    let program = typed_source(
+        "operator + u64::custom(left: u64, right: u64) -> u64;
+        machine compute(original: u64) -> u64 { original }
+        machine window(items: &[i64; 4], low: u64, step: u64, unrelated: u64) {
+            let cut: i64 = items[(low + compute(step)) as u64];
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let statement_index = statement_index_of(&program, state, "cut");
+    let operators = selected_operator_facts(&program);
+    let (borrows, flow, frames) = checked_facts(&program);
+    let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_operators = Some(&operators);
+    facts.checked_calls = Some(&context);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("a wrapped application whose call operand carries custody");
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        panic!("index fixture")
+    };
+    let mut selected = parameter_place(&program, state, "items");
+    selected.segments.push(facts::PlaceSegment::Index {
+        expression: indexed.index,
+    });
+    assert_eq!(
+        reads.as_slice(),
+        [
+            parameter_place(&program, state, "low"),
+            parameter_place(&program, state, "step"),
+            selected,
+        ]
+        .as_slice()
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [
+        ("low", false),
+        ("step", false),
+        ("items", false),
+        ("unrelated", true),
+    ] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+    let mut without_calls = RangeFacts::new(&[]);
+    without_calls.checked_operators = Some(&operators);
+    without_calls.statement_index = statement_index;
+    without_calls.record_expression_dependencies(&program, machine, state, expression);
+    assert!(
+        without_calls.expression_dependencies[0].reads.is_none(),
+        "a wrapped selector claimed a call operand footprint without the checked join"
+    );
 }
