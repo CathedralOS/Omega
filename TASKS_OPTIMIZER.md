@@ -975,450 +975,74 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Machine optimization
 
-- **DECLARATIVE-PEEPHOLES.** Generalize the landed symbolic instruction-pair
-  descriptors (`selected_lowering/literal_fold/pair_rule.rs`) to physical
+- **DECLARATIVE-PEEPHOLES.** Generalize the symbolic instruction-pair
+  descriptors in `selected-instructions-to-selected-instructions`
+  (`src/rewrites/selected_lowering/literal_fold/pair_rule.rs`) to physical
   register units, effects, traps, memory, stack, and control flow without
-  replacing the independent validator. Landed: `PairResultDisposition`
-  declares whether the rewritten instruction delivers its result through a
-  scalar `Def` operand or implicit physical-unit condition-state
-  definitions, and the producer admits constraint-row and consumer operand
-  shapes through it (crate `nextest`: 157 pass; a `CompareI64` consumer
-  carrying a scalar-result shape now rejects as `ConsumerMismatch` instead
-  of indexing past the row). `PairUnitEffects` covers implicit-unit uses,
-  clobbers, and operand unit bindings; `PairMachineEffects` covers the
-  memory, trap, stack, control-flow, barrier, call, and cleanup surface;
-  `PairOperandShape` now carries `BinaryLeftLiteral` — the commuted
-  exact-add grammar folding the literal at operand 0 through the same
-  `ExactAddI64Immediate` row — so the exact-add selection declares one pair
-  per operand position and the recorded action binds the surviving register
-  rather than a fixed operand (226 crate lib tests pass, including firing
-  on both targets plus decision-field corruption and wrong-position
-  negatives; the replay re-derives the grammar from the consumer kind and
-  recorded operand position alone).
-  `PairMachineEffects::IndexedPointerReadFold { index_operand }` declares
-  the first non-isolated relationship — an indexed pointer read folded to
-  an immediate-offset read — and `LOAD8_INDEXED_U12` folds a
-  `MaterializeI64` index at operand 1 of `Load8Indexed` into `Load8`'s
-  byte offset under `LiteralFoldPolicy::LOAD8_INDEXED_V1`, bounded at 4095
-  by the aarch64 displacement field (crate `nextest`: 235 pass, including
-  firing on both Linux targets, the unencodable-4096 boundary,
-  decision-field substitution, and wrong-policy negatives; the validator
-  restates the relationship independently as `indexed_read_fold_admission`
-  instead of reusing the pair descriptor).
-  `PairOperandShape::BinaryRightLiteralConstantResult` declares a
-  constant-result grammar — the fold drops the surviving dividend `Use`
-  and every dead scratch `Def` past the result, each proven dead in the
-  function — and `PairUnitEffects::BoundEarlyClobberConsumerOperands`
-  admits the fixed pins and early-clobber marks an `idiv`-class remainder
-  realization declares while still rejecting tied operands;
-  `WRAPPING_REMAINDER_ONE_MATERIALIZE` folds `MaterializeI64(1)` feeding
-  `WrappingRemainderI64` into a `MaterializeI64` of zero at the result
-  register under `LiteralFoldPolicy::WRAPPING_REMAINDER_V1`, discharging
-  the consumer's architectural fault surface (334 crate lib tests pass,
-  including firing on both Linux targets, scratch-custody,
-  decision-field substitution, and wrong-policy negatives; the replay
-  re-derives the divisor literal, result register, dropped-`Def` custody,
-  and rebuilt materialization row independently).
-  `PairOperandShape::BinaryLeftLiteralConstantResult` declares the
-  left-operand constant-result grammar — the operand-0 literal alone
-  fixes the result, so unlike `BinaryLeftLiteral` no commutation is
-  attested — and `BITWISE_AND_ZERO_FOLDS` declares one pair per `Use`
-  position, folding `MaterializeI64(0)` feeding `BitwiseAndI64` at either
-  operand into a `MaterializeI64` of zero at the result register under
-  `LiteralFoldPolicy::BITWISE_AND_ZERO_V1`, with `x & 0` and `0 & x` both
-  annihilating to zero and the dropped non-victim `Use` plus every dead
-  scratch `Def` falling under the same occurrence-free custody (364
-  crate lib tests pass, including firing on both Linux targets at either
-  operand position, exact-zero versus nonzero literals, forbidden
-  operand bindings, scratch-custody, decision-field substitution, and
-  wrong-policy negatives; the replay restates both grammars through its
-  own `AndZero`/`AndZeroLeft` source shapes and never consults the pair
-  descriptor).
-  `BITWISE_XOR_ZERO_COPIES` declares one pair per `Use` position,
-  folding `MaterializeI64(0)` feeding `BitwiseXorI64` at either operand
-  into a `CopyI64` of the surviving `Use` at the result register under
-  `LiteralFoldPolicy::BITWISE_XOR_ZERO_V1` — `x ^ 0` and `0 ^ x` are
-  both `x` — with the left pair declaring `BinaryLeftLiteral`, the
-  commutation attestation the surviving-operand binding requires, and
-  both grammars rewriting through the `CopyI64` row the divide-identity
-  family already binds (377 crate tests pass, including firing on both
-  Linux targets at either operand position, exact-zero versus nonzero
-  literals, wrong-position claims, forbidden operand bindings,
-  scratch-`Def` rejection under the exact copy grammar, decision-field
-  substitution, and wrong-policy negatives; the replay restates both
-  grammars through its own `XorZero`/`XorZeroLeft` source shapes and
-  never consults the pair descriptor).
-  `WRAPPING_ADD_ZERO_COPIES` declares one pair per `Use` position,
-  folding `MaterializeI64(0)` feeding `WrappingAddI64` at either operand
-  into a `CopyI64` of the surviving `Use` at the result register under
-  `LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1` — `x + 0` and `0 + x` are
-  both `x` modulo `2^64` — with the left pair declaring
-  `BinaryLeftLiteral`, the commutation attestation the
-  surviving-operand binding requires, and both grammars rewriting
-  through the `CopyI64` row under an isolated unit and machine-effect
-  surface (396 crate tests pass, including firing on both Linux targets
-  at either operand position, exact-zero versus nonzero literals,
-  wrong-position claims, forbidden operand bindings, scratch-`Def`
-  rejection under the exact copy grammar, decision-field substitution,
-  and wrong-policy negatives; the replay restates both grammars through
-  its own `WrappingAddZero`/`WrappingAddZeroLeft` source shapes and
-  never consults the pair descriptor).
-  `BITWISE_AND_ONES_COPIES` declares one pair per `Use` position,
-  folding `MaterializeI64(u64::MAX)` feeding `BitwiseAndI64` at either
-  operand into a `CopyI64` of the surviving `Use` at the result
-  register under `LiteralFoldPolicy::BITWISE_AND_ONES_V1` — `x & MAX`
-  and `MAX & x` are both `x` — with the left pair declaring
-  `BinaryLeftLiteral` and both grammars rewriting through the
-  `CopyI64` row under an isolated unit and machine-effect surface. The
-  family shares its consumer kind and operand positions with the
-  and-zero annihilator rules, so pair admission now keys on the
-  consumer kind, the victim operand position, and the literal's value:
-  `AdmittedPairs::for_consumer` requires exactly one enabled pair to
-  admit the recorded immediate and refuses an overlapping catalog
-  outright, and admission reports a literal outside every enabled
-  bound as `UnsupportedImmediate`, distinct from an unadmitted kind or
-  position (446 crate tests pass, including firing on both Linux
-  targets at either operand position, exact-all-ones versus zero, one,
-  and near-bound literals, both-families-enabled value dispatch in each
-  direction, wrong-position claims, forbidden operand bindings,
-  scratch-`Def` rejection under the exact copy grammar, decision-field
-  substitution, and wrong-policy negatives; the replay restates both
-  grammars through its own `AndOnes`/`AndOnesLeft` source shapes,
-  selects the family on the literal's value alone, and never consults
-  the pair descriptor).
-  `PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses`
-  declares the constant-result grammar extended past the scalar `Def`
-  result: the operand-0 literal alone fixes the result, the operand-1
-  `Use` drops with the form, and every `Use` past the result drops only
-  under provenance custody requiring each register to be defined in the
-  function solely by `MaterializeI64` instructions producing
-  `Unsigned(0)` — the provably-zero high-half input an x86-64 `div`
-  realization reads. `EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE` folds
-  `MaterializeI64(0)` feeding `ExactDivideU64` at operand 0 into a
-  `MaterializeI64` of zero at the result register under
-  `LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1` — `0 / x` is `0` for every
-  `x` the kind's carried nonzero-divisor obligation admits — with
-  `FaultDischargedByObligation` now covering the `ExactDivideU64` kind's
-  recorded obligation and `BoundConsumerOperands` admitting the pinned
-  form's `fixed_view` decorations while rejecting `tied_to` and
-  `early_clobber` (502 crate lib tests pass, including firing on both
-  Linux targets, nonzero-dividend, missing-obligation, auxiliary-custody,
-  forbidden-binding, decision-field substitution, and wrong-policy
-  negatives; the replay restates the grammar through its own
-  `DivideZeroDividend` source shape — re-deriving the literal, result
-  register, dropped-`Use` custody, and obligation custody from the
-  instruction record — and never consults the pair descriptor).
-  `PairMachineEffects::DeadConsumerUnitDefs` declares the first
-  dead-implicit-definition relationship — the producer remains
-  effect-isolated, the consumer may define implicit physical units the
-  rewrite retires only when every such unit is dead across the whole
-  function including terminator records, consumer clobbers narrow
-  destruction freely, consumer implicit uses and any non-isolated
-  rewritten form reject — and `SATURATING_ADD_ZERO_COPIES` declares one
-  pair per `Use` position, folding `MaterializeI64(0)` feeding
-  `SaturatingAdd(SaturatingCarrier::U64)` at either operand into a
-  `CopyI64` of the surviving `Use` at the result register under
-  `LiteralFoldPolicy::SATURATING_ADD_ZERO_V1` — `x +| 0` and `0 +| x`
-  are both `x` — retiring aarch64's implicit `nzcv` definition under the
-  deadness proof while x86-64's `rflags` clobber and early-clobber mark
-  drop unconditionally with the replaced operand list (549 crate tests
-  pass, including firing on both Linux targets at either operand
-  position, live-`nzcv` rejection under a conditional-branch terminator,
-  wrong-position claims, forbidden operand bindings, decision-field
-  substitution, and wrong-policy negatives; the replay restates both
-  grammars through its own `SaturatingAddZero`/`SaturatingAddZeroLeft`
-  source shapes, runs its own dead-unit scan, and never consults the
-  pair descriptor).
-  `PairOperandShape::BinaryRightLiteralScratchDefs` and
-  `BinaryLeftLiteralScratchDefs` declare the surviving-`Use` grammars
-  extended past the scalar `Def` result: every operand past the result
-  is a scratch `Def` the fold drops under occurrence-free custody —
-  each dropped register must occur nowhere else in the function — and
-  `SATURATING_ADD_ZERO_COPIES` now declares one pair per `Use` position
-  per carrier, folding `MaterializeI64(0)` feeding `SaturatingAdd` on
-  any of the eight carriers into a `CopyI64` of the surviving `Use`
-  under `LiteralFoldPolicy::SATURATING_ADD_ZERO_V1`. The u64 pairs keep
-  the exact three-operand grammar; every other carrier binds the
-  clamped row whose bound scratch `Def` — early-clobber on both
-  targets — the realization computes its saturation bound through, and
-  the same `DeadConsumerUnitDefs` gate retires aarch64's `nzcv`
-  definition while x86-64's `rflags` clobber drops unconditionally
-  (595 crate tests pass, including firing on both Linux targets at
-  either operand position of every clamped carrier, live-`nzcv`
-  rejection under a conditional-branch terminator, cross-carrier
-  kind-versus-row rejection, scratch-custody negatives — a tail `Use`
-  or a register read or defined elsewhere — forbidden operand bindings,
-  decision-field substitution, and wrong-policy negatives; the replay
-  restates the clamped grammars through its own
-  `SaturatingAddZeroScratch`/`SaturatingAddZeroLeftScratch` source
-  shapes, re-derives each dropped `Def`'s custody itself, and never
-  consults the pair descriptor).
-  `PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs`
-  declares the right-literal grammar extended past the scalar `Def`
-  result with a mixed drop tail — every `Use` past the result drops
-  under the zero-provenance custody the auxiliary-`Use` grammars
-  require, every `Def` under the occurrence-free custody the
-  scratch-def grammars require — and
-  `PairMachineEffects::FaultDischargedByLiteralDeadUnitDefs` composes
-  the literal-discharged fault surface with the dead-implicit-definition
-  relationship for a consumer that does both at once.
-  `SATURATING_DIVIDE_ONE_COPIES` declares one right-literal pair per
-  saturating carrier, folding `MaterializeI64(1)` feeding the divisor
-  operand of `SaturatingDivide` into a `CopyI64` of the dividend `Use`
-  under `LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1` — `x /| 1` is `x`
-  inside every carrier's bounds, and the signed `MIN /| -1` clamp lies
-  outside the divisor the grammar admits — with no left-literal pair
-  because division does not commute: `1 /| x` is not `x`. The divisor
-  literal of one is itself the evidence the encoded fault surface cannot
-  fire — the x86-64 `div`/`idiv` realizations' divide-by-zero and
-  quotient-overflow traps are unreachable at divisor one — while the
-  aarch64 signed rows' implicit `nzcv` definition retires only under the
-  whole-function deadness proof, the x86-64 rows' zeroed-rdx auxiliary
-  `Use` drops under sole-zero-definition custody, and the aarch64
-  clamped rows' bound scratch `Def` drops under occurrence-free custody
-  (819 crate tests pass, including firing on both Linux targets across
-  all eight carriers, `1 /| x`
-  rejection, divisor values other than one, auxiliary zero-provenance
-  and scratch-custody negatives, live-`nzcv` rejection, decision-field
-  substitution, and wrong-policy negatives; the replay restates the
-  grammar through its own `SaturatingDivideOne` source shape, re-derives
-  the literal value, each tail operand's custody, and the unit deadness
-  scan itself, and never consults the pair descriptor).
-  `PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs`
-  declares the left-literal constant-result grammar extended past the
-  scalar `Def` result with the same mixed drop tail — the operand-0
-  literal alone fixes the result, the operand-1 `Use` drops with the
-  form, a tail `Use` drops under zero-provenance custody and a tail
-  `Def` under occurrence-free custody — and
-  `PairMachineEffects::FaultDischargedByObligationDeadUnitDefs`
-  declares the fourth distinct fault-discharge relationship: the
-  consumer's encoded fault surface retires under the carried obligation
-  its kind and provenance name — not under the folded literal — while
-  every implicit unit the consumer defines retires under the
-  whole-function deadness proof. `SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS`
-  declares one pair per saturating carrier, folding `MaterializeI64(0)`
-  feeding the dividend operand of `SaturatingDivide` into a
-  `MaterializeI64` of zero at the result register under
-  `LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1` — `0 /| x` is `0`
-  inside every carrier's bounds, and the zero quotient reaches no
-  saturation edge — with no right-literal pair because `x /| 0` is the
-  divide-by-zero case, not a constant. The folded dividend is not the
-  fault's evidence: only the nonzero-divisor obligation the kind
-  carries discharges it, so the descriptor gates on the obligation's
-  presence in the consumer provenance while aarch64's signed rows'
-  implicit `nzcv` definition retires under deadness, the x86-64 rows'
-  zeroed-rdx auxiliary `Use` drops under sole-zero-definition custody,
-  and the aarch64 clamped rows' bound scratch `Def` drops under
-  occurrence-free custody (894 crate tests pass, including firing on
-  both Linux targets across all eight carriers, `x /| 0` and
-  non-zero-dividend rejection, missing-obligation rejection,
-  auxiliary zero-provenance and scratch-custody negatives,
-  live-`nzcv` rejection, cross-carrier kind-versus-row rejection,
-  decision-field substitution, and wrong-policy negatives; the replay
-  restates the grammar through its own `SaturatingDivideZeroDividend`
-  source shape, re-derives the literal, each tail operand's custody,
-  the obligation custody, and the unit deadness scan itself, and never
-  consults the pair descriptor).
-  `SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS` declares one
-  left-literal constant-result pair per unsigned saturating carrier,
-  folding `MaterializeI64(0)` feeding the operand-0 minuend `Use` of
-  `SaturatingSubtract` into a `MaterializeI64` of zero at the result
-  register under `LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1`
-  — `0 -| x` is `0` for every `x` an unsigned carrier admits, because
-  `0 - x` underflows the carrier's lower bound and saturates to it. The
-  family shares its consumer kind with the right-zero identity fold and
-  stays disjoint on the folded literal's operand position: the producer
-  selects between the two `SaturatingSubtract` families by which position
-  the recorded future use names. Signed carriers admit no operand-0 fold
-  — `0 -| x` there is `-x` clamped to the carrier's bounds, not a
-  constant — so the family binds only the unsigned three-operand row,
-  dropping the operand-1 subtrahend `Use` the constant result never
-  reads, and retires aarch64's implicit `nzcv` definition under the
-  whole-function deadness proof while x86-64's `rflags` clobber drops
-  unconditionally with the replaced operand list (937 crate lib tests
-  pass, including firing on both Linux targets across all four unsigned
-  carriers, every signed carrier's operand-0 rejection, right-literal
-  and nonzero-minuend rejection, wrong-position claims, live-`nzcv`
-  rejection under both instruction and terminator readers, forbidden
-  operand bindings, cross-carrier kind-versus-row rejection,
-  decision-field substitution, and wrong-policy negatives; the replay
-  restates the grammar through its own `SaturatingSubtractZeroMinuend`
-  source shape — selecting the family from the victim's operand position
-  and carrier signedness alone — re-derives the literal, result
-  register, and materialized value from the instruction record, runs
-  its own dead-unit scan, and never consults the pair descriptor).
-  `SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS` declares one
-  constant-result pair per `Use` position per unsigned saturating
-  carrier, folding `MaterializeI64(MAX)` feeding `SaturatingAdd` at
-  either operand into a `MaterializeI64` of the carrier's own maximum at
-  the result register under
-  `LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1` — `x +| MAX` and
-  `MAX +| x` are both `MAX` for every `x` an unsigned carrier admits,
-  because `x + MAX >= MAX` and saturation clamps to the carrier's upper
-  bound. The family shares its consumer kind and both operand positions
-  with the zero-identity fold and stays disjoint on the folded literal's
-  value: the producer and the replay each select between the two
-  `SaturatingAdd` families by whether the recorded immediate is the
-  carrier's maximum. Signed carriers admit no pair — `MIN +| MAX` there
-  is `-1`, not a constant — so the descriptor binds only the four
-  unsigned carriers: the u64 pairs restate the exact three-operand
-  grammar and the narrower unsigned pairs restate the clamped row's
-  bound scratch `Def` under occurrence-free custody, while the same
-  `DeadConsumerUnitDefs` gate retires aarch64's `nzcv` definition and
-  drops x86-64's `rflags` clobber unconditionally. The folded immediate
-  is also the first nonzero constant a constant-result family
-  materializes, so `fold_immediate` and the replay's immediate
-  re-derivation now carry the declared bound's payload rather than a
-  hardwired zero (997 crate lib tests pass, including firing on both
-  Linux targets at either operand position of every unsigned carrier,
-  every signed carrier's rejection, sub-maximum and zero-literal
-  rejection, both-families-enabled value dispatch through the sibling
-  identity fold, wrong-position claims, forbidden operand bindings,
-  clamped scratch-custody negatives, live-`nzcv` rejection under both
-  instruction and terminator readers, cross-carrier kind-versus-row
-  rejection, decision-field substitution, and wrong-policy negatives;
-  the replay restates the grammar through its own
-  `SaturatingAddUpperBound`/`SaturatingAddUpperBoundLeft` source shapes
-  plus the clamped row's `Scratch` variants — selecting the family from
-  the recorded immediate's equality with the carrier maximum —
-  re-derives the materialized maximum from the instruction record, runs
-  its own dead-unit scan, and never consults the pair descriptor).
-  `WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE` declares the first
-  same-position value-disjoint trap relationship: `MaterializeI64`
-  producing `u64::MAX` — the normalized-i64 divisor `-1` — feeding the
-  divisor operand of `WrappingRemainderI64` folds into a
-  `MaterializeI64` of the constant zero at the result register under
-  `LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1` — `x % -1` is `0`
-  for every `x`, and `i64::MIN % -1` is the exceptional case the kind's
-  semantics defines to produce zero rather than trap, so the folded
-  divisor literal itself discharges the consumer's encoded architectural
-  fault under the same `FaultDischargedByLiteral` surface the
-  divisor-one fold declares (a divisor of `-1` never divides by zero,
-  and the x86-64 realization's `-1` guard skips the `idiv` for exactly
-  the overflow-prone dividend). The family shares its consumer kind and
-  operand position with the divisor-one fold; admission selects between
-  the two `WrappingRemainderI64` divisor families by the folded
-  literal's exact value, and `SelectedIncomingWrappingRemainderMinusOneZeroMaterialization`
-  is optimization 41 in the vocabulary. The validator restates the
-  grammar through its own `RemainderMinusOne` source shape — selecting
-  the family from the victim's operand position and the recorded
-  literal's equality with `u64::MAX` — re-derives the zero
-  materialization, result register, dropped-`Def` custody, and rebuilt
-  row from the instruction record under its own policy-gated row
-  binding, and never consults the pair descriptor (1228 crate lib
-  tests pass, including firing on both Linux targets, non-`u64::MAX`
-  divisor rejection in both directions of the sibling-family boundary,
-  scratch-custody negatives, forbidden operand bindings, wrong-policy
-  and wrong-position rejections, decision-field substitution, and
-  all-families-enabled value dispatch; the replay's operand-1 literal
-  check and row binding are the minus-one family's own).
-  `SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS`
-  declares one right-literal constant-result pair per unsigned
-  saturating carrier, folding `MaterializeI64(MAX)` feeding the
-  operand-1 subtrahend `Use` of `SaturatingSubtract` into a
-  `MaterializeI64` of zero at the result register under
-  `LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1` — `x -| MAX`
-  is `0` for every `x` an unsigned carrier admits, because `x <= MAX`
-  means `x - MAX` never exceeds zero and saturates to the carrier's
-  lower bound. The family is asymmetric: `MAX -| x` is `MAX - x`, not
-  a constant, so the descriptor binds only the subtrahend position of
-  the unsigned three-operand row, drops the operand-0 minuend `Use`
-  the constant result never reads, and retires aarch64's implicit
-  `nzcv` definition under the whole-function deadness proof while
-  x86-64's `rflags` clobber drops unconditionally with the replaced
-  operand list. Signed carriers admit no pair — `x -| MAX` there is
-  `x - MAX` clamped to the signed bounds, not a constant. The family
-  shares its consumer kind with the right-zero identity fold and its
-  operand position with it too: admission selects among the three
-  `SaturatingSubtract` grammars by the victim's operand position plus
-  the folded literal's exact value, and
-  `SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization`
-  is optimization 42 in the vocabulary. The validator restates the
-  grammar through its own `SaturatingSubtractUpperBoundSubtrahend`
-  source shape — selecting the family from the victim's operand
-  position and the recorded literal's equality with the carrier's
-  maximum — re-derives the zero materialization, result register, and
-  rebuilt row from the instruction record under its own policy-gated
-  row binding, runs its own dead-unit scan, and never consults the
-  pair descriptor (1362 crate lib tests pass, including firing on both
-  Linux targets across all four unsigned carriers, every signed
-  carrier's rejection, left-literal and sub-maximum-literal rejection
-  in both directions of the sibling-family boundary, wrong-position
-  claims, forbidden operand bindings, tied-operand negatives,
-  live-`nzcv` rejection under both instruction and terminator readers,
-  cross-carrier kind-versus-row rejection, decision-field
-  substitution, wrong-policy negatives, measured-budget enforcement,
-  deterministic fixed-point output, and a compiler publication test
-  replaying the enabled selection through a real native artifact).
-  Landed: the second byte-view operand grammar —
-  `BYTE_VIEW_ADDRESS_BACKING_U12` joins `BYTE_VIEW_ADDRESS_OFFSET_U12`
-  in the `BYTE_VIEW_ADDRESS_V1` catalog payload under the same
-  `SelectedIncomingU12ByteViewAddressOffset` selection. The
-  `ByteViewAddress` projection computes `(backing + offset)` modulo
-  2^64 — a commutative modular address addition — so a materialized
-  literal at the operand-0 backing `Use` folds into the same
-  constant-offset `AddressOffset` row the operand-1 offset literal
-  uses, with the operand-1 `Use` surviving as the rewritten row's
-  base and the operand-2 `Def` remaining the result. The pair
-  declares `PairOperandShape::BinaryLeftLiteral` — the descriptor's
-  operand-position grammar rather than a new effect axis — and the
-  two byte-view pairs disambiguate by which `Use` position the folded
-  literal occupies. The independent replay restates that choice by
-  deriving `BinaryLeftImmediate` versus `BinaryImmediate` from the
-  recorded future-use operand under the same policy-gated
-  `AddressOffset` row binding — never from the descriptor — and the
-  producer, budget, and fixed-point machinery needed no changes
-  beyond the staged fixture's commuted operand wiring (1401 crate
-  lib tests pass on Linux x86-64, including firing on both Linux
-  targets, the 0/4095/4096 boundary legs, measured-budget
-  enforcement, deterministic fixed-point output, decision-field and
-  operand-position replay corruption negatives, wrong-policy
-  rejection, and forbidden operand-binding negatives; the
-  `compiler/tests/optimizer_byte_view_address_offset.rs` publication
-  replay still passes).
-  Landed: the operand-swapped condition-state grammar —
-  `COMPARE_LEFT_IMMEDIATE_U12` joins `COMPARE_IMMEDIATE_U12` in the
-  `COMPARE_V1` catalog payload under the same
-  `SelectedIncomingU12CompareImmediate` selection, folding
-  `MaterializeI64` feeding the operand-0 minuend `Use` of `CompareI64`
-  into `CompareI64Immediate` computing `x - literal` for `literal - x`.
-  `PairOperandShape::BinaryLeftLiteralOperandSwap` declares the
-  non-commuting left-literal grammar whose result channel is implicit
-  units — the operand-1 subtrahend `Use` survives into the rewritten
-  row's sole `Use` position — and
-  `PairMachineEffects::OperandSwappedUnitDefs` declares the
-  condition-state reader-flow relationship: the rewrite keeps the
-  consumer's implicit unit definitions under the reversed operand
-  order, preserving the zero condition exactly while inverting every
-  ordering predicate, admitted only while every reader each defined
-  unit can reach through the function's CFG is equality-sensing
-  (`MaterializeBooleanEqual` or `ConditionalBranchNonZero`). The
-  declaration-level surface is otherwise the isolated contract — the
-  record-level audit follows successor edges through joins and loops,
-  ends each unit's live range at a redefinition or clobber, and
-  refuses an edge naming a block the function does not contain. The
-  producer runs `admits_swapped_condition_defs` on the concrete
-  consumer record; the replay independently restates the grammar
-  through its own `CompareLeftImmediate` source shape and re-walks the
-  flow itself — never consulting the pair descriptor — and both sides
-  charge the audit's bounded work into `validation_steps` (1419 crate
-  tests pass, including firing on both Linux targets, equality readers
-  through same-block, successor-edge, join, and loop shapes, ordering
-  reader rejection in each shape, redefinition-terminated flow,
-  unresolved-successor refusal, unpreserved unit surfaces, decorated
-  and misshapen operand rejection, wrong-position and wrong-policy
-  negatives, measured-budget enforcement showing the audit-inclusive
-  charge, decision-field substitution, and deterministic fixed-point
-  output).
-  Remaining: further unit roles beyond retired implicit definitions and
-  the landed operand-swapped preservation — stack- and
-  control-flow-carrying relationships, and trap relationships
-  beyond the landed `FaultDischargedByLiteral` family — which now covers
-  a second distinct discharging literal — plus the
-  `FaultDischargedByObligation`, `FaultDischargedByLiteralDeadUnitDefs`,
-  and `FaultDischargedByObligationDeadUnitDefs` descriptors. Those
-  fault-discharge variants do not admit arbitrary trap preservation or
-  hosted-trap effects.
+  replacing the independent validator: `literal_fold/validate/replay.rs`
+  restates every grammar from instruction records and never reads a
+  descriptor. `SelectedInstructionPairRule` declares producer, consumer and
+  rewritten kinds, operand shape, immediate bound, result disposition, unit
+  effects and machine effects, and the
+  [exact-rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
+  lists the 23 landed `SelectedIncoming*` selections. Every landed pair
+  eliminates an effect-isolated `MaterializeI64` that immediately precedes its
+  single consumer in the same block. The candidate is one pressure-recovery
+  `ImmediateU64RematerializationCandidate` per function and fixed-point
+  iteration (`compute/actions.rs::derive_action`), under the caller-saved-only
+  availability policy
+  (`src/analyses/legality/policies.rs::frameless_leaf_caller_saved_views`).
+  Every rewritten form except the indexed-read fold carries no memory, trap,
+  stack or control effect.
+
+  Remaining work:
+
+  - Unit roles. `PairUnitEffects` requires a rewritten row with no implicit
+    uses or clobbers and rejects every `tied_to` operand, and every
+    `PairMachineEffects` variant rejects a consumer with implicit unit uses.
+    Landed relationships cover implicit definitions as the result channel,
+    retired dead definitions (`DeadConsumerUnitDefs`) and operand-swapped
+    definitions kept for equality readers (`OperandSwappedUnitDefs`).
+    Flag-consuming forms, clobbering rewritten rows and tied operands have no
+    declaration.
+  - Traps. `FaultDischargedByLiteral`, `FaultDischargedByObligation` and
+    their two `...DeadUnitDefs` forms retire a consumer fault that the folded
+    literal or a carried obligation makes unreachable. None admits trap
+    preservation, where the rewritten form keeps the consumer's
+    `MayArchitecturalFaultV1` surface, or hosted-trap effects.
+  - Memory. `IndexedPointerReadFold` is the only memory relationship: one
+    indexed pointer read folded to an offset read of the same bytes. A pair
+    whose consumer or rewritten form writes memory has no declaration.
+  - Stack and control flow. No relationship exists. Every variant requires
+    alternatives that leave the stack unchanged and fall through, and neither
+    instruction of a pair may be a terminator or sit in another block.
+
+  Acceptance: each dimension above has a declared relationship with a firing
+  rule on x86-64 and AArch64, a validator restatement that reconstructs the
+  relationship from instruction records alone, the corruption, wrong-policy,
+  boundary and budget negatives required by
+  [stage-extension validation](omega-rust/optimization.md#validation-when-extending-a-stage),
+  and one compiler-generated publication replay. A relationship that cannot
+  be replayed independently stays rejected. Another literal identity over
+  already-declared dimensions does not advance this item.
+
+  Flag: the descriptor grows by enumeration, not composition.
+  `PairOperandShape` has 12 variants that are hand-written products of literal
+  position, result kind and tail-operand custody (for example
+  `BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs`).
+  `PairMachineEffects` spells fault discharge times dead definitions as
+  `FaultDischargedByLiteralDeadUnitDefs` and
+  `FaultDischargedByObligationDeadUnitDefs`. The validator's `SourceShape` has
+  30 variants, one per identity and operand position. Each of the 23
+  selections also takes an `Optimization` tag and a `LiteralFoldPolicy` bit,
+  and the per-identity test files run 566 to 1,292 lines. More than 20
+  commits each added one identity or operand position while stack, control
+  flow and trap preservation stayed at zero relationships. The general
+  mechanism is independent descriptor axes
+  (literal position, result kind, tail custody, fault discharge,
+  implicit-definition disposition) that compose, so that a new identity is a
+  catalog row and not a new variant, policy bit, validator shape and
+  vocabulary tag.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
   removal, address folding, compare/test selection, and scheduling only where
