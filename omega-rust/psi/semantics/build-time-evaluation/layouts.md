@@ -13,7 +13,7 @@ schedules these target-neutral services and supplies target realization inputs;
 it does not reinterpret their semantics.
 
 The [layout-plans foundation](../../foundation/layout-plans/src/layout_reports.rs) holds
-normalized geometry/report carriers. The [target layout owner](../../../omega/backend/layout/src/sum_materialization.rs)
+normalized geometry/report carriers. The [target layout owner](../../../omega/backend/layout/src/sum_materialization/mod.rs)
 projects conventional sum reports from its runtime layout. Compact fingerprints
 are compatibility reports; exact schema rows and complete layouts govern replay.
 

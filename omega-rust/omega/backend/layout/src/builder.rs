@@ -17,7 +17,7 @@ mod type_reference_layouts;
 
 use crate::builder::generic_bindings::GenericLayoutBinding;
 use crate::builder::generic_bindings::binding_for_type;
-use crate::builder::generic_bindings::fixed_array_length_with_bindings;
+use crate::builder::generic_bindings::fixed_array_length;
 use crate::builder::private_callback_closure::close_two_hop_private_callback_paths;
 use crate::sizing::fat_descriptor_layout;
 use crate::{
@@ -121,7 +121,7 @@ pub fn layout_type_reference(
         opaque_representation_selections,
         OpaqueRepresentationDemand::ByValue,
     )
-    .layout_type_reference_handle(type_reference)
+    .layout_type_reference_handle(type_reference, &[])
 }
 
 /// The complete layout catalog eagerly visits declarations that may never be
@@ -421,15 +421,12 @@ impl<'program> LayoutBuilder<'program> {
         None
     }
 
-    fn type_descriptor(&self, type_reference: TypeReferenceHandle) -> TypeLayoutDescriptor {
-        self.type_descriptor_with_bindings(type_reference, &[])
-    }
-
-    /// Like `type_descriptor`, but a reference to a bound GENERIC TYPE PARAMETER
-    /// resolves to the descriptor of its ARGUMENT, so a monomorphized instance's
-    /// `val: T` field carries the substituted descriptor (arithmetic domain,
-    /// storage symbol) instead of an opaque parameter symbol.
-    fn type_descriptor_with_bindings(
+    /// The descriptor of a type reference under `bindings`: a reference to a
+    /// bound GENERIC TYPE PARAMETER resolves to the descriptor of its ARGUMENT,
+    /// so a monomorphized instance's `val: T` field carries the substituted
+    /// descriptor (arithmetic domain, storage symbol) instead of an opaque
+    /// parameter symbol. Callers outside any instance pass no bindings.
+    fn type_descriptor(
         &self,
         type_reference: TypeReferenceHandle,
         bindings: &[GenericLayoutBinding<'program>],
@@ -442,14 +439,14 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Reference {
                 referee, access, ..
             } => TypeLayoutDescriptor::Reference {
-                referee: Box::new(self.type_descriptor_with_bindings(*referee, bindings)),
+                referee: Box::new(self.type_descriptor(*referee, bindings)),
                 is_mutable: access.is_exclusive(),
             },
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
             } => {
-                let base = self.type_descriptor_with_bindings(*base_type, bindings);
+                let base = self.type_descriptor(*base_type, bindings);
                 let constraint_list = self.program.type_reference_table.constraints(*constraints);
                 // An owned `[u8; N] in <named-domain>` field is the variable-fill
                 // bounded byte carrier (#66): a NAMED (text) domain over a fixed
@@ -490,11 +487,9 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
-            } => match fixed_array_length_with_bindings(self.program, length, bindings) {
+            } => match fixed_array_length(self.program, length, bindings) {
                 Some(length) => TypeLayoutDescriptor::FixedArray {
-                    element_type: Box::new(
-                        self.type_descriptor_with_bindings(*element_type, bindings),
-                    ),
+                    element_type: Box::new(self.type_descriptor(*element_type, bindings)),
                     length,
                 },
                 // ConstCall lengths are substituted to literals by the
@@ -504,7 +499,7 @@ impl<'program> LayoutBuilder<'program> {
                 None => TypeLayoutDescriptor::Unit,
             },
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
-                element_type: Box::new(self.type_descriptor_with_bindings(*element_type, bindings)),
+                element_type: Box::new(self.type_descriptor(*element_type, bindings)),
             },
             TypeReferenceNode::DynamicTrait {
                 symbol,
@@ -525,7 +520,7 @@ impl<'program> LayoutBuilder<'program> {
                 ..
             } => {
                 if let Some(binding) = binding_for_type(*base_symbol, base_name, bindings) {
-                    return self.type_descriptor_with_bindings(binding.argument, bindings);
+                    return self.type_descriptor(binding.argument, bindings);
                 }
                 TypeLayoutDescriptor::Named {
                     symbol: *base_symbol,
@@ -534,7 +529,7 @@ impl<'program> LayoutBuilder<'program> {
             }
             TypeReferenceNode::Named { symbol, name } => {
                 if let Some(binding) = binding_for_type(*symbol, name, bindings) {
-                    return self.type_descriptor_with_bindings(binding.argument, bindings);
+                    return self.type_descriptor(binding.argument, bindings);
                 }
                 TypeLayoutDescriptor::Named {
                     symbol: *symbol,
