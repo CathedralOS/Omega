@@ -9,6 +9,8 @@ mod content_and_component_proof_formats;
 mod control_cycles;
 #[path = "artifact/debug_map_custody.rs"]
 mod debug_map_custody;
+#[path = "artifact/float_meaning_custody.rs"]
+mod float_meaning_custody;
 #[path = "artifact/integer_proof_formats.rs"]
 mod integer_proof_formats;
 #[path = "artifact/obligation_ledger_custody.rs"]
@@ -41,7 +43,7 @@ use semantic_vocabulary::{
     AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IntegerSign,
     IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId,
     Proposition, PropositionId, ScalarTerm, ScalarType, StructuralCaseId, StructuralFieldId,
-    ValueId,
+    StructuralTypeId, ValueId,
 };
 use terminal_codec::{CanonicalTerminalArtifact, build_identity_optimization_execution_record};
 use terminal_psi::{
@@ -371,6 +373,7 @@ id_constructor!(value_id, ValueId);
 id_constructor!(place_id, PlaceId);
 id_constructor!(structural_field_id, StructuralFieldId);
 id_constructor!(structural_case_id, StructuralCaseId);
+id_constructor!(structural_type_id, StructuralTypeId);
 id_constructor!(machine_id, MachineId);
 id_constructor!(block_id, BlockId);
 id_constructor!(operation_id, OperationId);
