@@ -466,8 +466,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   computations — including exact, wrapping-divide/remainder, and
   saturating-divide/remainder variants whose verifier-discharged totality
   obligation moves byte-exact inside the relocated operation — place
-  observations whose storage root rebinds to its invariant
-  representative, `ByteSequenceRead` reads whose `index`
+  observations whose storage root is visible at the preheader, is
+  produced by a node the same run relocates ahead of the read — a
+  uniquely member-produced root the moved observation keeps spelling
+  byte-exact — or rebinds to the invariant representative its member
+  structural parameter resolves to, `ByteSequenceRead` reads whose `index`
   operand substitutes through the same scalar rule, whose bounds
   obligation stays byte-exact, and whose `length` operand relocates with
   its `ByteSequenceLength` producer measuring the same rebound root in the
@@ -478,7 +481,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   non-observation structural relocation — whose declared place,
   structural type, and payload move byte-exact inside the moved
   operation while every consumer keeps spelling the same place
-  identity, and scalar-signature `Call`
+  identity, scalar-signature `Call`
   nodes — the boundary's first call relocation — whose callee's
   transitive effect summary proves no observable effect, crash, or
   suspension (the `structural_state` axis stays exempt because a scalar
@@ -486,12 +489,24 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   hoisting the call's possible non-return reorders nothing anyone could
   see; a call carrying `crash_continuations` keeps its crash-route
   custody inside, and discharged `requirement_obligations` move
-  byte-exact inside the moved operation. Invariant discovery resolves
+  byte-exact inside the moved operation, `EstablishPrimitiveLocal`
+  establishments whose declared place, structural type, and claim-free
+  result custody move byte-exact while the scalar initializer
+  substitutes under the member-parameter rule, and structural calls
+  (`CallUnit`, `CallStructuralScalar`) behind the same purity and
+  unobservable-roster evidence whose every structural argument is a
+  non-owned borrow naming a preheader-visible, member-parameter-resolved,
+  or run-covered member-produced root — a mutating borrow's root must be
+  uniquely member-produced and covered by the same run, and a producing
+  establishment relocates only when every member mutable borrower of its
+  root relocates too. Invariant discovery resolves
   member scalar and structural
   parameters transitively across component-internal edges to the
-  representative every reaching edge agrees on — and a member parameter
+  representative every reaching edge agrees on — a member parameter
   every reaching edge binds to one run-covered member result substitutes
-  to that preserved result — rebinding moved operands
+  to that preserved result, and a member structural parameter bound the
+  same way to one uniquely produced member root rebinds to that covered
+  root — rebinding moved operands
   and observed roots to the preheader-visible anchor. The insertion
   preheader is the one block every authenticated entry edge departs —
   several entry edges of one dispatching terminator share it, while
@@ -503,14 +518,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   non-scalar families, profitability, and motion beyond the shared-source
   preheader. Operand-carrying structural establishments
   (`EstablishScalarArray`, `EstablishRecord`, `EstablishScalarCase`,
-  `EstablishPrimitiveLocal`, `EstablishTrivialAffineLocal`) and
-  structural-signature calls (`CallStructuralScalar`, `CallStructural`,
-  `CallUnit`) currently have no admitted relocation evidence — and the
-  establishments other than the byte literal still have no source route
-  into a cyclic member block, since scalar-graph arrays only emit as
-  call arguments and a structural `let` inside a Unit state removes the
-  machine's ranked cycle evidence — so the next non-scalar family needs
-  an admitted source shape before admission work can begin.
+  `EstablishTrivialAffineLocal`) and place-result structural calls
+  (`CallStructural`) currently have no admitted relocation evidence; the
+  remaining establishments still need an admitted cyclic source shape —
+  scalar-graph arrays only emit as call arguments — before admission
+  work can begin.
 
 ## Lowering and instruction selection
 

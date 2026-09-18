@@ -4,7 +4,8 @@
 //! except for independently admitted scalar motion: an admissible
 //! source-owned scalar constant leaf, an admissible place observation whose
 //! component performs no place mutation or custody movement and whose storage
-//! root is visible at the preheader insertion point — directly, or as the
+//! root is visible at the preheader insertion point — directly, produced by
+//! a node the same component's run already relocated, or as the
 //! representative an invariant member structural parameter resolves to — an
 //! admissible byte observation (a `ByteSequenceRead`, or a
 //! `ByteSequenceSubslice` whose structural view result and bounds obligation
@@ -249,13 +250,17 @@ pub(super) fn validate(
         } else if crate::validation::admissible_invariant_place_read(relocation.expected).is_some()
         {
             // The whole-component place-custody gate and the root's
-            // preheader visibility — direct or through the member
-            // parameter's agreed representative — are re-derived here from
-            // the seed rather than trusted from the transformed unit.
+            // landing — preheader-visible, produced by a node this
+            // component's run already relocated, or resolved through the
+            // member parameter's agreed representative — are re-derived here
+            // from the seed rather than trusted from the transformed unit.
             match crate::validation::invariant_place_observation_admission(
                 expected,
                 component,
                 relocation.expected,
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
             ) {
                 Some(root) => (BTreeMap::new(), Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
@@ -265,7 +270,7 @@ pub(super) fn validate(
             // from the seed: the run-internal `length` producer must
             // already appear among this component's relocated results,
             // and its own observation root must resolve to the read's
-            // rebound root.
+            // rebound root under the same relocated member roots.
             match crate::validation::invariant_byte_read_admission(
                 expected,
                 component,
@@ -273,6 +278,9 @@ pub(super) fn validate(
                 relocated_results
                     .get(&component.id)
                     .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
             ) {
                 Some((root, substitution)) => (substitution, Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
@@ -292,6 +300,9 @@ pub(super) fn validate(
                 relocated_results
                     .get(&component.id)
                     .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
             ) {
                 Some((root, substitution)) => (substitution, Some(root), BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),

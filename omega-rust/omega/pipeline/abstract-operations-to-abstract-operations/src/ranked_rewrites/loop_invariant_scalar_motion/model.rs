@@ -77,7 +77,8 @@ impl LoopInvariantNodeResult {
 /// performs when the computation is re-expressed on its preheader-visible
 /// representative. Scalar-constant leaves and admitted place observations
 /// carry an empty operand rewrite list — an observation whose storage root
-/// already names a preheader-visible place relocates byte-exact like a leaf,
+/// already names a preheader-visible place or a member-produced root the
+/// same run covers relocates byte-exact like a leaf,
 /// while one reading through an invariant member structural parameter records
 /// that root rebind in `root_rewrite`. A `ByteSequenceSubslice` records the
 /// same root rebind and scalar-operand rewrites a byte read does, but its
@@ -106,7 +107,7 @@ pub struct LoopInvariantScalarNode {
     /// its source names an invariant member structural parameter: `(member
     /// parameter root, entry representative root)`. `None` for scalar-constant
     /// leaves, scalar computations, and observations whose root is already
-    /// preheader-visible.
+    /// preheader-visible or produced by a node the same run covers.
     pub(super) root_rewrite: Option<(PlaceId, PlaceId)>,
     /// The structural-argument root rebinds an admitted call performs:
     /// `(member parameter root, preheader-visible root)` pairs for every
@@ -144,7 +145,8 @@ impl LoopInvariantScalarNode {
     /// The `(member structural parameter, entry representative)` storage-root
     /// rebind an admitted place observation performs, when its source names a
     /// member parameter every reaching edge resolves to the same
-    /// preheader-visible root. `None` for every other relocated node.
+    /// preheader-visible or run-covered root. `None` for every other
+    /// relocated node.
     pub const fn root_rewrite(&self) -> Option<(PlaceId, PlaceId)> {
         self.root_rewrite
     }

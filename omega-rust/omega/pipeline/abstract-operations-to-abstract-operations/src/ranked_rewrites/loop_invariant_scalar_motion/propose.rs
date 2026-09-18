@@ -71,9 +71,10 @@ fn component_candidate(
 
 /// The independently replayable relocation plan for one component: every
 /// admissible scalar node still inside a member block — a scalar-constant
-/// leaf, an invariant place observation (byte-exact, or with its storage root
-/// rebound to the representative its member structural parameter resolves
-/// to), a byte read or subslice (root rebound, scalar operands substituted,
+/// leaf, an invariant place observation (byte-exact when its root is
+/// preheader-visible or run-covered, or with its storage root rebound to the
+/// representative its member structural parameter resolves to), a byte read
+/// or subslice (root rebound, scalar operands substituted,
 /// `length` still coupled to a `ByteSequenceLength` on the rebound root, and
 /// for a subslice the structural result preserved inside the moved
 /// operation), a byte-sequence-literal establishment (declared place, type,
@@ -201,14 +202,19 @@ fn admit_member_node(
         // An invariant place observation keeps both halves of the
         // non-speculative gate — observing a root performs work a skipped
         // traversal would not — and additionally needs the component to
-        // preserve place custody and its storage root to be visible at the
-        // preheader insertion point, either directly or as the
+        // preserve place custody and its storage root to land where the
+        // relocated run can see it: visible at the preheader insertion
+        // point, produced by a node the same run already covers, or the
         // representative its member structural parameter resolves to.
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let root =
-            crate::validation::invariant_place_observation_admission(function, component, node)?;
+        let root = crate::validation::invariant_place_observation_admission(
+            function,
+            component,
+            node,
+            relocating_roots,
+        )?;
         root_rewrite = (root != source).then_some((source, root));
         Vec::new()
     } else if let Some((source, _, _)) = crate::validation::admissible_invariant_byte_read(node) {
@@ -224,7 +230,11 @@ fn admit_member_node(
             return None;
         }
         let (root, substitution) = crate::validation::invariant_byte_read_admission(
-            function, component, node, relocating,
+            function,
+            component,
+            node,
+            relocating,
+            relocating_roots,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
@@ -241,8 +251,13 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let (root, substitution) =
-            crate::validation::invariant_subslice_admission(function, component, node, relocating)?;
+        let (root, substitution) = crate::validation::invariant_subslice_admission(
+            function,
+            component,
+            node,
+            relocating,
+            relocating_roots,
+        )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
         }
@@ -494,7 +509,9 @@ pub(super) fn component_plan(
     // The place roots the run's already-admitted nodes produce: a relocated
     // establishment keeps its declared place identity byte-exact, so a
     // structural argument spelling a member-produced root stays correct when
-    // the producer lands in the same run ahead of the call.
+    // the producer lands in the same run ahead of the call, and a place
+    // observation reading that same member-produced root relocates behind it
+    // — the persistent cell holds the same contents on every traversal.
     let mut relocating_roots = std::collections::BTreeSet::new();
     let mut admitted = std::collections::BTreeSet::new();
     let evidence = PlanEvidence {
