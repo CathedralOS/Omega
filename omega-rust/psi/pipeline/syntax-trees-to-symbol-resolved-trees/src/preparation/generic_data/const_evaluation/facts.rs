@@ -5,23 +5,25 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use arena::HandleSpan;
+use syntax_trees::expression::UnaryOperator;
 
-use crate::preparation::generic_data::ConstFactValue;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
 use crate::preparation::generic_data::evaluate_const_fact_binary;
 use crate::preparation::generic_data::integer_literal_value;
+use crate::preparation::generic_data::{ConstFactValue, ConstScalarValue};
 
 use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_operator};
 
 /// Evaluate a proof expression exactly when every operand is known at generic
 /// instantiation time. `None` means the fact still depends on a runtime field
-/// and must remain on the synthesized record.
+/// and must remain on the synthesized record. `self_value` is the concrete
+/// scalar a selected domain binds to `self` while its facts replay.
 pub(in crate::preparation::generic_data) fn evaluate_const_fact_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
-    self_value: Option<i128>,
+    self_value: Option<ConstScalarValue>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
     if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {
@@ -59,7 +61,22 @@ pub(in crate::preparation::generic_data) fn evaluate_const_fact_expression(
                 .copied()
                 .map(ConstFactValue::Integer))
         }
-        ExpressionNode::SelfValue => Ok(self_value.map(ConstFactValue::Integer)),
+        ExpressionNode::SelfValue => Ok(self_value.map(ConstScalarValue::into_fact_value)),
+        ExpressionNode::Unary(unary) => match unary.operator {
+            UnaryOperator::LogicalNot => Ok(evaluate_const_fact_expression(
+                syntax,
+                unary.operand,
+                const_values,
+                parameter_values,
+                self_value,
+                warnings,
+            )?
+            .and_then(|value| match value {
+                ConstFactValue::Boolean(value) => Some(ConstFactValue::Boolean(!value)),
+                _ => None,
+            })),
+            UnaryOperator::BitwiseNot => Ok(None),
+        },
         ExpressionNode::Binary(binary) => {
             if !has_builtin_const_operator(syntax, binary.operator) {
                 return Ok(None);
@@ -138,7 +155,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_membership_fact(
         syntax,
         &domain_path,
         parameter_type,
-        value,
+        ConstScalarValue::Integer(value),
         const_values,
         &mut Vec::new(),
         members
@@ -161,7 +178,7 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
     syntax: &SyntaxTrees,
     authored: &str,
     carrier: &str,
-    value: i128,
+    value: ConstScalarValue,
     const_values: &HashMap<String, i128>,
     visiting: &mut Vec<String>,
     reference: source::SourceSpan,
@@ -232,7 +249,7 @@ fn evaluate_selected_domain_facts(
     domain: &syntax_trees::item::DomainDefinition,
     domain_key: String,
     carrier: &str,
-    value: i128,
+    value: ConstScalarValue,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     visiting: &mut Vec<String>,
@@ -284,7 +301,9 @@ fn evaluate_selected_domain_facts(
                     else {
                         return Ok(None);
                     };
-                    let Some(nested_value) = nested_value.into_integer(syntax, warnings)? else {
+                    let Some((nested_carrier, nested_value)) =
+                        nested_membership_operand(syntax, nested_value, carrier, warnings)?
+                    else {
                         return Ok(None);
                     };
                     let members = syntax.items.identifier_path_members(membership.domain);
@@ -296,7 +315,7 @@ fn evaluate_selected_domain_facts(
                     evaluate_named_const_domain(
                         syntax,
                         &path,
-                        carrier,
+                        nested_carrier,
                         nested_value,
                         const_values,
                         visiting,
@@ -326,6 +345,25 @@ fn evaluate_selected_domain_facts(
     result
 }
 
+/// Bind one evaluated nested-membership operand as the `self` payload the next
+/// selected domain replays. A Boolean operand always selects the `bool`
+/// carrier; an integer operand keeps the enclosing carrier, which
+/// `self`-derived expressions inherit. `Ok(None)` leaves the membership on the
+/// checked-record path rather than binding a guessed payload.
+fn nested_membership_operand<'a>(
+    syntax: &SyntaxTrees,
+    value: ConstFactValue,
+    carrier: &'a str,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Option<(&'a str, ConstScalarValue)>, String> {
+    match value {
+        ConstFactValue::Boolean(value) => Ok(Some(("bool", ConstScalarValue::Boolean(value)))),
+        value => Ok(value
+            .into_integer(syntax, warnings)?
+            .map(|value| (carrier, ConstScalarValue::Integer(value)))),
+    }
+}
+
 /// Evaluate `value in <authored><args>` — a closed index application of a
 /// generic domain family — at declaration site. The authored spelling selects
 /// the family under the same module name law `domain` applies to monomorphic
@@ -346,7 +384,7 @@ fn evaluate_indexed_const_domain(
     authored: &str,
     argument_span: HandleSpan<TypeReferenceHandle>,
     carrier: &str,
-    value: i128,
+    value: ConstScalarValue,
     const_values: &HashMap<String, i128>,
     argument_values: &HashMap<String, i128>,
     visiting: &mut Vec<String>,
@@ -645,10 +683,11 @@ const CONSTRAINED_CONST_FENCE: &str = "constrained const declarations require de
 /// declaration's retained type); its facts then replay with `self` bound to
 /// the value through the same evaluator `where`-membership discharge uses. A
 /// closed index application additionally binds the family's index binders to
-/// its evaluated arguments before that replay. Non-domain constraints,
-/// non-integer values, contested or unreachable owners, open arguments, and
-/// unprovable facts keep the declaration fenced rather than publishing
-/// identity against a guessed or absent owner.
+/// its evaluated arguments before that replay. Integer and Boolean canonical
+/// values bind `self` directly; non-domain constraints, aggregate values,
+/// contested or unreachable owners, open arguments, and unprovable facts keep
+/// the declaration fenced rather than publishing identity against a guessed
+/// or absent owner.
 ///
 /// Without a `ConstantSelection` (source-free canonicalization) the evaluator
 /// falls back to exact declared-name matching, which cannot see module
@@ -662,12 +701,18 @@ pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constrai
     value: &CanonicalConstValue,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
 ) -> Result<(), String> {
-    let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-        type_name: carrier,
-        value: integer,
-    }) = value.decode_encoding()
-    else {
-        return Err(CONSTRAINED_CONST_FENCE.to_owned());
+    let (carrier, self_value) = match value.decode_encoding() {
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+            type_name,
+            value,
+        }) => (type_name, ConstScalarValue::Integer(value)),
+        // The `bool` carrier is the only other scalar canonical encoding; its
+        // domain target check and `self` binding are exactly the integer
+        // route's.
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value)) => {
+            ("bool".to_owned(), ConstScalarValue::Boolean(value))
+        }
+        _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
     };
     let const_values =
         crate::preparation::generic_data::module_constants::lexical_integer_const_values(syntax);
@@ -703,7 +748,7 @@ pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constrai
                 syntax,
                 domain.name.as_str(),
                 &carrier,
-                integer,
+                self_value,
                 &const_values,
                 &mut Vec::new(),
                 domain.name.source_span(),
@@ -716,7 +761,7 @@ pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constrai
                 domain.name.as_str(),
                 domain.arguments,
                 &carrier,
-                integer,
+                self_value,
                 &const_values,
                 &HashMap::new(),
                 &mut Vec::new(),
@@ -749,7 +794,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
-    self_value: i128,
+    self_value: ConstScalarValue,
     carrier: &str,
     visiting: &mut Vec<String>,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
@@ -772,7 +817,9 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
             else {
                 return Ok(None);
             };
-            let Some(value) = value.into_integer(syntax, warnings)? else {
+            let Some((nested_carrier, value)) =
+                nested_membership_operand(syntax, value, carrier, warnings)?
+            else {
                 return Ok(None);
             };
             let members = syntax
@@ -786,7 +833,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
             evaluate_named_const_domain(
                 syntax,
                 &path,
-                carrier,
+                nested_carrier,
                 value,
                 const_values,
                 visiting,

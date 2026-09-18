@@ -13,6 +13,26 @@ pub(in crate::preparation::generic_data) enum ConstFactValue {
     Boolean(bool),
 }
 
+/// The concrete scalar bound to `self` while a selected domain's facts replay
+/// at declaration site, and the same payload a nested membership operand
+/// carries into the next selected domain. Unlike `ConstFactValue` there is no
+/// anonymous rational here: declaration-site discharge binds only completed
+/// canonical values.
+#[derive(Clone, Copy)]
+pub(in crate::preparation::generic_data) enum ConstScalarValue {
+    Integer(i128),
+    Boolean(bool),
+}
+
+impl ConstScalarValue {
+    pub(in crate::preparation::generic_data) fn into_fact_value(self) -> ConstFactValue {
+        match self {
+            Self::Integer(value) => ConstFactValue::Integer(value),
+            Self::Boolean(value) => ConstFactValue::Boolean(value),
+        }
+    }
+}
+
 impl ConstFactValue {
     pub(in crate::preparation::generic_data) fn into_integer(
         self,

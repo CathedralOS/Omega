@@ -468,6 +468,148 @@ fn constrained_const_rejects_refuted_indexed_domain_fact() {
 }
 
 #[test]
+fn constrained_bool_const_discharges_against_module_local_domain() {
+    // A constrained const over the `bool` carrier binds `self` to the
+    // canonical Boolean and replays the selected domain's facts exactly as an
+    // integer-carrier const does. The foreign sibling's `!self`-style refuting
+    // fact (`self == false`) would reject `true`, so discharging proves the
+    // contested leaf resolved to the module-local owner.
+    let program = lower_multi(&[
+        (
+            "units.omg",
+            "module units; pub domain bool::Flag requires self == false;",
+        ),
+        (
+            "mine.omg",
+            "module mine; use units; domain bool::Flag requires self; const F: bool in bool::Flag = true;",
+        ),
+    ])
+    .expect("module-local bool domain discharges the constrained const");
+    assert_eq!(const_named(&program, "F"), "mine::F");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::F")
+        .expect("mine::F");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "a discharged bool constrained const publishes compatibility identity"
+    );
+}
+
+#[test]
+fn constrained_bool_const_rejects_refuted_domain_fact() {
+    let error = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain bool::Flag requires self; const F: bool in bool::Flag = false;",
+    )])
+    .expect_err("a refuted bool constrained const rejects");
+    assert!(error.contains("is false"), "unexpected diagnostic: {error}");
+}
+
+#[test]
+fn constrained_bool_const_reaches_foreign_domain_through_import_and_qualified_spelling() {
+    // `units` owns the only reachable `bool::Flag`; the decoy sibling's
+    // refuting fact is unreachable and never enters the pool.
+    for (tag, declaring) in [
+        (
+            "imported",
+            "module mine; use units; const F: bool in bool::Flag = true;",
+        ),
+        (
+            "qualified",
+            "module mine; const F: bool in units::bool::Flag = true;",
+        ),
+    ] {
+        let program = lower_multi(&[
+            (
+                "units.omg",
+                "module units; pub domain bool::Flag requires self;",
+            ),
+            (
+                "decoys.omg",
+                "module decoys; pub domain bool::Flag requires self == false;",
+            ),
+            ("mine.omg", declaring),
+        ])
+        .unwrap_or_else(|e| panic!("{tag} foreign bool domain selection: {e}"));
+        assert_eq!(const_named(&program, "F"), "mine::F", "{tag}");
+    }
+}
+
+#[test]
+fn constrained_bool_const_discharges_logical_and_indexed_family_facts() {
+    // `!self` and `self == <bool expression>` replay through the same fact
+    // evaluator; the indexed family's integer binder still closes its
+    // arguments exactly while `self` carries the canonical Boolean.
+    let program = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain bool::Off requires !self; const F: bool in bool::Off = false;
+         domain<const N: u64> bool::Saw<N> requires self == (N > 0); const G: bool in bool::Saw<8> = true;",
+    )])
+    .expect("bool-carrier facts discharge");
+    assert_eq!(const_named(&program, "F"), "mine::F");
+    assert_eq!(const_named(&program, "G"), "mine::G");
+    for name in ["F", "G"] {
+        let declaration = program
+            .const_declarations
+            .iter()
+            .find(|declaration| {
+                program.symbols.display_path(declaration.symbol, "::") == format!("mine::{name}")
+            })
+            .unwrap_or_else(|| panic!("mine::{name}"));
+        assert!(
+            declaration.canonical_value_encoding.is_some(),
+            "{name} publishes compatibility identity"
+        );
+    }
+    for (tag, source) in [
+        (
+            "refuted logical-not fact",
+            "module mine; domain bool::Off requires !self; const F: bool in bool::Off = true;",
+        ),
+        (
+            "refuted indexed bool fact",
+            "module mine; domain<const N: u64> bool::Saw<N> requires self == (N > 0); const G: bool in bool::Saw<8> = false;",
+        ),
+        (
+            // The selected family's integer carrier cannot hold a Boolean
+            // const: the carrier check rejects before any index binding.
+            "bool const against an integer-carrier family",
+            "module mine; domain<const N: u64> u64::Saw<N> requires self < N; const G: bool in u64::Saw<8> = true;",
+        ),
+        (
+            "bool const against an integer-carrier domain",
+            "module mine; domain u64::Pos requires self > 0; const F: bool in u64::Pos = true;",
+        ),
+    ] {
+        let error = lower_multi(&[("mine.omg", source)]).expect_err("{tag} must reject");
+        assert!(
+            error.contains("is false") || error.contains("carrier"),
+            "{tag}: unexpected diagnostic: {error}"
+        );
+    }
+}
+
+#[test]
+fn constrained_bool_const_discharges_nested_membership() {
+    // `self in bool::Inner` inside `bool::Outer` carries the Boolean operand
+    // into the nested domain with its `bool` carrier.
+    let program = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain bool::Inner requires self; domain bool::Outer requires self in bool::Inner; const F: bool in bool::Outer = true;",
+    )])
+    .expect("nested bool membership discharges");
+    assert_eq!(const_named(&program, "F"), "mine::F");
+    let error = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain bool::Inner requires self; domain bool::Outer requires self in bool::Inner; const F: bool in bool::Outer = false;",
+    )])
+    .expect_err("a nested bool membership refutes");
+    assert!(error.contains("is false"), "unexpected diagnostic: {error}");
+}
+
+#[test]
 fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
     for (tag, sources) in [
         // `Pos` exists only inside the unimported sibling `units`; the
@@ -554,6 +696,15 @@ fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
             &[(
                 "mine.omg",
                 "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window = 3;",
+            )][..],
+        ),
+        // An aggregate const value is not a scalar `self` payload: nominal
+        // carriers still owe checked case/field evidence downstream.
+        (
+            "aggregate constrained value",
+            &[(
+                "mine.omg",
+                "module mine; data Pair [copy] { x: u64; } domain Pair::NonEmpty requires self.x > 0; const P: Pair in Pair::NonEmpty = Pair { x: 1 };",
             )][..],
         ),
     ] {
