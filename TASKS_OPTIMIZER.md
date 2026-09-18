@@ -559,12 +559,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   additionally requires every terminator successor to enter the component
   plus a member block every traversal that leaves executed; the freeze
   fence re-derives both halves of that non-speculative gate from the
-  authenticated topology. Remaining: other
+  authenticated topology. Operand-carrying structural establishments now
+  relocate in bounded slices: unrestricted `EstablishScalarArray`
+  establishments move under the same whole-component custody bound, and
+  `EstablishScalarCase` establishments move unrestricted under that bound
+  or affine under a containment admission that strips the result from
+  member-internal `StructuralCase` dispatch-edge discard rosters and
+  disposes the persistent preheader result on component exit edges and
+  member returns — ownership-frontier membership for the relocated place
+  is invalidated and re-derived from the transformed graph rather than
+  trusted, and freeze replay independently re-derives both the admission
+  and the custody rewrite. Remaining: other
   non-scalar families, profitability, and motion beyond the shared-source
-  preheader. Operand-carrying structural establishments
-  (`EstablishScalarArray`, `EstablishScalarCase`,
-  `EstablishTrivialAffineLocal`) and place-result structural calls
-  (`CallStructural`) currently have no admitted relocation evidence; the
+  preheader. `EstablishTrivialAffineLocal` and place-result structural
+  calls (`CallStructural`) still have no admitted relocation evidence; the
   remaining establishments still need an admitted cyclic source shape —
   scalar-graph arrays only emit as call arguments — before admission
   work can begin. Cycle-admission evidence (linw2): the verifier's
@@ -572,15 +580,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   unrestricted `EstablishRecord` establishments — `record::fields`
   validation proves the fresh result place, declaration-paired field
   initializers, and claim-free result, and the unrestricted result never
-  carries a per-iteration disposal obligation — but admits none of the
-  other remaining establishments: `EstablishScalarArray` is also fenced
-  by `block_graph`'s once-per-activation array rule, while
+  carries a per-iteration disposal obligation — and admits unrestricted
+  `EstablishScalarArray` establishments through `scalar_array::shape`
+  (fresh result place, declared leaf shape, claim-free result;
+  re-entry replaces the stored payload without moving custody), while
   `EstablishTrivialAffineLocal` falls to the scalar-result fallthrough —
   and admits `EstablishScalarCase` and place-result `CallStructural`
   only bound to the same block's `StructuralCase`/`ReturnStructural`
-  terminator, whose edges trivially discard the result place, so a
-  hoisted establishment leaves later traversals dispatching a disposed
-  place. Synthetic fixtures cannot
+  terminator, whose edges trivially discard the result place — the
+  affine scalar-case slice relocates past that shape by rewriting the
+  dispatch custody, while a hoisted `CallStructural` would still leave
+  later traversals dispatching a disposed place. Synthetic fixtures cannot
   bypass the fence: optimizer admission replays
   `verify_module_for_optimization`. Profitability likewise has no
   bounded leg — every operation and terminator costs one fuel unit, so
