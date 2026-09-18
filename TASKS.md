@@ -4098,20 +4098,40 @@ Owners include
   `find_room_mut`/`find_room`/`append_exit`/`apply_room` rows, 4 index
   rows, 2 `roll_event`/`clear_event` rows; ttct 4135 passed with the
   same 3 failures, validation 843 with its 1 known failure, pass corpus
-  the same 212. Resume order: (1) `&mut Room` locals bound from
-  `room_mut`/`find_room_mut` reference results have no single storage
-  origin, so `append_exit(from_room)` / `clear_event(&mut room.event)`
-  keep an unrepresentable ceiling and wipe `level.*` before the
-  MazeBuilder returns -- the R5 "reference results' finite candidate
-  origins" work is the closer, either as a candidate union in
-  `rebase_local_write_places` or a callee-side hand-back on every
-  candidate; (2) `&mut self` receivers hand back only the ZII-seeded
-  `MachineFieldDomain` rows: a callee's `self` entry assumption is
-  ZII-gated, so its return cannot guarantee non-ZII rows and a caller's
-  non-ZII receiver facts survive a method call only through frame
-  precision -- widening needs a contract decision, not a flow change; (3) `checks/ranges`
+  the same 212. A `&mut` local bound from a checked reference result now
+  carries the callee's finite candidate origins over the caller's actuals
+  (`flow/reference_places/result_candidates.rs`: every entry-state exit
+  returning an exclusive-parameter projection through field/case/literal
+  index segments, so `level.room_mut(cell)` names `level.rooms[0..15]`;
+  sub-state routes, runtime indexes and unresolved callee locals keep the
+  conservative treatment). `rebase_local_write_places` consults them, so
+  the unknown-frame ceiling (now `flow/mutation/ceiling.rs` inside
+  `call_mutated_places`) and an unclassified alias write retire exactly
+  the candidates, the referents hand-back and an alias write re-establish
+  a candidate's declared rows only where they were live before, and an
+  alias closure that cannot enumerate local origins no longer turns a
+  frame unknown (`tests/contracts/call_ceilings.rs`). The probe reports 55
+  diagnostics: 14 `RoomLookup::find_room_mut` return rows and 14
+  `find_room` call rows (runtime-indexed copies through a sub-state
+  loop), 14 `append_exit` + 7 `apply_room` + 2 `roll_event`/`clear_event`
+  call rows whose nominal-input check still proves through one exact
+  origin, 4 index rows; ttct 4149 passed with the same 3 failures,
+  validation 851 with its 1 known failure, pass corpus the same 212.
+  Resume order: (1) the call-side nominal-input and `reference_domains`
+  proofs (`checks/contracts/{nominal_inputs,reference_domains}.rs`,
+  `local_reference_storage_at_call`) resolve an actual through one exact
+  origin only; proving a row on every candidate would close the 23
+  `append_exit`/`apply_room`/`roll_event`/`clear_event` call rows; (2)
+  `RoomLookup::find_room{,_mut}` loop through a sub-state over a runtime
+  index, which the candidate trace refuses (28 rows) -- sample side (4)
+  or a candidate family for the element loop; (3) `&mut self` receivers
+  hand back only the ZII-seeded `MachineFieldDomain` rows: a callee's
+  `self` entry assumption is ZII-gated, so its return cannot guarantee
+  non-ZII rows and a caller's non-ZII receiver facts survive a method
+  call only through frame precision -- widening needs a contract
+  decision, not a flow change; (4) `checks/ranges`
   retires a slice view's length after a call through one element
-  (`clear_room(&mut rooms[0], ..)` then `rooms[1]`), 15 rows; (4) sample
+  (`clear_room(&mut rooms[0], ..)` then `rooms[1]`), 15 rows; (5) sample
   side: `RoomLookup` copies an element at a runtime index and passes an
   uninitialized readable `&mut Room` out-parameter where write-only
   `&write Room` is the intended spelling but validation rejects it for
