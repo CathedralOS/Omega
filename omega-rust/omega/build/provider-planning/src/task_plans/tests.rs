@@ -5,6 +5,7 @@ use crate::ProviderPlanDerivation;
 mod activation_crossings_and_task_starts;
 mod activation_operational_and_requirements;
 mod activation_targets_and_topology;
+mod stack_graphs;
 
 use crate::task_plans::carry_crossings::{
     activation_carry_crossings, exact_activation_carry_subtree,
@@ -519,6 +520,109 @@ fn concrete_task_start_fixture() -> (
     .expect("select complete TaskRuntime provider");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("check and specialize task start");
+
+    (checked, selected, provider_plans)
+}
+
+/// A task target whose checked body calls another checked machine that parks
+/// inside the nested frame. The activation's whole-call-graph demand must
+/// cover both frames, and its canonical roster must cover the callee crossing.
+fn nested_task_call_fixture() -> (
+    CheckedTrees,
+    effects::SelectedProviderPlanFacts,
+    Vec<effects::provider_plan::ProviderPlan>,
+) {
+    let source = r#"
+        data Task<T> [linear] { provider: u64; activation: u64; }
+        machine Task::settle<T>(self) {}
+        data StartRejection { code: i32; }
+        data StartOutcome<T, Arguments> {
+            case Started(task: Task<T>);
+            case Rejected(arguments: Arguments, reason: StartRejection);
+        }
+        boundary trait TaskRuntime {
+            machine start<T, Arguments, machine Target>(
+                &self,
+                arguments: Arguments
+            ) -> Task<T>
+            where machine Target(arguments: Arguments) -> T suspends; blocks;
+            ensures true;
+            machine try_start<T, Arguments, machine Target>(
+                &self,
+                arguments: Arguments
+            ) -> StartOutcome<T, Arguments>
+            where machine Target(arguments: Arguments) -> T suspends; blocks;
+            ensures true;
+        }
+
+        data LocalTaskRuntime { }
+        LocalTaskRuntimeTaskRuntime: LocalTaskRuntime satisfies TaskRuntime;
+        machine LocalTaskRuntime::start<T, Arguments, machine Target>(
+            &self,
+            arguments: Arguments
+        ) -> Task<T>
+        where machine Target(arguments: Arguments) -> T suspends; blocks;
+        satisfies TaskRuntime::start
+        via Binding::CompilerIntrinsic;
+        machine LocalTaskRuntime::try_start<T, Arguments, machine Target>(
+            &self,
+            arguments: Arguments
+        ) -> StartOutcome<T, Arguments>
+        where machine Target(arguments: Arguments) -> T suspends; blocks;
+        satisfies TaskRuntime::try_start
+        via Binding::CompilerIntrinsic;
+
+        pub boundary data Sleeper;
+        boundary machine Sleeper::park(token: i32) suspends;
+        data Job { value: i32; }
+        data Worker {}
+        data Helper {}
+        machine Helper::work(token: i32) -> i32 suspends; {
+            suspend Sleeper::park(token);
+            token
+        }
+        machine Worker::run(job: Job) -> i32 suspends; {
+            let value: i32 = job.value;
+            let helped: i32 = suspend Helper::work(value);
+            suspend Sleeper::park(helped);
+            helped
+        }
+        data Main { runtime: &TaskRuntime; }
+        machine Main::run(&mut self) reaches TaskRuntime {
+            let job: Job = Job { value: 7 };
+            let task: Task<i32> = self.runtime.start<Worker::run>(job);
+            Task::settle(task);
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let provider_plans = crate::provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
+    assert_eq!(provider_plans.len(), 1);
+    assert!(
+        crate::provider_planning::validate_provider_plan_candidates(&typed, &provider_plans,)
+            .is_empty()
+    );
+    let selected = effects::SelectedProviderPlanFacts::from_selection(
+        &provider_plans,
+        &[provider_plans[0].name.clone()],
+    )
+    .expect("select complete TaskRuntime provider");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("check and specialize nested task call");
 
     (checked, selected, provider_plans)
 }

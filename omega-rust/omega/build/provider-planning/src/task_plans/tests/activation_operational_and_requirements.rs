@@ -2,11 +2,11 @@ use super::{
     activation_operational_fixture, activation_requirement_fixture, operational_error,
     requirement_error,
 };
+use crate::task_plans::carry_crossings::carry_obligations;
 use crate::task_plans::runtime_requirements::{
     exact_task_machine_blocking, exact_task_machine_suspension, exact_task_runtime_requirement,
 };
 use crate::task_plans::specialization_commitments::exact_task_machine_contract;
-use crate::task_plans::stack_layouts::carry_obligations;
 use language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use task_plans::ActivationCarryObligations;
 

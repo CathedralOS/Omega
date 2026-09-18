@@ -3,36 +3,39 @@
 //! fingerprints. `specialization_commitments.rs` commits exact task machine
 //! specializations, `runtime_requirements.rs` selects the task runtime
 //! provider and requirement, `carry_crossings.rs` validates activation
-//! carry crossings, `start_selections.rs` selects task start targets and
-//! `stack_layouts.rs` lays out fixed task stacks.
+//! carry crossings and translates them into plan values,
+//! `start_selections.rs` selects task start targets and `stack_graphs.rs`
+//! derives the whole-call-graph WCSU demand behind every fixed task stack.
 
 mod carry_crossings;
 mod runtime_requirements;
 mod specialization_commitments;
-mod stack_layouts;
+mod stack_graphs;
 mod start_selections;
 #[cfg(test)]
 mod tests;
 
-use crate::task_plans::carry_crossings::{activation_carry_crossings, exact_activation_wide_carry};
+use crate::task_plans::carry_crossings::{
+    activation_carry_crossings, canonical_suspension_crossing, carry_obligations,
+    exact_activation_wide_carry,
+};
 use crate::task_plans::runtime_requirements::{
     exact_task_machine_blocking, exact_task_machine_suspension, selected_task_runtime_provider,
 };
 use crate::task_plans::specialization_commitments::{
     exact_task_machine_contract, task_specialization_commitment,
 };
-use crate::task_plans::stack_layouts::{
-    canonical_suspension_crossing, carry_obligations, fixed_stack_layout,
-};
+use crate::task_plans::stack_graphs::task_call_graph;
 use crate::task_plans::start_selections::{exact_task_activation_target, task_start_selections};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use target::{Architecture, NativeTarget, ObjectFormat};
 use task_plans::{
-    ActivationPlanCandidate, CallingPlanId, MachineContractId, MachineEntryId, StackPlan,
+    ActivationPlanCandidate, CallingPlanId, MachineContractId, MachineEntryId,
     StackRepresentationId, TaskActivationPlanFact, TaskActivationPlanSet, ValueLayoutId,
-    validate_activation_plan,
+    compose_task_stack_demand, project_wcsu_stack_plan, validate_wcsu_activation_plan,
 };
 
 /// Elaborate every concrete `TaskRuntime::{start,try_start}<M>` specialization
@@ -144,51 +147,62 @@ pub fn elaborate_task_activation_plans(
         let may_suspend = suspension.checked_may_suspend;
         let may_block = blocking.checked_may_block;
         let crossings = activation_carry_crossings(program, target_machine.symbol)?;
-        let canonical_suspension_crossings = crossings
+        // The authoritative crossing roster covers the containment subtree
+        // and every suspension crossing reached inside the checked call
+        // graph, deduplicated by canonical identity.
+        let graph = task_call_graph(
+            program,
+            target,
+            opaque_representation_selections,
+            &layouts,
+            target_machine,
+            entry,
+        )?;
+        let mut roster = BTreeMap::new();
+        for crossing in crossings
             .subtree
             .iter()
-            .map(|crossing| canonical_suspension_crossing(program, crossing))
-            .collect::<Result<Vec<_>, _>>()?;
+            .copied()
+            .chain(graph.crossings.iter().copied())
+        {
+            let canonical = canonical_suspension_crossing(program, crossing)?;
+            roster.insert(canonical.identity, canonical);
+        }
+        let canonical_suspension_crossings = roster.into_values().collect::<Vec<_>>();
         let activation_wide_carry = exact_activation_wide_carry(
             program,
             target_machine.symbol,
             target_machine.name.as_str(),
         )?;
         let carry_obligations = carry_obligations(activation_wide_carry.effective);
-        let (stack_bytes, stack_alignment) = fixed_stack_layout(
-            program,
-            target,
-            opaque_representation_selections,
-            &layouts,
-            target_machine,
-            &crossings.root,
-        )?;
         let stack_representation = normalized_id(
             stack_representation_report_fingerprint(target),
             StackRepresentationId::from_normalized_identity,
         )?;
+        let demand = compose_task_stack_demand(graph.root, graph.frames)
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        let projection = project_wcsu_stack_plan(&demand, stack_representation);
 
-        let plan = validate_activation_plan(ActivationPlanCandidate {
-            machine_contract,
-            entry: entry_id,
-            argument_layout,
-            terminal_outcome_layout,
-            calling_plan,
-            stack_plan: StackPlan {
-                bytes: stack_bytes,
-                alignment: stack_alignment,
-                representation: stack_representation,
+        let plan = validate_wcsu_activation_plan(
+            ActivationPlanCandidate {
+                machine_contract,
+                entry: entry_id,
+                argument_layout,
+                terminal_outcome_layout,
+                calling_plan,
+                stack_plan: projection.stack_plan(),
+                may_suspend,
+                may_block,
+                // Missing or locally unsafe crossings remain visible so the
+                // plan validator rejects them fail-closed.
+                canonical_suspension_crossings,
+                carry_obligations,
+                // `Task<T>` always carries cancellation-request authority. A
+                // selected provider must establish that operation later.
+                cancellation_required: true,
             },
-            may_suspend,
-            may_block,
-            // Missing or locally unsafe crossings remain visible so the plan
-            // validator rejects them fail-closed.
-            canonical_suspension_crossings,
-            carry_obligations,
-            // `Task<T>` always carries cancellation-request authority. A
-            // selected provider must establish that operation later.
-            cancellation_required: true,
-        })
+            projection,
+        )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
 
         activations.push(TaskActivationPlanFact {

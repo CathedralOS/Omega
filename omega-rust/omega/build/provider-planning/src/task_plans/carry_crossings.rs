@@ -1,10 +1,12 @@
-//! Activation carry crossings and their validation.
+//! Activation carry crossings, their validation, and the plan-facing
+//! crossing/carry values translated from the exact checked carry facts.
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
+use task_plans::{ActivationCarryObligations, CanonicalSuspensionCrossing};
 
 pub(crate) struct ActivationCarryCrossings<'program> {
-    pub(crate) root: Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
     pub(crate) subtree: Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
 }
 
@@ -65,12 +67,7 @@ pub(crate) fn activation_carry_crossings(
         }
         coordinates.push(coordinate);
     }
-    let root = subtree
-        .iter()
-        .copied()
-        .filter(|crossing| crossing.machine == root)
-        .collect();
-    Ok(ActivationCarryCrossings { root, subtree })
+    Ok(ActivationCarryCrossings { subtree })
 }
 
 pub(crate) fn exact_activation_carry_subtree(
@@ -301,4 +298,29 @@ pub(crate) fn validate_activation_carry_crossing(
         )]);
     }
     Ok(())
+}
+
+pub(crate) fn carry_obligations(policy: CarryPolicy) -> ActivationCarryObligations {
+    ActivationCarryObligations {
+        preserve_cpu: policy.cpu == CarryCpu::Origin,
+        preserve_host_thread: policy.host_thread == CarryHostThread::Origin,
+    }
+}
+
+pub(crate) fn canonical_suspension_crossing(
+    program: &CheckedTrees,
+    crossing: &checked_trees::SuspensionCrossingCarryFact,
+) -> Result<CanonicalSuspensionCrossing, Vec<Diagnostic>> {
+    Ok(CanonicalSuspensionCrossing {
+        identity: checked_trees::canonical_suspension_crossing_id(program, crossing).ok_or_else(
+            || {
+                vec![Diagnostic::error(
+                    "task activation carry crossing source identity must resolve exactly",
+                )]
+            },
+        )?,
+        suspension_allowed: crossing.effective.suspension == CarrySuspension::Allowed,
+        preserve_cpu: crossing.effective.cpu == CarryCpu::Origin,
+        preserve_host_thread: crossing.effective.host_thread == CarryHostThread::Origin,
+    })
 }

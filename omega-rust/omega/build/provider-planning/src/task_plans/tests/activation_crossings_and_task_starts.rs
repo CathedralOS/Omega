@@ -1,4 +1,7 @@
-use super::{activation_crossing_validation_fixture, concrete_task_start_fixture, crossing_error};
+use super::{
+    activation_crossing_validation_fixture, concrete_task_start_fixture, crossing_error,
+    nested_task_call_fixture,
+};
 use crate::task_plans::carry_crossings::validate_activation_carry_crossing;
 use crate::task_plans::runtime_requirements::selected_task_runtime_provider;
 use crate::task_plans::specialization_commitments::{
@@ -142,6 +145,67 @@ fn activation_crossings_reject_duplicate_coordinate() {
     let duplicate = program.facts.carry.suspension_crossings[0].clone();
     program.facts.carry.suspension_crossings.push(duplicate);
     assert!(crossing_error(&program, root).contains("one row per exact call coordinate"));
+}
+
+#[test]
+fn nested_checked_call_composes_whole_graph_wcsu_and_roster() {
+    let (checked, selected, _) = nested_task_call_fixture();
+
+    let task_activations =
+        elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
+            .expect("a task target calling a suspending checked callee should elaborate");
+    let activation = task_activations
+        .as_slice()
+        .iter()
+        .find(|activation| activation.operation == TaskStartOperation::Start)
+        .expect("start activation plan");
+    let plan = activation.plan.candidate();
+
+    // Both the `Worker::run` frame and the nested `Helper::work` frame must
+    // contribute to the composed demand: 24 live bytes of caller frontier plus
+    // the callee's 16-byte frame placed on the same fixed stack.
+    assert_eq!(plan.stack_plan.bytes, 40);
+    assert_eq!(plan.stack_plan.alignment, 8);
+    let projection = activation
+        .plan
+        .wcsu_stack_projection()
+        .expect("the nested activation stack must carry sealed WCSU evidence");
+    assert_eq!(projection.frame_validations().len(), 2);
+    assert_eq!(projection.stack_plan(), plan.stack_plan);
+
+    // The canonical roster covers both crossings in the root frame and the
+    // parking call inside the nested checked frame.
+    assert!(plan.may_suspend);
+    assert_eq!(plan.canonical_suspension_crossings.len(), 3);
+}
+
+#[test]
+fn suspending_call_without_canonical_crossing_rejects_elaboration() {
+    let (mut checked, selected, _) = concrete_task_start_fixture();
+    // Erase the checked crossing row that covers the parked `park` call: the
+    // may-suspend call remains in the flow facts, so derivation must reject
+    // rather than publish a roster that lost the demand.
+    let worker = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Worker::run")
+        .expect("worker machine")
+        .symbol;
+    checked
+        .facts
+        .carry
+        .suspension_crossings
+        .retain(|crossing| crossing.machine != worker);
+    let diagnostics =
+        elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
+            .expect_err("a possibly-suspending call without a crossing must fail closed");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("no canonical suspension crossing"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
+    );
 }
 
 #[test]
@@ -375,8 +439,22 @@ fn concrete_task_start_specialization_elaborates_a_validated_plan() {
         .expect("target machine");
     assert_eq!(target.name.as_str(), "Worker::run");
     let plan = activation.plan.candidate();
-    assert_eq!(plan.stack_plan.bytes, 16);
+    // The whole-call-graph bound retains the resume word (8), the activation
+    // argument `job` (4), the local `value` (4) and the staged `park`
+    // call-argument copy (4) aligned to the pointer grid.
+    assert_eq!(plan.stack_plan.bytes, 24);
     assert_eq!(plan.stack_plan.alignment, 8);
+    let projection = activation
+        .plan
+        .wcsu_stack_projection()
+        .expect("the activation stack must carry sealed WCSU evidence");
+    assert_eq!(projection.stack_plan(), plan.stack_plan);
+    assert_eq!(projection.frame_validations().len(), 1);
+    assert!(
+        projection
+            .admitted_contribution_report_identities()
+            .is_empty()
+    );
     assert!(plan.may_suspend);
     assert!(!plan.may_block);
     assert_eq!(plan.canonical_suspension_crossings.len(), 1);
