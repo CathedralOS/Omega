@@ -894,4 +894,6 @@ impl ProgramLocalRootEpochLeaseReleaseError {
 }
 
 #[cfg(test)]
+mod custody;
+#[cfg(test)]
 mod tests;
