@@ -377,3 +377,95 @@ fn explicit_self_occurrences_cannot_hide_beside_descending_edges() {
         assert!(super::super::lower_typed_trees(super::super::typed(source)).is_err());
     }
 }
+
+#[test]
+fn a_strict_step_by_a_declared_amount_names_the_moved_copy() {
+    // `live - step` is the moved copy of `remaining` once `step`'s declared
+    // floor proves the amount nonzero: the stale `saved` snapshot demotes and
+    // the cycle descends through `live`. Before this, only a positive literal
+    // could name the moved copy of a diverged pair.
+    let source = r#"
+machine walk(remaining: u32 [0..=9], stride: u32 [1..=5])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition { _ -> pair(remaining, remaining, stride) }
+    state pair(live: u32 [0..=9], saved: u32 [0..=9], step: u32 [1..=5]) {
+        transition live >= step {
+            true -> pair(live - step, saved, step)
+            false -> live
+        }
+    }
+}
+"#;
+    prove(source);
+    // The same naming at the entry arrival: `remaining - stride` steps `left`
+    // at the root edge and `live - step` steps it again on the cycle, so one
+    // consistent carrier is named.
+    prove(&source.replace(
+        "transition { _ -> pair(remaining, remaining, stride) }",
+        "transition remaining >= stride {
+            true -> pair(remaining - stride, remaining, stride)
+            false -> remaining
+        }",
+    ));
+    // An unbounded or zero-able amount is not divergence evidence: the copies
+    // may still hold equal values, so `live - step == saved` keeps its
+    // equality obligation and cannot be proved.
+    reject(&source.replace("step: u32 [1..=5]", "step: u32"));
+    reject(&source.replace("[1..=5]", "[0..=5]"));
+    // `live + step` names `live` just the same -- the copy still moved -- but
+    // adding cannot satisfy a descending rank's obligations.
+    reject(&source.replace("live - step", "live + step"));
+    // Stepping both copies by the same declared amount keeps them provably
+    // equal -- neither diverges from the other, so both claims hold with no
+    // demotion at all.
+    prove(
+        &source
+            .replace(
+                "transition live >= step {",
+                "transition live >= step && saved >= step {",
+            )
+            .replace(
+                "pair(live - step, saved, step)",
+                "pair(live - step, saved - step, step)",
+            ),
+    );
+    // Two copies moved by *different* declared amounts leave two moved
+    // claimants: no unique continuation is named, and the kept equality
+    // obligation `live - step == saved - other` cannot be proved.
+    reject(
+        &source
+            .replace(
+                "stride: u32 [1..=5])",
+                "stride: u32 [1..=5], other_stride: u32 [1..=5])",
+            )
+            .replace(
+                "pair(remaining, remaining, stride)",
+                "pair(remaining, remaining, stride, other_stride)",
+            )
+            .replace(
+                "step: u32 [1..=5])",
+                "step: u32 [1..=5], other: u32 [1..=5])",
+            )
+            .replace(
+                "transition live >= step {",
+                "transition live >= step && saved >= other {",
+            )
+            .replace(
+                "pair(live - step, saved, step)",
+                "pair(live - step, saved - other, step, other)",
+            ),
+    );
+    // A mutable declared-positive amount still proves nonzero -- its type
+    // constrains every stored value -- but a prefix write into any premise
+    // carrier (including `step`, which the range constrains) invalidates.
+    prove(&source.replace("step: u32 [1..=5]", "mut step: u32 [1..=5]"));
+    reject(
+        &source
+            .replace("step: u32 [1..=5]", "mut step: u32 [1..=5]")
+            .replace(
+                "transition live >= step {",
+                "step = 1;\n        transition live >= step {",
+            ),
+    );
+}

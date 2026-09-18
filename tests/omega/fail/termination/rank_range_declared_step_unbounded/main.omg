@@ -1,0 +1,15 @@
+// FAIL CANARY. `stride` declares no positive floor, so `live - step` is not
+// divergence evidence: `saved` keeps its `remaining` claim beside the
+// stepped-looking copy, and the arrival owes `live - step == saved`, which
+// the unbounded amount cannot prove.
+machine walk(remaining: u32 [0..=9], stride: u32)
+terminates by remaining in 0..=9;
+-> u32 {
+    transition { _ -> pair(remaining, remaining, stride) }
+    state pair(live: u32 [0..=9], saved: u32 [0..=9], step: u32) {
+        transition live >= step {
+            true -> pair(live - step, saved, step)
+            false -> live
+        }
+    }
+}

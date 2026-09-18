@@ -1,0 +1,16 @@
+// PASS CANARY. `live - step` is the moved copy of `remaining` once `step`'s
+// declared floor proves the amount nonzero: `pair`'s telescope demotes the
+// stale `saved` snapshot rather than forcing an equality the step broke, and
+// the loop still descends through `live`. Before this leg only a positive
+// literal could name the moved copy of a diverged pair.
+machine walk(remaining: u32 [0..=9], stride: u32 [1..=5])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition { _ -> pair(remaining, remaining, stride) }
+    state pair(live: u32 [0..=9], saved: u32 [0..=9], step: u32 [1..=5]) {
+        transition live >= step {
+            true -> pair(live - step, saved, step)
+            false -> live
+        }
+    }
+}

@@ -165,6 +165,72 @@ terminates by n in 0..=9;
     }
 }";
 
+// `right` arrives as the strict step `remaining - stride`, and `stride`'s
+// declared floor proves the amount nonzero: the moved copy names the
+// continuation the rank reads, `pair` demotes the stale `left` snapshot, and
+// `step(right)` transports the descended copy through the component. Before
+// this, only a positive literal could name the moved copy.
+const STRIDED_COPY: &str = "data Main {}
+machine Main::count(&mut self, remaining: u32 [0..=9], stride: u32 [1..=5])
+terminates by remaining in 0..=9;
+-> u64 {
+    transition remaining >= stride {
+        true -> pair(remaining, remaining - stride, stride)
+        false -> remaining
+    }
+    state pair(left: u32 [0..=9], right: u32 [0..=9], step: u32 [1..=5]) {
+        transition left > 0 {
+            true -> self.step(right, step)
+            false -> right
+        }
+    }
+}
+machine Main::step(&mut self, n: u32 [0..=9], stride: u32 [1..=5])
+terminates by n in 0..=9;
+-> u64 {
+    transition n >= stride {
+        true -> self.count(n - stride, stride)
+        false -> n
+    }
+}";
+
+// The same shape with an unbounded amount: `remaining - stride` is not a
+// strict step, so `right` stays an unproved computed claimant on the
+// `remaining` role and `step(right)` has no bound to transport.
+const UNBOUNDED_STRIDE: &str = "data Main {}
+machine Main::count(&mut self, remaining: u32 [0..=9], stride: u32)
+terminates by remaining in 0..=9;
+-> u64 {
+    transition remaining >= stride {
+        true -> pair(remaining, remaining - stride, stride)
+        false -> remaining
+    }
+    state pair(left: u32 [0..=9], right: u32 [0..=9], step: u32) {
+        transition left > 0 {
+            true -> self.step(right, step)
+            false -> right
+        }
+    }
+}
+machine Main::step(&mut self, n: u32 [0..=9], stride: u32)
+terminates by n in 0..=9;
+-> u64 {
+    transition n >= stride {
+        true -> self.count(n - stride, stride)
+        false -> n
+    }
+}";
+
+#[test]
+fn a_declared_amount_strict_step_names_the_moved_copy() {
+    assert_eq!(admitted(&typed_source(STRIDED_COPY)).len(), 1);
+}
+
+#[test]
+fn an_unbounded_amount_cannot_name_the_moved_copy() {
+    assert!(admitted(&typed_source(UNBOUNDED_STRIDE)).is_empty());
+}
+
 #[test]
 fn an_inflated_unranged_carrier_does_not_transport_the_role() {
     assert!(admitted(&typed_source(INFLATED_UNRANGED)).is_empty());

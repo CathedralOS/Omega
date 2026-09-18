@@ -19,8 +19,8 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
     RankingRangePremises, call_member_premise_symbols, discover_state_entry_mappings_preferring,
-    mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
-    ranking_range_required_symbols,
+    mixed_call_endpoints_are_pinned, positive_step_amount, prove_ranking_range_call,
+    prove_ranking_range_call_entry, ranking_range_required_symbols,
 };
 use comparison::Comparison;
 use projection::{RankOrder, RankProjection};
@@ -733,19 +733,16 @@ fn carrier_arrival_bound(
             let Some(symbol) = bare_name(binary.left) else {
                 return CarrierBound::None;
             };
-            let amount = match program
-                .expression_table
-                .expression(projection::unwrapped(program, binary.right))
-            {
-                ExpressionNode::Integer(literal) => literal.value_i64(),
-                _ => None,
-            };
+            // The step amount is the strict-step half the telescope names: a
+            // positive literal or a formal whose declared range proves it
+            // nonzero. A zero-able operand is not divergence evidence.
+            let positive = positive_step_amount(program, source, binary.right);
             let bound = formal_bound(symbol);
-            match (binary.operator, amount) {
-                (typed_trees::expression::BinaryOperator::Subtract, Some(amount)) if amount > 0 => {
+            match (binary.operator, positive) {
+                (typed_trees::expression::BinaryOperator::Subtract, true) => {
                     bound.meet(CarrierBound::AtMost)
                 }
-                (typed_trees::expression::BinaryOperator::Add, Some(amount)) if amount > 0 => {
+                (typed_trees::expression::BinaryOperator::Add, true) => {
                     bound.meet(CarrierBound::AtLeast)
                 }
                 // `carrier + 0`/`carrier - 0` spell a computed claimant, not a

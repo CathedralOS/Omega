@@ -120,8 +120,8 @@ pub use ranking_range::{
 };
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
-    prove_ranking_range_call_entry,
+    call_member_premise_symbols, mixed_call_endpoints_are_pinned, positive_step_amount,
+    prove_ranking_range_call, prove_ranking_range_call_entry,
 };
 pub use ranking_range::{
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,

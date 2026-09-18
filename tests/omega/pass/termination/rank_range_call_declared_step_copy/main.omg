@@ -1,0 +1,34 @@
+// PASS CANARY. `right` arrives as the strict step `remaining - stride`, and
+// `stride`'s declared floor proves the amount nonzero: the moved copy names
+// the continuation the rank reads, `pair`'s telescope demotes the stale
+// `left` snapshot, and `step(right)` transports the descended copy through
+// the call component.
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(9, 1) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9], stride: u32 [1..=5])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining >= stride {
+        true -> pair(remaining, remaining - stride, stride)
+        false -> remaining
+    }
+    state pair(left: u32 [0..=9], right: u32 [0..=9], step: u32 [1..=5]) {
+        transition left > 0 {
+            true -> self.step(right, step)
+            false -> right
+        }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9], stride: u32 [1..=5])
+terminates by n in 0..=9;
+-> u32 {
+    transition n >= stride {
+        true -> self.count(n - stride, stride)
+        false -> n
+    }
+}
