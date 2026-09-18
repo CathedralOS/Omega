@@ -223,6 +223,103 @@ fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
 }
 
 #[test]
+fn windows_receiver_accepts_only_canonical_borrowed_pointer_placement() {
+    use calling_conventions::{
+        CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,
+        ValuePlacement, ValueShape, evaluate_call_plan,
+    };
+    for shape in [
+        ValueShape::borrowed_reference(0, 1),
+        ValueShape::borrowed_reference(4, 4),
+        ValueShape::borrowed_reference(32, 16),
+    ] {
+        let signature = CallSignature {
+            parameters: vec![shape],
+            result: None,
+        };
+        let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature)
+            .expect("canonical Microsoft x64 receiver pointer ABI");
+        let placement = &plan.parameters[0];
+        // Microsoft x64 passes the first argument pointer in rcx through an
+        // indirect location retaining the referent geometry; a borrowed
+        // reference carries no caller copy.
+        assert!(receiver_pointer_matches(
+            shape,
+            placement,
+            MachineRegister::X86Rcx
+        ));
+        // A System V placement register must never satisfy the Windows
+        // bridge's rcx custody, and vice versa.
+        assert!(!receiver_pointer_matches(
+            shape,
+            placement,
+            MachineRegister::X86Rdi
+        ));
+        assert!(!receiver_pointer_matches(
+            shape,
+            placement,
+            MachineRegister::Aarch64X(0)
+        ));
+        let indirect = |pointer, copy_stack_byte_offset, byte_size, alignment| ValuePlacement {
+            shape,
+            locations: vec![ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                alignment,
+            }],
+        };
+        let pointer = IndirectPointerLocation::Register(MachineRegister::X86Rcx);
+        for corrupted in [
+            // A substituted register is a receiver substitution, not an alias.
+            indirect(
+                IndirectPointerLocation::Register(MachineRegister::X86Rdx),
+                None,
+                shape.byte_size,
+                shape.alignment,
+            ),
+            indirect(
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset: 0,
+                    alignment: 8,
+                },
+                None,
+                shape.byte_size,
+                shape.alignment,
+            ),
+            indirect(pointer, Some(0), shape.byte_size, shape.alignment),
+            indirect(pointer, None, shape.byte_size + 1, shape.alignment),
+            indirect(pointer, None, shape.byte_size, shape.alignment * 2),
+            ValuePlacement {
+                shape,
+                locations: Vec::new(),
+            },
+            ValuePlacement {
+                shape,
+                locations: vec![placement.locations[0]; 2],
+            },
+            ValuePlacement {
+                shape,
+                locations: vec![ValueLocation::Register {
+                    register: MachineRegister::X86Rcx,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                }],
+            },
+            ValuePlacement {
+                shape: ValueShape::integer(shape.byte_size, shape.alignment),
+                locations: placement.locations.clone(),
+            },
+        ] {
+            assert!(
+                !receiver_pointer_matches(shape, &corrupted, MachineRegister::X86Rcx),
+                "corrupted receiver: {corrupted:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn linux_receiver_accepts_only_canonical_borrowed_pointer_placement() {
     use calling_conventions::{
         CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,
@@ -491,5 +588,69 @@ fn linux_arm64_hosted_physical_replay_keeps_source_bytes_for_package_qualified_r
     assert!(!physical_contract_matches(
         &linux_x64,
         target::NativeTarget::linux_arm64()
+    ));
+}
+
+fn windows_physical_contract(
+    requirement: &str,
+    source: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
+) -> ProgramEntryPhysicalContractPlan {
+    let plan = program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan();
+    ProgramEntryPhysicalContractPlan::new(
+        target::TargetProfile::WindowsX64.program_entry_slot(),
+        requirement.into(),
+        target::ProgramEntryPhysicalContractPackage::WindowsX64,
+        source,
+        0,
+        Vec::new(),
+        program_entry_plan::WINDOWS_X86_64_U32_TYPE_IDENTITY.into(),
+        plan.contract_report_fingerprint(),
+        plan.plan().clone(),
+    )
+    .expect("well-shaped Windows physical plan")
+}
+
+#[test]
+fn windows_hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements() {
+    let source = program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest();
+    for requirement in [
+        program_entry_plan::WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+        "accepted-package::WindowsProcessEntry::enter",
+    ] {
+        assert!(physical_contract_matches(
+            &windows_physical_contract(requirement, source),
+            target::NativeTarget::windows_x64()
+        ));
+        // The exact Windows contract must not satisfy a different bridge.
+        assert!(!physical_contract_matches(
+            &windows_physical_contract(requirement, source),
+            target::NativeTarget::linux_x64()
+        ));
+        assert!(!physical_contract_matches(
+            &windows_physical_contract(requirement, source),
+            target::NativeTarget::macos_arm64()
+        ));
+    }
+    let changed_source =
+        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+            target::ProgramEntryPhysicalContractPackage::WindowsX64,
+            b"different target implementation",
+        );
+    assert!(!physical_contract_matches(
+        &windows_physical_contract(
+            "accepted-package::WindowsProcessEntry::enter",
+            changed_source
+        ),
+        target::NativeTarget::windows_x64()
+    ));
+    // A Linux contract presented on the Windows target is a contract
+    // substitution, not an alias.
+    let linux = linux_physical_contract(
+        program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest(),
+    );
+    assert!(!physical_contract_matches(
+        &linux,
+        target::NativeTarget::windows_x64()
     ));
 }

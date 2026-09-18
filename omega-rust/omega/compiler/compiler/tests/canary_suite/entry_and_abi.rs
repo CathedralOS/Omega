@@ -12,6 +12,8 @@ mod hosted_receiver;
 mod hosted_receiver_linux;
 #[path = "entry_and_abi/hosted_receiver_linux_arm64.rs"]
 mod hosted_receiver_linux_arm64;
+#[path = "entry_and_abi/hosted_receiver_windows.rs"]
+mod hosted_receiver_windows;
 #[path = "entry_and_abi/pass_canary_coverage.rs"]
 mod pass_canary_coverage;
 #[path = "entry_and_abi/program_entries_and_image_validation.rs"]

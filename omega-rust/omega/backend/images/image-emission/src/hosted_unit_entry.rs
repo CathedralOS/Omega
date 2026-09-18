@@ -26,6 +26,10 @@ pub(super) enum EntryShim {
         symbol: ObjectSymbolHandle,
         offset: usize,
     },
+    WindowsReceiver {
+        symbol: ObjectSymbolHandle,
+        offset: usize,
+    },
     LinuxScalar(LinuxX86ScalarExitShim),
     DarwinUnit {
         symbol: ObjectSymbolHandle,
@@ -317,7 +321,7 @@ pub(super) fn validate_windows(
 
 /// Independently parse the emitted PE32+ headers: `AddressOfEntryPoint` must
 /// select the shim inside `.text`, and the raw section bytes must carry it.
-fn pe_entry_points_to(bytes: &[u8], shim_offset: usize, expected_shim: &[u8]) -> bool {
+pub(super) fn pe_entry_points_to(bytes: &[u8], shim_offset: usize, expected_shim: &[u8]) -> bool {
     fn word16(bytes: &[u8], offset: usize) -> Option<u16> {
         Some(u16::from_le_bytes(
             bytes.get(offset..offset.checked_add(2)?)?.try_into().ok()?,

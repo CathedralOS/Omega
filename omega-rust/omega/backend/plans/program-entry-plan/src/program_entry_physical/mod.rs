@@ -11,10 +11,12 @@ mod exact_linux_arm64;
 mod exact_linux_x86_64;
 mod exact_macos;
 mod exact_uefi;
+mod exact_windows_x86_64;
 pub use exact_linux_arm64::*;
 pub use exact_linux_x86_64::*;
 pub use exact_macos::*;
 pub use exact_uefi::*;
+pub use exact_windows_x86_64::*;
 
 /// Domain-separated commitment to the exact source bytes of one closed
 /// toolchain-owned physical-entry contract package.
@@ -146,6 +148,14 @@ impl ProgramEntryPhysicalContractPlan {
                 target::TargetProfile::LinuxArm64,
                 Some(target::ProgramEntryCallingConvention::Aapcs64),
             ) => (calling_conventions::CallingPolicy::Aapcs64, 1, None),
+            // The Windows loader enters at the PE AddressOfEntryPoint under
+            // Microsoft x64 with no contractual inputs and maps the returned
+            // u32 to the process exit code; the authored contract publishes no
+            // numeric stack guarantee.
+            (
+                target::TargetProfile::WindowsX64,
+                Some(target::ProgramEntryCallingConvention::MicrosoftX64),
+            ) => (calling_conventions::CallingPolicy::MicrosoftX64, 0, None),
             _ => {
                 return Err(
                     "physical entry contract requires a target declaration with an authored physical calling convention"

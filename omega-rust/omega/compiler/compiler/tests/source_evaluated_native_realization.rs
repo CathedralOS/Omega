@@ -10,6 +10,8 @@ mod linux_dynamic_realization;
 mod linux_hosted_receiver;
 #[path = "source_evaluated_native_realization/macho_and_terminal_imports.rs"]
 mod macho_and_terminal_imports;
+#[path = "source_evaluated_native_realization/windows_hosted_receiver.rs"]
+mod windows_hosted_receiver;
 #[path = "source_evaluated_native_realization/windows_imports_and_mxcsr_custody.rs"]
 mod windows_imports_and_mxcsr_custody;
 
@@ -17,6 +19,8 @@ mod windows_imports_and_mxcsr_custody;
 mod console_acceptance;
 #[path = "support/linux_entry_acceptance.rs"]
 mod linux_entry_acceptance;
+#[path = "support/windows_entry_acceptance.rs"]
+mod windows_entry_acceptance;
 
 use compiler::{
     CompileOptions, CompileRequest, RequestedCompileProduct, RetainedNativeRealizationRequest,

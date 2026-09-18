@@ -460,6 +460,7 @@ fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
                 ProgramEntryPhysicalContractPackage::MacosArm64 => 2,
                 ProgramEntryPhysicalContractPackage::LinuxX86_64 => 3,
                 ProgramEntryPhysicalContractPackage::LinuxArm64 => 4,
+                ProgramEntryPhysicalContractPackage::WindowsX64 => 5,
             }),
     );
     hash_optional_str(hash, entry_slot.boundary_schema);

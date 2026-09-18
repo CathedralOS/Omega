@@ -179,6 +179,87 @@ pub(super) fn validate_x86_64(
     Ok(())
 }
 
+/// Independent reader for the Windows x86-64 hosted receiver bridge.
+///
+/// The emitted text is exactly 40 bytes:
+///
+/// ```text
+/// 0:  48 89 25 <rel32>   mov [rip+disp], rsp     -> saved continuation slot
+/// 7:  48 8d 25 <rel32>   lea rsp, [rip+disp]     -> private stack top
+/// 14: 48 83 ec 20        sub rsp, 32             -> callee shadow space
+/// 18: 48 8d 0d <rel32>   lea rcx, [rip+disp]     -> receiver storage
+/// 25: e8 <rel32>         call semantic entry
+/// 30: 31 c0              xor eax, eax            -> Unit result -> status zero
+/// 32: 48 8b 25 <rel32>   mov rsp, [rip+disp]     -> saved continuation slot
+/// 39: c3                 ret                     -> loader continuation
+/// ```
+///
+/// The loader arrival is an ordinary Microsoft x64 call: the incoming stack
+/// pointer is the continuation and its return address stays on that suspended
+/// stack, never on the private one. The reader proves the continuation slot is
+/// written before the switch, the callee sees the receiver in rcx over its
+/// reserved shadow space, and normal return restores the exact incoming stack
+/// pointer before the loader-facing `ret`.
+pub(super) fn validate_windows_x86_64(
+    bytes: &[u8],
+    address: u64,
+    selected_entry: u64,
+    bss_address: u64,
+    partitions: HostedReceiverPartitions,
+) -> Result<(), Diagnostic> {
+    let invalid = || invalid(target::NativeTarget::windows_x64());
+    if bytes.len() != 40 {
+        return Err(invalid());
+    }
+    let continuation = bss_address
+        .checked_add(partitions.saved_continuation_offset)
+        .ok_or_else(invalid)?;
+    let stack_top = bss_address
+        .checked_add(partitions.stack_offset)
+        .and_then(|low| low.checked_add(partitions.stack_byte_count))
+        .ok_or_else(invalid)?;
+    let receiver = bss_address
+        .checked_add(partitions.receiver_offset)
+        .ok_or_else(invalid)?;
+    // Every rel32 displacement is resolved from the address immediately after
+    // the four-byte relocation field, matching the owned x86-64 relocator.
+    let rip_relative = |field: usize| -> Option<u64> {
+        let field_address = address.checked_add(field as u64)?;
+        let displacement = bytes
+            .get(field..field.checked_add(4)?)
+            .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+            .map(i32::from_le_bytes)?;
+        field_address
+            .checked_add(4)?
+            .checked_add_signed(i64::from(displacement))
+    };
+    for (field, expected) in [
+        (3, continuation),
+        (10, stack_top),
+        (21, receiver),
+        (35, continuation),
+    ] {
+        if rip_relative(field) != Some(expected) {
+            return Err(invalid());
+        }
+    }
+    if bytes[0..3] != [0x48, 0x89, 0x25]
+        || bytes[7..10] != [0x48, 0x8d, 0x25]
+        || bytes[14..18] != [0x48, 0x83, 0xec, 0x20]
+        || bytes[18..21] != [0x48, 0x8d, 0x0d]
+        || bytes[25] != 0xe8
+        || bytes[30..32] != [0x31, 0xc0]
+        || bytes[32..35] != [0x48, 0x8b, 0x25]
+        || bytes[39] != 0xc3
+    {
+        return Err(invalid());
+    }
+    if rip_relative(26) != Some(selected_entry) {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 /// Independent reader for the Linux ARM64 hosted receiver bridge.
 ///
 /// The emitted text is exactly 60 bytes (fifteen instructions):

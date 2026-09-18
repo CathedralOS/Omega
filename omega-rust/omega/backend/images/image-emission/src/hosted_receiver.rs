@@ -88,6 +88,11 @@ fn invalid(target: target::NativeTarget) -> Diagnostic {
             "Linux ARM64 hosted receiver bridge lost exact contract, storage, or entry custody",
         );
     }
+    if target == target::NativeTarget::windows_x64() {
+        return Diagnostic::error(
+            "Windows x86-64 hosted receiver bridge lost exact contract, storage, or entry custody",
+        );
+    }
     Diagnostic::error("hosted receiver bridge lost exact contract, storage, or entry custody")
 }
 
@@ -125,7 +130,24 @@ impl HostedReceiverBinding {
         let invalid = || invalid(self.target());
         let saved = align(existing_bss_bytes, 16, &invalid)?;
         let stack = saved.checked_add(16).ok_or_else(invalid)?;
-        let stack_bytes = align(self.demand.ceiling_bytes().max(16), 16, &invalid)?;
+        // The bridge's own call into the semantic continuation is not part of
+        // the callee's checked demand. The Microsoft x64 caller owes
+        // thirty-two bytes of incoming shadow space plus the pushed return
+        // address; both live at the top of the private stack partition.
+        let call_overhead = if self.target() == target::NativeTarget::windows_x64() {
+            40
+        } else {
+            0
+        };
+        let stack_bytes = align(
+            self.demand
+                .ceiling_bytes()
+                .max(16)
+                .checked_add(call_overhead)
+                .ok_or_else(invalid)?,
+            16,
+            &invalid,
+        )?;
         let stack_end = stack.checked_add(stack_bytes).ok_or_else(invalid)?;
         let receiver = align(stack_end, self.receiver_alignment.max(16), &invalid)?;
         let receiver_bytes = self.receiver_byte_count.max(1);
@@ -282,6 +304,9 @@ pub(crate) fn prepare(
     }
     if artifact.target == target::NativeTarget::linux_arm64() {
         return prepare_linux_arm64(artifact, binding, object, storage);
+    }
+    if artifact.target == target::NativeTarget::windows_x64() {
+        return prepare_windows_x86_64(artifact, binding, object, storage);
     }
     let offset = artifact.text_bytes.len();
     let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 9 * 4);
@@ -503,6 +528,75 @@ fn prepare_linux_arm64(
     })
 }
 
+/// Fixed Windows x86-64 hosted-receiver bridge byte width. The emitted text
+/// is `mov [rip+scratch], rsp; lea rsp, [rip+stack_top]; sub rsp, 32;
+/// lea rcx, [rip+receiver]; call rel32; xor eax, eax;
+/// mov rsp, [rip+scratch]; ret`.
+pub(crate) const WINDOWS_X86_64_RECEIVER_SHIM_BYTES: usize = 40;
+
+/// The Windows loader enters at the PE `AddressOfEntryPoint` under the
+/// Microsoft x64 convention with no contractual register input and a loader
+/// return continuation on the incoming stack. The bridge preserves that
+/// incoming stack pointer in the saved-continuation residence, switches rsp
+/// to the exact private stack top, reserves the thirty-two bytes of incoming
+/// shadow space the Microsoft x64 call owes the callee, passes the receiver
+/// through rcx, calls the exact semantic continuation, maps the value-free
+/// Unit result to a zero eax completion status, restores the incoming stack
+/// pointer, and returns to the loader's exact continuation. No access through
+/// the incoming stack pointer occurs before it is preserved, and the loader
+/// maps the returned status to the process exit code.
+fn prepare_windows_x86_64(
+    artifact: &crate::ObjectArtifact,
+    _binding: &HostedReceiverBinding,
+    object: object_file::ObjectPlan,
+    storage: ReceiverStorage,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
+    let entry = artifact.entry_function();
+    let mut bytes = Vec::with_capacity(WINDOWS_X86_64_RECEIVER_SHIM_BYTES);
+    bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
+    bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]); // lea rsp, [rip+stack_top]
+    bytes.extend([0x48, 0x83, 0xec, 0x20]); // sub rsp, 32: callee shadow space
+    bytes.extend([0x48, 0x8d, 0x0d, 0, 0, 0, 0]); // lea rcx, [rip+receiver]
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 -> semantic continuation
+    bytes.extend([0x31, 0xc0]); // xor eax, eax: Unit -> status zero
+    bytes.extend([0x48, 0x8b, 0x25, 0, 0, 0, 0]); // mov rsp, [rip+scratch]
+    bytes.extend([0xc3]); // ret -> loader continuation maps eax to exit code
+    debug_assert_eq!(bytes.len(), WINDOWS_X86_64_RECEIVER_SHIM_BYTES);
+    let (object, text, symbol, offset) = install_entry_text(
+        object,
+        artifact,
+        &bytes,
+        "omega_windows_x86_64_hosted_receiver_entry",
+    )?;
+    let mut relocations = artifact.relocations.clone();
+    for (field_offset, destination) in [
+        (3, storage.scratch),
+        (10, storage.stack_top),
+        (21, storage.receiver),
+        (26, entry.symbol),
+        (35, storage.scratch),
+    ] {
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Materialization {
+                object_symbol_handle: symbol,
+            },
+            section: SectionKind::Text,
+            offset: offset + field_offset,
+            byte_width: 4,
+            symbol_handle: destination,
+            addend: 0,
+            kind: RelocationKind::X86_64Relative32,
+        });
+    }
+    Ok(crate::hosted_unit_entry::PreparedEntry {
+        object,
+        text,
+        relocations,
+        shim: crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset },
+    })
+}
+
 /// Bind the exact hosted receiver bridge the admitted settlement selected.
 /// The target chooses the emitted bridge surface — Darwin dyld arrival on
 /// AArch64, kernel process arrival on Linux x86-64 and Linux ARM64 — and
@@ -562,6 +656,9 @@ fn physical_contract_matches(
     }
     if target == target::NativeTarget::linux_arm64() {
         return linux_arm64_physical_contract_matches(physical);
+    }
+    if target == target::NativeTarget::windows_x64() {
+        return windows_x86_64_physical_contract_matches(physical);
     }
     false
 }
@@ -629,6 +726,27 @@ fn linux_arm64_physical_contract_matches(physical: &ProgramEntryPhysicalContract
         && physical.guaranteed_entry_stack_application().is_none()
 }
 
+fn windows_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
+    use program_entry_plan::WINDOWS_X86_64_U32_TYPE_IDENTITY;
+    let expected = program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan();
+    // Same custody rule as the other bridges: the accepted-package
+    // requirement may carry a qualified spelling, but the target-source
+    // bytes, slot, parameter/result identities, ABI plan, and state are all
+    // exact. The loader arrival carries no contractual input and completes
+    // through the eax process-completion status.
+    physical.target_slot() == target::TargetProfile::WindowsX64.program_entry_slot()
+        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::WindowsX64
+        && physical.target_package_source_digest()
+            == program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest()
+        && !physical.requirement_identity().is_empty()
+        && physical.parameter_type_identities().is_empty()
+        && physical.result_type_identity() == WINDOWS_X86_64_U32_TYPE_IDENTITY
+        && physical.boundary_entry_plan() == expected.plan()
+        && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
+        && physical.guaranteed_entry_stack().is_none()
+        && physical.guaranteed_entry_stack_application().is_none()
+}
+
 /// Layout-side zero checking cannot establish authored default domains or
 /// absence of nominal cleanup. Native realization must separately retain and
 /// replay its checked source receipt before installing this conditional bridge.
@@ -655,6 +773,10 @@ fn receiver_layout(
         target_ if target_ == target::NativeTarget::linux_x64() => (
             CallingPolicy::SystemVAMD64,
             calling_conventions::MachineRegister::X86Rdi,
+        ),
+        target_ if target_ == target::NativeTarget::windows_x64() => (
+            CallingPolicy::MicrosoftX64,
+            calling_conventions::MachineRegister::X86Rcx,
         ),
         _ => return Err(invalid()),
     };
@@ -909,6 +1031,30 @@ pub(crate) fn validate_image(
             }
             (symbol, offset)
         }
+        crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset }
+            if expected_shim_matches(expected.shim, shim) =>
+        {
+            let end = offset
+                .checked_add(WINDOWS_X86_64_RECEIVER_SHIM_BYTES)
+                .ok_or_else(invalid)?;
+            let Some(expected_shim) = output.final_text_bytes.get(offset..end) else {
+                return Err(invalid());
+            };
+            if !crate::hosted_unit_entry::unique_region(
+                object,
+                symbol,
+                offset,
+                WINDOWS_X86_64_RECEIVER_SHIM_BYTES,
+                output,
+            ) || !crate::hosted_unit_entry::pe_entry_points_to(
+                &output.bytes,
+                offset,
+                expected_shim,
+            ) {
+                return Err(invalid());
+            }
+            (symbol, offset)
+        }
         _ => return Err(invalid()),
     };
     if expected.object != *object || expected.text != text || expected.relocations != *relocations {
@@ -986,6 +1132,21 @@ pub(crate) fn validate_image(
                 partitions,
             )
         }
+        crate::hosted_unit_entry::EntryShim::WindowsReceiver { .. } => {
+            let end = offset
+                .checked_add(WINDOWS_X86_64_RECEIVER_SHIM_BYTES)
+                .ok_or_else(invalid)?;
+            instructions::validate_windows_x86_64(
+                output
+                    .final_text_bytes
+                    .get(offset..end)
+                    .ok_or_else(invalid)?,
+                shim_address,
+                selected_entry,
+                output.final_image_layout.bss_address,
+                partitions,
+            )
+        }
         _ => Err(invalid()),
     }
 }
@@ -1015,6 +1176,13 @@ fn expected_shim_matches(
                 offset: expected_offset,
             },
             crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset },
+        )
+        | (
+            crate::hosted_unit_entry::EntryShim::WindowsReceiver {
+                symbol: expected_symbol,
+                offset: expected_offset,
+            },
+            crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset },
         ) => expected_symbol == symbol && expected_offset == offset,
         _ => false,
     }

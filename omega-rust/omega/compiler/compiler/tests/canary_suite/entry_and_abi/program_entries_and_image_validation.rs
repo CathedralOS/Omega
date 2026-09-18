@@ -26,10 +26,66 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
         "entry",
         "the Build-selected free machine enters through its implicit `entry` state"
     );
-    assert!(
-        selected.calling_plans().is_none(),
-        "hosted ProgramEntry has no two-surface storage calling plan"
+    let plans = selected
+        .calling_plans()
+        .expect("Windows x86-64 entry must retain semantic and physical calling plans");
+    let physical_contract = plans
+        .storage_entry
+        .physical_contract()
+        .expect("the retained semantic storage plan must keep its distinct physical contract");
+    assert_eq!(
+        physical_contract.requirement_identity(),
+        program_entry_plan::WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
     );
+    assert!(
+        physical_contract.parameter_type_identities().is_empty(),
+        "the Windows loader arrival carries no contractual parameters"
+    );
+    assert_eq!(
+        physical_contract.result_type_identity(),
+        program_entry_plan::WINDOWS_X86_64_U32_TYPE_IDENTITY,
+    );
+    assert_eq!(
+        physical_contract.target_slot(),
+        target::TargetProfile::WindowsX64.program_entry_slot(),
+    );
+    assert_eq!(
+        physical_contract.target_package(),
+        target::ProgramEntryPhysicalContractPackage::WindowsX64,
+    );
+    let expected_physical_plan =
+        program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan();
+    assert_eq!(
+        physical_contract.boundary_entry_plan(),
+        expected_physical_plan.plan(),
+    );
+    assert_eq!(
+        physical_contract.calling_plan_report_fingerprint(),
+        expected_physical_plan.contract_report_fingerprint(),
+    );
+    assert!(
+        physical_contract.matches_exact_windows_x86_64_physical_contract(),
+        "build evaluation must produce the exact canonical normalized Windows x86-64 physical contract: {physical_contract:#?}"
+    );
+    assert_eq!(
+        plans
+            .semantic_calling_application
+            .boundary_entry_plan
+            .call
+            .policy,
+        calling_conventions::CallingPolicy::MicrosoftX64
+    );
+    native_realization::NativeProgramEntrySettlement::new(
+        selected.source_signature(),
+        Some((
+            &plans.semantic_calling_application,
+            &plans.physical_calling_application,
+            &plans.storage_entry,
+        )),
+        selected.fused_service_establishments(),
+    )
+    .validate_for_target(target::NativeTarget::windows_x64())
+    .expect("native settlement must replay the actual authored two-surface applications");
     let outcome = checked_interpreter::interpret_entry(
         &checked,
         checked
