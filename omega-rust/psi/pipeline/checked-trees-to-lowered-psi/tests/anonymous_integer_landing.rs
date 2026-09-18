@@ -122,3 +122,36 @@ fn explicit_integer_cast_lands_the_complete_anonymous_value() {
         TerminalExecutionResult::Scalar(signed(7))
     );
 }
+
+/// A declared nominal operator of the same spelling is not this occurrence's
+/// selected declaration. `core/nat.omg` declares
+/// `operator - Nat::subtract(left: Nat, right: Nat) -> Nat`, so every program
+/// importing the bundled library used to lose builtin meaning for wholly
+/// anonymous integer arithmetic: the destination's value fact was never
+/// produced and the enclosing Unit body reached no plan. The operand lookup
+/// that answered the question treats unknown operands as wildcards and is
+/// therefore program-global, while resolution had already recorded
+/// `Intrinsic(BuiltinOperator)` at the `-` occurrence itself.
+#[test]
+fn a_declared_nominal_operator_leaves_anonymous_arithmetic_builtin() {
+    let source = r#"
+        pub data Nat {
+            case Zero;
+            case Succ(prev: Nat);
+        }
+
+        operator - Nat::subtract(left: Nat, right: Nat) -> Nat;
+
+        machine value() -> i32
+        requires 7i32 == 7i32
+        ensures 7i32 == 7i32
+        {
+            let landed: i32 = 0 - 7 / 2 * 2;
+            0 - landed
+        }
+    "#;
+    assert_eq!(
+        execute(source, &[]),
+        TerminalExecutionResult::Scalar(signed(7))
+    );
+}
