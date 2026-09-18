@@ -45,6 +45,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
     facts.flow.ownership.owned_selections = arena::Arena::default();
     facts.flow.ownership.selection_sources = arena::Arena::default();
     facts.flow.ownership.selection_transfers = arena::Arena::default();
+    facts.flow.ownership.selection_transfer_claims = arena::Arena::default();
     let mut claim_identities = ClaimIdentityAllocator::default();
 
     let state_flows = facts

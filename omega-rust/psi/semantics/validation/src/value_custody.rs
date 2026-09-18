@@ -3,6 +3,7 @@
 //! cleanup, expression and reference types, wire and intrinsic boundaries.
 
 pub(crate) mod atomic_operations;
+pub(crate) mod claim_frontier;
 pub(crate) mod cleanup;
 pub(crate) mod constants;
 pub(crate) mod content_conservation;

@@ -2,9 +2,7 @@
 
 use crate::checks::multiplicity::linear_obligations::{LinearClaimTemplate, LinearPlace};
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
-use crate::checks::multiplicity::type_multiplicity::{
-    data_field_name, find_data_definition, type_multiplicity, type_multiplicity_with_substitutions,
-};
+use crate::checks::multiplicity::type_multiplicity::{data_field_name, type_multiplicity};
 use language_semantics::{Multiplicity, PermissionEventSource};
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
@@ -120,222 +118,23 @@ pub(crate) fn initial_linear_places(
     places
 }
 
+/// The exact linear claim frontier of a type, enumerated by the shared
+/// validation walker so the checker's place roster and the lowering replay
+/// cannot diverge. Templates keep the checker's fields; every frontier claim
+/// is linear by construction and `conditional` rides the case-segment test.
 pub(crate) fn linear_claim_frontier(
     program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<LinearClaimTemplate> {
-    let mut claims = Vec::new();
-    append_linear_claim_frontier(
-        program,
-        type_reference,
-        &[],
-        &[],
-        &mut Vec::new(),
-        &mut claims,
-    );
-    claims
-}
-
-fn append_linear_claim_frontier(
-    program: &typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    path: &[facts::PlaceSegment],
-    visiting: &mut Vec<SymbolHandle>,
-    claims: &mut Vec<LinearClaimTemplate>,
-) {
-    if !type_reference.is_valid() {
-        return;
-    }
-    let multiplicity = type_multiplicity_with_substitutions(program, type_reference, substitutions);
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            if multiplicity == Multiplicity::Linear {
-                claims.push(LinearClaimTemplate {
-                    path: path.to_vec(),
-                    type_reference,
-                    multiplicity,
-                    conditional: path
-                        .iter()
-                        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. })),
-                });
-                return;
-            }
-            append_linear_claim_frontier(
-                program,
-                *base_type,
-                substitutions,
-                path,
-                visiting,
-                claims,
-            );
-            return;
-        }
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length),
-        } => {
-            for index in 0..*length {
-                let mut element_path = path.to_vec();
-                element_path.push(facts::PlaceSegment::FixedIndex { index });
-                append_linear_claim_frontier(
-                    program,
-                    *element_type,
-                    substitutions,
-                    &element_path,
-                    visiting,
-                    claims,
-                );
-            }
-            return;
-        }
-        TypeReferenceNode::Named { symbol, .. } => {
-            if let Some(replacement) =
-                substitutions
-                    .iter()
-                    .rev()
-                    .find_map(|(parameter, replacement)| {
-                        (*parameter == *symbol).then_some(*replacement)
-                    })
-                && replacement != type_reference
-            {
-                append_linear_claim_frontier(
-                    program,
-                    replacement,
-                    substitutions,
-                    path,
-                    visiting,
-                    claims,
-                );
-                return;
-            }
-        }
-        _ => {}
-    }
-
-    if multiplicity == Multiplicity::Linear {
-        claims.push(LinearClaimTemplate {
-            path: path.to_vec(),
-            type_reference,
-            multiplicity,
-            conditional: path
-                .iter()
-                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. })),
-        });
-        return;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { .. } => unreachable!("handled before multiplicity"),
-        TypeReferenceNode::Named { symbol, name } => {
-            let Some(definition) = find_data_definition(program, *symbol, name.as_str()) else {
-                return;
-            };
-            append_data_linear_claim_frontier(
-                program,
-                definition,
-                substitutions,
-                path,
-                visiting,
-                claims,
-            );
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            arguments,
-            ..
-        } => {
-            let Some(definition) = find_data_definition(program, *base_symbol, base_name.as_str())
-            else {
-                return;
-            };
-            let mut instantiated = substitutions.to_vec();
-            instantiated.extend(
-                program
-                    .data_type_parameters(definition)
-                    .iter()
-                    .zip(
-                        program
-                            .type_reference_table
-                            .type_reference_handles(*arguments),
-                    )
-                    .filter_map(|(parameter, argument)| {
-                        matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                            .then_some((parameter.symbol, *argument))
-                    }),
-            );
-            append_data_linear_claim_frontier(
-                program,
-                definition,
-                &instantiated,
-                path,
-                visiting,
-                claims,
-            );
-        }
-        TypeReferenceNode::FixedArray { .. } => {
-            // Const-parameter lengths must become literal before this stage
-            // can enumerate the complete fixed-index ownership frontier.
-        }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::Unit => {}
-    }
-}
-
-fn append_data_linear_claim_frontier(
-    program: &typed_trees::TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    path: &[facts::PlaceSegment],
-    visiting: &mut Vec<SymbolHandle>,
-    claims: &mut Vec<LinearClaimTemplate>,
-) {
-    if visiting.contains(&definition.symbol) {
-        return;
-    }
-    visiting.push(definition.symbol);
-    for member in program.data_members(definition) {
-        match member {
-            typed_trees::data::DataMember::Field(field) => {
-                let mut field_path = path.to_vec();
-                field_path.push(facts::PlaceSegment::Field {
-                    symbol: field.symbol,
-                });
-                append_linear_claim_frontier(
-                    program,
-                    field.type_reference,
-                    substitutions,
-                    &field_path,
-                    visiting,
-                    claims,
-                );
-            }
-            typed_trees::data::DataMember::Variant(variant) => {
-                let mut case_path = path.to_vec();
-                case_path.push(facts::PlaceSegment::Case {
-                    variant: variant.symbol,
-                });
-                for field in program.data_payload_fields(variant) {
-                    let mut field_path = case_path.clone();
-                    field_path.push(facts::PlaceSegment::Field {
-                        symbol: field.symbol,
-                    });
-                    append_linear_claim_frontier(
-                        program,
-                        field.type_reference,
-                        substitutions,
-                        &field_path,
-                        visiting,
-                        claims,
-                    );
-                }
-            }
-        }
-    }
-    visiting.pop();
+    validation::linear_claim_frontier(program, type_reference)
+        .into_iter()
+        .map(|claim| LinearClaimTemplate {
+            path: claim.path,
+            type_reference: claim.type_reference,
+            multiplicity: Multiplicity::Linear,
+            conditional: claim.conditional,
+        })
+        .collect()
 }
 
 fn claim_place_name(

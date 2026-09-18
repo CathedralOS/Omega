@@ -44,7 +44,11 @@ pub(super) fn validate_receipt(
         || receipt.type_reference != reference
         || receipt.death != PermissionEventSource::StateExit
         || checked.type_multiplicity(reference) != Multiplicity::Affine
-        || !validation::has_plain_owned_contents(&checked.typed, reference)
+        // A whole affine carrier with `[linear]` members joins through the
+        // same receipt: the claim set on each transfer names the discharged
+        // frontier exactly, so the destination's plain-storage rule widens to
+        // the linear-tolerant carrier rule.
+        || !validation::has_linear_owned_contents(&checked.typed, reference)
         || !matches!(
             checked.expression_table.expression(expression),
             ExpressionNode::Match(_)
@@ -143,7 +147,7 @@ pub(super) fn validate_receipt(
                 != checked.normalized_type_identity(reference))
             || (projected
                 && !(checked.type_multiplicity(source_reference) == Multiplicity::Affine
-                    && validation::has_plain_owned_contents(&checked.typed, source_reference)))
+                    && validation::has_linear_owned_contents(&checked.typed, source_reference)))
             || source.claim_identity != PermissionClaimIdentity::Unknown
             || sources[..ordinal]
                 .iter()
@@ -248,10 +252,37 @@ pub(super) fn validate_receipt(
         }
         let source = ownership.selection_sources.get(transfer.source);
         let authored =
-            validation::plain_owned_value_source(&checked.typed, transfer.expression, reference)
+            validation::affine_owned_value_source(&checked.typed, transfer.expression, reference)
                 .or_else(|| projected_local_root(checked, transfer.expression));
         if authored != Some(source.symbol) {
             return unsupported("selected ownership changed the authored source place");
+        }
+        // The consumed claim set is the leaf type's whole linear frontier
+        // under the recorded moved path, replayed independently: a whole
+        // carrier names every claim its children carry, a plain leaf names
+        // none, and each row's provenance must agree with the source's own
+        // establishment evidence when that evidence is known.
+        let leaf_path = ownership.segments.span_or_empty(transfer.path);
+        let expected_claims = validation::linear_claim_frontier(&checked.typed, reference);
+        let claims = ownership
+            .selection_transfer_claims
+            .span_or_empty(transfer.claims);
+        if claims.len() != expected_claims.len() {
+            return unsupported("selected ownership changed its consumed claim set");
+        }
+        for (claim, expected) in claims.iter().zip(expected_claims.iter()) {
+            let claim_path = ownership.segments.span_or_empty(claim.path);
+            if claim_path.len() != leaf_path.len() + expected.path.len()
+                || !claim_path.starts_with(leaf_path)
+                || claim_path[leaf_path.len()..] != expected.path[..]
+            {
+                return unsupported("selected ownership changed its consumed claim set");
+            }
+            if source.provenance != PermissionProvenance::Unknown
+                && claim.provenance != source.provenance
+            {
+                return unsupported("selected ownership claim disagrees with its source origin");
+            }
         }
     }
     Ok(())
@@ -549,9 +580,9 @@ pub(super) fn validate_projection(
         "projected selection root has no declared type",
     ))?;
     if checked.type_multiplicity(root_reference) != Multiplicity::Affine
-        || !validation::has_plain_owned_contents(&checked.typed, root_reference)
+        || !validation::has_linear_owned_contents(&checked.typed, root_reference)
     {
-        return unsupported("projected selection root is not a plain affine owner");
+        return unsupported("projected selection root is not an affine owner");
     }
     let symbol = match checked.expression_table.expression(root_expression) {
         ExpressionNode::Name(name)

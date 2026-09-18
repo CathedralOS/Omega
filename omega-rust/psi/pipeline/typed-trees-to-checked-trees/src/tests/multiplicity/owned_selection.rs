@@ -917,12 +917,260 @@ fn linear_owned_selection_return_maps_the_result_to_the_source_claim() {
             entry.output_segments.is_empty()
                 && matches!(
                     entry.source,
-                    checked_trees::FlowClaimOutcomeSource::Input {
-                        parameter_symbol: _,
-                        ..
-                    }
+                    checked_trees::FlowClaimOutcomeSource::Input { .. }
                 )
         }),
         "the selected result maps to the caller's parameter claim: {entries:?}"
     );
+}
+
+/// A whole affine carrier moves its complete linear claim frontier on every
+/// edge: the transfer's claim set, not an invented aggregate root claim, names
+/// each consumed child. The destination's frontier claims re-establish under
+/// the result, so its children stay consumable.
+#[test]
+fn carrier_owned_selection_moves_the_whole_claim_frontier_on_every_edge() {
+    for (name, source, source_count, expected_claims) in [
+        (
+            "one linear child, uniform source",
+            "data Holder { left: Token; }
+             machine choose(selected: bool, x: Holder) -> u64 {
+                 let picked: Holder = match selected { true -> x, false -> x };
+                 Token::settle(picked.left);
+                 0
+             }",
+            1usize,
+            1usize,
+        ),
+        (
+            "one linear child, distinct sources",
+            "data Holder { left: Token; }
+             machine choose(selected: bool, x: Holder, y: Holder) -> u64 {
+                 let picked: Holder = match selected { true -> x, false -> y };
+                 Token::settle(picked.left);
+                 0
+             }",
+            2,
+            1,
+        ),
+        (
+            "two linear children, uniform source",
+            "data Holder { left: Token; right: Token; }
+             machine choose(selected: bool, x: Holder) -> u64 {
+                 let picked: Holder = match selected { true -> x, false -> x };
+                 Token::settle(picked.left);
+                 Token::settle(picked.right);
+                 0
+             }",
+            1,
+            2,
+        ),
+        (
+            "two linear children, distinct sources",
+            "data Holder { left: Token; right: Token; }
+             machine choose(selected: bool, x: Holder, y: Holder) -> u64 {
+                 let picked: Holder = match selected { true -> x, false -> y };
+                 Token::settle(picked.left);
+                 Token::settle(picked.right);
+                 0
+             }",
+            2,
+            2,
+        ),
+    ] {
+        let checked =
+            lower_linear_program(source).unwrap_or_else(|errors| panic!("{name}: {errors:#?}"));
+        let ownership = &checked.facts.flow.ownership;
+        let (_, receipt) = ownership
+            .owned_selections
+            .iter()
+            .next()
+            .expect("{name}: carrier selection receipt");
+        let sources = ownership.selection_sources.span_or_empty(receipt.sources);
+        assert_eq!(sources.len(), source_count, "{name}");
+        assert!(
+            sources.iter().all(|source| source.claim_identity
+                == language_semantics::PermissionClaimIdentity::Unknown
+                || expected_claims == 1),
+            "{name}: a multi-claim source has no aggregate claim identity: {sources:?}"
+        );
+        let transfers = ownership
+            .selection_transfers
+            .span_or_empty(receipt.transfers);
+        assert_eq!(transfers.len(), 2, "{name}");
+        for transfer in transfers {
+            assert!(
+                ownership.segments.span_or_empty(transfer.path).is_empty(),
+                "{name}: a whole carrier leaf records an empty moved path: {transfer:?}"
+            );
+            let claims = ownership
+                .selection_transfer_claims
+                .span_or_empty(transfer.claims);
+            assert_eq!(
+                claims.len(),
+                expected_claims,
+                "{name}: the claim set is the leaf's whole linear frontier"
+            );
+            for claim in claims {
+                assert!(
+                    matches!(
+                        ownership.segments.span_or_empty(claim.path),
+                        [facts::PlaceSegment::Field { .. }]
+                    ),
+                    "{name}: each claim names its exact field path: {claim:?}"
+                );
+                assert!(
+                    matches!(
+                        claim.provenance,
+                        language_semantics::PermissionProvenance::Established { .. }
+                    ),
+                    "{name}: each claim carries the consumed place's provenance: {claim:?}"
+                );
+            }
+        }
+    }
+}
+
+/// The moved carrier's claims are dead on every edge, so any later statement
+/// naming the source — a whole move or a projected child — hits the
+/// conditional-transfer fence or the dead-claim move fence.
+#[test]
+fn carrier_owned_selection_rejects_reusing_the_moved_source_or_its_children() {
+    for (name, continuation, expected) in [
+        (
+            "whole source move",
+            "let again: Holder = x; Token::settle(again.left); Token::settle(again.right);",
+            "may have been transferred",
+        ),
+        (
+            "consumed child use",
+            "Token::settle(x.left); Token::settle(picked.right);",
+            "was already transferred or consumed",
+        ),
+        (
+            "residual-looking child use",
+            "Token::settle(picked.left); Token::settle(x.right);",
+            "was already transferred or consumed",
+        ),
+    ] {
+        let errors = lower_linear_program(&format!(
+            "data Holder {{ left: Token; right: Token; }}
+             machine choose(selected: bool, x: Holder) -> u64 {{
+                 let picked: Holder = match selected {{ true -> x, false -> x }};
+                 {continuation}
+                 0
+             }}"
+        ))
+        .expect_err(&format!("{name}: the joined source is dead on every edge"));
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)),
+            "{name}: expected {expected:?}: {errors:#?}"
+        );
+    }
+}
+
+/// A carrier whose frontier child was already consumed cannot join: the whole
+/// move would discharge a dead claim.
+#[test]
+fn carrier_owned_selection_rejects_a_source_with_a_dead_child() {
+    let errors = lower_linear_program(
+        "data Holder { left: Token; right: Token; }
+         machine choose(selected: bool, x: Holder) -> u64 {
+             Token::settle(x.left);
+             let picked: Holder = match selected { true -> x, false -> x };
+             Token::settle(picked.right);
+             0
+         }",
+    )
+    .expect_err("a half-consumed carrier cannot move whole");
+    assert!(
+        format!("{errors:?}").contains("owned match source must be an available"),
+        "{errors:#?}"
+    );
+}
+
+/// A fresh carrier literal beside a carrier source is still outside the
+/// admitted frontier: fresh construction joins only plain or linear-owned
+/// products, so the mixed shape keeps its explicit validation rejection.
+#[test]
+fn carrier_owned_selection_still_rejects_a_fresh_carrier_arm() {
+    let errors = lower_linear_program(
+        "data Holder { left: Token; }
+         machine choose(selected: bool, x: Holder) -> u64 {
+             let picked: Holder = match selected {
+                 true -> x,
+                 false -> Holder { left: Token { id: 2 } }
+             };
+             Token::settle(picked.left);
+             0
+         }",
+    )
+    .expect_err("a fresh carrier arm is outside the admitted frontier");
+    assert!(
+        format!("{errors:?}").contains("branch custody join"),
+        "{errors:#?}"
+    );
+}
+
+/// The recorded claim set is part of the replay contract: mutating a claim's
+/// path, identity, provenance, or the claim count makes the independently
+/// re-derived receipt disagree.
+#[test]
+fn carrier_owned_selection_replay_rejects_mutated_claim_evidence() {
+    let checked = lower_linear_program(
+        "data Holder { left: Token; right: Token; }
+         machine choose(selected: bool, x: Holder) -> u64 {
+             let picked: Holder = match selected { true -> x, false -> x };
+             Token::settle(picked.left);
+             Token::settle(picked.right);
+             0
+         }",
+    )
+    .expect("carrier selection checks");
+    for mutation in 0..4 {
+        let mut facts = checked.facts.clone();
+        let ownership = &mut facts.flow.ownership;
+        let (_, receipt) = ownership.owned_selections.iter().next().expect("receipt");
+        let receipt = receipt.clone();
+        let transfer_handle = receipt.transfers.start();
+        let claims_span = ownership.selection_transfers.get(transfer_handle).claims;
+        match mutation {
+            // A claim's consumed path is exact source-place identity.
+            0 => {
+                let claim_path = ownership
+                    .selection_transfer_claims
+                    .get(claims_span.start())
+                    .path;
+                *ownership.segments.get_mut(claim_path.start()) =
+                    facts::PlaceSegment::FixedIndex { index: 0 };
+            }
+            // The consumed place's minted claim identity rides the row.
+            1 => {
+                ownership
+                    .selection_transfer_claims
+                    .get_mut(claims_span.start())
+                    .claim_identity = language_semantics::PermissionClaimIdentity::Unknown;
+            }
+            // The consumed place's establishment provenance rides the row.
+            2 => {
+                ownership
+                    .selection_transfer_claims
+                    .get_mut(claims_span.start())
+                    .provenance = language_semantics::PermissionProvenance::Unknown;
+            }
+            // Dropping a claim silently keeps one child live to scope exit.
+            _ => {
+                ownership
+                    .selection_transfers
+                    .get_mut(transfer_handle)
+                    .claims = arena::HandleSpan::empty();
+            }
+        }
+        let errors = crate::checks::validate_linear_permission_events(&checked.typed, &facts)
+            .expect_err(&format!("mutation {mutation} accepted"));
+        assert!(
+            format!("{errors:?}").contains("owned selection receipts differ"),
+            "mutation {mutation}: {errors:?}"
+        );
+    }
 }

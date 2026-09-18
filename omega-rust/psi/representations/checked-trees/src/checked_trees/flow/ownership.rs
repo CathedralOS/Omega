@@ -69,6 +69,25 @@ pub struct FlowOwnedSelectionTransfer {
     /// a nonempty path (fields and literal fixed indexes only) selects one
     /// affine child while the root's residual custody dies on the same edge.
     pub path: HandleSpan<facts::PlaceSegment>,
+    /// The exact linear claims this leaf consumes, each named by its full path
+    /// below the source root in canonical frontier order. A plain-owned leaf
+    /// carries none; a linear leaf names its one claim; a whole affine carrier
+    /// names its complete claim frontier, so the join discharges every linear
+    /// child instead of inventing an aggregate root claim.
+    pub claims: HandleSpan<FlowOwnedSelectionClaim>,
+}
+
+/// One consumed linear claim inside a selection transfer. `path` is the
+/// claim's exact source-root-relative place (the transfer's `path` plus the
+/// claim's position below the leaf); `claim_identity`/`provenance` are the
+/// consumed claim's own evidence, so the destination's claims and the outcome
+/// map can name the claim's original authority without re-reading the source
+/// place ledger.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowOwnedSelectionClaim {
+    pub path: HandleSpan<facts::PlaceSegment>,
+    pub claim_identity: language_semantics::PermissionClaimIdentity,
+    pub provenance: language_semantics::PermissionProvenance,
 }
 
 impl super::FlowOwnershipFacts {

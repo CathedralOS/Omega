@@ -68,6 +68,7 @@ pub struct FlowOwnershipFacts {
     pub owned_selections: Arena<super::FlowOwnedSelectionReceipt>,
     pub selection_sources: Arena<super::FlowOwnedSelectionSource>,
     pub selection_transfers: Arena<super::FlowOwnedSelectionTransfer>,
+    pub selection_transfer_claims: Arena<super::FlowOwnedSelectionClaim>,
 }
 
 impl FlowOwnershipFacts {
@@ -85,6 +86,7 @@ impl FlowOwnershipFacts {
             owned_selections: Arena::default(),
             selection_sources: Arena::default(),
             selection_transfers: Arena::default(),
+            selection_transfer_claims: Arena::default(),
         }
     }
 }
