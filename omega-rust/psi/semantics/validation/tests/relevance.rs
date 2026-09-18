@@ -5,6 +5,10 @@
 //! rejects with the same diagnostic family as a runtime read; calls to proof
 //! machines and calls inside proof machines are proof computation and keep
 //! their erased receivers.
+//!
+//! A `builder.roots.bind(slot, implementation)` statement is not a call: its
+//! receiver and its delegated `ProductEntryRef` operand are places read at
+//! build evaluation, so an erased receiver or operand rejects identically.
 
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -113,6 +117,63 @@ fn proof_context_receiver_accepts_erased() {
              let p [erased]: P = P::Z {};
              p.touch();
              0
+         }",
+    );
+}
+
+#[test]
+fn erased_root_binding_receiver_rejects() {
+    // `builder.roots.bind(...)` lowers to a RootBinding statement whose
+    // receiver is the `&mut Build` place read at build evaluation. It is not
+    // a statement call, so only this walk can see an erased receiver.
+    rejects(
+        "data Build {} \
+         machine build(builder [erased]: &mut Build) { \
+             builder.roots.bind(macos_arm64::ProgramEntry, Main::main); \
+         }",
+        "erased parameter `builder` has no runtime value",
+    );
+}
+
+#[test]
+fn erased_parameter_root_binding_operand_rejects() {
+    // A bare implementation name resolving to a binding stays on
+    // `implementation_operand` and is evaluated as the described
+    // `ProductEntryRef` place at build time; an erased binding cannot supply it.
+    rejects(
+        "data Build {} \
+         data ProductEntryRef {} \
+         machine build(builder: &mut Build, entry [erased]: ProductEntryRef) { \
+             builder.roots.bind(macos_arm64::ProgramEntry, entry); \
+         }",
+        "erased parameter `entry` has no runtime value",
+    );
+}
+
+#[test]
+fn erased_local_root_binding_operand_rejects() {
+    rejects(
+        "data Build {} \
+         data ProductEntryRef {} \
+         machine build(builder: &mut Build, entry [erased]: ProductEntryRef) { \
+             let e [erased]: ProductEntryRef = entry; \
+             builder.roots.bind(macos_arm64::ProgramEntry, e); \
+         }",
+        "erased local `e` has no runtime value",
+    );
+}
+
+#[test]
+fn retained_root_binding_operands_still_accepted() {
+    // The canonical build program binds a lexical implementation path, and a
+    // retained delegated operand keeps its place read: neither is an erased
+    // runtime use.
+    accepts(
+        "data Build {} \
+         data ProductEntryRef {} \
+         machine build(builder: &mut Build, entry: ProductEntryRef) { \
+             builder.roots.bind(macos_arm64::ProgramEntry, entry); \
+             builder.roots.bind(macos_arm64::ProgramEntry, Main::main); \
          }",
     );
 }
