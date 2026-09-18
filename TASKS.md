@@ -3282,64 +3282,70 @@ Owners include
   classifications, invalid proofs and violated requested physical exclusions
   still reject. No PCC request becomes mandatory.
 
-- **FILESYSTEM-RELEASE-CONTRACT.** Implement bounded occurrence-specific
-  open/query/close evidence through checked flow and native realization replay.
-  Prove the exact object/argument contract,
-  handle/alias preservation through intervening calls, one applicable release,
-  and no later use; authority classes alone are not preservation evidence.
-  Acceptance: constrained ordinary close has one evidence-bound empty row;
-  failed acquisition, escape, stale/substituted proof, invalidating calls,
-  reused aliases, and attached deferred deletion prevent narrowing. External
+- **FILESYSTEM-RELEASE-CONTRACT.** Implement the
+  [bounded occurrence-specific release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
+  for open/query/close through checked flow and native realization replay:
+  the exact object/argument contract, handle/alias preservation through
+  intervening calls, one applicable release and no later use. Authority
+  classes alone are not preservation evidence. A build-time leg exists. The
+  checked interpreter retains a constrained `open_path_handle` /
+  `final_path_name_by_handle` / `close_handle` chain as
+  `FilesystemSourceNativeHandleQueryChainReplayRecord`
+  (`checked-interpreter/src/filesystem_replay/native_query_chains.rs`),
+  `build-evaluation` rehydrates it, and `native-realization` derives one
+  `FilesystemOrdinaryReleaseContract` per retained occurrence
+  (`terminal_authority_policy/filesystem.rs`) and merges the bound rows in
+  `native_product/realization.rs`. It establishes nothing at a customer: no
+  authored build can produce the chain, and no proof exists for a program's
+  own open/query/close occurrence.
+
+  Remaining work:
+
+  - A producer. Whether the build vocabulary may issue the constrained chain,
+    or the row is earned only by program-side release, is the constrained
+    build-filesystem chain question in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+    Add no further consumers of the record until it is answered;
+    `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
+    the stop.
+  - Program-side native acceptance through
+    `tests/omega/pass/filesystem/windows_canonicalize_exit`. It stops at
+    `structural field store: scalar field type`
+    (`typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store/`):
+    `self.unit_result = self.fs.write_all(..)` stores a structural
+    `UnitResult` field, `StructuralScalarFieldStore` covers scalar fields
+    only, and Terminal production refuses the attached Unit closure in
+    `checked-trees-to-lowered-psi/src/unit/attached_unit/call_closure.rs`.
+    The fixture's transitive closure needs nested structural sum construction
+    and extraction (`UnitResult::Error` carries `ErrorKind`), borrowed case
+    observation and whole nominal receiver replacement, including
+    match-produced field assignments. Further isolated prerequisites for this
+    fixture are paused: resume with a plan covering that closure through
+    shared state/value planning. Reuse recursive layouts and referent
+    identity. A primitive field store, a fresh call-result home or a
+    borrowed-storage snapshot cannot substitute for receiver replacement.
+    This is an implementation scope pause, not a language-design blocker.
+    `filesystem/native_close` is past the scalar call-result store; rerun it
+    before assuming a stop.
+
+  Flag: the landed join narrows the emitted program's release mechanism from
+  evidence about a different execution. The contracts come from the compile's
+  own build filesystem replay record, an interpreter trace of `build.omg`.
+  `providers/settlements/source_imports.rs::classify_terminal_mechanism` then
+  prefers the bound explicit-empty key for every demanded mechanism whose
+  provider method is named `close`, `find_close` or `close_handle`, whenever
+  any contract exists. No program call occurrence, handle flow or accepted
+  `FilesystemHostService` binding is joined. The spec requires the constraint
+  identity bound "to the derivation and exact occurrence". The general
+  mechanism is a checked-flow derivation over the program's own occurrence,
+  carried as Terminal evidence and rejoined per call site at realization.
+
+  Acceptance: a constrained ordinary close has one evidence-bound empty row.
+  Failed acquisition, escape, stale/substituted proof, invalidating calls,
+  reused aliases and attached deferred deletion prevent narrowing. External
   pending-deletion completion alone leaves ordinary close empty. Keep this
-  bounded proof separate from general owned-handle design; no owner-policy
-  blocker remains.
-
-  Progress: the checked-interpreter leg adds the bounded occurrence record
-  `FilesystemSourceNativeHandleQueryChainReplayRecord` and the
-  `NativeHandleQueryChain` source-input event in
-  `psi/semantics/checked-interpreter/src/filesystem_replay` (module
-  `native_query_chains.rs`, tests `native_query_chain_tests.rs`). One
-  constrained `open_path_handle` under access-zero/full-share/OPEN_EXISTING/
-  BACKUP_SEMANTICS-without-DELETE_ON_CLOSE, exact `Resolved` handle
-  preservation through admitted `final_path_name_by_handle` and
-  `get_last_error` observations, one nonzero `close_handle` retiring the
-  identity; acquisition failure, aliased/duplicated outputs, substituted or
-  cross-domain inputs, early retirement, missing/ambiguous/late release, and
-  lane tampering all reject. `build-evaluation` rehydrates the tag-28 chain
-  (`replay_record/rehydration.rs`, `replay_eligibility.rs`) and
-  `native-realization` derives one release contract per retained occurrence
-  and binds it into a direct-syscall key or a normalized-foreign checked
-  coordinate (`terminal_authority_policy/filesystem.rs`); the reviewer admits
-  the constrained close under either role. Next leg: the settlement wiring landed; what is
-  missing is any authored route that produces a retained occurrence at all,
-  which is the [constrained build-filesystem chain question](OWNER_QUESTIONS.md). `filesystem/native_close` reaches the
-  attached-Unit gate on the same route but needs a different repair from
-  `windows_canonicalize_exit`, so the two are not one gap: the former stored
-  a scalar field from its own call result and now compiles past that gate,
-  while the latter stores a structural `UnitResult` field, which no store
-  operation covers.
-
-  Native acceptance also needs the checked transitive machine plan missing
-  from `filesystem/windows_canonicalize_exit`, which stops at `structural
-  field store: scalar field type` because `self.unit_result =
-  self.fs.write_all(..)` stores a structural field and
-  `StructuralScalarFieldStore` covers scalar fields only; a structural-field
-  store operation does not exist yet and is its own slice. Terminal production currently
-  refuses its attached Unit closure in
-  `checked-trees-to-lowered-psi/src/unit/attached_unit/call_closure.rs`. Its source
-  dependencies include nested structural sum construction/transport
-  (`UnitResult::Error` carries `ErrorKind`) and whole nominal receiver
-  replacement (`self.unit_result = ...`). Resolve these through shared
-  state/value planning before expecting this fixture to emit; a primitive
-  field store or a fresh call-result home cannot substitute receiver replacement.
-
-  Pause further isolated native prerequisite milestones for this fixture.
-  Resume execution work with a plan covering its actual transitive closure:
-  nested construction and extraction, borrowed case observation, and whole
-  nominal replacement, including match-produced field assignments. Reuse
-  existing recursive layouts and referent identity; do not erase structural
-  operand custody or replace borrowed storage with snapshots. This is an
-  implementation scope pause, not a language-design blocker.
+  bounded proof separate from general owned-handle design.
+  TWO-AXIS-TERMINAL-AUTHORITY-REVIEW owns the receiver rows and the broad
+  `Filesystem` summary.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   in `validation/src/machine_calls/calls/write_frames/`. The inference returns
