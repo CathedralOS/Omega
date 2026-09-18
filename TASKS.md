@@ -95,57 +95,41 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   production has [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
   not a fabricated runtime installation grant or a required Rust supervisor.
 
-- **MACOS-APPLICATION-PUBLICATION.** The
-  [settled publication contract](wiki/spec/build/macos_application.md)
-  implementation is landed; the item stays open for host- and
-  dependency-gated acceptance.
+- **MACOS-APPLICATION-PUBLICATION.** Close end-to-end acceptance of the
+  [macOS publication contract](wiki/spec/build/macos_application.md), using the
+  existing `compilation-report/src/package.rs` assembler and checked
+  package/executable accessors. Do not build another packager or move assembly
+  into Psi or instruction lowering.
 
-  Landed: `builder.identifier` is ordinary Build vocabulary validated in
-  `build-evaluation/src/configuration.rs` (`ApplicationIdentifier`);
-  `application_intent` travels separately from the PE subsystem word
-  through the checked compilation and the retained native proposal, which
-  also retains the authored `builder.application` name and identifier.
-  Signed macOS GUI image emission requires the identifier on both the
-  direct and retained routes; `compilation-report/src/package.rs` stages,
-  validates, and installs one whole `<name>.app`; reports expose
-  `checked_native_package_path()` separately from
-  `checked_native_executable_path()`; the package receipt cross-binds the
-  flat executable's v1 container digest; the CLI reports the package root
-  and the GUI canaries consume the checked accessors. The four GUI
-  `build.omg`s carry authored identifiers.
+  Remaining: execute `window_app`, `window_demo`, and `windowed_calculator`
+  on macOS ARM64 through their authored builds and reported bundle paths.
+  Start with the [window_app command and review flow](samples/gui/window_app/README.md).
+  The last recorded ARM64 probe (`4707fde28b`) cleared staging but stopped at
+  `InvalidUnitMachinePlan` for `Main::main`; rerun before assigning the
+  current operation join to **GENERAL-CYCLIC-EXECUTION**. The
+  `native_filesystem_canaries::gui_and_sample_apps::sample_window*` tests
+  supply test-owned package acceptance, not ordinary CLI review. Their
+  interactive-app checks only observe early failure or brief process survival;
+  do not report them as proof that a window rendered or Finder launched it.
 
-  Acceptance: the specification's stage-requiredness, deterministic bytes, cross-invocation,
-  tampering, partial-output, and flat-regression controls pass; GUI samples carry
-  authored identifiers and consumers use reported paths. Validate the procedural
-  GUI cohort on macOS, recording unavailable-host coverage explicitly. Resource
-  inclusion/lookup for `image_viewer` remains outside v1; do not claim Finder
-  runtime coverage for it or silently change its working directory.
+  Acceptance: the three procedural apps compile, publish one validated `.app`,
+  and execute on the matching host, with observed window/render and completion
+  behavior recorded separately from process-survival smoke coverage. Preserve
+  identifier requiredness, deterministic bytes, cross-invocation publication,
+  tamper/partial-output rejection, and flat-output regressions using
+  `compilation-report` tests and
+  `compiler --test build_target_activation -E 'test(activation_identifiers_and_publication)'`.
+  Run the GUI cohort with
+  `mbx nextest run -p compiler --test native_filesystem_canaries --no-fail-fast --no-tests fail -E 'test(gui_and_sample_apps::sample_window)'`;
+  an unavailable ARM64 macOS host leaves runtime acceptance open.
 
-  Verified on macOS x86_64 at cf5dcf81e1 (aarch64 execution unavailable on
-  this Intel host): `mbx nextest run -p compilation-report` 12/12,
-  `mbx nextest run -p build-evaluation -p image-macho -p object-file`
-  181/181, `mbx nextest run -p compiler --test pcc_publication` 14/14, and
-  `mbx nextest run -p compiler --test build_target_activation -E
-  'test(/activation_identifiers_and_publication/)'` 15/15. The suite's two
-  remaining failures are the documented x86 FMA provider-transport
-  baseline (`wiki/drafts/known_baseline_failures.md`).
-
-  Still open: the procedural GUI cohort (`window_app`, `window_demo`,
-  `windowed_calculator`) end-to-end on macOS aarch64 —
-  `native_filesystem_canaries` execs the produced aarch64 Mach-O and needs
-  an aarch64 host. Its staged sample tests now supply the std package graph
-  and test-owned acceptance themselves (`staged_std_package_inputs`), so at
-  4707fde28b on macOS ARM64 all six staged samples (`window_demo`,
-  `window_app`, `windowed_calculator`, `image_viewer`, `file_journal`,
-  `note_vault`) clear staging and stop at `InvalidUnitMachinePlan` for
-  `Main::main` ("attached Unit closure is missing a checked transitive
-  machine plan"), the same **GENERAL-CYCLIC-EXECUTION** gap the `window_app`
-  [outer command](samples/gui/window_app/README.md) reaches after ordinary
-  package review; `windowed_calculator` spends 795 s in checking before
-  reaching it. The target's other 83 fixtures fail on undeclared service
-  reach and decision-17 exact-arithmetic obligations (**CANARY-CORPUS**). The requested
-  native `.proof` sidecar inside the package waits on native PCC
-  (**PCC-PRODUCT-PUBLICATION**; `pcc.native` publication is `Incomplete`).
+  Native sidecar placement already has
+  `pcc_publication::macos_gui_native_pcc_installs_the_inner_sidecar`, but its
+  independent receiver verdict is still `Incomplete(UnsupportedEvidence)`.
+  **PCC-PRODUCT-PUBLICATION** owns that evidence gap; emitted sidecar bytes do not
+  satisfy requested PCC acceptance. Keep the bundle join covered when it closes.
+  Application resources and `image_viewer` bundle-relative lookup are outside
+  v1; do not silently change the working directory or claim their Finder coverage.
 
 - **SAMPLE-CORPUS.** Close the unchanged maintained programs through checked
   semantics and native execution. Start with the documented
