@@ -199,372 +199,58 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
-  family. Acceptance: each representable field can be changed independently,
-  the containing identity can be recomputed, and independent replay still
-  rejects the substitution. Landed: installed function rows
-  (`image-emission/tests/artifacts.rs`,
-  `installation_function_row_rejects_every_one_field_substitution`) — machine,
-  attachment, unit stack, and scalar stack are independently representable and
-  rejected by replay; text offset, byte count, dropped rows, and the unit-body
-  flag are rejected at encoding as non-canonical. Landed: installed internal
-  unit call rows
-  (`installation_internal_unit_call_row_rejects_every_one_field_substitution`)
-  — the cleanup-owned call's byte count is independently representable and
-  rejected by replay; every other field on operation- and cleanup-owned rows,
-  dropped rows, and the semantic-result projection are rejected at encoding
-  as non-canonical. Landed: installed boundary-settlement rows
-  (`installation_boundary_settlement_rejects_every_one_field_substitution`)
-  — `psi_operation`, `boundary`, the write row's `operation_ordinal`, the
-  admitted-provider execution identity, byte-sequence `literal_operation` and
-  structural-type identity, scalar-argument `source_value` and `immediate`
-  are independently representable and rejected by replay; machine,
-  text/code offsets, byte counts, realization/execution swaps, argument
-  rosters, completion custody, native results, the exit row's ordinal, a
-  duplicate `psi_operation`, and roster reorder are rejected at encoding as
-  non-canonical; a dropped row is rejected by replay. Landed: installed
-  compiler-private callback rows
-  (`installation_private_function_row_rejects_every_one_field_substitution`)
-  — callback-thunk continuation and placement index, source-Psi fingerprint,
-  machine, and scalar-ABI parameter/result values are independently
-  representable and rejected by replay; a non-thunk identity kind, text
-  offset, zero/extended byte count, non-canonical ABI placements and value
-  collisions, and a dropped row are rejected at encoding as non-canonical.
-  Landed: installed dynamic conformance tables and dynamic call rows
-  (`installation_dynamic_conformance_table_rejects_every_one_field_substitution`)
-  — the application report fingerprint, an unresolved slot's target, and the
-  call's operation, text offset, and byte count are independently
-  representable and rejected by replay; the application commitment, a zero
-  fingerprint, table data offset and byte count, slot row indices and data
-  offsets, resolved-slot retarget or erasure, unknown slot targets, the
-  caller machine, initial and rebound sources, the selected table byte
-  offset, the realization, and swapped, dropped, or duplicated slots,
-  tables, and calls are rejected at encoding as non-canonical. Landed:
-  installed dynamic-parameter call rows
-  (`installation_dynamic_parameter_call_rejects_every_one_field_substitution`)
-  — `operation`, `source_value`, `requirement_slot`, in-function text offset,
-  and in-bounds byte count are independently representable and rejected by
-  replay; an unknown or other-function machine, out-of-function text offsets,
-  zero or overflowing byte counts, and a duplicated row are rejected at
-  encoding as non-canonical; a dropped row is rejected by replay. Landed:
-  installed stored dynamic call rows
-  (`installation_stored_dynamic_call_rejects_every_one_field_substitution`)
-  — the table's application report fingerprint and an unresolved slot's
-  target, the dispatch's operation and text offset and byte count, the
-  establishment's operation and byte count, and the descriptor and
-  selection ordinals and descriptor home offset are independently
-  representable and rejected by replay; the application commitment, caller
-  machine, unselected realization, unknown source place, selected table
-  byte offset, empty or out-of-function byte counts, and out-of-range or
-  overlapping establishment and dispatch offsets are rejected at encoding
-  as non-canonical, as are dropped, duplicated, or swapped
-  conformance-table slots and dropped or duplicated calls and tables.
-  Landed: installed forwarded dynamic-parameter call rows
-  (`installation_forwarded_dynamic_parameter_call_rejects_every_one_field_substitution`)
-  — the call's operation, source value, scalar type, self-function callee,
-  text offset, and byte count are independently representable and rejected
-  by replay; an unknown or other-function machine or callee, parameter
-  ordinals, a cleared or non-integer scalar type, out-of-function text
-  offsets, an empty byte count, and a duplicated row are rejected at
-  encoding as non-canonical; a dropped row is rejected by replay. Landed:
-  installed forwarded dynamic-descriptor adapter, table, and call rows
-  (`installation_forwarded_dynamic_descriptor_rejects_every_one_field_substitution`)
-  — the table's application report fingerprint, and the call's operation,
-  other-function callee, source place and access, text offset, and byte
-  count are independently representable and rejected by replay; adapter and
-  table application commitments, adapter row index, realization, text
-  offset and byte count, table data offset and byte count, slot row index,
-  realization and offset joins, the call's machine, callee, commitment and
-  semantic result, and out-of-range offsets and byte counts are rejected at
-  encoding as non-canonical, as are dropped or duplicated adapters, tables,
-  and calls. Landed: installed semantic code attribution rows
-  (`installation_semantic_code_attribution_rejects_every_one_field_substitution`)
-  — operation- and edge-site identities and in-bounds byte counts are
-  independently representable and rejected by replay; an unknown machine, a
-  roster-reordering ordinal, drifted code and text offsets, a past-function
-  byte count, and the boundary-joined return-edge row's site, ordinal, and
-  byte count are rejected at encoding as non-canonical; a dropped unjoined
-  row is rejected by replay while a dropped return-edge row, a duplicated
-  site, and a reordered roster are rejected at encoding. Landed: installed
-  privileged port-effect rows
-  (`installation_port_effect_rejects_every_one_field_substitution`)
-  — an unbound row's operation, service, port, value, and ordinal are
-  independently representable and rejected by replay; its machine, code
-  offset, byte count, and text offset are rejected at encoding as
-  non-canonical; every field of the `MetadataOnlyPort`-consumed row is
-  rejected at encoding through the canonical offset joins or the settlement
-  realization; a dropped unbound row is rejected by replay while a dropped
-  consumed row, a duplicated `(machine, operation)` pair, and a reordered
-  roster are rejected at encoding. Landed: installation header and manifest
-  axes (`installation_header_rejects_every_one_field_substitution`) — the
-  program fingerprint, architecture, whole-target, and bound image
-  fingerprint substitutions, the image-section layout addresses, the retained
-  compiler text-validation receipt, and its report-only derivation
-  fingerprint are independently representable and rejected by replay, as is
-  every derivation-digest input once the receipt identity is honestly
-  recomputed; the profile decision and the committed component-progress
-  manifest and acceptance identities sit outside the image join and break
-  the published record identity a deployment journal replays; a retained
-  subsystem, unsupported target facts, non-canonical section projections,
-  and receipt fields without a consistent derivation digest are rejected at
-  encoding as non-canonical, while the COFF subsystem value is rejected by
-  replay and its absence or a non-COFF target at encoding; the magic,
-  format, and vocabulary markers, unknown enum tags, the reserved field,
-  zero profile and progress identities, and presence-flag lies reject at
-  the wire. Landed: selected provider-plan closure rows
-  (`installation_selected_provider_plan_rejects_every_one_field_substitution`)
-  — substituting, extending, or dropping an unexecuted selected plan is
-  independently representable, produces the record an honest admission of
-  the mutated closure builds, and breaks the published record identity a
-  deployment journal replays while the image join cannot see it;
-  substituting or dropping the executed plan, clearing the roster,
-  reordering it, or duplicating an entry is rejected at encoding through
-  the settlement-closure and canonical-order joins, a reported execution
-  outside the selected closure or a reported closure diverging from the
-  image's retained executions is rejected at admission, and a zero
-  identity, a non-canonical or duplicated wire order, and an uncarried
-  count reject at decode. Landed: installed structural-return rows
-  (`installation_structural_return_rejects_every_one_field_substitution`)
-  — the affine and linear rows' result places and the linear row's carried
-  claim identity are independently representable and rejected by replay;
-  machine, `psi_edge`, scalar and structural parameters, placements, source
-  and result signature fields, affine-lane claims, trivial locals and
-  discards, code offset, and byte count are rejected at encoding as
-  non-canonical, as are a machine-descending swap and a duplicated row,
-  while a dropped row is rejected by replay. Landed: installed attached-Unit
-  scalar-call rows (`image-emission/tests/internal_unit_scalar_calls.rs`,
-  `installation_internal_unit_scalar_call_row_rejects_every_one_field_substitution`,
-  `951c09bb9c`) — the call's `operation_ordinal`, in-span `byte_count`, the
-  nested argument and result `code_offset`/`byte_count` intervals, and a
-  `Home` argument source naming an earlier producer are independently
-  representable and rejected by replay, as are dropped rows; machine, text
-  offset, owner, target, call-plan parameters/result/stack alignment, every
-  result-home field, the result source, out-of-span or zero intervals,
-  constant or out-of-order ordinals, argument parameter index, destination
-  and source substitutions, extra or dropped arguments, and duplicated or
-  swapped rows are rejected at encoding as non-canonical. Landed: sealed
-  optimized-object artifact records, manifests, and custody receipts
-  (`compiler/tests/object_artifact_custody.rs`,
-  `optimized_object_artifact_custody_rejects_every_one_field_substitution`)
-  — every artifact-record field (terminal-artifact, semantic, obligation,
-  and proof digests, the debug section, selections, all four target axes,
-  semantic entry, the six manifest identities, object and container
-  identities, and all four statistics) and every manifest field (artifact,
-  terminal-artifact, semantic, selections, all four target axes, semantic
-  entry, container-manifest, object, container, and all four statistics)
-  is independently representable under an honestly recomputed containing
-  identity and rejected by independent replay against the retained terminal
-  artifact and relocation-free object container; each of the six
-  custody-receipt fields is rejected by replay; foreign or stale containing
-  identities, the closed stage and unavailable markers, unknown vocabulary,
-  architecture, object-format, and optional-section tags, a zero machine
-  identity, and trailing or truncated envelopes are rejected at canonical
-  decoding. Landed: deployment-journal canonical records, durable storage,
-  and runtime recovery joins (`component-publication/src/tests.rs`,
-  `component_deployment_journal_rejects_every_one_field_substitution`,
-  f125c9e2d4) — the journal identity, phase, both contract identities,
-  every prior, live-era, and candidate era-occurrence axis, each live-era
-  row's state and active-entry count, the entry-plan and admission-receipt
-  identities, the envelope identity and canonical bytes, and every
-  admission class, subject, and identity are independently representable
-  and rejected by replay: the Prepared-to-Activated transition binds the
-  exact durable predecessor, durable storage replays the retained record
-  against its bytes, restart reconciliation binds the journal and
-  contract identities plus the offered recovery choices, and the runtime
-  recovery join replays occurrence axes and canonical installation
-  evidence against the live ledger; honestly recomputed installation
-  evidence still encodes yet rejects at the same replays; zero axes,
-  empty text and byte fields, unordered, duplicated, dropped, or
-  extended rosters, and a drifted installation fingerprint or record are
-  rejected at encoding or decoding as non-canonical, as are the magic,
-  version, phase, state, and presence tags, count ceilings, non-UTF-8
-  text, trailing bytes, truncation, and on-disk tampering at decode.
-  Landed: relocation-free object-container plans, containers, manifests,
-  and custody receipts (`compiler/tests/object_container_custody.rs`,
-  `relocation_free_object_container_custody_rejects_every_one_field_substitution`)
-  — every manifest field (the source text-section manifest and text-section
-  identities, program fingerprint, fuel schedule, selections, selected
-  plan, all four target axes, semantic entry and its symbol, the object
-  and object-container identities, and all seven statistics) and every
-  object-plan field (the source text-section identity, program
-  fingerprint, fuel schedule, selections, selected plan, the whole target
-  and all four target axes, text-section name, alignment, byte count, and
-  bytes, each symbol-row field, dropped and duplicated rows, semantic
-  entry and its symbol, and the relocation-record count) is independently
-  representable under an honestly recomputed containing identity and
-  rejected by independent replay across all four declared targets; each
-  of the five custody-receipt fields and the container's object identity,
-  container identity, and honestly re-identified truncated bytes are
-  rejected by replay or decoding; foreign or stale containing identities,
-  the closed stage, vocabulary, symbol-policy, requirement, and
-  unavailable markers, unknown architecture and object-format tags, zero
-  fuel-schedule, machine, and symbol identities, and trailing or
-  truncated envelopes are rejected at canonical decoding.
-  Landed: executable-installation decoded containers and canonical wire
-  containers
-  (`executable-installation/src/executable_installation/container/tests.rs`,
-  `executable_container_rejects_every_one_field_substitution`, and
-  `container_bytes/tests.rs`,
-  `executable_container_wire_rejects_every_one_field_substitution`) —
-  the claimed artifact identity, architecture, code bytes and extent,
-  contracts, declared footprint, placement plan, phase, alignment,
-  permitted range, machine regime, and installation scope, the entry set
-  and each entry's identity and code offset, the relocation set and each
-  relocation's kind, destination, target, and addend, entry and
-  relocation rosters, and the strong authority commitments are
-  independently representable under an honestly recomputed compatibility
-  fingerprint and are rejected by independent replay; the exact proof
-  payload stays outside the content identity yet is replay-bound
-  evidence; envelope-only axes (declared length beyond the joined
-  sections, section roster order, payload coordinates) canonicalize to
-  the identical artifact; report-coordinate, directory-identity, roster,
-  marker, and count substitutions that cannot keep the canonical joins
-  reject at validation, while every raw header, directory, placement,
-  relocation, entry, and authority byte-field substitution — including
-  remarking v2 bytes as v1 — rejects at canonical decoding, with
-  semantic-value payload substitutions landing at the
-  content-fingerprint join. Landed: a genuinely emitted Windows x64
-  foreign call's installed foreign-call-stack row
-  (`installation_foreign_call_stack_row_rejects_every_one_field_substitution`)
-  — a normalized `kernel32.dll` PE import call under an admitted provider
-  execution with exact site bytes, evaluated call and boundary-entry
-  plans, MXCSR save/restore custody, outbound shadow-space evidence, and
-  an admitted same-stack contribution survives object construction, PE
-  image emission, and installation, so every retained field — owner,
-  text offset, caller-live bytes, provider-plan report identity,
-  contribution report identity, contribution commitment, contribution
-  bytes, and contribution alignment — is independently representable and
-  rejected by replay; a provider-plan identity outside the selected
-  closure is rejected at encoding as non-canonical, and a dropped row is
-  rejected by replay. Landed: canonical component descriptions
-  (`component-description/src/component_verification/tests.rs`,
-  `component_description_rejects_every_one_field_substitution`,
-  `component_description_declared_fields_stay_identity_bound`) — the
-  schema, frontier, and embedded artifact substitution, every
-  module-derived roster field (import requirement and contract identity,
-  export identity, entry kind/identity/evidence, outgoing-authority class,
-  identity, and evidence on both sealed and unsealed requirement rows,
-  custody kind/identity/evidence, provider plan digest and requirement
-  roster, a zeroed provider-closure digest, and obligation kind and
-  identity), plus dropped or forged rows are independently representable
-  and rejected by replay; declared evidence-only fields (import slot
-  index, provider report identity, obligation detail, a nonzero
-  closure-digest substitution, the optional realization identity,
-  assumption-bound evidence weakening, declared-row kind/identity/drop,
-  and over-declared import and obligation rows) stay identity-bound
-  rather than replay-bound, while a rebound declared-row digest and a
-  renamed roster digest reject by replay; duplicated rows, an
-  over-bound identity, a truncated embedded artifact, and raw wire
-  substitutions of the magic, frontier, entry-kind, and entry-evidence
-  tags, an over-bound roster count, trailing bytes, and truncation are
-  rejected at canonical decoding, and a pure roster reorder canonicalizes
-  to the identical encoding. Landed: installed-realization lifecycle
-  records and occurrence custody
-  (`executable-installation/src/executable_installation/tests.rs`,
-  `installed_realization_rejects_every_one_field_substitution`) — every
-  field retained in the installed-occurrence evidence (artifact code
-  bytes, architecture, identity, entry set, entry identity and code
-  offset, relocation roster, admission receipt, retained container-proof
-  presence, digest, and bytes, installed identity, placement identity,
-  installation scope, every placement-constraint axis, installation
-  audience, extent base, length, address space, rights, provenance,
-  mapping era, and lineage, realized footprint, final validation
-  identity, and W^X mode) is independently representable under an
-  honestly recomputed occurrence digest and rejected by replay through
-  the one-shot registry authority, the quarantined stale-entry fault,
-  and the install, retirement, and quarantine gates binding the
-  substituted evidence in either direction; resolver-dependent final
-  bytes diverge under equal artifact identities, compact installed
-  report-identity collisions cannot forge stale-entry or receipt
-  evidence, and an unretained provider-issuance origin canonicalizes to
-  the identical realization; install authority scoping, receipt binding,
-  visibility completeness, and the unsupported execute transition, each
-  retirement quiescence, execute-removal, write-restore, and
-  required-fact claim, and each quarantine disable, unmapping,
-  reservation, and attributed-cause claim substitute independently,
-  while a claimed quarantine report identity and attributed cause are
-  adopted verbatim and replay-bound; zero normalized identities are
-  unrepresentable across the family. Landed: installed integer-constant
-  rows (`image-emission/tests/internal_unit_scalar_calls.rs`,
-  `installation_function_integer_constant_rows_reject_every_one_field_substitution`)
-  — every field of a retained constant no call references (defining
-  operation, source value, scalar type, value, operation ordinal), a
-  dropped unreferenced row, and a distinct inserted row are independently
-  representable and rejected by replay; every field of the constant the
-  scalar-call argument sources name, a dropped referenced row, an
-  address-carrier or out-of-width scalar type, an unadmitted or
-  sign-mismatched value, non-increasing or successor-overtaking ordinals,
-  defining-operation and source-value collisions, and swapped or
-  duplicated rows are rejected at encoding as non-canonical. Landed:
-  fixed-frame
-  function-relative realization manifests, custody receipts, and
-  retained exit contracts
-  (`compiler/tests/realization_custody.rs`,
-  `fixed_frame_realization_custody_rejects_every_one_field_substitution`)
-  — every representable manifest field (the four phase-selection
-  identities, selected-lowering completion, both manifest identities,
-  selected plan, machine-effect and post-allocation machine identities,
-  both encoding identities, both resolved-layout identities, the
-  optional branch-relaxation and post-allocation-optimization custody
-  slots, the exit-contract identity, all four target axes, layout
-  policy, the fixed-frame disposition and both member identities, and
-  all six statistics), each of the eight custody-receipt fields
-  (allocation evidence, machine, callee-saved requirements and storage,
-  frame layout and protocol, exit contract, and the manifest itself),
-  and every representable retained exit-contract field (the five joined
-  identities, layout custody, policy, frame disposition, entry
-  assumption, stack pointer, alignment, red zone, result view,
-  callee-saved roster, and each function row's machine, entry block,
-  stack delta, modified units, and process-exit roster plus every
-  return row's block, source edge, instruction, offset, bytes, value,
-  trap, and mechanism) is independently representable under honestly
-  recomputed containing identities and rejected by independent replay
-  across all four declared targets; detached foreign allocation and
-  exit-contract records and corrupted encoding and baseline-layout
-  bytes reject through their component replays; stale or foreign
-  manifest and contract identities, the single-variant stage, scope,
-  and seven unavailable markers, unknown completion, relaxation,
-  optimization-custody, optimization, architecture, object-format,
-  layout-policy, and frame-disposition tags, conflicting physical
-  transformations, trailing bytes, and truncation are rejected at
-  canonical decoding. Landed: the Terminal Trace V1 observation
-  profile
-  (`terminal-codec/tests/artifact/trace_profile_custody.rs`,
-  `terminal_trace_v1_profile_rejects_every_one_field_substitution`) —
-  the module commitment's program fingerprint, the root row's entry
-  machine and its scalar, structural, and result schema fields, and
-  each crash-site, boundary crash-site, and ordinary-event row's
-  machine, block, and edge or operation coordinate, crash cause and
-  route bucket, boundary identity, event kind, scalar and structural
-  argument schemas, result schema, and every structural type,
-  multiplicity, access, direct and projected qualification, path
-  segment, and comparison field are independently representable and
-  rejected by module-bound replay, as is a foreign module on the
-  replay side of the join; the domain, schema, and vocabulary
-  markers, zero module and row identities, unknown row, event, and
-  enum tags, invalid UTF-8 and boolean encodings, roster over- and
-  under-counts, row and route-alternative orderings, qualification
-  and path-segment orderings, and trailing or truncated bytes are
-  rejected at canonical encoding or decoding. Landed: installed
-  external-root admission custody
-  (`external-roots/src/tests/root_admission_custody.rs`,
-  `installed_root_admission_rejects_every_one_field_substitution`) —
-  every `RootAdmission` field is mutated independently and rejected by
-  the installed-root ledger's install replay: the copied root evidence,
-  root report identity, execution identity and report fingerprint,
-  installed-code identity, receipt context, artifact, slot, owner, and
-  the trust-receipt roster bind against the retained arguments; the
-  retained provider-execution evidence is replayed against the exact
-  validated root through `matches_root`, its compact report identity is
-  honestly recomputed, and its opaque exit assurance revalidates, so
-  evidence-internal plan, identity, fingerprint, and foreign-root
-  substitutions reject; the record's reportable provider-plan,
-  exit-assurance, and exit-assurance-fingerprint copies must equal the
-  retained evidence's values; coupled honest recomputations, wholesale
-  foreign executions, duplicate root identities, and occupied slots
-  reject; the admission's own minted identity is adopted verbatim and
-  still moves the ledger's containing fingerprint honestly; admission
-  construction is the family's encoding leg and rejects an execution
-  minted for another root.
+  family, as
+  [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
+  requires. 85 `*_rejects_every_one_field_substitution` tests already cover the
+  image-emission installation records, executable installation and its wire
+  container, component publication and description, external-root admission,
+  the compiler's object-artifact, object-container, realization, text-section,
+  callable-entry and fragment-emission custody, build and package records, and
+  the Terminal codec sections. Each mutates one field, recomputes the
+  containing identity honestly, and requires independent replay to reject.
+  None of them covers this board's own physical-pipeline stages.
+
+  Remaining work:
+
+  - `omega-rust/omega/pipeline/` has no one-field substitution test at all,
+    while 16 `Staged*CustodyReceipt` families are produced there: allocation
+    legality, liveness, live ranges, register homes, post-copy,
+    post-literal-fold and post-selected-lowering homes, fixed view copy, fixed
+    precolored segment homes, active-resident rematerialization and its
+    pressure receipt, selection, selected reanalysis, literal fold,
+    selected-lowering optimization, and the post-allocation machine. Today
+    they reach replay only through the joined receipt that
+    `compiler/tests/realization_custody.rs` mutates.
+  - `ProductionCompilationManifest`
+    (`compilation-report/src/production_manifest.rs`) has no custody test. That
+    crate's `compile_report/custody_tests.rs` covers only the executable and
+    native-package publication receipts.
+  - `OfflinePolicyRegressionManifest`
+    (`tooling/optimization-policy-offline/src/cost_threshold_policy/regression_manifest/`)
+    has a codec, an identity and a validator, but only the whole-record
+    `corpus_model_and_report_substitution_fail_closed` refusal.
+  - Name the independent checker for a family that never encodes. A staged
+    receipt consumed in memory has a validator, not a decoder; say which one
+    rejects the substitution, and record the fields that are unrepresentable
+    instead of leaving them unlisted.
+
+  Acceptance: each representable field of a family changes independently, its
+  containing identity recomputes honestly, and independent replay still rejects
+  the substitution; a field that cannot be represented is rejected at canonical
+  encoding and named as such. A new record family lands with its matrix rather
+  than acquiring one later.
+
+  Flag: the matrices are hand-written, one per record shape.
+  `image-emission/tests/artifacts/installation_function_nested_custody.rs` alone
+  holds 18 of them in 6,942 lines, and six such files run 15,157 lines
+  together; only the wrapper-object matrix under
+  `native-realization/src/optimized_semantic_wrapper_object/tests/` is factored
+  into a reusable shape. Nothing fails when a family has no matrix, which is
+  how 16 pipeline receipts reached zero coverage. The general mechanism is one
+  substitution harness driven by each record's canonical field inventory plus a
+  per-family honest-recomputation hook, so that a new family declares its
+  fields instead of adding another several-hundred-line test, and a family with
+  no entry fails a repository gate.
 
 ## Psi optimization and loops
 
