@@ -7,9 +7,9 @@
 //! or grants build-host authority. Package management and the compiler can
 //! therefore consume one role grammar without depending on each other.
 //!
-//! `build_declaration.rs` is the root: the declaration and its validated
-//! parts. `syntax_projection.rs` reads one from source, `declaration_errors.rs`
-//! names every rejection, and `dependencies.rs` projects the dependency rows
+//! Start at `build_declaration.rs`, the root: the declaration and its validated
+//! parts. `syntax_projection` reads one from source, `declaration_errors`
+//! names every rejection, and `dependencies` projects the dependency rows
 //! beside the role.
 
 mod build_declaration;
