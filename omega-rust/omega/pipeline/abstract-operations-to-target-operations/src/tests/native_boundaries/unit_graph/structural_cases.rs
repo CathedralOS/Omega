@@ -10,7 +10,9 @@ use super::{
 use abstract_operations::{
     AbstractBoundaryResult, AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor,
 };
-use semantic_vocabulary::{PlaceId, StructuralCaseId, StructuralFieldId, StructuralTypeId};
+use semantic_vocabulary::{
+    BlockId, OperationId, PlaceId, StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
+};
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, StructuralCaseDeclaration,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -672,6 +674,296 @@ fn owned_sum_diamond_retains_destination_identity_and_rejects_sibling_sources() 
         assert!(
             lower_owned(&forged).is_err(),
             "sibling source {sibling} cannot dominate this edge"
+        );
+    }
+}
+
+#[test]
+fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
+    let plan = fixture();
+    let scalar_type = plan.functions[0].block_entries[2].parameters[0].scalar_type;
+    let bindings = [
+        crate::AdmittedBoundarySettlement {
+            boundary: plan.boundary_machines[0].id,
+            execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
+                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+            ),
+            realization: target_operations::HostedWriteByteI32Realization.into(),
+        },
+        crate::AdmittedBoundarySettlement {
+            boundary: plan.boundary_machines[1].id,
+            execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
+                target_operations::CompilerBuiltinExecution::HostedReadByte,
+            ),
+            realization: target_operations::HostedReadByteRealization.into(),
+        },
+    ];
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let lowered = crate::lower_to_target_operations(
+            &plan,
+            crate::TargetLoweringRequest {
+                target: native,
+                settlements: &bindings,
+                installation: None,
+                ieee_float_fma: &[],
+            },
+        )
+        .unwrap();
+        crate::validate_abstract_to_target_translation(&plan, native, &lowered)
+            .expect("honest hosted read and write settlements replay");
+
+        // The hosted byte read settles its structural result into the
+        // independently reconstructed conventional-sum home; every retained
+        // coordinate of that row replays.
+        for mutation in 0..14 {
+            let mut changed = lowered.clone();
+            {
+                let TargetUnitOperation::BoundarySettlement {
+                    psi_operation,
+                    boundary,
+                    result,
+                    execution,
+                    realization,
+                    scalar_arguments,
+                    runtime_scalar_arguments,
+                    arguments,
+                    completion_claim_sources,
+                    completion_receipts,
+                    ..
+                } = &mut changed.functions[0].graph.blocks[0].operations[1]
+                else {
+                    panic!("hosted read settlement row")
+                };
+                match mutation {
+                    0 => *psi_operation = OperationId::new(909).unwrap(),
+                    1 => *boundary = BoundaryMachineId::new(909).unwrap(),
+                    2 => *result = target_operations::TargetBoundaryResult::Unit,
+                    3 => {
+                        let target_operations::TargetBoundaryResult::Structural(home) = result
+                        else {
+                            panic!("structural result")
+                        };
+                        home.layout = target_operations::TargetStructuralHomeLayout::Aggregate(
+                            calling_conventions::ValueShape::integer(4, 4),
+                        );
+                    }
+                    4 => {
+                        let target_operations::TargetBoundaryResult::Structural(home) = result
+                        else {
+                            panic!("structural result")
+                        };
+                        let target_operations::TargetStructuralHomeLayout::Sum(layout) =
+                            &mut home.layout
+                        else {
+                            panic!("sum layout")
+                        };
+                        layout.tag_byte_offset = 4;
+                    }
+                    5 => {
+                        let target_operations::TargetBoundaryResult::Structural(home) = result
+                        else {
+                            panic!("structural result")
+                        };
+                        let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            result: declared,
+                            ..
+                        } = &mut home.origin
+                        else {
+                            panic!("operation result origin")
+                        };
+                        declared.multiplicity = StructuralMultiplicity::Unrestricted;
+                    }
+                    6 => {
+                        let target_operations::TargetBoundaryResult::Structural(home) = result
+                        else {
+                            panic!("structural result")
+                        };
+                        let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            result: declared,
+                            ..
+                        } = &mut home.origin
+                        else {
+                            panic!("operation result origin")
+                        };
+                        declared.place = PlaceId::new(909).unwrap();
+                    }
+                    7 => {
+                        *realization = target_operations::BoundaryRealization::HostedWriteByteI32(
+                            target_operations::HostedWriteByteI32Realization,
+                        )
+                    }
+                    8 => {
+                        *execution = target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                            target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                        )
+                    }
+                    9 => runtime_scalar_arguments.push(
+                        target_operations::TargetUnitScalarCallArgument {
+                            parameter_index: 0,
+                            source: target_operations::TargetUnitScalarArgumentSource::Parameter {
+                                parameter_index: 0,
+                                source_value: value(1),
+                                scalar_type,
+                            },
+                            placement: calling_conventions::ValuePlacement {
+                                shape: calling_conventions::ValueShape::integer(4, 4),
+                                locations: vec![calling_conventions::ValueLocation::Register {
+                                    register: calling_conventions::MachineRegister::X86Rax,
+                                    value_byte_offset: 0,
+                                    byte_size: 4,
+                                }],
+                            },
+                        },
+                    ),
+                    10 => arguments.push(terminal_psi::StructuralArgument {
+                        place: PlaceId::new(909).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    }),
+                    11 => scalar_arguments.push(target_operations::BoundaryScalarArgument {
+                        source_value: value(1),
+                        scalar_type,
+                        immediate: IntegerValue::Signed(1),
+                        destination: calling_conventions::MachineRegister::X86Rax,
+                    }),
+                    12 => {
+                        completion_claim_sources.push(abstract_operations::CompletionClaimSource {
+                            claim: semantic_vocabulary::ClaimId::new(909).unwrap(),
+                            entry: None,
+                            content: None,
+                        })
+                    }
+                    _ => completion_receipts.push(terminal_psi::CompletionReceipt {
+                        claim: semantic_vocabulary::ClaimId::new(909).unwrap(),
+                        argument_index: 0,
+                    }),
+                }
+            }
+            let forged_key = (mutation == 0).then(|| OperationId::new(909).unwrap());
+            assert_eq!(
+                crate::validate_abstract_to_target_translation(&plan, native, &changed),
+                Err(
+                    crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+                        machine: plan.entry,
+                        operation: forged_key.unwrap_or_else(|| operation(2)),
+                    }
+                ),
+                "accepted forged read settlement mutation {mutation} on {native:?}"
+            );
+        }
+
+        // The hosted byte read's `[empty, byte]` contract replays the
+        // declaration's own case rows: a carrier missing the empty case or
+        // carrying the wrong payload type has no honest settlement.
+        for mutation in 0..3 {
+            let mut changed = plan.clone();
+            let mut declarations = changed.structural_types.to_vec();
+            let StructuralTypeShape::Sum { cases } = &mut declarations[0].shape else {
+                panic!("sum carrier")
+            };
+            match mutation {
+                0 => {
+                    cases.remove(0);
+                }
+                1 => {
+                    cases[1].fields[0].field_type =
+                        StructuralFieldType::Scalar(ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                32,
+                            )
+                            .unwrap(),
+                        ));
+                }
+                _ => cases[1].fields.push(StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(2).unwrap(),
+                    identity: "extra".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(scalar_type),
+                }),
+            }
+            changed.structural_types = declarations.into();
+            // A changed carrier declaration may also fail the earlier
+            // structural-type roster replay; either layer rejects it.
+            assert!(
+                crate::validate_abstract_to_target_translation(&changed, native, &lowered).is_err(),
+                "accepted read declaration mutation {mutation}"
+            );
+        }
+
+        // The block-parameter write forwards its payload through a
+        // `BlockParameter` source; every coordinate of that source replays.
+        for mutation in 0..4 {
+            let mut changed = lowered.clone();
+            let TargetUnitOperation::BoundarySettlement {
+                runtime_scalar_arguments,
+                ..
+            } = &mut changed.functions[0].graph.blocks[2].operations[0]
+            else {
+                panic!("write settlement row")
+            };
+            match mutation {
+                0..=2 => {
+                    let target_operations::TargetUnitScalarArgumentSource::BlockParameter(
+                        parameter,
+                    ) = &mut runtime_scalar_arguments[0].source
+                    else {
+                        panic!("block parameter source")
+                    };
+                    match mutation {
+                        0 => parameter.block = BlockId::new(909).unwrap(),
+                        1 => parameter.value = ValueId::new(909).unwrap(),
+                        _ => parameter.scalar_type = ScalarType::Boolean,
+                    }
+                }
+                _ => {
+                    runtime_scalar_arguments[0].source =
+                        target_operations::TargetUnitScalarArgumentSource::Parameter {
+                            parameter_index: 0,
+                            source_value: value(20),
+                            scalar_type,
+                        };
+                }
+            }
+            assert_eq!(
+                crate::validate_abstract_to_target_translation(&plan, native, &changed),
+                Err(
+                    crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+                        machine: plan.entry,
+                        operation: operation(3),
+                    }
+                ),
+                "accepted forged block-parameter source mutation {mutation}"
+            );
+        }
+
+        // The continuation write forwards the constant through an
+        // `IntegerImmediate` source bound to its defining operation.
+        let mut changed = lowered.clone();
+        let TargetUnitOperation::BoundarySettlement {
+            runtime_scalar_arguments,
+            ..
+        } = &mut changed.functions[0].graph.blocks[3].operations[0]
+        else {
+            panic!("write settlement row")
+        };
+        let target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation,
+            ..
+        } = &mut runtime_scalar_arguments[0].source
+        else {
+            panic!("immediate source")
+        };
+        *defining_operation = OperationId::new(909).unwrap();
+        assert_eq!(
+            crate::validate_abstract_to_target_translation(&plan, native, &changed),
+            Err(
+                crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+                    machine: plan.entry,
+                    operation: operation(4),
+                }
+            ),
+            "accepted a forged immediate defining operation"
         );
     }
 }

@@ -468,6 +468,52 @@ pub(super) fn structural_result_home(
     })
 }
 
+/// The retained result home one builtin `BoundarySettlement` must require,
+/// replayed the way the producer derives it: the origin carries the semantic
+/// result row verbatim and the layout is the conventional sum layout the
+/// declared result carrier resolves to. The producer accepts `Sum` and
+/// `Mixed` carriers here before the realization lane narrows which sums are
+/// legal; a non-sum result carrier has no honest boundary home.
+pub(super) fn boundary_result_home(
+    operation: OperationId,
+    result: &StructuralOperationResult,
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<TargetStructuralHomeRequirement, InvalidStructuralShape> {
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    let declaration = indexed
+        .get(&result.structural_type)
+        .copied()
+        .ok_or(InvalidStructuralShape)?;
+    let (common, cases) = match &declaration.shape {
+        StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
+        StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
+        _ => return Err(InvalidStructuralShape),
+    };
+    if cases.is_empty() {
+        return Err(InvalidStructuralShape);
+    }
+    let layout = conventional_sum_layout(
+        common,
+        cases,
+        &indexed,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    Ok(TargetStructuralHomeRequirement {
+        origin: TargetStructuralHomeOrigin::OperationResult {
+            operation,
+            result: result.clone(),
+        },
+        layout: TargetStructuralHomeLayout::Sum(layout),
+    })
+}
+
 fn result_home_layout(
     result: &StructuralOperationResult,
     declarations: &[StructuralTypeDeclaration],
