@@ -18,7 +18,7 @@ The gate requires the Omega product build to bind exactly one
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
 the Delta-written Epsilon implementation. The evaluator is currently 12,097
 lines / 617,354 bytes, authored in 87 explicitly manifested members.
-The complete gate checks 143 ordinary fixtures, six D customers, and seven
+The complete gate checks 150 ordinary fixtures, six D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
@@ -110,6 +110,22 @@ prefix `00 ff` and suppress a following write of `B`. Their prior empty-prefix
 observations could not detect dropped output. These cover trap identity,
 prefix preservation, and stopping after the fault, not every route to each
 trap or resource exhaustion.
+
+Seven further controls pin additional routes to three of the closed
+identities. [`remainder_zero.epsilon`](remainder_zero.epsilon) and
+[`remainder_overflow.epsilon`](remainder_overflow.epsilon) witness the `%`
+forms of `DivisionByZero` and `SignedDivisionOverflow`, including the
+contract's explicit `-2147483648 % -1` remainder case.
+[`logical_and_left_nonboolean.epsilon`](logical_and_left_nonboolean.epsilon)
+and [`logical_or_left_nonboolean.epsilon`](logical_or_left_nonboolean.epsilon)
+place a trapping `1 / 0` in the skipped right position, so the observed
+`NonBoolean` proves the left operand's `0`/`1` check precedes right
+evaluation. [`logical_and_right_nonboolean.epsilon`](logical_and_right_nonboolean.epsilon)
+and [`logical_or_right_nonboolean.epsilon`](logical_or_right_nonboolean.epsilon)
+pin the same check on an evaluated right operand after a Boolean left.
+[`logical_skipped_operands.epsilon`](logical_skipped_operands.epsilon) pins the
+complement: a short-circuited operand is not evaluated, so `false && 2`
+yields `0` and `true || 2` yields `1` without trapping.
 
 The existing [`full_scalar.epsilon`](full_scalar.epsilon) control also checks
 successful `i32` endpoint arithmetic, signed quotient/remainder combinations,
@@ -389,7 +405,7 @@ preservation, and a whole-record snapshot across subsequent updates. The private
 [runtime controls](../runtime-invariants/README.md) separately isolate each
 identity coordinate and malformed projection admission.
 
-The inventory specifies 148 language/customer judgments (143 ordinary fixtures
+The inventory specifies 155 language/customer judgments (150 ordinary fixtures
 and five whole-member D customers). Seven private-framing controls are counted
 separately. The companion
 [checking gate](../checking/README.md) pins exact checker reasons and coordinates
