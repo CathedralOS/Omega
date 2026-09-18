@@ -324,6 +324,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::Store64 => 17,
         MachineAlternativeFamily::FrameAddress => 18,
         MachineAlternativeFamily::CallUnit => 19,
+        MachineAlternativeFamily::NormalizedForeignCall => 87,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     match alternative.applicability {

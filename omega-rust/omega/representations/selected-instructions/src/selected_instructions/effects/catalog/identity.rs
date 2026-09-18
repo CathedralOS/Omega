@@ -400,6 +400,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ConditionalBranchI64LessThan => 12,
         MachineSemanticKind::CallScalar => 13,
         MachineSemanticKind::Jump => 14,
+        MachineSemanticKind::NormalizedForeignCall => 87,
     }
 }
 
@@ -472,6 +473,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallScalar => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::NormalizedForeignCall => 87,
     }
 }
 

@@ -106,6 +106,9 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
                 MachineSemanticKind::CallScalar | MachineSemanticKind::CallUnit
             ))
             .then_some(keys.call_scalar[0])
+            .or_else(|| {
+                (semantic == MachineSemanticKind::NormalizedForeignCall).then_some(instruction(50))
+            })
         })
         .expect("test catalog declares every semantic constraint");
     MachineEffectDeclaration {

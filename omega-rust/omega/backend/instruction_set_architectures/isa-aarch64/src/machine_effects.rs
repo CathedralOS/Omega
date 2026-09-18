@@ -418,7 +418,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
-        MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate => {
+        MachineSemanticKind::CallScalar
+        | MachineSemanticKind::CallAggregate
+        | MachineSemanticKind::NormalizedForeignCall => {
             panic!("scalar calls use their dedicated declaration")
         }
     };
@@ -611,7 +613,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
-        MachineSemanticKind::CallScalar | MachineSemanticKind::CallAggregate => {
+        MachineSemanticKind::CallScalar
+        | MachineSemanticKind::CallAggregate
+        | MachineSemanticKind::NormalizedForeignCall => {
             panic!("scalar calls use their dedicated declaration")
         }
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(4),

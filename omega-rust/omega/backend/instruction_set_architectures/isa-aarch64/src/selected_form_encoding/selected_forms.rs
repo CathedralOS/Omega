@@ -198,6 +198,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::NormalizedForeignCall { .. }
         | SelectedInstructionKind::CallScalar { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
@@ -456,6 +457,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::NormalizedForeignCall { .. }
         | SelectedInstructionKind::CallScalar { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }

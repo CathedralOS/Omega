@@ -254,6 +254,11 @@ fn decode_kind(
             callee: MachineId::new(cursor.u64()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
         },
+        87 => SelectedInstructionKind::NormalizedForeignCall {
+            boundary: semantic_vocabulary::BoundaryMachineId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            ordinal: cursor.u32()?,
+        },
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     })
 }
