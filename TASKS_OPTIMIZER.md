@@ -432,7 +432,25 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   optimization-custody, optimization, architecture, object-format,
   layout-policy, and frame-disposition tags, conflicting physical
   transformations, trailing bytes, and truncation are rejected at
-  canonical decoding.
+  canonical decoding. Landed: the Terminal Trace V1 observation
+  profile
+  (`terminal-codec/tests/artifact/trace_profile_custody.rs`,
+  `terminal_trace_v1_profile_rejects_every_one_field_substitution`) —
+  the module commitment's program fingerprint, the root row's entry
+  machine and its scalar, structural, and result schema fields, and
+  each crash-site, boundary crash-site, and ordinary-event row's
+  machine, block, and edge or operation coordinate, crash cause and
+  route bucket, boundary identity, event kind, scalar and structural
+  argument schemas, result schema, and every structural type,
+  multiplicity, access, direct and projected qualification, path
+  segment, and comparison field are independently representable and
+  rejected by module-bound replay, as is a foreign module on the
+  replay side of the join; the domain, schema, and vocabulary
+  markers, zero module and row identities, unknown row, event, and
+  enum tags, invalid UTF-8 and boolean encodings, roster over- and
+  under-counts, row and route-alternative orderings, qualification
+  and path-segment orderings, and trailing or truncated bytes are
+  rejected at canonical encoding or decoding.
 
 ## Psi optimization and loops
 
