@@ -168,9 +168,8 @@ provider transport is unimplemented; the failure is not host-specific.
 ## compiler `package_compilation_inputs`
 
 `cargo nextest run -p compiler --test package_compilation_inputs
---no-fail-fast` at 420a15b109 (2026-09-17, macOS arm64): 146 run, 144
-passed, 2 failed, both reproducing with the operator-family commits' files
-restored to main and both Psi-side:
+--no-fail-fast` at 63f625f942 plus the fixture repair beside this row
+(2026-09-18, macOS arm64): 151 run, 149 passed, 2 failed, both Psi-side:
 
 - `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`:
   "state `code` requires an exact retained loan origin for its shared
@@ -178,13 +177,6 @@ restored to main and both Psi-side:
 - `module_constants::public_float_identity_requires_literals_with_matching_landings`:
   "computed constant leaf requires an exact builtin integer or Boolean
   carrier". Not bisected.
-- `module_generic_data::package_aliases_preserve_direct_dependency_and_private_template_gates`
-  and `module_generic_data::shared_sum_instances_preserve_package_authority_at_each_constructor`
-  (added to this row on 2026-09-18 at a66852a558, where the target reports
-  four failures rather than two): both fail with "import
-  `leaf::first::Envelope` names package `leaf` but package `root` declares
-  no product dependency under that alias", a transitive-alias import
-  authority change. Not bisected.
 
 The three composition-mode admission failures earlier recorded on the
 COMPONENT-SUBSTRATE board item are closed (0e6c25c4dc attributed, fixed at
