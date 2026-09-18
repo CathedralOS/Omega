@@ -11,14 +11,15 @@ use typed_trees::statement::StatementNode;
 
 fn fixture() -> (typed_trees::TypedTrees, TableMemberExpression) {
     let source = r#"
-        data Outcome { case First(count: u64); case Second(count: u64); }
-        data Other { case Second(count: u64); }
-        machine observe(value: Outcome) {
+        pub data Cell { item: u64; }
+        pub data Outcome { case First(c: Cell); case Second(c: Cell); }
+        pub data Other { case Second(c: Cell); }
+        machine observe(value: Outcome) -> u64 {
             transition value {
-                Outcome::Second { count } -> done(count)
-                Outcome::First { count } -> done(count)
+                Outcome::First { c } -> done(c.item)
+                Outcome::Second { c } -> done(c.item)
             }
-            state done(count: u64) {}
+            state done(x: u64) { x }
         }
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -1397,4 +1398,336 @@ fn match_expression_position_requires_every_arm_to_agree() {
             arms: arena::HandleSpan::empty(),
         }));
     assert!(super::expression_type_symbol(&program, empty).is_none());
+}
+
+/// The `item` member demanded on the `Second`-qualified `value.c` payload
+/// projection inside `observe`'s transition — a member hop one level past
+/// the case leaf, where the receiver itself carries no retained symbol.
+fn second_arm_item_member(
+    program: &typed_trees::TypedTrees,
+) -> (ExpressionHandle, TableMemberExpression) {
+    program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            if member.member.as_str() != "item" {
+                return None;
+            }
+            let ExpressionNode::Member(receiver) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            receiver
+                .case_variant
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "Second")
+                .then(|| (handle, member.clone()))
+        })
+        .expect("value.c.item member expression")
+}
+
+/// The first spelling of a member chain's root: the head name of the `Name`
+/// leaf the receiver walk ends at (`self`, `b`, `value`), so fixtures with
+/// several same-named members can pick the chain rooted where they mean.
+fn member_chain_root(
+    program: &typed_trees::TypedTrees,
+    mut cursor: ExpressionHandle,
+) -> Option<String> {
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
+            ExpressionNode::Borrow(borrow) => cursor = borrow.target,
+            ExpressionNode::Name(path) => {
+                return program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .first()
+                    .map(|member| member.as_str().to_string());
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// `self.grid.cells[0].item` on `machine Board::m(&mut self)` crosses three
+/// member hops and an index hop before landing on `Cell::item`: the place
+/// walk must carry the position through `Board::grid -> Grid`,
+/// `Grid::cells -> [Cell; 8]`, and the element projection rather than
+/// stopping at the first hop. `b.cells[0].item` roots the same chain at a
+/// local bound to a member-valued record. Returns the machine state symbol
+/// and each chain's `item` member handle.
+fn nested_member_chain_fixture() -> (
+    typed_trees::TypedTrees,
+    SymbolHandle,
+    ExpressionHandle,
+    ExpressionHandle,
+) {
+    let source = r#"
+        pub data Cell { item: u64; }
+        pub data Grid { cells: [Cell; 8]; }
+        pub data Board { grid: Grid; }
+        machine Board::m(&mut self) {
+            let a: u64 = self.grid.cells[0].item;
+            let b: Grid = self.grid;
+            let d: u64 = b.cells[0].item;
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Board::m")
+        .expect("Board::m machine");
+    let state_symbol = program.machine_states(machine)[0].symbol;
+    let mut self_item = None;
+    let mut local_item = None;
+    for (handle, node) in program.expression_table.iter_expressions() {
+        let ExpressionNode::Member(member) = node else {
+            continue;
+        };
+        if member.member.as_str() != "item" {
+            continue;
+        }
+        match member_chain_root(&program, member.receiver).as_deref() {
+            Some("self") => self_item = Some(handle),
+            Some("b") => local_item = Some(handle),
+            _ => {}
+        }
+    }
+    (
+        program,
+        state_symbol,
+        self_item.expect("self.grid.cells[0].item member expression"),
+        local_item.expect("b.cells[0].item member expression"),
+    )
+}
+
+#[test]
+fn member_resolution_continues_past_a_case_qualified_payload_leaf() {
+    let (program, _) = fixture();
+    let item_symbol = declared_field(&program, "Cell", "item");
+    let (handle, member) = second_arm_item_member(&program);
+
+    // `c.item`'s receiver is the `Second`-qualified payload projection
+    // `value.c`: the member hop must continue at `Cell`'s declaration rather
+    // than stopping at the case leaf.
+    assert_eq!(
+        effective_member_symbol(&program, member.receiver, &member),
+        item_symbol
+    );
+    // The nested chain's declared type is `Cell::item`'s own `u64`, replayed
+    // through the payload's declared `Cell` rather than minted from the
+    // sum's other same-spelled fields.
+    assert_eq!(
+        super::expression_type_symbol(&program, handle),
+        super::symbol_type_symbol(&program, item_symbol)
+    );
+}
+
+#[test]
+fn place_member_resolution_replays_member_hops_past_a_case_leaf() {
+    let (mut program, _) = fixture();
+    let payload = field(&program, "Outcome", "Second");
+    let item_symbol = declared_field(&program, "Cell", "item");
+    let second =
+        facts::payload_variant_for_field(&program, payload).expect("Second::c's owning variant");
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .expect("observe machine");
+    let state = &program.machine_states(machine)[0];
+    let state_symbol = state.symbol;
+    let value_parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "value")
+        .expect("value parameter")
+        .symbol;
+    let (member_handle, member) = second_arm_item_member(&program);
+    let statement_index = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .position(|statement| matches!(statement, StatementNode::Transition(_)))
+        .expect("the member chain lives in the transition statement");
+
+    // Neither `value.c` nor `c.item` carries a retained member symbol in this
+    // lowering; stripping the name path's symbols leaves the place walk as
+    // the only route that can name `item` — through `Case{Second}`, the
+    // payload field's declared `Cell`, and `Cell::item`.
+    strip_receiver_symbols(&mut program, member.receiver);
+    assert!(
+        !effective_member_symbol(&program, member.receiver, &member).is_valid(),
+        "the stripped receiver must leave the expression route unanswered"
+    );
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("a parameter-rooted member chain past a case leaf resolves");
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(value_parameter));
+    assert_eq!(
+        place.segments,
+        [
+            facts::PlaceSegment::Case { variant: second },
+            facts::PlaceSegment::Field { symbol: payload },
+            facts::PlaceSegment::Field {
+                symbol: item_symbol
+            },
+        ]
+    );
+}
+
+#[test]
+fn place_member_resolution_replays_a_nested_member_indexed_chain() {
+    let (mut program, state_symbol, member_handle, _) = nested_member_chain_fixture();
+    let state = crate::semantic_calls::find_state(&program, state_symbol).expect("Board::m state");
+    let statement_index = member_statement_index(&program, state, member_handle);
+    let self_parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .expect("self parameter")
+        .symbol;
+    let grid_symbol = declared_field(&program, "Board", "grid");
+    let cells_symbol = declared_field(&program, "Grid", "cells");
+    let item_symbol = declared_field(&program, "Cell", "item");
+    // Strip every retained symbol along `self.grid.cells[0]` and on the
+    // demanded member itself: `item` can then only be named by replaying the
+    // declared types at each hop — `&mut self` to `Board::grid`,
+    // `Grid::cells`, the `[Cell; 8]` element, and `Cell::item`.
+    let receiver = match program.expression_table.expression(member_handle) {
+        ExpressionNode::Member(member) => member.receiver,
+        _ => unreachable!(),
+    };
+    strip_receiver_symbols(&mut program, receiver);
+    let member = match program.expression_table.expression_mut(member_handle) {
+        ExpressionNode::Member(member) => {
+            member.member_symbol = SymbolHandle::invalid();
+            member.clone()
+        }
+        _ => unreachable!(),
+    };
+    assert!(
+        !effective_member_symbol(&program, member.receiver, &member).is_valid(),
+        "the stripped member must leave the expression route unanswered"
+    );
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("a self-rooted nested member/index chain resolves");
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(self_parameter));
+    assert_eq!(
+        place.segments,
+        [
+            facts::PlaceSegment::Field {
+                symbol: grid_symbol
+            },
+            facts::PlaceSegment::Field {
+                symbol: cells_symbol
+            },
+            facts::PlaceSegment::FixedIndex { index: 0 },
+            facts::PlaceSegment::Field {
+                symbol: item_symbol
+            },
+        ]
+    );
+
+    // The same hops answer the declared-type question: the place's type is
+    // `Cell::item`'s declared `u64`, reached through the attached datum's
+    // `grid` rather than a same-shaped row.
+    let reference = crate::flow::canonical_place_type_reference(
+        &program,
+        state_symbol,
+        statement_index,
+        &place,
+    )
+    .expect("the nested chain keeps a declared type");
+    assert_eq!(
+        Some(program.type_reference_table.type_symbol(reference)),
+        super::symbol_type_symbol(&program, item_symbol)
+    );
+}
+
+#[test]
+fn place_member_resolution_replays_a_local_rooted_member_indexed_chain() {
+    let (mut program, state_symbol, _, member_handle) = nested_member_chain_fixture();
+    let state = crate::semantic_calls::find_state(&program, state_symbol).expect("Board::m state");
+    let statement_index = member_statement_index(&program, state, member_handle);
+    // `b` is bound by `let b: Grid = self.grid` before the `d` statement: the
+    // contextual root scan finds the local and the walk resumes at `Grid`'s
+    // declared type from the local's own row.
+    let local_symbol = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local_data) if local_data.name.as_str() == "b" => {
+                Some(local_data.symbol)
+            }
+            _ => None,
+        })
+        .expect("b local");
+    let cells_symbol = declared_field(&program, "Grid", "cells");
+    let item_symbol = declared_field(&program, "Cell", "item");
+    let receiver = match program.expression_table.expression(member_handle) {
+        ExpressionNode::Member(member) => member.receiver,
+        _ => unreachable!(),
+    };
+    strip_receiver_symbols(&mut program, receiver);
+    let member = match program.expression_table.expression_mut(member_handle) {
+        ExpressionNode::Member(member) => {
+            member.member_symbol = SymbolHandle::invalid();
+            member.clone()
+        }
+        _ => unreachable!(),
+    };
+    assert!(
+        !effective_member_symbol(&program, member.receiver, &member).is_valid(),
+        "the stripped member must leave the expression route unanswered"
+    );
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("a local-rooted member/index chain resolves");
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(local_symbol));
+    assert_eq!(
+        place.segments,
+        [
+            facts::PlaceSegment::Field {
+                symbol: cells_symbol
+            },
+            facts::PlaceSegment::FixedIndex { index: 0 },
+            facts::PlaceSegment::Field {
+                symbol: item_symbol
+            },
+        ]
+    );
 }
