@@ -1,7 +1,7 @@
 //! Prior-fact custody and closed-order primitives for integer certificates.
 
 use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule};
-use semantic_vocabulary::Proposition;
+use semantic_vocabulary::{Proposition, ScalarTerm};
 
 #[derive(Clone, Copy)]
 pub(super) enum Citation {
@@ -124,4 +124,61 @@ impl Citation {
             },
         }
     }
+}
+
+/// The value a literal-bounded `LessOrEqual` goal is about: whichever side is
+/// a value when the other side is an integer literal.
+pub(super) fn goal_target(goal: &Proposition) -> Option<&ScalarTerm> {
+    let Proposition::LessOrEqual(left, right) = goal else {
+        return None;
+    };
+    match (left, right) {
+        (target @ ScalarTerm::Value { .. }, literal) if literal.integer_value().is_some() => {
+            Some(target)
+        }
+        (literal, target @ ScalarTerm::Value { .. }) if literal.integer_value().is_some() => {
+            Some(target)
+        }
+        _ => None,
+    }
+}
+
+/// Relax a proved `LessOrEqual` that shares one side with the goal into the
+/// goal itself: the other side closes by a closed integer relation, and
+/// transitivity joins the two.
+pub(super) fn relax(goal: &Proposition, mapped: ProofNode) -> Option<ProofNode> {
+    let (
+        Proposition::LessOrEqual(goal_left, goal_right),
+        Proposition::LessOrEqual(mapped_left, mapped_right),
+    ) = (goal, &mapped.conclusion)
+    else {
+        return None;
+    };
+    if goal_left == mapped_left {
+        let tail = closed_integer_relation(Proposition::LessOrEqual(
+            mapped_right.clone(),
+            goal_right.clone(),
+        ))?;
+        return Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(mapped),
+                middle_less_or_equal_right: Box::new(tail),
+            },
+        });
+    }
+    if goal_right == mapped_right {
+        let head = closed_integer_relation(Proposition::LessOrEqual(
+            goal_left.clone(),
+            mapped_left.clone(),
+        ))?;
+        return Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(head),
+                middle_less_or_equal_right: Box::new(mapped),
+            },
+        });
+    }
+    None
 }

@@ -6,7 +6,7 @@ use proof_admission::{
 };
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
-use super::super::integer_evidence::{Citation, cited_facts, closed_integer_relation};
+use super::super::integer_evidence::{Citation, cited_facts, goal_target, relax};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
@@ -289,56 +289,4 @@ pub(super) fn target_bounds(
             },
         })
         .collect()
-}
-
-fn goal_target(goal: &Proposition) -> Option<&ScalarTerm> {
-    let Proposition::LessOrEqual(left, right) = goal else {
-        return None;
-    };
-    match (left, right) {
-        (target @ ScalarTerm::Value { .. }, literal) if literal.integer_value().is_some() => {
-            Some(target)
-        }
-        (literal, target @ ScalarTerm::Value { .. }) if literal.integer_value().is_some() => {
-            Some(target)
-        }
-        _ => None,
-    }
-}
-
-fn relax(goal: &Proposition, mapped: ProofNode) -> Option<ProofNode> {
-    let (
-        Proposition::LessOrEqual(goal_left, goal_right),
-        Proposition::LessOrEqual(mapped_left, mapped_right),
-    ) = (goal, &mapped.conclusion)
-    else {
-        return None;
-    };
-    if goal_left == mapped_left {
-        let tail = closed_integer_relation(Proposition::LessOrEqual(
-            mapped_right.clone(),
-            goal_right.clone(),
-        ))?;
-        return Some(ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(mapped),
-                middle_less_or_equal_right: Box::new(tail),
-            },
-        });
-    }
-    if goal_right == mapped_right {
-        let head = closed_integer_relation(Proposition::LessOrEqual(
-            goal_left.clone(),
-            mapped_left.clone(),
-        ))?;
-        return Some(ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(head),
-                middle_less_or_equal_right: Box::new(mapped),
-            },
-        });
-    }
-    None
 }
