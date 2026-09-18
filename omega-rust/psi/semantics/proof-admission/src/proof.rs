@@ -9,8 +9,8 @@
 //! is denoted into the core's judgment `Γ ⊢ t : ⟦goal⟧` and
 //! `verify_mathematical_certificate` re-decides it. That decision is
 //! recorded on the acceptance as [`MathematicalCoreDecision`] — the kernel
-//! judged the certificate, or refused a rule family the denotation does
-//! not cover and the bounded rules stand alone. A covered certificate the
+//! judged the certificate, or refused a construction the denotation cannot
+//! cross and the bounded rules stand alone. A covered certificate the
 //! kernel rejects is rejected here too: two checkers reading one
 //! certificate must agree, and the kernel's rejection is never overridden
 //! by the rule labels.
@@ -20,7 +20,9 @@ pub use terminal_psi::{ProofNode, ProofRule};
 
 use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
 
-use crate::mathematical_core::{BoundedDenotationError, Budget, verify_bounded_certificate};
+use crate::mathematical_core::{
+    BoundedDenotationError, Budget, verify_bounded_certificate_with_machine_parameters,
+};
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitnessError, IntegerCastBoundConversionError,
     IntegerCastChainWitnessError, IntegerCorrelatedForbiddenRootConversionError,
@@ -88,9 +90,9 @@ pub enum MathematicalCoreDecision {
     /// The certificate denoted into the core and the kernel re-decided the
     /// judgment `Γ ⊢ t : ⟦goal⟧`; the receipt measures that judgment.
     Judged(MathematicalJudgmentReceipt),
-    /// A valid rule family the denotation does not cover — named by the
-    /// payload — so the kernel decided nothing and the bounded rules stand
-    /// alone. Refusal is never a rejection.
+    /// A valid certificate construction the denotation does not cover —
+    /// named by the payload — so the kernel decided nothing and the
+    /// bounded rules stand alone. Refusal is never a rejection.
     Refused(&'static str),
 }
 
@@ -241,8 +243,14 @@ pub fn accept_certificate_with_machine_parameters(
     if &proof.conclusion != goal {
         return Err(ProofError::CertificateConclusionMismatch);
     }
-    let mathematical_core =
-        re_decide_in_mathematical_core(context, goal, assumptions, semantic_axioms, proof)?;
+    let mathematical_core = re_decide_in_mathematical_core(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        machine_parameter_values,
+        proof,
+    )?;
     Ok(acceptance.finish(mathematical_core))
 }
 
@@ -253,7 +261,8 @@ pub fn accept_certificate_with_machine_parameters(
 /// premise/conclusion relation, so the only outcomes here are the
 /// kernel's own: `Judged` when the denotation covers the certificate and
 /// `check_type` accepts the elaborated judgment, `Refused` when the
-/// certificate uses a rule family the denotation does not cover. Any
+/// certificate uses a construction the denotation cannot cross — the
+/// citation-level `Equal`↔`IntegerMathEqual` denotation-shape change. Any
 /// other error is a disagreement between the two checkers — a kernel
 /// rejection, an elaboration bound, or a structural check the denotation
 /// re-derives differently — and rejects the certificate rather than
@@ -263,13 +272,15 @@ fn re_decide_in_mathematical_core(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<MathematicalCoreDecision, ProofError> {
-    match verify_bounded_certificate(
+    match verify_bounded_certificate_with_machine_parameters(
         context,
         goal,
         assumptions,
         semantic_axioms,
+        machine_parameter_values,
         proof,
         &mut Budget::default(),
     ) {
@@ -281,14 +292,14 @@ fn re_decide_in_mathematical_core(
     }
 }
 
-mod equality_rules;
-mod integer_bound_rules;
+pub(crate) mod equality_rules;
+pub(crate) mod integer_bound_rules;
 pub(crate) mod integer_math_normalization;
-mod integer_order_rules;
-mod order_discreteness;
+pub(crate) mod integer_order_rules;
+pub(crate) mod order_discreteness;
 mod propositional_rules;
-mod strict_order_transitivity;
-mod subtract_order;
+pub(crate) mod strict_order_transitivity;
+pub(crate) mod subtract_order;
 mod traversal;
 
 pub use integer_math_normalization::{lift_fixed_integer_relation, lower_integer_math_relation};

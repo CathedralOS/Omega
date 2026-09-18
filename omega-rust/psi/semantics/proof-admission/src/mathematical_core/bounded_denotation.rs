@@ -53,20 +53,30 @@
 //! exactly the atoms, scalar carriers, scalar terms and bounded decisions
 //! the judgment depends on, and nothing else.
 //!
-//! The denotation covers the certificate language's propositional and
-//! scalar-identity fragment: primitive, assumption and semantic-axiom
-//! leaves, conjunction, disjunction and implication introduction and
-//! elimination, and equality symmetry/transitivity over `Equal`. The
-//! integer order, bound and correlated-root rules, the denotation-
-//! conversion rules, and the `IntegerMath*`/`ContentConservation`
-//! equality shapes are valid certificates this route refuses as
-//! [`BoundedDenotationError::Unsupported`] — refused before their
-//! children are denoted, never decided against their conclusions. The
-//! bounded checker remains the route for those families.
+//! The denotation covers every rule family the certificate language
+//! defines. The propositional and scalar-identity fragment — primitive,
+//! assumption and semantic-axiom leaves, conjunction, disjunction and
+//! implication introduction and elimination, and equality
+//! symmetry/transitivity over `Equal` — denotes the kernel's own
+//! constructions: pairs and projections, `caseTwo`, λ/application and
+//! `J` eliminations. The remaining families — the integer order rules,
+//! the witness-bearing bound rules, the denotation-conversion rules and
+//! the `IntegerMath*`/`ContentConservation` transitivity arms — denote a
+//! *rule-instance decision*: an assumption constant whose type is the
+//! checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`, applied
+//! to the denoted premise evidence (ambient axiom and assumption
+//! citations bind as further premises). Each rule's premise/conclusion
+//! relation is re-decided during denotation by the same shared function
+//! the bounded checker runs — the axiom records the rule instance's
+//! arithmetic or conversion decision in the judgment's assumption
+//! closure, never silently. The one crossing this route still refuses
+//! is the citation-level `Equal`↔`IntegerMathEqual` shape change: an
+//! `Id` and an atom are different types, so a premise cited across
+//! that boundary stays [`BoundedDenotationError::Unsupported`].
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
 
 use super::certificate::{
     MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
@@ -79,7 +89,8 @@ use crate::kernel::decide_primitive;
 use crate::proof::integer_math_normalization::propositions_match_under_integer_math_normalization;
 use crate::proof::{
     AcceptedPremise, AcceptedProofRule, MathematicalJudgmentReceipt, ProofError, ProofNode,
-    ProofRule,
+    ProofRule, equality_rules, integer_bound_rules, integer_order_rules, order_discreteness,
+    strict_order_transitivity, subtract_order,
 };
 
 /// A bound on the proof nodes one denotation walks — a resource refusal,
@@ -139,9 +150,9 @@ pub enum BoundedDenotationError {
     /// or a primitive judgment did not establish its conclusion. The
     /// payload is the same error `accept_certificate` reports.
     Certificate(ProofError),
-    /// A valid bounded certificate family the denotation does not cover —
-    /// integer order/bound rules, denotation conversions, and non-`Equal`
-    /// equality shapes. Refused, never decided false.
+    /// A valid bounded certificate construction the denotation does not
+    /// cover — currently the citation-level `Equal`↔`IntegerMathEqual`
+    /// denotation-shape crossing. Refused, never decided false.
     Unsupported(&'static str),
     /// The elaborated judgment failed the kernel's re-decision. A
     /// well-formed elaboration never produces this; surfacing it keeps a
@@ -184,15 +195,36 @@ fn record_premise(premises: &mut Vec<AcceptedPremise>, index: usize, proposition
 /// them — into the mathematical-core judgment `Γ ⊢ t : ⟦goal⟧`.
 ///
 /// Denotation itself performs every structural check the bounded checker
-/// performs on the covered fragment: rule labels and node conclusions
-/// are re-derived, never trusted. The returned certificate is still only
-/// evidence — [`verify_bounded_certificate`] or an explicit
+/// performs: rule labels and node conclusions are re-derived, never
+/// trusted. The returned certificate is still only evidence —
+/// [`verify_bounded_certificate`] or an explicit
 /// [`verify_mathematical_certificate`] call decides it.
 pub fn denote_bounded_certificate(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    proof: &ProofNode,
+) -> Result<BoundedDenotation, BoundedDenotationError> {
+    denote_bounded_certificate_with_machine_parameters(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        &BTreeSet::new(),
+        proof,
+    )
+}
+
+/// The same denotation with the verifier-reconstructed scalar signature
+/// roots parameter-custody witness rules may name — exactly as
+/// `accept_certificate_with_machine_parameters` scopes them.
+pub fn denote_bounded_certificate_with_machine_parameters(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
     context.validate(goal).map_err(|error| {
@@ -203,7 +235,13 @@ pub fn denote_bounded_certificate(
             BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
         })?;
     }
-    let mut elaboration = Elaboration::new(context, goal, assumptions, semantic_axioms)?;
+    let mut elaboration = Elaboration::new(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        machine_parameter_values,
+    )?;
     let term = elaboration.node(proof)?;
     if proof.conclusion != *goal {
         return Err(BoundedDenotationError::Certificate(
@@ -225,8 +263,37 @@ pub fn verify_bounded_certificate(
     proof: &ProofNode,
     budget: &mut Budget,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
-    let mut denoted =
-        denote_bounded_certificate(context, goal, assumptions, semantic_axioms, proof)?;
+    verify_bounded_certificate_with_machine_parameters(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        &BTreeSet::new(),
+        proof,
+        budget,
+    )
+}
+
+/// Denote and re-decide under the verifier-reconstructed machine
+/// parameter values — the full route
+/// `accept_certificate_with_machine_parameters` consults.
+pub fn verify_bounded_certificate_with_machine_parameters(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+    proof: &ProofNode,
+    budget: &mut Budget,
+) -> Result<BoundedDenotation, BoundedDenotationError> {
+    let mut denoted = denote_bounded_certificate_with_machine_parameters(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        machine_parameter_values,
+        proof,
+    )?;
     verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, budget)
         .map_err(BoundedDenotationError::Kernel)?;
     Ok(denoted)
@@ -255,6 +322,11 @@ struct Denotation {
     terms: BTreeMap<ScalarTerm, u32>,
     /// `Primitive` leaf statement → decision-assumption position.
     decisions: HashMap<TermHandle, u32>,
+    /// Bounded rule instance → decision-assumption position. The key is
+    /// the instance's premise propositions in rule order plus its
+    /// conclusion — exactly what determines the axiom's `Π` type — so
+    /// two nodes deriving the same implication share one constant.
+    rule_axioms: BTreeMap<(Vec<Proposition>, Proposition), u32>,
     /// Declaration position → `Constant` node, so equal references share
     /// one handle.
     constants: HashMap<u32, TermHandle>,
@@ -281,6 +353,7 @@ impl Denotation {
             carriers: BTreeMap::new(),
             terms: BTreeMap::new(),
             decisions: HashMap::new(),
+            rule_axioms: BTreeMap::new(),
             constants: HashMap::new(),
             denotations: BTreeMap::new(),
         }
@@ -350,6 +423,35 @@ impl Denotation {
         let position = self.position()?;
         self.declarations.push(Declaration::assumption(0, ty));
         self.terms.insert(key, position);
+        Ok(self.constant(position))
+    }
+
+    /// The named decision axiom for one bounded rule instance: an
+    /// assumption constant of type `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`.
+    /// The premise/conclusion relation itself has already been re-decided
+    /// by the shared check; the constant records the rule's arithmetic or
+    /// conversion content so the judgment's closure names the instance
+    /// exactly. Equal instances intern to one constant.
+    fn rule_axiom(
+        &mut self,
+        premises: &[Proposition],
+        conclusion: &Proposition,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let key = (premises.to_vec(), conclusion.clone());
+        if let Some(&position) = self.rule_axioms.get(&key) {
+            return Ok(self.constant(position));
+        }
+        let mut ty = self.denote(conclusion)?;
+        for premise in premises.iter().rev() {
+            let domain = self.denote(premise)?;
+            ty = self.arena.insert(Term::Pi {
+                domain,
+                codomain: ty,
+            });
+        }
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        self.rule_axioms.insert(key, position);
         Ok(self.constant(position))
     }
 
@@ -490,7 +592,13 @@ impl Denotation {
 struct Elaboration<'a> {
     denotation: Denotation,
     context: &'a PropositionContext,
+    /// The ambient assumption roster — the shared checkers read it for
+    /// the citations the bound rules record.
+    ambient_assumptions: &'a [Proposition],
     axioms: &'a [Proposition],
+    /// The verifier-reconstructed scalar signature roots the
+    /// parameter-custody witness rules check against.
+    machine_parameter_values: &'a BTreeSet<ValueId>,
     /// Ambient assumption count — citations at or beyond it name
     /// discharged branch hypotheses, never recorded premises.
     ambient: usize,
@@ -511,6 +619,7 @@ impl<'a> Elaboration<'a> {
         goal: &Proposition,
         assumptions: &'a [Proposition],
         semantic_axioms: &'a [Proposition],
+        machine_parameter_values: &'a BTreeSet<ValueId>,
     ) -> Result<Self, BoundedDenotationError> {
         let mut denotation = Denotation::new();
         let mut context_bindings = Vec::with_capacity(assumptions.len() + semantic_axioms.len());
@@ -526,7 +635,9 @@ impl<'a> Elaboration<'a> {
         Ok(Elaboration {
             denotation,
             context,
+            ambient_assumptions: assumptions,
             axioms: semantic_axioms,
+            machine_parameter_values,
             ambient: assumptions.len(),
             context_bindings,
             expected,
@@ -856,31 +967,25 @@ impl<'a> Elaboration<'a> {
             } => {
                 let first = self.node(left_equals_middle)?;
                 let second = self.node(middle_equals_right)?;
+                equality_rules::equality_transitivity_relation(
+                    &left_equals_middle.conclusion,
+                    &middle_equals_right.conclusion,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rules.insert(AcceptedProofRule::EqualityTransitivity);
                 match (
                     &left_equals_middle.conclusion,
                     &middle_equals_right.conclusion,
+                    &proof.conclusion,
                 ) {
+                    // Two `Id` premises composing to an exact `Equal`
+                    // conclusion is the kernel's own transitivity: `J`.
                     (
                         Proposition::Equal(left, first_middle),
                         Proposition::Equal(second_middle, right),
-                    ) => {
-                        if first_middle != second_middle {
-                            return Err(BoundedDenotationError::Certificate(
-                                ProofError::EqualityMiddleMismatch,
-                            ));
-                        }
-                        let composed = Proposition::Equal(left.clone(), right.clone());
-                        if composed != proof.conclusion {
-                            if propositions_match(&composed, &proof.conclusion) {
-                                return Err(BoundedDenotationError::Unsupported(
-                                    "integer-math-normalized equality conclusion",
-                                ));
-                            }
-                            return Err(BoundedDenotationError::Certificate(
-                                ProofError::EqualityConclusionMismatch,
-                            ));
-                        }
-                        self.rules.insert(AcceptedProofRule::EqualityTransitivity);
+                        Proposition::Equal(..),
+                    ) if first_middle == second_middle => {
                         let carrier = self.denotation.carrier(left.scalar_type())?;
                         let left = self.denotation.scalar_term(left)?;
                         let middle = self.denotation.scalar_term(first_middle)?;
@@ -916,58 +1021,288 @@ impl<'a> Elaboration<'a> {
                             proof: second,
                         }))
                     }
-                    (Proposition::IntegerMathEqual(..), Proposition::IntegerMathEqual(..)) => {
-                        Err(BoundedDenotationError::Unsupported(
-                            "mathematical-integer equality transitivity",
-                        ))
-                    }
-                    (
-                        Proposition::ContentConservation(..),
-                        Proposition::ContentConservation(..),
-                    ) => Err(BoundedDenotationError::Unsupported(
-                        "content-conservation equality transitivity",
-                    )),
-                    _ => Err(BoundedDenotationError::Certificate(
-                        ProofError::RulePremiseMismatch("equality transitivity"),
-                    )),
+                    // Every other licensed shape — mathematical-integer
+                    // and content-conservation transitivity, and the
+                    // normalized `IntegerMathEqual` conclusion of an
+                    // `Equal` chain — is a named rule-instance decision:
+                    // its premises are checked evidence but the
+                    // conclusion is an atom, not an `Id`, so `J` cannot
+                    // reach it.
+                    _ => self.rule_instance(
+                        AcceptedProofRule::EqualityTransitivity,
+                        vec![
+                            left_equals_middle.conclusion.clone(),
+                            middle_equals_right.conclusion.clone(),
+                        ],
+                        vec![first, second],
+                        &proof.conclusion,
+                    ),
                 }
             }
-            ProofRule::PredicateDenotation { .. } => {
-                Err(BoundedDenotationError::Unsupported("predicate denotation"))
+            ProofRule::PredicateDenotation { premise } => {
+                let evidence = self.node(premise)?;
+                equality_rules::predicate_denotation_relation(
+                    self.context,
+                    &premise.conclusion,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rule_instance(
+                    AcceptedProofRule::PredicateDenotation,
+                    vec![premise.conclusion.clone()],
+                    vec![evidence],
+                    &proof.conclusion,
+                )
             }
-            ProofRule::ValueEqualityTransport { .. } => Err(BoundedDenotationError::Unsupported(
-                "value equality transport",
-            )),
-            ProofRule::IntegerSubtractOrder { .. } => Err(BoundedDenotationError::Unsupported(
-                "integer subtract order",
-            )),
-            ProofRule::IntegerOrderDiscreteness { .. } => Err(BoundedDenotationError::Unsupported(
-                "integer order discreteness",
-            )),
-            ProofRule::IntegerOrderWeakening { .. } => Err(BoundedDenotationError::Unsupported(
-                "integer order weakening",
-            )),
-            ProofRule::IntegerLessOrEqualTransitivity { .. } => Err(
-                BoundedDenotationError::Unsupported("integer <= transitivity"),
-            ),
-            ProofRule::IntegerStrictOrderTransitivity { .. } => Err(
-                BoundedDenotationError::Unsupported("integer strict order transitivity"),
-            ),
-            ProofRule::IntegerOrderSubstitution { .. } => Err(BoundedDenotationError::Unsupported(
-                "integer order substitution",
-            )),
-            ProofRule::IntegerAffineBound { .. } => {
-                Err(BoundedDenotationError::Unsupported("integer affine bound"))
+            ProofRule::ValueEqualityTransport {
+                premise,
+                equalities,
+            } => {
+                let mut premises = Vec::with_capacity(equalities.len() + 1);
+                let mut evidence = Vec::with_capacity(equalities.len() + 1);
+                premises.push(premise.conclusion.clone());
+                evidence.push(self.node(premise)?);
+                for equality in equalities {
+                    premises.push(equality.conclusion.clone());
+                    evidence.push(self.node(equality)?);
+                }
+                equality_rules::value_equality_transport_relation(
+                    self.context,
+                    &premise.conclusion,
+                    equalities.iter().map(|equality| &equality.conclusion),
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rule_instance(
+                    AcceptedProofRule::ValueEqualityTransport,
+                    premises,
+                    evidence,
+                    &proof.conclusion,
+                )
             }
-            ProofRule::IntegerExactAddDefinitionBound { .. } => Err(
-                BoundedDenotationError::Unsupported("integer exact-add definition bound"),
-            ),
-            ProofRule::IntegerCastBound { .. } => {
-                Err(BoundedDenotationError::Unsupported("integer cast bound"))
+            ProofRule::IntegerSubtractOrder {
+                difference,
+                positive,
+            } => {
+                let difference_evidence = self.node(difference)?;
+                let positive_evidence = self.node(positive)?;
+                subtract_order::check(
+                    &difference.conclusion,
+                    &positive.conclusion,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rule_instance(
+                    AcceptedProofRule::IntegerSubtractOrder,
+                    vec![difference.conclusion.clone(), positive.conclusion.clone()],
+                    vec![difference_evidence, positive_evidence],
+                    &proof.conclusion,
+                )
             }
-            ProofRule::IntegerCorrelatedForbiddenRoots { .. } => Err(
-                BoundedDenotationError::Unsupported("integer correlated forbidden roots"),
-            ),
+            ProofRule::IntegerOrderDiscreteness { relation } => {
+                let evidence = self.node(relation)?;
+                order_discreteness::check(&relation.conclusion, &proof.conclusion)
+                    .map_err(BoundedDenotationError::Certificate)?;
+                self.rule_instance(
+                    AcceptedProofRule::IntegerOrderDiscreteness,
+                    vec![relation.conclusion.clone()],
+                    vec![evidence],
+                    &proof.conclusion,
+                )
+            }
+            ProofRule::IntegerOrderWeakening { relation } => {
+                let evidence = self.node(relation)?;
+                integer_order_rules::order_weakening(&relation.conclusion, &proof.conclusion)
+                    .map_err(BoundedDenotationError::Certificate)?;
+                self.rule_instance(
+                    AcceptedProofRule::IntegerOrderWeakening,
+                    vec![relation.conclusion.clone()],
+                    vec![evidence],
+                    &proof.conclusion,
+                )
+            }
+            ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle,
+                middle_less_or_equal_right,
+            } => {
+                let first = self.node(left_less_or_equal_middle)?;
+                let second = self.node(middle_less_or_equal_right)?;
+                integer_order_rules::less_or_equal_transitivity(
+                    &left_less_or_equal_middle.conclusion,
+                    &middle_less_or_equal_right.conclusion,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rule_instance(
+                    AcceptedProofRule::IntegerLessOrEqualTransitivity,
+                    vec![
+                        left_less_or_equal_middle.conclusion.clone(),
+                        middle_less_or_equal_right.conclusion.clone(),
+                    ],
+                    vec![first, second],
+                    &proof.conclusion,
+                )
+            }
+            ProofRule::IntegerStrictOrderTransitivity {
+                left_to_middle,
+                middle_to_right,
+            } => {
+                let first = self.node(left_to_middle)?;
+                let second = self.node(middle_to_right)?;
+                strict_order_transitivity::check(
+                    &left_to_middle.conclusion,
+                    &middle_to_right.conclusion,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rule_instance(
+                    AcceptedProofRule::IntegerStrictOrderTransitivity,
+                    vec![
+                        left_to_middle.conclusion.clone(),
+                        middle_to_right.conclusion.clone(),
+                    ],
+                    vec![first, second],
+                    &proof.conclusion,
+                )
+            }
+            ProofRule::IntegerOrderSubstitution {
+                relation,
+                equality,
+                endpoint,
+            } => {
+                let relation_evidence = self.node(relation)?;
+                let equality_evidence = self.node(equality)?;
+                integer_order_rules::endpoint_substitution(
+                    &relation.conclusion,
+                    &equality.conclusion,
+                    *endpoint,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rule_instance(
+                    AcceptedProofRule::IntegerOrderSubstitution,
+                    vec![relation.conclusion.clone(), equality.conclusion.clone()],
+                    vec![relation_evidence, equality_evidence],
+                    &proof.conclusion,
+                )
+            }
+            ProofRule::IntegerAffineBound {
+                root_bound,
+                witness,
+            } => {
+                let root = self.node(root_bound)?;
+                let cited = integer_bound_rules::affine_bound_relation(
+                    self.context,
+                    self.axioms,
+                    &root_bound.conclusion,
+                    witness,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                let mut premises = Vec::with_capacity(cited.len() + 1);
+                let mut evidence = Vec::with_capacity(cited.len() + 1);
+                premises.push(root_bound.conclusion.clone());
+                evidence.push(root);
+                for index in cited {
+                    let (proposition, variable) = self.cited_axiom(index)?;
+                    premises.push(proposition);
+                    evidence.push(variable);
+                }
+                self.rule_instance(
+                    AcceptedProofRule::IntegerAffineBound,
+                    premises,
+                    evidence,
+                    &proof.conclusion,
+                )
+            }
+            ProofRule::IntegerExactAddDefinitionBound {
+                left_bound,
+                right_bound,
+                definition_axiom,
+            } => {
+                let left = self.node(left_bound)?;
+                let right = self.node(right_bound)?;
+                integer_bound_rules::exact_add_definition_bound_relation(
+                    self.context,
+                    self.axioms,
+                    &left_bound.conclusion,
+                    &right_bound.conclusion,
+                    *definition_axiom,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                let (definition, variable) = self.cited_axiom(*definition_axiom)?;
+                self.rule_instance(
+                    AcceptedProofRule::IntegerExactAddDefinitionBound,
+                    vec![
+                        left_bound.conclusion.clone(),
+                        right_bound.conclusion.clone(),
+                        definition,
+                    ],
+                    vec![left, right, variable],
+                    &proof.conclusion,
+                )
+            }
+            ProofRule::IntegerCastBound {
+                root_bound,
+                witness,
+            } => {
+                let root = self.node(root_bound)?;
+                integer_bound_rules::cast_bound_relation(
+                    self.context,
+                    self.axioms,
+                    &root_bound.conclusion,
+                    witness,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                let mut premises = Vec::with_capacity(witness.definition_axioms.len() + 1);
+                let mut evidence = Vec::with_capacity(witness.definition_axioms.len() + 1);
+                premises.push(root_bound.conclusion.clone());
+                evidence.push(root);
+                for &index in &witness.definition_axioms {
+                    let (proposition, variable) = self.cited_axiom(index)?;
+                    premises.push(proposition);
+                    evidence.push(variable);
+                }
+                self.rule_instance(
+                    AcceptedProofRule::IntegerCastBound,
+                    premises,
+                    evidence,
+                    &proof.conclusion,
+                )
+            }
+            ProofRule::IntegerCorrelatedForbiddenRoots { witness } => {
+                let citations = integer_bound_rules::correlated_forbidden_roots_relation(
+                    self.context,
+                    self.ambient_assumptions,
+                    self.axioms,
+                    self.machine_parameter_values,
+                    witness,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                let mut premises = Vec::with_capacity(
+                    citations.semantic_axioms.len() + citations.assumptions.len(),
+                );
+                let mut evidence = Vec::with_capacity(premises.capacity());
+                for index in citations.semantic_axioms {
+                    let (proposition, variable) = self.cited_axiom(index)?;
+                    premises.push(proposition);
+                    evidence.push(variable);
+                }
+                for index in citations.assumptions {
+                    let (proposition, variable) = self.ambient_premise(index)?;
+                    premises.push(proposition);
+                    evidence.push(variable);
+                }
+                self.rule_instance(
+                    AcceptedProofRule::IntegerCorrelatedForbiddenRoots,
+                    premises,
+                    evidence,
+                    &proof.conclusion,
+                )
+            }
         }
     }
 
@@ -1028,6 +1363,74 @@ impl<'a> Elaboration<'a> {
                 "integer-math-normalized citation across denotation shapes",
             ))
         }
+    }
+
+    /// One ambient assumption already bound in Γ as a rule-instance
+    /// premise: the premise proposition and its context variable, with
+    /// the citation recorded exactly as `accept_certificate` reports it.
+    fn ambient_premise(
+        &mut self,
+        index: usize,
+    ) -> Result<(Proposition, TermHandle), BoundedDenotationError> {
+        let Some(proposition) = self.roster.get(index).cloned() else {
+            return Err(BoundedDenotationError::Certificate(
+                ProofError::UnknownAssumption(index),
+            ));
+        };
+        if index >= self.ambient {
+            return Err(BoundedDenotationError::Certificate(
+                ProofError::UnknownAssumption(index),
+            ));
+        }
+        record_premise(&mut self.assumptions, index, &proposition);
+        let position = self.positions[index];
+        let variable = self.variable(position);
+        Ok((proposition, variable))
+    }
+
+    /// One ambient semantic axiom already bound in Γ as a rule-instance
+    /// premise: axioms bind after the assumptions, so index `i` sits at
+    /// binder position `ambient + i`.
+    fn cited_axiom(
+        &mut self,
+        index: usize,
+    ) -> Result<(Proposition, TermHandle), BoundedDenotationError> {
+        let Some(proposition) = self.axioms.get(index).cloned() else {
+            return Err(BoundedDenotationError::Certificate(
+                ProofError::UnknownSemanticAxiom(index),
+            ));
+        };
+        record_premise(&mut self.semantic_axioms, index, &proposition);
+        let position = u32::try_from(self.ambient + index)
+            .map_err(|_| BoundedDenotationError::DepthLimitExceeded)?;
+        let variable = self.variable(position);
+        Ok((proposition, variable))
+    }
+
+    /// The denoted evidence for a rule the kernel does not derive: the
+    /// shared relation check has already re-decided the instance, so its
+    /// arithmetic or conversion content is a named decision axiom
+    /// `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧` applied to the premise
+    /// evidence in rule order. `premises` and `evidence` are aligned —
+    /// child terms and cited ambient bindings alike.
+    fn rule_instance(
+        &mut self,
+        rule: AcceptedProofRule,
+        premises: Vec<Proposition>,
+        evidence: Vec<TermHandle>,
+        conclusion: &Proposition,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        debug_assert_eq!(premises.len(), evidence.len());
+        let axiom = self.denotation.rule_axiom(&premises, conclusion)?;
+        let mut term = axiom;
+        for piece in evidence {
+            term = self.denotation.arena.insert(Term::Apply {
+                function: term,
+                argument: piece,
+            });
+        }
+        self.rules.insert(rule);
+        Ok(term)
     }
 
     /// `⟨zero, t⟩` for disjunct 0, `⟨one, inner⟩` for a later one — the
@@ -1380,6 +1783,351 @@ mod tests {
             certificate_assumption_closure(&denoted.arena, &denoted.certificate),
             BTreeSet::from([0, 1, 2]),
         );
+    }
+
+    /// A rule whose conclusion is not a kernel-derivable shape denotes a
+    /// named rule-instance decision: `x < y ⊢ x <= y` elaborates to the
+    /// axiom `Π(_ : ⟦x<y⟧). ⟦x<=y⟧` applied to the cited premise, the
+    /// shared relation check re-decides the instance before the axiom is
+    /// built, and the closure names the axiom exactly.
+    #[test]
+    fn order_rules_become_named_rule_instances() {
+        let (x_id, x) = value(1);
+        let (y_id, y) = value(2);
+        let context = PropositionContext::from_value_types([
+            (x_id, unsigned64_type()),
+            (y_id, unsigned64_type()),
+        ])
+        .expect("context");
+        let strict = Proposition::LessThan(x.clone(), y.clone());
+        let weakened = Proposition::LessOrEqual(x.clone(), y.clone());
+        let proof = ProofNode {
+            conclusion: weakened.clone(),
+            rule: ProofRule::IntegerOrderWeakening {
+                relation: Box::new(ProofNode {
+                    conclusion: strict.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+            },
+        };
+        let denoted = verify_bounded_certificate(
+            &context,
+            &weakened,
+            std::slice::from_ref(&strict),
+            &[],
+            &proof,
+            &mut budget(),
+        )
+        .expect("order weakening verifies as a named rule instance");
+        // Two proposition atoms and the instance axiom; the evidence is
+        // the axiom applied to the cited premise variable.
+        assert_eq!(denoted.certificate.signature.len(), 3);
+        let Term::Apply { function, argument } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("a rule instance is the axiom applied to its premise");
+        };
+        assert!(matches!(denoted.arena.get(function), Term::Constant { .. }));
+        assert_eq!(denoted.arena.get(argument), Term::Variable(0));
+        assert_eq!(
+            certificate_assumption_closure(&denoted.arena, &denoted.certificate),
+            BTreeSet::from([0, 1, 2]),
+            "the judgment names both atoms and the instance axiom",
+        );
+        assert_eq!(
+            denoted.rules,
+            vec![
+                AcceptedProofRule::Assumption,
+                AcceptedProofRule::IntegerOrderWeakening
+            ],
+        );
+
+        // A relation the rule does not license — a nonstrict premise —
+        // is the same `RulePremiseMismatch` the bounded checker reports,
+        // never an axiom.
+        let proof = ProofNode {
+            conclusion: weakened.clone(),
+            rule: ProofRule::IntegerOrderWeakening {
+                relation: Box::new(ProofNode {
+                    conclusion: weakened.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+            },
+        };
+        assert!(matches!(
+            denote_bounded_certificate(
+                &context,
+                &weakened,
+                std::slice::from_ref(&weakened),
+                &[],
+                &proof,
+            ),
+            Err(BoundedDenotationError::Certificate(
+                ProofError::RulePremiseMismatch(_)
+            )),
+        ));
+    }
+
+    /// The remaining licensed transitivity arms — mathematical-integer
+    /// equality and the normalized `IntegerMathEqual` conclusion of an
+    /// `Equal` chain — denote rule-instance axioms too, while the pure
+    /// `Equal` composition stays a `J` elimination.
+    #[test]
+    fn non_scalar_transitivity_becomes_named_rule_instances() {
+        // `IntegerMathEqual` transitivity: `a = b`, `b = c` ⊢ `a = c`
+        // over mathematical literals.
+        let math = |value: u128| {
+            semantic_vocabulary::IntegerMathTerm::literal(IntegerValue::Unsigned(value))
+        };
+        let first = Proposition::IntegerMathEqual(math(1), math(2));
+        let second = Proposition::IntegerMathEqual(math(2), math(3));
+        let goal = Proposition::IntegerMathEqual(math(1), math(3));
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::EqualityTransitivity {
+                left_equals_middle: Box::new(ProofNode {
+                    conclusion: first.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                middle_equals_right: Box::new(ProofNode {
+                    conclusion: second.clone(),
+                    rule: ProofRule::Assumption { index: 1 },
+                }),
+            },
+        };
+        let denoted = verify_bounded_certificate(
+            &PropositionContext::default(),
+            &goal,
+            &[first, second],
+            &[],
+            &proof,
+            &mut budget(),
+        )
+        .expect("mathematical-integer transitivity verifies as a rule instance");
+        assert!(matches!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::Apply { .. },
+        ));
+        assert_eq!(
+            denoted.rules,
+            vec![
+                AcceptedProofRule::Assumption,
+                AcceptedProofRule::EqualityTransitivity
+            ],
+        );
+
+        // The normalized crossing: `Equal` premises composing to the
+        // lifted `IntegerMathEqual` conclusion.
+        let (x_id, x) = value(1);
+        let (y_id, y) = value(2);
+        let (z_id, z) = value(3);
+        let context = PropositionContext::from_value_types([
+            (x_id, unsigned64_type()),
+            (y_id, unsigned64_type()),
+            (z_id, unsigned64_type()),
+        ])
+        .expect("context");
+        let first = Proposition::Equal(x.clone(), y.clone());
+        let second = Proposition::Equal(y.clone(), z.clone());
+        let goal = crate::lift_fixed_integer_relation(&Proposition::Equal(x, z)).expect("lifts");
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::EqualityTransitivity {
+                left_equals_middle: Box::new(ProofNode {
+                    conclusion: first.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                middle_equals_right: Box::new(ProofNode {
+                    conclusion: second.clone(),
+                    rule: ProofRule::Assumption { index: 1 },
+                }),
+            },
+        };
+        let denoted = verify_bounded_certificate(
+            &context,
+            &goal,
+            &[first, second],
+            &[],
+            &proof,
+            &mut budget(),
+        )
+        .expect("the normalized conclusion verifies as a rule instance");
+        assert!(matches!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::Apply { .. },
+        ));
+    }
+
+    /// The conversion rules — predicate denotation and value-equality
+    /// transport — denote named rule-instance decisions whose premises
+    /// are the cited child and each proved equation.
+    #[test]
+    fn conversion_rules_become_named_rule_instances() {
+        let (x_id, x) = value(1);
+        let (y_id, y) = value(2);
+        let (z_id, z) = value(3);
+        let context = PropositionContext::from_value_types([
+            (x_id, unsigned64_type()),
+            (y_id, unsigned64_type()),
+            (z_id, unsigned64_type()),
+        ])
+        .expect("context");
+
+        // `PredicateDenotation`: `y == x` converts to its canonical `x
+        // == y` — different propositions, one normalized goal.
+        let premise = Proposition::Equal(y.clone(), x.clone());
+        let goal = Proposition::Equal(x, y);
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::PredicateDenotation {
+                premise: Box::new(ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+            },
+        };
+        let denoted = verify_bounded_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&premise),
+            &[],
+            &proof,
+            &mut budget(),
+        )
+        .expect("predicate denotation verifies as a rule instance");
+        assert!(matches!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::Apply { .. },
+        ));
+
+        // `ValueEqualityTransport`: `x <= y` under the proved `x == z`
+        // transports to `z <= y`; the equation is a premise of the
+        // instance axiom beside the transported proposition.
+        let premise = Proposition::LessOrEqual(
+            ScalarTerm::value(x_id, unsigned64_type()),
+            ScalarTerm::value(y_id, unsigned64_type()),
+        );
+        let equation = Proposition::Equal(ScalarTerm::value(x_id, unsigned64_type()), z.clone());
+        let goal = Proposition::LessOrEqual(z, ScalarTerm::value(y_id, unsigned64_type()));
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                equalities: vec![ProofNode {
+                    conclusion: equation.clone(),
+                    rule: ProofRule::Assumption { index: 1 },
+                }],
+            },
+        };
+        let denoted = verify_bounded_certificate(
+            &context,
+            &goal,
+            &[premise, equation],
+            &[],
+            &proof,
+            &mut budget(),
+        )
+        .expect("value equality transport verifies as a rule instance");
+        // Two `Apply` spines: the axiom applied to the premise and to
+        // the equality evidence.
+        let Term::Apply { function, .. } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("transport denotes the axiom applied to its premises");
+        };
+        assert!(matches!(denoted.arena.get(function), Term::Apply { .. }));
+        assert_eq!(
+            denoted.rules,
+            vec![
+                AcceptedProofRule::Assumption,
+                AcceptedProofRule::ValueEqualityTransport
+            ],
+        );
+    }
+
+    /// `IntegerOrderSubstitution` denotes a rule instance over the
+    /// relation and equality premises; the substituted endpoint is the
+    /// shared check's decision, not a separate denotation.
+    #[test]
+    fn order_substitution_becomes_a_named_rule_instance() {
+        let (x_id, x) = value(1);
+        let (y_id, y) = value(2);
+        let (z_id, z) = value(3);
+        let context = PropositionContext::from_value_types([
+            (x_id, unsigned64_type()),
+            (y_id, unsigned64_type()),
+            (z_id, unsigned64_type()),
+        ])
+        .expect("context");
+        let relation = Proposition::LessOrEqual(x.clone(), y);
+        let equality = Proposition::Equal(x, z.clone());
+        let goal = Proposition::LessOrEqual(z.clone(), ScalarTerm::value(y_id, unsigned64_type()));
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(ProofNode {
+                    conclusion: relation.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                equality: Box::new(ProofNode {
+                    conclusion: equality.clone(),
+                    rule: ProofRule::Assumption { index: 1 },
+                }),
+                endpoint: 0,
+            },
+        };
+        let denoted = verify_bounded_certificate(
+            &context,
+            &goal,
+            &[relation, equality],
+            &[],
+            &proof,
+            &mut budget(),
+        )
+        .expect("order substitution verifies as a rule instance");
+        assert!(matches!(
+            denoted.arena.get(denoted.certificate.term),
+            Term::Apply { .. },
+        ));
+
+        // Substituting an endpoint the equality does not license is the
+        // shared checker's mismatch, never an axiom.
+        let wrong = Proposition::LessOrEqual(z.clone(), literal(9));
+        let proof = ProofNode {
+            conclusion: wrong.clone(),
+            rule: ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(ProofNode {
+                    conclusion: Proposition::LessOrEqual(
+                        ScalarTerm::value(x_id, unsigned64_type()),
+                        ScalarTerm::value(y_id, unsigned64_type()),
+                    ),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                equality: Box::new(ProofNode {
+                    conclusion: Proposition::Equal(
+                        ScalarTerm::value(x_id, unsigned64_type()),
+                        z.clone(),
+                    ),
+                    rule: ProofRule::Assumption { index: 1 },
+                }),
+                endpoint: 0,
+            },
+        };
+        assert!(matches!(
+            denote_bounded_certificate(
+                &context,
+                &wrong,
+                &[
+                    Proposition::LessOrEqual(
+                        ScalarTerm::value(x_id, unsigned64_type()),
+                        ScalarTerm::value(y_id, unsigned64_type()),
+                    ),
+                    Proposition::Equal(ScalarTerm::value(x_id, unsigned64_type()), z),
+                ],
+                &[],
+                &proof,
+            ),
+            Err(BoundedDenotationError::Certificate(_)),
+        ));
     }
 
     /// A decided closed equality denotes a reflexive identity: `2 + 0 = 2`
@@ -1765,56 +2513,13 @@ mod tests {
         ));
     }
 
-    /// The rule families outside the denoted fragment refuse as
-    /// `Unsupported` before their children are denoted — never a wrong
-    /// judgment, never a silent reinterpretation.
+    /// The one crossing outside the denoted fragment refuses as
+    /// `Unsupported` — a retained `Equal` cited as its lifted
+    /// `IntegerMathEqual`, where `Id` and the atom are different types —
+    /// never a wrong judgment, never a silent reinterpretation. Rule
+    /// families the denotation does cover are refused nowhere.
     #[test]
-    fn uncovered_rule_families_refuse_unsupported() {
-        let junk = ProofNode {
-            conclusion: Proposition::Truth,
-            rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-        };
-        let proof = ProofNode {
-            conclusion: Proposition::Truth,
-            rule: ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(junk.clone()),
-                middle_less_or_equal_right: Box::new(junk),
-            },
-        };
-        assert!(matches!(
-            denote_bounded_certificate(
-                &PropositionContext::default(),
-                &Proposition::Truth,
-                &[],
-                &[],
-                &proof,
-            ),
-            Err(BoundedDenotationError::Unsupported(
-                "integer <= transitivity"
-            )),
-        ));
-
-        let junk = ProofNode {
-            conclusion: Proposition::Truth,
-            rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-        };
-        let proof = ProofNode {
-            conclusion: Proposition::Truth,
-            rule: ProofRule::PredicateDenotation {
-                premise: Box::new(junk),
-            },
-        };
-        assert!(matches!(
-            denote_bounded_certificate(
-                &PropositionContext::default(),
-                &Proposition::Truth,
-                &[],
-                &[],
-                &proof,
-            ),
-            Err(BoundedDenotationError::Unsupported(_)),
-        ));
-
+    fn uncovered_denotation_crossings_refuse_unsupported() {
         // The bounded citation matcher accepts `Equal` cited as its lifted
         // `IntegerMathEqual`; the denotation refuses the crossing because
         // `Id` and the atom are different types.

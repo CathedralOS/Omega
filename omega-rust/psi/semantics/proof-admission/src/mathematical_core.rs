@@ -199,7 +199,8 @@ mod typing;
 
 pub use bounded_denotation::{
     BoundedDenotation, BoundedDenotationError, denote_bounded_certificate,
-    verify_bounded_certificate,
+    denote_bounded_certificate_with_machine_parameters, verify_bounded_certificate,
+    verify_bounded_certificate_with_machine_parameters,
 };
 pub use certificate::{
     MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,

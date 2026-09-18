@@ -1,6 +1,10 @@
 //! The integer order rules: subtract order, discreteness, weakening,
 //! transitivity of `<=` and strict chains, and substitution of one endpoint
 //! through an equality.
+//!
+//! Each rule's premise/conclusion relation is a `pub(crate)` function on
+//! bare propositions so the mathematical-core denotation re-decides the
+//! exact check this module performs — one relation, two readers.
 
 use super::integer_math_normalization::{
     lower_integer_math_relation, propositions_match_under_integer_math_normalization,
@@ -43,19 +47,14 @@ pub(super) fn check_integer_order_discreteness(
     super::order_discreteness::check(&relation.conclusion, &proof.conclusion)
 }
 
-pub(super) fn check_integer_order_weakening(
-    proof: &ProofNode,
-    acceptance: &mut AcceptanceBuilder,
+/// The `IntegerOrderWeakening` premise/conclusion relation: equality or
+/// strict order over one fixed integer carrier weakens to `<=` of the
+/// exact endpoints, under the citation matcher's normalization.
+pub(crate) fn order_weakening(
+    relation: &Proposition,
+    conclusion: &Proposition,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerOrderWeakening { relation } = &proof.rule else {
-        unreachable!("dispatched check_integer_order_weakening")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerOrderWeakening);
-    let (Proposition::Equal(left, right) | Proposition::LessThan(left, right)) =
-        &relation.conclusion
-    else {
+    let (Proposition::Equal(left, right) | Proposition::LessThan(left, right)) = relation else {
         return Err(ProofError::RulePremiseMismatch("integer order weakening"));
     };
     if !matches!(
@@ -67,10 +66,60 @@ pub(super) fn check_integer_order_weakening(
     }
     propositions_match_under_integer_math_normalization(
         &Proposition::LessOrEqual(left.clone(), right.clone()),
-        &proof.conclusion,
+        conclusion,
     )
     .then_some(())
     .ok_or(ProofError::IntegerOrderConclusionMismatch)
+}
+
+pub(super) fn check_integer_order_weakening(
+    proof: &ProofNode,
+    acceptance: &mut AcceptanceBuilder,
+) -> Result<(), ProofError> {
+    let ProofRule::IntegerOrderWeakening { relation } = &proof.rule else {
+        unreachable!("dispatched check_integer_order_weakening")
+    };
+    acceptance
+        .rules
+        .insert(AcceptedProofRule::IntegerOrderWeakening);
+    order_weakening(&relation.conclusion, &proof.conclusion)
+}
+
+/// The `IntegerLessOrEqualTransitivity` premise/conclusion relation: an
+/// exact shared middle and the composed `<=` conclusion, in either the
+/// fixed or the mathematical carrier.
+pub(crate) fn less_or_equal_transitivity(
+    left_less_or_equal_middle: &Proposition,
+    middle_less_or_equal_right: &Proposition,
+    conclusion: &Proposition,
+) -> Result<(), ProofError> {
+    match (left_less_or_equal_middle, middle_less_or_equal_right) {
+        (
+            Proposition::LessOrEqual(left, first_middle),
+            Proposition::LessOrEqual(second_middle, right),
+        ) => {
+            if first_middle != second_middle {
+                return Err(ProofError::IntegerOrderMiddleMismatch);
+            }
+            let composed = Proposition::LessOrEqual(left.clone(), right.clone());
+            if !propositions_match_under_integer_math_normalization(&composed, conclusion) {
+                return Err(ProofError::IntegerOrderConclusionMismatch);
+            }
+            Ok(())
+        }
+        (
+            Proposition::IntegerMathLessOrEqual(left, first_middle),
+            Proposition::IntegerMathLessOrEqual(second_middle, right),
+        ) => {
+            if first_middle != second_middle {
+                return Err(ProofError::IntegerOrderMiddleMismatch);
+            }
+            (conclusion == &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()))
+                .then_some(())
+                .ok_or(ProofError::IntegerOrderConclusionMismatch)
+        }
+        _ => Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
+    }
 }
 
 pub(super) fn check_integer_less_or_equal_transitivity(
@@ -87,36 +136,11 @@ pub(super) fn check_integer_less_or_equal_transitivity(
     acceptance
         .rules
         .insert(AcceptedProofRule::IntegerLessOrEqualTransitivity);
-    match (
+    less_or_equal_transitivity(
         &left_less_or_equal_middle.conclusion,
         &middle_less_or_equal_right.conclusion,
-    ) {
-        (
-            Proposition::LessOrEqual(left, first_middle),
-            Proposition::LessOrEqual(second_middle, right),
-        ) => {
-            if first_middle != second_middle {
-                return Err(ProofError::IntegerOrderMiddleMismatch);
-            }
-            let composed = Proposition::LessOrEqual(left.clone(), right.clone());
-            if !propositions_match_under_integer_math_normalization(&composed, &proof.conclusion) {
-                return Err(ProofError::IntegerOrderConclusionMismatch);
-            }
-            Ok(())
-        }
-        (
-            Proposition::IntegerMathLessOrEqual(left, first_middle),
-            Proposition::IntegerMathLessOrEqual(second_middle, right),
-        ) => {
-            if first_middle != second_middle {
-                return Err(ProofError::IntegerOrderMiddleMismatch);
-            }
-            (proof.conclusion == Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()))
-                .then_some(())
-                .ok_or(ProofError::IntegerOrderConclusionMismatch)
-        }
-        _ => Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
-    }
+        &proof.conclusion,
+    )
 }
 
 pub(super) fn check_integer_strict_order_transitivity(
@@ -155,7 +179,7 @@ pub(super) fn check_integer_order_substitution(
     acceptance
         .rules
         .insert(AcceptedProofRule::IntegerOrderSubstitution);
-    check_endpoint_substitution(
+    endpoint_substitution(
         &relation.conclusion,
         &equality.conclusion,
         *endpoint,
@@ -163,8 +187,9 @@ pub(super) fn check_integer_order_substitution(
     )
 }
 
-/// Equality replaces exactly one order endpoint; it never changes strictness.
-fn check_endpoint_substitution(
+/// The `IntegerOrderSubstitution` premise/conclusion relation: equality
+/// replaces exactly one order endpoint; it never changes strictness.
+pub(crate) fn endpoint_substitution(
     relation: &Proposition,
     equality: &Proposition,
     endpoint: usize,
