@@ -1720,3 +1720,201 @@ fn integer_field_guards_drop_scalar_evidence_below_mutable_roots() {
         "a mutable root keeps no entry-snapshot annotation: {buckets:?}"
     );
 }
+
+/// A primitive actual under a structurally parameterized caller still keeps
+/// its checked scalar annotation: the dense scalar namespace binds `k` at
+/// position 0 even though `cell` holds authored position 0, so `inner(k)`
+/// under `x == 0` retains `k == 0` as structured evidence instead of dropping
+/// to the bare authored identity. The state lowering cannot speak for this
+/// caller — its all-primitive parameter gate fails on `cell` — so the
+/// dense-unit lowering owns this channel exactly as it already does for the
+/// call's value channel.
+#[test]
+fn scalar_actuals_keep_their_evidence_under_structural_callers() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
+    };
+    use numerics::arithmetic::ArithmeticDomain;
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::types::PrimitiveType;
+
+    let buckets = call_site_buckets(
+        "data Pair { count: u64; }
+         machine inner(x: u64) -> bool crashes Trap x == 0 { true }
+         machine outer(cell: Pair, k: u64) -> bool crashes Trap { inner(k) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the scalar actual keeps its guarded route: {buckets:?}")
+    };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Equal as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(1)),
+            right: Box::new(CrashPredicateExpression::Integer("0".into())),
+        }),
+    );
+    assert_eq!(
+        identity.scalar_expression(),
+        Some(&CheckedBooleanExpression::IntegerComparison {
+            kind: CheckedIntegerComparisonKind::Equal,
+            left: Box::new(CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::U64,
+            }),
+            right: Box::new(CheckedScalarExpression::IntegerLiteral {
+                literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
+                    .unwrap()
+                    .with_landing(IntegerLanding {
+                        landed_type: LandedIntegerType::U64,
+                        domain: ArithmeticDomain::Exact,
+                    }),
+            }),
+        }),
+    );
+}
+
+/// The same scalar annotation survives composition through a private summary:
+/// `mid` binds `j` at its own dense position 0, so `inner(j)` under `x == 0`
+/// lands `j == 0` in mid's retained summary, and `outer`'s `mid(cell, k)`
+/// re-roots it to `k`'s dense position — the annotation transports across
+/// both boundaries rather than stalling at the structural caller's gate.
+#[test]
+fn scalar_actuals_substitute_through_private_summary_hops() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
+    };
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::types::PrimitiveType;
+
+    let buckets = call_site_buckets(
+        "data Pair { count: u64; }
+         machine inner(x: u64) -> bool crashes Trap x == 0 { true }
+         machine mid(pair: Pair, j: u64) -> bool { inner(j) }
+         machine outer(cell: Pair, k: u64) -> bool crashes Trap { mid(cell, k) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the two-hop scalar actual keeps its guarded route: {buckets:?}")
+    };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Equal as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(1)),
+            right: Box::new(CrashPredicateExpression::Integer("0".into())),
+        }),
+    );
+    let Some(CheckedBooleanExpression::IntegerComparison { kind, left, .. }) =
+        identity.scalar_expression()
+    else {
+        panic!("the comparison keeps its checked scalar form: {buckets:?}")
+    };
+    assert_eq!(*kind, CheckedIntegerComparisonKind::Equal);
+    assert_eq!(
+        left.as_ref(),
+        &CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U64,
+        },
+    );
+}
+
+/// An indexed actual keeps its crash identity across the call — the route
+/// still names `cell.data[k] == 0` — but its scalar annotation stays empty:
+/// a byte observation resolves structural storage no crash-route lane
+/// lowers, so inserting one would turn the route's conservative widening
+/// into a downstream rejection. The produced `IndexedRead` stays uninserted
+/// rather than pinning a term the lanes refuse.
+#[test]
+fn indexed_actuals_keep_identity_but_drop_scalar_evidence() {
+    use typed_trees::expression::BinaryOperator;
+
+    let buckets = call_site_buckets(
+        "data Pair { data: [u8; 4]; }
+         machine inner(x: u8) -> bool crashes Trap x == 0 { true }
+         machine outer(cell: Pair, k: u64 [0..=3]) -> bool crashes Trap { inner(cell.data[k]) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the indexed actual keeps its guarded route: {buckets:?}")
+    };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Equal as u8,
+            left: Box::new(CrashPredicateExpression::Indexed {
+                collection: Box::new(CrashPredicateExpression::Member {
+                    receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                    member: "data".into(),
+                }),
+                index: Box::new(CrashPredicateExpression::Parameter(1)),
+            }),
+            right: Box::new(CrashPredicateExpression::Integer("0".into())),
+        }),
+    );
+    assert!(
+        identity.scalar_expression().is_none(),
+        "a byte observation keeps no crash-lane scalar annotation: {buckets:?}"
+    );
+}
+
+/// The indexed identity still composes through a private summary — `mid`
+/// binds the whole structural actual, and `outer`'s `mid(cell, k)` re-roots
+/// the collection spine while `k` binds the index — and the scalar channel
+/// stays empty at both boundaries for the same fail-closed reason.
+#[test]
+fn indexed_actuals_substitute_identity_through_private_summary_hops() {
+    use typed_trees::expression::BinaryOperator;
+
+    let buckets = call_site_buckets(
+        "data Pair { data: [u8; 4]; }
+         machine inner(x: u8) -> bool crashes Trap x == 0 { true }
+         machine mid(pair: Pair, i: u64 [0..=3]) -> bool { inner(pair.data[i]) }
+         machine outer(cell: Pair, k: u64 [0..=3]) -> bool crashes Trap { mid(cell, k) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the two-hop indexed actual keeps its guarded route: {buckets:?}")
+    };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Equal as u8,
+            left: Box::new(CrashPredicateExpression::Indexed {
+                collection: Box::new(CrashPredicateExpression::Member {
+                    receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                    member: "data".into(),
+                }),
+                index: Box::new(CrashPredicateExpression::Parameter(1)),
+            }),
+            right: Box::new(CrashPredicateExpression::Integer("0".into())),
+        }),
+    );
+    assert!(
+        identity.scalar_expression().is_none(),
+        "a byte observation keeps no crash-lane scalar annotation: {buckets:?}"
+    );
+}
+
+/// A `.len` actual carries no entry identity at all — a builtin member hop
+/// is not an authored field the identity channel can name — so the route
+/// widens to its unconditional cause rather than claiming a byte-length
+/// obligation the call cannot transport.
+#[test]
+fn byte_length_actuals_widen_without_entry_identity() {
+    let buckets = call_site_buckets(
+        "machine inner(x: u64) -> bool crashes Trap x == 0 { true }
+         machine outer(cell: [u8], k: u64) -> bool crashes Trap { inner(cell.len) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Truth = single_surviving_bucket(&buckets) else {
+        panic!("the `.len` actual widens its guarded route: {buckets:?}")
+    };
+}
