@@ -33,6 +33,7 @@ mod reload_value_homes;
 mod runtime_scalar_call_chain;
 mod runtime_spill_call_spanning;
 mod runtime_spill_composition;
+mod runtime_spill_slot_reuse;
 mod selected_input;
 mod spill_pseudo_instructions;
 mod spill_recovery_actions;
