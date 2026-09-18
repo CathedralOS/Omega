@@ -3,7 +3,8 @@
 //! exact root symbol and member path; replay rebuilds that place and requires
 //! shared access on the authored borrow, the result type and the argument, the
 //! exact member path, the projected leaf's identity equal to the result's
-//! record referent, and an established plain-structural root place. There is
+//! record referent, and an established structural root place the pipeline can
+//! carry -- linear-tolerant, because observing a place moves nothing. There is
 //! no owned receipt or transfer to consume: a shared-borrow join is provenance
 //! pass-through, so unlike `validate_projection` this leaf leaves owned
 //! custody records untouched.
@@ -157,12 +158,16 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "borrowed selection lost its root type",
             ))?;
-    if !validation::has_plain_owned_contents_with_numeric_constraints(
+    // The root carrier rule matches the referent rule: a shared borrow moves
+    // nothing, so a `[linear]` root is an admissible place to observe through.
+    if !validation::has_linear_owned_contents(
         &checked.typed,
         validation::unwrapped_type_reference(&checked.typed, root_reference)
             .unwrap_or(root_reference),
     ) {
-        return unsupported("borrowed selection root is not a plain structural place");
+        return unsupported(
+            "borrowed selection root is not a structural place the pipeline can carry",
+        );
     }
     Ok(())
 }

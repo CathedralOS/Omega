@@ -11,6 +11,9 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
+#[cfg(test)]
+mod tests;
+
 /// Structural readers visit every source edge, not just executable arms.
 pub(crate) fn match_children(
     program: &TypedTrees,
@@ -464,8 +467,16 @@ fn projected_plain_owned_source(
 /// destination: the referent's owner is never transferred, so there is no
 /// owned input custody to merge. The typed-to-checked stage replays the
 /// authored target's canonical root and path, so admission here is limited to
-/// a direct place path whose declared referent is a plain-owned record the
-/// structural pipeline can carry.
+/// a direct place path whose declared referent is a record the structural
+/// pipeline can carry.
+///
+/// That carrier rule is linear-tolerant. Owned transfer, claims, and referent
+/// cleanup cannot cross the borrowed boundary, so a linear referent's
+/// exactly-once claim stays with its own owner on every edge and never becomes
+/// an obligation this join has to partition or discharge. Exclusive carriers
+/// and case-bearing referents keep their separate rejections: the former has
+/// affine custody of its own, and the latter is outside the record-shaped
+/// frontier the structural pipeline carries.
 fn selected_shared_borrow_place(
     program: &TypedTrees,
     machine: &Machine,
@@ -485,11 +496,15 @@ fn selected_shared_borrow_place(
     // `expression_result_type_reference` deliberately returns no result type
     // for a Borrow node, so the referent is read off the exact target place:
     // `&a.first` borrows the declared `first` field's own type. That referent
-    // must be a named plain-owned record the structural pipeline can carry.
+    // must be a named record whose contents the structural pipeline carries.
+    // A `[linear]` declaration is such a carrier even though it is not plain
+    // owned storage: the borrow observes the place and moves nothing, so this
+    // join neither adds a claim to an edge nor discharges one. Loans, nominal
+    // cleanup, and recursive storage stay excluded by the same carrier rule.
     let Some(referent) = declared_value_type(program, machine, state, borrow.target) else {
         return false;
     };
-    if !crate::has_plain_owned_contents_with_numeric_constraints(program, referent) {
+    if !crate::has_linear_owned_contents(program, referent) {
         return false;
     }
     let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =

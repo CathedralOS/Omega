@@ -119,8 +119,11 @@ pub(super) fn is_record_value(
 }
 
 /// The record referent of a shared-borrow result type (`&T` where `T` is a
-/// named record with plain-owned contents). `None` for owned results and for
-/// borrows the structural pipeline cannot carry.
+/// named record the structural pipeline can carry). `None` for owned results
+/// and for borrows the structural pipeline cannot carry. The carrier rule is
+/// linear-tolerant: a shared borrow observes the referent without moving it,
+/// so a linear declaration's claim never reaches this join and the referent's
+/// own owner keeps the whole discharge obligation.
 fn shared_record_reference(
     program: &TypedTrees,
     expected: TypeReferenceHandle,
@@ -132,7 +135,7 @@ fn shared_record_reference(
         return None;
     };
     if *access != language_semantics::ReferenceAccess::Shared
-        || !validation::has_plain_owned_contents_with_numeric_constraints(program, *referee)
+        || !validation::has_linear_owned_contents(program, *referee)
     {
         return None;
     }
