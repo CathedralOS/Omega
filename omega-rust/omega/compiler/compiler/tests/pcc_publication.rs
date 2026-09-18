@@ -1214,3 +1214,82 @@ fn the_psi_request_adds_adjacent_companions_without_embedding_them() {
     ));
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_stale_companion_never_certifies_republished_bytes() {
+    // Publication must not associate a stale sidecar with newly written
+    // bytes. `republishing_without_pcc_removes_stale_companions` pins the
+    // request-off case; this pins the request-on case, where a companion is
+    // rewritten rather than removed, and the receiver side of the same rule:
+    // the earlier companion rejects against the bytes it does not commit to,
+    // in either pairing direction.
+    let dir = write_project_source(MAIN, "    builder.pcc.psi = true;\n");
+    let out = dir.join("out");
+    let first = compile(compile_request(
+        &dir,
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("first terminal compilation")
+    .publish_retained_terminal_artifact(&out)
+    .expect("first psi publication");
+    let [first_pair] = first.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    let artifact_path = first_pair.artifact_path.clone();
+    let sidecar_path = first_pair.sidecar_path.clone();
+    let stale_psi = read(&artifact_path);
+    let stale_proof = read(&sidecar_path);
+    let stale_policy = receiver_policy(&PccProofSidecar::from_bytes(&stale_proof).expect("decode"));
+    assert!(matches!(
+        verify_published_proof_pair(&stale_psi, &stale_proof, &stale_policy),
+        PccVerificationOutcome::Complete(_)
+    ));
+
+    // Republish a different program to the same paths.
+    fs::write(dir.join("main.omg"), DEPENDENCY_MAIN).expect("rewrite main.omg");
+    let second = compile(compile_request(
+        &dir,
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("second terminal compilation")
+    .publish_retained_terminal_artifact(&out)
+    .expect("second psi publication");
+    let [second_pair] = second.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    assert_eq!(second_pair.artifact_path, artifact_path);
+    assert_eq!(second_pair.sidecar_path, sidecar_path);
+    let fresh_psi = read(&artifact_path);
+    let fresh_proof = read(&sidecar_path);
+    assert_ne!(fresh_psi, stale_psi, "the republished program differs");
+    assert_ne!(
+        fresh_proof, stale_proof,
+        "the companion is rewritten, not left bound to replaced bytes"
+    );
+    assert_eq!(second_pair.artifact_byte_len, fresh_psi.len() as u64);
+    assert_eq!(second_pair.sidecar_byte_len, fresh_proof.len() as u64);
+
+    // The retained earlier companion rejects against the new bytes, and the
+    // new companion rejects against the earlier bytes: adjacency at a path
+    // this run wrote is never evidence for either direction.
+    assert!(matches!(
+        verify_published_proof_pair(&fresh_psi, &stale_proof, &stale_policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "artifact bytes"
+    ));
+    let fresh_sidecar = PccProofSidecar::from_bytes(&fresh_proof).expect("decode");
+    let mut fresh_policy = receiver_policy(&fresh_sidecar);
+    fresh_policy.possessed_dependencies = fresh_sidecar.dependencies().to_vec();
+    assert!(matches!(
+        verify_published_proof_pair(&stale_psi, &fresh_proof, &fresh_policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "artifact bytes"
+    ));
+
+    // The freshly written pair is the only certified one at those paths.
+    assert!(matches!(
+        verify_published_proof_pair(&fresh_psi, &fresh_proof, &fresh_policy),
+        PccVerificationOutcome::Complete(_)
+    ));
+    let _ = fs::remove_dir_all(&dir);
+}
