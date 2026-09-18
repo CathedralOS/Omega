@@ -3703,9 +3703,26 @@ Owners include
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Finish ordinary generic
   `drop<T>` and runtime cleanup invocation after exact owner-attached hook
-  selection. Erased fields remain semantically present but never produce
-  runtime cleanup. Acceptance: every path invokes the exact selected hook once
-  or proves the value transferred/consumed.
+  selection, under [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup)
+  and [explicit early disposal](wiki/language_guide/chapter_17_drops_and_cleanup.md#explicit-early-disposal).
+  Erased fields remain semantically present but never produce runtime cleanup.
+  Source selection of a reserved `T::drop` already rejects
+  (`validation/src/value_custody/cleanup.rs`). `omega::core::drop` is not yet
+  declared in `source/library/core`, and no corpus source calls it. **CML4**
+  owns residual cleanup order; this item owns the hook target, the generic
+  consuming machine and their invocation.
+
+  Acceptance: every path invokes the exact selected hook once or proves the
+  value transferred/consumed.
+
+  Flag: a nonempty `drop` body is admitted only as a source-ordered list of
+  zero-argument calls to mutually distinct attached helpers whose own bodies
+  are empty (`is_exact_executable_drop_body` in
+  `validation/src/program_validation/statements.rs`); everything else rejects
+  as "outside the executable cleanup slice". The executable slice therefore
+  invokes hooks that cannot do work. The general mechanism is to check and
+  lower the hook body as an ordinary Unit machine and invoke it as the edge's
+  cleanup action, then delete the recognizer.
 
 - **TR3-TR8.** Finish whole-call-graph worst-case stack derivation, exact
   `StackPlan`, nonmoving `StackLease`, suspension/cancellation preservation,
