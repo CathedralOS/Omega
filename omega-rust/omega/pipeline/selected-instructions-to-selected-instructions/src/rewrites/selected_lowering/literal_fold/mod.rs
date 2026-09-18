@@ -111,7 +111,19 @@ pub use validate::validate_literal_fold;
 /// divisor-one fold declares, dropping the dividend `Use` and dead
 /// scratch `Def` operands; the minus-one fold stays disjoint on the
 /// folded literal's value from its divisor-one sibling at the same
-/// operand position.
+/// operand position — or the carrier-maximum literal at the subtrahend
+/// operand of a saturating subtract on an unsigned carrier into a
+/// `MaterializeI64` of the constant zero: `x -| MAX` is `0` for every
+/// `x` an unsigned carrier admits, because `x - MAX` underflows the
+/// carrier's lower bound and saturates to it for every `x < MAX` and is
+/// exactly zero at `x == MAX`, so the fold drops the operand-0 minuend
+/// `Use` the constant result never reads and retires the consumer's
+/// implicit unit definitions under the same deadness gate; the
+/// upper-bound subtrahend fold stays disjoint on the folded literal's
+/// value from its right-zero sibling at the same operand position and
+/// position-disjoint from the zero-minuend sibling at operand 0, and
+/// admits no signed carrier, where `x -| MAX` is `x - MAX` clamped to
+/// the carrier's lower bound for every negative `x`, not a constant.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

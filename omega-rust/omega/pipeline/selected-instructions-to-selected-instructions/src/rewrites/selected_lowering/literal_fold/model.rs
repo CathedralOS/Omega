@@ -58,6 +58,7 @@ impl LiteralFoldPolicy {
     const SATURATING_SUBTRACT_ZERO_MINUEND_BIT: u32 = 1 << 19;
     const SATURATING_ADD_UPPER_BOUND_BIT: u32 = 1 << 20;
     const WRAPPING_REMAINDER_MINUS_ONE_BIT: u32 = 1 << 21;
+    const SATURATING_SUBTRACT_UPPER_BOUND_BIT: u32 = 1 << 22;
     const KNOWN_BITS: u32 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -79,7 +80,8 @@ impl LiteralFoldPolicy {
         | Self::SATURATING_DIVIDE_ZERO_BIT
         | Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT
         | Self::SATURATING_ADD_UPPER_BOUND_BIT
-        | Self::WRAPPING_REMAINDER_MINUS_ONE_BIT;
+        | Self::WRAPPING_REMAINDER_MINUS_ONE_BIT
+        | Self::SATURATING_SUBTRACT_UPPER_BOUND_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -362,6 +364,32 @@ impl LiteralFoldPolicy {
     pub const WRAPPING_REMAINDER_MINUS_ONE_V1: Self = Self {
         enabled_rules: Self::WRAPPING_REMAINDER_MINUS_ONE_BIT,
     };
+    /// Saturating-subtract upper-bound subtrahend fold: fold a
+    /// materialized literal equal to the carrier's maximum feeding its
+    /// sole `SaturatingSubtract` consumer's operand-1 subtrahend `Use` on
+    /// an unsigned carrier into a `MaterializeI64` of zero at the result
+    /// register — `x -| MAX` is `0` for every `x` the carrier admits,
+    /// because `x - MAX` never exceeds zero and underflows the carrier's
+    /// lower bound — saturating to it — for every `x < MAX`, and is
+    /// exactly zero at `x == MAX`. Only unsigned carriers admit the
+    /// fold: under signed saturation `x -| MAX` is `x - MAX` clamped to
+    /// the carrier's lower bound for every negative `x`, not a constant,
+    /// so the family binds no signed pair. The constant result never
+    /// reads the operand-0 minuend `Use`, so the fold drops it with the
+    /// form, and retires the consumer's implicit unit surface under the
+    /// same deadness gate the sibling families carry: the aarch64
+    /// realization's `nzcv` definition may retire only while no
+    /// instruction or terminator in the function implicitly uses it, and
+    /// the x86-64 row's `rflags` clobber retires unconditionally. The
+    /// family shares its consumer kind and operand position with the
+    /// right-zero identity fold: the folded literal's value names which
+    /// `SaturatingSubtract` subtrahend family a fold belongs to, and it
+    /// stays position-disjoint from the unsigned zero-minuend family at
+    /// operand 0 — `MAX -| x` is `MAX - x`, not a constant, so the
+    /// family declares no left-literal pair.
+    pub const SATURATING_SUBTRACT_UPPER_BOUND_V1: Self = Self {
+        enabled_rules: Self::SATURATING_SUBTRACT_UPPER_BOUND_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -463,6 +491,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_wrapping_remainder_minus_one(self) -> bool {
         self.enabled_rules & Self::WRAPPING_REMAINDER_MINUS_ONE_BIT != 0
+    }
+
+    pub const fn enables_saturating_subtract_upper_bound(self) -> bool {
+        self.enabled_rules & Self::SATURATING_SUBTRACT_UPPER_BOUND_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u32 {

@@ -1231,6 +1231,44 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and wrong-position rejections, decision-field substitution, and
   all-families-enabled value dispatch; the replay's operand-1 literal
   check and row binding are the minus-one family's own).
+  `SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS`
+  declares one right-literal constant-result pair per unsigned
+  saturating carrier, folding `MaterializeI64(MAX)` feeding the
+  operand-1 subtrahend `Use` of `SaturatingSubtract` into a
+  `MaterializeI64` of zero at the result register under
+  `LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1` — `x -| MAX`
+  is `0` for every `x` an unsigned carrier admits, because `x <= MAX`
+  means `x - MAX` never exceeds zero and saturates to the carrier's
+  lower bound. The family is asymmetric: `MAX -| x` is `MAX - x`, not
+  a constant, so the descriptor binds only the subtrahend position of
+  the unsigned three-operand row, drops the operand-0 minuend `Use`
+  the constant result never reads, and retires aarch64's implicit
+  `nzcv` definition under the whole-function deadness proof while
+  x86-64's `rflags` clobber drops unconditionally with the replaced
+  operand list. Signed carriers admit no pair — `x -| MAX` there is
+  `x - MAX` clamped to the signed bounds, not a constant. The family
+  shares its consumer kind with the right-zero identity fold and its
+  operand position with it too: admission selects among the three
+  `SaturatingSubtract` grammars by the victim's operand position plus
+  the folded literal's exact value, and
+  `SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization`
+  is optimization 42 in the vocabulary. The validator restates the
+  grammar through its own `SaturatingSubtractUpperBoundSubtrahend`
+  source shape — selecting the family from the victim's operand
+  position and the recorded literal's equality with the carrier's
+  maximum — re-derives the zero materialization, result register, and
+  rebuilt row from the instruction record under its own policy-gated
+  row binding, runs its own dead-unit scan, and never consults the
+  pair descriptor (1362 crate lib tests pass, including firing on both
+  Linux targets across all four unsigned carriers, every signed
+  carrier's rejection, left-literal and sub-maximum-literal rejection
+  in both directions of the sibling-family boundary, wrong-position
+  claims, forbidden operand bindings, tied-operand negatives,
+  live-`nzcv` rejection under both instruction and terminator readers,
+  cross-carrier kind-versus-row rejection, decision-field
+  substitution, wrong-policy negatives, measured-budget enforcement,
+  deterministic fixed-point output, and a compiler publication test
+  replaying the enabled selection through a real native artifact).
   Remaining: further unit roles beyond retired implicit definitions,
   stack- and control-flow-carrying relationships, and trap relationships
   beyond the landed `FaultDischargedByLiteral` family — which now covers

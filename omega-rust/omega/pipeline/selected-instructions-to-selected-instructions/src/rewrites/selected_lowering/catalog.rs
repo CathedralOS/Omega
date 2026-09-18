@@ -31,7 +31,7 @@ pub type SelectedLoweringRuleCatalogEntry =
     OptimizationCatalogDescriptor<SelectedLoweringRuleCatalogPayload>;
 
 /// The single selected-lowering enable/order catalog.
-pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 22] = [
+pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 23] = [
     SelectedLoweringRuleCatalogEntry::new(
         Optimization::SelectedIncomingU12ExactAddImmediate,
         SelectedLoweringRuleCatalogPayload {
@@ -211,6 +211,14 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 22]
             pairs: &[SelectedInstructionPairRule::WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE],
         },
     ),
+    SelectedLoweringRuleCatalogEntry::new(
+        Optimization::SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization,
+        SelectedLoweringRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy: LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
+            pairs: &SelectedInstructionPairRule::SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS,
+        },
+    ),
 ];
 
 /// Descriptors of every catalog row enabled by `policy`, in catalog order.
@@ -224,7 +232,7 @@ pub fn enabled_pair_rules(
 }
 
 /// Compatibility view derived from the descriptor catalog.
-pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 22] = [
+pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 23] = [
     SELECTED_LOWERING_RULE_CATALOG[0].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[1].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[2].optimization(),
@@ -247,6 +255,7 @@ pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 22] = [
     SELECTED_LOWERING_RULE_CATALOG[19].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[20].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[21].optimization(),
+    SELECTED_LOWERING_RULE_CATALOG[22].optimization(),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

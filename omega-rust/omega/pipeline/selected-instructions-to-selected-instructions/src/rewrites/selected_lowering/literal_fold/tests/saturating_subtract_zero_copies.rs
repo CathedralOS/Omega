@@ -1,6 +1,6 @@
 use super::{
     BlockZeroTerminator, assert_budget_is_enforced, assert_deterministic_fixed_point, fold_with,
-    policy_without, policy_without_all, restage_literal, staged_saturating_add_inputs,
+    policy_without_all, restage_literal, staged_saturating_add_inputs,
     staged_saturating_subtract_carrier_inputs, staged_saturating_subtract_inputs,
     staged_wrapping_add_inputs, staged_xor_inputs, validate,
 };
@@ -710,7 +710,7 @@ fn saturating_subtract_zero_fold_rejects_consumers_the_selection_does_not_enable
     // under a saturating-subtract policy: every selection naming no
     // saturating-subtract family sees no admitted consumer kind —
     // including its sibling saturating-add family and the strongest
-    // posture, every other rule enabled at once with both
+    // posture, every other rule enabled at once with all three
     // saturating-subtract bits closed.
     let inputs = staged_saturating_subtract_inputs(target, 1, BlockZeroTerminator::Jump);
     for policy in [
@@ -721,6 +721,7 @@ fn saturating_subtract_zero_fold_rejects_consumers_the_selection_does_not_enable
         policy_without_all(&[
             LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
             LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
+            LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
         ]),
     ] {
         assert_eq!(
@@ -731,7 +732,8 @@ fn saturating_subtract_zero_fold_rejects_consumers_the_selection_does_not_enable
     }
     // The sibling zero-minuend family admits the same consumer kind at
     // the operand-0 minuend position — on the unsigned carriers only:
-    // with every family enabled except the right-zero bit, the kind is
+    // with every family enabled except the two operand-1 bits — the
+    // right-zero identity and the upper-bound subtrahend — the kind is
     // admitted but no enabled grammar covers the operand-1 subtrahend
     // position the staged literal occupies: a future-use mismatch, not
     // an unadmitted consumer.
@@ -739,7 +741,10 @@ fn saturating_subtract_zero_fold_rejects_consumers_the_selection_does_not_enable
         fold_with(
             &inputs,
             &environment,
-            policy_without(LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1)
+            policy_without_all(&[
+                LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
+                LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
+            ])
         )
         .map(|_| ()),
         Err(LiteralFoldError::FutureUseMismatch { function: 0 })
