@@ -195,17 +195,32 @@ pub(crate) fn call_argument_substitution(
         // parameters or receivers before them. Checked scalar evidence is
         // retained independently of entry custody so arithmetic actuals and
         // unprovable origins can still discharge once they become concrete.
+        // The dense-unit lowering is primary: a caller mixing structural and
+        // primitive parameters still describes its scalar actuals there, while
+        // the state lowering remains the fallback that can fold an exact-cast
+        // actual against the validation-only `exact_integer_casts` facts.
         if let Some(expected) = program.primitive_type_reference(parameter.type_reference) {
             scalar.push(argument.and_then(|argument| {
-                crate::values::lower_state_scalar_expression(
+                let lowered = crate::values::lower_unit_scalar_argument(
                     program,
                     operators,
                     owner?.1,
                     before_statement,
                     argument,
                     expected,
-                    exact_integer_casts,
                 )
+                .or_else(|| {
+                    crate::values::lower_state_scalar_expression(
+                        program,
+                        operators,
+                        owner?.1,
+                        before_statement,
+                        argument,
+                        expected,
+                        exact_integer_casts,
+                    )
+                })?;
+                scalar_evidence_is_crash_lane_lowerable(&lowered).then_some(lowered)
             }));
             values.push(argument.and_then(|argument| {
                 let (machine, state) = owner?;
@@ -341,6 +356,76 @@ fn structural_actual_root(
             parameter_position,
             path,
         })
+}
+
+/// A scalar annotation crossing the call boundary may only carry terms a
+/// crash lane can still lower once substituted. Byte observations —
+/// `StructuralParameterIndexedRead` and `StructuralParameterByteLength` —
+/// resolve structural storage views neither crash-route lane carries, and the
+/// contract namespace already accepts them: inserting one would keep the
+/// guarded route but turn its conservative widening into a downstream
+/// rejection, so the annotation stays empty instead. `Local`, `StorageRead`,
+/// `IeeeFloatLiteral` and `IntegerTrappingCast` leaves stay admissible — the
+/// contract namespace refuses them, so they widen rather than pin an
+/// unlowering-able term. Wrapping and trapping cast leaves cannot ride this
+/// boundary at all: a cast actual carries no entry identity, so the guard it
+/// would annotate widens before the scalar is read.
+fn scalar_evidence_is_crash_lane_lowerable(
+    expression: &checked_trees::CheckedScalarExpression,
+) -> bool {
+    use checked_trees::CheckedScalarExpression;
+    match expression {
+        CheckedScalarExpression::StructuralParameterByteLength { .. }
+        | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
+        CheckedScalarExpression::IntegerBinary { left, right, .. } => {
+            scalar_evidence_is_crash_lane_lowerable(left)
+                && scalar_evidence_is_crash_lane_lowerable(right)
+        }
+        CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
+        | CheckedScalarExpression::IntegerWiden { operand, .. }
+        | CheckedScalarExpression::IntegerExactCast { operand, .. }
+        | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
+            scalar_evidence_is_crash_lane_lowerable(operand)
+        }
+        CheckedScalarExpression::Boolean(expression) => {
+            boolean_evidence_is_crash_lane_lowerable(expression)
+        }
+        CheckedScalarExpression::Parameter { .. }
+        | CheckedScalarExpression::Local { .. }
+        | CheckedScalarExpression::StorageRead { .. }
+        | CheckedScalarExpression::StructuralParameterField { .. }
+        | CheckedScalarExpression::IntegerLiteral { .. }
+        | CheckedScalarExpression::IeeeFloatLiteral { .. } => true,
+    }
+}
+
+fn boolean_evidence_is_crash_lane_lowerable(
+    expression: &checked_trees::CheckedBooleanExpression,
+) -> bool {
+    use checked_trees::CheckedBooleanExpression;
+    match expression {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            scalar_evidence_is_crash_lane_lowerable(left)
+                && scalar_evidence_is_crash_lane_lowerable(right)
+        }
+        CheckedBooleanExpression::Not(operand) => boolean_evidence_is_crash_lane_lowerable(operand),
+        CheckedBooleanExpression::Equal { left, right }
+        | CheckedBooleanExpression::And { left, right }
+        | CheckedBooleanExpression::Or { left, right } => {
+            boolean_evidence_is_crash_lane_lowerable(left)
+                && boolean_evidence_is_crash_lane_lowerable(right)
+        }
+        CheckedBooleanExpression::Constant(_)
+        | CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::Local { .. }
+        | CheckedBooleanExpression::StorageRead { .. }
+        | CheckedBooleanExpression::StructuralParameterField { .. }
+        | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
+    }
 }
 
 /// The checked identity string a place segment's member symbol carries: the
