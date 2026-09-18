@@ -137,60 +137,65 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 ## Validation, translation, and publication
 
 - **TRANSLATION-VALIDATION.** Complete independent source-to-target replay for
-  admitted operations and transfers on the common graph. Scalar expression-family
-  planners, Unit/structural whole-function templates, their catalogs and
-  compatibility fixtures are retired: do not restore
-  them to recover arithmetic, crash, cleanup or borrowed-call coverage. Extend
-  ordinary graph operations and their receiving checks instead. Remaining native
-  operations and publication routes fail closed until target applicability,
-  result, effect, cleanup, proof and custody facts reconstruct.
+  admitted operations and transfers on the common graph. Every surviving
+  executable boundary occurrence binds exactly one physical child under
+  [closed application and physical occurrence](wiki/spec/terminal-psi/boundary_calls.md#closed-application-and-physical-occurrence);
+  `native-artifact/src/physical/derivation/` derives those children, and
+  selected-lowering operations, both occurrence roles, and the exemption for
+  verified-eliminated occurrences already replay through it with missing,
+  duplicate, stale, substituted, padded and role-swapped children rejecting.
+  Coverage is still all-or-nothing per artifact: `derive_physical_evidence`
+  returns `Ok(None)` at eight points, so one occurrence whose realization has
+  no span arm drops the physical evidence for the whole artifact, and a
+  consumer calling `require_native_physical_evidence` sees only
+  `NativePhysicalEvidenceUnavailable` without learning which occurrence failed.
 
-  Close [physical-child replay](wiki/spec/terminal-psi/boundary_calls.md#closed-application-and-physical-occurrence)
-  with one source-reachable selected-lowering operation carrying
-  nonempty physical evidence through allocation, layout, native emission, and
-  independent replay. Bind the immutable Terminal product, validated
-  optimization projection, and each surviving boundary occurrence to exactly
-  one physical child with its operator-application or boundary-settlement parent.
-  Acceptance: post-Psi optimization
-  and final publication reject missing, duplicate, stale, substituted, padded,
-  or role-swapped children; only verified eliminated occurrences need no child.
-  General calls depend on `FRAME-LAYOUT` and `GENERAL-CALL-CLOBBERS` below.
-  These are native compiler guarantees, independent of package locks or
-  `PackageInstance` construction. One source-reachable
-  selected-lowering operation now carries nonempty physical evidence through
-  the common physical stages to native emission and independent replay —
-  `optimizer_opt_in.rs::
-  selected_lowering_boundary_occurrence_replays_one_exact_physical_child`
-  compiles a package-bound `boundary operator` program under
-  `SelectedIncomingU12CompareImmediate`, replays the artifact, and binds
-  exactly one `OperatorApplicationCoverage` physical child (nonempty
-  machine/object spans, `ResolvedInternalCall` relocation) to the one
-  surviving operator occurrence and the validated projection identity. The
-  same test replays mutated custody: missing, duplicated, role-swapped
-  (operator→boundary), padded-span, and substituted-projection children all
-  reject. `selected_lowering_replays_one_physical_child_per_surviving_occurrence_role`
-  retains both surviving roles in one program — the closed operator
-  application and a hosted console exit — and binds each surviving
-  occurrence to exactly one physical child: `OperatorApplicationCoverage`
-  for the operator occurrence and `BoundaryTraitSettlement`
-  (`HostedExitProcessI32`, `DirectInstructionBytes`) for the boundary
-  occurrence; dropping either role, duplicating a child, or swapping a
-  child's parent all reject on independent replay.
-  `verified_eliminated_occurrence_needs_no_physical_child` closes the
-  child-exemption half: two private machines each apply a covered boundary
-  operator while a constant-false transition arm keeps the dead callee
-  source-reachable through Terminal admission, so checked D29 coverage
-  names both operations and the ordinary build binds each surviving
-  occurrence to its own child. Replaying the published artifact sections
-  through `optimize_verified_abstract_input` under `ControlFlowCleanup`
-  folds the dead arm and proves the dead callee unreachable — pruned
-  machine custody plus a `ProvenUnreachableAt` ledger row for the exact
-  eliminated call node — and the validated optimized projection keeps
-  only the surviving occurrence. The same coverage over the identity plan
-  still projects both occurrences, so the exemption attaches to the
-  verified elimination rather than the coverage row; a replayed physical
-  child bound to the eliminated occurrence's canonical identity rejects,
-  and dropping a still-required child rejects too.
+  Remaining work:
+
+  - Operator applications. `physical/operator_applications.rs` spans only
+    `NongenericCheckedBody` and `SpecializedCheckedBody` — a direct call span,
+    or a fragment call under fragment publication — and
+    `ExactCompilerIntrinsic`, as an FMA span plus an IEEE float-compare
+    fragment. `derive_checked_call_span` yields no span for an operation kind
+    outside `Call`, `CallUnit`, `CallStructuralScalar` and
+    `CallStructuralWithScalarArguments`.
+  - Boundary settlements. `derivation/evidence.rs` matches three hosted
+    builtins by exact execution and realization pair (`HostedExitProcessI32`,
+    `HostedWriteByteI32`, `HostedReadByte`), the admitted-provider settlement,
+    and the normalized foreign call. Any other builtin, and any occurrence
+    carrying neither an installed settlement nor a foreign call, yields no
+    evidence.
+  - Privileged port effects. Every retained effect must be consumed by an
+    exact `MetadataOnlyPort` settlement join; one unowned effect drops the
+    artifact's evidence.
+  - General calls wait on `FRAME-LAYOUT`, itself blocked on a contract for
+    runtime-sized activation storage.
+
+  Acceptance: a program whose occurrences include a realization outside those
+  arms publishes complete physical evidence binding each surviving occurrence
+  to one child with nonempty machine, object and final-image spans, and replay
+  rejects missing, duplicate, stale, substituted, padded and role-swapped
+  children. An artifact that cannot span an occurrence names that occurrence
+  instead of publishing with no evidence at all. These are native compiler
+  guarantees, independent of package locks or `PackageInstance` construction.
+
+  Scalar expression-family planners, Unit and structural whole-function
+  templates, and their catalogs and compatibility fixtures are retired. Do not
+  restore them to recover arithmetic, crash, cleanup or borrowed-call coverage;
+  extend ordinary graph operations and their receiving checks instead.
+
+  Flag: the settlement side grows one derivation per hosted builtin.
+  `derivation/children.rs` holds `derive_exit_group_child` (153 lines),
+  `derive_write_byte_child` (123) and `derive_read_byte_child` (164), each
+  selected by matching one `(CompilerBuiltinExecution, BoundaryRealization)`
+  pair and each re-spelling its own supported-target list and empty-roster
+  checks; `BoundaryTraitSettlementRole` carries `CompilerBuiltin`,
+  `CompilerBuiltinRuntimeScalar` and `CompilerBuiltinStructural`, which differ
+  only in argument and result shape. The general mechanism is one
+  settlement-span derivation driven by the emitted settlement record's
+  declared argument and result shapes and a target-applicability fact on the
+  builtin, so that a fourth hosted builtin is a catalog row rather than a match
+  arm, a role variant and a function.
 
 - **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
   tests for every remaining manifest, receipt, codec, and artifact-custody
