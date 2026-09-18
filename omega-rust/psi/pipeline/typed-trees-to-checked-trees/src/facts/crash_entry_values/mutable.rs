@@ -24,6 +24,60 @@ use typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
 
+/// Whether a mutable receiver's storage below `field_path` still holds the
+/// value the invocation bound it to. `self` is bound once and transitions
+/// never rebind it, but any earlier arrival may already have run any state,
+/// so the pristine-storage window spans every statement of the machine rather
+/// than one statement prefix. Receiver storage is reached under two rooted
+/// spellings — a `self.<field>` place roots at the field symbol, while a
+/// whole-receiver place (`&mut self`, a `&mut self` receiver call, an
+/// exclusive `self` borrow passed on) roots at the machine or attached-data
+/// symbol — so every statement is scanned under both. A `self.<sibling>`
+/// receiver call keeps its own field prefix through the receiver path the
+/// statement carries, so mutating one field's attached machine does not
+/// dirty the read field. A bare `self` read or an opaque first step names
+/// no separable field and keeps no entry identity.
+pub(super) fn receiver_field_holds_entry_value(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    field_path: &[PlaceSegment],
+) -> bool {
+    let Some(&PlaceSegment::Field(field)) = field_path.first() else {
+        return false;
+    };
+    // A whole-receiver place roots at whichever symbol `self` resolved to —
+    // the machine, its attached data, or a state's own receiver parameter —
+    // so the escape scan tracks every one of them.
+    let states = program.machine_states(machine);
+    let mut receiver_roots = vec![machine.symbol, machine.attached_data_symbol];
+    receiver_roots.extend(states.iter().flat_map(|state| {
+        program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| parameter.is_self)
+            .map(|parameter| parameter.symbol)
+    }));
+    receiver_roots.retain(|root| root.is_valid());
+    receiver_roots.dedup();
+    states.iter().all(|state| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .all(|statement| {
+                !statement_may_overwrite(
+                    program,
+                    machine.symbol,
+                    statement,
+                    field,
+                    &field_path[1..],
+                ) && receiver_roots.iter().all(|root| {
+                    !statement_may_overwrite(program, machine.symbol, statement, *root, field_path)
+                })
+            })
+    })
+}
+
 /// Ordinals of `state`'s transition statements that re-enter it through
 /// `-> self`, forwarding the current parameter values as a fresh arrival.
 /// For a mutable parameter that arrival binds whatever its storage holds at

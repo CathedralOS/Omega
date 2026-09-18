@@ -930,11 +930,10 @@ fn immutable_receiver_identity_holds_in_non_entry_states() {
 }
 
 #[test]
-fn mutable_receiver_keeps_no_entry_identity() {
-    // `&mut self` can write `self.count` between entry and the read, and
-    // receiver-field provenance across arrivals is not yet transported, so
-    // the operand stays unproven even though the field read itself is a plain
-    // projection.
+fn mutable_receiver_field_transports_entry_identity_when_never_written() {
+    // `&mut self` still binds once at the invocation: when no statement in
+    // the machine can write `self.count`, the field read is the entry field
+    // even though the receiver itself is mutable.
     let program = typed_program(
         "data Main { count: i32; }
          machine sink(input: i32) -> bool { true }
@@ -944,8 +943,105 @@ fn mutable_receiver_keeps_no_entry_identity() {
     let (call_index, argument) = first_call_argument(&program, machine, run);
     assert_eq!(
         entry_operand(&program, machine, run, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+    );
+}
+
+#[test]
+fn mutable_receiver_field_survives_writes_confined_to_siblings() {
+    // The write-escape scan is per field: `self.other = 1` and a mutating
+    // call on `self.inner`'s attached machine never reach `self.count`, whose
+    // provenance stays intact in a non-entry state too.
+    let program = typed_program(
+        "data Inner { n: i32; }
+         machine Inner::bump(&mut self) { self.n = 1; }
+         data Main { count: i32; other: i32; inner: Inner; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             self.other = 1;
+             self.inner.bump();
+             transition true { true -> work() false -> true }
+             state work(&mut self) -> bool { sink(self.count); true }
+         }",
+    );
+    let (machine, work) = named_state(&program, "Main::run", "work");
+    let (call_index, argument) = first_call_argument(&program, machine, work);
+    assert_eq!(
+        entry_operand(&program, machine, work, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+    );
+}
+
+#[test]
+fn mutable_receiver_field_keeps_no_identity_past_its_own_write() {
+    // A `self.count` write — even in another state the invocation may never
+    // visit — can precede the read through an earlier arrival, so the operand
+    // keeps no entry identity.
+    let same_state = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             self.count = 1;
+             sink(self.count); true
+         }",
+    );
+    let (machine, run) = named_state(&same_state, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&same_state, machine, run);
+    assert_eq!(
+        entry_operand(&same_state, machine, run, call_index, argument),
         None,
     );
+
+    let other_state = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             transition true { true -> work() false -> true }
+             state work(&mut self) -> bool { sink(self.count); true }
+             state drift(&mut self) { self.count = 1; }
+         }",
+    );
+    let (machine, work) = named_state(&other_state, "Main::run", "work");
+    let (call_index, argument) = first_call_argument(&other_state, machine, work);
+    assert_eq!(
+        entry_operand(&other_state, machine, work, call_index, argument),
+        None,
+        "the unvisited `drift` state's write still escapes the field's entry identity"
+    );
+}
+
+#[test]
+fn mutable_receiver_field_keeps_no_identity_past_a_whole_receiver_escape() {
+    // An exclusive `&mut self` loan or a `&mut self` receiver call can write
+    // any field, so no field projection survives either escape. The window is
+    // machine-wide — the state may be re-entered — so an escape statement
+    // after the read still voids provenance.
+    for body in [
+        "sink(self.count); peek(&mut self); true",
+        "self.recompute(); sink(self.count); true",
+        "let loan: &mut i32 = &mut self.count; sink(self.count); true",
+    ] {
+        let program = typed_program(&format!(
+            "data Main {{ count: i32; }}
+             machine sink(input: i32) -> bool {{ true }}
+             machine peek(x: &mut Main) {{ }}
+             machine Main::recompute(&mut self) {{ }}
+             machine Main::run(&mut self) -> bool {{ {body} }}",
+        ));
+        let (machine, run) = named_state(&program, "Main::run", "run");
+        let (call_index, argument) = first_call_argument(&program, machine, run);
+        assert_eq!(
+            entry_operand(&program, machine, run, call_index, argument),
+            None,
+            "{body}"
+        );
+    }
 }
 
 #[test]

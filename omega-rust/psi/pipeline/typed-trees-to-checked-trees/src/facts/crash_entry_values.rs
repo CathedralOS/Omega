@@ -12,14 +12,17 @@
 //! call before the read (or before a `-> self`/same-state forwarding edge
 //! that carries the storage into the next arrival) ends provenance. Field
 //! projections version the storage below the binding root, so a field read
-//! survives writes confined to disjoint siblings. Mutable bindings with
-//! unstable contents, divergent arrivals and unresolvable cycles retain no
-//! entry identity. Substitution transports a proven origin, never re-reads an
-//! initializer after later operands execute. A guard leaf that reads only a
-//! member projection needs only that projection's provenance: whole-operand
-//! failure is not a reason to widen a surviving route to `Truth` when the
-//! read field's snapshot is intact. This is source provenance, not a
-//! Terminal certificate.
+//! survives writes confined to disjoint siblings. The receiver is bound once
+//! at the invocation and never rebound, so a mutable receiver's field keeps
+//! its entry identity only while no statement anywhere in the machine can
+//! write through it — the window spans every state, not one arrival's prefix.
+//! Mutable bindings with unstable contents, divergent arrivals and
+//! unresolvable cycles retain no entry identity. Substitution transports a
+//! proven origin, never re-reads an initializer after later operands execute.
+//! A guard leaf that reads only a member projection needs only that
+//! projection's provenance: whole-operand failure is not a reason to widen a
+//! surviving route to `Truth` when the read field's snapshot is intact. This
+//! is source provenance, not a Terminal certificate.
 
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
@@ -681,19 +684,27 @@ fn state_parameter_entry_operand(
         // `self` binds once, at the invocation: transitions never rebind the
         // receiver, so an immutable receiver's storage is the entry storage in
         // every state — including through field projections. A mutable
-        // receiver keeps no entry identity here: `self.<field>` writes root at
-        // the field rather than this parameter, and receiver-field provenance
-        // across state arrivals is not yet transported. The produced
-        // `Parameter` names the receiver's position in the ENTRY state's
-        // telescope, matching the ordinal authored `self.<field>` contract
-        // predicates take through `parameter_names`.
-        if parameter.is_mutable || !receiver_contents_stable(program, machine) {
+        // receiver keeps entry identity only below a field projection no
+        // statement in the machine can write through: `self.<field>` writes
+        // root at the field rather than this parameter, and any earlier
+        // arrival may already have run any state, so the pristine-storage
+        // window is machine-wide (`mutable::receiver_field_holds_entry_value`
+        // — the write-escape rule). The produced `Parameter` names the
+        // receiver's position in the ENTRY state's telescope, matching the
+        // ordinal authored `self.<field>` contract predicates take through
+        // `parameter_names`.
+        if !receiver_contents_stable(program, machine) {
             return None;
         }
         let entry_ordinal = program
             .state_parameters(&states[entry_index])
             .iter()
             .position(|candidate| candidate.is_self)?;
+        if parameter.is_mutable
+            && !mutable::receiver_field_holds_entry_value(program, machine, field_path)
+        {
+            return None;
+        }
         return Some(CrashPredicateExpression::Parameter(
             u32::try_from(entry_ordinal).ok()?,
         ));
