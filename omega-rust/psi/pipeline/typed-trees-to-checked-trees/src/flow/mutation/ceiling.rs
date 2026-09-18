@@ -114,7 +114,7 @@ pub(super) fn signature_ceiling_places(
     Some(places)
 }
 
-fn is_exclusive_reference(
+pub(super) fn is_exclusive_reference(
     program: &typed_trees::TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {

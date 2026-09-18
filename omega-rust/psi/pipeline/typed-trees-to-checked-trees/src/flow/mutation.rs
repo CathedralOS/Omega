@@ -1,6 +1,9 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
+use crate::flow::canonical_place_segments_may_overlap;
+use crate::flow::normalize_attached_place_root;
+use crate::flow::normalized_event_place_root;
 use crate::lookup::expression_root_symbol;
 use crate::semantic_calls::CallSite;
 use crate::semantic_calls::call_site_argument_expressions;
@@ -222,6 +225,7 @@ fn call_write_places(
                 program,
                 caller_machine_symbol,
                 caller_state_symbol,
+                borrow,
                 borrow_call,
                 call_frames,
             );
@@ -254,6 +258,7 @@ fn shared_call_storage_places(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
@@ -277,6 +282,15 @@ fn shared_call_storage_places(
         }
         CallSite::TransitionNamed { .. } => return None,
     };
+    let (exclusive_referents, coarse_anchors, refinable) = boundary_frame_access_places(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        &site,
+        call_frames,
+    );
     let mut places = Vec::new();
     for path in frame.complete_paths()? {
         let source = local_origins::place_from_origin_path(
@@ -285,19 +299,279 @@ fn shared_call_storage_places(
             borrow_call.statement_index,
             path,
         )?;
-        for place in local_origins::rebase_local_write_places(
+        for coarse in local_origins::rebase_local_write_places(
             program,
             caller_state_symbol,
             borrow_call.statement_index,
             source,
             call_frames,
         )? {
-            if !places.contains(&place) {
-                places.push(place);
+            // The durable frame path deliberately drops index selectors to the
+            // collection (`self.cells[1].out` renders as `self.cells`), while
+            // the recorded `&mut`/`&write` argument accesses retain the exact
+            // lent referent. Refine the coarse storage place to those exact
+            // referents only while every other contribution that renders to
+            // the same path — a non-exclusive access or a mutable receiver —
+            // keeps it from narrowing; otherwise emit the collection.
+            let identity = storage_normalized_place(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                &coarse,
+            );
+            let blocked = !refinable
+                || coarse_anchors
+                    .iter()
+                    .any(|anchor| storage_extends_frame_place(program, anchor, &identity));
+            let refinements: Vec<CanonicalPlace> = if blocked {
+                Vec::new()
+            } else {
+                exclusive_referents
+                    .iter()
+                    .filter(|referent| storage_extends_frame_place(program, referent, &identity))
+                    .map(|referent| CanonicalPlace {
+                        root: coarse.root,
+                        segments: referent.segments.clone(),
+                    })
+                    .collect()
+            };
+            if refinements.is_empty() {
+                if !places.contains(&coarse) {
+                    places.push(coarse);
+                }
+                continue;
+            }
+            for refined in refinements {
+                if !places.contains(&refined) {
+                    places.push(refined);
+                }
             }
         }
     }
     Some(places)
+}
+
+/// The call's recorded argument accesses in the storage namespace frame paths
+/// resolve to: exclusive borrow referents that may refine a coarsened path, and
+/// the other contributions that render to the same coarse path and must keep
+/// it — a non-`borrow` actual on an exclusive parameter carries a reference
+/// whose referent is only coarsely accounted, and the receiver contributes its
+/// own place. `false` disables refinement entirely when an exclusive actual
+/// cannot be spelled as caller storage at all.
+fn boundary_frame_access_places(
+    program: &typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    site: &CallSite<'_>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> (Vec<CanonicalPlace>, Vec<CanonicalPlace>, bool) {
+    let mut exclusive_referents = Vec::new();
+    let mut coarse_anchors = Vec::new();
+    let mut refinable = true;
+    for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
+        if !access.kind.is_exclusive() {
+            continue;
+        }
+        let Some(mut place) = canonical_place_from_symbol(access.root_symbol) else {
+            refinable = false;
+            break;
+        };
+        place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
+        let Some(rebased) = local_origins::rebase_local_write_places(
+            program,
+            caller_state_symbol,
+            borrow_call.statement_index,
+            place,
+            call_frames,
+        ) else {
+            refinable = false;
+            break;
+        };
+        for rebased in rebased {
+            let rebased = storage_normalized_place(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                &rebased,
+            );
+            if !exclusive_referents.contains(&rebased) {
+                exclusive_referents.push(rebased);
+            }
+        }
+    }
+    if refinable
+        && let Some(parameters) =
+            crate::semantic_calls::call_target_parameters(program, borrow_call.target_symbol)
+    {
+        let arguments = call_site_argument_expressions(program, site);
+        if parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
+            != arguments.len()
+        {
+            refinable = false;
+        } else {
+            let mut argument_index = 0usize;
+            for parameter in parameters {
+                if parameter.is_self {
+                    continue;
+                }
+                let argument = arguments[argument_index];
+                argument_index += 1;
+                if !ceiling::is_exclusive_reference(program, parameter.type_reference) {
+                    continue;
+                }
+                if matches!(
+                    program.expression_table.expression(argument),
+                    ExpressionNode::Borrow(_)
+                ) {
+                    // The direct borrow's own access above carries the exact
+                    // lent referent and refines the path it contributed.
+                    continue;
+                }
+                // A carried or returned exclusive value lends whatever storage
+                // its referent names; the path records only the argument's own
+                // spelling coarsened to its collection, so that spelling is the
+                // coarsest contribution that must stay intact.
+                let Some(actual) = canonical_place_from_expression_in_state(
+                    program,
+                    caller_state_symbol,
+                    borrow_call.statement_index,
+                    argument,
+                ) else {
+                    refinable = false;
+                    break;
+                };
+                if !matches!(actual.root, facts::PlaceRoot::Symbol(_)) {
+                    refinable = false;
+                    break;
+                }
+                let mut coarse = actual;
+                if let Some(index) = coarse
+                    .segments
+                    .iter()
+                    .position(|segment| is_index_place_segment(*segment))
+                {
+                    coarse.segments.truncate(index);
+                }
+                match local_origins::rebase_local_write_places(
+                    program,
+                    caller_state_symbol,
+                    borrow_call.statement_index,
+                    coarse,
+                    call_frames,
+                ) {
+                    Some(rebased) => {
+                        for anchor in rebased {
+                            let anchor = storage_normalized_place(
+                                program,
+                                caller_machine_symbol,
+                                caller_state_symbol,
+                                &anchor,
+                            );
+                            if !coarse_anchors.contains(&anchor) {
+                                coarse_anchors.push(anchor);
+                            }
+                        }
+                    }
+                    None => {
+                        refinable = false;
+                        break;
+                    }
+                }
+            }
+        }
+    } else if refinable {
+        // Without a resolvable signature an exclusive actual's contribution
+        // cannot be classified; keep every path coarse.
+        refinable = false;
+    }
+    if refinable
+        && borrow_call.has_receiver
+        && let Some(receiver) = call_receiver_mutated_place(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow_call,
+        )
+    {
+        match local_origins::rebase_local_write_places(
+            program,
+            caller_state_symbol,
+            borrow_call.statement_index,
+            receiver,
+            call_frames,
+        ) {
+            Some(rebased) => {
+                for receiver in rebased {
+                    let receiver = storage_normalized_place(
+                        program,
+                        caller_machine_symbol,
+                        caller_state_symbol,
+                        &receiver,
+                    );
+                    if !coarse_anchors.contains(&receiver) {
+                        coarse_anchors.push(receiver);
+                    }
+                }
+            }
+            None => refinable = false,
+        }
+    }
+    (exclusive_referents, coarse_anchors, refinable)
+}
+
+fn is_index_place_segment(segment: facts::PlaceSegment) -> bool {
+    matches!(
+        segment,
+        facts::PlaceSegment::FixedIndex { .. }
+            | facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::Index { .. }
+    )
+}
+
+/// The machine-rooted storage identity used to compare frame-path places with
+/// recorded access places: attached field roots rejoin their receiver storage
+/// and the authored `self` parameter maps to the machine symbol, matching how
+/// seeded field facts normalize.
+fn storage_normalized_place(
+    program: &typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    place: &CanonicalPlace,
+) -> CanonicalPlace {
+    let mut normalized = place.clone();
+    normalize_attached_place_root(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        &mut normalized,
+    );
+    normalized.root = normalized_event_place_root(program, normalized.root);
+    normalized
+}
+
+/// Whether `exact` names storage inside `coarse` whose first segment past
+/// `coarse`'s own length is an index selector — the only extension a dotted
+/// frame path could have coarsened away. An equal-length place (including a
+/// whole-collection borrow or receiver) also counts: it contributed the path.
+fn storage_extends_frame_place(
+    program: &typed_trees::TypedTrees,
+    exact: &CanonicalPlace,
+    coarse: &CanonicalPlace,
+) -> bool {
+    exact.root == coarse.root
+        && exact.segments.len() >= coarse.segments.len()
+        && canonical_place_segments_may_overlap(
+            program,
+            &coarse.segments,
+            &exact.segments[..coarse.segments.len()],
+        )
+        && (exact.segments.len() == coarse.segments.len()
+            || is_index_place_segment(exact.segments[coarse.segments.len()]))
 }
 
 fn call_is_storage_free_asm_intrinsic(
