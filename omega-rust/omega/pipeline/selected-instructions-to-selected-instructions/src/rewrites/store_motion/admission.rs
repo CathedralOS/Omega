@@ -12,7 +12,10 @@
 //! that slot directly — or the byte-sequence store: a `Store { 0, 1 }`
 //! through a fully computed view address carrying one `WriteByteSequence`
 //! row, whose written byte sits at the row's `byte_offset + index` for the
-//! runtime `index`. The place's own storage is its
+//! runtime `index` — unless that `index` resolves to a clean
+//! `MaterializeI64`, when `admit` collapses the moved extent to the one
+//! byte `byte_offset + index` before the walk. The place's own storage is
+//! its
 //! `StructuralParameter`/`StructuralBlockParameter` slot or the producing
 //! operation's `Structural` home — the place's declaration names that
 //! producer. A `Structural` slot the declaration does not charge to that
@@ -32,7 +35,11 @@
 //! unobservable. The scan stops before the first position that must stay
 //! ordered after the store: a roster row touching the moved byte range — an
 //! exact row intersecting it, or a dynamic-extent row whose fixed offset
-//! still starts below the moved end, its reach being unbounded upward — a
+//! still starts below the moved end, its reach being unbounded upward —
+//! while a byte-sequence row whose `index` resolves to a clean
+//! `MaterializeI64` touches exactly the byte `byte_offset + index`, so it
+//! stops the slide only by landing inside the moved extent and a landing
+//! anywhere off it walks past. Then a
 //! call or hosted effect, a redefinition of a
 //! carried register, a memory-capable instruction with no roster row, or a
 //! boundary settlement. The store lands immediately before that position;
@@ -41,7 +48,10 @@
 //! mirrors: the written byte can sit anywhere at or past the row's fixed
 //! offset, so a later exact or local row still reaches it once its own
 //! extent ends past that offset, and a later dynamic-extent row on the
-//! place always meets it.
+//! place always meets it — unless the moved `index` resolved the same way,
+//! collapsing the extent to that one byte before the walk, so a resolved
+//! row's landing decides and an unresolved row still reaches it only from
+//! a payload base at or below it.
 //!
 //! The walk is not confined to one block: reaching a block's end without a
 //! stop continues through its terminator's successor edges when every edge
@@ -64,7 +74,7 @@ use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, VirtualRegisterId,
+    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
@@ -72,6 +82,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 use super::StoreMutationMotionError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::place_storage::{local_slot_is_place_storage, structural_place_declarations};
 use crate::rewrites::window_hazards::{coupled, is_barrier};
 
@@ -93,12 +104,19 @@ pub(super) struct Admission<'source> {
 /// or a dynamic extent when the store is a byte-sequence write — its single
 /// written byte sits at `byte_offset + index` for the runtime `index`, so
 /// every byte it can touch lies at or after `byte_offset` with no static
-/// upper bound.
+/// upper bound. When that `index` itself resolves to a clean materialized
+/// constant, `admit` collapses the extent to the one byte
+/// `byte_offset + index` before the walk: the moved byte's position is then
+/// fixed, and every interference check below decides on it.
 struct Moved {
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
-    dynamic: bool,
+    /// The byte-sequence store's runtime index, deciding the written byte's
+    /// position: `byte_offset + index`. `None` for an exact store, and for
+    /// a byte-sequence store whose index resolved — its moved byte is the
+    /// collapsed `byte_offset` then.
+    sequence_index: Option<semantic_vocabulary::ValueId>,
 }
 
 impl Moved {
@@ -108,7 +126,7 @@ impl Moved {
     /// its own extent reaches that offset — only a row ending at or below it
     /// is provably disjoint.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
-        if self.dynamic {
+        if self.sequence_index.is_some() {
             return u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count);
         }
@@ -123,11 +141,27 @@ impl Moved {
     /// can touch lies at or after `byte_offset`. It still reaches this range
     /// exactly while its fixed offset starts below the range's end; an
     /// offset at or past the end is provably disjoint however far the reach
-    /// extends. When the moved extent is itself dynamic the row can always
-    /// meet it — two reaches unbounded upward on one place share a byte
-    /// whenever both extend far enough — so it always interferes.
-    fn reached_by(&self, access: &SelectedMemoryAccess) -> bool {
-        if self.dynamic {
+    /// extends. A sequence row whose `index` resolves to a clean
+    /// `MaterializeI64` — the same carrier audit the extent collapse in
+    /// `admit` runs — touches exactly that one byte wherever its payload
+    /// base sits, so it reaches this range only by landing inside it. When
+    /// the moved extent is itself dynamic — its own index unresolved — an
+    /// unresolved row can always meet it, and a resolved landing byte meets
+    /// it only at or past the payload base the moved byte starts at.
+    fn reached_by(&self, access: &SelectedMemoryAccess, function: &SelectedFunction) -> bool {
+        if let SelectedMemoryAccessRole::ReadByteSequence { index, .. }
+        | SelectedMemoryAccessRole::WriteByteSequence { index, .. } = access.role
+            && let Ok(landed) = constant_index(function, index)
+            && let Some(position) = u64::from(access.byte_offset).checked_add(landed)
+        {
+            let start = u64::from(self.byte_offset);
+            return if self.sequence_index.is_some() {
+                position >= start
+            } else {
+                position >= start && position < start + u64::from(self.byte_count)
+            };
+        }
+        if self.sequence_index.is_some() {
             return true;
         }
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
@@ -213,10 +247,10 @@ pub(super) fn admit<'source>(
     // the runtime `index` — so the row's offset is a lower bound the index
     // extends, not the encoded range, and the written byte's position is
     // decided at runtime.
-    let sequence = matches!(
-        write.role,
-        SelectedMemoryAccessRole::WriteByteSequence { .. }
-    );
+    let sequence_index = match write.role {
+        SelectedMemoryAccessRole::WriteByteSequence { index, .. } => Some(index),
+        _ => None,
+    };
     let storage_route = match (write.role, direct_slot) {
         (SelectedMemoryAccessRole::WritePlace, None) => true,
         (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
@@ -232,16 +266,34 @@ pub(super) fn admit<'source>(
     };
     if rows.next().is_some()
         || !storage_route
-        || (!sequence && (write.byte_offset != encoded_offset || write.byte_count != encoded_size))
+        || (sequence_index.is_none()
+            && (write.byte_offset != encoded_offset || write.byte_count != encoded_size))
     {
         return Err(StoreMutationMotionError::UnsupportedPair);
     }
-    let moved = Moved {
+    let mut moved = Moved {
         place: write.place,
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
-        dynamic: sequence,
+        sequence_index,
     };
+    // A byte-sequence moved store whose own `index` resolves through the
+    // carrier audit — sole `InstructionResult` carrier, clean
+    // `MaterializeI64` definition, no edge-transport or case-payload
+    // redefinition — writes one fixed byte at `byte_offset + index`: the
+    // moved extent collapses to that exact byte. Every check below then
+    // decides on a fixed position — a row that cannot reach the moved byte
+    // walks past — while an unresolved index, or a position no u32 names,
+    // leaves the extent unbounded upward from `byte_offset`.
+    if let Some(index) = moved.sequence_index
+        && let Ok(landed) = constant_index(function, index)
+        && let Some(position) = u64::from(moved.byte_offset).checked_add(landed)
+        && let Ok(position) = u32::try_from(position)
+    {
+        moved.byte_offset = position;
+        moved.byte_count = 1;
+        moved.sequence_index = None;
+    }
     // The moved instruction must carry the operand surface its route
     // declares: the plain `[use pointer, use value]` place store — the
     // pointer being the referent pointer or the slot's materialized
@@ -306,7 +358,8 @@ pub(super) fn admit<'source>(
         // runs.
         let terminator = terminator_instruction(&current.terminator);
         if function.memory_accesses.iter().any(|access| {
-            access.instruction == terminator.id && interferes(&moved, access, structural_places)
+            access.instruction == terminator.id
+                && interferes(&moved, access, structural_places, function)
         }) || coupled(moved_store, terminator)
         {
             let insert = if cursor == block_index { end - 1 } else { end };
@@ -533,9 +586,12 @@ fn carried_surface(
 /// on the moved place reaches only upward from its fixed offset, so it
 /// interferes exactly while that offset starts below the moved range's end;
 /// a row beginning at or past the end is provably disjoint and the store
-/// slides past it like any disjoint row. Against a dynamic moved extent the
-/// row always interferes: two unbounded-upward reaches on one place can
-/// share a byte. A `WriteLocal` row names an exact
+/// slides past it like any disjoint row — as is a byte-sequence row whose
+/// resolved index lands it outside the moved extent entirely, wherever its
+/// payload base sits. Against a dynamic moved extent an
+/// unresolved row always interferes — two unbounded-upward reaches on one
+/// place can share a byte — while a resolved one interferes only at or past
+/// the moved payload base. A `WriteLocal` row names an exact
 /// range on a slot: when
 /// the slot is the moved place's own storage, range intersection decides; a
 /// slot that only stages bytes naming the place holds none of the place's
@@ -548,6 +604,7 @@ fn interferes(
     moved: &Moved,
     access: &SelectedMemoryAccess,
     structural_places: &[StructuralPlaceDeclaration],
+    function: &SelectedFunction,
 ) -> bool {
     match access.role {
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
@@ -557,7 +614,7 @@ fn interferes(
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
-            access.place == moved.place && moved.reached_by(access)
+            access.place == moved.place && moved.reached_by(access, function)
         }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
             local_slot_is_place_storage(slot, moved.place, structural_places)
@@ -591,7 +648,7 @@ fn instruction_stops(
         .filter(|access| access.instruction == candidate.id)
     {
         has_row = true;
-        if interferes(moved, access, structural_places) {
+        if interferes(moved, access, structural_places, function) {
             return true;
         }
     }
@@ -766,6 +823,69 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
             if carried.registers.contains(&defined)
                 || writes(&defined)
                 || reads.is_some_and(|argument| writes(&argument))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// The compile-time constant a byte-sequence row's `index` resolves to, when
+/// it does. The register carrying the `index` value is its sole
+/// `InstructionResult` carrier, so an `index` no instruction result carries
+/// (an entry or block parameter) has no producer to resolve, and two
+/// instruction results claiming one value make the constant ambiguous; both
+/// stay unproven. The carrier must then hold the function's one clean
+/// `MaterializeI64` definition and never be redefined by an edge transport
+/// or case payload the instruction audit cannot see — only then does
+/// `byte_offset + index` name a fixed position rather than a
+/// runtime-placed byte.
+fn constant_index(
+    function: &SelectedFunction,
+    index: semantic_vocabulary::ValueId,
+) -> Result<u64, StoreMutationMotionError> {
+    let reject = || StoreMutationMotionError::UnsupportedPair;
+    let mut carriers = function.virtual_registers.iter().filter(|register| {
+        matches!(
+            register.origin,
+            VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == index
+        )
+    });
+    let carrier = carriers.next().ok_or_else(reject)?;
+    if carriers.next().is_some() {
+        return Err(reject());
+    }
+    let landed = materialized_bits(function, carrier.id).map_err(|_| reject())?;
+    if transport_defines(function, carrier.id) {
+        return Err(reject());
+    }
+    Ok(landed)
+}
+
+/// Whether an edge transport or case payload defines `register` — a
+/// definition the instruction-operand audit in `materialized_bits` cannot
+/// see, which would falsify the constant it reports for the index.
+fn transport_defines(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
+    for block in &function.blocks {
+        for successor in terminator_successors(&block.terminator) {
+            if successor.bindings.iter().any(|binding| {
+                matches!(
+                    binding.transport,
+                    SelectedValueTransport::Registers { parameter, .. } if parameter == register
+                )
+            }) {
+                return true;
+            }
+            if let Some(case) = &successor.structural_case
+                && case.payloads.iter().any(|payload| {
+                    matches!(
+                        payload.transport,
+                        SelectedCasePayloadTransport::Unmaterialized { parameter }
+                            | SelectedCasePayloadTransport::Registers { parameter, .. }
+                            if parameter == register
+                    )
+                })
             {
                 return true;
             }

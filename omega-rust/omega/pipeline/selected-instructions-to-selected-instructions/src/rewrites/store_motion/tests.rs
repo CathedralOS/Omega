@@ -21,8 +21,8 @@ use selected_instructions::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
-    OperationId, PlaceId, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -353,6 +353,122 @@ fn sequence_store(
             SelectedMemoryAccessRole::WritePlace,
         )
     };
+}
+
+/// The intervening byte-sequence row's index register — the register whose
+/// `InstructionResult` origin carries the row's `index` value: its sole
+/// clean `MaterializeI64` definition makes `byte_offset + index` a fixed
+/// position, so the row touches exactly that byte wherever its payload base
+/// sits.
+const SEQUENCE_INDEX: VirtualRegisterId = VirtualRegisterId(12);
+
+/// The moved byte-sequence store's own index register: when its sole clean
+/// `MaterializeI64` definition resolves, the moved extent collapses to the
+/// one byte `byte_offset + index` before the walk.
+const MOVED_SEQUENCE_INDEX: VirtualRegisterId = VirtualRegisterId(13);
+
+/// The materialize instruction defining an intervening row's index register.
+const MATERIALIZE_INDEX: SelectedInstructionId = SelectedInstructionId(10);
+
+/// The materialize instruction defining the moved store's index register —
+/// distinct from `MATERIALIZE_INDEX` so two clean definitions can coexist
+/// in one fixture.
+const MATERIALIZE_MOVED_INDEX: SelectedInstructionId = SelectedInstructionId(11);
+
+/// Insert a clean `MaterializeI64` at `position` in `block` defining
+/// `register` as `bits`, with the register's origin naming `source_value` —
+/// the sole clean definition `materialized_bits` resolves, so a sequence
+/// row's `index` becomes the compile-time `bits`.
+#[allow(clippy::too_many_arguments)]
+fn define_index_as(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    block: usize,
+    position: usize,
+    id: SelectedInstructionId,
+    register: VirtualRegisterId,
+    source_value: ValueId,
+    bits: u64,
+) {
+    let materialize = environment
+        .constraint(environment.selected_keys().materialize_i64)
+        .unwrap();
+    function.virtual_registers.push(VirtualRegister {
+        id: register,
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        class: materialize.operands[0].class,
+        origin: VirtualRegisterOrigin::InstructionResult {
+            instruction: id,
+            source_value,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    function.blocks[block].instructions.insert(
+        position,
+        instruction(
+            id,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(u128::from(bits)),
+            },
+            materialize,
+            &[register],
+        ),
+    );
+}
+
+/// `define_index_as` under the intervening row's materialize id, for
+/// fixtures resolving only a scanned row's index.
+fn define_index(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    block: usize,
+    position: usize,
+    register: VirtualRegisterId,
+    source_value: ValueId,
+    bits: u64,
+) {
+    define_index_as(
+        function,
+        environment,
+        block,
+        position,
+        MATERIALIZE_INDEX,
+        register,
+        source_value,
+        bits,
+    );
+}
+
+/// The intervening byte-sequence row landing on `offset + index`'s resolved
+/// byte: a `WriteByteSequence` roster row on instruction `id` with payload
+/// base `offset` and index value `index_value`. The row attaches to the
+/// instruction as found — the window's interference decision reads the row,
+/// not the instruction's kind.
+fn sequence_row(
+    function: &mut SelectedFunction,
+    id: SelectedInstructionId,
+    offset: u32,
+    index_value: u64,
+) {
+    function.memory_accesses.push(SelectedMemoryAccess {
+        byte_count: 1,
+        ..access(
+            id,
+            3,
+            place(),
+            offset,
+            SelectedMemoryAccessRole::WriteByteSequence {
+                index: ValueId::new(index_value).unwrap(),
+                value: ValueId::new(6).unwrap(),
+                length: ValueId::new(7).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [3; 32],
+                ),
+            },
+        )
+    });
 }
 
 fn sink(

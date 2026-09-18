@@ -1,10 +1,12 @@
 use super::{
-    BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
-    crossed_edge, instruction, mutated_chained, pack_store, place, sequence_store, settlement,
-    settlement_at, sink, successor,
+    BETWEEN, KILLER, MATERIALIZE_INDEX, MATERIALIZE_MOVED_INDEX, MOVED_SEQUENCE_INDEX,
+    PACKED_SCRATCH, POINTER, SCRATCH, SEQUENCE_INDEX, STORE, VALUE, access, budget, chained,
+    crossed_edge, define_index, define_index_as, instruction, mutated_chained, pack_store, place,
+    sequence_store, settlement, settlement_at, sink, successor,
 };
 use crate::rewrites::store_motion::{
-    StoreMutationMotionError, sink_selected_store_mutation, validate_store_mutation_motion,
+    StoreMutationMotionError, ValidatedStoreMutationMotion, sink_selected_store_mutation,
+    validate_store_mutation_motion,
 };
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -650,6 +652,196 @@ fn cross_block_byte_sequence_store_sinks_across_the_edge() {
             .collect::<Vec<_>>(),
         vec![SelectedInstructionId(1), BETWEEN, STORE]
     );
+}
+
+/// A byte-sequence row's resolved `index` decides the crossed walk the same
+/// way it decides the in-block one: the row touches exactly the byte
+/// `byte_offset + index`, so a landing off the moved extent lets the store
+/// slide past it to the target block's end, while a landing on it lands the
+/// store at the successor's head. The moved store's own resolved index
+/// collapses its extent to that one byte before the walk, and an edge
+/// transport redefining the index's carrier keeps the extent dynamic.
+#[test]
+fn cross_block_constant_index_rows_decide_by_the_landing_byte() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let block_ids = |result: &ValidatedStoreMutationMotion, block: usize| {
+        result.transformed().functions[0].blocks[block]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>()
+    };
+    // The covering block's sequence row resolves to `4 + 8` = 12 — off the
+    // moved range [0, 8) — so the store slides past the covering
+    // instruction to the successor's end.
+    let off = mutated_chained(target, |function, environment| {
+        function.memory_accesses[1] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(
+                KILLER,
+                2,
+                place(),
+                4,
+                SelectedMemoryAccessRole::WriteByteSequence {
+                    index: ValueId::new(9).unwrap(),
+                    value: ValueId::new(6).unwrap(),
+                    length: ValueId::new(7).unwrap(),
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32],
+                    ),
+                },
+            )
+        };
+        define_index(
+            function,
+            environment,
+            1,
+            0,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            8,
+        );
+    });
+    let result = sink(&off, &environment).unwrap();
+    assert_eq!(
+        block_ids(&result, 0),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    assert_eq!(
+        block_ids(&result, 1),
+        vec![MATERIALIZE_INDEX, KILLER, STORE]
+    );
+    validate_store_mutation_motion(
+        &off,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // The same row resolving to `4 + 2` = 6 lands inside the moved range,
+    // so the store lands at the successor's head before it.
+    let on = mutated_chained(target, |function, environment| {
+        function.memory_accesses[1] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(
+                KILLER,
+                2,
+                place(),
+                4,
+                SelectedMemoryAccessRole::WriteByteSequence {
+                    index: ValueId::new(9).unwrap(),
+                    value: ValueId::new(6).unwrap(),
+                    length: ValueId::new(7).unwrap(),
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32],
+                    ),
+                },
+            )
+        };
+        define_index(
+            function,
+            environment,
+            1,
+            0,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            2,
+        );
+    });
+    let result = sink(&on, &environment).unwrap();
+    assert_eq!(
+        block_ids(&result, 1),
+        vec![MATERIALIZE_INDEX, STORE, KILLER]
+    );
+    // The moved store's own resolved index collapses its extent: payload
+    // base 4 plus index 8 lands the moved byte at 12, disjoint from the
+    // covering write's [0, 8), so the store sinks to the successor's end.
+    let collapsed = mutated_chained(target, |function, environment| {
+        sequence_store(function, environment, 4);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_MOVED_INDEX,
+            MOVED_SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            8,
+        );
+    });
+    let result = sink(&collapsed, &environment).unwrap();
+    assert_eq!(
+        block_ids(&result, 0),
+        vec![SelectedInstructionId(1), MATERIALIZE_MOVED_INDEX, BETWEEN]
+    );
+    assert_eq!(block_ids(&result, 1), vec![KILLER, STORE]);
+    validate_store_mutation_motion(
+        &collapsed,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // The same resolved index landing the moved byte at `4 + 2` = 6 keeps
+    // the write inside the covering range: the store lands at the head.
+    let collapsed_on = mutated_chained(target, |function, environment| {
+        sequence_store(function, environment, 4);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_MOVED_INDEX,
+            MOVED_SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            2,
+        );
+    });
+    let result = sink(&collapsed_on, &environment).unwrap();
+    assert_eq!(block_ids(&result, 1), vec![STORE, KILLER]);
+    // An edge transport redefining the index's carrier falsifies the
+    // resolved constant: the extent stays dynamic from payload base 4, so
+    // the covering write's [0, 8) still reaches it and the store lands at
+    // the successor's head.
+    let redefined_index = mutated_chained(target, |function, environment| {
+        sequence_store(function, environment, 4);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_MOVED_INDEX,
+            MOVED_SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            8,
+        );
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: SCRATCH,
+                parameter: MOVED_SEQUENCE_INDEX,
+            },
+        });
+    });
+    let result = sink(&redefined_index, &environment).unwrap();
+    assert_eq!(
+        block_ids(&result, 0),
+        vec![SelectedInstructionId(1), MATERIALIZE_MOVED_INDEX, BETWEEN]
+    );
+    assert_eq!(block_ids(&result, 1), vec![STORE, KILLER]);
 }
 
 #[test]
