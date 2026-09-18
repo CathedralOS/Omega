@@ -2,6 +2,7 @@
 //! the claim outcome maps, and the checks that every partial move and
 //! nominal drop respects them.
 
+use super::borrowed_windows;
 use crate::checks::multiplicity::linear_validation::{
     event_statement_index, validate_linear_permission_events,
 };
@@ -139,55 +140,145 @@ fn validate_partial_moves(
                 state,
                 &mut segments,
             );
-            for event in moves {
-                let path = segments.span_or_empty(event.segments);
-                if path.is_empty() || move_event_is_production_target(program, state, &event, path)
+            let statements = program.statement_table.statements(state.statement_nodes);
+            // A state body is a linear fall-through: each `transition` arm is
+            // a guarded exit edge, and a missed arm continues to the next
+            // statement. Every taken edge and the implicit return must see a
+            // discharged window; the fall-through path may still repair it.
+            let mut windows = borrowed_windows::BorrowedStorageWindows::default();
+            for (statement_index, statement) in statements.iter().enumerate() {
+                let is_transition = matches!(statement, StatementNode::Transition(_));
+                for event in moves
+                    .iter()
+                    .filter(|event| event_statement_index(event.source) == Some(statement_index))
                 {
-                    continue;
-                }
-                if projected_affine::is_borrowed_place_transfer(
-                    program,
-                    machine.symbol,
-                    state,
-                    &event,
-                    path,
-                ) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `{}`, state `{}` (statement {})",
-                        machine.name.as_str(),
-                        state.name.as_str(),
-                        event_statement_index(event.source).unwrap_or(0),
-                    )));
-                    continue;
-                }
-                temporary_results::check_unselected_claims(
-                    program,
-                    state.symbol,
-                    &event,
-                    path,
-                    &mut diagnostics,
-                );
-                for prefix_len in 0..path.len() {
-                    if prefix_len == 0 && event_is_owned_self_projection(program, state, &event) {
+                    let path = segments.span_or_empty(event.segments);
+                    if move_event_is_production_target(program, state, event, path) {
                         continue;
                     }
-                    let prefix = crate::flow::CanonicalPlace {
-                        root: event.root,
-                        segments: path[..prefix_len].to_vec(),
-                    };
-                    let Some(type_name) = nominal_drop_place_name(
-                        program,
-                        state.symbol,
-                        event_statement_index(event.source).unwrap_or(0),
-                        &prefix,
-                    ) else {
+                    if !path.is_empty()
+                        && projected_affine::is_borrowed_place_transfer(
+                            program,
+                            machine.symbol,
+                            state,
+                            event,
+                            path,
+                        )
+                    {
+                        // Moves evaluated on a transition edge cannot be
+                        // repaired before the edge leaves; match-arm moves
+                        // open a hole on only one joining edge; a nominal-drop
+                        // owner is entitled to a whole value. All keep the
+                        // plain rejection.
+                        if is_transition
+                            || event.source_arm.is_valid()
+                            || borrowed_move_crosses_nominal_drop(program, state, event, path)
+                        {
+                            diagnostics.push(borrowed_windows::borrowed_transfer_diagnostic(
+                                machine,
+                                state,
+                                event_statement_index(event.source).unwrap_or(0),
+                            ));
+                            continue;
+                        }
+                        if let Some(diagnostic) = windows.open(
+                            program,
+                            machine,
+                            state,
+                            statements,
+                            statement_index,
+                            event,
+                            path,
+                        ) {
+                            diagnostics.push(diagnostic);
+                        }
                         continue;
-                    };
-                    diagnostics.push(Diagnostic::error(format!(
-                        "cannot partially move a value of `{type_name}` because `{type_name}::drop` requires the whole value"
-                    )));
-                    break;
+                    }
+                    if !path.is_empty() {
+                        temporary_results::check_unselected_claims(
+                            program,
+                            state.symbol,
+                            event,
+                            path,
+                            &mut diagnostics,
+                        );
+                        for prefix_len in 0..path.len() {
+                            if prefix_len == 0
+                                && event_is_owned_self_projection(program, state, event)
+                            {
+                                continue;
+                            }
+                            let prefix = crate::flow::CanonicalPlace {
+                                root: event.root,
+                                segments: path[..prefix_len].to_vec(),
+                            };
+                            let Some(type_name) = nominal_drop_place_name(
+                                program,
+                                state.symbol,
+                                event_statement_index(event.source).unwrap_or(0),
+                                &prefix,
+                            ) else {
+                                continue;
+                            };
+                            diagnostics.push(Diagnostic::error(format!(
+                                "cannot partially move a value of `{type_name}` because `{type_name}::drop` requires the whole value"
+                            )));
+                            break;
+                        }
+                    }
+                    // Even an ordinary whole-owner move may not carry away a
+                    // place with an absent borrowed subtree.
+                    windows.refuse_move_over_open(
+                        program,
+                        machine,
+                        state,
+                        statements,
+                        statement_index,
+                        event,
+                        path,
+                        &mut diagnostics,
+                    );
                 }
+                let moved = borrowed_windows::BorrowedStorageWindows::statement_moved_places(
+                    program,
+                    machine,
+                    state,
+                    statements,
+                    statement_index,
+                    &moves,
+                    &segments,
+                );
+                windows.check_statement(
+                    program,
+                    machine,
+                    state,
+                    statements,
+                    statement_index,
+                    statement,
+                    &moved,
+                    &mut diagnostics,
+                );
+                // A taken transition edge leaves the state; a window open on
+                // it can never be repaired. A crash edge abandons the window
+                // outright under the existing survivor contract — no hole is
+                // observed by anything that could survive. The guard-miss
+                // path falls through and may still discharge the debt below.
+                let is_crash = matches!(
+                    statement,
+                    StatementNode::Transition(transition)
+                        if matches!(
+                            transition.exit,
+                            typed_trees::statement::TransitionExit::Crash(_)
+                        )
+                );
+                if is_transition && !is_crash {
+                    windows.refuse_open_at_exit(machine, state, &mut diagnostics);
+                }
+            }
+            // The last statement's fall-through — and a state with no
+            // transitions at all — ends in the implicit return.
+            if !matches!(statements.last(), Some(StatementNode::Transition(_))) {
+                windows.refuse_open_at_exit(machine, state, &mut diagnostics);
             }
         }
     }
@@ -196,6 +287,30 @@ fn validate_partial_moves(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Nominal cleanup is entitled to one whole value: a move out of borrowed
+/// storage that crosses an entitled prefix stays rejected even when a later
+/// repair would reseat the hole.
+fn borrowed_move_crosses_nominal_drop(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    event: &crate::flow::DiscoveredMoveEvent,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    (0..path.len()).any(|prefix_len| {
+        let prefix = crate::flow::CanonicalPlace {
+            root: event.root,
+            segments: path[..prefix_len].to_vec(),
+        };
+        nominal_drop_place_name(
+            program,
+            state.symbol,
+            event_statement_index(event.source).unwrap_or(0),
+            &prefix,
+        )
+        .is_some()
+    })
 }
 
 fn event_is_owned_self_projection(
