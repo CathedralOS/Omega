@@ -103,3 +103,124 @@ pub fn verify_published_proof_pair(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{verify_native_proof_sidecar, verify_published_proof_pair};
+    use proof_admission::AdmissionProfile;
+    use terminal_codec::{
+        PccGuarantee, PccIncompleteness, PccProductKind, PccProofSidecar, PccReceiverPolicy,
+        PccVerificationOutcome, pcc_artifact_commitment,
+    };
+
+    const EXECUTABLE: &[u8] = b"the published executable bytes";
+
+    fn sidecar(product: PccProductKind, artifact: &[u8], evidence: Vec<u8>) -> PccProofSidecar {
+        PccProofSidecar::new(
+            product,
+            pcc_artifact_commitment(artifact),
+            "semantic-profile".to_owned(),
+            "checker-profile".to_owned(),
+            vec![PccGuarantee {
+                identity: "guarantee".to_owned(),
+                premises: Vec::new(),
+            }],
+            evidence,
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("a canonical sidecar")
+    }
+
+    fn offered_policy(sidecar: &PccProofSidecar) -> PccReceiverPolicy {
+        PccReceiverPolicy::for_offered_claim(sidecar, AdmissionProfile::default())
+    }
+
+    #[test]
+    fn pair_checking_rejects_a_malformed_sidecar_before_any_product_leg() {
+        let artifact = b"artifact";
+        let psi = sidecar(PccProductKind::Psi, artifact, Vec::new());
+        let policy = offered_policy(&psi);
+        assert!(matches!(
+            verify_published_proof_pair(artifact, b"not a sidecar", &policy),
+            PccVerificationOutcome::Reject(ref rejection) if rejection.subject == "sidecar envelope"
+        ));
+    }
+
+    #[test]
+    fn pair_checking_routes_on_the_declared_product_kind() {
+        // A Psi companion beside non-artifact bytes rejects inside the Psi
+        // leg; a Native companion reaches the fail-closed native leg.
+        let artifact = b"not a canonical artifact";
+        let psi = sidecar(PccProductKind::Psi, artifact, Vec::new());
+        let psi_policy = offered_policy(&psi);
+        assert!(matches!(
+            verify_published_proof_pair(artifact, &psi.to_bytes(), &psi_policy),
+            PccVerificationOutcome::Reject(ref rejection) if rejection.subject == "psi artifact"
+        ));
+
+        let native = sidecar(PccProductKind::Native, EXECUTABLE, vec![1, 2, 3]);
+        let native_policy = offered_policy(&native);
+        assert_eq!(
+            verify_published_proof_pair(EXECUTABLE, &native.to_bytes(), &native_policy),
+            PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+                product: PccProductKind::Native,
+            })
+        );
+    }
+
+    #[test]
+    fn pair_checking_rejects_bytes_the_sidecar_does_not_commit_to() {
+        let native = sidecar(PccProductKind::Native, EXECUTABLE, Vec::new());
+        let policy = offered_policy(&native);
+        assert!(matches!(
+            verify_published_proof_pair(b"different bytes", &native.to_bytes(), &policy),
+            PccVerificationOutcome::Reject(ref rejection) if rejection.subject == "artifact bytes"
+        ));
+    }
+
+    #[test]
+    fn native_checking_rejects_a_psi_companion_and_stays_incomplete() {
+        let psi = sidecar(PccProductKind::Psi, EXECUTABLE, Vec::new());
+        let policy = offered_policy(&psi);
+        assert!(matches!(
+            verify_native_proof_sidecar(EXECUTABLE, &psi.to_bytes(), &policy),
+            PccVerificationOutcome::Reject(ref rejection) if rejection.subject == "product kind"
+        ));
+
+        let native = sidecar(PccProductKind::Native, EXECUTABLE, Vec::new());
+        let policy = offered_policy(&native);
+        assert_eq!(
+            verify_native_proof_sidecar(EXECUTABLE, &native.to_bytes(), &policy),
+            PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+                product: PccProductKind::Native,
+            })
+        );
+    }
+
+    #[test]
+    fn pair_checking_reports_named_resource_limits_as_incomplete() {
+        let artifact = b"artifact bytes beyond the limit";
+        let native = sidecar(PccProductKind::Native, artifact, Vec::new());
+        let mut policy = offered_policy(&native);
+        policy.max_artifact_bytes = 4;
+        assert_eq!(
+            verify_published_proof_pair(artifact, &native.to_bytes(), &policy),
+            PccVerificationOutcome::Incomplete(PccIncompleteness::ArtifactBytes {
+                actual: artifact.len() as u64,
+                limit: 4,
+            })
+        );
+
+        let evidenced = sidecar(PccProductKind::Native, artifact, vec![1, 2, 3]);
+        let mut policy = offered_policy(&evidenced);
+        policy.max_evidence_bytes = 2;
+        assert_eq!(
+            verify_published_proof_pair(artifact, &evidenced.to_bytes(), &policy),
+            PccVerificationOutcome::Incomplete(PccIncompleteness::EvidenceBytes {
+                actual: 3,
+                limit: 2,
+            })
+        );
+    }
+}

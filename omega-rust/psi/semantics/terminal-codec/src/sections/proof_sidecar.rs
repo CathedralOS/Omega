@@ -36,7 +36,6 @@ const MAX_PCC_CLAIM_COUNT: usize = 4_096;
 
 const ARTIFACT_COMMITMENT_DOMAIN: &[u8] = b"omega.pcc.artifact-commitment.sha256.v1\0";
 const ADMISSION_PROFILE_DOMAIN: &[u8] = b"omega.pcc.admission-profile.sha256.v1\0";
-const DEPENDENCY_CONTENT_DOMAIN: &[u8] = b"omega.pcc.dependency-content.sha256.v1\0";
 
 /// The bounded guarantee a Psi sidecar can offer today: the canonical
 /// semantic module and proof bundle verify under the sidecar's checker
@@ -411,23 +410,6 @@ pub fn pcc_artifact_commitment(artifact_bytes: &[u8]) -> [u8; 32] {
     digest.update(ARTIFACT_COMMITMENT_DOMAIN);
     digest.update((artifact_bytes.len() as u64).to_le_bytes());
     digest.update(artifact_bytes);
-    digest.finalize().into()
-}
-
-/// The canonical commitment of one installation-reach dependency for
-/// receiver-side possession matching.
-pub fn pcc_dependency_content_commitment(
-    requirement_identity: &str,
-    upper_bound: &[semantic_vocabulary::ServiceId],
-) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(DEPENDENCY_CONTENT_DOMAIN);
-    digest.update((requirement_identity.len() as u64).to_le_bytes());
-    digest.update(requirement_identity.as_bytes());
-    digest.update((upper_bound.len() as u64).to_le_bytes());
-    for service in upper_bound {
-        digest.update(service.get().to_le_bytes());
-    }
     digest.finalize().into()
 }
 
