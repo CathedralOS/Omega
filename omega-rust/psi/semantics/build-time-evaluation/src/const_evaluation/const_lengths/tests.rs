@@ -319,6 +319,115 @@ data Main { bytes:[u8;length()]; }
     (typed, rows)
 }
 
+/// The same selected provider-body execution, invoked through a uniquely
+/// resolved named call rather than the spelled token. The provider's body
+/// still computes `left + right` = 9 where builtin `%` would fold 1.
+fn named_provider_fixture() -> (TypedTrees, Vec<SelectedBuildTimeProviderBody>) {
+    let source = r#"
+data Math {}
+boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+data Provider {}
+machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left + right }
+machine length() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (Math::remainder(left, right)) } }
+data Main { bytes:[u8;length()]; }
+"#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
+    let rows = facts
+        .named_uses()
+        .filter(|fact| {
+            typed.operators().iter().any(|operator| {
+                operator.symbol == fact.selected_operator_symbol && operator.is_boundary
+            })
+        })
+        .map(|fact| {
+            let typed_trees::expression::ExpressionNode::Call(call) =
+                typed.expression_table.expression(fact.expression)
+            else {
+                panic!("a named operator use is an expression call");
+            };
+            let provider = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Provider::remainder")
+                .unwrap();
+            let entry = typed.machine_states(provider).first().unwrap();
+            SelectedBuildTimeProviderBody {
+                expression: fact.expression,
+                origin: fact.origin,
+                requirement: fact.selected_operator_symbol,
+                operands: typed
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .to_vec(),
+                provider_machine: provider.symbol,
+                provider_state: entry.symbol,
+                provider_type: provider.attached_data.as_ref().unwrap().as_str().to_owned(),
+                provider: checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]),
+            }
+        })
+        .collect();
+    (typed, rows)
+}
+
+#[test]
+fn named_provider_body_executes_its_ordinary_machine_and_replays() {
+    let (mut typed, rows) = named_provider_fixture();
+    assert_eq!(rows.len(), 1);
+    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
+    let folds = evaluate_selected_array_lengths(
+        &mut typed,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &rows,
+        },
+    )
+    .unwrap();
+    assert_eq!(folds.len(), 1);
+    assert_eq!(
+        folds[0].value, 9,
+        "the provider's `left + right` body must run; builtin `%` would fold 1"
+    );
+    validate_folded_array_lengths(&typed, &folds, &[], &rows, None).unwrap();
+}
+
+#[test]
+fn named_provider_body_row_rejects_stale_and_substituted_custody() {
+    let (typed, rows) = named_provider_fixture();
+    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
+
+    let mut substituted = rows.clone();
+    let caller = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "length")
+        .unwrap();
+    substituted[0].provider_machine = caller.symbol;
+    substituted[0].provider_state = typed.machine_states(caller).first().unwrap().symbol;
+    assert!(
+        crate::validate_selected_provider_bodies(&typed, &substituted).is_err(),
+        "a substituted provider machine must never satisfy the named row"
+    );
+
+    let mut stale = rows.clone();
+    stale[0].expression = stale[0].operands[0];
+    assert!(
+        crate::validate_selected_provider_bodies(&typed, &stale).is_err(),
+        "a stale expression coordinate must never rejoin a current named use"
+    );
+}
+
 #[test]
 fn selected_provider_body_executes_its_ordinary_machine_and_replays() {
     let (mut typed, rows) = provider_fixture();

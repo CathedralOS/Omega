@@ -176,13 +176,20 @@ impl BuildTimeAdmissionPlan {
                 continue;
             }
             visited.push(machine);
+            let boundary_use = |selected_operator_symbol| {
+                program.operators().iter().any(|operator| {
+                    operator.symbol == selected_operator_symbol && operator.is_boundary
+                })
+            };
             if facts
                 .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
                 .any(|fact| {
                     fact.origin.machine_symbol() == Some(machine)
-                        && program.operators().iter().any(|operator| {
-                            operator.symbol == fact.selected_operator_symbol && operator.is_boundary
-                        })
+                        && boundary_use(fact.selected_operator_symbol)
+                })
+                || facts.named_uses().any(|fact| {
+                    fact.origin.machine_symbol() == Some(machine)
+                        && boundary_use(fact.selected_operator_symbol)
                 })
             {
                 return true;
