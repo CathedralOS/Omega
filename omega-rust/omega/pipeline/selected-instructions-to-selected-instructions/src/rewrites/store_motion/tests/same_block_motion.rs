@@ -1,6 +1,8 @@
 use super::{
-    BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
-    fixture, instruction, landed_ids, mutated, pack_store, place, sequence_store, settlement, sink,
+    BETWEEN, KILLER, MATERIALIZE_INDEX, MATERIALIZE_MOVED_INDEX, MOVED_SEQUENCE_INDEX,
+    PACKED_SCRATCH, POINTER, SCRATCH, SEQUENCE_INDEX, STORE, VALUE, access, budget, chained,
+    define_index, define_index_as, fixture, instruction, landed_ids, mutated, pack_store, place,
+    sequence_row, sequence_store, settlement, sink,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::store_motion::{
@@ -1757,4 +1759,378 @@ fn validation_budget_covers_the_walk() {
             StoreMutationMotionError::WorkBudgetExceeded
         );
     }
+}
+
+/// A byte-sequence row whose `index` resolves through the carrier audit —
+/// sole `InstructionResult` carrier, clean `MaterializeI64` definition, no
+/// edge-transport or case-payload redefinition — touches exactly the byte
+/// `byte_offset + index` wherever its payload base sits, so a landing off
+/// the moved extent walks past instead of bounding the window. The moved
+/// byte is decided the same way: a moved index resolving to a materialized
+/// constant collapses the extent to that one byte, so a resolved row lands
+/// off it below or above, and an exact row that does not reach it slides
+/// past like any disjoint row.
+#[test]
+fn constant_index_sequence_rows_landing_off_the_moved_extent_walk_past() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The intervening write's payload base sits inside the moved range
+    // [0, 8), but its index materializes to 8, landing the byte at 12 —
+    // provably off the moved bytes, so the store slides past it and its
+    // materialize to the covering store.
+    let off = mutated(target, |function, environment| {
+        sequence_row(function, BETWEEN, 4, 9);
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            8,
+        );
+    });
+    let result = sink(&off, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![
+            SelectedInstructionId(1),
+            MATERIALIZE_INDEX,
+            BETWEEN,
+            STORE,
+            KILLER
+        ]
+    );
+    validate_store_mutation_motion(
+        &off,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A landing above the moved extent is off it the same way: payload base
+    // 4 plus index 12 lands on byte 16.
+    let above = mutated(target, |function, environment| {
+        sequence_row(function, BETWEEN, 4, 9);
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            12,
+        );
+    });
+    let result = sink(&above, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![
+            SelectedInstructionId(1),
+            MATERIALIZE_INDEX,
+            BETWEEN,
+            STORE,
+            KILLER
+        ]
+    );
+    // A runtime index on the intervening row keeps its reach unbounded
+    // upward, but a payload base at or past the moved end is still provably
+    // disjoint — the same disjointness the unresolved rows already had.
+    let runtime_row = mutated(target, |function, _| {
+        sequence_row(function, BETWEEN, 8, 9);
+    });
+    let result = sink(&runtime_row, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    // The moved store's own index resolves through the same audit: the
+    // extent collapses to the one byte `8 + 3` = 11, so the covering
+    // store's exact write at [0, 8) is disjoint from it and the store
+    // sinks to the block's end.
+    let collapsed = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_MOVED_INDEX,
+            MOVED_SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+    });
+    let result = sink(&collapsed, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![
+            SelectedInstructionId(1),
+            MATERIALIZE_MOVED_INDEX,
+            BETWEEN,
+            KILLER,
+            STORE
+        ]
+    );
+    validate_store_mutation_motion(
+        &collapsed,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // The collapsed extent still decides by position: the same resolved
+    // index against payload base 4 lands the moved byte at 6, inside the
+    // covering store's [0, 8), so the store lands just before it.
+    let collapsed_on = mutated(target, |function, environment| {
+        sequence_store(function, environment, 4);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_MOVED_INDEX,
+            MOVED_SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            2,
+        );
+    });
+    let result = sink(&collapsed_on, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![
+            SelectedInstructionId(1),
+            MATERIALIZE_MOVED_INDEX,
+            BETWEEN,
+            STORE,
+            KILLER
+        ]
+    );
+    // A collapsed moved extent is met by a resolved row only when it lands
+    // on that byte: the intervening write resolves to `4 + 7` = 11, the
+    // moved byte itself, so the stop is the store's own next position and
+    // no motion admits.
+    let row_on_collapsed = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_MOVED_INDEX,
+            MOVED_SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        sequence_row(function, BETWEEN, 4, 9);
+        define_index(
+            function,
+            environment,
+            0,
+            4,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            7,
+        );
+    });
+    assert_eq!(
+        sink(&row_on_collapsed, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+}
+
+/// The resolved landing is only safe off the moved bytes: a write or read
+/// landing on the moved extent still bounds the window, a landing at or
+/// past an unresolved moved payload base may still meet the runtime-placed
+/// byte, and an unresolved index leaves the row's reach unbounded upward
+/// into a collapsed moved byte. An index whose carrier is not one clean
+/// `MaterializeI64` — a copy's result, or two carriers claiming one value —
+/// resolves nothing, so the moved extent stays dynamic.
+#[test]
+fn constant_index_sequence_rows_still_interfere_on_the_moved_extent() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The intervening write resolves to `4 + 2` = 6 — inside the moved
+    // range [0, 8) — so it bounds the window: the next position is already
+    // the stop, leaving no later landing.
+    let write_on = mutated(target, |function, environment| {
+        sequence_row(function, BETWEEN, 4, 9);
+        define_index(
+            function,
+            environment,
+            0,
+            1,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            2,
+        );
+    });
+    assert_eq!(
+        sink(&write_on, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A resolved read landing on the moved range observes the moved byte:
+    // the same stop through the `ReadByteSequence` role.
+    let read_on = mutated(target, |function, environment| {
+        function.memory_accesses.push(SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(
+                BETWEEN,
+                3,
+                place(),
+                4,
+                SelectedMemoryAccessRole::ReadByteSequence {
+                    index: ValueId::new(9).unwrap(),
+                    length: ValueId::new(7).unwrap(),
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32],
+                    ),
+                },
+            )
+        });
+        define_index(
+            function,
+            environment,
+            0,
+            1,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            2,
+        );
+    });
+    assert_eq!(
+        sink(&read_on, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A moved index staying runtime leaves the moved byte anywhere at or
+    // past the payload base: the intervening write landing on byte 16 may
+    // be that byte, so it still interferes.
+    let in_reach = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        sequence_row(function, BETWEEN, 16, 9);
+        define_index(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            0,
+        );
+    });
+    assert_eq!(
+        sink(&in_reach, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // An unresolved index leaves the row's reach unbounded upward: a
+    // payload base at or below the collapsed moved byte can still land on
+    // it.
+    let runtime_index = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_MOVED_INDEX,
+            MOVED_SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        sequence_row(function, BETWEEN, 4, 9);
+    });
+    assert_eq!(
+        sink(&runtime_index, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A moved index defined by a copy rather than a clean `MaterializeI64`
+    // resolves nothing: the extent stays dynamic — unbounded upward from
+    // the payload base 4 — so the covering store's [0, 8) still reaches it
+    // and bounds the motion.
+    let copied = mutated(target, |function, environment| {
+        sequence_store(function, environment, 4);
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function
+            .virtual_registers
+            .push(selected_instructions::VirtualRegister {
+                id: MOVED_SEQUENCE_INDEX,
+                scalar_type: ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .unwrap(),
+                ),
+                class: copy.operands[0].class,
+                origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                    instruction: MATERIALIZE_MOVED_INDEX,
+                    source_value: ValueId::new(5).unwrap(),
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            });
+        function.blocks[0].instructions.insert(
+            1,
+            instruction(
+                MATERIALIZE_MOVED_INDEX,
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[POINTER, MOVED_SEQUENCE_INDEX],
+            ),
+        );
+    });
+    let result = sink(&copied, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![
+            SelectedInstructionId(1),
+            MATERIALIZE_MOVED_INDEX,
+            BETWEEN,
+            STORE,
+            KILLER
+        ]
+    );
+    // Two carriers claiming the moved index's value make the constant
+    // ambiguous, so the extent stays dynamic the same way.
+    let ambiguous = mutated(target, |function, environment| {
+        sequence_store(function, environment, 4);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_MOVED_INDEX,
+            MOVED_SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+    });
+    let result = sink(&ambiguous, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![
+            SelectedInstructionId(1),
+            MATERIALIZE_MOVED_INDEX,
+            MATERIALIZE_INDEX,
+            BETWEEN,
+            STORE,
+            KILLER
+        ]
+    );
 }
