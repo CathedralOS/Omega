@@ -25,6 +25,14 @@ pub(super) struct Admission<'source> {
     /// implicit definition — closes it and the next use opens a fresh pair.
     /// `false` keeps each use on a private reload pair.
     pub shared_reload: Vec<bool>,
+    /// Per block: the source instruction indices whose clobber or implicit
+    /// definition does NOT close the still-open shared reload. Under
+    /// `RuntimeSpillSpanPolicy::UnitWriteCrossing` a unit-writing instruction
+    /// stays crossed while an allocatable view of the victim's class avoids
+    /// every unit written inside the span so far — the surviving home the
+    /// produced interval then demands of the allocator. Always empty under
+    /// `UnitWriteBounded`, the historical shape.
+    pub crossed_unit_writes: Vec<std::collections::BTreeSet<usize>>,
     pub victim: &'source VirtualRegister,
     /// What the spill restates. A scalar victim keeps its source `ValueId`;
     /// a structural victim — an ABI live-in's incoming pointer, a field
@@ -138,6 +146,7 @@ pub(super) fn admit<'source>(
     function_index: usize,
     register: VirtualRegisterId,
     environment: &'source ValidatedTargetRegisterEnvironment,
+    span_policy: super::RuntimeSpillSpanPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, RuntimeSpillError> {
     let plan = source.selected_plan();
@@ -666,6 +675,19 @@ pub(super) fn admit<'source>(
             })
         })
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
+        // The unit-write crossing simulation replays the open/close decision
+        // once over the victim function's own instructions.
+        .and_then(|total| {
+            total.checked_add(
+                if span_policy == super::RuntimeSpillSpanPolicy::UnitWriteCrossing {
+                    function.blocks.iter().try_fold(0usize, |sum, block| {
+                        sum.checked_add(block.instructions.len())?.checked_add(1)
+                    })?
+                } else {
+                    0
+                },
+            )
+        })
         .and_then(|total| total.checked_add(slot_scan))
         // The structural-argument check groups the memory accesses once, then
         // each pending binding walks its own access group.
@@ -801,9 +823,10 @@ pub(super) fn admit<'source>(
         .collect::<std::collections::BTreeSet<_>>();
     // One reload register stays open for consecutive flexible uses only
     // while the instructions between them cannot destroy register content;
-    // a clobber or implicit definition closes it at rewrite time, so no
-    // produced interval ever reaches across a call and demands a
-    // callee-saved home recovery may not have.
+    // a clobber or implicit definition closes it at rewrite time, so under
+    // `UnitWriteBounded` no produced interval ever reaches across a call and
+    // demands a callee-saved home recovery may not have.
+    let empty_writes = std::collections::BTreeSet::new();
     let shared_reload: Vec<bool> = function
         .blocks
         .iter()
@@ -815,7 +838,58 @@ pub(super) fn admit<'source>(
                     victim.class,
                     &implicit_use_units,
                     &pinned_units,
+                    &empty_writes,
                 )
+        })
+        .collect();
+    // Under `UnitWriteCrossing` a unit-writing instruction instead keeps the
+    // open pair while an allocatable view of the victim's class avoids every
+    // unit written inside the span so far — the clobber-set-reduced, most
+    // often callee-saved, home the produced interval then demands. The
+    // simulation replays the rewrite's own open/close decision: the pair
+    // opens at each unpinned use and, while open, a unit-writing instruction
+    // either joins the crossed set — accumulating its writes into the span —
+    // or ends the span. Where no view survives, the instruction still closes
+    // the span and the produced shape degrades to the bounded one.
+    let crossed_unit_writes: Vec<std::collections::BTreeSet<usize>> = function
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(block_index, block)| {
+            let mut crossed = std::collections::BTreeSet::new();
+            if span_policy == super::RuntimeSpillSpanPolicy::UnitWriteCrossing
+                && shared_reload[block_index]
+            {
+                let mut open = false;
+                let mut written = std::collections::BTreeSet::new();
+                for (index, instruction) in block.instructions.iter().enumerate() {
+                    if use_positions[block_index].unpinned.contains(&index) {
+                        open = true;
+                    }
+                    if instruction.clobbers.is_empty() && instruction.implicit_defs.is_empty()
+                        || !open
+                    {
+                        continue;
+                    }
+                    let mut trial = written.clone();
+                    trial.extend(instruction.clobbers.iter().copied());
+                    trial.extend(instruction.implicit_defs.iter().copied());
+                    if surviving_home_exists(
+                        environment,
+                        victim.class,
+                        &implicit_use_units,
+                        &pinned_units,
+                        &trial,
+                    ) {
+                        written = trial;
+                        crossed.insert(index);
+                    } else {
+                        open = false;
+                        written.clear();
+                    }
+                }
+            }
+            crossed
         })
         .collect();
     // Every recorded binding must resolve to exactly the snapshot chunk-load
@@ -908,12 +982,16 @@ pub(super) fn admit<'source>(
                 // Positions follow byte order, not necessarily instruction
                 // order; the span between the outermost chunk loads is what a
                 // unit-writing instruction would have to sit inside to close
-                // the shared reload between them.
+                // the shared reload between them. Under the crossing policy a
+                // barrier the span survives does not close it.
                 let first = *positions.iter().min().unwrap();
                 let last = *positions.iter().max().unwrap();
-                let closed = block.instructions[first..last].iter().any(|instruction| {
-                    !instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty()
-                });
+                let closed = block.instructions[first..last].iter().enumerate().any(
+                    |(offset, instruction)| {
+                        (!instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty())
+                            && !crossed_unit_writes[pending.block].contains(&(first + offset))
+                    },
+                );
                 if !shared_reload[pending.block] || closed || pinned {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 }
@@ -930,6 +1008,7 @@ pub(super) fn admit<'source>(
         &definitions,
         &use_positions,
         &shared_reload,
+        &crossed_unit_writes,
     ) {
         Some(shared) => (shared, false),
         None => (private_slot, true),
@@ -938,6 +1017,7 @@ pub(super) fn admit<'source>(
         function,
         use_blocks,
         shared_reload,
+        crossed_unit_writes,
         victim,
         lineage,
         address_scalar_type: ScalarType::Integer(unsigned),
@@ -1305,21 +1385,25 @@ pub(super) fn frame(slot: LocalStorageSlotId) -> FrameStorageSlotId {
 }
 
 /// Whether one reload register can keep a legal home across a flexible-use
-/// span. An open reload never spans an instruction that can destroy register
-/// content — a clobber or implicit definition closes it — so the produced
-/// interval only covers instructions that write no unit at all. What remains
-/// to exclude is function-wide: a unit implicitly used anywhere can be live
-/// through every interior point (the caller collects those into
-/// `implicit_use_units`, including the frame rows the rewrite inserts), a
-/// unit precolored by a fixed-view operand or an entry-bound register
-/// (`pinned_units`) is likewise unavailable, and a reserved unit is never
-/// allocatable. Where no view survives, every use keeps a private reload
-/// pair — the shape the rewrite always produced.
+/// span. Under the bounded policy an open reload never spans an instruction
+/// that can destroy register content — a clobber or implicit definition
+/// closes it — so the produced interval only covers instructions that write
+/// no unit at all; under the crossing policy the caller instead collects the
+/// units every crossed instruction writes into `written_units`, and the
+/// surviving view must avoid those too — the callee-saved candidates a call
+/// crossing leaves. What remains is function-wide either way: a unit
+/// implicitly used anywhere can be live through every interior point (the
+/// caller collects those into `implicit_use_units`, including the frame rows
+/// the rewrite inserts), a unit precolored by a fixed-view operand or an
+/// entry-bound register (`pinned_units`) is likewise unavailable, and a
+/// reserved unit is never allocatable. Where no view survives, every use
+/// keeps a private reload pair — the shape the rewrite always produced.
 fn surviving_home_exists(
     environment: &ValidatedTargetRegisterEnvironment,
     class: RegisterClassId,
     implicit_use_units: &std::collections::BTreeSet<RegisterUnitId>,
     pinned_units: &std::collections::BTreeSet<RegisterUnitId>,
+    written_units: &std::collections::BTreeSet<RegisterUnitId>,
 ) -> bool {
     let reserved = environment.reservations().reserved_units();
     let physical = environment.physical().model();
@@ -1338,6 +1422,7 @@ fn surviving_home_exists(
                             && view.units.iter().chain(&view.write_units).all(|unit| {
                                 !implicit_use_units.contains(unit)
                                     && !pinned_units.contains(unit)
+                                    && !written_units.contains(unit)
                                     && reserved.binary_search(unit).is_err()
                             })
                     })

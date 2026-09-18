@@ -1008,6 +1008,302 @@ fn a_call_closes_the_shared_reload_for_later_flexible_uses() {
     }
 }
 
+/// The crossing counterpart: while the victim's class still offers an
+/// allocatable view avoiding every unit the intervening `CallUnit` writes —
+/// the callee-saved candidates — the still-open reload survives the call, so
+/// both flexible uses name one register whose produced interval reaches
+/// across it. Crossing replay accepts exactly that shape: bounded replay of
+/// the same plan rejects the missing post-call pair, the bounded emission
+/// rejects under crossing replay, and a dropped pair or a use rebound to the
+/// victim each reject. Where no view survives the call's writes at all, the
+/// crossing policy degrades to the bounded shape.
+#[test]
+fn a_surviving_view_keeps_the_shared_reload_open_across_a_call() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let call = environment
+            .constraint(
+                *environment
+                    .selected_keys()
+                    .call_unit
+                    .first()
+                    .expect("every baseline target has a zero-argument unit call row"),
+            )
+            .unwrap();
+        assert!(call.operands.is_empty());
+        let mut source = fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            function.blocks[0].instructions[2] = admission::instruction(
+                SelectedInstructionId(3),
+                SelectedInstructionKind::CallUnit {
+                    callee: MachineId::new(2).unwrap(),
+                },
+                call,
+                &[],
+            );
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result = crate::spill_selected_runtime_value_with_span_policy(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+        )
+        .unwrap();
+        let block = &result.transformed().functions[0].blocks[0];
+        // The four originals plus one definition store and one shared pair
+        // that crosses the call: [copy, store, address, load, copy, call,
+        // copy].
+        assert_eq!(block.instructions.len(), 7);
+        let call_position = block
+            .instructions
+            .iter()
+            .position(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::CallUnit { .. })
+            })
+            .unwrap();
+        let loads: Vec<usize> = block
+            .instructions
+            .iter()
+            .enumerate()
+            .filter_map(|(position, instruction)| {
+                matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                    .then_some(position)
+            })
+            .collect();
+        assert_eq!(loads.len(), 1);
+        assert!(loads[0] < call_position);
+        // Both flexible uses name the still-open reload, so its produced
+        // interval reaches across the call.
+        let reload = block.instructions[loads[0]].operands[1].virtual_register;
+        let pre_call = block
+            .instructions
+            .iter()
+            .find(|instruction| instruction.id == SelectedInstructionId(2))
+            .unwrap()
+            .operands[0]
+            .virtual_register;
+        let post_call = block
+            .instructions
+            .iter()
+            .find(|instruction| instruction.id == SelectedInstructionId(4))
+            .unwrap()
+            .operands[0]
+            .virtual_register;
+        assert_eq!(pre_call, reload);
+        assert_eq!(post_call, reload);
+        assert!(
+            crate::validate_runtime_spill_with_span_policy(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone(),
+                crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+            )
+            .is_ok()
+        );
+        // Bounded replay of the crossing plan expects a fresh pair after the
+        // call; the bounded emission's post-call pair fails crossing replay.
+        assert_eq!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone(),
+            )
+            .unwrap_err(),
+            RuntimeSpillError::ReplayMismatch
+        );
+        let bounded =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        assert_eq!(
+            crate::validate_runtime_spill_with_span_policy(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                bounded.transformed().clone(),
+                crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+            )
+            .unwrap_err(),
+            RuntimeSpillError::ReplayMismatch
+        );
+        for mutation in 0..3 {
+            let mut proposed = result.transformed().clone();
+            let function = &mut proposed.functions[0];
+            match mutation {
+                // Dropping the shared load leaves both uses naming a register
+                // no pair defines.
+                0 => {
+                    function.blocks[0].instructions.remove(loads[0]);
+                }
+                // A use rebound to the spilled victim restores nothing.
+                1 => {
+                    function.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|instruction| instruction.id == SelectedInstructionId(4))
+                        .unwrap()
+                        .operands[0]
+                        .virtual_register = VirtualRegisterId(1);
+                }
+                // The bounded shape — a second private pair after the call —
+                // is not the crossing canonical output either.
+                _ => {
+                    let (address, load) = {
+                        let bounded_block = &bounded.transformed().functions[0].blocks[0];
+                        let pair: Vec<_> = bounded_block
+                            .instructions
+                            .iter()
+                            .skip(call_position + 1)
+                            .take_while(|instruction| {
+                                !matches!(instruction.kind, SelectedInstructionKind::CopyI64)
+                            })
+                            .cloned()
+                            .collect();
+                        (pair[0].clone(), pair[1].clone())
+                    };
+                    let block = &mut function.blocks[0];
+                    let at = block
+                        .instructions
+                        .iter()
+                        .position(|instruction| instruction.id == SelectedInstructionId(4))
+                        .unwrap();
+                    block.instructions.insert(at, load);
+                    block.instructions.insert(at, address);
+                }
+            }
+            assert_eq!(
+                crate::validate_runtime_spill_with_span_policy(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    proposed,
+                    crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch,
+                "{target:?} mutation {mutation}"
+            );
+        }
+    }
+}
+
+/// The crossing policy's degradation: when the intervening call's implicit
+/// uses cover every unit the victim's class offers, no view can host even a
+/// call-free shared interval, so `UnitWriteCrossing` produces the identical
+/// private-per-use plan the bounded policy does and validates identically.
+#[test]
+fn no_surviving_view_degrades_crossing_to_the_bounded_shape() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let call_row = environment
+            .constraint(
+                *environment
+                    .selected_keys()
+                    .call_unit
+                    .first()
+                    .expect("every baseline target has a zero-argument unit call row"),
+            )
+            .unwrap();
+        let model = environment.physical().model();
+        let mut source = fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            let victim_class = function.virtual_registers[1].class;
+            let mut call = admission::instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::CallUnit {
+                    callee: MachineId::new(2).unwrap(),
+                },
+                call_row,
+                &[],
+            );
+            for class in &model.classes {
+                if class.id != victim_class {
+                    continue;
+                }
+                for view_id in &class.views {
+                    if let Some(view) = model.views.get(usize::from(view_id.0)) {
+                        call.implicit_uses
+                            .extend(view.units.iter().chain(&view.write_units).copied());
+                    }
+                }
+            }
+            call.implicit_uses.sort_unstable();
+            call.implicit_uses.dedup();
+            function.blocks[0].instructions.insert(2, call);
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let bounded =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let crossing = crate::spill_selected_runtime_value_with_span_policy(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+        )
+        .unwrap();
+        // With no surviving view the crossing policy emits the bounded plan
+        // exactly — one private pair per use — and both replays accept it.
+        assert_eq!(
+            crossing.transformed().functions[0].blocks[0].instructions,
+            bounded.transformed().functions[0].blocks[0].instructions
+        );
+        assert!(
+            crate::validate_runtime_spill_with_span_policy(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                crossing.transformed().clone(),
+                crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                crossing.transformed().clone(),
+            )
+            .is_ok()
+        );
+    }
+}
+
 /// The shared/private boundary: when every view of the victim's class meets
 /// a unit that can never host an interval — here an intervening call whose
 /// implicit uses cover every unit, so each one may be live through every

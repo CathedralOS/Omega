@@ -229,8 +229,14 @@ fn registers_binding_arguments_admit_while_other_transports_reject() {
                 if terminator_kind >= 4 && reference_kind != 0 {
                     continue;
                 }
-                let admitted =
-                    admission::admit(&source, 0, VirtualRegisterId(1), &environment, budget());
+                let admitted = admission::admit(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    crate::RuntimeSpillSpanPolicy::UnitWriteBounded,
+                    budget(),
+                );
                 if reference_kind <= 1 {
                     // Terminator operands and outgoing binding arguments are
                     // both ordinary end-of-block uses.

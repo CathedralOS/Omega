@@ -10,12 +10,16 @@ use selected_instructions::{
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
-use super::{RuntimeSpillError, RuntimeSpillReceipt, ValidatedRuntimeSpill, admission};
+use super::{
+    RuntimeSpillError, RuntimeSpillReceipt, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill,
+    admission,
+};
 use crate::ValidatedSelectedAnalysis;
 
 /// Independently consume the proposed instruction stream, checking every private
 /// access and rewritten operand against its original use. Stripping these exact
 /// additions must restore the entire admitted source, including calls and fuel.
+/// Replays under the bounded span policy the default rewrite produces.
 pub fn validate_runtime_spill(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
@@ -24,7 +28,39 @@ pub fn validate_runtime_spill(
     budget: OptimizationWorkBudget,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
-    let admitted = admission::admit(source, function_index, register, environment, budget)?;
+    validate_runtime_spill_with_span_policy(
+        source,
+        function_index,
+        register,
+        environment,
+        budget,
+        proposed,
+        RuntimeSpillSpanPolicy::UnitWriteBounded,
+    )
+}
+
+/// The same independent consumption under an explicit span policy: replay
+/// must follow the producer's own open/close decision exactly, so a plan
+/// produced under the other policy — a shared reload reaching across a
+/// unit-writing instruction, or a private pair where the crossing span
+/// stayed open — mismatches rather than validates.
+pub fn validate_runtime_spill_with_span_policy(
+    source: &impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    register: VirtualRegisterId,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+    proposed: SelectedInstructionPlan,
+    span_policy: RuntimeSpillSpanPolicy,
+) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
+    let admitted = admission::admit(
+        source,
+        function_index,
+        register,
+        environment,
+        span_policy,
+        budget,
+    )?;
     let function = proposed
         .functions
         .get(function_index)
@@ -62,8 +98,9 @@ pub fn validate_runtime_spill(
         // when admission proved a surviving view, the first unpinned
         // instruction-operand use emits the pair and each later unpinned use
         // names that still-open reload register until an instruction that can
-        // destroy register content closes it. A pinned operand or an
-        // unadmitted block consumes a fresh pair at every use.
+        // destroy register content — and is not crossed under the admitted
+        // span policy — closes it. A pinned operand or an unadmitted block
+        // consumes a fresh pair at every use.
         let shared = admitted.shared_reload[block_index];
         let mut open_reload: Option<VirtualRegisterId> = None;
         // The register each restored instruction's first victim use must
@@ -93,7 +130,7 @@ pub fn validate_runtime_spill(
                 .checked_add(1)
                 .ok_or(RuntimeSpillError::IdentityOverflow)?;
         }
-        for original in &source_block.instructions {
+        for (instruction_index, original) in source_block.instructions.iter().enumerate() {
             boundaries.push(consumed);
             let mut restored = original.clone();
             for operand in &mut restored.operands {
@@ -139,9 +176,12 @@ pub fn validate_runtime_spill(
                 .checked_add(1)
                 .ok_or(RuntimeSpillError::IdentityOverflow)?;
             // The same unit-writing instruction that closed the proposal's
-            // open reload closes it here, so the next unpinned use must name
-            // a fresh pair rather than the pre-boundary register.
-            if !restored.clobbers.is_empty() || !restored.implicit_defs.is_empty() {
+            // open reload closes it here — unless the admitted span policy
+            // crossed it — so the next unpinned use must name a fresh pair
+            // rather than the pre-boundary register.
+            if (!restored.clobbers.is_empty() || !restored.implicit_defs.is_empty())
+                && !admitted.crossed_unit_writes[block_index].contains(&instruction_index)
+            {
                 open_reload = None;
             }
             for definition in admitted.definitions.iter().filter(|definition| {

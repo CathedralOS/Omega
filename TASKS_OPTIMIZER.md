@@ -869,23 +869,32 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   (`tests/native-differential/.../fixtures/call_spanning_reload.rs`,
   `.../register_allocation/reload_value_homes.rs`). The executable
   runtime-spill rewrite realizes a block's flexible victim uses through one
-  shared reload register only while every instruction inside the open span
-  writes no unit — a clobber or an implicit definition closes the pair, so
-  no produced interval ever demands a cross-call home — when admission
-  proves some allocatable view of the victim's class is free of
-  function-wide implicit uses, pinned views, and reservations; ABI-pinned
+  shared reload register under an explicit span policy: the bounded policy
+  closes the pair at any instruction that can destroy register content,
+  while the crossing policy keeps it open across a unit-writing instruction
+  — most often a `CallUnit` — while admission proves an allocatable view of
+  the victim's class is free of function-wide implicit uses, pinned views,
+  reservations, and every unit written inside the span so far; ABI-pinned
   uses keep a private pair so the pin covers only the load-to-use window,
-  and independent replay reconstructs the same grouping
+  and independent replay reconstructs the same grouping under the same
+  policy
   (`selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs`,
-  `.../runtime_spill/rewrite.rs`, `.../runtime_spill/validation.rs`). The
-  sequenced native fixture drives that boundary on all five native
-  targets: the victim's two uses straddle an intervening `CallUnit` and
-  each opens a private frame-address/load pair whose window holds no call,
-  while the fixture's own filler still spans the first call onto the
-  callee-saved survivor (rbx on x86-64, x19 on AArch64); independent
-  replay rejects a dropped pair, a post-call use rebound to the pre-call
-  reload or to the victim, a bogus extra load, a non-canonical reload
-  home, and a foreign legality root
+  `.../runtime_spill/rewrite.rs`, `.../runtime_spill/validation.rs`).
+  Sequenced pressure recovery tries the call-surviving form after
+  rematerialization fails, reanalyzes and assigns the transformed program,
+  and commits a crossing step only when that assignment succeeds —
+  otherwise it falls back to the bounded rewrite, and retained replay
+  re-derives the same decision on the same inputs
+  (`selected-instructions-to-register-homes/src/assignment/runtime_spill/`).
+  The sequenced native fixture drives both shapes on all five native
+  targets: the victim's two uses straddle an intervening `CallUnit`, the
+  crossing rewrite serves them through one reload pair whose interval homes
+  to the callee-saved survivor (rbx on x86-64, x19 on AArch64), and the
+  bounded rewrite still closes at the call with a private pair each side;
+  independent replay rejects a dropped pair, a post-call use rebound to the
+  pre-call reload or to the victim, a bogus extra load, a non-canonical
+  reload home, and a foreign legality root, and each policy's replay
+  rejects the other's shape
   (`tests/native-differential/.../register_allocation/runtime_spill_call_spanning.rs`).
   Remaining: none of the stated legs are outstanding — every
   `NativeTarget` constructor is witnessed; Windows AArch64 has no
