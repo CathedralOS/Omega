@@ -38,7 +38,8 @@ use typed_trees::signature::{SignatureContractKind, StateParameter};
 use super::super::contracts::labels::domain_proves_expression_label;
 use crate::labels::{
     canonical_place_label, instantiate_operator_contract_expression_label,
-    semantic_boolean_fact_label, symbol_name,
+    instantiate_operator_contract_expression_label_with_labels, semantic_boolean_fact_label,
+    symbol_name,
 };
 
 mod invocation;
@@ -58,16 +59,69 @@ pub(crate) fn operator_route_is_false(
 ) -> bool {
     let contexts = InvocationContexts::from_flow(flow, operator_use, operands);
     expression_has_polarity(
-        program, semantic, &contexts, parameters, operands, expression, false,
+        program,
+        semantic,
+        &contexts,
+        parameters,
+        &operand_labels(program, operands),
+        expression,
+        false,
     )
 }
 
+/// The same discharge for a named `Namespace::requirement(...)` call whose
+/// evaluation emitted an operand-time capture row keyed by its `named_use`
+/// handle. The selection rules are identical to the spelled path: operand
+/// expressions must match exactly, scalar carriers use their operand-time
+/// snapshots, and other carriers intersect those snapshots with facts live
+/// at invocation. The caller supplies the operand labels: a reference formal
+/// used as a predicate value reads its referent, so a `&x` operand names
+/// `x`. A named use whose statement produced no capture has no row here at
+/// all; the caller applies its entry-context fallback instead.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn named_operator_route_is_false(
+    program: &TypedTrees,
+    flow: &checked_trees::FlowFacts,
+    semantic: &FactPlan,
+    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
+    parameters: &[StateParameter],
+    operands: &[ExpressionHandle],
+    operand_labels: &[String],
+    expression: ExpressionHandle,
+) -> bool {
+    let contexts = InvocationContexts::from_named_use(flow, named_use, operands);
+    expression_has_polarity(
+        program,
+        semantic,
+        &contexts,
+        parameters,
+        operand_labels,
+        expression,
+        false,
+    )
+}
+
+/// Operand labels as the spelled surface renders them. The named-call seam
+/// supplies its own referent-naming labels instead.
+fn operand_labels(program: &TypedTrees, operands: &[ExpressionHandle]) -> Vec<String> {
+    operands
+        .iter()
+        .map(|operand| {
+            program.render_proof_expression(
+                *operand,
+                typed_trees::proposition::ProofSubstitutions::None,
+            )
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
 fn expression_has_polarity(
     program: &TypedTrees,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
+    operand_labels: &[String],
     expression: ExpressionHandle,
     polarity: bool,
 ) -> bool {
@@ -81,7 +135,7 @@ fn expression_has_polarity(
                 semantic,
                 contexts,
                 parameters,
-                operands,
+                operand_labels,
                 unary.operand,
                 !polarity,
             );
@@ -94,7 +148,7 @@ fn expression_has_polarity(
                 semantic,
                 contexts,
                 parameters,
-                operands,
+                operand_labels,
                 binary.left,
                 polarity,
             );
@@ -103,7 +157,7 @@ fn expression_has_polarity(
                 semantic,
                 contexts,
                 parameters,
-                operands,
+                operand_labels,
                 binary.right,
                 polarity,
             );
@@ -117,11 +171,20 @@ fn expression_has_polarity(
     }
     if polarity {
         return contexts_prove_boolean_leaf(
-            program, semantic, contexts, parameters, operands, expression,
+            program,
+            semantic,
+            contexts,
+            parameters,
+            operand_labels,
+            expression,
         );
     }
-    let required =
-        instantiate_operator_contract_expression_label(program, parameters, operands, expression);
+    let required = instantiate_operator_contract_expression_label_with_labels(
+        program,
+        parameters,
+        operand_labels,
+        expression,
+    );
     contexts
         .for_expressions(program, parameters, [expression])
         .iter()
@@ -191,6 +254,7 @@ pub(super) fn selected_binary_requires_diagnostics(
             .map(|operator| program.operator_parameters(operator))
             .unwrap_or(&[]);
         let operands = operator_use.operands(program).unwrap_or_default();
+        let operand_labels = operand_labels(program, &operands);
         let invocation_contexts = InvocationContexts::new(facts, operator_use_handle, &operands);
 
         for fact in requires_facts {
@@ -199,7 +263,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                 &facts.semantic,
                 &invocation_contexts,
                 parameters,
-                &operands,
+                &operand_labels,
                 fact,
             );
             if !proven {
@@ -277,7 +341,7 @@ fn requires_fact_proven(
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
+    operand_labels: &[String],
     fact: &ProofFact,
 ) -> bool {
     match fact {
@@ -285,10 +349,10 @@ fn requires_fact_proven(
             if !membership.domain_arguments.is_empty() {
                 return false;
             }
-            let value_label = instantiate_operator_contract_expression_label(
+            let value_label = instantiate_operator_contract_expression_label_with_labels(
                 program,
                 parameters,
-                operands,
+                operand_labels,
                 membership.value,
             );
             let contexts = contexts.for_expressions(program, parameters, [membership.value]);
@@ -307,7 +371,7 @@ fn requires_fact_proven(
             semantic,
             contexts,
             parameters,
-            operands,
+            operand_labels,
             *expression,
         ),
         ProofFact::Proposition(application) => {
@@ -330,8 +394,11 @@ fn requires_fact_proven(
                 .expression_handles(application.arguments)
                 .iter()
                 .map(|argument| {
-                    instantiate_operator_contract_expression_label(
-                        program, parameters, operands, *argument,
+                    instantiate_operator_contract_expression_label_with_labels(
+                        program,
+                        parameters,
+                        operand_labels,
+                        *argument,
                     )
                 })
                 .collect::<Vec<_>>();
@@ -375,7 +442,7 @@ fn contexts_prove_boolean_expression(
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
+    operand_labels: &[String],
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
@@ -384,7 +451,7 @@ fn contexts_prove_boolean_expression(
             semantic,
             contexts,
             parameters,
-            operands,
+            operand_labels,
             inner.target,
         ),
         ExpressionNode::Boolean(true) => true,
@@ -395,14 +462,14 @@ fn contexts_prove_boolean_expression(
                     semantic,
                     contexts,
                     parameters,
-                    operands,
+                    operand_labels,
                     binary.left,
                 ) && contexts_prove_boolean_expression(
                     program,
                     semantic,
                     contexts,
                     parameters,
-                    operands,
+                    operand_labels,
                     binary.right,
                 )
             }
@@ -412,23 +479,33 @@ fn contexts_prove_boolean_expression(
                     semantic,
                     contexts,
                     parameters,
-                    operands,
+                    operand_labels,
                     binary.left,
                 ) || contexts_prove_boolean_expression(
                     program,
                     semantic,
                     contexts,
                     parameters,
-                    operands,
+                    operand_labels,
                     binary.right,
                 )
             }
             _ => contexts_prove_boolean_leaf(
-                program, semantic, contexts, parameters, operands, expression,
+                program,
+                semantic,
+                contexts,
+                parameters,
+                operand_labels,
+                expression,
             ),
         },
         _ => contexts_prove_boolean_leaf(
-            program, semantic, contexts, parameters, operands, expression,
+            program,
+            semantic,
+            contexts,
+            parameters,
+            operand_labels,
+            expression,
         ),
     }
 }
@@ -438,11 +515,15 @@ fn contexts_prove_boolean_leaf(
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
+    operand_labels: &[String],
     expression: ExpressionHandle,
 ) -> bool {
-    let required_label =
-        instantiate_operator_contract_expression_label(program, parameters, operands, expression);
+    let required_label = instantiate_operator_contract_expression_label_with_labels(
+        program,
+        parameters,
+        operand_labels,
+        expression,
+    );
     let contexts = contexts.for_expressions(program, parameters, [expression]);
     contexts
         .iter()

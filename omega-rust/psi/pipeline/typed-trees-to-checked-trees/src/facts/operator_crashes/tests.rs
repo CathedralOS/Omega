@@ -1,7 +1,10 @@
 //! Named `Namespace::requirement(...)` crash uses prove route falsity from
-//! the containing statement's entry contexts — never from a fabricated flow
-//! invocation capture, and only while every place a guard leaf reads keeps
-//! its invocation-entry provenance below the operand it binds to.
+//! their own operand-time invocation captures — recorded against the
+//! `named_uses` row, never a fabricated `uses` row or ordinary call fact —
+//! with the same per-operand and per-context selection a spelled use gets.
+//! A call whose evaluation emitted no capture falls back to the containing
+//! statement's entry contexts, and only while every place a guard leaf reads
+//! keeps its invocation-entry provenance below the operand it binds to.
 
 use checked_trees::CheckedTrees;
 use typed_trees::TypedTrees;
@@ -100,11 +103,11 @@ fn named_call_discharge_survives_writes_to_disjoint_sibling_storage() {
 }
 
 #[test]
-fn named_call_keeps_a_route_whose_operand_lacks_entry_provenance() {
-    // `peek` never writes, but an exclusive loan of `value` ends its
-    // bound-snapshot provenance regardless: `entry_operand` cannot promise
-    // the post-loan read still holds the bound value, so no statement-entry
-    // fact about `value` may discharge the guard.
+fn named_call_discharges_a_route_whose_exclusive_loan_never_writes() {
+    // `peek` borrows `value` exclusively but provably never writes it, so the
+    // operand-time capture of `value` still carries `value >= 0` at the
+    // named call. The statement-entry provenance gate could not see the
+    // callee's write summary; the captured constraints can.
     let source = "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
          crashes Trap !(right >= 0);
          machine peek(x: &mut i32) { }
@@ -113,8 +116,29 @@ fn named_call_keeps_a_route_whose_operand_lacks_entry_provenance() {
              peek(&mut value);
              Comparison::equal(1, value)
          }";
+    check(source).expect("an exclusive loan whose callee never writes keeps the premise live");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_operand_a_borrow_rewrites() {
+    // `poke` writes through its exclusive loan, so the operand-time capture
+    // of `value` no longer holds `value >= 0` and the route survives.
+    let source = "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= 0);
+         machine poke(x: &mut i32) { x = 0; }
+         pub machine shadowed(mut value: i32) -> bool
+         requires value >= 0 {
+             poke(&mut value);
+             Comparison::equal(1, value)
+         }";
     let diagnostics =
-        check(source).expect_err("an operand read behind an exclusive borrow keeps its route");
+        check(source).expect_err("an operand rewritten through a borrow keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -424,11 +448,13 @@ fn named_call_mutable_receiver_field_window_excludes_states_that_cannot_precede(
 }
 
 #[test]
-fn named_call_mutable_receiver_field_window_reaches_through_a_cycle() {
-    // `done` writes `self.count` and can return to `check`, so a second
-    // `check` arrival reads written storage: the write stays inside the
-    // escape window and the route survives rather than borrowing the entry
-    // fact.
+fn named_call_mutable_receiver_field_cycle_discharges_when_reentry_reestablishes() {
+    // `done` writes `self.count` and can return to `check`, but every `check`
+    // arrival must satisfy its `self.count >= 0` entry requirement — the
+    // guarded re-entry cannot be taken after the write — so the fact captured
+    // at `Ns::probe` is genuinely live at the invocation and the route
+    // discharges. Operand-time custody replaces the escape window's
+    // conservative "a cycling predecessor may precede the read" retention.
     let source = "pub data Main { count: i32; }
          boundary operator Ns::probe(value: i32) -> bool
          crashes Trap !(value >= 0);
@@ -441,41 +467,35 @@ fn named_call_mutable_receiver_field_window_reaches_through_a_cycle() {
                  transition self.count >= 0 { true -> check() false -> true }
              }
          }";
-    let diagnostics = check(source).expect_err("a cycling predecessor's write keeps the route");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("uncovered")),
-        "{diagnostics:#?}"
-    );
+    check(source).expect("the re-entry requirement re-establishes the premise at every arrival");
     let checked = inspect(source);
     let sites = named_sites(&checked);
     let [site] = sites.as_slice() else {
         panic!("one named operator crash site")
     };
-    assert_eq!(site.surviving.len(), 1);
+    assert!(site.surviving.is_empty());
 }
 
 #[test]
 fn named_call_keeps_a_route_whose_mutable_receiver_escapes() {
-    // A `&mut self` receiver call and an exclusive `&mut self` loan can each
-    // write any receiver field, so neither lets the read borrow the entry
-    // fact — no matter where in the machine the escape sits.
+    // A `&mut self` receiver call that writes the read field and a write
+    // through an exclusive `&mut self` loan each retire `self.count` from the
+    // captured constraints — no matter where in the machine the escape sits.
     for body in [
         "self.recompute(); Ns::probe(self.count)",
-        "let loan: &mut Main = &mut self; Ns::probe(self.count)",
+        "let loan: &mut Main = &mut self; loan.count = -1; Ns::probe(self.count)",
     ] {
         let source = &format!(
             "pub data Main {{ count: i32; }}
              boundary operator Ns::probe(value: i32) -> bool
              crashes Trap !(value >= 0);
-             pub machine Main::recompute(&mut self) {{ }}
+             pub machine Main::recompute(&mut self) {{ self.count = -1; }}
              pub machine Main::check(&mut self) -> bool
              requires self.count >= 0 {{
                  {body}
              }}",
         );
-        let diagnostics = check(source).expect_err("a receiver escape keeps the route");
+        let diagnostics = check(source).expect_err("a receiver escape that writes keeps the route");
         assert!(
             diagnostics
                 .iter()
@@ -695,20 +715,21 @@ fn named_call_keeps_a_route_whose_read_field_is_rewritten() {
 }
 
 #[test]
-fn named_call_keeps_a_route_whose_read_field_is_exclusively_borrowed() {
-    // `&mut rec.count` lends the read projection itself, so provenance ends
-    // even though the loaned sibling was never written.
+fn named_call_keeps_a_route_whose_read_field_is_rewritten_through_a_loan() {
+    // `&mut rec.count` lends the read projection itself and the callee writes
+    // through it, so the captured constraints for `&rec` no longer carry
+    // `rec.count >= 0` at the named call.
     let source = "pub data Rec { count: i32; other: i32; }
          boundary operator Ns::probe(cell: &Rec) -> bool
          crashes Trap !(cell.count >= 0);
-         machine peek(x: &mut i32) { }
+         machine poke(x: &mut i32) { x = 0; }
          pub machine drifted(mut rec: Rec) -> bool
          requires rec.count >= 0 {
-             peek(&mut rec.count);
+             poke(&mut rec.count);
              Ns::probe(&rec)
          }";
     let diagnostics =
-        check(source).expect_err("an exclusive loan of the read projection keeps its route");
+        check(source).expect_err("a loan of the read projection that writes keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -946,4 +967,186 @@ fn a_structural_operator_formal_keeps_its_route_identity_only() {
          }",
     );
     assert_eq!(published_guard_forms(&checked), vec![None]);
+}
+
+#[test]
+fn named_call_discharges_a_route_its_short_circuit_premise_establishes() {
+    // The `&&` left operand's evaluated predicate exists only between the
+    // operands and the invocation: statement-entry contexts predate it, so
+    // discharge must come from the named call's own operand-time capture —
+    // the same evidence the spelled `1 == value` use consumes.
+    let source = "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= 0);
+         pub machine compare(value: i32) -> bool {
+             value >= 0 && Comparison::equal(1, value)
+         }";
+    check(source).expect("the operand-time capture carries the short-circuit premise");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    assert!(site.surviving.is_empty());
+    // The capture row is keyed by the named use itself; no `uses` row or
+    // ordinary call fact is fabricated for it.
+    assert!(
+        checked
+            .facts
+            .flow
+            .control
+            .operator_invocations
+            .iter()
+            .any(|(_, invocation)| invocation.named_use == site.named_use
+                && !invocation.operator_use.is_valid()),
+        "the named use owns an operand-time capture row"
+    );
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_premise_an_earlier_operand_overwrote() {
+    // `bump(&mut value)` runs before `value` is read as the right operand, so
+    // the operand-time capture of `value` no longer holds `value >= 0` — the
+    // stale statement-entry premise cannot discharge the route.
+    let source = "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= 0);
+         machine bump(value: &mut i32) -> i32 { value = 0; 0 }
+         pub machine drifted(mut value: i32) -> bool
+         requires value >= 0 {
+             Comparison::equal(bump(&mut value), value)
+         }";
+    let diagnostics = check(source)
+        .expect_err("a write between operand evaluation and invocation voids the premise");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
+fn named_call_discharge_intersects_shared_borrow_operands_at_invocation() {
+    // A relation leaf reads both reference operands: the proving fact must be
+    // live in each operand's captured constraints at invocation — the same
+    // per-context intersection a spelled use performs.
+    let source = "pub data Rec { count: i32; }
+         boundary operator Ns::paired(left: &Rec, right: &Rec) -> bool
+         crashes Trap !(left.count >= right.count);
+         pub machine paired(a: Rec, b: Rec) -> bool
+         requires a.count >= b.count {
+             Ns::paired(&a, &b)
+         }";
+    check(source).expect("the relation leaf proves through both captured borrow operands");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_referent_an_earlier_operand_overwrote() {
+    // `bump(&mut rec)` inside the `&&` left operand writes the referent before
+    // `&rec` is captured; the non-scalar carrier intersects capture with
+    // invocation-live facts, so the stale entry premise cannot discharge.
+    let source = "pub data Rec { count: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         machine bump(rec: &mut Rec) -> bool { rec.count = -1; true }
+         pub machine drifted(mut rec: Rec) -> bool
+         requires rec.count >= 0 {
+             bump(&mut rec) && Ns::probe(&rec)
+         }";
+    let diagnostics =
+        check(source).expect_err("a referent write before the named call keeps its route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
+fn named_call_capture_rows_fail_closed_when_their_operands_are_substituted() {
+    // A capture row exists, so the entry-context fallback does not apply: a
+    // row whose recorded operands no longer match the call selects no
+    // contexts and the route survives rather than borrowing stale evidence.
+    let source = "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= 0);
+         pub machine compare(value: i32) -> bool
+         requires value >= 0 {
+             Comparison::equal(1, value)
+         }";
+    let checked = check(source).expect("the capture discharges the route");
+    let mut facts = checked.facts.clone();
+    let captures: Vec<_> = facts
+        .flow
+        .control
+        .operator_invocations
+        .iter()
+        .filter_map(|(handle, invocation)| invocation.named_use.is_valid().then_some(handle))
+        .collect();
+    assert_eq!(captures.len(), 1, "one named capture row exists to corrupt");
+    for handle in captures {
+        facts
+            .flow
+            .control
+            .operator_invocations
+            .get_mut(handle)
+            .operands = arena::HandleSpan::empty();
+    }
+    let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
+        .expect_err("substituted operand custody cannot discharge the named route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("captured source occurrence")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn named_call_capture_rows_fail_closed_when_duplicated() {
+    // Two rows claiming the same named use are ambiguous custody: neither may
+    // supply the operand-time evidence, so the route survives.
+    let source = "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= 0);
+         pub machine compare(value: i32) -> bool
+         requires value >= 0 {
+             Comparison::equal(1, value)
+         }";
+    let checked = check(source).expect("the capture discharges the route");
+    let mut facts = checked.facts.clone();
+    let duplicate = facts
+        .flow
+        .control
+        .operator_invocations
+        .iter()
+        .map(|(_, invocation)| invocation.clone())
+        .find(|invocation| invocation.named_use.is_valid())
+        .expect("one named capture row exists to duplicate");
+    facts.flow.control.operator_invocations.append(duplicate);
+    let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
+        .expect_err("duplicated operand custody cannot discharge the named route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("captured source occurrence")),
+        "{diagnostics:#?}"
+    );
 }

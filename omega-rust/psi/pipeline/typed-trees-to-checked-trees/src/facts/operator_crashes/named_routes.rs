@@ -1,8 +1,16 @@
 //! Route discharge for named `Namespace::requirement(...)` operator calls.
 //!
-//! A named use selects the same crash contract as a spelled use but produces
-//! no `FlowOperatorInvocationFact` operand capture, so the operand-time
-//! `InvocationContexts` discharge in checks/operators cannot see it. The
+//! A named use selects the same crash contract as a spelled use. The flow
+//! pass captures its operand-time evidence under a `FlowOperatorInvocationFact`
+//! keyed by the `named_use` handle rather than a `uses` row, so the
+//! operand-time `InvocationContexts` discharge in checks/operators applies
+//! unchanged: short-circuit premises, per-operand scalar snapshots,
+//! non-scalar carrier live-intersection, and multi-operand per-context
+//! intersection all behave exactly as they do for `1 == value`.
+//!
+//! A named use whose position emitted no capture row — one inside a statement
+//! the expression scheduler never evaluates, or a row the operator-resolution
+//! stage never minted — has no operand-time custody to consult. The
 //! containing statement still records entry semantic contexts: facts the
 //! flow pass proved on arrival at that statement. Those facts describe
 //! storage as it stands at statement entry, so they falsify a route guard
@@ -36,14 +44,23 @@ use crate::labels::{
 };
 
 /// Whether the selected operator's published route guard is provably false at
-/// one named call. Mirrors `checks::operator_route_is_false`'s Boolean
-/// polarity structure, substituting the containing statement's entry contexts
-/// for the operand-captured invocation contexts a spelled use carries.
+/// one named call. When the call's evaluation emitted an operand-time
+/// capture row, discharge goes through `checks::named_operator_route_is_false`
+/// with exactly the spelled use's selection rules — operand expressions must
+/// match, scalar carriers keep operand-time snapshots, other carriers
+/// intersect capture with invocation-live facts, and several referenced
+/// operands intersect by exact context identity. Present-but-ambiguous or
+/// substituted custody fails closed: duplicated or mismatched rows select no
+/// contexts. A call with no capture row at all falls back to the containing
+/// statement's entry contexts, mirroring
+/// `checks::operator_route_is_false`'s Boolean polarity structure over rows
+/// every incoming path must satisfy.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn named_route_is_false(
     program: &TypedTrees,
     flow: &FlowFacts,
     semantic: &FactPlan,
+    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -51,6 +68,24 @@ pub(super) fn named_route_is_false(
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
+    let operand_labels = operand_labels(program, parameters, operands);
+    if flow
+        .control
+        .operator_invocations
+        .iter()
+        .any(|(_, invocation)| invocation.named_use == named_use)
+    {
+        return crate::checks::named_operator_route_is_false(
+            program,
+            flow,
+            semantic,
+            named_use,
+            parameters,
+            operands,
+            &operand_labels,
+            expression,
+        );
+    }
     let context_rows =
         statement_entry_context_rows(flow, machine_symbol, state_symbol, statement_index);
     if context_rows.is_empty() {
@@ -65,7 +100,7 @@ pub(super) fn named_route_is_false(
         statement_index,
         parameters,
         operands,
-        &operand_labels(program, parameters, operands),
+        &operand_labels,
         expression,
         false,
     )

@@ -9,11 +9,16 @@ use super::{
     FlowInvalidationFact, FlowSemanticContextRef,
 };
 
-/// Preconditions at a spelled or implicit operator invocation, after operand evaluation
-/// and before either comparison branch acquires its own observations.
+/// Preconditions at a spelled, implicit, or named operator invocation, after
+/// operand evaluation and before either comparison branch acquires its own
+/// observations. A spelled or Match-comparison use names its `operator_use`
+/// row; a named `Namespace::requirement(...)` call has no `uses` row, so it
+/// names its `named_use` row instead. Exactly one of the two handles is
+/// valid.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOperatorInvocationFact {
     pub operator_use: arena::Handle<crate::CheckedOperatorUseFact>,
+    pub named_use: arena::Handle<crate::CheckedNamedOperatorUseFact>,
     pub operands: HandleSpan<super::FlowOperatorOperandFact>,
     pub requires_constraints: HandleSpan<FlowConstraintRef>,
 }

@@ -113,6 +113,7 @@ pub(crate) fn build(
             flow,
             semantic,
             operator_use_handle,
+            arena::Handle::invalid(),
             program
                 .signature_contracts
                 .span_or_empty(selected.contracts),
@@ -137,10 +138,10 @@ pub(crate) fn build(
         ));
     }
     // Named `Namespace::requirement(...)` calls carry the same selected crash
-    // obligations as spelled uses. They have no `uses` row or flow invocation
-    // capture, so their identity is the `named_uses` handle; route discharge
-    // consults the containing statement's entry contexts, gated on
-    // entry-proven operands (see named_routes).
+    // obligations as spelled uses. They have no `uses` row, so their identity
+    // is the `named_uses` handle; the flow pass records their operand-time
+    // capture under that same handle, and route discharge prefers it over the
+    // containing statement's entry contexts (see named_routes).
     for (named_use_handle, named_use) in operators.named_uses.iter() {
         let Some(operator) = typed_trees::operator::declaration_by_symbol(
             program,
@@ -190,6 +191,7 @@ pub(crate) fn build(
             flow,
             semantic,
             arena::Handle::invalid(),
+            named_use_handle,
             contracts,
             operator,
             parameters,
@@ -220,9 +222,11 @@ pub(crate) fn build(
 
 /// Published and surviving crash-route buckets for one selected use. A spelled
 /// use discharges each guard the captured invocation contexts prove false. A
-/// named call passes an invalid `operator_use`: with no operand-time capture
-/// it proves falsity from the containing statement's entry contexts instead,
-/// gated on every leaf occurrence resolving to an entry-proven operand (see
+/// named call passes an invalid `operator_use` and a valid `named_use`: its
+/// own operand-time capture row serves the same `InvocationContexts`
+/// discharge, falling back to the containing statement's entry contexts —
+/// gated on every leaf occurrence resolving to an entry-proven operand — only
+/// for uses whose evaluation position emitted no capture (see
 /// `named_routes`). Anything unproven stays conservative.
 #[allow(clippy::too_many_arguments)]
 fn retained_operator_crash_routes(
@@ -231,6 +235,7 @@ fn retained_operator_crash_routes(
     flow: &FlowFacts,
     semantic: &FactPlan,
     operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
+    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
     contracts: &[typed_trees::signature::SignatureContract],
     operator: &typed_trees::operator::OperatorDefinition,
     parameters: &[typed_trees::signature::StateParameter],
@@ -294,9 +299,10 @@ fn retained_operator_crash_routes(
                         .then_some(*expression)
                 });
             // A spelled use consults the operand-captured invocation
-            // contexts; a named call has no capture row, so it proves falsity
-            // from the containing statement's entry contexts — sound only
-            // while every place the leaf reads is an entry-proven operand.
+            // contexts; a named call consults its own capture row when the
+            // evaluation emitted one, else proves falsity from the containing
+            // statement's entry contexts — sound only while every place the
+            // leaf reads is an entry-proven operand.
             if expression.is_some_and(|expression| {
                 if operator_use.is_valid() {
                     crate::checks::operator_route_is_false(
@@ -313,6 +319,7 @@ fn retained_operator_crash_routes(
                         program,
                         flow,
                         semantic,
+                        named_use,
                         machine_symbol,
                         state_symbol,
                         statement_index,
@@ -354,7 +361,9 @@ fn retained_operator_crash_routes(
 /// already fixed the arity: an `is_self` parameter binds the value receiver;
 /// without `is_self`, a receiver call binds its value receiver to the single
 /// leading parameter; a static namespace receiver carries no operand at all.
-fn named_call_operands(
+/// The flow pass reuses this ordering when it captures operand-time evidence
+/// for a named use, so captured operand rows align with this list.
+pub(crate) fn named_call_operands(
     program: &TypedTrees,
     call: &typed_trees::expression::TableCallExpression,
     parameters: &[typed_trees::signature::StateParameter],
