@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 10;
+const LITERAL_FOLD_VERSION: u32 = 11;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -56,6 +56,7 @@ impl LiteralFoldPolicy {
     const SATURATING_DIVIDE_ONE_BIT: u32 = 1 << 17;
     const SATURATING_DIVIDE_ZERO_BIT: u32 = 1 << 18;
     const SATURATING_SUBTRACT_ZERO_MINUEND_BIT: u32 = 1 << 19;
+    const SATURATING_ADD_UPPER_BOUND_BIT: u32 = 1 << 20;
     const KNOWN_BITS: u32 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -75,7 +76,8 @@ impl LiteralFoldPolicy {
         | Self::SATURATING_SUBTRACT_ZERO_BIT
         | Self::SATURATING_DIVIDE_ONE_BIT
         | Self::SATURATING_DIVIDE_ZERO_BIT
-        | Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT;
+        | Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT
+        | Self::SATURATING_ADD_UPPER_BOUND_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -314,6 +316,30 @@ impl LiteralFoldPolicy {
     pub const SATURATING_SUBTRACT_ZERO_MINUEND_V1: Self = Self {
         enabled_rules: Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT,
     };
+    /// Saturating-add upper-bound fold: fold a materialized literal equal
+    /// to the carrier's maximum feeding its sole `SaturatingAdd` consumer
+    /// on an unsigned carrier at either `Use` operand into a
+    /// `MaterializeI64` of that maximum at the result register —
+    /// `x +| MAX` and `MAX +| x` are both `MAX` for every `x` an unsigned
+    /// carrier admits, because `x + MAX` reaches the carrier's upper
+    /// bound and saturates to it. Signed carriers admit no maximum fold
+    /// at all: `x +| MAX` there is `x + MAX` unclamped for every negative
+    /// `x`, not a constant, so the family binds no signed pair. The
+    /// constant result never reads the surviving-side `Use` the fold
+    /// drops, and every operand past the operand-2 `Def` result — the
+    /// clamped row's bound scratch `Def` — drops under occurrence-free
+    /// custody. The consumer retires the same target-specific unit
+    /// effects the identity family does — aarch64 defines `nzcv`,
+    /// x86-64 clobbers `rflags` — admitted only while every unit its
+    /// record defines is dead in the function. The u64 carrier binds the
+    /// three-operand row; every other unsigned carrier binds the clamped
+    /// row. The family shares its consumer kind and operand positions
+    /// with the zero-identity fold: the literal's value names which
+    /// family a `SaturatingAdd` fold belongs to, and admission requires
+    /// exactly one enabled pair to admit the recorded immediate.
+    pub const SATURATING_ADD_UPPER_BOUND_V1: Self = Self {
+        enabled_rules: Self::SATURATING_ADD_UPPER_BOUND_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -407,6 +433,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_saturating_subtract_zero_minuend(self) -> bool {
         self.enabled_rules & Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT != 0
+    }
+
+    pub const fn enables_saturating_add_upper_bound(self) -> bool {
+        self.enabled_rules & Self::SATURATING_ADD_UPPER_BOUND_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u32 {

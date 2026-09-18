@@ -1724,6 +1724,102 @@ impl SelectedInstructionPairRule {
     ];
 
     /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
+    /// `SaturatingAdd` on an unsigned carrier when the literal is exactly
+    /// the carrier's maximum: `x +| MAX` is `MAX` for every `x` the
+    /// carrier admits, because `x + MAX` reaches the carrier's upper
+    /// bound and saturates to it — so the rewrite is a `MaterializeI64`
+    /// of that maximum at the consumer's result register. Only unsigned
+    /// carriers admit the fold: under signed saturation `x +| MAX` is
+    /// `x + MAX` unclamped for every negative `x`, not a constant, so the
+    /// family binds no signed carrier and no signed carrier ever names an
+    /// admitted maximum-literal grammar. The operand-0 `Use` is dropped
+    /// with the form because the constant result never reads it, and
+    /// every operand past the operand-2 `Def` result — the bound scratch
+    /// `Def` a clamped saturating-add realization computes its saturation
+    /// bound through — drops under the
+    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult)
+    /// grammar's occurrence-free custody: a scratch output another
+    /// instruction read or defined would leave a use of a register the
+    /// rewrite stopped defining. The consumer carries the same implicit
+    /// unit surface the identity family retires: the saturating-add rows
+    /// define `nzcv` on aarch64 — every carrier's realization is
+    /// flag-setting — while the isolated `MaterializeI64` defines
+    /// nothing, so under
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// that definition may retire only while it is dead in the function,
+    /// and the consumer's clobbers retire wholesale, as the x86-64 row's
+    /// `rflags` clobber does. The consumer's operands may carry the
+    /// `early_clobber` marks the saturating realizations declare on their
+    /// `Def` outputs — the hazard they name exists only inside the
+    /// dropped operand list — under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// The family shares its consumer kind and operand positions with the
+    /// zero-identity fold: the literal's value names which family a
+    /// `SaturatingAdd` fold belongs to, and the grammars stay disjoint on
+    /// that value.
+    const fn saturating_add_upper_bound(carrier: SaturatingCarrier) -> Self {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::SaturatingAdd(carrier),
+            rewritten: MachineSemanticKind::MaterializeI64,
+            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            immediate_bound: PairImmediateBound::Exactly(carrier.maximum_bits()),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+        };
+        assert!(
+            !carrier.is_signed()
+                && matches!(
+                    rule.immediate_bound,
+                    PairImmediateBound::Exactly(bound) if bound == carrier.maximum_bits()
+                ),
+            "the upper-bound fold holds only for an unsigned carrier's maximum literal"
+        );
+        rule
+    }
+
+    /// The left-operand upper-bound fold: `MaterializeI64` feeding the
+    /// operand-0 `Use` of `SaturatingAdd` on an unsigned carrier when the
+    /// literal is exactly the carrier's maximum — `MAX +| x` is `MAX`
+    /// for every `x`. The
+    /// [`BinaryLeftLiteralConstantResult`](PairOperandShape::BinaryLeftLiteralConstantResult)
+    /// grammar attests the operand-0 literal alone fixes the result —
+    /// saturating addition's commutation makes `MAX +| x` and `x +| MAX`
+    /// the same fold, but the constant-result grammar needs none of it:
+    /// the operand-1 `Use` drops because the constant never reads it, and
+    /// every operand past the operand-2 `Def` result drops under the same
+    /// occurrence-free custody.
+    const fn saturating_add_upper_bound_left(carrier: SaturatingCarrier) -> Self {
+        Self {
+            operand_shape: PairOperandShape::BinaryLeftLiteralConstantResult,
+            ..Self::saturating_add_upper_bound(carrier)
+        }
+    }
+
+    /// The saturating-add upper-bound rules: one pair per literal `Use`
+    /// position for each unsigned carrier — `x +| MAX` and `MAX +| x`
+    /// are both `MAX` under unsigned saturation. The u64 carrier binds
+    /// the three-operand row; every other unsigned carrier binds the
+    /// clamped row whose bound scratch `Def` drops under the
+    /// constant-result grammar's scratch-defs custody. Signed carriers
+    /// admit no maximum fold — `x +| MAX` there is `x + MAX` unclamped
+    /// for every negative `x` — so the family declares no signed pair.
+    /// The family shares its consumer kind and operand positions with
+    /// the zero-identity fold; the grammars stay disjoint on the folded
+    /// literal's value.
+    pub const SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS: [Self; 8] = [
+        Self::saturating_add_upper_bound(SaturatingCarrier::U8),
+        Self::saturating_add_upper_bound_left(SaturatingCarrier::U8),
+        Self::saturating_add_upper_bound(SaturatingCarrier::U16),
+        Self::saturating_add_upper_bound_left(SaturatingCarrier::U16),
+        Self::saturating_add_upper_bound(SaturatingCarrier::U32),
+        Self::saturating_add_upper_bound_left(SaturatingCarrier::U32),
+        Self::saturating_add_upper_bound(SaturatingCarrier::U64),
+        Self::saturating_add_upper_bound_left(SaturatingCarrier::U64),
+    ];
+
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
     /// `SaturatingSubtract` on an unsigned carrier when the literal is
     /// exactly zero: zero is the right identity under saturating
     /// subtraction — `x -| 0` is `x` for every `x`, already inside the
@@ -2113,9 +2209,12 @@ impl SelectedInstructionPairRule {
     }
 
     /// The constant payload the rewritten instruction embeds for `literal`:
-    /// the literal itself for the immediate forms and the copy fold, or the
-    /// extension's exact output bits for the unary extension folds. The
-    /// result is the recorded `immediate` in [`crate::LiteralFoldAction`].
+    /// the literal itself for the immediate forms and the copy fold, the
+    /// extension's exact output bits for the unary extension folds, or the
+    /// constant a constant-result grammar fixes — zero for the
+    /// zero-producing families and the carrier maximum for the unsigned
+    /// saturating-add upper-bound fold. The result is the recorded
+    /// `immediate` in [`crate::LiteralFoldAction`].
     pub fn fold_immediate(self, literal: u64) -> Option<u64> {
         match self.operand_shape {
             PairOperandShape::BinaryRightLiteral
@@ -2128,13 +2227,19 @@ impl SelectedInstructionPairRule {
             // rewritten `MaterializeI64` embeds: a remainder by one or of
             // a zero dividend is always zero, an unsigned or saturating
             // divide of a zero dividend is always zero, whatever the
-            // folded literal was, and a bitwise-and with a zero literal
-            // is always zero at either `Use` position.
+            // folded literal was, a bitwise-and with a zero literal is
+            // always zero at either `Use` position, and an unsigned
+            // saturating add whose literal is the carrier's maximum
+            // saturates to that maximum at either `Use` position — the
+            // admitted literal itself already carries the bound.
             PairOperandShape::BinaryRightLiteralConstantResult
             | PairOperandShape::BinaryLeftLiteralConstantResult
             | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
             | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs => {
-                Some(0)
+                match self.consumer {
+                    MachineSemanticKind::SaturatingAdd(carrier) => Some(carrier.maximum_bits()),
+                    _ => Some(0),
+                }
             }
             PairOperandShape::UnaryLiteral => match self.consumer {
                 MachineSemanticKind::CopyI64 => Some(literal),
@@ -2284,27 +2389,32 @@ impl SelectedInstructionPairRule {
             // saturating divide of a zero dividend is always zero inside
             // the carrier's bounds, an unsigned saturating subtract of a
             // zero minuend is always zero — `0 -| x` saturates to the
-            // carrier's lower bound — and a bitwise-and with a zero
-            // literal is always zero at either `Use` position: the
-            // `MaterializeI64` rewrite materializes the folded constant
-            // at the result register, sign-matched and admitted by its
-            // scalar type. The consumer guard keeps each rule bound to
-            // its own consumer kind — the remainder rules never rewrite
-            // an and or a divide, the and-zero rule never rewrites a
-            // remainder or a divide, the exact-divide zero-dividend rule
-            // never rewrites either, each saturating-divide
-            // zero-dividend rule rewrites only the carrier kind its pair
-            // admits, and each saturating-subtract zero-minuend rule
-            // likewise — while each pair sharing a kind legitimately
-            // coexists: admission already fixed which grammar applies by
-            // the folded literal's operand position, and both produce the
-            // same materialized zero.
+            // carrier's lower bound — a bitwise-and with a zero literal
+            // is always zero at either `Use` position, and an unsigned
+            // saturating add with the carrier's maximum literal is always
+            // that maximum at either `Use` position — `x +| MAX`
+            // saturates to the carrier's upper bound: the `MaterializeI64`
+            // rewrite materializes the folded constant at the result
+            // register, sign-matched and admitted by its scalar type. The
+            // consumer guard keeps each rule bound to its own consumer
+            // kind — the remainder rules never rewrite an and or a
+            // divide, the and-zero rule never rewrites a remainder or a
+            // divide, the exact-divide zero-dividend rule never rewrites
+            // either, each saturating-divide zero-dividend rule rewrites
+            // only the carrier kind its pair admits, each
+            // saturating-subtract zero-minuend rule likewise, and each
+            // saturating-add upper-bound rule likewise — while each pair
+            // sharing a kind legitimately coexists: admission already
+            // fixed which grammar applies by the folded literal's operand
+            // position or value, and the coexisting constant-result pairs
+            // of a kind materialize the same constant.
             (
                 MachineSemanticKind::MaterializeI64,
                 kind @ (SelectedInstructionKind::WrappingRemainderI64 { .. }
                 | SelectedInstructionKind::ExactDivideU64 { .. }
                 | SelectedInstructionKind::SaturatingDivide { .. }
                 | SelectedInstructionKind::SaturatingSubtract { .. }
+                | SelectedInstructionKind::SaturatingAdd { .. }
                 | SelectedInstructionKind::BitwiseAndI64),
             ) if machine_semantic_kind(kind) == self.consumer => {
                 scalar_materialize_value(immediate, result_scalar?)

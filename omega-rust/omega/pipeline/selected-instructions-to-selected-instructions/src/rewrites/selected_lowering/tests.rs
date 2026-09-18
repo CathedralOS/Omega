@@ -69,6 +69,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_saturating_divide_one());
     assert!(policy.enables_saturating_divide_zero());
     assert!(policy.enables_saturating_subtract_zero_minuend());
+    assert!(policy.enables_saturating_add_upper_bound());
 }
 
 #[test]
@@ -94,6 +95,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         saturating_divide_one,
         saturating_divide_zero,
         saturating_subtract_zero_minuend,
+        saturating_add_upper_bound,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -1493,6 +1495,134 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS.as_slice()
     );
 
+    // The saturating-add upper-bound family declares one pair per literal
+    // `Use` position for each unsigned carrier — a literal of exactly the
+    // carrier's maximum at either `Use` folds a `SaturatingAdd` into a
+    // `MaterializeI64` of that maximum: `x +| MAX` and `MAX +| x` are both
+    // `MAX` for every `x` an unsigned carrier admits, because `x + MAX`
+    // reaches the carrier's upper bound and saturates to it. Signed
+    // carriers admit no maximum fold — `x +| MAX` there is `x + MAX`
+    // unclamped for every negative `x`, not a constant — so the family
+    // declares no signed pair. The u64 carrier's rule still binds the
+    // three-operand row under the same constant-result grammars — the
+    // scratch tail is simply empty — while every other unsigned carrier
+    // binds the clamped row whose bound scratch `Def` drops under the
+    // grammar's occurrence-free custody. The unit and effect surfaces are
+    // the saturating family's own: the consumer's implicit unit
+    // definitions retire under `DeadConsumerUnitDefs` — aarch64's `nzcv`
+    // must stay dead across the whole function — while its
+    // `early_clobber` operand marks drop with the replaced operand list
+    // under `BoundEarlyClobberConsumerOperands`. The family shares its
+    // consumer kind and operand positions with the zero-identity fold;
+    // the grammars stay disjoint on the folded literal's value.
+    let saturating_add_upper_bound_pairs = saturating_add_upper_bound.payload().pairs();
+    assert_eq!(saturating_add_upper_bound_pairs.len(), 8);
+    assert_eq!(
+        saturating_add_upper_bound.optimization(),
+        Optimization::SelectedIncomingSaturatingAddUpperBoundMaterialization
+    );
+    for (index, pair) in saturating_add_upper_bound_pairs.iter().copied().enumerate() {
+        let carrier = unsigned_carriers[index / 2];
+        let left = index % 2 == 1;
+        let maximum = carrier.maximum_bits();
+        assert!(!carrier.is_signed());
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.consumer(), MachineSemanticKind::SaturatingAdd(carrier));
+        assert_eq!(
+            pair.operand_shape(),
+            if left {
+                PairOperandShape::BinaryLeftLiteralConstantResult
+            } else {
+                PairOperandShape::BinaryRightLiteralConstantResult
+            }
+        );
+        assert_eq!(pair.victim_operand(), u16::from(!left));
+        assert_eq!(pair.rewritten(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(maximum));
+        assert!(pair.admits_immediate(maximum));
+        assert!(!pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(maximum - 1));
+        if maximum < u64::MAX {
+            assert!(!pair.admits_immediate(maximum + 1));
+        }
+        // The recorded immediate is the constant the rewritten
+        // `MaterializeI64` embeds — the carrier maximum the admitted
+        // literal itself carries.
+        assert_eq!(pair.fold_immediate(maximum), Some(maximum));
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(
+            pair.unit_effects(),
+            PairUnitEffects::BoundEarlyClobberConsumerOperands
+        );
+        assert_eq!(
+            pair.machine_effects(),
+            PairMachineEffects::DeadConsumerUnitDefs
+        );
+        // Every rule rewrites only its own carrier's kind into the
+        // materialized maximum; a different carrier, a signed carrier,
+        // the saturating-subtract sibling kind, or any other consumer
+        // kind never rewrites through it.
+        let saturating_add_kind = SelectedInstructionKind::SaturatingAdd { carrier };
+        assert_eq!(
+            pair.rewrite_consumer(saturating_add_kind, maximum, Some(u64_scalar)),
+            Some(SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(u128::from(maximum))
+            })
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_add_kind, maximum, Some(i64_scalar)),
+            Some(SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Signed(i128::from(maximum as i64))
+            })
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_add_kind, maximum, None),
+            None
+        );
+        for other_carrier in signed_carriers {
+            assert_eq!(
+                pair.rewrite_consumer(
+                    SelectedInstructionKind::SaturatingAdd {
+                        carrier: other_carrier
+                    },
+                    maximum,
+                    Some(u64_scalar)
+                ),
+                None
+            );
+        }
+        for other_carrier in unsigned_carriers {
+            if other_carrier != carrier {
+                assert_eq!(
+                    pair.rewrite_consumer(
+                        SelectedInstructionKind::SaturatingAdd {
+                            carrier: other_carrier
+                        },
+                        maximum,
+                        Some(u64_scalar)
+                    ),
+                    None
+                );
+            }
+        }
+        assert_eq!(
+            pair.rewrite_consumer(
+                SelectedInstructionKind::SaturatingSubtract { carrier },
+                maximum,
+                Some(u64_scalar)
+            ),
+            None
+        );
+        assert_eq!(
+            pair.rewrite_consumer(wrapping_add_kind, maximum, Some(u64_scalar)),
+            None
+        );
+    }
+    assert_eq!(
+        saturating_add_upper_bound_pairs,
+        SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS.as_slice()
+    );
+
     // Every landed rule's rewrite but the divide, remainder, and
     // saturating folds is unit-effect isolated: no implicit unit uses
     // or clobbers and no operand unit bindings beyond the declared result
@@ -1606,6 +1736,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         enabled_pair_rules(LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1)
             .collect::<Vec<_>>(),
         SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS.to_vec()
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1).collect::<Vec<_>>(),
+        SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS.to_vec()
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 
@@ -1749,6 +1883,14 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
             Some(keys.materialize_i64)
         );
     }
+    // Every saturating-add upper-bound pair — the unsigned-carrier rules
+    // alone — rewrites through the same materialize row.
+    for pair in saturating_add_upper_bound_pairs {
+        assert_eq!(
+            pair.immediate_constraint_key(&keys),
+            Some(keys.materialize_i64)
+        );
+    }
 }
 
 #[test]
@@ -1824,6 +1966,12 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // relaxation — one unsigned pair is representative.
             SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS[0],
             SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS[3],
+            // The saturating-add upper-bound grammars rewrite into the
+            // same materialize row under the same consumer-operand
+            // relaxation — one pair per operand grammar is
+            // representative.
+            SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS[0],
+            SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS[1],
         ] {
             let row = environment
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
@@ -2348,6 +2496,64 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         // unit is record-level, checked separately by the producer and the
         // replay.
         for rule in SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS {
+            assert_eq!(
+                rule.machine_effects(),
+                PairMachineEffects::DeadConsumerUnitDefs
+            );
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A consumer carrying an implicit unit use cannot fold under
+            // this surface — the rewritten materialization would silently
+            // stop observing the unit.
+            let flag_consuming = declaration(MachineSemanticKind::MaterializeBooleanEqual);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(flag_consuming, rewritten),
+                "{rule:?} flag-consuming consumer on {target:?}"
+            );
+            // Memory traffic and control flow cannot take the consumer
+            // role either: the isolated non-unit declaration surface
+            // still applies.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
+            );
+        }
+
+        // The saturating-add upper-bound pairs admit their own triples on
+        // both targets under `DeadConsumerUnitDefs`: an isolated producer,
+        // each unsigned carrier's saturating add — defining `nzcv` on
+        // aarch64, clobbering `rflags` on x86-64 — and the isolated
+        // materialization. The declaration-level requirement is the shared
+        // isolated-outside-units shape with no implicit uses; the
+        // distinguishing whole-function deadness of each defined unit is
+        // record-level, checked separately by the producer and the
+        // replay.
+        for rule in SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS {
             assert_eq!(
                 rule.machine_effects(),
                 PairMachineEffects::DeadConsumerUnitDefs

@@ -1,6 +1,6 @@
 use super::{
     BlockZeroTerminator, assert_budget_is_enforced, assert_deterministic_fixed_point, fold_with,
-    policy_without, restage_literal, staged_saturating_add_carrier_inputs,
+    policy_without, policy_without_all, restage_literal, staged_saturating_add_carrier_inputs,
     staged_saturating_add_inputs, staged_wrapping_add_inputs, staged_xor_inputs, validate,
 };
 use crate::RecoveryClassification;
@@ -663,21 +663,50 @@ fn saturating_add_zero_fold_rejects_tied_consumer_operands_but_keeps_the_marks_i
 fn saturating_add_zero_fold_rejects_consumers_the_selection_does_not_enable() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // The saturating-add operand grammar admits the literal only under the
-    // saturating-add-zero policy: every other selected family sees no
-    // admitted consumer kind — including the strongest posture, every
-    // other rule enabled at once.
+    // The saturating-add operand grammar admits the literal only under a
+    // saturating-add policy: every selection naming no saturating-add
+    // family sees no admitted consumer kind — including the strongest
+    // posture, every other rule enabled at once with both saturating-add
+    // bits closed.
     let inputs = staged_saturating_add_inputs(target, 1, BlockZeroTerminator::Jump);
     for policy in [
         LiteralFoldPolicy::EXACT_ADD_V1,
         LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
         LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
-        policy_without(LiteralFoldPolicy::SATURATING_ADD_ZERO_V1),
+        policy_without_all(&[
+            LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+            LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
+        ]),
     ] {
         assert_eq!(
             fold_with(&inputs, &environment, policy).map(|_| ()),
             Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
             "{policy:?}"
+        );
+    }
+    // The sibling upper-bound family admits the same consumer kind at
+    // both `Use` positions: with only the upper-bound bit set — or with
+    // every family enabled except the zero bit — the kind is admitted
+    // but no enabled grammar covers the zero literal the staged consumer
+    // carries: an immediate mismatch, not an unadmitted consumer.
+    for policy in [
+        LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
+        policy_without(LiteralFoldPolicy::SATURATING_ADD_ZERO_V1),
+    ] {
+        assert_eq!(
+            fold_with(&inputs, &environment, policy).map(|_| ()),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+            "{policy:?}"
+        );
+        assert_eq!(
+            validate(&inputs, &environment, {
+                let mut plan = inputs.selected.plan().clone();
+                plan.policy = policy;
+                plan
+            })
+            .map(|_| ()),
+            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
+            "{policy:?}, replay"
         );
     }
     // And the saturating-add-zero policy admits no other consumer: the

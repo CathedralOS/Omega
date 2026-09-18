@@ -345,29 +345,58 @@ fn reconstruct_action(
             rows.wrapping_add_zero,
             MachineSemanticKind::CopyI64,
         ),
-        // The saturating-add identity fold: a literal of exactly zero at
-        // either `Use` folds `SaturatingAdd` on any carrier into a
-        // `CopyI64` of the other `Use` — `x +| 0` and `0 +| x` are both
-        // `x`, already inside the carrier's bounds — bound to the
-        // `CopyI64` row the saturating-add-zero policy's own gate
-        // selected. The consumer's implicit unit definitions retire with
-        // the folded form — the aarch64 rows' `nzcv` write the isolated
-        // `CopyI64` does not carry — so the per-kind admission below
-        // re-derives the deadness gate. The carrier picks the operand
+        // Two disjoint families fold `SaturatingAdd` at either `Use`
+        // position; the literal's value names the family a fold belongs
+        // to. The zero-identity fold admits a literal of exactly zero on
+        // any carrier — `x +| 0` and `0 +| x` are both `x`, already inside
+        // the carrier's bounds — bound to the `CopyI64` row the
+        // saturating-add-zero policy's own gate selected. The upper-bound
+        // fold admits a literal of exactly the carrier's maximum on an
+        // unsigned carrier — `x +| MAX` and `MAX +| x` are both `MAX`,
+        // because `x + MAX` reaches the carrier's upper bound and
+        // saturates to it — bound to the `MaterializeI64` row the
+        // upper-bound policy's own gate selected, dropping the other
+        // `Use` the constant result never reads. A signed carrier's
+        // maximum literal names no admitted grammar — `x +| MAX` there
+        // is `x + MAX` unclamped for every negative `x`, not a constant —
+        // and replays under the zero shapes so the family's exact-literal
+        // check rejects it; which policy rows bound decides whether that
+        // rejection reports the unadmitted literal or the unadmitted
+        // kind. Either family's consumer implicitly defines the target
+        // condition state on aarch64 — every carrier's realization is
+        // flag-setting — and clobbers `rflags` on x86-64; the fold
+        // retires both with the folded form under the per-kind admission
+        // below. Under the identity family the carrier picks the operand
         // grammar: the u64 row is exactly `[left, victim, result]`; every
         // clamped carrier's row continues past the `Def` result with a
         // bound-scratch `Def` the fold drops under the occurrence-free
-        // custody the scratch-defs grammars independently re-derive.
-        SelectedInstructionKind::SaturatingAdd { carrier } => (
-            match (carrier, future_use.operand == 0) {
-                (SaturatingCarrier::U64, true) => SourceShape::SaturatingAddZeroLeft,
-                (SaturatingCarrier::U64, false) => SourceShape::SaturatingAddZero,
-                (_, true) => SourceShape::SaturatingAddZeroLeftScratch,
-                (_, false) => SourceShape::SaturatingAddZeroScratch,
-            },
-            rows.saturating_add_zero,
-            MachineSemanticKind::CopyI64,
-        ),
+        // custody the scratch-defs grammars independently re-derive. The
+        // constant-result grammars admit the same tail the same way.
+        SelectedInstructionKind::SaturatingAdd { carrier } => {
+            let left = future_use.operand == 0;
+            if !carrier.is_signed() && literal_u64 == carrier.maximum_bits() {
+                (
+                    if left {
+                        SourceShape::SaturatingAddUpperBoundLeft
+                    } else {
+                        SourceShape::SaturatingAddUpperBound
+                    },
+                    rows.saturating_add_upper_bound,
+                    MachineSemanticKind::MaterializeI64,
+                )
+            } else {
+                (
+                    match (carrier, left) {
+                        (SaturatingCarrier::U64, true) => SourceShape::SaturatingAddZeroLeft,
+                        (SaturatingCarrier::U64, false) => SourceShape::SaturatingAddZero,
+                        (_, true) => SourceShape::SaturatingAddZeroLeftScratch,
+                        (_, false) => SourceShape::SaturatingAddZeroScratch,
+                    },
+                    rows.saturating_add_zero,
+                    MachineSemanticKind::CopyI64,
+                )
+            }
+        }
         // Two disjoint families fold `SaturatingSubtract`; the folded
         // literal's operand position names the family a fold belongs to.
         // The right-zero identity fold admits an operand-1 literal of
@@ -457,14 +486,19 @@ fn reconstruct_action(
             MachineSemanticKind::MaterializeI64,
         ),
     };
-    // `BitwiseAndI64` is the one consumer kind two disjoint families admit
-    // at the same operand positions — the literal's value names the family,
-    // so when that family's row was not bound the position may still be
-    // admitted by the other family: an admitted operand position whose
-    // literal no enabled family admits is an unsupported immediate, a
-    // position outside both grammars a future-use mismatch, and a
-    // `BitwiseAndI64` with no and family enabled a consumer mismatch like
-    // any other unadmitted kind. `WrappingRemainderI64`,
+    // `BitwiseAndI64` and `SaturatingAdd` are the consumer kinds two
+    // disjoint families admit at the same operand positions — the
+    // literal's value names the family, so when that family's row was not
+    // bound the position may still be admitted by the other family: an
+    // admitted operand position whose literal no enabled family admits is
+    // an unsupported immediate, a position outside both grammars a
+    // future-use mismatch, and either kind with no enabled family a
+    // consumer mismatch like any other unadmitted kind. The upper-bound
+    // grammar binds only the unsigned carriers: a signed carrier's
+    // operand positions name no admitted grammar even while the
+    // upper-bound family is enabled, so the enabled-family check counts
+    // only the rows a `SaturatingAdd` of this carrier can bind.
+    // `WrappingRemainderI64`,
     // `ExactDivideU64`, `SaturatingSubtract`, and `SaturatingDivide` are
     // each admitted by two
     // disjoint families on *different* operand positions — the position
@@ -472,9 +506,17 @@ fn reconstruct_action(
     // grammar covers the position: a future-use mismatch while either
     // family of the kind is enabled, a consumer mismatch when neither is.
     let row = row.ok_or_else(|| {
-        if matches!(consumer.kind, SelectedInstructionKind::BitwiseAndI64)
-            && (rows.and_zero.is_some() || rows.and_ones.is_some())
-        {
+        let same_position_families = match consumer.kind {
+            SelectedInstructionKind::BitwiseAndI64 => {
+                rows.and_zero.is_some() || rows.and_ones.is_some()
+            }
+            SelectedInstructionKind::SaturatingAdd { carrier } => {
+                rows.saturating_add_zero.is_some()
+                    || (rows.saturating_add_upper_bound.is_some() && !carrier.is_signed())
+            }
+            _ => false,
+        };
+        if same_position_families {
             if future_use.operand == shape.victim_operand() {
                 LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
@@ -649,6 +691,29 @@ fn reconstruct_action(
                 });
             }
             literal_u64
+        }
+        // The saturating-add upper-bound fold is the carrier's maximum
+        // only when the folded literal is exactly that maximum on an
+        // unsigned carrier — `x +| MAX` and `MAX +| x` are both `MAX`
+        // because `x + MAX` reaches the carrier's upper bound and
+        // saturates to it; any other literal, and every signed carrier —
+        // where `x +| MAX` is `x + MAX` unclamped for every negative
+        // `x`, not a constant — is a different computation the replay
+        // must not admit. The recorded immediate is the constant the
+        // rewritten `MaterializeI64` embeds — the carrier maximum the
+        // validator recomputes from the consumer kind itself.
+        SourceShape::SaturatingAddUpperBound | SourceShape::SaturatingAddUpperBoundLeft => {
+            let SelectedInstructionKind::SaturatingAdd { carrier } = consumer.kind else {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            };
+            if carrier.is_signed() || literal_u64 != carrier.maximum_bits() {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            carrier.maximum_bits()
         }
         // The saturating-subtract fold is the identity only when the folded
         // literal is exactly zero — zero is the right identity under
@@ -1107,6 +1172,67 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
+        // The saturating-add upper-bound grammar: `[dropped, victim,
+        // result, scratch...]` folds the operand-1 `Use` — the
+        // carrier-maximum literal — and drops the operand-0 `Use` because
+        // the constant result never reads it: `x +| MAX` is `MAX` for
+        // every `x` an unsigned carrier admits. The rewritten row is the
+        // `MaterializeI64` constant row — a lone `Def` binding the
+        // consumer's result register — and every operand past the
+        // operand-2 `Def` result is a scratch `Def` the fold drops under
+        // the occurrence-free custody the validator independently
+        // re-derives: each dropped `Def` register must occur nowhere else
+        // in the function, because the fold discards a definition a
+        // surviving read or second definition would still observe. The
+        // u64 carrier's row is exactly three long — the scratch slice is
+        // empty for it — while every clamped carrier's row continues
+        // with the bound scratch its realization writes.
+        (SourceShape::SaturatingAddUpperBound, [left, right, result, scratch @ ..]) => {
+            if left.access != RegisterOperandAccess::Use
+                || right.access != RegisterOperandAccess::Use
+                || right.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
+        // The commuted saturating-add upper-bound grammar: `[victim,
+        // dropped, result, scratch...]` folds the operand-0 `Use` — the
+        // carrier-maximum literal — and drops the operand-1 `Use` under
+        // the same constant-result custody. Saturating addition commutes,
+        // so `MAX +| x` is `x +| MAX` is `MAX`, but the grammar needs
+        // none of that: the operand-0 literal alone fixes the result. The
+        // scratch `Def` tail drops under the same occurrence-free
+        // custody.
+        (SourceShape::SaturatingAddUpperBoundLeft, [victim, right, result, scratch @ ..]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || right.access != RegisterOperandAccess::Use
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // The saturating-subtract identity grammar: `[surviving, victim,
         // result]` folds the operand-1 `Use`; the operand-0 `Use`
         // survives and binds the `CopyI64` row's `Use` position. The
@@ -1356,6 +1482,8 @@ fn reconstruct_action(
             | SourceShape::SaturatingAddZeroLeft
             | SourceShape::SaturatingAddZeroScratch
             | SourceShape::SaturatingAddZeroLeftScratch
+            | SourceShape::SaturatingAddUpperBound
+            | SourceShape::SaturatingAddUpperBoundLeft
             | SourceShape::SaturatingSubtractZero
             | SourceShape::SaturatingSubtractZeroScratch
             | SourceShape::SaturatingSubtractZeroMinuend
@@ -1370,6 +1498,8 @@ fn reconstruct_action(
             | SourceShape::SaturatingAddZeroLeft
             | SourceShape::SaturatingAddZeroScratch
             | SourceShape::SaturatingAddZeroLeftScratch
+            | SourceShape::SaturatingAddUpperBound
+            | SourceShape::SaturatingAddUpperBoundLeft
             | SourceShape::SaturatingSubtractZero
             | SourceShape::SaturatingSubtractZeroScratch
             | SourceShape::SaturatingSubtractZeroMinuend
@@ -1544,6 +1674,7 @@ fn reconstruct_action(
         | SourceShape::WrappingAddZeroLeft
         | SourceShape::SaturatingAddZeroLeft
         | SourceShape::SaturatingAddZeroLeftScratch
+        | SourceShape::SaturatingAddUpperBoundLeft
         | SourceShape::AndOnesLeft
         | SourceShape::RemainderZeroDividend
         | SourceShape::DivideZeroDividend
@@ -1559,6 +1690,7 @@ fn reconstruct_action(
         | SourceShape::WrappingAddZero
         | SourceShape::SaturatingAddZero
         | SourceShape::SaturatingAddZeroScratch
+        | SourceShape::SaturatingAddUpperBound
         | SourceShape::SaturatingSubtractZero
         | SourceShape::SaturatingSubtractZeroScratch
         | SourceShape::SaturatingDivideOne
@@ -1615,7 +1747,16 @@ fn reconstruct_action(
 /// definitions under a whole-function deadness gate — on the u64 carrier
 /// under the exact three-operand grammar, and on every clamped carrier
 /// under the scratch-defs grammar that drops each `Def` operand past the
-/// result under occurrence-free custody — or the saturating-subtract
+/// result under occurrence-free custody — or the saturating-add
+/// upper-bound forms whose carrier-maximum literal folds an unsigned
+/// `SaturatingAdd` into a materialized maximum — `x +| MAX` and
+/// `MAX +| x` are both `MAX` for every `x` an unsigned carrier admits,
+/// because `x + MAX` reaches the carrier's upper bound and saturates to
+/// it — dropping the other `Use` the constant result never reads and
+/// every scratch `Def` operand past the result under the same
+/// occurrence-free custody, and whose family admits no signed carrier:
+/// `x +| MAX` there is `x + MAX` unclamped for every negative `x`, not a
+/// constant — or the saturating-subtract
 /// identity forms whose zero literal folds a `SaturatingSubtract` into a
 /// copy of the operand-0 `Use` under the right-literal grammar —
 /// saturating subtraction does not commute, so `0 -| x` names no admitted
@@ -1665,6 +1806,8 @@ enum SourceShape {
     SaturatingAddZeroLeft,
     SaturatingAddZeroScratch,
     SaturatingAddZeroLeftScratch,
+    SaturatingAddUpperBound,
+    SaturatingAddUpperBoundLeft,
     SaturatingSubtractZero,
     SaturatingSubtractZeroScratch,
     SaturatingSubtractZeroMinuend,
@@ -1684,6 +1827,7 @@ impl SourceShape {
             | Self::AndOnes
             | Self::SaturatingAddZero
             | Self::SaturatingAddZeroScratch
+            | Self::SaturatingAddUpperBound
             | Self::SaturatingSubtractZero
             | Self::SaturatingSubtractZeroScratch
             | Self::SaturatingDivideOne => 1,
@@ -1698,6 +1842,7 @@ impl SourceShape {
             | Self::AndOnesLeft
             | Self::SaturatingAddZeroLeft
             | Self::SaturatingAddZeroLeftScratch
+            | Self::SaturatingAddUpperBoundLeft
             | Self::SaturatingSubtractZeroMinuend
             | Self::SaturatingDivideZeroDividend => 0,
         }
@@ -2187,17 +2332,51 @@ fn rebuild_function(
         SelectedInstructionKind::WrappingAddI64 => {
             (rows.wrapping_add_zero, SelectedInstructionKind::CopyI64)
         }
-        // A saturating add on any carrier with a zero literal is the
-        // surviving operand: the validator rebuilds the consumer as a
-        // `CopyI64` bound to the `CopyI64` row the saturating-add-zero
-        // policy gate selected. The rebuild replaces the operand list —
-        // including the clamped rows' dropped bound-scratch `Def` — and
-        // the unit surface wholesale from the bound row, so the retired
-        // implicit definitions — the aarch64 `nzcv` write — and the
-        // retired clobbers — the x86-64 `rflags` write — leave with the
-        // folded form.
-        SelectedInstructionKind::SaturatingAdd { .. } => {
-            (rows.saturating_add_zero, SelectedInstructionKind::CopyI64)
+        // Two disjoint families fold `SaturatingAdd` at either `Use`
+        // position; the reconstructed immediate names the family a fold
+        // belongs to. The zero-identity fold records the folded literal
+        // itself — zero — and rebuilds a `CopyI64` of the surviving
+        // operand bound to the `CopyI64` row the saturating-add-zero
+        // policy gate selected. The upper-bound fold records the constant
+        // its rewritten `MaterializeI64` embeds — the carrier's maximum,
+        // which an unsigned carrier's maximum literal is — and rebuilds
+        // that constant recomputed against the surviving result
+        // register's scalar type, bound to the `MaterializeI64` row the
+        // upper-bound policy gate selected. A signed carrier's
+        // reconstructed immediate can never be its maximum — the grammar
+        // derivation already rejected it — so the signedness check keeps
+        // the consumer-mismatch refusal for any recorded action the
+        // derivation could not produce. Either rebuild replaces the
+        // operand list — including the clamped rows' dropped
+        // bound-scratch `Def` — and the unit surface wholesale from the
+        // bound row, so the retired implicit definitions — the aarch64
+        // `nzcv` write — and the retired clobbers — the x86-64 `rflags`
+        // write — leave with the folded form.
+        SelectedInstructionKind::SaturatingAdd { carrier } => {
+            if !carrier.is_signed() && action.immediate == carrier.maximum_bits() {
+                let result = action.result.ok_or(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                })?;
+                let scalar = function
+                    .virtual_registers
+                    .iter()
+                    .find(|register| register.id == result)
+                    .map(|register| register.scalar_type)
+                    .ok_or(LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    })?;
+                let value = materialize_value(action.immediate, scalar).ok_or(
+                    LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    },
+                )?;
+                (
+                    rows.saturating_add_upper_bound,
+                    SelectedInstructionKind::MaterializeI64 { value },
+                )
+            } else {
+                (rows.saturating_add_zero, SelectedInstructionKind::CopyI64)
+            }
         }
         // Two disjoint families fold `SaturatingSubtract`; the victim
         // register's operand position names the family a fold belongs
