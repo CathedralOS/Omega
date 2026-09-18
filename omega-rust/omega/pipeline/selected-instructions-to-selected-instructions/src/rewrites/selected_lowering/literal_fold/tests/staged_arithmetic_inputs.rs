@@ -2491,6 +2491,36 @@ pub(super) fn staged_saturating_subtract_carrier_inputs(
     )
 }
 
+/// A `MaterializeI64` victim producing `Unsigned(0)` feeding operand 0 —
+/// the minuend — of a `SaturatingSubtract` consumer on `carrier`, under
+/// the zero-minuend policy: `0 -| x` is `0` for every `x` an unsigned
+/// carrier admits, because `0 - x` underflows the carrier's lower bound
+/// and saturates to it, so the fold rewrites the consumer into a
+/// `MaterializeI64` of zero at the result register and drops the
+/// operand-1 subtrahend `Use`. Signed carriers admit no operand-0 fold —
+/// `0 -| x` there is `-x` clamped to the carrier's bounds, not a
+/// constant — so staging `carrier` signed produces the arrangement the
+/// family refuses. The surviving register `VirtualRegisterId(0)`
+/// occupies the operand-1 `Use` the fold drops. The consumer retires the
+/// same target-specific unit effects the identity family does — aarch64
+/// defines `nzcv`, x86-64 clobbers `rflags` — so `block0` chooses the
+/// block-0 terminator the same way.
+pub(super) fn staged_saturating_subtract_zero_minuend_carrier_inputs(
+    target: NativeTarget,
+    carrier: SaturatingCarrier,
+    literal_operand: u16,
+    block0: BlockZeroTerminator,
+) -> Inputs {
+    staged_literal_binary_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::SaturatingSubtract { carrier },
+        LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
+        0,
+        block0,
+    )
+}
+
 /// A `MaterializeI64` victim producing `Unsigned(1)` feeding operand 1 —
 /// the divisor — of a `SaturatingDivide` consumer on the `U64` carrier:
 /// `x /| 1` is `x`. The grammar is asymmetric — `1 /| x` is not `x` —

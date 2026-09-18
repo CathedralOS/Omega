@@ -1,6 +1,6 @@
 use super::{
     BlockZeroTerminator, assert_budget_is_enforced, assert_deterministic_fixed_point, fold_with,
-    policy_without, restage_literal, staged_saturating_add_inputs,
+    policy_without, policy_without_all, restage_literal, staged_saturating_add_inputs,
     staged_saturating_subtract_carrier_inputs, staged_saturating_subtract_inputs,
     staged_wrapping_add_inputs, staged_xor_inputs, validate,
 };
@@ -707,17 +707,21 @@ fn saturating_subtract_zero_fold_rejects_consumers_the_selection_does_not_enable
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // The saturating-subtract operand grammar admits the literal only
-    // under the saturating-subtract-zero policy: every other selected
-    // family sees no admitted consumer kind — including its sibling
-    // saturating-add family and the strongest posture, every other rule
-    // enabled at once.
+    // under a saturating-subtract policy: every selection naming no
+    // saturating-subtract family sees no admitted consumer kind —
+    // including its sibling saturating-add family and the strongest
+    // posture, every other rule enabled at once with both
+    // saturating-subtract bits closed.
     let inputs = staged_saturating_subtract_inputs(target, 1, BlockZeroTerminator::Jump);
     for policy in [
         LiteralFoldPolicy::EXACT_ADD_V1,
         LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
         LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
         LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
-        policy_without(LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1),
+        policy_without_all(&[
+            LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
+            LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
+        ]),
     ] {
         assert_eq!(
             fold_with(&inputs, &environment, policy).map(|_| ()),
@@ -725,6 +729,21 @@ fn saturating_subtract_zero_fold_rejects_consumers_the_selection_does_not_enable
             "{policy:?}"
         );
     }
+    // The sibling zero-minuend family admits the same consumer kind at
+    // the operand-0 minuend position — on the unsigned carriers only:
+    // with every family enabled except the right-zero bit, the kind is
+    // admitted but no enabled grammar covers the operand-1 subtrahend
+    // position the staged literal occupies: a future-use mismatch, not
+    // an unadmitted consumer.
+    assert_eq!(
+        fold_with(
+            &inputs,
+            &environment,
+            policy_without(LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1)
+        )
+        .map(|_| ()),
+        Err(LiteralFoldError::FutureUseMismatch { function: 0 })
+    );
     // And the saturating-subtract-zero policy admits no other consumer:
     // the saturating-add, wrapping-add, and xor fixtures' consumer kinds
     // are no admitted kind.

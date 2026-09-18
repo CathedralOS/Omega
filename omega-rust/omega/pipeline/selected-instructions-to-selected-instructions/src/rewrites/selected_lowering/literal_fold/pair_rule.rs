@@ -23,8 +23,8 @@
 //! `Use` operand survives, and every operand past the result is a
 //! dropped `Def` scratch or, under the divide's auxiliary grammar, a
 //! dropped `Use` proven to read only a zero materialization — at the
-//! right `Use` position or, under the annihilator and zero-dividend
-//! grammars, the left one. The surviving-`Use` grammars also carry a
+//! right `Use` position or, under the annihilator, zero-dividend, and
+//! zero-minuend grammars, the left one. The surviving-`Use` grammars also carry a
 //! scratch-tail form — [`PairOperandShape::BinaryRightLiteralScratchDefs`]
 //! and [`PairOperandShape::BinaryLeftLiteralScratchDefs`] — for a consumer
 //! whose operand list continues past its `Def` result with scratch outputs
@@ -1810,6 +1810,8 @@ impl SelectedInstructionPairRule {
     /// scratch-defs grammar. Saturating subtraction does not commute —
     /// `0 -| x` is `-x` clamped to the carrier's bounds, not `x` — so the
     /// family declares no left-literal pair at either operand grammar.
+    /// The unsigned `0 -| x` constant fold is a separate family below,
+    /// not a left-literal member of this one.
     pub const SATURATING_SUBTRACT_ZERO_COPIES: [Self; 8] = [
         Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U8),
         Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U16),
@@ -1819,6 +1821,69 @@ impl SelectedInstructionPairRule {
         Self::saturating_subtract_zero_clamped(SaturatingCarrier::I16),
         Self::saturating_subtract_zero_clamped(SaturatingCarrier::I32),
         Self::saturating_subtract_zero_clamped(SaturatingCarrier::I64),
+    ];
+
+    /// Eliminate `MaterializeI64` feeding the operand-0 `Use` — the
+    /// minuend — of `SaturatingSubtract` on an unsigned carrier when the
+    /// literal is exactly zero: `0 -| x` is `0` for every `x`, because
+    /// `0 - x` underflows the carrier's lower bound and saturates to it —
+    /// so the rewrite is a `MaterializeI64` of the constant zero at the
+    /// consumer's result register. Only unsigned carriers admit the fold:
+    /// under signed saturation `0 -| x` is `-x` clamped to the carrier's
+    /// bounds, not a constant, so the family binds the three-operand
+    /// unsigned row alone and no signed carrier ever names an admitted
+    /// operand-0 grammar. The operand-1 subtrahend `Use` is dropped with
+    /// the form because the constant result never reads it, and every
+    /// operand past the operand-2 `Def` result — none on the unsigned
+    /// row — would drop under the
+    /// [`BinaryLeftLiteralConstantResult`](PairOperandShape::BinaryLeftLiteralConstantResult)
+    /// grammar's occurrence-free custody. The consumer carries the same
+    /// implicit unit surface the identity family retires: the unsigned
+    /// saturating-subtract row defines `nzcv` on aarch64 — its
+    /// flag-setting `subs` realization — while the isolated
+    /// `MaterializeI64` defines nothing, so under
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// that definition may retire only while it is dead in the function,
+    /// and the consumer's clobbers retire wholesale, as the x86-64 row's
+    /// `rflags` clobber does. The consumer's operands may carry the
+    /// `early_clobber` mark the x86-64 saturating realization declares on
+    /// its result — the hazard it names exists only inside the dropped
+    /// operand list — under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// The family shares its consumer kind with the right-zero identity
+    /// fold; the grammars stay disjoint on the folded literal's operand
+    /// position.
+    const fn saturating_subtract_zero_minuend(carrier: SaturatingCarrier) -> Self {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::SaturatingSubtract(carrier),
+            rewritten: MachineSemanticKind::MaterializeI64,
+            operand_shape: PairOperandShape::BinaryLeftLiteralConstantResult,
+            immediate_bound: PairImmediateBound::Exactly(0),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+        };
+        assert!(
+            !carrier.is_signed() && matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
+            "the zero-minuend fold holds only for an unsigned carrier's zero literal"
+        );
+        rule
+    }
+
+    /// The saturating-subtract zero-minuend rules: one left-literal pair
+    /// for each unsigned carrier's three-operand row — `0 -| x` is `0`
+    /// under unsigned saturation. Signed carriers admit no operand-0 fold
+    /// — `0 -| x` there is `-x` clamped to the carrier's bounds, not a
+    /// constant — so the family declares no signed pair at all. The
+    /// family shares its consumer kind with the right-zero identity fold;
+    /// the grammars stay disjoint on the folded literal's operand
+    /// position.
+    pub const SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS: [Self; 4] = [
+        Self::saturating_subtract_zero_minuend(SaturatingCarrier::U8),
+        Self::saturating_subtract_zero_minuend(SaturatingCarrier::U16),
+        Self::saturating_subtract_zero_minuend(SaturatingCarrier::U32),
+        Self::saturating_subtract_zero_minuend(SaturatingCarrier::U64),
     ];
 
     /// Eliminate `MaterializeI64` feeding the operand-1 `Use` — the
@@ -2217,17 +2282,20 @@ impl SelectedInstructionPairRule {
             // A remainder by one or of a zero dividend is always zero, an
             // unsigned divide of a zero dividend is always zero, a
             // saturating divide of a zero dividend is always zero inside
-            // the carrier's bounds, and a bitwise-and with a zero literal
-            // is always zero at either `Use` position: the
+            // the carrier's bounds, an unsigned saturating subtract of a
+            // zero minuend is always zero — `0 -| x` saturates to the
+            // carrier's lower bound — and a bitwise-and with a zero
+            // literal is always zero at either `Use` position: the
             // `MaterializeI64` rewrite materializes the folded constant
             // at the result register, sign-matched and admitted by its
             // scalar type. The consumer guard keeps each rule bound to
             // its own consumer kind — the remainder rules never rewrite
             // an and or a divide, the and-zero rule never rewrites a
             // remainder or a divide, the exact-divide zero-dividend rule
-            // never rewrites either, and each saturating-divide
+            // never rewrites either, each saturating-divide
             // zero-dividend rule rewrites only the carrier kind its pair
-            // admits — while each pair sharing a kind legitimately
+            // admits, and each saturating-subtract zero-minuend rule
+            // likewise — while each pair sharing a kind legitimately
             // coexists: admission already fixed which grammar applies by
             // the folded literal's operand position, and both produce the
             // same materialized zero.
@@ -2236,6 +2304,7 @@ impl SelectedInstructionPairRule {
                 kind @ (SelectedInstructionKind::WrappingRemainderI64 { .. }
                 | SelectedInstructionKind::ExactDivideU64 { .. }
                 | SelectedInstructionKind::SaturatingDivide { .. }
+                | SelectedInstructionKind::SaturatingSubtract { .. }
                 | SelectedInstructionKind::BitwiseAndI64),
             ) if machine_semantic_kind(kind) == self.consumer => {
                 scalar_materialize_value(immediate, result_scalar?)

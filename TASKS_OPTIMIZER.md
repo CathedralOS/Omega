@@ -1117,6 +1117,34 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   source shape, re-derives the literal, each tail operand's custody,
   the obligation custody, and the unit deadness scan itself, and never
   consults the pair descriptor).
+  `SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS` declares one
+  left-literal constant-result pair per unsigned saturating carrier,
+  folding `MaterializeI64(0)` feeding the operand-0 minuend `Use` of
+  `SaturatingSubtract` into a `MaterializeI64` of zero at the result
+  register under `LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1`
+  — `0 -| x` is `0` for every `x` an unsigned carrier admits, because
+  `0 - x` underflows the carrier's lower bound and saturates to it. The
+  family shares its consumer kind with the right-zero identity fold and
+  stays disjoint on the folded literal's operand position: the producer
+  selects between the two `SaturatingSubtract` families by which position
+  the recorded future use names. Signed carriers admit no operand-0 fold
+  — `0 -| x` there is `-x` clamped to the carrier's bounds, not a
+  constant — so the family binds only the unsigned three-operand row,
+  dropping the operand-1 subtrahend `Use` the constant result never
+  reads, and retires aarch64's implicit `nzcv` definition under the
+  whole-function deadness proof while x86-64's `rflags` clobber drops
+  unconditionally with the replaced operand list (937 crate lib tests
+  pass, including firing on both Linux targets across all four unsigned
+  carriers, every signed carrier's operand-0 rejection, right-literal
+  and nonzero-minuend rejection, wrong-position claims, live-`nzcv`
+  rejection under both instruction and terminator readers, forbidden
+  operand bindings, cross-carrier kind-versus-row rejection,
+  decision-field substitution, and wrong-policy negatives; the replay
+  restates the grammar through its own `SaturatingSubtractZeroMinuend`
+  source shape — selecting the family from the victim's operand position
+  and carrier signedness alone — re-derives the literal, result
+  register, and materialized value from the instruction record, runs
+  its own dead-unit scan, and never consults the pair descriptor).
   Remaining: further unit roles beyond retired implicit definitions,
   stack- and control-flow-carrying relationships, and trap relationships
   beyond the existing `FaultDischargedByLiteral`,
