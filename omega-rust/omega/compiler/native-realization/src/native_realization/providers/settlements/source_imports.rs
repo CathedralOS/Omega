@@ -30,6 +30,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     settlements: &[NativeProviderSettlement<'_>],
     native_callbacks: &[abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
+    filesystem_release_contracts: &[crate::native_realization::FilesystemOrdinaryReleaseContract],
 ) -> Result<Vec<AdmittedTerminalMechanism>, Vec<Diagnostic>> {
     let demanded = join_import_coverage_rows(
         plan,
@@ -105,7 +106,13 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded syscall `{requirement}` has no exact checked argument contract: {error}"
                     ))]
                 })?;
-                policy.classify(mechanism).map_err(|unclassified| {
+                let mechanism = classify_terminal_mechanism(
+                    policy,
+                    mechanism,
+                    ordinary_release_cohort(provider_plan, row),
+                    filesystem_release_contracts,
+                )
+                .map_err(|unclassified| {
                     vec![Diagnostic::error(format!(
                         "receiving terminal-authority policy version {} does not classify syscall mechanism {:?} required by `{requirement}`",
                         policy.identity().version(),
@@ -170,7 +177,13 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded normalized import `{requirement}` has an invalid admitted implementation contract: {error}"
                     ))]
                 })?;
-                policy.classify(mechanism).map_err(|unclassified| {
+                let mechanism = classify_terminal_mechanism(
+                    policy,
+                    mechanism,
+                    ordinary_release_cohort(provider_plan, row),
+                    filesystem_release_contracts,
+                )
+                .map_err(|unclassified| {
                     vec![Diagnostic::error(format!(
                         "receiving terminal-authority policy version {} does not classify normalized foreign mechanism {:?} required by `{requirement}`",
                         policy.identity().version(),
@@ -227,6 +240,61 @@ pub(super) fn validate_source_evaluated_import_coverage(
     }
     admitted_mechanisms.sort_by_key(|row| row.boundary);
     Ok(admitted_mechanisms)
+}
+
+/// Whether the selected row serves a canonical `FilesystemHost`
+/// ordinary-release cohort method. Only those requirements may carry an
+/// occurrence-specific release contract into a mechanism key: the coordinate
+/// is evidence of a proved constrained open/query/close occurrence, and no
+/// other cohort can bind it.
+fn ordinary_release_cohort(provider_plan: &ProviderPlan, row: &ProviderPlanRow) -> bool {
+    provider_plan
+        .schema
+        .methods
+        .iter()
+        .find(|method| method.name == row.method)
+        .and_then(|method| {
+            crate::native_realization::terminal_authority_policy::settled_filesystem_cohort(
+                &method.name,
+            )
+        })
+        == Some(crate::native_realization::FilesystemCohortDisposition::OrdinaryReleaseContract)
+}
+
+/// Classify one demanded mechanism, preferring an occurrence-bound key when a
+/// retained ordinary-release contract narrows this mechanism's checked
+/// argument-contract coordinate and the receiving policy classified that
+/// bound key.
+///
+/// The proved constrained occurrence uses its own evidence-bound mechanism
+/// identity, so each retained contract's bound key is consulted before the
+/// unconstrained conservative key: a caller row for the generic key never
+/// widens a covered occurrence back. A contract whose bound key has no
+/// explicit row cannot classify, and a record absent from this compile's
+/// custody contributes no candidates, so the unconstrained fallback fails
+/// closed exactly as before. Non-release cohorts never consult bound keys:
+/// no retained release occurrence can narrow them.
+fn classify_terminal_mechanism(
+    policy: &crate::native_realization::TerminalAuthorityPolicy,
+    mechanism: effects::TerminalMechanismIdentity,
+    release_cohort: bool,
+    filesystem_release_contracts: &[crate::native_realization::FilesystemOrdinaryReleaseContract],
+) -> Result<
+    effects::TerminalMechanismIdentity,
+    crate::native_realization::terminal_authority_policy::UnclassifiedTerminalMechanism,
+> {
+    if release_cohort {
+        for bound in filesystem_release_contracts.iter().filter_map(|contract| {
+            crate::native_realization::terminal_authority_policy::filesystem_release_bound_mechanism(
+                mechanism, *contract,
+            )
+        }) {
+            if policy.classify(bound).is_ok() {
+                return Ok(bound);
+            }
+        }
+    }
+    policy.classify(mechanism).map(|_| mechanism)
 }
 
 /// Join only demanded requirements; counts retain malformed duplicate evidence

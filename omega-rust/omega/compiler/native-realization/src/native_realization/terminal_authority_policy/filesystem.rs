@@ -21,10 +21,11 @@
 use effects::{
     CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
     PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission,
-    TerminalAuthorityDisposition, TerminalMechanismIdentity,
-    provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest},
+    SyscallTerminalMechanismIdentity, TerminalAuthorityDisposition, TerminalMechanismIdentity,
+    provider_plan::{ProviderBinding, ServiceMethod, ServiceSchema, ServiceSchemaDigest},
 };
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 
 use super::TerminalAuthorityPolicyRow;
 
@@ -204,6 +205,149 @@ pub fn filesystem_native_handle_query_release_contracts(
         cursor += 1;
     }
     Ok(contracts)
+}
+
+/// Bind one retained ordinary-release contract into an exact mechanism's
+/// checked argument-contract coordinate, producing the occurrence-bound key.
+///
+/// A direct syscall keeps its target and number while the coordinate is
+/// replaced by the contract; a normalized foreign import keeps its target,
+/// locator, and admitted calling plan while the coordinate enters beside the
+/// plan. Compiler intrinsics and checked physical mechanisms carry no such
+/// coordinate and can never be occurrence-bound. The result is a distinct key
+/// that no row for the unconstrained mechanism can classify; minting it
+/// establishes nothing by itself.
+pub fn filesystem_release_bound_mechanism(
+    mechanism: TerminalMechanismIdentity,
+    contract: FilesystemOrdinaryReleaseContract,
+) -> Option<TerminalMechanismIdentity> {
+    match mechanism {
+        TerminalMechanismIdentity::Syscall(syscall) => Some(
+            SyscallTerminalMechanismIdentity::new(
+                syscall.target(),
+                syscall.number(),
+                contract.checked_argument_contract(),
+            )
+            .into(),
+        ),
+        TerminalMechanismIdentity::NormalizedForeign(foreign) => Some(
+            foreign
+                .with_checked_argument_contract(contract.checked_argument_contract())
+                .into(),
+        ),
+        TerminalMechanismIdentity::CompilerIntrinsic(_)
+        | TerminalMechanismIdentity::CheckedPhysical(_) => None,
+    }
+}
+
+/// Realize each retained ordinary-release contract into the evidence-bound
+/// mechanism rows the demanded syscall/import selections earn.
+///
+/// For every demanded requirement whose selected provider row is a direct
+/// syscall or normalized foreign import in the ordinary-release cohort, each
+/// contract mints the occurrence-bound mechanism key through
+/// `filesystem_release_bound_mechanism` and emits its explicit-empty row
+/// through `filesystem_release_mechanism_row`. Undemanded requirements,
+/// selections outside the release cohort, methods absent from their own
+/// schema, and imports without exactly one retained boundary contract mint
+/// nothing: settlement's own coverage diagnostics reject those demands
+/// separately. A stale or substituted record derives different contracts, so
+/// its rows bind different mechanism keys entirely.
+pub fn filesystem_release_occurrence_mechanism_rows(
+    contracts: &[FilesystemOrdinaryReleaseContract],
+    demanded: &BTreeSet<String>,
+    selected_plans: &effects::SelectedProviderPlanFacts,
+    external_binding_rows: &[calling_conventions::ExternalBindingRow],
+) -> Result<Vec<TerminalAuthorityPolicyRow>, String> {
+    let mut rows = Vec::new();
+    for provider_plan in selected_plans.plans() {
+        for plan_row in &provider_plan.rows {
+            if !demanded.contains(&plan_row.requirement_identity) {
+                continue;
+            }
+            let Some(method) = provider_plan
+                .schema
+                .methods
+                .iter()
+                .find(|method| method.name == plan_row.method)
+            else {
+                continue;
+            };
+            if settled_filesystem_cohort(&method.name)
+                != Some(FilesystemCohortDisposition::OrdinaryReleaseContract)
+            {
+                continue;
+            }
+            match &plan_row.binding {
+                ProviderBinding::Syscall { number } => {
+                    let target_profile = target::TargetProfile::from_canonical_target_name(
+                        &provider_plan.target,
+                    )
+                    .map_err(|diagnostic| {
+                        format!(
+                            "selected filesystem release plan targets an uncanonical name: {diagnostic}"
+                        )
+                    })?;
+                    let number = u32::try_from(*number).map_err(|_| {
+                        "selected filesystem release syscall number does not fit the checked u32 domain"
+                            .to_owned()
+                    })?;
+                    for contract in contracts {
+                        let bound = SyscallTerminalMechanismIdentity::new(
+                            target_profile,
+                            number,
+                            contract.checked_argument_contract(),
+                        )
+                        .into();
+                        rows.push(
+                            filesystem_release_mechanism_row(bound, method, *contract).map_err(
+                                |error| {
+                                    format!(
+                                        "demanded filesystem release `{}` could not emit its bound mechanism row: {error:?}",
+                                        plan_row.requirement_identity
+                                    )
+                                },
+                            )?,
+                        );
+                    }
+                }
+                ProviderBinding::Import { evaluated } => {
+                    let externals = external_binding_rows
+                        .iter()
+                        .filter(|row| row.requirement_identity == plan_row.requirement_identity)
+                        .collect::<Vec<_>>();
+                    // Settlement reports retained-row multiplicity itself; only
+                    // the exact one-plan case can mint a bound key here.
+                    let [external] = externals.as_slice() else {
+                        continue;
+                    };
+                    let Some(boundary_entry_plan) = &external.boundary_entry_plan else {
+                        continue;
+                    };
+                    let base = super::normalized_foreign_terminal_mechanism(
+                        evaluated.locator(),
+                        boundary_entry_plan,
+                    )?;
+                    for contract in contracts {
+                        let bound = filesystem_release_bound_mechanism(base, *contract)
+                            .expect("a normalized foreign key accepts a checked coordinate");
+                        rows.push(
+                            filesystem_release_mechanism_row(bound, method, *contract).map_err(
+                                |error| {
+                                    format!(
+                                        "demanded filesystem release `{}` could not emit its bound mechanism row: {error:?}",
+                                        plan_row.requirement_identity
+                                    )
+                                },
+                            )?,
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(rows)
 }
 
 /// Look up the settled cohort for one canonical `FilesystemHost` requirement
