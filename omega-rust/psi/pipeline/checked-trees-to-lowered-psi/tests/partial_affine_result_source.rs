@@ -200,14 +200,11 @@ fn anonymous_projected_operands_share_one_dying_continuation() {
         .unwrap();
         let mut factory = Factory::default();
         let mut meter = TerminalFuelMeter::unbounded();
-        for _ in 0..256 {
-            match execution.resume(&mut meter, &mut factory).unwrap() {
-                TerminalExecutionStatus::Complete(value) => {
-                    assert_eq!(value, TerminalExecutionResult::Unit);
-                    break;
-                }
-                status => panic!("unexpected {status:?}"),
+        match execution.resume(&mut meter, &mut factory).unwrap() {
+            TerminalExecutionStatus::Complete(value) => {
+                assert_eq!(value, TerminalExecutionResult::Unit);
             }
+            status => panic!("unexpected {status:?}"),
         }
         assert_eq!(factory.calls, if boundary { 2 } else { 0 });
         assert!(
