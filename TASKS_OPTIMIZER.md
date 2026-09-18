@@ -520,6 +520,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   scalar-graph arrays only emit as call arguments — before admission
   work can begin.
 
+  Region custody constrains every remaining motion family: the counted-loop
+  `LoopRegion` is projected from validated Terminal-SCC custody, never from a
+  private loop forest or a second edge/reachability walk inside the countdown
+  leaf. Reducibility under the certified header rests on the custody's unique
+  entry edge landing on that header plus the verifier's all-blocks-reachable
+  control graph — a component holding the machine entry block has no entry edge
+  at all, because any non-member reaching into it would join its cycle. The
+  independent reconstruction lives in
+  `validation/context/ranked_cycles/ordinary.rs`, which rebuilds components from
+  the current optimizer body and requires them to equal the verifier's Terminal
+  surface exactly. Keep both halves; do not reintroduce a loop-forest producer
+  to recover a region.
+
 ## Lowering and instruction selection
 
 - **EXACT-SELECTION-FAMILIES.** Add address-mode folding, compare/branch
