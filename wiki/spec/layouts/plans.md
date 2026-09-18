@@ -6,6 +6,11 @@ a language keyword for each foreign format. This contract describes the
 intended language; the [implementation boundary](../../../omega-rust/psi/semantics/build-time-evaluation/layouts.md)
 identifies the supported subset.
 
+Firmware structures follow the same rule: their target package supplies data
+and layout policies, while the compiler validates and consumes the resulting
+plans. [UEFI ownership](../build/uefi_entry.md#authored-firmware-definitions-and-adapters)
+does not introduce a compiler-owned table schema or a separate layout mechanism.
+
 ## Policy evaluation and schema
 
 A policy satisfies `Layout` through a build-time-admissible machine
