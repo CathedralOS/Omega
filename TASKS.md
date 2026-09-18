@@ -566,6 +566,26 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   receiver root fails state-relative visibility; the codec route is now closed
   as recorded above.
 
+  Re-measured at 771d0a8c2e (2026-09-18, macOS ARM64, same command): 1393
+  tests, 238 pass, 1155 fail. The failure count is unchanged because this
+  session's slices were diagnostic and evidence-only; the +9 tests and +9
+  passes are fixtures added since. 785 stop at checked Unit-plan construction
+  with the declining guard named (787 before): structural field store 355 (135
+  pure source, 118 scalar field type, 25 destination parameter, 14 carrier
+  path, the rest byte-sequence carrier), the state-graph route 187, local-data
+  statements 111, call statements 57, call statement shape 39, write-frame
+  agreement 19, and small tails at unconsumed nested calls, trivial affine
+  locals, signature and provider attachment. Two real movements: write-frame
+  agreement fell 27 to 19 after synthesized wire codecs began framing only
+  their exclusively borrowed argument places, and a `statement sequence: call:
+  call operation` family of 57 is now separated out of what the earlier run
+  recorded as 24 undifferentiated call statements. Outside plan construction
+  the owners are unchanged: 79 hosted receiver bridge (owner question 1), 67
+  exact-arithmetic obligations, 55 borrowed-storage transfers, 37 select no
+  exact program entry, 24 selected legalization at physical staging, 22
+  `MacosPhysicalEntry::enter` schema, 16 attached Unit closures with no
+  omission row, 13 default-domain field requirements.
+
   The six `core/numeric_*` members are not a control-builder gap: every one
   calls a library machine ending in a Trapping conversion, and four cross a
   sign boundary under Wrapping, so they belong to
