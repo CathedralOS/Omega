@@ -830,13 +830,22 @@ fn nested_literal_casts_preserve_the_exact_value_and_each_intermediate_fit() {
 
 #[test]
 fn array_boolean_expression_depth_has_no_smaller_correspondence_limit() {
-    let source = format!(
-        "machine selected(value: bool) -> [bool; 1] {{ [{}value] }}",
-        "!".repeat(140)
-    );
-    let checked = checked_source(&source);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-        .expect("array operands retain the ordinary scalar expression depth");
+    // 140 nested negations recurse deeper than a Windows test thread's 1 MiB
+    // stack; the compiler runs its stages on a large stack, so the probe does too.
+    std::thread::Builder::new()
+        .stack_size(256 * 1024 * 1024)
+        .spawn(|| {
+            let source = format!(
+                "machine selected(value: bool) -> [bool; 1] {{ [{}value] }}",
+                "!".repeat(140)
+            );
+            let checked = checked_source(&source);
+            checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
+                .expect("array operands retain the ordinary scalar expression depth");
+        })
+        .expect("spawn the deep-expression probe")
+        .join()
+        .expect("the deep-expression probe completes");
 }
 
 #[test]
