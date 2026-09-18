@@ -2571,11 +2571,56 @@ Owners include
   cleanup as covered by that Rust test, although no program can reach the
   ledger. It is supporting machinery until an authored registrar drives it.
 
-- **FOREIGN-RETAINED-ARGUMENT-BACKING.** Generalize retained outbound arguments
-  beyond callbacks with explicit call-scoped, lifetime-borrowed, moved, and
-  snapshot dispositions. Every retained pointer needs exact stable backing,
-  range, access, lifetime, and revision provenance; unknown or mutable ambient
-  backing rejects.
+- **FOREIGN-RETAINED-ARGUMENT-BACKING.** Execute outbound arguments that a
+  foreign callee retains after return, beyond callbacks, under
+  [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody), with
+  explicit call-scoped, lifetime-borrowed, moved and snapshot dispositions.
+  Every retained pointer needs exact stable backing, range, access, lifetime
+  and revision provenance; unknown or mutable ambient backing rejects.
+
+  Checking already derives the disposition from the authored contract. A
+  consumed owned source or one exact shared lifetime-bound source is recorded;
+  borrow-only, mutable lifetime-bound and ambiguous sources reject
+  (`typed-trees-to-checked-trees/src/tests/content/retained_content_custody.rs`,
+  `core/content_retained_custody_round_trip`,
+  `fail/core/content_retained_custody_from_borrow`). The shared-borrow row
+  lowers to `terminal_psi::RetainedBorrowCustody`
+  (`checked-trees-to-lowered-psi/src/retention/retained_borrow_custody.rs`).
+  It cannot be invoked: the Terminal verifier rejects every boundary call whose
+  declaration carries a `RetainedBorrow` guarantee with
+  `RetainedBorrowBoundaryIsNotExecutable`
+  (`terminal-verifier/src/validation/structural_operations/unit_operation/boundary_calls.rs`).
+
+  Remaining work:
+
+  - Psi/Terminal: admit the invoked retained-borrow call. Keep the caller's
+    loan live for the result's lifetime, bind it to the exact result
+    occurrence, and then delete the verifier rejection.
+  - Psi: the snapshot disposition has no source or checked form. It needs the
+    contract's explicit permission for independent copying and persistent
+    demand counted per live occurrence.
+  - Omega: native realization materializes a retained pointer only from an
+    established storage claim, and each slot carries root, range, access,
+    lifetime and revision or lease provenance.
+    `ProgramLocalExtentRegistry::retain_foreign_argument_{borrowed,moved,snapshot}`
+    (`external-roots/src/program_local/program_local_extents/retained_foreign_arguments.rs`)
+    already records that and rejects unheld, provider-issued, stale-era,
+    out-of-range and excess-rights backing. Drive it from the Terminal custody
+    row.
+
+  Acceptance: one authored boundary per retaining disposition runs natively on
+  an available host: a moved buffer redeemed by its completion, a shared loan
+  retained for an explicit lifetime while a conflicting write rejects, and a
+  permitted snapshot. Retention from a call-scoped borrow, a mutable
+  lifetime-bound source, an ambiguous source mapping, or unknown, stale,
+  out-of-range or excess-rights backing rejects. The moved disposition's
+  conserved-content route belongs to
+  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**; registration custody
+  belongs to **REGISTERED-CALLBACK-LIFETIME**.
+
+  Flag: that ledger has no caller outside its own tests, and its disposition
+  is whichever Rust method the caller picks. The contract assigns that choice
+  to the authored types, so the Terminal custody row must select it.
 
 ## P5 - Cathedral over general Omega primitives
 
