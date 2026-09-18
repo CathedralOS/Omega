@@ -63,4 +63,5 @@ normalized_id!(ExecutorSelectionId, "executor-selection");
 normalized_id!(ActivationInstanceId, "activation-instance");
 normalized_id!(TaskStorageOwnerId, "task-storage-owner");
 normalized_id!(TaskStorageLeaseId, "task-storage-lease");
+normalized_id!(TaskArgumentCustodyId, "task-argument-custody");
 normalized_id!(TaskLifecycleClaimId, "task-lifecycle-claim");

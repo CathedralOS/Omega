@@ -9,9 +9,10 @@
 //! Start at `activation_plans.rs`: the plan, its validators, its diagnostic
 //! and the facts a provider publishes about a plan.
 //! `executor_selection` binds an executor to a plan's preservation axes,
-//! `runtime_invocation` receipts one activation, `lifecycle_ledger`
-//! accounts for claims until settlement, `stack_composition` projects
-//! WCSU stack plans, `identities` holds every coordinate,
+//! `runtime_invocation` receipts one activation, `stack_leases` issues the
+//! nonmoving stack authority, `lifecycle_ledger` runs the transactional
+//! start and accounts for claims until settlement, `stack_composition`
+//! projects WCSU stack plans, `identities` holds every coordinate,
 //! `report_fingerprints` the compact report values and `diagnostic`
 //! the failure type.
 
@@ -22,6 +23,7 @@ mod lifecycle_ledger;
 mod report_fingerprints;
 mod runtime_invocation;
 mod stack_composition;
+mod stack_leases;
 #[cfg(test)]
 mod tests;
 
@@ -42,15 +44,15 @@ pub use identities::{
     ActivationInstanceId, ActivationPlanId, AdmittedStackContributionReportId, CallingPlanId,
     ExecutorPreservationEvidenceId, ExecutorSelectionId, MachineContractId, MachineEntryId,
     SameStackContributionAdmissionReceiptId, StackPlanProjectionId, StackRepresentationId,
-    TaskLifecycleClaimId, TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationBindingId,
-    TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId, TaskStackCompositionId,
-    TaskStackFrameId, TaskStackFrameValidationId, TaskStorageLeaseId, TaskStorageOwnerId,
-    ValueLayoutId,
+    TaskArgumentCustodyId, TaskLifecycleClaimId, TaskRuntimeId, TaskRuntimeInstanceId,
+    TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId,
+    TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId, TaskStorageLeaseId,
+    TaskStorageOwnerId, ValueLayoutId,
 };
 pub use lifecycle_ledger::{
-    ClosedTaskRuntime, SettledTaskLifecycle, TaskDependencyRecord, TaskLifecycleClaim,
-    TaskLifecycleLedger, TaskRuntimeCloseError, TaskSettlementError, TaskStorageBinding,
-    TaskStorageProvenance,
+    ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, TaskDependencyRecord,
+    TaskLifecycleClaim, TaskLifecycleLedger, TaskRuntimeCloseError, TaskSettlementError,
+    TaskStartRejection, TaskStartStorage, TaskStorageBinding,
 };
 pub use runtime_invocation::{
     TaskRuntimeActivationBinding, TaskRuntimeInvocationReceiptCandidate,
@@ -63,4 +65,7 @@ pub use stack_composition::{
     SameStackProviderPlanCommitment, StackCallContribution, TaskStackFrameSummary,
     ValidatedTaskStackFrameSummary, WcsuStackPlanProjection, admit_same_stack_contribution,
     compose_task_stack_demand, project_wcsu_stack_plan, validate_task_stack_frame_summary,
+};
+pub use stack_leases::{
+    StackLease, StackLeaseBacking, TaskStorageProvenance, establish_stack_lease,
 };
