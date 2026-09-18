@@ -10,7 +10,7 @@
 // spelling `_close` lives only in the darwin binding table). NOT registered in
 // ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot with other work).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

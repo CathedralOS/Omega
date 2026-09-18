@@ -3735,6 +3735,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_to_array_element_exit",
     "filesystem/discarded_self_call_literal_errno_exit",
     "filesystem/field_receiver_method_exit",
+    "filesystem/native_close",
     "filesystem/self_value_call_literal_path_exit",
     "filesystem/wrapper_open_with_exit",
     "filesystem/wrapper_param_shadow_exit",
