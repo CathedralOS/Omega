@@ -520,73 +520,48 @@ there is no special Assert cause or global permission to violate callable contra
 These tasks use existing build selection, portable semantics, provider and
 artifact-verification owners, not an assertion-specific interpreter or duplicate IR.
 
-- **BUILD-SEMANTIC-EXCLUSIONS.** In `omega-rust/omega/build/`, define exact typed
-  configuration and canonical union of crash/service exclusions. Psi checking and
-  Terminal evidence own possible semantic operations, closed calls and guard
-  proofs; Omega selection and product admission join exact selected implementations
-  under the complete entry/dependency closure. Reuse existing evidence rather than
-  copy public summaries into a purported actual-behavior verdict. Keep ordinary
-  declarations unchanged, forbid effect masking, and reject incomplete or opaque
-  evidence conservatively. Depends on the selected-call/entry evidence exercised
-  by the customer; missing coverage must remain an explicit implementation limit.
+- **BUILD-SEMANTIC-EXCLUSIONS.** Finish
+  [semantic absence admission](wiki/spec/build/behavior_exclusions.md)
+  for the selected composition. Typed crash/service sets, canonical union,
+  static/bounded-dynamic closure checks, provider-body joins, and the checking/
+  no-op assertion and logger fixtures exist. Remaining:
 
-  Acceptance: compile identical library source/public Trap ceilings with checking
-  and no-op implementations; under a Trap exclusion only the no-op composition
-  passes, with optional optimizations disabled and enabled. Eager predicate traps,
-  unrelated traps, callbacks, cleanup and generated entries remain accounted.
-  A silent ordinary logger can pass no-Console; a silent provider for an actual
-  Console invocation cannot. A build permitting Trap never bypasses a no-crash
-  intermediate interface. Independently consume retained evidence and reject
-  substituted entries, providers, scopes, targets, policies and missing summaries.
-  Report prohibited possible behavior separately from insufficient evidence.
+  - Record actual evaluated exclusion selections under the live root Build
+    authority. `build-evaluation/src/admission/declarations.rs::harvest_behavior_exclusions`
+    instead applies selections anywhere in the static call scope unconditionally
+    and requires literal crash cases. The spec permits ordinary evaluated
+    selection; a helper or untaken branch is not itself an executed selection.
+    Reuse checked invocation/occurrence evidence, not a second interpreter or
+    syntax-pattern permission.
+  - Complete absence evidence for the full admitted entry/call closure,
+    including callbacks, cleanup, generated entries, and all admitted dynamic
+    targets. Parameter dispatch still reports missing evidence; preserve that
+    rejection until its exact target set or conservative contract suffices.
+    Sound guard evidence may establish unreachable behavior, but optional
+    optimization and broad public ceilings are not absence proofs.
+  - Close the assertion customer's ordinary Unit/native lowering gaps through
+    CRASH-CONTRACT and the owning pipeline lanes. The native fixture currently
+    expects `UnsupportedControlFlow`, not the retired
+    `UnsupportedBoundaryCrashContract`; a Terminal verdict is not executable
+    completion. Add a direct Unit crash control instead of accepting only the
+    scalar-helper workaround.
 
-  Resume: `build-evaluation::behavior_exclusions` holds the typed
-  `BehaviorExclusion`/`BehaviorExclusions` canonical union and
-  `establish_behavior_exclusions`, which walks the unoptimized Terminal static
-  call closure per entry and reports prohibited sites (crash terminators,
-  boundary fixed service reach and declared crash routes, port writes) separately
-  from evidence gaps (dynamic calls, unknown entries/callees/boundaries), never
-  consulting in-module public ceilings. Boundary calls now join the selected
-  provider-plan facts: a `CheckedAdapter` binding walks the retained candidate
-  body whose `candidate_identity` it names, while external bindings, unmatched
-  adapters, and unconstrained slots retain the declared contract (unconstrained
-  slots additionally walk every retained candidate). Bounded dynamic dispatches
-  rejoin the dispatch catalog's exact realization; parameter dispatches remain
-  gaps. The product-admission join lives in
-  `checked-compilation-to-terminal-artifact::terminal_artifact::behavior_exclusions`,
-  which re-lowers each selected entry unoptimized before the artifact is
-  admitted and checks callback thunk bodies at their own production site. Unit
-  coverage: `cargo nextest run -p build-evaluation behavior_exclusions`.
-  The compiled corpus landed at c5e9124522:
-  `tests/fixtures/packages/behavior-exclusions/` composes one `assert-kit`
-  library (`Assert::check` under a public Trap ceiling, `CheckingAssert`
-  and `NoOpAssert` providers) into `checking-app` and `no-op-app` under
-  `exclude_crash(CrashCause::Trap)`; through `omega install --offline` and
-  `omega --target linux_x86_64` the no-op composition passes exclusion
-  admission with `ControlFlowCleanup` enabled and rolled back while the
-  checking composition rejects as prohibited in both states, and the
-  diagnostic now attributes the crash site through the provider
-  (`reached through machine \`CheckingAssert::check\`` plus a
-  "declared here" row from `MachineProvenance` in
-  `terminal_artifact/behavior_exclusions.rs`;
-  `compiler/tests/behavior_exclusions.rs`, macOS ARM64). Open: a Unit
-  machine whose own state crashes has no checked Unit plan
-  (`InvalidUnitMachinePlan`, so the corpus routes the verdict through a
-  scalar helper), boundary requirements carrying a crash contract are
-  refused by native lowering (`UnsupportedBoundaryCrashContract` blocks the
-  passing composition's native product). `builder.exclude_service<Trait>()`
-  landed across psi (c28bec23eb parser/validation/intrinsic/interpreter,
-  fb19ed98a3 symbol binding of the type path) and build (4fb56304c6:
-  harvest into `AuthoredBehaviorExclusionKind::Service`, per-module
-  `ServiceId` resolution on both product routes, and `BoundaryServiceOwners`
-  so a boundary call counts its owning service and parent closure). The
-  service rows are witnessed on the `logger-kit`/`quiet-logger-app`/
-  `sink-app` corpus: a silent ordinary logger passes the exclusion while a
-  real invocation behind a silent provider is prohibited with the call
-  site and the authored marker spanned. The passing quiet-logger native
-  product then stops at `RootConcreteServiceReachMismatch` (a root
-  declaring reach it never exercises), reproduced without any exclusion,
-  so it is a native-pipeline limit rather than an exclusion verdict.
+  Owners: `build-evaluation/src/admission/behavior_exclusions.rs` and
+  `checked-compilation-to-terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
+  with Psi checked operation/guard evidence. BUILD-EXCLUSION-REALIZATION owns
+  physical classes and installation, not a duplicate semantic checker.
+
+  Acceptance: compile the unchanged assertion library/public Trap ceilings with
+  checking and no-op implementations; only the no-op composition passes a Trap
+  exclusion, with optional optimization on and off, through native publication.
+  Eager argument traps and unrelated crashes still reject. An ordinary silent
+  logger can pass a service exclusion; an actual boundary invocation cannot pass
+  merely because its provider is silent. Test conditional/helper selections and
+  independently replay retained evidence, rejecting changed entries, providers,
+  targets, scopes, policies, and omitted coverage. Distinguish prohibited possible
+  behavior from insufficient evidence, and never weaken intermediate contracts.
+  Reuse `tests/fixtures/packages/behavior-exclusions/` and compiler tests
+  `behavior_exclusions.rs` / `build_behavior_exclusions.rs`.
 
 - **BUILD-EXCLUSION-REALIZATION.** Extend the existing receiving-policy and native
   admission route in `omega-rust/omega/build/`, `omega-rust/omega/semantics/` and
