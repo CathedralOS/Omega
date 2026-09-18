@@ -12,6 +12,7 @@
 //! `selected_optimization::optimization_output`.
 
 mod analyses;
+mod peepholes;
 mod rewrites;
 mod selected_optimization;
 
@@ -40,6 +41,7 @@ use register_homes::{
 };
 
 pub use analyses::*;
+pub use peepholes::*;
 use register_model::*;
 pub use rewrites::*;
 pub use selected_optimization::optimization_output::{
