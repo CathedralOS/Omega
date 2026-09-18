@@ -1,0 +1,17 @@
+// FAIL CANARY. `wrap` offers two natural leaves to the `remaining` role:
+// `wrap.remaining` and `wrap.other` are equally valid readings of the same
+// produced rank, so no coordinate forms rather than guessing which leaf
+// carried the value.
+data Wrap { remaining: u32; other: u32; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> iterate(Wrap { remaining: remaining, other: 0 }) }
+    state iterate(wrap: Wrap) {
+        transition wrap.remaining > 0 {
+            true -> iterate(Wrap { remaining: wrap.remaining - 1, other: wrap.other })
+            false -> wrap.remaining
+        }
+    }
+}

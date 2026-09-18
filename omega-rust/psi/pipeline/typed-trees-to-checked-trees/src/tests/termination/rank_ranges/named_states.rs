@@ -240,6 +240,73 @@ fn named_state_record_role_arrives_as_the_chain_mid_record() {
     reject(&source.replace("pending.remaining - 1", "pending.remaining"));
 }
 
+/// A bare scalar formal may arrive packed inside a record literal: `wrap`
+/// claims `remaining`'s entry role at `Wrap`'s unique natural leaf, and the
+/// produced rank reads `wrap.remaining` -- never a guessed leaf.
+const BARE_NESTED: &str = r#"
+data Wrap { remaining: u32; label: bool; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> iterate(Wrap { remaining: remaining, label: false }) }
+    state iterate(wrap: Wrap) {
+        transition wrap.remaining > 0 {
+            true -> iterate(Wrap { remaining: wrap.remaining - 1, label: wrap.label })
+            false -> wrap.remaining
+        }
+    }
+}
+"#;
+
+#[test]
+fn bare_scalar_role_arrives_inside_a_record_literals_unique_leaf() {
+    prove(BARE_NESTED);
+    // The leaf keeps its role through a nested record step too: `Inner`
+    // inside `Wrap` is still the unique natural path the declaration names.
+    prove(
+        r#"
+data Inner { remaining: u32; label: bool; }
+data Wrap { inner: Inner; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> iterate(Wrap { inner: Inner { remaining: remaining, label: false } }) }
+    state iterate(wrap: Wrap) {
+        transition wrap.inner.remaining > 0 {
+            true -> iterate(Wrap { inner: Inner { remaining: wrap.inner.remaining - 1, label: wrap.inner.label } })
+            false -> wrap.inner.remaining
+        }
+    }
+}
+"#,
+    );
+    // A forward of the packed carriage is a move, not a step.
+    reject(&BARE_NESTED.replace(
+        "Wrap { remaining: wrap.remaining - 1, label: wrap.label }",
+        "wrap",
+    ));
+    // Rebuilding the record without descending the leaf is not a step either.
+    reject(&BARE_NESTED.replace("wrap.remaining - 1", "wrap.remaining"));
+    // Two natural leaves leave the role's carriage a guess: `wrap.remaining`
+    // and `wrap.other` are equally valid readings, so no coordinate forms.
+    reject(
+        &BARE_NESTED
+            .replace(
+                "data Wrap { remaining: u32; label: bool; }",
+                "data Wrap { remaining: u32; other: u32; }",
+            )
+            .replace("label: wrap.label", "other: 0")
+            .replace("remaining, label: false", "remaining, other: 0"),
+    );
+    // An out-of-range leaf arrival still fails membership.
+    reject(&BARE_NESTED.replace(
+        "remaining: remaining, label: false",
+        "remaining: 6, label: false",
+    ));
+}
+
 #[test]
 fn named_state_cannot_reuse_a_non_inductive_machine_requirement() {
     let source = r#"

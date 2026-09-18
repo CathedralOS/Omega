@@ -1,0 +1,20 @@
+// PASS CANARY. A bare slice formal arrives packed inside a record
+// literal: `holder` claims `items`'s entry role at `Pair`'s unique slice
+// leaf, so the produced length reads `holder.bag.items`. The literal
+// rebuild transports the same role to the next `holder` while the strict
+// subslice descends.
+data Bag { items: &[u32]; }
+data Pair { bag: Bag; label: bool; }
+
+machine walk(items: &[u32], capacity: u64)
+requires items.len <= capacity;
+terminates by items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(Pair { bag: Bag { items: items }, label: false }, capacity) }
+    state step(holder: Pair, bound: u64) {
+        transition holder.bag.items.len > 0 {
+            true -> step(Pair { bag: Bag { items: holder.bag.items[1..] }, label: holder.label }, bound)
+            false -> 0
+        }
+    }
+}

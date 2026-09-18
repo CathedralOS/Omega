@@ -1,0 +1,19 @@
+// FAIL CANARY. Forwarding the packed carriage is a move, not a step:
+// `holder` itself arrives as the next carrier, so the produced length
+// never decreases even though the slice leaf inside the record still
+// names the same collection.
+data Bag { items: &[u32]; }
+data Pair { bag: Bag; label: bool; }
+
+machine walk(items: &[u32], capacity: u64)
+requires items.len <= capacity;
+terminates by items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(Pair { bag: Bag { items: items }, label: false }, capacity) }
+    state step(holder: Pair, bound: u64) {
+        transition holder.bag.items.len > 0 {
+            true -> step(holder, bound)
+            false -> 0
+        }
+    }
+}

@@ -150,7 +150,7 @@ fn argument_sources(
         (integer_bindings(program, site)?, Vec::new())
     } else {
         validate_mapping(program, caller.machine, site, edge.entry_parameters)?;
-        telescoped_bindings(program, site, edge.entry_parameters)?
+        telescoped_bindings(program, caller.machine, site, edge.entry_parameters)?
     };
     let mut engine = Engine::strict_with_symbol_bindings(program, caller.machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {

@@ -245,6 +245,89 @@ fn nested_record_carriers_transport_the_produced_slice_length() {
     );
 }
 
+/// A bare slice formal may arrive packed inside a record literal: `holder`
+/// claims `items`'s entry role at `Pair`'s unique slice leaf, and the
+/// produced length reads `holder.bag.items` -- never a guessed carriage.
+const BARE_NESTED: &str = r#"
+data Bag { items: &[u32]; }
+data Pair { bag: Bag; label: bool; }
+
+machine walk(items: &[u32], capacity: u64)
+requires items.len <= capacity;
+terminates by items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(Pair { bag: Bag { items: items }, label: false }, capacity) }
+    state step(holder: Pair, bound: u64) {
+        transition holder.bag.items.len > 0 {
+            true -> step(Pair { bag: Bag { items: holder.bag.items[1..] }, label: holder.label }, bound)
+            false -> 0
+        }
+    }
+}
+"#;
+
+#[test]
+fn bare_slice_role_arrives_inside_a_record_literals_unique_leaf() {
+    prove(BARE_NESTED);
+    // A forward of the packed carriage is a move, not a step: the produced
+    // length never decreases through `holder` itself.
+    reject(&BARE_NESTED.replace(
+        "step(Pair { bag: Bag { items: holder.bag.items[1..] }, label: holder.label }, bound)",
+        "step(holder, bound)",
+    ));
+    // Rebuilding the record without a strict subslice is not a step.
+    reject(&BARE_NESTED.replace("holder.bag.items[1..]", "holder.bag.items"));
+    // The entry premise and pinned endpoint still owe their own proofs.
+    reject(&BARE_NESTED.replace("requires items.len <= capacity;\n", ""));
+    reject(&BARE_NESTED.replace("in 0..=capacity", "in 0..capacity"));
+    reject(&BARE_NESTED.replace(
+        "label: holder.label }, bound)",
+        "label: holder.label }, bound + 1)",
+    ));
+    // Two slice leaves leave the carriage a guess: `holder.bag` and
+    // `holder.side` are equally valid readings, so no coordinate forms.
+    reject(
+        &BARE_NESTED
+            .replace(
+                "data Pair { bag: Bag; label: bool; }",
+                "data Pair { bag: Bag; side: Bag; }",
+            )
+            .replace(
+                "machine walk(items: &[u32], capacity: u64)",
+                "machine walk(items: &[u32], spare: &[u32], capacity: u64)",
+            )
+            .replace(
+                "requires items.len <= capacity;",
+                "requires items.len <= capacity && spare.len <= capacity;",
+            )
+            .replace(
+                "label: false }, capacity)",
+                "side: Bag { items: spare } }, capacity)",
+            )
+            .replace(
+                "label: holder.label }, bound)",
+                "side: holder.side }, bound)",
+            ),
+    );
+    // Two carriers contesting the same slice role keep no mapping: both
+    // record slots install `items`, so neither uniquely holds its coordinate.
+    reject(
+        &BARE_NESTED
+            .replace(
+                "state step(holder: Pair, bound: u64)",
+                "state step(holder: Pair, other: Pair, bound: u64)",
+            )
+            .replace(
+                "label: false }, capacity)",
+                "label: false }, Pair { bag: Bag { items: items }, label: false }, capacity)",
+            )
+            .replace(
+                "label: holder.label }, bound)",
+                "label: holder.label }, other, bound)",
+            ),
+    );
+}
+
 #[test]
 fn named_slice_arrivals_and_entry_reentry_share_the_length_rank() {
     let source = WALK

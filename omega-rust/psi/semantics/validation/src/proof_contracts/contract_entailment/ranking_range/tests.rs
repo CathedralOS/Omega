@@ -152,7 +152,7 @@ fn slice_length_projection_does_not_numeric_bind_its_descriptor() {
             .map(|receiver| (expression, receiver))
         })
         .unwrap();
-    let bindings = lengths::bindings(&program, state, None);
+    let bindings = lengths::bindings(&program, machine, state, None);
     let mut engine = Engine::strict_with_symbol_bindings(&program, machine, &[]);
     assert!(engine.normalize(expression).is_none());
     lengths::install(
@@ -185,7 +185,7 @@ fn slice_projection_checks_subslice_geometry_before_using_its_length() {
             matches!(node, ExpressionNode::Indexed(_)).then_some(expression)
         })
         .unwrap();
-    let bindings = lengths::bindings(&program, state, None);
+    let bindings = lengths::bindings(&program, machine, state, None);
     let length = Polynomial::atom(bindings[0].1.clone());
     let mut engine = Engine::strict_with_symbol_bindings(&program, machine, &[]);
     assert!(
