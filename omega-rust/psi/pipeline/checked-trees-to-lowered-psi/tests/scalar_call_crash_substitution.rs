@@ -65,6 +65,38 @@ fn literal_calls_preserve_published_guards_for_immutable_and_mutable_formals() {
 }
 
 #[test]
+fn inferred_callee_ceiling_reaches_scalar_contracts_and_continuations() {
+    // `middle` authors no crash clause: its InternalInferred ceiling is the
+    // Trap route surviving its call to `inner`. Scalar machine contracts and
+    // call continuations must publish that ceiling or the verifier sees an
+    // uncovered Trap route.
+    for argument in ["input", "input && true"] {
+        let source = format!(
+            r#"
+            machine inner(flag: bool) -> bool
+            requires true == true
+            ensures true == true
+            crashes Trap flag
+            {{ !flag }}
+            machine middle(input: bool) -> bool
+            requires true == true
+            ensures true == true
+            {{ inner(input) }}
+            machine value(input: bool) -> bool
+            requires true == true
+            ensures true == true
+            crashes Trap
+            {{ let selected: bool = middle({argument}); selected }}
+            "#,
+        );
+        let artifact = encoded(&source);
+        for input in [false, true] {
+            assert_return(&artifact, &[TerminalScalarValue::Boolean(input)], !input);
+        }
+    }
+}
+
+#[test]
 fn runtime_and_staged_arguments_keep_the_same_parameter_relative_crash_routes() {
     for argument in ["input", "input && true"] {
         let source = format!(

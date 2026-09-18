@@ -285,7 +285,11 @@ pub(super) fn prepare(
                 )
                 .collect(),
             structural_arguments: lowered_arguments,
-            crash_routes: contract.crash.published().to_vec(),
+            // The admission guard above keeps authored crash contracts out of
+            // this lane, but an inferred ceiling is body evidence, not an
+            // authored clause: emit the callee's effective routes so the
+            // operation's continuations cover the verifier's substitution.
+            crash_routes: crate::unit::effective_crash_routes(checked, *target_machine)?,
         },
         argument_types: argument_types.into_iter().map(Into::into).collect(),
     })

@@ -57,7 +57,6 @@ use crate::proofs::content_conservation::{
 };
 use crate::proofs::crash_routes::{
     lower_checked_crash_exit, lower_checked_crash_predicates, lower_checked_crash_route_buckets,
-    lower_checked_crash_routes,
 };
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::scalar_graph::scalar_graph_lowering::{
