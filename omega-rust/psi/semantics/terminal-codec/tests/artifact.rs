@@ -21,6 +21,8 @@ mod pcc_custody;
 mod proof_section;
 #[path = "artifact/proof_section_custody.rs"]
 mod proof_section_custody;
+#[path = "artifact/trace_profile_custody.rs"]
+mod trace_profile_custody;
 #[path = "artifact/transport_round_trips.rs"]
 mod transport_round_trips;
 
