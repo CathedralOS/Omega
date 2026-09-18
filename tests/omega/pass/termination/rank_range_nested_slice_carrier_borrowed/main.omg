@@ -1,0 +1,18 @@
+// PASS CANARY. The nested carrier formal may itself be borrowed: `holder`
+// is `&Pair`, so the `bag` role arrives through one reference boundary and
+// the produced length still reads `holder.bag.items` under the borrow.
+data Bag { items: &[u32]; }
+data Pair { bag: Bag; }
+
+machine walk(bag: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(&Pair { bag: bag }, capacity) }
+    state step(holder: &Pair, bound: u64) {
+        transition holder.bag.items.len > 0 {
+            true -> step(&Pair { bag: Bag { items: holder.bag.items[1..] } }, bound)
+            false -> 0
+        }
+    }
+}

@@ -1,6 +1,7 @@
 //! Exact slice metadata coordinates, kept separate from scalar parameter values.
 use super::fields::{
-    declared_field, member_chain, record_referent, rooted_carrier, unique_literal_field,
+    declared_field, member_chain, nested_arrival_chain, record_referent, rooted_carrier,
+    unique_literal_field,
 };
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
@@ -384,8 +385,19 @@ impl<'program> SliceCoordinate<'program> {
         if parameters.next().is_some() {
             return None;
         }
-        let coordinate = Self::for_parameter(program, parameter, &self.chain())?;
-        (coordinate.root == self.root).then_some(coordinate)
+        let chain = self.chain();
+        if let Some(coordinate) = Self::for_parameter(program, parameter, &chain)
+            && coordinate.root == self.root
+        {
+            return Some(coordinate);
+        }
+        // The role may instead arrive nested inside the carrier formal's own
+        // record -- `pair.bag` carries the collection's record -- or as a
+        // record this chain descends partway. The formal's declaration must
+        // admit exactly one such reading; two readings leave the carriage
+        // ambiguous and keep no coordinate, exactly as the field owner does.
+        let chain = nested_arrival_chain(program, parameter, self.root, &self.steps, &chain)?;
+        Self::for_parameter(program, parameter, &chain)
     }
 
     pub(super) fn value(&self) -> Polynomial {
@@ -429,8 +441,19 @@ impl<'program> SliceCoordinate<'program> {
         let mut owner = self.root;
         let mut leaf = current;
         for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
-            if depth > 0 && self.is_prefix_projection(program, state, leaf, depth) {
-                return Some(self.value());
+            if depth > 0
+                && let Some((carrier, prefix)) = rooted_carrier(program, state, leaf)
+            {
+                // `leaf` names the record this step reads through a carrier
+                // instead of a literal: a formal forward or a member
+                // projection inside the rebuilt record. Its prefix must land
+                // on the record the chain expects at this step; the remaining
+                // chain then resolves under the carrier's own declaration, so
+                // a forward of this coordinate's own prefix keeps this
+                // coordinate itself.
+                return self
+                    .through_carrier_at(program, carrier, &prefix, owner, depth)
+                    .map(|coordinate| coordinate.value());
             }
             leaf = unique_literal_field(program, leaf, owner, field)?;
             if let TypeReferenceNode::Named { symbol, .. } = program
@@ -454,8 +477,24 @@ impl<'program> SliceCoordinate<'program> {
         carrier: &'program StateParameter,
         prefix: &[(SymbolHandle, &typed_trees::name::Identifier)],
     ) -> Option<Self> {
+        self.through_carrier_at(program, carrier, prefix, self.root, 0)
+    }
+
+    /// The coordinate this chain reads when `carrier.prefix` supplies the
+    /// record `expected` at chain position `depth`: the prefix walks the
+    /// carrier's own declaration, must land on `expected`, and the remaining
+    /// chain steps resolve there. A prefix landing on any other record names
+    /// a different carriage, not this coordinate.
+    fn through_carrier_at(
+        &self,
+        program: &'program TypedTrees,
+        carrier: &'program StateParameter,
+        prefix: &[(SymbolHandle, &typed_trees::name::Identifier)],
+        expected: SymbolHandle,
+        depth: usize,
+    ) -> Option<Self> {
         let (carrier_root, _) = record_referent(program, carrier.type_reference)?;
-        let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1);
+        let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1 - depth);
         let mut owner = carrier_root;
         for (symbol, _) in prefix {
             let (_, field) = declared_field(program, owner, *symbol)?;
@@ -470,32 +509,11 @@ impl<'program> SliceCoordinate<'program> {
             chain.push(*symbol);
             owner = *next;
         }
-        if owner != self.root {
+        if owner != expected {
             return None;
         }
-        chain.extend(self.chain());
+        chain.extend(self.chain().into_iter().skip(depth));
         Self::for_parameter(program, carrier, &chain)
-    }
-
-    /// `expression` is exactly `parameter.steps[..depth]`: the same formal
-    /// projected through the first `depth` steps of this chain.
-    fn is_prefix_projection(
-        &self,
-        program: &'program TypedTrees,
-        state: &State,
-        expression: ExpressionHandle,
-        depth: usize,
-    ) -> bool {
-        member_chain(program, state, expression).is_some_and(|(parameter, chain)| {
-            parameter.symbol == self.parameter.symbol
-                && chain.len() == depth
-                && chain
-                    .iter()
-                    .zip(&self.steps)
-                    .all(|((symbol, spelled), step)| {
-                        *symbol == step.symbol && *spelled == &step.name
-                    })
-        })
     }
 }
 
@@ -684,28 +702,40 @@ impl<'program> SliceCoordinates<'program> {
             if entry_symbol != formal {
                 continue;
             }
-            // The destination formal's own type decides whether the actual
-            // arrives under one borrow: an owned source slot can feed a `&R`
-            // formal through `&x`, while the source coordinate's boundary
-            // says nothing about the arrival. A root edge re-fills the
-            // coordinate's own formal, so its boundary is the arrival's.
-            let arrival_borrowed = match destination {
+            // The destination formal's own coordinate walks the actual: a
+            // role arriving nested inside the carrier's record -- `pair.bag`
+            // holding the collection's record -- or as a record this chain
+            // reaches partway reads the literal through the chain the
+            // destination's invariant names, not the source slot's own
+            // spelling. The destination formal's own type likewise decides
+            // whether the actual arrives under one borrow: an owned source
+            // slot can feed a `&R` formal through `&x`, while the source
+            // coordinate's boundary says nothing about the arrival. A root
+            // edge re-fills the coordinate's own formal, so its boundary is
+            // the arrival's.
+            let actual = match destination {
                 Some(destination) => {
-                    coordinate
-                        .at_arrival(program, destination, entry_symbol)?
-                        .borrowed
+                    let arrived = coordinate.at_arrival(program, destination, entry_symbol)?;
+                    arrived.arrived(
+                        program,
+                        machine,
+                        state,
+                        engine,
+                        argument,
+                        arrived.borrowed,
+                        bindings,
+                    )?
                 }
-                None => coordinate.borrowed,
+                None => coordinate.arrived(
+                    program,
+                    machine,
+                    state,
+                    engine,
+                    argument,
+                    coordinate.borrowed,
+                    bindings,
+                )?,
             };
-            let actual = coordinate.arrived(
-                program,
-                machine,
-                state,
-                engine,
-                argument,
-                arrival_borrowed,
-                bindings,
-            )?;
             if substitutions
                 .insert(coordinate.identity.clone(), actual)
                 .is_some()

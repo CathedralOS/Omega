@@ -1,0 +1,19 @@
+// FAIL CANARY. `holder` offers two `Bag` fields to the `bag` role:
+// `holder.left.items` and `holder.right.items` are equally valid readings
+// of the same produced length, so no coordinate forms rather than guessing
+// which record carried the collection.
+data Bag { items: &[u32]; }
+data Pair { left: Bag; right: Bag; }
+
+machine walk(bag: Bag, other: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(Pair { left: bag, right: other }, capacity) }
+    state step(holder: Pair, bound: u64) {
+        transition holder.left.items.len > 0 {
+            true -> step(Pair { left: Bag { items: holder.left.items[1..] }, right: holder.right }, bound)
+            false -> 0
+        }
+    }
+}
