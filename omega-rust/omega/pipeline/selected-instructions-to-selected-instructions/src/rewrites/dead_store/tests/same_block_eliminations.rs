@@ -1,7 +1,8 @@
 use super::{
-    BETWEEN, KILLER, MATERIALIZE_COUNT, PACKED_SCRATCH, POINTER, SCRATCH, SPAN_COUNT, STORE, VALUE,
-    access, budget, chained, define_count, eliminate, fixture, instruction, make_packed_dead,
-    mutated, packed_dead, place, sequence_store, settlement, span_copy, span_length,
+    BETWEEN, KILLER, MATERIALIZE_COUNT, PACKED_SCRATCH, POINTER, SCRATCH, SEQUENCE_INDEX,
+    SPAN_COUNT, STORE, VALUE, access, budget, chained, dead_byte, define_count, eliminate, fixture,
+    instruction, make_packed_dead, mutated, packed_dead, place, sequence_store, settlement,
+    span_copy, span_length,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::dead_store::{
@@ -1761,6 +1762,435 @@ fn byte_span_covering_replay_rejects_mutated_proposals() {
                 };
             }
             // The count's materialize must stay with the copy.
+            5 => {
+                function.blocks[0].instructions.remove(2);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), proposed)
+                .is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+/// A byte-sequence covering store whose `index` resolves to a materialized
+/// constant lands on the one fixed byte `byte_offset + index`, so it covers
+/// a single-byte dead range exactly when that is the dead byte. The index's
+/// constant resolution mirrors the covering span's count: the `index`
+/// value's sole `InstructionResult` register must be defined by one clean
+/// `MaterializeI64` and never redefined by an edge transport.
+#[test]
+fn byte_sequence_store_with_a_constant_index_covers() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Dead byte at offset 8; the covering sequence write's payload base
+        // is 4 and its materialized index is 4, landing on byte 8.
+        let covered = mutated(target, |function, environment| {
+            dead_byte(function, environment, 8);
+            sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+            define_count(
+                function,
+                environment,
+                0,
+                3,
+                SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                4,
+            );
+        });
+        let result = eliminate(&covered, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN, MATERIALIZE_COUNT, KILLER]
+        );
+        // The dead store's `WritePlace` row drops with it; the covering
+        // sequence row survives untouched.
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.byte_offset, access.role))
+                .collect::<Vec<_>>(),
+            vec![(
+                KILLER,
+                4,
+                SelectedMemoryAccessRole::WriteByteSequence {
+                    index: ValueId::new(5).unwrap(),
+                    value: ValueId::new(6).unwrap(),
+                    length: ValueId::new(7).unwrap(),
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32]
+                    ),
+                }
+            )]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A detached, separately allocated proposal replays by content.
+        let mut detached = result.transformed().clone();
+        detached.functions = detached.functions.iter().cloned().collect();
+        validate_dead_store_elimination(&covered, 0, STORE, &environment, budget(), detached)
+            .unwrap();
+        // An index of zero places the write exactly at the payload base.
+        let at_base = mutated(target, |function, environment| {
+            dead_byte(function, environment, 8);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            define_count(
+                function,
+                environment,
+                0,
+                3,
+                SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                0,
+            );
+        });
+        eliminate(&at_base, &environment).unwrap();
+    }
+}
+
+/// The constant-index sequence write covers only while its index is proven
+/// constant and lands on the dead byte: an index no instruction result
+/// carries, one produced by a copy rather than a `MaterializeI64`, a second
+/// definition anywhere in the function, two instruction results claiming
+/// the value, a landing byte off the dead byte, a dead range wider than one
+/// byte, a recorded count off the one-byte route, a kind or operand surface
+/// off the computed-address store, a second roster row on the covering
+/// instruction, and a settlement inside the interval each leave the dead
+/// byte observable or the pair unproven.
+#[test]
+fn byte_sequence_covering_requires_the_proven_constant_index() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A runtime index lands the write anywhere at or past the payload base:
+    // no instruction result carries the `index` value, so no constant pins
+    // the written byte.
+    let runtime = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+    });
+    assert_eq!(
+        eliminate(&runtime, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // An index defined by a copy rather than a `MaterializeI64` resolves no
+    // constant — the written byte's position stays runtime-placed.
+    let copied = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.virtual_registers.push(VirtualRegister {
+            id: SEQUENCE_INDEX,
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            class: copy.operands[0].class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: MATERIALIZE_COUNT,
+                source_value: ValueId::new(5).unwrap(),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+        function.blocks[0].instructions.insert(
+            3,
+            instruction(
+                MATERIALIZE_COUNT,
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[POINTER, SEQUENCE_INDEX],
+            ),
+        );
+    });
+    assert_eq!(
+        eliminate(&copied, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A second definition anywhere in the function breaks the sole clean
+    // definition the constant claim rests on.
+    let redefined = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            4,
+        );
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[0].instructions.insert(
+            4,
+            instruction(
+                SelectedInstructionId(8),
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[POINTER, SEQUENCE_INDEX],
+            ),
+        );
+    });
+    assert_eq!(
+        eliminate(&redefined, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // Two instruction results claiming the `index` value leave its producer
+    // ambiguous — the resolved constant would not provably be the index.
+    let ambiguous = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            4,
+        );
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap();
+        function.virtual_registers.push(VirtualRegister {
+            id: VirtualRegisterId(15),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            class: materialize.operands[0].class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(9),
+                source_value: ValueId::new(5).unwrap(),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+    });
+    assert_eq!(
+        eliminate(&ambiguous, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A resolved index landing anywhere but the dead byte leaves it
+    // observable: payload base 4 plus index 3 lands on byte 7, not byte 8.
+    let elsewhere = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+    });
+    assert_eq!(
+        eliminate(&elsewhere, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // One byte can never cover a wider dead range, even landing on its
+    // first byte.
+    let wide = mutated(target, |function, environment| {
+        sequence_store(function, environment, KILLER, 1, 0, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            0,
+        );
+    });
+    assert_eq!(
+        eliminate(&wide, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A recorded count off the one-byte route is not the sequence row the
+    // route admits.
+    let miscounted = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            4,
+        );
+        function.memory_accesses[1].byte_count = 8;
+    });
+    assert_eq!(
+        eliminate(&miscounted, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // An encoded offset off `Store { 0, 1 }` is not the computed-address
+    // byte-sequence route.
+    let shifted = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            4,
+        );
+        function.blocks[0].instructions[4].kind = SelectedInstructionKind::Store {
+            byte_offset: 4,
+            byte_size: 1,
+        };
+    });
+    assert_eq!(
+        eliminate(&shifted, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A row off the target's `[use pointer, use value]` store surface is not
+    // the byte-sequence route's operand shape.
+    let foreign = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            4,
+        );
+        function.blocks[0].instructions[4].constraint = environment.selected_keys().load64.unwrap();
+    });
+    assert_eq!(
+        eliminate(&foreign, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // A covering instruction carrying a second row is not the single
+    // sequence write the route admits.
+    let two_rows = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            4,
+        );
+        function.memory_accesses.push(access(
+            KILLER,
+            9,
+            place(),
+            0,
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+    });
+    assert_eq!(
+        eliminate(&two_rows, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A boundary settlement inside the dead interval could still observe
+    // the dead byte before the covering write lands.
+    let settled = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            4,
+        );
+        function.boundary_settlements.push(settlement(4));
+    });
+    assert_eq!(
+        eliminate(&settled, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+}
+
+/// Replay accepts only the exact constant-index elimination: the dead store
+/// and its write row drop, and the covering sequence row, the index's
+/// materialize, and every other instruction survive untouched.
+#[test]
+fn byte_sequence_covering_replay_rejects_mutated_proposals() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        dead_byte(function, environment, 8);
+        sequence_store(function, environment, KILLER, 1, 4, 5, SCRATCH);
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(5).unwrap(),
+            4,
+        );
+    });
+    let result = eliminate(&source, &environment).unwrap();
+    for mutation in 0..6 {
+        let mut proposed = result.transformed().clone();
+        let function = &mut proposed.functions[0];
+        match mutation {
+            // The dead store must be gone, not retained.
+            0 => {
+                function.blocks[0].instructions.insert(
+                    1,
+                    source.transformed().functions[0].blocks[0].instructions[1].clone(),
+                );
+            }
+            // Kept the dead write row instead of dropping it.
+            1 => {
+                function.memory_accesses.push(SelectedMemoryAccess {
+                    byte_count: 1,
+                    ..access(STORE, 1, place(), 8, SelectedMemoryAccessRole::WritePlace)
+                });
+            }
+            // The covering sequence row's identity must survive intact.
+            2 => function.memory_accesses[0].byte_offset = 0,
+            // Dropped the covering sequence row.
+            3 => {
+                function.memory_accesses.pop();
+            }
+            // The surviving killer must remain the byte-sequence store.
+            4 => {
+                function.blocks[0].instructions[3].kind = SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                };
+            }
+            // The index's materialize must stay with the function.
             5 => {
                 function.blocks[0].instructions.remove(2);
             }

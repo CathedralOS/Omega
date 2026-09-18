@@ -466,6 +466,44 @@ fn span_length() -> ValueId {
     ValueId::new(7).unwrap()
 }
 
+/// The covering byte-sequence store's index register — the register whose
+/// `InstructionResult` origin carries the row's `index` value: its sole
+/// clean `MaterializeI64` definition makes `byte_offset + index` a fixed
+/// position, so the write can cover the exact dead byte it lands on.
+const SEQUENCE_INDEX: VirtualRegisterId = VirtualRegisterId(14);
+
+/// Narrow the fixture's dead store to a one-byte `Store` at `offset` — the
+/// only exact dead range a byte-sequence write's single byte can cover.
+/// Works on the chained fixture too: its block 0 keeps the same head.
+fn dead_byte(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    offset: u32,
+) {
+    let store = environment
+        .constraint(environment.selected_keys().store.unwrap())
+        .unwrap();
+    function.blocks[0].instructions[1] = instruction(
+        STORE,
+        SelectedInstructionKind::Store {
+            byte_offset: offset,
+            byte_size: 1,
+        },
+        store,
+        &[POINTER, VALUE],
+    );
+    function.memory_accesses[0] = SelectedMemoryAccess {
+        byte_count: 1,
+        ..access(
+            STORE,
+            1,
+            place(),
+            offset,
+            SelectedMemoryAccessRole::WritePlace,
+        )
+    };
+}
+
 /// Rewrite instruction `id` into a `CopyBytes` on the target's declared row —
 /// `[use source, use destination, use count]` plus the two early-clobber
 /// scratch defs — and its roster row at `write_row` into the destination
@@ -554,8 +592,9 @@ fn span_copy(
 
 /// Insert a clean `MaterializeI64` at `position` in `block` defining
 /// `register` as `bits`, with the register's origin naming `source_value` —
-/// the sole clean definition `materialized_bits` resolves, so the covering
-/// span's extent becomes the compile-time `bits` bytes.
+/// the sole clean definition `materialized_bits` resolves, so a covering
+/// span's `count` or a sequence write's `index` becomes the compile-time
+/// `bits`.
 fn define_count(
     function: &mut SelectedFunction,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
