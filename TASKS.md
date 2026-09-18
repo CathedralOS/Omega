@@ -951,83 +951,61 @@ Owners include
   without treating cross-target emission as physical execution.
 
 - **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
-  and its target-dependent realization. Preserve exact paths and bounds until
-  assignment; physical lowering may choose locations but not change semantic
-  access. Recursive build-time projection/replay carries record depth as data,
-  with a bounded traversal; extend that owner rather than adding depth-specific
-  implementations. Target-dependent placement remains fenced until its general
-  rules land. Acceptance includes nested field/index canaries on both Linux
-  ISAs.
+  and its target-dependent realization as one
+  [derived consumer](wiki/spec/layouts/plans.md#derived-consumers) of a
+  normalized plan: paths and bounds stay exact until assignment, and physical
+  lowering may choose instruction bytes and a context register but not which
+  semantic slot a write addresses. One bounded recursion already classifies
+  every record level's children — direct sums, literal `[S; N]` sum arrays,
+  literal `[R; N]` record arrays, and record fields still reaching sums
+  (`project_record_level_children` in
+  `omega-rust/omega/backend/layout/src/sum_materialization/mod.rs`, under
+  `CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT`); the carrier fold joins them in one
+  field-keyed namespace (`SymbolicFieldInnerLayout::from_recursive_sum_paths`
+  in `omega-rust/psi/foundation/layout-plans/src/symbolic_values/mod.rs`), and
+  build-time evaluation retains, replays and fingerprints the same custody.
+  Carry record depth as data and extend that owner rather than adding
+  depth-specific implementations.
 
-  Resume evidence: `8ba0bd1fff` landed the index hop; `40347fde2c`,
-  `78685f4bff`, and `955ce0427a` landed the `SymbolicFieldInnerLayout` carrier
-  and bounded recursive path traversal
-  (`derive_symbolic_materialization_with_inner_layouts`,
-  `omega-rust/psi/foundation/layout-plans/src/symbolic_materialization.rs`); `c045400290` lowers the
-  nested writers for `linux_x64` and `linux_arm64`. The compiler tests
-  `*_symbolic_materialization_*` in
-  `omega-rust/omega/compiler/compiler/tests/layout_plans.rs` now also execute
-  the lowered host-ISA fragment natively (`lower_writer_on_both_linux_isas`
-  links a guarded C driver via the shared `native_function` harness and
-  compares the image with the Rust reference writer). Linux x86-64 host:
-  `cargo nextest run -p compiler --test layout_plans symbolic_materialization`
-  4 pass with the x86-64 native leg executed. The Linux aarch64 native leg is
-  host-gated and has not yet run on a Linux aarch64 host; macOS/Windows/QEMU
-  legs were unavailable here. Direct-sum coexistence then landed under the
-  general recursive rule: `ConventionalRecordSumPathsLayoutReport` carries the
-  record level's own `child_sum_layouts` beside `paths`
-  (`omega-rust/psi/foundation/layout-plans/src/layout_reports/mod.rs`), the
-  recursive projection emits both child kinds on one `Branch`
-  (`omega-rust/omega/backend/layout/src/sum_materialization.rs`), the carrier
-  fold joins them in one field-keyed namespace
-  (`symbolic_values::SymbolicFieldInnerLayout::from_recursive_sum_paths`), and
-  build-time evaluation retains, replays, and fingerprints the direct-sum
-  custody under the same bounded traversal
-  (`const_record_with_nested_sum_materializable`). Focused coverage:
-  `recursive_direct_sums_coexist_with_deeper_paths_on_one_level` in
-  `omega/backend/layout/src/sum_materialization/tests/recursive.rs`, the
-  extended recursive fixtures in `layout-plans` and `build-time-evaluation`
-  tests, and the coexisting `route` field in
-  `recursive_sum_symbolic_materialization_realizes_on_both_linux_isas`.
-  `eb82c48603` then lifted nested sum arrays under the same general recursive
-  rule: every record level may co-locate direct sums, direct nonzero literal
-  `[S; N]` sum arrays, and deeper record paths at once
-  (`child_sum_array_layouts` on both `ConventionalRecordSumPathsLayoutReport`
-  and the recursive `Leaf`; `project_record_level_children` in
-  `omega/backend/layout/src/sum_materialization.rs` classifies every level;
-  `ValidatedConstRecordLevelSumChildrenMaterialization` in
-  `const_record_with_nested_sum_materializable/record_level.rs` retains the
-  level's per-index array custody, replay, and fingerprints; the carrier fold
-  joins `SumArray` carriers in the same field-keyed namespace). Coverage:
-  `recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths` and the
-  extended drift fixture in
-  `omega/backend/layout/src/sum_materialization/tests/recursive.rs`,
-  `symbolic_recursive_sum_array_materialization_composes_indexed_boundaries`
-  in `layout-plans`, and
-  `recursive_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
-  in `compiler/tests/layout_plans/writer_lowering.rs` (x86-64 native leg
-  executed). `382fcc833b` then lifted direct record arrays under the same
-  general recursive rule: every record level may also co-locate nonzero
-  literal `[R; N]` record fields whose element record still reaches sums
-  (`child_record_array_layouts` on `ConventionalRecordSumPathsLayoutReport`
-  and the recursive `Leaf` in
-  `omega-rust/psi/foundation/layout-plans/src/layout_reports/mod.rs`;
-  `project_record_array_row` in
-  `omega/backend/layout/src/sum_materialization.rs` retains the element
-  record's shared recursive report once beside the literal count and stride;
-  `SymbolicFieldInteriorLayout::RecordArray` carriers fold through
-  `from_recursive_sum_paths`; build-time evaluation's
-  `ValidatedConstRecordArrayFieldMaterialization` retains per-element
-  recursive custody, replay, and fingerprints under the same bounded
-  traversal). Coverage:
-  `recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths` in
-  `omega/backend/layout/src/sum_materialization/tests/recursive.rs`,
-  `symbolic_recursive_record_array_materialization_composes_element_boundaries`
-  and `symbolic_recursive_record_array_paths_stay_symbolic_until_assignment`
-  in `layout-plans`, and the record-array drift fixture in
-  `build-time-evaluation`'s recursive tests. Next acceptance: run the
-  `symbolic_materialization` filter on a Linux aarch64 host, then open
-  target-dependent placement.
+  Remaining work:
+
+  - Target-dependent placement. Both projection entry points in
+    `sum_materialization/mod.rs` reject an outer field carrying a `Bits`,
+    `IntegerAt` or repeated placement ("uses target-dependent fragment,
+    stored-integer, or repeated placement"). A symbolic path must cross the
+    whole [placement vocabulary](wiki/spec/layouts/plans.md#placement-vocabulary),
+    not only whole-field `At` entries.
+  - Shapes the recursion still fences: an array reaching sums through more
+    than one literal element hop — nested arrays or mixed elements — and any
+    non-literal array length.
+  - Record arrays have no realization leg.
+    `omega-rust/omega/compiler/compiler/tests/layout_plans/writer_lowering.rs`
+    runs `lower_writer_on_both_linux_isas` for the nested-indexed, direct-sum,
+    nested-sum-array, recursive-sum and recursive-sum-array shapes; the
+    record-array shape has layout-plans and build-time-evaluation coverage
+    only.
+  - The Linux aarch64 native leg has never executed. That harness selects its
+    guarded C driver by `cfg(target_arch)`, so only the x86-64 arm has run;
+    every other host takes the emission-only path.
+
+  Acceptance: nested field and index canaries realize on both Linux ISAs, each
+  executing the lowered fragment on its matching host and comparing the image
+  with the Rust reference writer. Both ISAs agree on the normalized fragment
+  fingerprint and the writer invocation while emitting their own bytes.
+
+  Flag: each child shape got its own channel instead of one classified child
+  row. `ConventionalRecordSumPathsLayoutReport` carries `paths`,
+  `child_sum_layouts`, `child_sum_array_layouts` and
+  `child_record_array_layouts`; the recursive `Leaf` repeats three of them;
+  `SymbolicFieldInteriorLayout` has a matching variant per kind; and
+  `build-time-evaluation/src/layouts/layout_plans/` now holds 17
+  `ValidatedConst*` materialization and selection types. The last three shapes
+  landed as one commit each, every one adding a report field, a carrier
+  variant, a validated type and its own recursion test, and each fenced shape
+  above would add another. The general mechanism is one child row carrying its
+  own path segment — a field hop, or a literal index hop with a count and
+  stride — beside the child's recursive report, so repetition and depth are
+  both data on one channel.
 
 ## P3 - Terminal Psi, PCC, and observation
 
