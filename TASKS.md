@@ -3102,77 +3102,52 @@ Owners include
 - **FINITE-GENERIC-DISPATCH.** Implement the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
   and [dynamic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-  for Squalr-style scanner widths and runtime-selected datatype providers. Psi
-  extracts exact tuple rosters from explicit OR/equality constraints, checks each
-  body and membership edge, and retains requirement/index/result correspondence.
-  Terminal dynamic-call/descriptor owners and Omega native table/replay consumers
-  retain the same family rows and ordinary costs. Begin with one scalar value
-  binder, a common concrete result, and dispatch around a region-sized operation;
-  runtime arguments depend on RUNTIME-VALUE-GENERICS, not generic JIT execution.
+  for Squalr-style scanner widths and runtime-selected datatype providers.
+  `TypedTrees::finite_signature_family`
+  (`typed-trees/src/typed_trees/calls/finite_family.rs`) is the one roster
+  authority for the local `dyn` surface and the selected-dispatch boundary. A
+  local `dyn` call that spells one closed roster tuple (`erased.code<16>()`)
+  selects that row, and
+  `typed-trees-to-checked-trees/src/monomorphization/dynamic_families.rs`
+  generates every roster tuple's provider specialization from the selected
+  conformance. `family_tuple` is an exact join coordinate in Terminal rows,
+  the codec, the verifier, checked-to-lowered evidence and the Omega custody,
+  lowering, image-replay and optimization-unit identity rejoins. That does not
+  establish runtime selection or a native customer: every call names its tuple
+  statically, and the Omega joins have seen only test-constructed nonempty
+  tuples.
 
-  Resume evidence (macw4-finite-dispatch-3, macOS x86-64, 71
-  selected-dispatch tests): the roster slice landed at 61b0e258b0 —
-  `signature_families.rs` extracts the explicit `Binder == literal || ...`
-  roster (order/duplicates normalize, correlated `&&` alternatives keep
-  authored groupings, partial tuples/opaque predicates/ranges never
-  enumerate), `adapter_rows.rs` publishes one tuple-keyed row per declared
-  tuple, statement and expression calls select exactly one settled tuple,
-  and the checked interpreter replays by canonical tuple. The row-evidence
-  slice then required each roster tuple to be filled by exactly one bare
-  value-tuple specialization of the selected provider's own template:
-  missing coverage leaves the whole requirement dynamically ineligible,
-  and wrong-width, shape-substituted (type/machine/conformance argument
-  coordinates or closed conformance applications), duplicated, and
-  sibling-provider records all reject rather than lending rows.
-  The `Value`-binder requirement slice landed at db52146ce1: trait
-  requirement signatures admit `<Width: u32>` through a dedicated parser
-  mode (`const` stays static-only, conformance binders stay off
-  requirement signatures), and conformance signature matching slices a
-  specialized instance's trailing realized `Value` subjects against the
-  template's declared carriers so a runtime-bound provider body still
-  satisfies its requirement without becoming roster evidence. A runtime
-  boundary argument and a roster filled only by carrier-keyed records both
-  still reject. The Terminal half landed (macOS ARM64): requirement slots and
-  direct/indirect/stored dispatch rows in
-  `terminal_module/boundary/dynamic_dispatch.rs` carry `family_tuple` (the
-  producer's canonical const identities in binder declaration order, empty
-  for a nongeneric requirement), and `ClosedConformanceRow` table rows in
-  `terminal_module/boundary/conformances.rs` carry the same tuple inside the
-  application commitment (domain `v4`) and report fingerprint;
-  `terminal-codec` encodes both under format marker 100 with round-trip,
-  byte-identity, and previous-layout rejection tests in
-  `dynamic_dispatch_wire.rs` and `closed_conformance_wire.rs`;
-  `terminal-verifier` rejoins every direct/indirect/stored dispatch,
-  descriptor-parameter slot, rebound row pair, and static requirement
-  dispatch to the table row by exact tuple (`tests/dynamic_dispatch.rs`);
-  and `checked-trees-to-lowered-psi` fills every table and dispatch row from
-  one `checked_requirement_family_tuple` source, rejecting a requirement that
-  declares local binders rather than lowering an empty-tuple row. The
-  downstream rejoin slice landed at `ee43060ab2` (macw4-finite-dispatch-6):
-  `family_tuple` is an exact join coordinate through every downstream row
-  rejoin — `abstract-operations` custody joins, rebound lowering row lookup,
-  `image-emission` `selected_row_position` conformance replay, and
-  `requirement_row` descriptor resolution — and the canonical
-  optimization-unit identity encodes it. Remaining open slice: a Psi producer
-  admitting a finite family into the local `dyn` surface (the
-  `selected-dispatch` roster settles only boundary adapter dispatch, which
-  that surface excludes), so a nonempty tuple is producible only by tests;
-  boundary calls never demand provider specializations, so every roster
-  tuple needs one static call site until a dynamic selection generates the
-  complete family.
+  Remaining work:
 
-  Acceptance: widths 16/32/64 need no handwritten suffix-method family; source
-  alternative order and duplicates normalize deterministically. One selected
-  conformance covers every required tuple; missing, wrong-width, mixed-provider,
-  or shape-substituted rows reject. Const-only calls still reject dynamic inputs
-  without a checked bridge. Short explicit tuple sets preserve correlations and
-  do not enumerate arbitrary ranges; target-ineligible bodies and invented
-  fallbacks reject. Preserve parameter effects, index identity, and once-only
-  moves/cleanup through selection and replay. Escaping variable-shaped results
-  require an explicit sum or eligible owned/borrowed descriptor, not implicit
-  allocation. Retain compile/code-size evidence and scan-loop dispatch placement
-  before claiming an improvement over explicit branches. No new reflection API
-  or arbitrary generic virtual method is needed for this slice.
+  - Runtime-capable family calls in Psi checking
+    (`execution/unit/dynamic_scalar_calls/`): a `Value` argument proven a
+    roster member selects its row through generated dispatch among the closed
+    bodies, and an unproven argument rejects. Depends on
+    RUNTIME-VALUE-GENERICS, not generic JIT execution. Begin with one scalar
+    binder, a common concrete result and dispatch around a region-sized
+    operation.
+  - Boundary adapter families.
+    `selected-dispatch/src/boundary_dispatch/adapter_rows.rs` takes rows only
+    from provider specializations a static call site already demanded; one
+    uncovered roster tuple leaves the whole requirement ineligible. Generate
+    the selected provider's complete family from the same authority, as the
+    `dyn` surface does.
+  - One source-produced family through Omega native tables and image replay,
+    with `tests/omega` pass, fail and run canaries. None exist.
+
+  Acceptance: a source program dispatches widths 16/32/64 from a runtime value
+  through one selected conformance with no handwritten suffix-method family,
+  and executes natively. Source alternative order and duplicates normalize
+  deterministically. Missing, wrong-width, mixed-provider or shape-substituted
+  rows reject. Const-only calls still reject dynamic inputs without a checked
+  bridge. Short explicit tuple sets preserve correlations and do not enumerate
+  arbitrary ranges; target-ineligible bodies and invented fallbacks reject.
+  Preserve parameter effects, index identity and once-only moves/cleanup
+  through selection, forwarding, storage and replay. Escaping variable-shaped
+  results require an explicit sum or eligible owned/borrowed descriptor, not
+  implicit allocation. Retain compile/code-size evidence and scan-loop
+  dispatch placement before claiming an improvement over explicit branches.
+  No new reflection API or arbitrary generic virtual method is needed.
 
 - **DOMAIN-ISSUER-ROUTES.** Implement the
   [requirement and exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
