@@ -258,140 +258,53 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   their matching hosts, and roster/coverage guards remain intact. Remove this
   item only when those checks pass, not when every failure has an owner.
 
-- **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
-  rank-range checks in
-  `typed-trees-to-checked-trees/src/checks/termination/ranking/` and
-  `validation/src/machine_calls/call_cycles/runtime_ranking.rs`. Transfers
-  with diverging copies of rank inputs, and call components with internal
-  state arrivals, or slice-length, bounded-distance, or custom views need
-  exact arrival mappings and preserved premises for ranked subjects and pinned
-  endpoints. Mutable premises need live write-frame evidence. Custom
-  struct-view ranges involving borrowed or nested projections, constrained
-  measure parameters, duplicated record roles, and dependency-free initial
-  record arrivals need exact view-application evidence. Retire generated
-  operand-call states through STATE-LOCAL-VALUE-FRONTIER's checked computation
-  route rather than add ranking provenance for those artificial edges.
-  Flow-dependent computed endpoint formation needs its own arithmetic proof,
-  not an unchecked polynomial. Non-polynomial endpoint substitutions beyond
-  exact input forwarding need their own equality evidence. Scalar views beyond
-  bare unsigned identity forwarding, and slice lengths over projected storage
-  need their produced-rank facts. These are implementation gaps, not grounds
-  to weaken the range obligation. Red note (macOS ARM64, measured at
-  d3b56ac3f1, 2026-09-18): three tests in this lane fail on main --
-  `tests::termination::rank_ranges::computed_field_limits`,
-  `tests::termination::rank_ranges::field_coordinates` and
-  `tests::termination::rank_ranges::field_endpoint_arithmetic`. They are not
-  range read-set fallout: no commit from that lane touches
-  `checks/termination` or `src/tests/termination`, while this subsystem took
-  six commits in the preceding day, most recently 9212a5df9e and deb315f98d on
-  progress premises, with the test module last moved at f5d4abc290. Recorded
-  for this item's owner.
+- **TERMINATION-RANKING-CHECKS.** Finish exact rank-range transport under the
+  [termination contract](wiki/spec/language/termination.md), without extending
+  source-pattern recognizers for each new arrangement of calls and records.
+  Owners: `typed-trees-to-checked-trees/src/checks/termination/ranking/`,
+  validation's `proof_contracts/contract_entailment/ranking_range/`, and
+  `machine_calls/call_cycles/runtime_ranking/`.
 
-  Acceptance: named-state and call-component rank ranges accept proved
-  constraints while changed endpoints and intervening writes invalidate their
-  premises. Preserve the private-witness/public-guarantee split described in
-  chapter 3 and the
-  [termination contract](wiki/spec/language/termination.md). Slice landed at
-  f3187a535a on Linux x86-64: custom struct-view rankings now admit a
-  dependency-free initial record arrival when the destination formal is the
-  unique slot of the rank subject's nominal record type — the claim locates
-  the record the view reads while field substitution, membership, endpoint
-  pinning and descent still prove independently, so conflicting record
-  lineages, foreign owners, out-of-range fields, stalled resets and missing
-  entry evidence all keep rejecting. Declared identity measures may carry
-  range-constrained parameter and result types: carrier classification
-  unwraps range-only `Constrained` shells and the forward is selected only
-  when the subject's enforced bounds fit inside every declared range, so an
-  unsatisfiable or non-range refinement still fails. Slice landed at
-  982dcfaf80 on Linux x86-64: runtime call components admit members whose
-  machines carry multiple states — each member's discovered entry telescope
-  is transported to the call site so authored subjects and endpoints
-  normalize to the atom the site actually holds. Internal arrivals and
-  self transitions stay with the member's own witness, requires clauses
-  remain entry-site evidence, write-frame protection covers the site's
-  non-self formals, mixed-range endpoint conservation still only covers
-  entry call sites, and a duplicated entry role stays unbound rather than
-  guessing between copies. Slice landed at e5fc9f06d6 on macOS ARM64:
-  prefix stores before a transition or component call are judged against
-  the premise carriers (`ranking_range_premise_symbols`: subjects,
-  endpoints, requires-named inputs and range-constrained entries) located
-  through each state's telescope, so a mutable scratch input may be written
-  before the edge while a store into any carrier still rejects
-  (`pass/termination/rank_range_{,call_}scratch_input_write`,
-  `fail/termination/rank_range_{subject,endpoint}_intervening_write`).
-  7232f16727 closes the vacuous acceptance that slice opened at runtime
-  call sites: prefix stores also protect every slot sharing an entry role
-  with another slot and, in mixed-range components, every role-carrying
-  slot, so a written copy can no longer make a copy-equality guard dead
-  (`fail/termination/rank_range_call_copied_input_write`,
-  `pass/termination/rank_range_call_copies_with_scratch_write`).
-  Diverging rank-input copies remain rejected by design of the checked
-  route (`prepare(remaining, remaining)` then `prepare(left - 1, right)`
-  fails "cannot prove rank range"; diverged copies select no convenient
-  representative), so admitting them needs an arrival mapping that names
-  the ranked copy, not a positional guess. Runtime call components admit
-  declared identity measures at b6ebf8073b through the validation-owned
-  classification (`declared_identity_view` in
-  `ranking_range/identity_views.rs`) that the checked stage's
-  `checks/termination/order.rs` now imports
-  (`pass/termination/identity_measure_call_component`,
-  `fail/termination/identity_measure_call_component_{domain,mixed_view}`);
-  Declared scalar views beyond identity (`+`/`*` bodies over the single
-  parameter) produce their rank from the body at 89444750cc/ec28993d1c
-  under one strict-monotonicity admission shared by validation and the
-  checked stage (`declared_scalar_view`, `RankingOrder::CustomScalarView`,
-  `RankingRangeMeasure::Computed`): membership, descent and carrier
-  formation are proved on the produced polynomial, never assumed
-  (`pass/termination/computed_measure_rank_range` and four fail canaries).
-  Nonlinear bodies reject because the engine's linear reasoning cannot
-  bound their monomials. Runtime call components admit the same computed
-  views at 233922f8ee (`RankOrder::DeclaredComputation`; formation proved
-  for the source and destination rank at every call and for the initial
-  rank at entry; `pass/termination/computed_measure_call_component` plus
-  three fail canaries), and every termination-lane fixture from these
-  slices is registered in the canary rosters. Runtime call components
-  consume a ranged member's own range invariant at subordinate call sites
-  (`prove_ranking_range_call` installs the membership and
-  carrier-formation facts the member's state-edge judgment proves at each
-  internal arrival; the checked stage runs that judgment for every ranged
-  member with internal arrivals). Requires clauses remain entry-site
-  evidence: a ranged callee's public `requires` at a subordinate site
-  still needs the site's own proof because the ranking-to-requires bridge
-  in `checks/contracts/call_bounds/context.rs` covers self-calls only;
-  extending it is an open leg of this item.
-  Struct-view rankings admit nested projection paths and borrowed subjects
-  at 49d6f9e87e (`MeasureBodyShape::FieldProjection` carries the exact
-  field chain; `order.rs` accepts a subject reaching the root record
-  through a `Reference`; `pass/termination/measure_{nested_projection_rank,
-  nested_projection_rank_range,borrowed_projection}` plus three fail
-  canaries), and the relational range route transports them too:
-  validation's `FieldCoordinate` is a projection chain re-resolved from
-  the declared measure body (root record owned or reached through one
-  reference, owned exact records at each step, u64 leaf), authored member
-  chains bind to chain-identified atoms, and every arrival substitutes
-  the literal chain rebuilt down to the field
-  (`pass/termination/measure_nested_projection_range_{relational,pinned_limit}`,
-  `measure_borrowed_projection_range`, three fail canaries). Named-state
-  telescope transport for nested or borrowed record roles
-  (`fresh_record_carrier` and mapping discovery still assume a direct
-  owned nominal slot), reference boundaries inside a chain, and
-  call-component struct views remain.
-  Slice landed at 914fad6e23 on macOS ARM64: statement-position calls
-  before a ranking transition or component call carry write-preservation
-  evidence — a checked-body callee with inert arguments and complete
-  direct and nested value write frames disjoint from every protected
-  premise carrier is admitted, while incomplete or opaque frames,
-  premise-carrier writes, authored-operator or effectful arguments, and
-  bodyless boundary, requirement, or admitted declarations still reject
-  (`pass/termination/rank_range_{,call_component_}prefix_call`,
-  `fail/termination/rank_range_{prefix_call_premise_write,call_component_prefix_write}`).
-  Still open on this item: diverging rank-input copies,
-  exact slice-length/bounded-distance/custom-view arrival mappings, preserved
-  premises, named-state transport for nested/borrowed record roles,
-  STATE-LOCAL-VALUE-FRONTIER retirement of generated
-  operand-call states, independent arithmetic proof for computed endpoints,
-  equality evidence for non-polynomial substitutions, and produced-rank facts
-  for scalar views and projected slice storage.
+  Remaining work:
+
+  - Carry a ranged member's established invariant into ordinary callee
+    requirement checking at subordinate component-call sites.
+    `checks/contracts/call_bounds/context.rs` currently applies the
+    ranking-to-requires bridge only to self-calls. Do not assume an entry
+    `requires` remains true after internal arrivals or use the callee's
+    requirement as its own proof.
+  - Generalize endpoint formation and conservation through exact checked
+    value relationships. The independent endpoint fallback still requires one
+    state and immutable scalar/direct-field inputs; mixed-component endpoint
+    discovery handles direct integer inputs and arithmetic trees. Nested
+    reference boundaries and non-polynomial substitutions need their actual
+    formation, equality, and write-preservation evidence, not polynomial
+    cancellation or positional guesses.
+  - Replace residual rank-role discovery limits with explicit arrival
+    correspondence where the program supplies enough evidence. Unique nested
+    carriers, borrowed roots, moved scalar/slice/record copies, custom
+    call-component views, and produced scalar/slice rank facts already have
+    implementations; do not rebuild those as new feature slices. Ambiguous
+    copies must remain rejected unless the checked correspondence identifies
+    the ranked value. A shared nominal type or a convenient decreasing copy
+    is not proof of that identity.
+  - Use STATE-LOCAL-VALUE-FRONTIER's checked computation route to retire
+    generated operand-call states. Do not add termination-only provenance for
+    artificial source edges. This dependency does not block independent
+    contract-bridge or endpoint work.
+
+  Acceptance: exercise valid named-state and mutually recursive call-component
+  customers through ordinary checking/lowering, with exact subject/view/range
+  identity. Include a subordinate call requiring the established range,
+  endpoint transport across a state arrival, and a valid projected/borrowed
+  rank beside unrelated computation. Changed endpoints, stale copied premises,
+  intervening direct or nested-call writes, overflowing intermediate arithmetic,
+  and nondecreasing cycles must reject. Preserve the private-witness/public-
+  guarantee split and the rule that every complete call cycle descends.
+  Start with `src/tests/termination/rank_ranges/` in the checked stage
+  (especially computed field limits, field coordinates, endpoint arithmetic,
+  and call components), plus matching `tests/omega/{pass,fail}/termination/`
+  controls; source inspection is not a current passing-test claim.
 
 ## Compiler throughput
 
