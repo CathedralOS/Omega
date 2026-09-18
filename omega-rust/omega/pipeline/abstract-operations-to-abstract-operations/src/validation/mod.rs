@@ -472,6 +472,75 @@ pub(crate) fn invariant_record_admission(
     Some((substitution, rewrites))
 }
 
+/// An `EstablishScalarArray` is the fourth structural establishment admitted
+/// for loop-invariant motion — the record establishment's flat sibling. The
+/// node declares a fresh claim-free unrestricted scalar-array place over
+/// row-major scalar leaves: it reads exactly the `elements` values in leaf
+/// order, mutates no existing place, and carries no successors or ownership
+/// events. The node must name its own operation as the first provenance row,
+/// define no scalar value (its result is the declared place), use exactly its
+/// `elements` operands in order, and keep the result claim-free the way the
+/// cyclic-eligibility fence's `scalar_array::shape` requires — unrestricted
+/// multiplicity and vacuous qualification, projection, and claim rosters — so
+/// the moved declaration still validates as an owned establishment. Whether
+/// the elements are actually loop-invariant and whether the component
+/// preserves the array's fixed contents are decided separately by
+/// [`invariant_scalar_array_admission`].
+pub(crate) fn admissible_invariant_scalar_array(
+    node: &OptimizationNode,
+) -> Option<terminal_psi::StructuralOperationResult> {
+    let O::EstablishScalarArray {
+        psi_operation,
+        result,
+        elements,
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.is_empty()
+        && node.uses.len() == elements.len()
+        && node
+            .uses
+            .iter()
+            .zip(elements.iter())
+            .all(|(value_use, element)| value_use.value == *element)
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty())
+    .then(|| result.clone())
+}
+
+/// The complete scalar-array-establishment admission shared by the proposal
+/// and the relocation freeze replay: `node` must carry the source-owned
+/// establishment shape ([`admissible_invariant_scalar_array`]) — which yields
+/// the declared place — the component must perform no place mutation or
+/// custody movement ([`component_preserves_place_observations`]), and each
+/// element operand must obey the shared use-site invariance rule
+/// ([`member_scalar_operand_substitution`]). The custody bound is what makes
+/// hoisting a *re-established-every-iteration* array sound: the source
+/// semantics hand each traversal a fresh payload read from the element
+/// values, so moving the establishment into the preheader binds that payload
+/// once — only when no member stores to the declared place does the
+/// persistent array still read those elements on every traversal, which is
+/// exactly what a mutation-free component guarantees. Returns the scalar
+/// substitution the relocated establishment performs on `elements`.
+pub(crate) fn invariant_scalar_array_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+) -> Option<BTreeMap<ValueId, ValueId>> {
+    admissible_invariant_scalar_array(node)?;
+    if !component_preserves_place_observations(function, component) {
+        return None;
+    }
+    member_scalar_operand_substitution(function, component, node, relocating)
+}
+
 /// The storage root an admitted place observation, byte read, or subslice
 /// names — whichever observation gate the node's operation shape admits
 /// through. `same_relocated_node` needs the expected root to replay the
@@ -490,15 +559,17 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// a transferred claim unless every such argument's root is exclusively the
 /// call's own, and no
 /// affine discard on any component-adjacent edge. A `ByteSequenceSubslice`,
-/// an `EstablishByteSequenceLiteral`, an `EstablishPrimitiveLocal`, and an
-/// `EstablishRecord` are
+/// an `EstablishByteSequenceLiteral`, an `EstablishPrimitiveLocal`, an
+/// `EstablishRecord`, and an
+/// `EstablishScalarArray` are
 /// the only establishments this bound tolerates: the subslice reads its
 /// source root's extent without mutating the root, the literal reads
 /// nothing at all, the primitive local declares a fresh claim-free
-/// storage cell without mutating an existing place, and a record
+/// storage cell without mutating an existing place, a record
 /// establishment binds its field initializers into a fresh root — its
 /// structural field copies read an unrestricted source without moving it —
-/// without mutating an existing place either. Each establishes only a
+/// and a scalar-array establishment binds its scalar leaves into a fresh
+/// root — without mutating an existing place either. Each establishes only a
 /// fresh root, and a member-produced root can anchor a rebind only when the
 /// relocation run covers its producer
 /// ([`invariant_member_place_parameters`]), so
@@ -512,7 +583,10 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// can write a caller place only through those borrows — verified call
 /// bindings hand a mutating parameter exactly the argument root — so its
 /// writes land in a place no other member reads, borrows, or moves, which
-/// leaves every member observation of every other root loop-invariant.
+/// leaves every member observation of every other root loop-invariant. An
+/// `Owned` argument is tolerated on the same terms when its root is a
+/// member-produced unrestricted scalar array: the argument copies the
+/// payload into the callee, so nothing the caller still holds changes hands.
 /// When
 /// this holds, every member place observation is loop-invariant — no
 /// traversal can change what it observes — so an admitted read relocates
@@ -575,9 +649,10 @@ pub(crate) fn component_preserves_place_observations(
 /// subslice reads its source root's extent and establishes only a fresh view
 /// root, a byte-sequence literal establishes only a fresh immutable view
 /// root over constant bytes, a primitive-local establishment declares
-/// only a fresh claim-free storage cell, and a record establishment binds
+/// only a fresh claim-free storage cell, a record establishment binds
 /// its initializers into a fresh root — a structural field copies an
-/// unrestricted source without moving it — so no existing place mutates,
+/// unrestricted source without moving it — and a scalar-array establishment
+/// binds its scalar leaves into a fresh root, so no existing place mutates,
 /// and a
 /// fresh member-produced root anchors another parameter's invariant
 /// representative only when its producer relocates in the same run; control
@@ -586,7 +661,7 @@ pub(crate) fn component_preserves_place_observations(
 /// scalar `Call` has no place or claim surface at all; and a unit or scalar
 /// call that moves no claims and passes only shared-borrow structural
 /// arguments cannot mutate any place it could observe. Every other variant —
-/// stores, array, case, and affine-local establishments, dynamic-dispatch
+/// stores, case, and affine-local establishments, dynamic-dispatch
 /// and structural
 /// calls, boundary calls, atomic events, descriptor stores — fails closed.
 fn node_preserves_place_observations(operation: &O) -> bool {
@@ -641,6 +716,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::DynamicDescriptorParameter { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishPrimitiveLocal { .. }
+        | O::EstablishScalarArray { .. }
         | O::EstablishRecord { .. }
         | O::Call { .. } => true,
         O::CallUnit {
@@ -664,9 +740,15 @@ fn node_preserves_place_observations(operation: &O) -> bool {
 
 /// The second-tier member tolerance [`component_preserves_place_observations`]
 /// applies to a call node the strict whitelist refuses: a `CallUnit` or
-/// `CallStructuralScalar` that moves no claims and passes only borrow
-/// arguments — `SharedBorrow`, `MutableBorrow`, or `WriteOnlyBorrow`, never
-/// `Owned` — whose mutating borrows each name a root no other member can
+/// `CallStructuralScalar` that moves no claims, whose borrow arguments —
+/// `SharedBorrow`, `MutableBorrow`, or `WriteOnlyBorrow` — are confined as
+/// below, and whose `Owned` arguments each name a member-produced
+/// unrestricted scalar-array root. An owned whole-root argument over an
+/// unrestricted payload copies the elements into the callee — the caller's
+/// place keeps its contents, so the argument is an observation, not custody
+/// movement — and the member-produced requirement keeps the copied root one
+/// this roster alone controls; a caller root or a root of any other kind
+/// still refuses. Mutating borrows each name a root no other member can
 /// observe. The callee's caller-visible write authority is exactly its
 /// mutable and write-only parameter roots — verified call bindings cannot
 /// hand it another place — so confining those roots to the one call leaves
@@ -701,9 +783,17 @@ fn exclusive_borrow_call_preserves_place_observations(
             | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
                 borrowed.insert(argument.place);
             }
-            // An owned argument moves the caller's place into the callee —
-            // custody movement the bound never tolerates.
-            terminal_psi::StructuralAccess::Owned => return false,
+            // An owned whole-root argument over a member-produced
+            // unrestricted scalar array copies the payload into the callee —
+            // a read of the fresh root, not custody movement. Any other owned
+            // argument moves the caller's place into the callee outright.
+            terminal_psi::StructuralAccess::Owned => {
+                if !argument.path.is_empty()
+                    || !member_unrestricted_scalar_array_root(function, component, argument.place)
+                {
+                    return false;
+                }
+            }
         }
     }
     // A mutating root must appear on exactly one argument in the borrower's
@@ -1099,6 +1189,39 @@ fn member_root_producer_count(
         .flat_map(|block| block.nodes.iter())
         .filter(|node| produced_place_root(&node.operation) == Some(root))
         .count()
+}
+
+/// Whether `root` is declared by exactly one member node and that producer is
+/// an `EstablishScalarArray` whose result is unrestricted and claim-free —
+/// the one produced-root shape an `Owned` structural argument may copy into
+/// a callee without moving caller custody: the unrestricted payload carries
+/// value semantics, so the argument observes the root rather than moving it.
+/// A second member producer, a non-array producer, or a restricted or
+/// claim-carrying result all fail — their `Owned` spellings genuinely
+/// transfer custody.
+fn member_unrestricted_scalar_array_root(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    root: PlaceId,
+) -> bool {
+    let producers = component
+        .members
+        .iter()
+        .filter_map(|member| function.blocks.iter().find(|block| block.id == *member))
+        .flat_map(|block| block.nodes.iter())
+        .filter(|node| produced_place_root(&node.operation) == Some(root))
+        .collect::<Vec<_>>();
+    let [producer] = producers.as_slice() else {
+        return false;
+    };
+    matches!(
+        &producer.operation,
+        O::EstablishScalarArray { result, .. }
+            if result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+    )
 }
 
 /// The complete invariant place-read admission shared by the proposal and the
@@ -2498,6 +2621,15 @@ pub(crate) fn substitute_invariant_scalar_operands(
         // custody stay byte-exact inside the moved operation.
         O::EstablishPrimitiveLocal { value, .. } => {
             substitute(&mut value.value, substitution);
+        }
+        // A relocated scalar-array establishment rebinds each element operand
+        // through the same invariant-parameter substitution — the declared
+        // place, structural type, and result custody stay byte-exact inside
+        // the moved operation.
+        O::EstablishScalarArray { elements, .. } => {
+            for element in elements {
+                substitute(element, substitution);
+            }
         }
         // A relocated record establishment rebinds each scalar field
         // initializer through the same invariant-parameter substitution —

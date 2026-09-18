@@ -26,7 +26,7 @@ pub(super) fn validate_control_flow(
     value_types: &BTreeMap<ValueId, ScalarType>,
 ) -> Result<crate::control_graph::DominatorTree, ModuleError> {
     let sites = definitions::definition_sites(module, machine, blocks);
-    let order = block_graph::block_order(module, machine, blocks, &sites.scalar_array_definitions)?;
+    let order = block_graph::block_order(module, machine, blocks)?;
     // Availability is a property of the complete graph, including backedges.
     // Retain the same analysis for the following ownership and ranking checks.
     let dominators = crate::control_graph::dominators(machine);

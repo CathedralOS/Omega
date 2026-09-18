@@ -342,6 +342,27 @@ fn admit_member_node(
         }
         argument_rewrites = rewrites;
         substitution.into_iter().collect()
+    } else if crate::validation::admissible_invariant_scalar_array(node).is_some() {
+        // A scalar-array establishment is the record's flat sibling: it
+        // declares a fresh claim-free unrestricted array place whose
+        // declaration-ordered scalar leaves each obey the use-site
+        // substitution. Establishing the payload performs work a bypassed
+        // traversal would not, so both halves of the non-speculative gate
+        // apply; the whole-component custody bound then proves no member
+        // stores to the declared place — the one condition under which a
+        // payload established once still reads its elements on every
+        // traversal. The declared place, structural type, and result custody
+        // move byte-exact inside the moved operation.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let substitution = crate::validation::invariant_scalar_array_admission(
+            function, component, node, relocating,
+        )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        substitution.into_iter().collect()
     } else if crate::validation::admissible_invariant_scalar_call(node).is_some() {
         // A scalar-signature call keeps the full non-speculative gate — it
         // performs callee work a skipped traversal would not — and then adds
@@ -636,6 +657,12 @@ pub(super) fn component_plan(
                         }
                         AbstractOperation::EstablishRecord { result, .. }
                             if crate::validation::admissible_invariant_record(node).is_some() =>
+                        {
+                            LoopInvariantNodeResult::Structural(result.clone())
+                        }
+                        AbstractOperation::EstablishScalarArray { result, .. }
+                            if crate::validation::admissible_invariant_scalar_array(node)
+                                .is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
                         }

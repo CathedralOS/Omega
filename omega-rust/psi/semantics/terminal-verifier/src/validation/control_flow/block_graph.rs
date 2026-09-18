@@ -4,17 +4,14 @@
 use super::super::{
     BTreeMap, BTreeSet, BlockId, ModuleError, TerminalMachine, TerminalModule, Terminator,
 };
-use semantic_vocabulary::PlaceId;
 
 /// The block order the checks walk: successors and predecessors from each
 /// terminator, every block reachable from the entry, and a topological
-/// order; a cyclic graph is allowed only for an unranked-cycle machine, and
-/// never re-establishes a scalar array inside a cycle.
+/// order; a cyclic graph is allowed only for an unranked-cycle machine.
 pub(super) fn block_order(
     module: &TerminalModule,
     machine: &TerminalMachine,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
-    scalar_array_definitions: &BTreeMap<PlaceId, BlockId>,
 ) -> Result<Vec<BlockId>, ModuleError> {
     let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
     let mut predecessors = blocks
@@ -116,18 +113,5 @@ pub(super) fn block_order(
         order = blocks.keys().copied().collect();
     }
 
-    // Array payload slots currently establish once per activation. Keep loop
-    // re-establishment unsupported while allowing an outside definition to
-    // dominate ordinary uses within a loop.
-    if !scalar_array_definitions.is_empty() && cyclic {
-        for component in crate::control_graph::cyclic_components(machine) {
-            if let Some(block) = scalar_array_definitions
-                .values()
-                .find(|block| component.contains(block))
-            {
-                return Err(ModuleError::ControlCycle(*block));
-            }
-        }
-    }
     Ok(order)
 }

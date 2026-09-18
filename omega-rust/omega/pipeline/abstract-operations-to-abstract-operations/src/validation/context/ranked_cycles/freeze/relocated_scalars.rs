@@ -23,7 +23,13 @@
 //! while each scalar field value obeys the re-derived substitution and each
 //! structural field copy keeps or rebinds its root under the same
 //! preheader-landing rule a shared-borrow call argument obeys, all under
-//! the same no-member-stores custody bound),
+//! the same no-member-stores custody bound), an admissible
+//! scalar-array establishment (whose declared place, structural type, and
+//! claim-free unrestricted result custody relocate byte-exact while each
+//! element operand obeys the re-derived substitution under the same
+//! custody bound — a bound that also tolerates a member call copying a
+//! member-produced unrestricted array into the callee through an `Owned`
+//! argument, since the copy observes rather than moves the fresh root),
 //! an admissible scalar-signature call (its callee's transitive effect
 //! summary proves no observable effect, crash, or suspension, and every node
 //! inside the member roster is unobservable, so hoisting the call's possible
@@ -460,6 +466,30 @@ pub(super) fn validate(
                 Some((substitution, rewrites)) => {
                     (substitution, None, rewrites.into_iter().collect())
                 }
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::admissible_invariant_scalar_array(relocation.expected)
+            .is_some()
+        {
+            // A scalar-array establishment replays its whole admission from
+            // the seed: the whole-component place-custody bound must prove no
+            // member stores to the declared place — the one condition under
+            // which a payload established once still reads its elements on
+            // every traversal — and each element operand obeys the same
+            // re-derived substitution a computation obeys. The declared
+            // place, structural type, and claim-free result custody stay
+            // byte-exact inside the moved operation, so a forged declaration
+            // or a skipped element rebind rejects here or in
+            // `same_relocated_node`'s operation comparison.
+            match crate::validation::invariant_scalar_array_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+            ) {
+                Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else {

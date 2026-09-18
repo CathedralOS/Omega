@@ -6,6 +6,8 @@ mod call_arguments;
 mod call_results;
 #[path = "scalar_array_source/computation_arguments.rs"]
 mod computation_arguments;
+#[path = "scalar_array_source/cyclic.rs"]
+mod cyclic;
 #[path = "scalar_array_source/floating.rs"]
 mod floating;
 #[path = "scalar_array_source/literal_arguments.rs"]

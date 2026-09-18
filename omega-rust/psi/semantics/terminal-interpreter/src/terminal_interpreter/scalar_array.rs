@@ -207,12 +207,21 @@ impl TerminalExecution {
             result.structural_type,
         )
         .ok_or_else(invalid)?;
+        // An unrestricted payload can be re-established by a cyclic
+        // traversal: the fresh establishment replaces the stored elements,
+        // matching the per-iteration binding the verifier's cyclic
+        // eligibility admits. Unrestricted copies never alias the stored
+        // slot, so overwriting retires nothing the caller could still see —
+        // unless a live claim still names the place.
         if result.multiplicity != StructuralMultiplicity::Unrestricted
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || u64::try_from(elements.len()).ok() != Some(count)
-            || self.scalar_array_values.contains_key(&result.place)
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(result.place))
             || self.structural_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
         {

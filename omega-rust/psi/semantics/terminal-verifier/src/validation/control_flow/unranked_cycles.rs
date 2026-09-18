@@ -5,7 +5,7 @@ use super::super::{
     OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceKind,
 };
-use super::super::{block_views, byte_sequence_subslice, primitive_storage};
+use super::super::{block_views, byte_sequence_subslice, primitive_storage, scalar_array};
 use super::{
     ModuleError, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator,
@@ -144,6 +144,18 @@ fn cycle_operation_eligible(
                 .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
                 && super::super::record::fields(module, machine, operation).is_ok()
         }
+        // A complete unrestricted scalar-array establishment is the record
+        // arm's primitive-leaf sibling: `scalar_array::shape` proves the fresh
+        // `OperationResult` place, the element count against the declared
+        // leaf shape, and a claim-free result, while the unrestricted payload
+        // never carries a per-iteration disposal obligation. Re-entering the
+        // establishment hands the place a fresh payload each traversal — the
+        // interpreter replaces the stored elements, and no custody moves.
+        // The ordinary operand, availability, and frontier checks still run
+        // after this fence.
+        OperationKind::EstablishScalarArray { .. } => {
+            super::super::scalar_array::shape(module, machine, operation).is_ok()
+        }
         OperationKind::PrimitiveScalarRead { source, path } => {
             operation.result.scalar().is_some_and(|result| {
                 primitive_storage::read_type(module, machine, operation.id, *source, path)
@@ -190,7 +202,7 @@ fn cycle_operation_eligible(
                     argument.path.is_empty()
                         && ((argument.access != StructuralAccess::Owned
                             && primitive_storage::local_result(machine, argument.place).is_some())
-                            || owned_argument(machine, argument))
+                            || owned_argument(module, machine, argument))
                 })
                 && claim_transfers.is_empty()
         }
@@ -273,7 +285,7 @@ fn cycle_operation_eligible(
                                     },
                                 )
                                 .is_ok())
-                            || owned_argument(machine, argument))
+                            || owned_argument(module, machine, argument))
                 })
                 && claim_transfers.is_empty()
         }
@@ -368,15 +380,41 @@ fn plain_owned(parameter: &StructuralParameterDeclaration) -> bool {
         && parameter.projected_qualifications.is_empty()
 }
 
-fn owned_argument(machine: &TerminalMachine, argument: &StructuralArgument) -> bool {
+fn owned_argument(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    argument: &StructuralArgument,
+) -> bool {
     argument.access == StructuralAccess::Owned
         && argument.path.is_empty()
-        && machine
+        && (machine
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == argument.place)
             .or_else(|| block_views::parameter(machine, argument.place))
             .is_some_and(plain_owned)
+            // A whole member-produced scalar array is copied into the
+            // callee on each traversal: its producer independently passes
+            // this fence through the `EstablishScalarArray` arm, the
+            // unrestricted result never becomes loop-carried custody, and
+            // the argument's availability is still proven by the ordinary
+            // dominance walk. Other produced kinds keep the parameter-only
+            // rule until their cyclic custody is spelled out.
+            || machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    matches!(operation.kind, OperationKind::EstablishScalarArray { .. })
+                        && operation.result.structural().is_some_and(|result| {
+                            result.place == argument.place
+                                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                                && result.qualifications.is_empty()
+                                && result.projected_qualifications.is_empty()
+                                && result.claims.is_empty()
+                        })
+                        && scalar_array::shape(module, machine, operation).is_ok()
+                }))
 }
 
 /// A boundary's borrowed byte view may loan one initialized inline field under
