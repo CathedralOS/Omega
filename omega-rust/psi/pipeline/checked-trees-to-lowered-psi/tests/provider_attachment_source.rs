@@ -329,7 +329,7 @@ fn source_projection_is_deterministic_and_perturbations_fail_closed() {
         "source projection must be deterministic without a frozen checkpoint"
     );
     assert_eq!(&canonical[..8], b"PSITERM\0");
-    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 97);
+    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 100);
     assert_eq!(
         u16::from_le_bytes([canonical[10], canonical[11]]),
         terminal_psi::VocabularyMarker::CURRENT.get()
@@ -400,7 +400,23 @@ fn source_projection_is_deterministic_and_perturbations_fail_closed() {
     for (operation, id) in operations.iter_mut().zip(operation_ids) {
         operation.id = id;
     }
-    assert!(terminal_codec::encode_module(&reordered).is_err());
+    // Literal establishments are no longer pinned to the block prefix, so a
+    // reordered body is a different but still valid program: it must encode
+    // to its own canonical bytes rather than alias the source module's.
+    assert_ne!(
+        terminal_codec::encode_module(&reordered).expect("encode reordered operations"),
+        canonical
+    );
+
+    let mut misplaced = decoded.clone();
+    misplaced
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == misplaced.entry)
+        .expect("entry machine")
+        .structural_places
+        .rotate_left(1);
+    assert!(terminal_codec::encode_module(&misplaced).is_err());
 
     let literal_offset = canonical
         .windows(b"Hello, Omega.".len())
