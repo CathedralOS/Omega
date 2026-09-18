@@ -1293,3 +1293,105 @@ fn a_stale_companion_never_certifies_republished_bytes() {
     ));
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn receiver_requirements_come_from_the_receivers_own_pinned_policy() {
+    // The receiver fixes its requirements; the producer cannot choose a
+    // weaker question by supplying annotations. The companion envelope
+    // carries no policy package, no configuration and no required-guarantee
+    // field at all, so every acceptance names the policy and configuration
+    // the receiver itself pinned.
+    let (dir, psi, proof) = publish_psi_pair(MAIN);
+    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode");
+
+    // Two independently pinned receivers decide the same bytes and each
+    // verdict discloses that receiver's own identities verbatim.
+    let mut first = receiver_policy(&sidecar);
+    first.policy_package_identity = "receiver.memory-policy.v3".to_owned();
+    first.configuration_identity = "receiver.memory-policy.v3/strict".to_owned();
+    let mut second = first.clone();
+    second.policy_package_identity = "receiver.audit-policy.v1".to_owned();
+    second.configuration_identity = "receiver.audit-policy.v1/default".to_owned();
+    for policy in [&first, &second] {
+        match verify_published_proof_pair(&psi, &proof, policy) {
+            PccVerificationOutcome::Complete(product) => {
+                assert_eq!(
+                    product.policy_package_identity,
+                    policy.policy_package_identity
+                );
+                assert_eq!(
+                    product.configuration_identity,
+                    policy.configuration_identity
+                );
+            }
+            other => panic!("expected the receiver's own policy to complete, got {other:?}"),
+        }
+    }
+
+    // The producer's own self-check policy is not receiver authority: it
+    // completes, and the verdict says which policy decided.
+    let producer = PccReceiverPolicy::for_offered_claim(&sidecar, AdmissionProfile::default());
+    match verify_published_proof_pair(&psi, &proof, &producer) {
+        PccVerificationOutcome::Complete(product) => {
+            assert_eq!(product.policy_package_identity, "producer-self-check");
+            assert_eq!(product.configuration_identity, "offered-claim");
+        }
+        other => panic!("expected the producer self-check to complete, got {other:?}"),
+    }
+
+    // No policy identity or requirement can be read out of the offered
+    // companion: the receiver's material is absent from the pair's bytes.
+    for label in [
+        "receiver.memory-policy.v3",
+        "receiver.audit-policy.v1",
+        "producer-self-check",
+        "offered-claim",
+        "omega.standard-memory-safety",
+    ] {
+        assert!(
+            !contains_bytes(&proof, label.as_bytes()),
+            "the companion must not carry receiver policy material: {label}"
+        );
+    }
+
+    // A receiver whose pinned policy requires the standard memory-safety
+    // guarantee rejects this bounded product, even though the producer's
+    // offered claim verifies under its own self-check. The offered guarantee
+    // identity cannot be relabeled into the receiver's requirement.
+    let mut standard = first.clone();
+    standard.required_guarantees = vec!["omega.standard-memory-safety".to_owned()];
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &standard),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "required guarantee"
+    ));
+    assert_eq!(
+        sidecar.guarantees().len(),
+        1,
+        "the bounded product offers exactly the terminal verification guarantee"
+    );
+    assert_eq!(
+        sidecar.guarantees()[0].identity,
+        terminal_codec::PSI_TERMINAL_VERIFIED_GUARANTEE
+    );
+
+    // A producer that renames its guarantee to the receiver's requirement
+    // still fails: replay independently establishes the claim the artifact
+    // supports, so the relabeled companion rejects on reconstruction.
+    let relabeled = rebuild_sidecar(
+        &sidecar,
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        vec![terminal_codec::PccGuarantee {
+            identity: "omega.standard-memory-safety".to_owned(),
+            premises: Vec::new(),
+        }],
+        sidecar.evidence().to_vec(),
+        sidecar.assumptions().to_vec(),
+        sidecar.dependencies().to_vec(),
+    );
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &relabeled.to_bytes(), &standard),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "guarantees"
+    ));
+    let _ = fs::remove_dir_all(&dir);
+}
