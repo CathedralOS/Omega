@@ -1,0 +1,38 @@
+// FAIL twin of pass/proofs/proof_inductive_climbing_sum: the SAME inductive
+// climbing-sum theorem with the bound removed from its carriers. This is the
+// spelling the pass canary carried before the bound was added, and it pins
+// that `embed` in a contract does not license unbounded runtime arithmetic.
+//
+// `acc` is an ordinary `u64` invocation formal with no `requires` and no
+// dominating guard, so the recursive arm's transition argument `acc + 1` is
+// an Exact `u64` addition whose operands are not provably in range: at
+// `acc == u64::MAX` with `index < limit` it overflows. The contract's
+// `embed(acc)` reads that carrier into proof `Int` ("Runtime integer/address
+// values enter mathematical integer arithmetic through the total `embed`
+// projection, retaining exact carrier range", wiki/spec/proofs/contracts.md);
+// it neither widens the argument nor re-domains the operation, and
+// wiki/spec/language/numeric_values.md refuses exactly this excuse -- "A safe
+// final result, mathematical substitution, or unknown analysis endpoint
+// cannot excuse an unsafe intermediate".
+//
+// The guarded `index + 1` in the same argument list is admitted, so the
+// rejection is the accumulator's alone and not a blanket refusal of arithmetic
+// in a transition argument. The bounded form in the pass canary compiles.
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let total: u64 = self.climb(4, 0, 0);
+}
+
+machine Main::climb(&mut self, limit: u64, index: u64, acc: u64) -> u64
+terminates by (index, limit) -> Nat::BoundedDistance;
+ensures
+    embed(result) >= embed(acc) + embed(limit) - embed(index)
+{
+    transition index < limit {
+        true -> climb(limit, index + 1, acc + 1)
+        false -> acc
+    }
+}
