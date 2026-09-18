@@ -293,6 +293,26 @@ fn pow(base: &BigInt, power: u32) -> BigInt {
     result
 }
 
+/// The operand one opaque atom was minted from, retained so a later
+/// simultaneous substitution can re-mint the same shape under the
+/// transported operand rather than dropping the term.
+#[derive(Clone)]
+enum OpaqueTerm {
+    /// `(operand) % modulus`, the truncating remainder.
+    Remainder {
+        operand: Polynomial,
+        modulus: BigInt,
+        /// The mint site's provenance gate for the single-quotient tight
+        /// interval; re-mints reuse it rather than re-deriving it.
+        tight_interval: bool,
+    },
+    /// `\0integer-quotient:{dividend:?}/{divisor}`, the truncating quotient.
+    Quotient {
+        dividend: Polynomial,
+        divisor: BigInt,
+    },
+}
+
 pub(super) struct Engine<'program> {
     pub(super) program: &'program TypedTrees,
     /// The machine this engine judges (entry-range hypotheses resolve
@@ -329,6 +349,11 @@ pub(super) struct Engine<'program> {
     bounds: Vec<(Polynomial, BigInt)>,
     /// Derived bounds for truncating integer quotient and remainder atoms.
     arithmetic_intervals: BTreeMap<String, Interval>,
+    /// Opaque quotient/remainder atoms this engine minted, in mint order with
+    /// each term's operand. An outer term's operand atoms were necessarily
+    /// minted earlier, so one ordered pass transports nested terms
+    /// innermost-first.
+    opaque_terms: Vec<(String, OpaqueTerm)>,
     /// Difference-bound matrix over atoms + the virtual ZERO atom:
     /// `matrix[a][b]` = best known lower bound of `a - b`.
     matrix: BTreeMap<String, BTreeMap<String, BigInt>>,
@@ -381,6 +406,7 @@ impl<'program> Engine<'program> {
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
             arithmetic_intervals: BTreeMap::new(),
+            opaque_terms: Vec::new(),
             matrix: BTreeMap::new(),
             requires_unsatisfiable: false,
         }
@@ -565,6 +591,122 @@ impl<'program> Engine<'program> {
         true
     }
 
+    /// Record the term an opaque atom was minted from. One atom string names
+    /// one canonical operand, so a repeated mint keeps the first entry.
+    fn register_opaque_term(&mut self, atom: String, term: OpaqueTerm) {
+        if self.opaque_terms.iter().any(|(minted, _)| *minted == atom) {
+            return;
+        }
+        self.opaque_terms.push((atom, term));
+    }
+
+    /// The interval a truncating remainder atom takes from its operand's:
+    /// `(-|modulus|, |modulus|)` clamped by the operand's own sign, tightening
+    /// monotonically when the operand's whole range shares one quotient and
+    /// the mint site admitted that reading.
+    fn remainder_interval(
+        &self,
+        operand: &Polynomial,
+        modulus: &BigInt,
+        tight_interval: bool,
+    ) -> Interval {
+        let magnitude = modulus.abs().sub(&BigInt::from_i64(1));
+        let operand_interval = self.polynomial_interval(&self.substituted(operand));
+        if tight_interval
+            && let (Some(low), Some(high)) = (&operand_interval.low, &operand_interval.high)
+            && let (Some((low_quotient, low_remainder)), Some((high_quotient, high_remainder))) =
+                (low.div_rem(modulus), high.div_rem(modulus))
+            && low_quotient == high_quotient
+        {
+            // A constant quotient makes remainder increase with the
+            // dividend, including when the divisor is negative.
+            return Interval {
+                low: Some(low_remainder),
+                high: Some(high_remainder),
+            };
+        }
+        Interval {
+            low: Some(operand_interval.low.map_or_else(
+                || magnitude.negate(),
+                |minimum| minimum.min(BigInt::zero()).max(magnitude.negate()),
+            )),
+            high: Some(operand_interval.high.map_or_else(
+                || magnitude.clone(),
+                |maximum| maximum.max(BigInt::zero()).min(magnitude.clone()),
+            )),
+        }
+    }
+
+    /// The interval a truncating quotient atom takes from its dividend's.
+    fn quotient_interval(&self, dividend: &Polynomial, divisor: &BigInt) -> Interval {
+        let dividend_interval = self.polynomial_interval(&self.substituted(dividend));
+        let quotient_bound = |bound: Option<BigInt>| {
+            bound.and_then(|value| value.div_rem(divisor).map(|(quotient, _)| quotient))
+        };
+        if divisor.is_negative() {
+            Interval {
+                low: quotient_bound(dividend_interval.high),
+                high: quotient_bound(dividend_interval.low),
+            }
+        } else {
+            Interval {
+                low: quotient_bound(dividend_interval.low),
+                high: quotient_bound(dividend_interval.high),
+            }
+        }
+    }
+
+    /// Extend a simultaneous argument map across this engine's opaque atoms:
+    /// a remainder or quotient atom whose operand substitutes completely is
+    /// re-minted under the transported operand and mapped to that fresh atom,
+    /// its interval registered like any minted term. An operand whose leaf
+    /// the map does not cover keeps its atom unmapped, so the consuming
+    /// substitution still fails closed on it. Mint order transports an inner
+    /// atom before every outer term that embeds it.
+    pub(super) fn extend_argument_map_over_opaque_terms(
+        &mut self,
+        argument_map: &mut BTreeMap<String, Polynomial>,
+    ) {
+        for index in 0..self.opaque_terms.len() {
+            let (atom, term) = self.opaque_terms[index].clone();
+            let (next_atom, interval) = match term {
+                OpaqueTerm::Remainder {
+                    operand,
+                    modulus,
+                    tight_interval,
+                } => {
+                    let Some(operand) =
+                        super::inductive_judgment::apply_argument_map(&operand, argument_map)
+                    else {
+                        continue;
+                    };
+                    let next = format!("({}) % {}", polynomial_display(&operand), modulus);
+                    (
+                        next,
+                        self.remainder_interval(&operand, &modulus, tight_interval),
+                    )
+                }
+                OpaqueTerm::Quotient { dividend, divisor } => {
+                    let Some(dividend) =
+                        super::inductive_judgment::apply_argument_map(&dividend, argument_map)
+                    else {
+                        continue;
+                    };
+                    (
+                        format!("\0integer-quotient:{dividend:?}/{divisor}"),
+                        self.quotient_interval(&dividend, &divisor),
+                    )
+                }
+            };
+            // An unchanged operand re-mints the same atom and keeps its
+            // already-registered interval.
+            self.arithmetic_intervals
+                .entry(next_atom.clone())
+                .or_insert(interval);
+            argument_map.insert(atom, Polynomial::atom(next_atom));
+        }
+    }
+
     pub(super) fn for_proof_integer_formation(program: &'program TypedTrees) -> Self {
         let mut bindings = Vec::new();
         for (handle, expression) in program.expression_table.iter_expressions() {
@@ -597,6 +739,7 @@ impl<'program> Engine<'program> {
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
             arithmetic_intervals: BTreeMap::new(),
+            opaque_terms: Vec::new(),
             matrix: BTreeMap::new(),
             requires_unsatisfiable: false,
         }
@@ -970,8 +1113,19 @@ impl<'program> Engine<'program> {
         if let Some(interval) = self.arithmetic_intervals.get(atom) {
             return interval.clone();
         }
+        let mut low = self.matrix_bound(atom, ZERO_ATOM);
+        if self
+            .unsigned_atoms
+            .iter()
+            .any(|candidate| candidate == atom)
+        {
+            // An unsigned atom is nonnegative before the hypothesis matrix
+            // seeds that bound, so a term minted ahead of installation still
+            // sees the operand's true sign.
+            low = Some(low.map_or_else(BigInt::zero, |bound| bound.max(BigInt::zero())));
+        }
         Interval {
-            low: self.matrix_bound(atom, ZERO_ATOM),
+            low,
             high: self
                 .matrix_bound(ZERO_ATOM, atom)
                 .map(|bound| bound.negate()),
@@ -1306,27 +1460,17 @@ impl<'program> Engine<'program> {
                         if divisor.is_zero() {
                             return None;
                         }
-                        let dividend_interval =
-                            self.polynomial_interval(&self.substituted(&dividend));
-                        let quotient_bound = |bound: Option<BigInt>| {
-                            bound.and_then(|value| {
-                                value.div_rem(&divisor).map(|(quotient, _)| quotient)
-                            })
-                        };
-                        let interval = if divisor.is_negative() {
-                            Interval {
-                                low: quotient_bound(dividend_interval.high),
-                                high: quotient_bound(dividend_interval.low),
-                            }
-                        } else {
-                            Interval {
-                                low: quotient_bound(dividend_interval.low),
-                                high: quotient_bound(dividend_interval.high),
-                            }
-                        };
+                        let interval = self.quotient_interval(&dividend, &divisor);
                         // Structural polynomial identity keeps distinct dividends
                         // separate; the private prefix cannot be an authored name.
                         let atom = format!("\0integer-quotient:{dividend:?}/{divisor}");
+                        self.register_opaque_term(
+                            atom.clone(),
+                            OpaqueTerm::Quotient {
+                                dividend: dividend.clone(),
+                                divisor,
+                            },
+                        );
                         self.arithmetic_intervals.insert(atom.clone(), interval);
                         return Some(Polynomial::atom(atom));
                     }
@@ -1335,37 +1479,18 @@ impl<'program> Engine<'program> {
                     if modulus.is_zero() {
                         return None;
                     }
-                    let magnitude = modulus.abs().sub(&BigInt::from_i64(1));
-                    let operand_interval = self.polynomial_interval(&self.substituted(&operand));
+                    let tight_interval = builtin_proof_integer
+                        && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation);
                     let display = format!("({}) % {}", polynomial_display(&operand), modulus);
-                    let interval = if builtin_proof_integer
-                        && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation)
-                        && let (Some(low), Some(high)) =
-                            (&operand_interval.low, &operand_interval.high)
-                        && let (
-                            Some((low_quotient, low_remainder)),
-                            Some((high_quotient, high_remainder)),
-                        ) = (low.div_rem(&modulus), high.div_rem(&modulus))
-                        && low_quotient == high_quotient
-                    {
-                        // A constant quotient makes remainder increase with the
-                        // dividend, including when the divisor is negative.
-                        Interval {
-                            low: Some(low_remainder),
-                            high: Some(high_remainder),
-                        }
-                    } else {
-                        Interval {
-                            low: Some(operand_interval.low.map_or_else(
-                                || magnitude.negate(),
-                                |minimum| minimum.min(BigInt::zero()).max(magnitude.negate()),
-                            )),
-                            high: Some(operand_interval.high.map_or_else(
-                                || magnitude.clone(),
-                                |maximum| maximum.max(BigInt::zero()).min(magnitude.clone()),
-                            )),
-                        }
-                    };
+                    let interval = self.remainder_interval(&operand, &modulus, tight_interval);
+                    self.register_opaque_term(
+                        display.clone(),
+                        OpaqueTerm::Remainder {
+                            operand: operand.clone(),
+                            modulus,
+                            tight_interval,
+                        },
+                    );
                     self.arithmetic_intervals.insert(display.clone(), interval);
                     Some(Polynomial::atom(display))
                 }
