@@ -2927,6 +2927,44 @@ Owners include
   direction, and lineage exactness; the crate suite's three remaining
   failures reproduce identically at base 47e5773bb6.
 
+  Twelfth slice landed on macOS ARM64: range-premise read dependencies now
+  admit statically applied calls. The `ExpressionNode::Call` arm of
+  `collect_reads` (`checks/ranges/facts/dependencies/reads.rs`) no longer
+  refuses every `machine_arguments` application;
+  `static_application_carries_no_caller_storage` admits an occurrence whose
+  static arguments are storage-free — a const literal, or a symbol of kind
+  `BuiltinType`, `Data`, or `Const` — because a type or const selection
+  substitutes a declaration identity or a compile-time value rather than a
+  place: "Specialization substitutes the outer selections and continues
+  through nested applications until executable calls are direct; it creates no
+  runtime dictionary" ([generics](wiki/spec/language/generics.md)). So
+  `identity<u64>(original)`, `identity<Card>(&original)` and
+  `scaled<2u64>(original)` read exactly the checked operand accesses the
+  unapplied call carries, and an applied `&self` callee still adds the
+  canonical receiver place. Incomplete read sets are preserved for a
+  machine-valued static argument (`apply<double>`, whose callable body this
+  occurrence never authenticated), a nested static application
+  (`identity<Pair<u64>>`), an evidence projection, and the unchanged static
+  binder, requirement-dispatch, quotient and private-layout guards; open
+  ranges and requires-scope operators without statement-use custody are
+  untouched. Evidence only — preservation and invalidation still run through
+  the existing place algebra. Witnessed by
+  `facts/dependencies/tests/calls.rs` (5 new tests:
+  `a_type_applied_generic_call_reads_its_established_operand_footprint`,
+  `a_const_applied_generic_call_reads_its_operand_footprint`,
+  `a_type_applied_self_receiver_call_reads_the_callers_machine_storage`,
+  `a_machine_valued_or_nested_static_application_stays_incomplete`,
+  `only_storage_free_static_selections_admit_the_applied_call_footprint`,
+  the last pinning that the selection's kind decides by retargeting one
+  admitted argument at a callable state symbol and at a nested application);
+  `cargo nextest run -p typed-trees-to-checked-trees` is 4177 tests, 4174
+  passed, 3 failed — the same three failures as base 82159a2836. Still
+  incomplete after this slice: statically dispatched requirement calls,
+  machine-valued applications, the single-attempt `CompareExchangeOnce`
+  observing form, and authored non-arithmetic operator operands, including a
+  cast or unary wrapper standing above an authored arithmetic application in a
+  selector or bound position.
+
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
   [private-callback contract](wiki/spec/build/private_callbacks.md). Authenticate
