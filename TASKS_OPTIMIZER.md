@@ -1291,6 +1291,32 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   substitution, wrong-policy negatives, measured-budget enforcement,
   deterministic fixed-point output, and a compiler publication test
   replaying the enabled selection through a real native artifact).
+  Landed: the second byte-view operand grammar —
+  `BYTE_VIEW_ADDRESS_BACKING_U12` joins `BYTE_VIEW_ADDRESS_OFFSET_U12`
+  in the `BYTE_VIEW_ADDRESS_V1` catalog payload under the same
+  `SelectedIncomingU12ByteViewAddressOffset` selection. The
+  `ByteViewAddress` projection computes `(backing + offset)` modulo
+  2^64 — a commutative modular address addition — so a materialized
+  literal at the operand-0 backing `Use` folds into the same
+  constant-offset `AddressOffset` row the operand-1 offset literal
+  uses, with the operand-1 `Use` surviving as the rewritten row's
+  base and the operand-2 `Def` remaining the result. The pair
+  declares `PairOperandShape::BinaryLeftLiteral` — the descriptor's
+  operand-position grammar rather than a new effect axis — and the
+  two byte-view pairs disambiguate by which `Use` position the folded
+  literal occupies. The independent replay restates that choice by
+  deriving `BinaryLeftImmediate` versus `BinaryImmediate` from the
+  recorded future-use operand under the same policy-gated
+  `AddressOffset` row binding — never from the descriptor — and the
+  producer, budget, and fixed-point machinery needed no changes
+  beyond the staged fixture's commuted operand wiring (1401 crate
+  lib tests pass on Linux x86-64, including firing on both Linux
+  targets, the 0/4095/4096 boundary legs, measured-budget
+  enforcement, deterministic fixed-point output, decision-field and
+  operand-position replay corruption negatives, wrong-policy
+  rejection, and forbidden operand-binding negatives; the
+  `compiler/tests/optimizer_byte_view_address_offset.rs` publication
+  replay still passes).
   Remaining: further unit roles beyond retired implicit definitions,
   stack- and control-flow-carrying relationships, and trap relationships
   beyond the landed `FaultDischargedByLiteral` family — which now covers

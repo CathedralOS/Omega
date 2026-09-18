@@ -111,8 +111,13 @@ impl LiteralFoldPolicy {
         enabled_rules: Self::COPY_BIT,
     };
     /// Address-mode folding: fold a materialized incoming literal through its
-    /// sole `ByteViewAddress` consumer's offset operand into the
-    /// constant-offset `AddressOffset` form the literal names.
+    /// sole `ByteViewAddress` consumer into the constant-offset
+    /// `AddressOffset` form the literal names. The projection computes
+    /// `(backing + offset) modulo 2^64` — a commutative modular address
+    /// addition — so the literal folds at either `Use` operand: the
+    /// operand-1 offset literal and the operand-0 backing literal both
+    /// rewrite into the same `AddressOffset` row, and the folded literal's
+    /// operand position names which grammar the fold belongs to.
     pub const BYTE_VIEW_ADDRESS_V1: Self = Self {
         enabled_rules: Self::BYTE_VIEW_ADDRESS_BIT,
     };

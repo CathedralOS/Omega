@@ -1094,6 +1094,44 @@ pub(super) fn staged_load8_indexed_inputs(target: NativeTarget, folded: u64) -> 
     }
 }
 
+/// A `MaterializeI64` victim feeding the operand-0 backing position of
+/// `ByteViewAddress` — the commuted operand wiring of the offset fixture.
+/// `VirtualRegisterId(0)` is the surviving offset `Use` at operand 1 and
+/// `VirtualRegisterId(2)` is the `Def` result at operand 2; the fold
+/// rewrites the projection into the same constant-offset `AddressOffset`
+/// form the offset fold uses because the modular address addition
+/// commutes.
+pub(super) fn staged_byte_view_address_backing_inputs(target: NativeTarget, folded: u64) -> Inputs {
+    let mut inputs = staged_byte_view_address_inputs(target, folded);
+    let mut plan = inputs.selected.transformed().clone();
+    let operands = &mut plan.functions[0].blocks[0].instructions[1].operands;
+    operands[0].virtual_register = VirtualRegisterId(1);
+    operands[1].virtual_register = VirtualRegisterId(0);
+    inputs.selected.transformed = Arc::new(plan);
+    let RecoveryClassification::ImmediateU64RematerializationCandidate { future_uses, .. } =
+        &mut inputs.recovery.plan.functions[0]
+            .classification
+            .as_mut()
+            .expect("the staged fixture admits a candidate")
+            .classification
+    else {
+        unreachable!()
+    };
+    future_uses[0].operand = 0;
+    // Keep the staged live ranges honest with the rewired operand list: the
+    // survivor's `Use` moves to operand 1 and the victim's to operand 0.
+    let ranges = Arc::make_mut(&mut inputs.ranges.plan);
+    for occurrence in &mut ranges.functions[0].virtual_registers[0].occurrences {
+        occurrence.operand = 1;
+    }
+    for occurrence in &mut ranges.functions[0].virtual_registers[1].occurrences {
+        if occurrence.access == RegisterOperandAccess::Use {
+            occurrence.operand = 0;
+        }
+    }
+    inputs
+}
+
 /// A `MaterializeI64` victim feeding the operand-1 offset position of
 /// `ByteViewAddress`, with the pressure-recovery classification already
 /// admitted as an `Incoming` rematerialization candidate. `VirtualRegisterId(0)`

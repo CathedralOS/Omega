@@ -203,12 +203,22 @@ fn reconstruct_action(
             rows.load8,
             MachineSemanticKind::Load8,
         ),
-        // The byte-view address projection folds its operand-1 offset
-        // literal into the constant-offset `AddressOffset` form, bound to
-        // the `AddressOffset` row: the surviving operand-0 `Use` is the
-        // base and the operand-2 `Def` is the result.
+        // The byte-view address projection is a commutative modular
+        // address addition — `(backing + offset) modulo 2^64` — so a
+        // literal at either `Use` position folds into the constant-offset
+        // `AddressOffset` form, bound to the `AddressOffset` row: the
+        // operand-1 offset literal derives the right-fold grammar whose
+        // surviving operand-0 `Use` is the base, and the operand-0
+        // backing literal derives the commuted left-fold grammar whose
+        // surviving operand-1 `Use` binds the rewritten row's base
+        // position. The operand-2 `Def` is the result under either
+        // grammar.
         SelectedInstructionKind::ByteViewAddress => (
-            SourceShape::BinaryImmediate,
+            if future_use.operand == 0 {
+                SourceShape::BinaryLeftImmediate
+            } else {
+                SourceShape::BinaryImmediate
+            },
             rows.address_offset,
             MachineSemanticKind::AddressOffset,
         ),
@@ -1896,7 +1906,10 @@ fn reconstruct_action(
 /// three-operand `Load8Indexed` and `ByteViewAddress` projections whose
 /// operand-1 `Use` is the folded index or offset and whose operand-2 `Def`
 /// is the result — the commutative binary immediate form whose literal is
-/// the left `Use` operand, the unary extension and copy forms whose
+/// the left `Use` operand — the exact-add commuted grammar, and the
+/// `ByteViewAddress` operand-0 backing literal the modular address
+/// computation admits under operand exchange — the unary extension and
+/// copy forms whose
 /// literal is the sole operand, the divide-identity form whose
 /// operand-1 divisor literal of one folds into a copy of the dividend and
 /// drops every `Use` operand past the operand-2 `Def` result, or the
