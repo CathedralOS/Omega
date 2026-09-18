@@ -81,8 +81,36 @@ pub fn immutable_integer_expression_bounds(
     {
         return None;
     }
-    let value = bounds(program, machine.symbol, Some(state), expression)?;
+    let value = bounds(program, machine.symbol, Some(state), expression, false)?;
     Some((value.interval.low?, value.interval.high?))
+}
+
+/// Bound a literal or builtin arithmetic tree over exact primitive parameters
+/// the way their declarations bound every evaluation. A mutable input is not
+/// disqualified: its declared type is store-enforced, so the interval holds of
+/// its live value wherever the expression is read. The interval says nothing
+/// about WHICH live value a mutable input holds; callers judging an
+/// invocation-fixed quantity must separately preserve or re-pin its inputs.
+///
+/// The verdict, not the interval, is the result: a successful `bounds` run
+/// already proved every operand and result lands inside its carrier, which
+/// is all an endpoint-formation caller needs. Returning the i64 pair would
+/// lose exactly the verdict at full-width carriers -- `x + 0` over an
+/// unbounded u64 lands, but its interval's high end does not fit i64.
+pub fn declared_integer_expression_lands(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    if !program
+        .machine_states(machine)
+        .iter()
+        .any(|candidate| candidate.symbol == state.symbol)
+    {
+        return false;
+    }
+    bounds(program, machine.symbol, Some(state), expression, true).is_some()
 }
 
 /// Retain one-sided carrier bounds when projecting an exact builtin guard.
@@ -111,8 +139,8 @@ pub(super) fn builtin_comparison_intervals(
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         _ => return None,
     };
-    let left = bounds(program, machine.symbol, Some(state), binary.left)?;
-    let right = bounds(program, machine.symbol, Some(state), binary.right)?;
+    let left = bounds(program, machine.symbol, Some(state), binary.left, false)?;
+    let right = bounds(program, machine.symbol, Some(state), binary.right, false)?;
     typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
         machine.symbol,
@@ -173,6 +201,10 @@ fn bounds(
     machine: SymbolHandle,
     state: Option<&State>,
     expression: ExpressionHandle,
+    // When true, a mutable parameter contributes its declared storage bounds:
+    // every store maintains them, so the interval holds at every evaluation.
+    // When false, mutable places are opaque, as a snapshot-free read requires.
+    declared_mutable_leaves: bool,
 ) -> Option<Bounds> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
@@ -199,14 +231,17 @@ fn bounds(
                 .state_parameters(state?)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;
-            if parameter.is_self || parameter.is_mutable || parameter.is_const {
+            if parameter.is_self
+                || parameter.is_const
+                || (parameter.is_mutable && !declared_mutable_leaves)
+            {
                 return None;
             }
             type_bounds(program, parameter.type_reference)
         }
         ExpressionNode::Member(_) => type_bounds(
             program,
-            fields::type_reference(program, state?, expression)?,
+            fields::type_reference(program, state?, expression, declared_mutable_leaves)?,
         ),
         ExpressionNode::Binary(binary) => {
             let spelling = match binary.operator {
@@ -217,8 +252,20 @@ fn bounds(
                 BinaryOperator::Modulo => OperatorSpelling::Modulo,
                 _ => return None,
             };
-            let left = bounds(program, machine, state, binary.left)?;
-            let right = bounds(program, machine, state, binary.right)?;
+            let left = bounds(
+                program,
+                machine,
+                state,
+                binary.left,
+                declared_mutable_leaves,
+            )?;
+            let right = bounds(
+                program,
+                machine,
+                state,
+                binary.right,
+                declared_mutable_leaves,
+            )?;
             // A context-free endpoint has no owning specialization to select.
             // Retained late-bound occurrences may still acquire a trait meaning.
             // ponytail: veto any matching specialization until endpoints carry

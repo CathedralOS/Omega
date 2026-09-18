@@ -68,7 +68,10 @@ pub(crate) use integer_ranges::{
     validate_value_range,
 };
 pub(crate) use interval::Interval;
-pub use invariant_bounds::{enforced_integer_type_bounds, immutable_integer_expression_bounds};
+pub use invariant_bounds::{
+    declared_integer_expression_lands, enforced_integer_type_bounds,
+    immutable_integer_expression_bounds,
+};
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
 pub(crate) use operand_reports::{
     is_arithmetic, report_mismatched_width_operands, report_out_of_range_comparison_literal,

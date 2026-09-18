@@ -317,15 +317,14 @@ fn prove_edge(
     let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
         return None;
     };
-    // A field-view endpoint that is not statically formed still owes a
-    // carrier-landing proof under this edge's installed hypotheses; it is
-    // deferred, not rejected, until that engine exists below.
+    // An endpoint that is not statically formed still owes a carrier-landing
+    // proof under this edge's installed hypotheses; it is deferred, not
+    // rejected, until that engine exists below. Every measure owes it: the
+    // range reads the produced rank, whatever view produced it.
     let mut deferred_endpoints = Vec::new();
-    if field_rank.is_some() {
-        for endpoint in [range.start, range.end] {
-            if !fields::endpoint_statically_formed(program, machine, root, endpoint) {
-                deferred_endpoints.push(endpoint);
-            }
+    for endpoint in [range.start, range.end] {
+        if !fields::endpoint_statically_formed(program, machine, root, endpoint) {
+            deferred_endpoints.push(endpoint);
         }
     }
     let admit_template = |expression| meanings::builtin(program, machine, root, expression, 0);
@@ -560,8 +559,8 @@ fn prove_edge(
     // A computed endpoint that declaration bounds alone could not place still
     // owes its carrier landing under this edge's hypotheses: a requires or
     // constrained-parameter fact that bounds a leaf reaches the produced
-    // polynomial where the declaration-interval owner saw only the field's
-    // store range. Dead edges stay vacuous; a live edge that cannot land its
+    // polynomial where the declaration-interval owner saw only the leaves'
+    // store ranges. Dead edges stay vacuous; a live edge that cannot land its
     // endpoint has no defined range to read.
     if !engine.requires_unsatisfiable {
         for endpoint in &deferred_endpoints {

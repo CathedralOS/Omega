@@ -189,7 +189,7 @@ fn computed_arrivals_transport_the_unique_authored_rank_subject() {
 #[test]
 fn computed_increasing_arrivals_preserve_reordered_bound_slots() {
     let source = r#"
-        machine climb(limit: u64, index: u64)
+        machine climb(limit: u64 [0..=10], index: u64)
         requires index <= limit;
         terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
         -> u64 {

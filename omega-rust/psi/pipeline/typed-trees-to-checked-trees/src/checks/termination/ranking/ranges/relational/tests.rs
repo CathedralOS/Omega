@@ -29,7 +29,7 @@ fn reject(source: &str) {
 }
 
 const SCRATCH_CURSOR: &str = r#"
-machine walk(index: u64, limit: u64, mut count: u64)
+machine walk(index: u64, limit: u64 [0..=10], mut count: u64)
 requires index <= limit;
 terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
 -> u64 {
@@ -58,7 +58,7 @@ fn root_prefix_store_into_a_premise_carrier_still_invalidates_the_ranking() {
     );
     reject(
         &SCRATCH_CURSOR
-            .replace("limit: u64,", "mut limit: u64,")
+            .replace("limit: u64 [0..=10],", "mut limit: u64 [0..=10],")
             .replace("count = index;", "limit = limit;"),
     );
     // A requires fact promotes its scratch input to a premise carrier.

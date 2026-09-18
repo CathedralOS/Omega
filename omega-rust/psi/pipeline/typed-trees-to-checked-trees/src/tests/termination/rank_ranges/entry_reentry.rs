@@ -111,7 +111,7 @@ fn nonreentered_entry_retains_its_initial_precision() {
 #[test]
 fn entry_reentry_preserves_reordered_increasing_bounds() {
     let source = r#"
-        machine climb(limit: u64, index: u64)
+        machine climb(limit: u64 [0..=10], index: u64)
         requires index <= limit;
         terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
         -> u64 {
@@ -119,7 +119,7 @@ fn entry_reentry_preserves_reordered_increasing_bounds() {
                 true -> step(index + 1, limit)
                 false -> index
             }
-            state step(cursor: u64, ceiling: u64) {
+            state step(cursor: u64, ceiling: u64 [0..=10]) {
                 transition cursor < ceiling {
                     true -> climb(ceiling, cursor + 1)
                     false -> cursor
