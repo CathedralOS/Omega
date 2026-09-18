@@ -6,9 +6,10 @@ use crate::executable_publication::{
     ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
     executable_installation_evidence_digest, native_publication_certificate_digest,
     native_publication_evidence_digest, publish_exact_executable_bytes, publish_exact_file_bytes,
-    remove_stale_companion, validate_psi_pair,
+    remove_stale_companion, validate_native_pair, validate_psi_pair,
 };
 use crate::package;
+use crate::pcc::build_native_proof_sidecar;
 use crate::{
     FinalRealizationEvidenceError, OptimizationRollbackReceipt, PccPublicationReceipt,
     ProductionArtifactIdentity, ProductionCompilationManifest, ProductionCompilationSubject,
@@ -171,7 +172,7 @@ impl CompileReport {
     /// request route.
     ///
     /// A selected macOS GUI product instead installs one complete `.app`
-    /// package whose staged tree includes the requested Psi pair beside the
+    /// package whose staged tree includes the requested pairs beside the
     /// inner executable. On the flat route an unrequested pair cannot be left
     /// behind: a previous publication's `.psi`/`.proof` companions are removed
     /// before new executable bytes install, so no stale sidecar is ever
@@ -188,18 +189,6 @@ impl CompileReport {
             return Err(
                 "native publication requires exactly one retained native artifact".to_owned(),
             );
-        }
-        // Do not publish a partial pair or replace existing output when the
-        // requested native assurance has no standalone checking profile.
-        if self.pcc_requests.native {
-            let outcome = terminal_codec::PccVerificationOutcome::Incomplete(
-                terminal_codec::PccIncompleteness::UnsupportedEvidence {
-                    product: terminal_codec::PccProductKind::Native,
-                },
-            );
-            return Err(format!(
-                "native PCC publication is {outcome:?}: standalone native semantics and correspondence evidence are not implemented"
-            ));
         }
         let artifact = self.retained_native_artifact.as_ref().ok_or_else(|| {
             "native publication requires exactly one retained native artifact".to_owned()
@@ -234,6 +223,26 @@ impl CompileReport {
             function_validation.evidence_report_fingerprint();
         let boundary_contract_report_fingerprint =
             function_validation.boundary_contract_report_fingerprint;
+
+        // A requested native pair is built and self-checked before any byte
+        // is installed: the placed-image evidence must decode canonically and
+        // replay against the exact bytes about to be published under a
+        // self-consistent policy, so a pair that cannot carry its bounded
+        // claim never produces a certified-looking install. The behavioral
+        // remainder of a native claim still reports `Incomplete` to receivers;
+        // that is the honest ceiling of the shipped evidence, and `Reject`
+        // here would be a producer defect rather than a publishable pair.
+        let native_sidecar_bytes = if self.pcc_requests.native {
+            let sidecar = build_native_proof_sidecar(
+                artifact,
+                &self.terminal_admission_profile,
+                &output.bytes,
+            )?;
+            validate_native_pair(&output.bytes, &sidecar, &self.terminal_admission_profile)?;
+            Some(sidecar.to_bytes())
+        } else {
+            None
+        };
 
         std::fs::create_dir_all(build_dir).map_err(|error| {
             format!(
@@ -292,6 +301,22 @@ impl CompileReport {
                     sidecar_byte_len: psi_sidecar_bytes.len() as u64,
                 });
             }
+            // The native companion sits beside the inner executable as
+            // `Contents/MacOS/<name>.proof`; the staged rename makes its
+            // install atomic with the executable it commits to.
+            if let Some(native_sidecar_bytes) = &native_sidecar_bytes {
+                companions.push((".proof".to_owned(), native_sidecar_bytes.clone()));
+                let package_root = build_dir.join(format!("{application_name}.app"));
+                let macos_dir = std::path::Path::new("Contents").join("MacOS");
+                pcc_publications.push(PccPublicationReceipt {
+                    product: terminal_codec::PccProductKind::Native,
+                    artifact_path: package_root.join(macos_dir.join(&application_name)),
+                    artifact_byte_len: output.bytes.len() as u64,
+                    sidecar_path: package_root
+                        .join(macos_dir.join(format!("{application_name}.proof"))),
+                    sidecar_byte_len: native_sidecar_bytes.len() as u64,
+                });
+            }
             let receipt = package::publish_macos_application_package(
                 build_dir,
                 &application_name,
@@ -342,6 +367,21 @@ impl CompileReport {
                 let psi_path = appended_file_name_path(&output_path, ".psi");
                 remove_stale_companion(&appended_file_name_path(&psi_path, ".proof"))?;
                 remove_stale_companion(&psi_path)?;
+            }
+            if let Some(native_sidecar_bytes) = &native_sidecar_bytes {
+                let native_sidecar_path = appended_file_name_path(&output_path, ".proof");
+                publish_exact_file_bytes(&native_sidecar_path, native_sidecar_bytes)?;
+                pcc_publications.push(PccPublicationReceipt {
+                    product: terminal_codec::PccProductKind::Native,
+                    artifact_path: output_path.clone(),
+                    artifact_byte_len: output.bytes.len() as u64,
+                    sidecar_path: native_sidecar_path,
+                    sidecar_byte_len: native_sidecar_bytes.len() as u64,
+                });
+            } else {
+                // An earlier native-PCC publication's sidecar must not
+                // survive beside executable bytes it does not commit to.
+                remove_stale_companion(&appended_file_name_path(&output_path, ".proof"))?;
             }
             publish_exact_executable_bytes(&output_path, &output.bytes)?;
             output_path

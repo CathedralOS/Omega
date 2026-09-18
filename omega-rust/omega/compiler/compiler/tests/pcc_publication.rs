@@ -1,16 +1,21 @@
 //! End-to-end bounded proof-carrying product coverage.
 //!
 //! The normalized root Build's two independent off-by-default requests
-//! retain Psi proof pairs and report unsupported native proof requests —
-//! never an embedded section, never a different pipeline. Publication
-//! validates every requested pair before reporting success, and receivers
-//! independently verify the pair against their own pinned policy rather
-//! than trusting adjacency, filenames or producer hints.
+//! retain Psi proof pairs and bounded native proof pairs — never an embedded
+//! section, never a different pipeline. The native sidecar carries real
+//! placed-image evidence the receiver replays against the exact executable
+//! bytes; the behavioral remainder of a native claim still reports
+//! `Incomplete`. Publication validates every requested pair before reporting
+//! success, and receivers independently verify the pair against their own
+//! pinned policy rather than trusting adjacency, filenames or producer hints.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use compilation_report::{verify_native_proof_sidecar, verify_published_proof_pair};
+use compilation_report::{
+    NATIVE_PLACED_IMAGE_COVERAGE_GUARANTEE, NativePlacedImageEvidence, verify_native_proof_sidecar,
+    verify_published_proof_pair,
+};
 use compiler::{CompileOptions, CompileOutcomes, CompileRequest, RequestedCompileProduct, compile};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{
@@ -154,6 +159,10 @@ fn write_project_source(main: &str, pcc_lines: &str) -> PathBuf {
 const GUI_MAIN: &str = "data Main { }\nmachine Main::main() { }\n";
 
 fn write_gui_project() -> PathBuf {
+    write_gui_project_with("    builder.pcc.psi = true;\n")
+}
+
+fn write_gui_project_with(pcc_lines: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
         "omega-pcc-gui-e2e-{}-{}",
         std::process::id(),
@@ -166,7 +175,9 @@ fn write_gui_project() -> PathBuf {
     fs::write(dir.join("main.omg"), GUI_MAIN).expect("write main.omg");
     fs::write(
         dir.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"pcc-gui\");\n    builder.subsystem = Subsystem::Gui;\n    builder.identifier = \"com.omega.pcc-gui\";\n    builder.pcc.psi = true;\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}\n",
+        format!(
+            "machine build(builder: &mut Build) {{\n    builder.application(\"pcc-gui\");\n    builder.subsystem = Subsystem::Gui;\n    builder.identifier = \"com.omega.pcc-gui\";\n{pcc_lines}    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n"
+        ),
     )
     .expect("write build.omg");
     dir
@@ -240,21 +251,83 @@ fn no_pcc_requests_publish_ordinary_output_only() {
 }
 
 #[test]
-fn native_pcc_is_incomplete_before_publication() {
+fn native_pcc_publishes_the_bounded_native_pair() {
+    // A native-only request installs the executable plus its `.proof`
+    // companion carrying real placed-image evidence. The pair checks
+    // standalone against the receiver's pinned policy: the coverage leg
+    // replays byte-for-byte and the behavioral remainder honestly reports
+    // `Incomplete` rather than a custody digest standing in for assurance.
     let dir = write_project("    builder.pcc.native = true;\n");
     let out = dir.join("out");
     let report = compile_native(&dir);
     assert!(report.pcc_requests().native && !report.pcc_requests().psi);
-    let failure = report
+    let published = report
         .publish_retained_native_artifact(&out)
-        .expect_err("native PCC requires unavailable native semantics evidence");
-    assert!(
-        failure.contains("Incomplete(UnsupportedEvidence { product: Native })"),
-        "{failure}"
+        .expect("native pcc publication");
+    let [pair] = published.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    assert_eq!(pair.product, PccProductKind::Native);
+    let executable_path = published
+        .checked_native_executable_path()
+        .expect("executable")
+        .to_path_buf();
+    assert_eq!(pair.artifact_path, executable_path);
+    assert_eq!(
+        pair.sidecar_path,
+        executable_path.with_file_name(format!(
+            "{}.proof",
+            executable_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("executable name")
+        ))
     );
-    assert!(
-        !out.exists(),
-        "unsupported publication must not create output"
+    assert_eq!(
+        pair.artifact_byte_len,
+        fs::metadata(&pair.artifact_path)
+            .expect("artifact metadata")
+            .len()
+    );
+    assert_eq!(
+        pair.sidecar_byte_len,
+        fs::metadata(&pair.sidecar_path)
+            .expect("sidecar metadata")
+            .len()
+    );
+    assert_ne!(pair.artifact_byte_len, pair.sidecar_byte_len);
+
+    let executable = read(&pair.artifact_path);
+    let proof = read(&pair.sidecar_path);
+    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode sidecar");
+    assert_eq!(sidecar.product(), PccProductKind::Native);
+    assert_eq!(
+        sidecar
+            .guarantees()
+            .iter()
+            .map(|g| g.identity.as_str())
+            .collect::<Vec<_>>(),
+        [NATIVE_PLACED_IMAGE_COVERAGE_GUARANTEE],
+        "the bounded sidecar offers only the coverage claim it can discharge"
+    );
+
+    // The evidence section is real checkable material: it decodes
+    // canonically and replays its declared extent and inventory against the
+    // exact installed bytes.
+    let evidence = NativePlacedImageEvidence::from_bytes(sidecar.evidence())
+        .expect("the published evidence decodes");
+    evidence
+        .replay_against(&executable)
+        .expect("the published evidence replays against the installed bytes");
+
+    // Standalone receiver checking from bytes alone: the verified coverage
+    // leg still ends in an honest Incomplete on the behavioral remainder.
+    let policy = receiver_policy(&sidecar);
+    assert_eq!(
+        verify_published_proof_pair(&executable, &proof, &policy),
+        PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+            product: PccProductKind::Native,
+        })
     );
     let _ = fs::remove_dir_all(&dir);
 }
@@ -309,21 +382,56 @@ fn psi_pcc_publishes_the_psi_pair_during_native_compilation() {
 }
 
 #[test]
-fn both_requests_are_incomplete_without_partial_publication() {
+fn both_requests_publish_both_pairs() {
+    // A both-product request installs the executable, its native `.proof`
+    // companion and the retained Psi pair — two receipts with separate byte
+    // sizes each, all staged and validated before the install reports.
     let dir = write_project("    builder.pcc.psi = true;\n    builder.pcc.native = true;\n");
     let out = dir.join("out");
     fs::create_dir_all(&out).expect("output directory");
     let previous = out.join("previous-output");
     fs::write(&previous, b"retained output").expect("previous output");
-    let failure = compile_native(&dir)
+    let published = compile_native(&dir)
         .publish_retained_native_artifact(&out)
-        .expect_err("both requests cannot complete while native PCC is unsupported");
-    assert!(
-        failure.contains("Incomplete(UnsupportedEvidence { product: Native })"),
-        "{failure}"
-    );
+        .expect("both-request publication");
+    let [psi_pair, native_pair] = published.pcc_publications() else {
+        panic!("expected the psi pair then the native pair")
+    };
+    assert_eq!(psi_pair.product, PccProductKind::Psi);
+    assert_eq!(native_pair.product, PccProductKind::Native);
+
+    let executable_path = published
+        .checked_native_executable_path()
+        .expect("executable")
+        .to_path_buf();
+    assert_eq!(native_pair.artifact_path, executable_path);
+    assert!(psi_pair.artifact_path.is_file() && psi_pair.sidecar_path.is_file());
+    assert!(native_pair.sidecar_path.is_file());
     assert_eq!(read(&previous), b"retained output");
-    assert_eq!(fs::read_dir(&out).expect("output directory").count(), 1);
+
+    let executable = read(&native_pair.artifact_path);
+    let native_proof = read(&native_pair.sidecar_path);
+    let native_sidecar = PccProofSidecar::from_bytes(&native_proof).expect("decode native sidecar");
+    assert_eq!(
+        verify_published_proof_pair(
+            &executable,
+            &native_proof,
+            &receiver_policy(&native_sidecar)
+        ),
+        PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+            product: PccProductKind::Native,
+        })
+    );
+
+    let psi = read(&psi_pair.artifact_path);
+    let psi_proof = read(&psi_pair.sidecar_path);
+    let psi_sidecar = PccProofSidecar::from_bytes(&psi_proof).expect("decode psi sidecar");
+    let mut psi_policy = receiver_policy(&psi_sidecar);
+    psi_policy.possessed_dependencies = psi_sidecar.dependencies().to_vec();
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &psi_proof, &psi_policy),
+        PccVerificationOutcome::Complete(_)
+    ));
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -577,6 +685,88 @@ fn macos_gui_psi_pcc_installs_the_inner_sidecar_pair() {
         }
         other => panic!("expected a complete verified inner pair, got {other:?}"),
     }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn macos_gui_native_pcc_installs_the_inner_sidecar() {
+    // Real bundle placement for the native pair: the sidecar sits beside the
+    // inner `Contents/MacOS/<executable>` as `<name>.proof`, and the receipt
+    // names the installed executable and companion with separate byte sizes.
+    let dir = write_gui_project_with("    builder.pcc.native = true;\n");
+    let out = dir.join("out");
+    let published = compile(compile_request_for(
+        &dir,
+        "macos_arm64",
+        RequestedCompileProduct::NativeArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("macOS GUI compilation")
+    .publish_retained_native_artifact(&out)
+    .expect("gui publication installs one .app package");
+    let package_root = published
+        .checked_native_package_path()
+        .expect("checked package root")
+        .to_path_buf();
+    let macos_dir = package_root.join("Contents").join("MacOS");
+    let [pair] = published.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    assert_eq!(pair.product, PccProductKind::Native);
+    assert_eq!(pair.artifact_path, macos_dir.join("pcc-gui"));
+    assert_eq!(pair.sidecar_path, macos_dir.join("pcc-gui.proof"));
+    assert_eq!(
+        pair.artifact_byte_len,
+        fs::metadata(&pair.artifact_path)
+            .expect("artifact metadata")
+            .len()
+    );
+    assert_eq!(
+        pair.sidecar_byte_len,
+        fs::metadata(&pair.sidecar_path)
+            .expect("sidecar metadata")
+            .len()
+    );
+
+    // The installed inner pair checks standalone: evidence replays against
+    // the exact inner executable bytes, verdict honestly Incomplete.
+    let executable = read(&pair.artifact_path);
+    let proof = read(&pair.sidecar_path);
+    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode sidecar");
+    NativePlacedImageEvidence::from_bytes(sidecar.evidence())
+        .expect("the published evidence decodes")
+        .replay_against(&executable)
+        .expect("the evidence replays against the inner executable");
+    assert_eq!(
+        verify_published_proof_pair(&executable, &proof, &receiver_policy(&sidecar)),
+        PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+            product: PccProductKind::Native,
+        })
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn republishing_without_native_pcc_removes_the_stale_sidecar() {
+    // Turning the native request off and publishing again must not leave the
+    // earlier `<exe>.proof` bound to bytes it does not commit to.
+    let dir = write_project("    builder.pcc.native = true;\n");
+    let out = dir.join("out");
+    let published = compile_native(&dir)
+        .publish_retained_native_artifact(&out)
+        .expect("native pcc publication");
+    let stale_proof = published.pcc_publications()[0].sidecar_path.clone();
+    assert!(stale_proof.is_file());
+
+    fs::write(dir.join("build.omg"), build_source("")).expect("rewrite build.omg");
+    let republished = compile_native(&dir)
+        .publish_retained_native_artifact(&out)
+        .expect("ordinary publication");
+    assert!(republished.pcc_publications().is_empty());
+    assert!(
+        !stale_proof.exists(),
+        "stale .proof must not survive beside new executable bytes"
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -981,34 +1171,124 @@ fn native_pair_checking_needs_no_source_or_psi() {
     // A native receiver holds only the executable bytes, its `.proof`
     // companion, and its own pinned policy. Source and the Psi artifact are
     // producer-side material; deleting them before verification changes
-    // nothing, and recomputed producer custody still cannot complete.
-    let dir = write_project("    builder.pcc.psi = true;\n");
+    // nothing: the real published pair replays its coverage leg and reports
+    // the honest bounded verdict.
+    let dir = write_project("    builder.pcc.psi = true;\n    builder.pcc.native = true;\n");
     let out = dir.join("out");
     let published = compile_native(&dir)
         .publish_retained_native_artifact(&out)
-        .expect("psi pcc publication");
-    let psi = read(&published.pcc_publications()[0].artifact_path);
-    let executable = published
+        .expect("both-request publication");
+    let mut psi_artifact_path = None;
+    let mut native_proof_path = None;
+    for pair in published.pcc_publications() {
+        match pair.product {
+            PccProductKind::Psi => psi_artifact_path = Some(pair.artifact_path.clone()),
+            PccProductKind::Native => native_proof_path = Some(pair.sidecar_path.clone()),
+        }
+    }
+    let psi_path = psi_artifact_path.expect("the psi pair was published");
+    let native_proof_path = native_proof_path.expect("the native pair was published");
+    let executable_path = published
         .checked_native_executable_path()
         .expect("executable")
         .to_path_buf();
-    let executable_bytes = read(&executable);
+    let executable = read(&executable_path);
+    let proof = read(&native_proof_path);
+    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode sidecar");
+    let policy = receiver_policy(&sidecar);
 
     fs::remove_file(dir.join("main.omg")).expect("delete source");
     fs::remove_file(dir.join("build.omg")).expect("delete build");
-    fs::remove_file(&published.pcc_publications()[0].artifact_path).expect("delete psi companion");
+    fs::remove_file(&psi_path).expect("delete psi artifact");
+    fs::remove_file(psi_path.with_file_name(format!(
+        "{}.proof",
+        psi_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("psi name")
+    )))
+    .expect("delete psi sidecar");
 
-    let sidecar = forged_native_sidecar(&psi, &executable_bytes);
+    // Standalone checking from the pair alone: the real verdict — coverage
+    // replayed, behavioral remainder unproved — is identical without source
+    // or Psi material.
     assert_eq!(
-        verify_native_proof_sidecar(
-            &executable_bytes,
-            &sidecar.to_bytes(),
-            &receiver_policy(&sidecar)
-        ),
+        verify_published_proof_pair(&executable, &proof, &policy),
         PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
             product: PccProductKind::Native
         })
     );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_tampered_native_pair_rejects_from_bytes() {
+    // The published pair fails closed in both directions: executable bytes
+    // the sidecar does not commit to reject at the content commitment, and a
+    // sidecar whose evidence stops replaying against the committed bytes
+    // rejects by name — never downgrading to custody.
+    let dir = write_project("    builder.pcc.native = true;\n");
+    let out = dir.join("out");
+    let published = compile_native(&dir)
+        .publish_retained_native_artifact(&out)
+        .expect("native pcc publication");
+    let [pair] = published.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    let executable = read(&pair.artifact_path);
+    let proof = read(&pair.sidecar_path);
+    let sidecar = PccProofSidecar::from_bytes(&proof).expect("decode sidecar");
+    let policy = receiver_policy(&sidecar);
+
+    let mut appended = executable.clone();
+    appended.push(0);
+    assert!(matches!(
+        verify_published_proof_pair(&appended, &proof, &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "artifact bytes"
+    ));
+
+    // Corrupt one evidence byte inside an otherwise-canonical envelope: the
+    // section no longer decodes canonically and rejects as invalid evidence.
+    let mut corrupted = sidecar.evidence().to_vec();
+    let last = corrupted.last_mut().expect("non-empty evidence");
+    *last ^= 0xff;
+    let corrupted = rebuild_sidecar(
+        &sidecar,
+        sidecar.product(),
+        *sidecar.artifact_commitment(),
+        sidecar.guarantees().to_vec(),
+        corrupted,
+        sidecar.assumptions().to_vec(),
+        sidecar.dependencies().to_vec(),
+    );
+    assert!(matches!(
+        verify_published_proof_pair(&executable, &corrupted.to_bytes(), &policy),
+        PccVerificationOutcome::Reject(ref r)
+            if r.subject == "native evidence" || r.subject == "native executable inventory"
+    ));
+
+    // Recomputing the artifact commitment over different bytes so the
+    // tampered bytes pass claim checking still fails at evidence replay: a
+    // byte flipped inside the declared text extent no longer carries the
+    // inventory's committed digest.
+    let evidence =
+        NativePlacedImageEvidence::from_bytes(sidecar.evidence()).expect("decode evidence");
+    let mut tampered = executable.clone();
+    let inside = usize::try_from(evidence.text_file_offset()).expect("extent offset");
+    tampered[inside] ^= 0xff;
+    let rebound = rebuild_sidecar(
+        &sidecar,
+        sidecar.product(),
+        terminal_codec::pcc_artifact_commitment(&tampered),
+        sidecar.guarantees().to_vec(),
+        sidecar.evidence().to_vec(),
+        sidecar.assumptions().to_vec(),
+        sidecar.dependencies().to_vec(),
+    );
+    assert!(matches!(
+        verify_published_proof_pair(&tampered, &rebound.to_bytes(), &policy),
+        PccVerificationOutcome::Reject(ref r) if r.subject == "native executable inventory"
+    ));
     let _ = fs::remove_dir_all(&dir);
 }
 
