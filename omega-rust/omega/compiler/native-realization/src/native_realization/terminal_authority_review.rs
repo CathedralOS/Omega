@@ -14,13 +14,18 @@ use crate::native_realization::providers::AdmittedTerminalMechanism;
 use context::ReviewContext;
 use reviewer::Reviewer;
 
+/// Review the selected-provider closure's terminal leaves. `permission_policy`
+/// is the receiver-admission axis: `Some` adjudicates every leaf against one
+/// exact supplied row and binds that policy identity into the receipt; `None`
+/// records physical classification and exercised authority only and produces a
+/// receipt that carries no receiver-admission claim.
 pub(crate) fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
     target_profile: target::TargetProfile,
     plan: &AbstractOperationPlan,
     selected: &SelectedProviderPlanFacts,
     physical_policy: &TerminalAuthorityPolicy,
-    permission_policy: &TerminalAuthorityPermissionPolicy,
+    permission_policy: Option<&TerminalAuthorityPermissionPolicy>,
     mechanisms: &[AdmittedTerminalMechanism],
     installed_candidates: &[terminal_psi::ProviderCandidateConformance],
 ) -> Result<TerminalAuthorityClosureReviewReceipt, String> {
@@ -49,7 +54,7 @@ pub(crate) fn review_terminal_authority_closure(
         target_profile.native_target(),
         selected.identity_digest(),
         physical_policy.identity(),
-        permission_policy.identity(),
+        permission_policy.map(|policy| policy.identity()),
         reviewer.into_leaves(),
     )
     .map_err(|error| format!("terminal-authority review receipt rejected: {error:?}"))

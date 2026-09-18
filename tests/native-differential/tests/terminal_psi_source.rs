@@ -194,7 +194,7 @@ fn stage_terminal_component_with_policies(
             image_request: image_emission::ExecutableImageEmissionRequest::direct(subsystem),
             profile,
             terminal_authority_policy,
-            terminal_authority_permission_policy,
+            terminal_authority_permission_policy: Some(terminal_authority_permission_policy),
             program_entry: native_realization::NativeProgramEntrySettlement::new(
                 selected_program_entry.source_signature(),
                 selected_program_entry.calling_plans().map(|plans| {

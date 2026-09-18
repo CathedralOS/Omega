@@ -7,7 +7,7 @@ use super::{
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 use sha2::{Digest, Sha256};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v6\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v7\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) terminal_artifact_identity: [u8; 32],
@@ -33,7 +33,7 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) provider_executions: &'a [NativeProviderExecution],
     pub(super) terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     pub(super) terminal_authority_permission_policy_identity:
-        TerminalAuthorityPermissionPolicyIdentity,
+        Option<TerminalAuthorityPermissionPolicyIdentity>,
     pub(super) terminal_authority_closure_review_identity: [u8; 32],
     pub(super) boundary_application_coverage_identity: Option<[u8; 32]>,
     pub(super) physical_evidence_scope: &'a NativePhysicalEvidenceScope,
@@ -122,17 +122,16 @@ pub(super) fn derive_native_artifact_identity(
             .to_le_bytes(),
     );
     digest.update(fields.terminal_authority_policy_identity.commitment());
-    digest.update(
-        fields
-            .terminal_authority_permission_policy_identity
-            .version()
-            .to_le_bytes(),
-    );
-    digest.update(
-        fields
-            .terminal_authority_permission_policy_identity
-            .commitment(),
-    );
+    // A missing receiver-admission axis is a distinct identity input, never an
+    // alias for an empty or populated permission policy.
+    match fields.terminal_authority_permission_policy_identity {
+        None => digest.update([0]),
+        Some(permission_policy_identity) => {
+            digest.update([1]);
+            digest.update(permission_policy_identity.version().to_le_bytes());
+            digest.update(permission_policy_identity.commitment());
+        }
+    }
     digest.update(fields.terminal_authority_closure_review_identity);
     hash_optional_digest(&mut digest, fields.boundary_application_coverage_identity);
     match fields.physical_evidence_scope {

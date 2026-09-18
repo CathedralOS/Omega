@@ -3,16 +3,23 @@ use checked_compilation_to_terminal_artifact::ProgramEntryTerminalArtifact;
 use diagnostics::Diagnostic;
 use optimization_core::PostTerminalOptimizationSelections;
 
+/// Rejoin the checked compilation's package-approved terminal permissions.
+///
+/// The package-permission custody scan always runs. The receiver join runs
+/// only when a receiving permission policy was explicitly supplied; `None`
+/// means this production makes no receiver-admission claim and never
+/// fabricates receiver rows from accepted package evidence.
 pub(super) fn validate_terminal_authority_permissions(
     checked: &CheckedCompilation,
-    terminal_authority_permission_policy: &crate::TerminalAuthorityPermissionPolicy,
+    terminal_authority_permission_policy: Option<&crate::TerminalAuthorityPermissionPolicy>,
 ) -> Result<(), Vec<Diagnostic>> {
-    crate::validate_package_terminal_authority_permissions(
-        checked
-            .resolved_semantic_bindings()
-            .flat_map(|binding| binding.terminal_authority_permissions()),
-        terminal_authority_permission_policy,
-    )
+    let permissions = checked
+        .resolved_semantic_bindings()
+        .flat_map(|binding| binding.terminal_authority_permissions());
+    match terminal_authority_permission_policy {
+        Some(policy) => crate::validate_package_terminal_authority_permissions(permissions, policy),
+        None => crate::validate_package_terminal_authority_permission_custody(permissions),
+    }
 }
 
 pub(super) fn realize(
@@ -20,7 +27,7 @@ pub(super) fn realize(
     admission: &super::admission::NativeCompilationAdmission,
     profile: &proof_admission::AdmissionProfile,
     terminal_authority_policy: crate::TerminalAuthorityPolicy,
-    terminal_authority_permission_policy: crate::TerminalAuthorityPermissionPolicy,
+    terminal_authority_permission_policy: Option<crate::TerminalAuthorityPermissionPolicy>,
     optimization_selections: &PostTerminalOptimizationSelections,
     prepared_terminal: ProgramEntryTerminalArtifact,
     prepared_input: &crate::PreparedNativeRealizationInput,
@@ -281,6 +288,30 @@ mod tests {
             &exact,
         )
         .expect_err("cross-binding duplicate must reject");
+        assert!(diagnostics[0].message.contains("repeat"));
+    }
+
+    #[test]
+    fn custody_scan_without_receiving_policy_keeps_package_rows_unclaimed() {
+        let binding = accepted_binding();
+        assert!(
+            crate::validate_package_terminal_authority_permission_custody(
+                binding.terminal_authority_permissions().iter(),
+            )
+            .is_ok(),
+            "ordinary production with no receiving policy retains package custody",
+        );
+
+        // Custody without a receiving policy is not deny-all: the accepted
+        // package row stands on its own and is not compared against any
+        // receiver rows.
+        let second = binding.clone();
+        let diagnostics = crate::validate_package_terminal_authority_permission_custody(
+            [&binding, &second]
+                .into_iter()
+                .flat_map(|binding| binding.terminal_authority_permissions()),
+        )
+        .expect_err("custody-only scan still rejects repeated coordinates");
         assert!(diagnostics[0].message.contains("repeat"));
     }
 }

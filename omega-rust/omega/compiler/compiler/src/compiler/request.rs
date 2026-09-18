@@ -38,8 +38,13 @@ pub struct TargetCompileConfiguration {
     build_dir: Option<PathBuf>,
     pub(super) terminal_admission_profile: proof_admission::AdmissionProfile,
     terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
+    /// The receiver-admission axis, supplied only by an explicit
+    /// `with_terminal_authority_permission_policy` call. `None` means this
+    /// production makes no receiver-admission claim: accepted package
+    /// permissions are never projected into receiver rows, and the emitted
+    /// artifact cannot satisfy an explicit admission replay.
     pub(super) terminal_authority_permission_policy:
-        native_realization::TerminalAuthorityPermissionPolicy,
+        Option<native_realization::TerminalAuthorityPermissionPolicy>,
     accepted_trust_admissions: Vec<trust_model::TrustAdmission>,
     package_target_inputs: PackageCompilationTargetInputs,
     pub(super) optimization_rollback: OptimizationRollback,
@@ -56,8 +61,10 @@ impl TargetCompileConfiguration {
             build_dir,
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
-            terminal_authority_permission_policy:
-                native_realization::current_terminal_authority_permission_policy(),
+            // Ordinary production supplies no receiving permission policy: the
+            // receiver-admission axis is claimed only by an explicit setter
+            // call, never by defaulting to an empty or fabricated policy.
+            terminal_authority_permission_policy: None,
             accepted_trust_admissions: Vec::new(),
             package_target_inputs: PackageCompilationTargetInputs::default(),
             optimization_rollback: OptimizationRollback::default(),
@@ -83,11 +90,14 @@ impl TargetCompileConfiguration {
         self.terminal_authority_policy = policy;
         self
     }
+    /// Supply an explicit receiving permission policy for this target. This is
+    /// the only way a configuration claims receiver admission; the policy is
+    /// adjudicated exactly as supplied, including an explicit empty policy.
     pub fn with_terminal_authority_permission_policy(
         mut self,
         policy: native_realization::TerminalAuthorityPermissionPolicy,
     ) -> Self {
-        self.terminal_authority_permission_policy = policy;
+        self.terminal_authority_permission_policy = Some(policy);
         self
     }
     pub fn with_accepted_trust_admissions(
@@ -188,12 +198,16 @@ impl CompileRequest {
         }
         self
     }
+    /// Supply an explicit receiving permission policy to every current
+    /// configuration. Distinct per-target policies belong on their
+    /// configurations; calling this is the only way a request claims receiver
+    /// admission.
     pub fn with_terminal_authority_permission_policy(
         mut self,
         policy: native_realization::TerminalAuthorityPermissionPolicy,
     ) -> Self {
         for configuration in &mut self.configurations {
-            configuration.terminal_authority_permission_policy = policy.clone();
+            configuration.terminal_authority_permission_policy = Some(policy.clone());
         }
         self
     }

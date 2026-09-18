@@ -203,7 +203,7 @@ fn publish(
         target,
         selected_digest,
         physical_policy.identity(),
-        permission_policy.identity(),
+        Some(permission_policy.identity()),
         Vec::new(),
     )
     .expect("exact empty authority closure for the source-produced primitive callee");
@@ -221,7 +221,7 @@ fn publish(
             selected_provider_plans: Vec::new(),
             provider_executions: Vec::new(),
             terminal_authority_policy_identity: physical_policy.identity(),
-            terminal_authority_permission_policy_identity: permission_policy.identity(),
+            terminal_authority_permission_policy_identity: Some(permission_policy.identity()),
             terminal_authority_closure_review: closure_review,
             boundary_application_coverage: None,
             // Ordinary fragment replay above retains physical translation evidence;

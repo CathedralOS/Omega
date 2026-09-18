@@ -381,8 +381,9 @@ fn float_match_native_publication_retains_both_selected_physical_children() {
                         native_realization::current_terminal_authority_policy(),
                     accepted_package_terminal_authority_permission_policy:
                         native_realization::current_terminal_authority_permission_policy(),
-                    terminal_authority_permission_policy:
+                    terminal_authority_permission_policy: Some(
                         native_realization::current_terminal_authority_permission_policy(),
+                    ),
                     image_request,
                     imports: &[],
                 },

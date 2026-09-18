@@ -515,8 +515,9 @@ machine Main::main(&mut self) {
                 terminal_authority_policy: native_realization::current_terminal_authority_policy(),
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy:
+                terminal_authority_permission_policy: Some(
                     native_realization::current_terminal_authority_permission_policy(),
+                ),
                 image_request,
                 imports: &[],
             },
@@ -680,8 +681,9 @@ machine Main::main(&mut self) {
                 terminal_authority_policy: native_realization::current_terminal_authority_policy(),
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy:
+                terminal_authority_permission_policy: Some(
                     native_realization::current_terminal_authority_permission_policy(),
+                ),
                 image_request,
                 imports: &[],
             },

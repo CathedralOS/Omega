@@ -38,7 +38,7 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy: permission_policy,
+                terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
                 imports: &[SourceEvaluatedImportSettlement::new(
                     &admission.execution,
@@ -157,7 +157,7 @@ machine Main::main(&mut self) reaches WindowsCalls {{
                     terminal_authority_policy: policy,
                     accepted_package_terminal_authority_permission_policy:
                         native_realization::current_terminal_authority_permission_policy(),
-                    terminal_authority_permission_policy: permission_policy,
+                    terminal_authority_permission_policy: Some(permission_policy),
                     image_request,
                     imports: &settlements,
                 },
@@ -241,7 +241,7 @@ fn windows_evaluated_u32_result_reaches_a_later_pe_import_through_exact_home_cus
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy: permission_policy,
+                terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
                 imports: &settlements,
             },
@@ -318,7 +318,7 @@ fn windows_evaluated_result_rejects_cross_wired_same_stack_custody() {
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy: permission_policy,
+                terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
                 imports: &cross_wired,
             },

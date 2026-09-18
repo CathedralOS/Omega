@@ -44,13 +44,20 @@ impl<'evidence> SourceEvaluatedImportSettlement<'evidence> {
 /// Policies do not establish package admission. Package orchestration must bind
 /// opaque accepted evidence to the retained production subject and derive the
 /// exact accepted-package policy before constructing this request.
+///
+/// `terminal_authority_permission_policy` is the receiver-admission axis and
+/// stays optional: `None` means this production makes no receiver-admission
+/// claim — accepted package rows are never silently projected into receiver
+/// permissions, and the emitted artifact cannot satisfy an explicit admission
+/// replay. `Some` (including an explicit empty policy) rejoins every accepted
+/// row and adjudicates every closure leaf against it.
 pub struct RetainedNativeRealizationRequest<'request> {
     pub profile: &'request proof_admission::AdmissionProfile,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
     pub terminal_authority_policy: crate::TerminalAuthorityPolicy,
     pub accepted_package_terminal_authority_permission_policy:
         crate::TerminalAuthorityPermissionPolicy,
-    pub terminal_authority_permission_policy: crate::TerminalAuthorityPermissionPolicy,
+    pub terminal_authority_permission_policy: Option<crate::TerminalAuthorityPermissionPolicy>,
     pub image_request: crate::ExecutableImageEmissionRequest,
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
 }
@@ -58,9 +65,11 @@ pub struct RetainedNativeRealizationRequest<'request> {
 /// Consume a retained Terminal product into the requested non-installing native
 /// carrier. Rejection returns the complete image input, including its interpreter.
 ///
-/// Package permissions must exactly match the retained proposal. Receiving
-/// permissions may add unrelated rows, but cannot omit or alter accepted rows.
-/// Imports are independently rejoined to their exact retained provider plans.
+/// Package permissions must exactly match the retained proposal. A supplied
+/// receiving policy may add unrelated rows, but cannot omit or alter accepted
+/// rows; when no receiving policy is supplied this production makes no
+/// receiver-admission claim at all. Imports are independently rejoined to
+/// their exact retained provider plans.
 pub fn realize_retained_native_artifact(
     retained: compilation_report::RetainedTerminalArtifact,
     request: RetainedNativeRealizationRequest<'_>,
@@ -153,12 +162,18 @@ pub fn realize_retained_native_artifact(
             proposal.package_terminal_authority_permissions(),
             &accepted_package_terminal_authority_permission_policy,
         )?;
-        crate::validate_package_terminal_authority_permissions(
-            accepted_package_terminal_authority_permission_policy
-                .rows()
-                .iter(),
-            &terminal_authority_permission_policy,
-        )?;
+        // The receiver-admission join runs only under an explicitly supplied
+        // receiving policy. `None` leaves the accepted package rows as package
+        // evidence only; they are never silently projected into receiver
+        // permissions.
+        if let Some(receiving_policy) = &terminal_authority_permission_policy {
+            crate::validate_package_terminal_authority_permissions(
+                accepted_package_terminal_authority_permission_policy
+                    .rows()
+                    .iter(),
+                receiving_policy,
+            )?;
+        }
         let native_callbacks =
             admitted_native_callbacks(&callback_placements, proposal.callback_occurrences())?;
         let callback_thunks =

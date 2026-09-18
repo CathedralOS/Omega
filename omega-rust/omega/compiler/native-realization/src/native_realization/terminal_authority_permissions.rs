@@ -20,12 +20,30 @@ pub fn validate_retained_package_terminal_authority_permissions(
     }
 }
 
+/// Package permission custody independent of any receiving policy: reject a
+/// repeated `(service schema, requirement)` coordinate across the checked
+/// compilation's resolved bindings. This runs even when no receiving policy
+/// was supplied; absence of a receiving policy is not a substitute for the
+/// package axis.
+pub fn validate_package_terminal_authority_permission_custody<'a>(
+    permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
+) -> Result<(), Vec<Diagnostic>> {
+    validate_permission_custody(permissions, None)
+}
+
 /// Rejoin every package-approved permission to the independently supplied
 /// receiving policy. The receiving policy may contain rows for other
 /// artifacts, but it may neither omit nor alter an approved row.
 pub fn validate_package_terminal_authority_permissions<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
     policy: &crate::TerminalAuthorityPermissionPolicy,
+) -> Result<(), Vec<Diagnostic>> {
+    validate_permission_custody(permissions, Some(policy))
+}
+
+fn validate_permission_custody<'a>(
+    permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
+    policy: Option<&crate::TerminalAuthorityPermissionPolicy>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();
@@ -41,6 +59,9 @@ pub fn validate_package_terminal_authority_permissions<'a>(
             )));
             continue;
         }
+        let Some(policy) = policy else {
+            continue;
+        };
         match policy.permission_for(
             permission.service_schema(),
             permission.requirement_identity(),

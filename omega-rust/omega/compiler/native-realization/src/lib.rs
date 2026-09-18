@@ -54,6 +54,7 @@ pub use native_product::{
     NativeInputReuse, NativeProductRequest, PreparedNativeCompilation, prepare_native_product,
 };
 pub use native_realization::terminal_authority_permissions::{
+    validate_package_terminal_authority_permission_custody,
     validate_package_terminal_authority_permissions,
     validate_retained_package_terminal_authority_permissions,
 };

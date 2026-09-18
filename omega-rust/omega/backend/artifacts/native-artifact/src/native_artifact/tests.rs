@@ -19,6 +19,7 @@ struct IdentityFixture<'a> {
     requirement: &'a str,
     execution_report_fingerprint: u64,
     terminal_policy_marker: u8,
+    permission_policy_present: bool,
     boundary_application_marker: Option<u8>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence_marker: u8,
@@ -41,6 +42,7 @@ impl Default for IdentityFixture<'static> {
             requirement: "core::Console::write",
             execution_report_fingerprint: 41,
             terminal_policy_marker: 67,
+            permission_policy_present: true,
             boundary_application_marker: Some(73),
             physical_evidence_scope:
                 NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
@@ -91,11 +93,14 @@ fn fixture_identity(fixture: IdentityFixture<'_>) -> NativeArtifactIdentity {
             1,
             [fixture.terminal_policy_marker; 32],
         ),
-        terminal_authority_permission_policy_identity:
-            TerminalAuthorityPermissionPolicyIdentity::from_parts(
-                1,
-                [fixture.terminal_policy_marker.wrapping_add(1); 32],
-            ),
+        terminal_authority_permission_policy_identity: fixture.permission_policy_present.then(
+            || {
+                TerminalAuthorityPermissionPolicyIdentity::from_parts(
+                    1,
+                    [fixture.terminal_policy_marker.wrapping_add(1); 32],
+                )
+            },
+        ),
         terminal_authority_closure_review_identity: [fixture.terminal_policy_marker.wrapping_add(2);
             32],
         boundary_application_coverage_identity: fixture
@@ -227,6 +232,10 @@ fn native_artifact_identity_binds_evidence_and_provider_realization() {
         }),
         fixture_identity(IdentityFixture {
             terminal_policy_marker: 71,
+            ..IdentityFixture::default()
+        }),
+        fixture_identity(IdentityFixture {
+            permission_policy_present: false,
             ..IdentityFixture::default()
         }),
         fixture_identity(IdentityFixture {

@@ -1058,7 +1058,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             profile: &profile,
             terminal_authority_policy:
                 native_realization::current_compiler_intrinsic_terminal_authority_policy(),
-            terminal_authority_permission_policy: permission_policy,
+            terminal_authority_permission_policy: Some(permission_policy),
             program_entry,
             optimization_selections: &optimizations,
             selected_provider_plans: proposal.selected_provider_plans(),

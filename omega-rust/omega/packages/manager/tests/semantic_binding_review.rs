@@ -96,7 +96,9 @@ fn assert_accepted_native_report_custody(
             evidence,
             profile: &proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
-            receiving_terminal_authority_permission_policy: accepted_permission_policy.clone(),
+            receiving_terminal_authority_permission_policy: Some(
+                accepted_permission_policy.clone(),
+            ),
             imports: &[],
         },
     )
@@ -129,7 +131,7 @@ fn assert_accepted_native_report_custody(
         .expect("manager-realized native artifact remains internally valid");
     assert_eq!(
         native.terminal_authority_permission_policy_identity(),
-        receiving_policy_identity,
+        Some(receiving_policy_identity),
     );
 
     let unused_admission = compiler::TrustAdmission::for_provider_plan(
@@ -159,7 +161,9 @@ fn assert_accepted_native_report_custody(
             evidence,
             profile: &proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
-            receiving_terminal_authority_permission_policy: accepted_permission_policy.clone(),
+            receiving_terminal_authority_permission_policy: Some(
+                accepted_permission_policy.clone(),
+            ),
             imports: &[],
         },
     )
@@ -574,8 +578,9 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             evidence: &reused,
             profile: &proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
-            receiving_terminal_authority_permission_policy:
+            receiving_terminal_authority_permission_policy: Some(
                 native_realization::current_terminal_authority_permission_policy(),
+            ),
             imports: &[],
         },
     )
@@ -713,7 +718,9 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
-            receiving_terminal_authority_permission_policy: accepted_permission_policy.clone(),
+            receiving_terminal_authority_permission_policy: Some(
+                accepted_permission_policy.clone(),
+            ),
             imports: &[],
         },
     )
@@ -830,7 +837,9 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
-            receiving_terminal_authority_permission_policy: accepted_permission_policy.clone(),
+            receiving_terminal_authority_permission_policy: Some(
+                accepted_permission_policy.clone(),
+            ),
             imports: &[],
         },
     )
@@ -882,7 +891,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
-            receiving_terminal_authority_permission_policy: widened_receiving_policy,
+            receiving_terminal_authority_permission_policy: Some(widened_receiving_policy),
             imports: &[],
         },
     )

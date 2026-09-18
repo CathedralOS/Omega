@@ -1324,8 +1324,9 @@ fn realize_checked_native_product(
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy:
+            terminal_authority_permission_policy: Some(
                 native_realization::current_terminal_authority_permission_policy(),
+            ),
             image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
             imports: &[],
         },

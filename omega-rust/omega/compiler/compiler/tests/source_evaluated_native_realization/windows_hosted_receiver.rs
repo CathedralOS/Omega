@@ -158,7 +158,7 @@ fn realize_windows_direct(
                 &optimization_core::PostTerminalOptimizationSelections::default(),
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy: accepted_package_policy.clone(),
-            terminal_authority_permission_policy: accepted_package_policy,
+            terminal_authority_permission_policy: Some(accepted_package_policy),
             image_request: native::ExecutableImageEmissionRequest::direct(subsystem),
             imports: &[],
         },
