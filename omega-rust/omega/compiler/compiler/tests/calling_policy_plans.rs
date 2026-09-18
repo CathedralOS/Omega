@@ -15,7 +15,9 @@ mod policy_evaluation;
 mod windows_entry;
 
 use compiler::{CheckedCompileRequest, compile_to_checked};
-use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
 use provider_planning::selected_external_root_provider_plan_id;
 
 use std::fs;
@@ -88,6 +90,24 @@ fn callback_fixture_source(name: &str) -> String {
     .unwrap_or_else(|error| panic!("read callback fixture `{name}`: {error}"))
 }
 
+fn standard_library_root() -> PathBuf {
+    repository_root().join("source/library/std")
+}
+
+/// Compose a callback fixture package that takes the standard library as an
+/// ordinary dependency.
+///
+/// The Windows x86-64 program-entry slot owns a closed physical-contract
+/// package (`targets/windows_x86_64/entry.omg`), so every target-selected
+/// compilation seeds that authored contract, and the contract declares its
+/// calling vocabulary through the bundled `std::calling` module. A fixture that
+/// also copied `calling.omg` into its own package root declared that vocabulary
+/// twice in one program — 32 `duplicate data`/`duplicate trait` diagnostics
+/// before any callback behavior was reached. Binding the standard library as a
+/// dependency instead makes it the single supplier of both the contract and the
+/// vocabulary, and the fixture source imports `omega_language_std::calling`; a
+/// package-aware source may not spell `omega::language::std::...` directly, so
+/// the requester-local alias is the only admissible spelling.
 fn write_callback_package(name: &str, source: &str) -> (PathBuf, PackageCompilationInputs) {
     let directory = std::env::temp_dir().join(format!(
         "omega-calling-policy-package-{name}-{}",
@@ -95,24 +115,32 @@ fn write_callback_package(name: &str, source: &str) -> (PathBuf, PackageCompilat
     ));
     let _ = fs::remove_dir_all(&directory);
     fs::create_dir_all(&directory).expect("create callback package fixture");
-    fs::copy(
-        repository_root().join("source/library/std/calling.omg"),
-        directory.join("calling.omg"),
-    )
-    .expect("copy package-local calling vocabulary");
     let main = directory.join("main.omg");
-    fs::write(&main, source).expect("write callback package source");
+    fs::write(
+        &main,
+        source.replacen("use calling;", "use omega_language_std::calling;", 1),
+    )
+    .expect("write callback package source");
 
     let package = PackageKeyIdentity::from_digest([73; 32])
         .expect("nonzero callback fixture package identity");
+    let standard_library = PackageKeyIdentity::from_digest([77; 32])
+        .expect("nonzero standard-library package identity");
     let inputs = PackageCompilationInputs::new_package(
         package,
-        vec![PackageSourceBinding::new(
+        vec![
+            PackageSourceBinding::new(package, "calling-policy-fixture", directory),
+            PackageSourceBinding::new(
+                standard_library,
+                "omega-language-std",
+                standard_library_root(),
+            ),
+        ],
+        vec![PackageDependencyBinding::new(
             package,
-            "calling-policy-fixture",
-            directory,
+            "omega_language_std",
+            standard_library,
         )],
-        Vec::new(),
     )
     .expect("callback fixture package graph");
     (main, inputs)
