@@ -24,18 +24,28 @@ machine Main::main(&mut self) reaches FilesystemHost {
     self.n = self.fs.write(self.fd, "some content here");
     self.n = self.fs.close(self.fd);
     self.rc = self.fs.read_metadata("/tmp/omega_blocks.txt", &mut self.buffer);
-    self.blksize = widen_u8_to_i32(self.buffer[112])
-        | (widen_u8_to_i32(self.buffer[113]) << 8)
-        | (widen_u8_to_i32(self.buffer[114]) << 16)
-        | (widen_u8_to_i32(self.buffer[115]) << 24);
-    self.blocks = widen_u8_to_i64(self.buffer[104])
-        | (widen_u8_to_i64(self.buffer[105]) << 8)
-        | (widen_u8_to_i64(self.buffer[106]) << 16)
-        | (widen_u8_to_i64(self.buffer[107]) << 24)
-        | (widen_u8_to_i64(self.buffer[108]) << 32)
-        | (widen_u8_to_i64(self.buffer[109]) << 40)
-        | (widen_u8_to_i64(self.buffer[110]) << 48)
-        | (widen_u8_to_i64(self.buffer[111]) << 56);
+    // carrier note: each little-endian field is assembled in the unsigned
+    // carrier of its own width and reinterpreted once at the end, so every
+    // shifted byte is Exact-representable: 255 << 24 is 4278190080 against
+    // a u32 ceiling of 4294967295, and 255 << 56 is 18374686479671623680
+    // against a u64 ceiling of 18446744073709551615. Shifting in the signed
+    // carriers reaches the same values against ceilings of 2147483647 and
+    // 9223372036854775807, a decision-17 obligation no return range can
+    // discharge.
+    self.blksize = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(self.buffer[112])
+            | (widen_u8_to_u32(self.buffer[113]) << 8)
+            | (widen_u8_to_u32(self.buffer[114]) << 16)
+            | (widen_u8_to_u32(self.buffer[115]) << 24));
+    self.blocks = narrow_u64_to_i64_wrapping(
+        widen_u8_to_u64(self.buffer[104])
+            | (widen_u8_to_u64(self.buffer[105]) << 8)
+            | (widen_u8_to_u64(self.buffer[106]) << 16)
+            | (widen_u8_to_u64(self.buffer[107]) << 24)
+            | (widen_u8_to_u64(self.buffer[108]) << 32)
+            | (widen_u8_to_u64(self.buffer[109]) << 40)
+            | (widen_u8_to_u64(self.buffer[110]) << 48)
+            | (widen_u8_to_u64(self.buffer[111]) << 56));
     self.n = self.fs.remove("/tmp/omega_blocks.txt");
     transition self.blksize > 0 { true -> good() _ -> fail() }
     state good(&mut self) { self.n = self.fs.write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }

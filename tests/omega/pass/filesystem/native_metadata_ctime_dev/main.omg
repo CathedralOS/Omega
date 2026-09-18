@@ -26,23 +26,34 @@ machine Main::main(&mut self) reaches FilesystemHost {
     self.fd = self.fs.create("/tmp/omega_cd_b.txt", self.mode);
     self.n = self.fs.close(self.fd);
     self.rc = self.fs.read_metadata("/tmp/omega_cd_a.txt", &mut self.buffer);
-    self.ctime = widen_u8_to_i64(self.buffer[64])
-        | (widen_u8_to_i64(self.buffer[65]) << 8)
-        | (widen_u8_to_i64(self.buffer[66]) << 16)
-        | (widen_u8_to_i64(self.buffer[67]) << 24)
-        | (widen_u8_to_i64(self.buffer[68]) << 32)
-        | (widen_u8_to_i64(self.buffer[69]) << 40)
-        | (widen_u8_to_i64(self.buffer[70]) << 48)
-        | (widen_u8_to_i64(self.buffer[71]) << 56);
-    self.dev_a = widen_u8_to_i32(self.buffer[0])
-        | (widen_u8_to_i32(self.buffer[1]) << 8)
-        | (widen_u8_to_i32(self.buffer[2]) << 16)
-        | (widen_u8_to_i32(self.buffer[3]) << 24);
+    // carrier note: each little-endian field is assembled in the unsigned
+    // carrier of its own width and reinterpreted once at the end, so every
+    // shifted byte is Exact-representable: 255 << 24 is 4278190080 against
+    // a u32 ceiling of 4294967295, and 255 << 56 is 18374686479671623680
+    // against a u64 ceiling of 18446744073709551615. Shifting in the signed
+    // carriers reaches the same values against ceilings of 2147483647 and
+    // 9223372036854775807, a decision-17 obligation no return range can
+    // discharge.
+    self.ctime = narrow_u64_to_i64_wrapping(
+        widen_u8_to_u64(self.buffer[64])
+            | (widen_u8_to_u64(self.buffer[65]) << 8)
+            | (widen_u8_to_u64(self.buffer[66]) << 16)
+            | (widen_u8_to_u64(self.buffer[67]) << 24)
+            | (widen_u8_to_u64(self.buffer[68]) << 32)
+            | (widen_u8_to_u64(self.buffer[69]) << 40)
+            | (widen_u8_to_u64(self.buffer[70]) << 48)
+            | (widen_u8_to_u64(self.buffer[71]) << 56));
+    self.dev_a = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(self.buffer[0])
+            | (widen_u8_to_u32(self.buffer[1]) << 8)
+            | (widen_u8_to_u32(self.buffer[2]) << 16)
+            | (widen_u8_to_u32(self.buffer[3]) << 24));
     self.rc = self.fs.read_metadata("/tmp/omega_cd_b.txt", &mut self.buffer);
-    self.dev_b = widen_u8_to_i32(self.buffer[0])
-        | (widen_u8_to_i32(self.buffer[1]) << 8)
-        | (widen_u8_to_i32(self.buffer[2]) << 16)
-        | (widen_u8_to_i32(self.buffer[3]) << 24);
+    self.dev_b = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(self.buffer[0])
+            | (widen_u8_to_u32(self.buffer[1]) << 8)
+            | (widen_u8_to_u32(self.buffer[2]) << 16)
+            | (widen_u8_to_u32(self.buffer[3]) << 24));
     self.n = self.fs.remove("/tmp/omega_cd_a.txt");
     self.n = self.fs.remove("/tmp/omega_cd_b.txt");
     transition self.ctime > 1000000000 { true -> checkdev() _ -> fail() }

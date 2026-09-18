@@ -34,51 +34,66 @@ machine Main::main(&mut self) reaches FilesystemHost {
     // defensive: clear a stale link from a prior failed run (rc ignored)
     self.n = self.fs.remove("/tmp/omega_ino_link.txt");
     self.rc = self.fs.read_metadata("/tmp/omega_ino_a.txt", &mut self.buffer);
-    self.ino_a = widen_u8_to_i64(self.buffer[8])
-        | (widen_u8_to_i64(self.buffer[9]) << 8)
-        | (widen_u8_to_i64(self.buffer[10]) << 16)
-        | (widen_u8_to_i64(self.buffer[11]) << 24)
-        | (widen_u8_to_i64(self.buffer[12]) << 32)
-        | (widen_u8_to_i64(self.buffer[13]) << 40)
-        | (widen_u8_to_i64(self.buffer[14]) << 48)
-        | (widen_u8_to_i64(self.buffer[15]) << 56);
-    self.uid_a = widen_u8_to_i32(self.buffer[16])
-        | (widen_u8_to_i32(self.buffer[17]) << 8)
-        | (widen_u8_to_i32(self.buffer[18]) << 16)
-        | (widen_u8_to_i32(self.buffer[19]) << 24);
-    self.gid_a = widen_u8_to_i32(self.buffer[20])
-        | (widen_u8_to_i32(self.buffer[21]) << 8)
-        | (widen_u8_to_i32(self.buffer[22]) << 16)
-        | (widen_u8_to_i32(self.buffer[23]) << 24);
+    // carrier note: each little-endian field is assembled in the unsigned
+    // carrier of its own width and reinterpreted once at the end, so every
+    // shifted byte is Exact-representable: 255 << 24 is 4278190080 against
+    // a u32 ceiling of 4294967295, and 255 << 56 is 18374686479671623680
+    // against a u64 ceiling of 18446744073709551615. Shifting in the signed
+    // carriers reaches the same values against ceilings of 2147483647 and
+    // 9223372036854775807, a decision-17 obligation no return range can
+    // discharge.
+    self.ino_a = narrow_u64_to_i64_wrapping(
+        widen_u8_to_u64(self.buffer[8])
+            | (widen_u8_to_u64(self.buffer[9]) << 8)
+            | (widen_u8_to_u64(self.buffer[10]) << 16)
+            | (widen_u8_to_u64(self.buffer[11]) << 24)
+            | (widen_u8_to_u64(self.buffer[12]) << 32)
+            | (widen_u8_to_u64(self.buffer[13]) << 40)
+            | (widen_u8_to_u64(self.buffer[14]) << 48)
+            | (widen_u8_to_u64(self.buffer[15]) << 56));
+    self.uid_a = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(self.buffer[16])
+            | (widen_u8_to_u32(self.buffer[17]) << 8)
+            | (widen_u8_to_u32(self.buffer[18]) << 16)
+            | (widen_u8_to_u32(self.buffer[19]) << 24));
+    self.gid_a = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(self.buffer[20])
+            | (widen_u8_to_u32(self.buffer[21]) << 8)
+            | (widen_u8_to_u32(self.buffer[22]) << 16)
+            | (widen_u8_to_u32(self.buffer[23]) << 24));
     self.rc = self.fs.read_metadata("/tmp/omega_ino_b.txt", &mut self.buffer);
-    self.ino_b = widen_u8_to_i64(self.buffer[8])
-        | (widen_u8_to_i64(self.buffer[9]) << 8)
-        | (widen_u8_to_i64(self.buffer[10]) << 16)
-        | (widen_u8_to_i64(self.buffer[11]) << 24)
-        | (widen_u8_to_i64(self.buffer[12]) << 32)
-        | (widen_u8_to_i64(self.buffer[13]) << 40)
-        | (widen_u8_to_i64(self.buffer[14]) << 48)
-        | (widen_u8_to_i64(self.buffer[15]) << 56);
-    self.uid_b = widen_u8_to_i32(self.buffer[16])
-        | (widen_u8_to_i32(self.buffer[17]) << 8)
-        | (widen_u8_to_i32(self.buffer[18]) << 16)
-        | (widen_u8_to_i32(self.buffer[19]) << 24);
-    self.gid_b = widen_u8_to_i32(self.buffer[20])
-        | (widen_u8_to_i32(self.buffer[21]) << 8)
-        | (widen_u8_to_i32(self.buffer[22]) << 16)
-        | (widen_u8_to_i32(self.buffer[23]) << 24);
+    self.ino_b = narrow_u64_to_i64_wrapping(
+        widen_u8_to_u64(self.buffer[8])
+            | (widen_u8_to_u64(self.buffer[9]) << 8)
+            | (widen_u8_to_u64(self.buffer[10]) << 16)
+            | (widen_u8_to_u64(self.buffer[11]) << 24)
+            | (widen_u8_to_u64(self.buffer[12]) << 32)
+            | (widen_u8_to_u64(self.buffer[13]) << 40)
+            | (widen_u8_to_u64(self.buffer[14]) << 48)
+            | (widen_u8_to_u64(self.buffer[15]) << 56));
+    self.uid_b = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(self.buffer[16])
+            | (widen_u8_to_u32(self.buffer[17]) << 8)
+            | (widen_u8_to_u32(self.buffer[18]) << 16)
+            | (widen_u8_to_u32(self.buffer[19]) << 24));
+    self.gid_b = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(self.buffer[20])
+            | (widen_u8_to_u32(self.buffer[21]) << 8)
+            | (widen_u8_to_u32(self.buffer[22]) << 16)
+            | (widen_u8_to_u32(self.buffer[23]) << 24));
     self.rc = self.fs.hard_link("/tmp/omega_ino_a.txt", "/tmp/omega_ino_link.txt");
     transition self.rc == 0 { true -> statlink() _ -> fail() }
     state statlink(&mut self) {
         self.rc = self.fs.read_metadata("/tmp/omega_ino_link.txt", &mut self.buffer);
-        self.ino_link = widen_u8_to_i64(self.buffer[8])
-            | (widen_u8_to_i64(self.buffer[9]) << 8)
-            | (widen_u8_to_i64(self.buffer[10]) << 16)
-            | (widen_u8_to_i64(self.buffer[11]) << 24)
-            | (widen_u8_to_i64(self.buffer[12]) << 32)
-            | (widen_u8_to_i64(self.buffer[13]) << 40)
-            | (widen_u8_to_i64(self.buffer[14]) << 48)
-            | (widen_u8_to_i64(self.buffer[15]) << 56);
+        self.ino_link = narrow_u64_to_i64_wrapping(
+            widen_u8_to_u64(self.buffer[8])
+                | (widen_u8_to_u64(self.buffer[9]) << 8)
+                | (widen_u8_to_u64(self.buffer[10]) << 16)
+                | (widen_u8_to_u64(self.buffer[11]) << 24)
+                | (widen_u8_to_u64(self.buffer[12]) << 32)
+                | (widen_u8_to_u64(self.buffer[13]) << 40)
+                | (widen_u8_to_u64(self.buffer[14]) << 48)
+                | (widen_u8_to_u64(self.buffer[15]) << 56));
         self.n = self.fs.remove("/tmp/omega_ino_link.txt");
         self.n = self.fs.remove("/tmp/omega_ino_a.txt");
         self.n = self.fs.remove("/tmp/omega_ino_b.txt");
