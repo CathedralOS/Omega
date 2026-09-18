@@ -22,8 +22,12 @@
 //! proven origin, never re-reads an initializer after later operands execute.
 //! A guard leaf that reads only a member projection needs only that
 //! projection's provenance: whole-operand failure is not a reason to widen a
-//! surviving route to `Truth` when the read field's snapshot is intact. This
-//! is source provenance, not a Terminal certificate.
+//! surviving route to `Truth` when the read field's snapshot is intact.
+//! Member identity comes from the same contextual resolver the canonical
+//! place algebra uses, so a destructure-bound payload projection keeps its
+//! `subject.Case::field` steps and a produced operand names
+//! `receiver.Case::field` — same-named payload fields of different cases stay
+//! distinct. This is source provenance, not a Terminal certificate.
 
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
@@ -91,13 +95,17 @@ pub(super) fn operand_entry_provenance(
         }
         match program.expression_table.expression(leaf_place) {
             ExpressionNode::Member(member) => {
-                projection.push(
-                    if member.case_variant.is_none() && member.member_symbol.is_valid() {
-                        PlaceSegment::Field(member.member_symbol)
-                    } else {
-                        PlaceSegment::Opaque
-                    },
-                );
+                // The walk collects leaf-to-root and reverses below, so push
+                // the field step before its case hop. A member the shared
+                // resolver cannot place is opaque below its receiver.
+                match member_hop_path(program, member) {
+                    Some((_, hop)) => {
+                        for segment in hop.into_iter().rev() {
+                            projection.push(segment);
+                        }
+                    }
+                    None => projection.push(PlaceSegment::Opaque),
+                }
                 leaf_place = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
@@ -119,10 +127,17 @@ pub(super) fn operand_entry_provenance(
             return false;
         }
         match program.expression_table.expression(operand_place) {
-            ExpressionNode::Member(member)
-                if member.case_variant.is_none() && member.member_symbol.is_valid() =>
-            {
-                projection.insert(0, PlaceSegment::Field(member.member_symbol));
+            ExpressionNode::Member(member) => {
+                // The operand's own member spine sits above the leaf's
+                // projection; prepend each hop root-first. An unresolvable
+                // member is not a separable place, so the operand keeps no
+                // entry identity.
+                let Some((_, hop)) = member_hop_path(program, member) else {
+                    return false;
+                };
+                for segment in hop.into_iter().rev() {
+                    projection.insert(0, segment);
+                }
                 operand_place = member.receiver;
             }
             ExpressionNode::Borrow(borrow)
@@ -184,11 +199,16 @@ pub(super) fn entry_operand_projected(
             return None;
         }
         match program.expression_table.expression(operand_place) {
-            ExpressionNode::Member(member)
-                if member.case_variant.is_none() && member.member_symbol.is_valid() =>
-            {
-                projection.insert(0, PlaceSegment::Field(member.member_symbol));
-                member_names.insert(0, member.member.as_str().to_owned());
+            ExpressionNode::Member(member) => {
+                // An unresolvable member is not a separable place, so the
+                // operand keeps no entry identity.
+                let Some((symbol, hop)) = member_hop_path(program, member) else {
+                    return None;
+                };
+                member_names.insert(0, member_entry_name(program, member, symbol));
+                for segment in hop.into_iter().rev() {
+                    projection.insert(0, segment);
+                }
                 operand_place = member.receiver;
             }
             ExpressionNode::Borrow(borrow)
@@ -231,6 +251,51 @@ pub(super) fn entry_operand_projected(
             }
         }
     }
+}
+
+/// The place steps one member hop adds below its receiver, in root-to-leaf
+/// order: the resolved field, preceded by its declaring case variant for a
+/// payload field — matching `facts::payload_variant_for_field`'s canonical
+/// spelling. Synthesized members — the destructure-bound payload projections
+/// `subject.Case::field` — retain no `member_symbol`, so identity comes from
+/// the shared contextual resolver the canonical place algebra uses, never
+/// from the first same-named field. `None` when the member does not resolve
+/// to a declared field.
+fn member_hop_path(
+    program: &TypedTrees,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
+    let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
+    if !symbol.is_valid() {
+        return None;
+    }
+    let mut path = Vec::with_capacity(2);
+    if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+        path.push(PlaceSegment::Case(variant));
+    }
+    path.push(PlaceSegment::Field(symbol));
+    Some((symbol, path))
+}
+
+/// The member name a produced entry operand carries. A case payload field
+/// keeps its `Variant::field` qualification — the retained `case_variant`
+/// spelling when present, else the field's declaring variant — so two
+/// same-named payload fields of different cases cannot collide in the caller
+/// namespace.
+fn member_entry_name(
+    program: &TypedTrees,
+    member: &typed_trees::expression::TableMemberExpression,
+    field_symbol: SymbolHandle,
+) -> String {
+    let Some(variant) = facts::payload_variant_for_field(program, field_symbol) else {
+        return member.member.as_str().to_owned();
+    };
+    let case = member
+        .case_variant
+        .as_ref()
+        .map(|case| case.as_str())
+        .unwrap_or_else(|| program.symbols.name(variant));
+    format!("{case}::{}", member.member.as_str())
 }
 
 /// The `PlaceSegment` projection `members` spells below a formal's declared
@@ -345,31 +410,38 @@ fn entry_operand_at(
                 depth + 1,
             )
         }
-        ExpressionNode::Member(member)
-            if member.member_symbol.is_valid() && member.case_variant.is_none() =>
-        {
-            // Walk the contiguous field projection down to its base so a
+        ExpressionNode::Member(member) => {
+            // Walk the contiguous member projection down to its base so a
             // mutable root's pristine-storage check can version the bound
             // snapshot per field: a sibling write does not overwrite this
-            // projection. Anything below a case payload or an unresolvable
-            // member is not a plain field path and keeps its own resolution.
-            let mut segments = vec![(member.member_symbol, member.member.as_str().to_owned())];
+            // projection. A case payload hop keeps its variant step — a
+            // destructure-bound operand resolves through `value.Case::field`
+            // the same way the canonical place algebra does — while an
+            // unresolvable member keeps its own resolution boundary.
+            let (symbol, hop) = member_hop_path(program, member)?;
+            let mut segments: Vec<PlaceSegment> = hop.into_iter().rev().collect();
+            let mut member_names = vec![member_entry_name(program, member, symbol)];
             let mut base = member.receiver;
             loop {
                 if !program.expression_table.expression_is_valid(base) {
                     return None;
                 }
                 match program.expression_table.expression(base) {
-                    ExpressionNode::Member(inner)
-                        if inner.member_symbol.is_valid() && inner.case_variant.is_none() =>
-                    {
-                        segments.push((inner.member_symbol, inner.member.as_str().to_owned()));
+                    ExpressionNode::Member(inner) => {
+                        let Some((symbol, hop)) = member_hop_path(program, inner) else {
+                            break;
+                        };
+                        for segment in hop.into_iter().rev() {
+                            segments.push(segment);
+                        }
+                        member_names.push(member_entry_name(program, inner, symbol));
                         base = inner.receiver;
                     }
                     _ => break,
                 }
             }
             segments.reverse();
+            member_names.reverse();
             let root = match program.expression_table.expression(base) {
                 ExpressionNode::Name(path) => entry_operand_name_at(
                     program,
@@ -377,10 +449,7 @@ fn entry_operand_at(
                     state_symbol,
                     before_statement,
                     path,
-                    &segments
-                        .iter()
-                        .map(|(symbol, _)| PlaceSegment::Field(*symbol))
-                        .collect::<Vec<_>>(),
+                    &segments,
                     depth + 1,
                 )?,
                 _ => entry_operand_at(
@@ -392,7 +461,7 @@ fn entry_operand_at(
                     depth + 1,
                 )?,
             };
-            Some(segments.iter().fold(root, |receiver, (_, member)| {
+            Some(member_names.iter().fold(root, |receiver, member| {
                 CrashPredicateExpression::Member {
                     receiver: Box::new(receiver),
                     member: member.clone(),

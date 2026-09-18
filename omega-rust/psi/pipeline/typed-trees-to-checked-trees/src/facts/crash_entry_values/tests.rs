@@ -1,4 +1,4 @@
-use super::{entry_operand, has_stable_observable_contents};
+use super::{entry_operand, has_stable_observable_contents, operand_entry_provenance};
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -1425,4 +1425,108 @@ fn structural_entry_identity_requires_plain_contents_through_generic_substitutio
             "{carrier}"
         );
     }
+}
+
+#[test]
+fn a_case_payload_projection_transports_the_entry_actual() {
+    // `Outcome::Second { c }` destructures the scrutinee's payload: the
+    // synthesized member carries only its `Second` case qualification — no
+    // retained `member_symbol` — so `c.item` still resolves through
+    // `value.Second::c.item` to the invocation actual's projection rather
+    // than falling off the place walk.
+    let program = typed_program(
+        "pub data Cell { item: i32; }
+         pub data Outcome { case First(c: Cell); case Second(c: Cell); }
+         machine sink(input: i32) -> i32 { input }
+         machine run(value: Outcome) -> i32 {
+             transition value {
+                 Outcome::Second { c } -> done(sink(c.item))
+                 Outcome::First { c } -> done(0)
+             }
+             state done(result: i32) -> i32 { result }
+         }",
+    );
+    let (machine, entry) = named_state(&program, "run", "entry");
+    let (call_index, argument) = first_call_argument(&program, machine, entry);
+    let ExpressionNode::Call(call) = program.expression_table.expression(argument) else {
+        panic!("the `done` target argument is the `sink` call")
+    };
+    let operand = program.expression_table.expression_handles(call.arguments)[0];
+    assert_eq!(
+        entry_operand(&program, machine, entry, call_index, operand),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Member {
+                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                member: "Second::c".to_owned(),
+            }),
+            member: "item".to_owned(),
+        }),
+        "the destructure-bound operand keeps its case-qualified entry identity",
+    );
+}
+
+#[test]
+fn a_case_projection_below_rewritten_storage_keeps_provenance_unknown() {
+    // `held` is rebound before the transition reads it, so the payload the
+    // destructure exposes is not the invocation actual's — provenance stays
+    // unknown rather than naming `value`'s entry storage.
+    let program = typed_program(
+        "pub data Cell { item: i32; }
+         pub data Outcome { case First(c: Cell); case Second(c: Cell); }
+         machine sink(input: i32) -> i32 { input }
+         machine run(value: Outcome) -> i32 {
+             let mut held: Outcome = value;
+             held = Outcome::First { c: Cell { item: 0 } };
+             transition held {
+                 Outcome::Second { c } -> done(sink(c.item))
+                 Outcome::First { c } -> done(0)
+             }
+             state done(result: i32) -> i32 { result }
+         }",
+    );
+    let (machine, entry) = named_state(&program, "run", "entry");
+    let (call_index, argument) = first_call_argument(&program, machine, entry);
+    let ExpressionNode::Call(call) = program.expression_table.expression(argument) else {
+        panic!("the `done` target argument is the `sink` call")
+    };
+    let operand = program.expression_table.expression_handles(call.arguments)[0];
+    assert_eq!(
+        entry_operand(&program, machine, entry, call_index, operand),
+        None,
+        "a rebound scrutinee cannot claim the entry operand's payload",
+    );
+}
+
+#[test]
+fn a_leaf_read_below_a_case_payload_operand_keeps_entry_provenance() {
+    // The named-route gate asks whether the callee's leaf read — `cell.item`
+    // over a formal bound to the `Second` payload — still sees the
+    // invocation-entry value. The operand `c` resolves through
+    // `value.Second::c`, so the composed read `value.Second::c.item` holds
+    // the entry snapshot while `value` is immutable.
+    let program = typed_program(
+        "pub data Cell { item: i32; }
+         pub data Outcome { case First(c: Cell); case Second(c: Cell); }
+         machine sink(input: i32) -> i32 { input }
+         machine run(value: Outcome) -> i32 {
+             transition value {
+                 Outcome::Second { c } -> done(sink(c.item))
+                 Outcome::First { c } -> done(0)
+             }
+             state done(result: i32) -> i32 { result }
+         }",
+    );
+    let (machine, entry) = named_state(&program, "run", "entry");
+    let (call_index, argument) = first_call_argument(&program, machine, entry);
+    let ExpressionNode::Call(call) = program.expression_table.expression(argument) else {
+        panic!("the `done` target argument is the `sink` call")
+    };
+    let leaf = program.expression_table.expression_handles(call.arguments)[0];
+    let ExpressionNode::Member(item) = program.expression_table.expression(leaf) else {
+        panic!("the `sink` argument reads `c.item`")
+    };
+    assert!(
+        operand_entry_provenance(&program, machine, entry, call_index, item.receiver, leaf),
+        "the payload operand's `item` read still names the entry actual",
+    );
 }
