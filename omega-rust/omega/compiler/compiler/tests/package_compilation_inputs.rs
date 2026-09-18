@@ -13,6 +13,8 @@ mod fixtures;
 mod generated_sources_and_dependencies;
 #[path = "package_compilation_inputs/generic_visibility.rs"]
 mod generic_visibility;
+#[path = "package_compilation_inputs/independent_components.rs"]
+mod independent_components;
 #[path = "package_compilation_inputs/module_constants.rs"]
 mod module_constants;
 #[path = "package_compilation_inputs/module_generic_data.rs"]
