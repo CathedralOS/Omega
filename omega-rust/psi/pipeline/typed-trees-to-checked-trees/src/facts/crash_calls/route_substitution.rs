@@ -409,8 +409,8 @@ pub(crate) fn substitute_checked_boolean_expression(
         // Each leaf re-roots through the caller's frozen structural channel:
         // the callee position binds the actual's own caller parameter and
         // member spine, and the leaf path appends below it. The remaining
-        // structural terms still refuse — byte-sequence and case-membership
-        // leaves keep their own transport gaps.
+        // structural terms still refuse — standalone field and
+        // case-membership leaves keep their own transport gaps.
         CheckedBooleanExpression::IeeeFloatComparison {
             kind,
             primitive_type,
@@ -434,8 +434,21 @@ pub(crate) fn substitute_checked_boolean_expression(
                 cases: cases.clone(),
             }
         }
+        // A byte-sequence content equality is atomic over the same
+        // structural leaves: both subjects re-root through the caller's
+        // frozen structural channel. The leaf carries no roster or case
+        // identity to transport — content equality compares the bytes the
+        // resolved subjects hold — so the re-rooted leaves are the whole
+        // term, and the lowering rechecks each against the caller
+        // subject's retained byte-sequence carrier before emitting the
+        // atomic proposition.
+        CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
+            CheckedBooleanExpression::ByteSequenceEqual {
+                left: substitute_structural_parameter_field(left, fields)?,
+                right: substitute_structural_parameter_field(right, fields)?,
+            }
+        }
         CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => return None,
         CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
             substitute_checked_boolean_expression(operand, arguments, fields)?,
