@@ -2149,10 +2149,24 @@ Owners include
   a `level_arity`-1 certificate through the canonical wire —
   byte-identical re-encode, independent re-verification, closure
   exactly the three `Nat` axioms — and a forged closed arity
-  rejects `UnboundLevelParameter`. Next: connect the model to
-  source elaboration or a real theorem certificate per the
-  acceptance below; do not keep expanding the disconnected
-  framework.
+  rejects `UnboundLevelParameter`.
+
+  Landed: the core is inside the checker. Certificate acceptance
+  denotes each accepted certificate into the core as
+  `Γ ⊢ t : ⟦goal⟧` and the kernel re-decides it, recording
+  `MathematicalCoreDecision::Judged` with receipts measuring
+  declarations, assumption closure, context depth and arena slots in
+  use after checking, or `Refused` for a rule family the denotation
+  does not cover, where the bounded rules stand alone. A covered
+  certificate the kernel rejects is rejected: the rule labels never
+  outvote the kernel. Authored theorem machines witness the route from
+  source through the canonical wire to a kernel judgment
+  (`pass/proofs/kernel_theorem_equality_certificates` and its false
+  twin), checked-only because native target lowering refuses a
+  bodyless theorem machine (`UnsupportedControlFlow`). Next, in order:
+  widen the denotation so `Refused` stops deciding most certificates,
+  each family arriving with its source customer; then an executed
+  kernel canary once the producer lowers a theorem machine.
 
   Landed: the set-quotient scheme in
   `proof-admission/src/mathematical_core/quotient.rs` — the
@@ -2247,8 +2261,9 @@ Owners include
   reject. Include exact assumption closure through declaration types/statements
   without relying on unfolding. Measure conversion/storage on these terms; do
   not claim feasibility from empty receipts or compiler-authored success flags.
-  The next milestone must connect this model to source or a real theorem
-  certificate, not expand a disconnected proof framework.
+  Do not expand the framework ahead of its consumers: a new rule family
+  arrives with the denotation that lets acceptance re-decide it and a
+  source-level customer, not on its own.
 
   Demonstrate Vector length indices, derivation context/conclusion indices,
   mutual and nested strictly-positive families with definitional constructor
