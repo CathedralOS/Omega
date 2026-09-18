@@ -81,30 +81,47 @@ prerequisite to every lower-rung milestone.
 
 ## Measured complexity follow-through
 
-- **BOOTSTRAP-AUTHORING-READABILITY.** Improve the implementation-to-expressiveness
-  tradeoff within the selected rungs. Customers are the Gamma-written Delta
-  checker and its generated runtime, not language-feature completeness. Next
-  comparisons are checked named products and ordinary runtime source. The
-  [product comparison](#gamma-product-checking) below owns the exploratory work.
-  Ordinary runtime source landed as the bound readable support members under
-  `bootstrap/3_delta/support/`; no internal-artifact comparison remains open.
-  Neither comparison needed an owner-approval gate.
-  Do not repeat independent per-field accessor wrappers as the product solution.
-  A source-only direct-recursion rewrite of
-  [conditional checking](bootstrap/3_delta/implementation/checking/types/branches.gamma)
-  was also rejected against
-  `355ea00d55` on macOS: ordinary results and three rejection cases matched, as
-  did depths 32, 64, and 128, but depth 256 returned raw Gamma status 250 where
-  the selected compiler produced its successful 5,036-byte receipt. This rules
-  out that rewrite under the current profile, not an evaluator-owned explicit
-  stack. The latter remains an engineering comparison requiring its full
-  containment and failure argument; a constant increase is not evidence.
+- **BOOTSTRAP-AUTHORING-READABILITY.** Reduce the manual layout and control
+  obligations a reader must check in the Gamma-written Delta checker and its
+  generated runtime, under [whole-chain minimization](bootstrap/MINIMIZATION.md).
+  The customer is that checker, not language-feature completeness, and no rung
+  removal is presumed. The layout half belongs to the
+  [product comparison](#gamma-product-checking) below. This item keeps the
+  control half: checking and lowering walk expressions through hand-built
+  continuation frames (`typing_frame`/`typing_visit`/`typing_resume` in
+  `bootstrap/3_delta/implementation/checking/types/expressions.gamma`, and
+  the `lowering_*` trio in `lowering/expressions.gamma`) because direct
+  recursion needs one live Gamma call per nested Delta expression level.
+
+  The [call-depth experiment](tests/gamma/call-depth-experiment/README.md)
+  pins the selected evaluator at 256 non-tail contexts admitted and 257
+  refused, and derives that the hidden Alpha stack bound caps any context
+  limit at 454, below Delta's admitted expression depth of 1,024. It prices
+  two evaluator routes, a region rebalance admitting about 2,274 contexts and
+  evaluator-owned continuation records, but measures neither against the
+  customer.
+
+  Remaining work:
+
+  - Measure a direct-recursion checker traversal in `bootstrap/3_delta` under
+    the rebalance route, on the complete Epsilon closure and the depth-1,024
+    case of `sh tests/delta/normalization/run.sh`, or record in the experiment
+    README why the priced costs already decide against it.
+  - Count a route's whole cost before adoption: a rebuilt evaluator tape and
+    its identity records, re-derived exact/adjacent context controls, the new
+    coupling of Delta's `parse_depth` to Gamma's context cap, and a changed
+    subject for `GAMMA-DERIVATION-CHECKER`.
+
   Acceptance: a real checker/runtime implementation exposes its algorithm with
-  fewer manual layout/control obligations, and the added lower-rung semantics,
-  state, source, tests, and proof obligations are explicitly accounted for.
-  Preserve exact frontend diagnostics, complete Epsilon closure reconstruction,
-  and required malformed/resource controls. Byte counts alone and an isolated
-  source sketch do not establish human auditability. No rung removal is presumed.
+  fewer manual layout/control obligations, with the added lower-rung
+  semantics, state, source, tests, and proof obligations accounted for; or a
+  recorded decision retains the continuation encoding and deletes the
+  experiment per its [retention row](tests/gamma/README.md). Preserve exact
+  frontend diagnostics, complete Epsilon closure reconstruction, and the
+  malformed/resource controls. Byte counts and an isolated source sketch do
+  not establish human auditability. Do not repeat the source-only
+  direct-recursion rewrite of `checking/types/branches.gamma`; it fails at
+  depth 256 under the current profile.
 
 <a id="gamma-product-checking"></a>
 
