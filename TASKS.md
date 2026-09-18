@@ -1291,197 +1291,114 @@ Owners include
   infer semantic crashes from emitted traps, or narrow opaque contracts by
   inspecting providers.
 
-  Boundary declarations now retain scalar guarded ceilings through canonical
-  encoding and independent actual-argument substitution; run
-  `cargo nextest run -p checked-trees-to-lowered-psi --test scalar_boundary_arguments --no-fail-fast`.
-  Reuse that requirement contract for selected operators, retaining exact occurrence
-  evidence. Source crash predicates currently lower through fixed-width
-  `ScalarTerm`; proof-only mathematical terms do not imply an authored
-  mathematical guard route.
-  Boundary crash observation profiles and Omega projection remain open. The
-  edge-only `TerminalTraceV1` profile and Omega projection reject nonempty
-  boundary routes; crashing providers now refine a ceiling that covers their
-  positionally substituted routes (terminal-verifier `calls` provider
-  conformance). Extend the source-to-execution controls above
-  while preserving exact call sites, guard actuals, abandoned claims, staged
-  writeback and no-result/no-cleanup behavior.
-  Carry qualified scalar results and the remaining normal-contract vocabulary
-  through ordered boundary completion. Reuse the machine-entry and scalar
-  normal-guarantee path (`unit_scalar_result_source`'s `ordered_boundary`,
-  `ordered_scalar`, `ordered_boolean`, `ordered_computed_boolean`,
-  `ordered_nested_boolean`, `ordered_saved_boolean`,
-  `ordered_call_produced_boolean`, `ordered_boolean_call_computations`,
-  `ordered_boolean_guarantees_compose_through_dependent_joins`, and
-  `ordered_boolean_completion_preserves_folded_source_meaning`, and
-  `ordered_mutable_boolean_snapshot` tests).
-  State/control contracts, mutable snapshots crossing state joins, and
-  field/arithmetic predicates still need their evidence joins. Preserve
-  authored callee contracts regardless of whether a helper is a direct closure
-  root or a transitive dependency; a checked call identity is not contract proof.
-  Mutable scalar inputs still need the shared signature/storage path beyond the
-  invocation-entry read checker. Do not infer normal guarantees from crash ceilings
-  or use current storage as an entry snapshot.
+  Checked operator crash sites, entry provenance in
+  `facts/crash_entry_values.rs`, inferred ceilings on lowered machine
+  contracts, guarded boundary ceilings with independent actual-argument
+  substitution, `TerminalTraceV1` boundary crash rows and per-site package
+  review rows already exist. Terminal also carries operation-level crash
+  contracts (`TerminalModule::operation_crash_contracts`), substituted by
+  `terminal-verifier/src/validation/crash/operation_contracts.rs` and produced
+  by `checked-trees-to-lowered-psi/src/retention/operation_crash_contracts.rs`.
+  That producer reaches an emitted operation only through the selected IEEE
+  and selected integer comparison occurrence rosters, and no source customer
+  replays yet. `omega inspect-terminal` on `operators/crash_routes` (its canary
+  rows are check-only and never lower) rejects `safe`/`may_crash` at `selected
+  comparison has no complete provider plan evidence` and `wrapper` at `direct
+  scalar call crash continuation lacks a checked scalar term`. On the product
+  route, `selected-dispatch`'s `validate_selected_operator_terminal_custody`
+  still refuses every checked program with a crash-qualified operator use.
 
-  Package contract review still needs exact carrier/value custody for declaration
-  and result projections through indexes, case payloads and generic field
-  substitution beyond ordinary declaration-owned field paths.
-  Reuse Psi's exact carrier/case relation; do not manufacture a machine owner
-  from the classifier. The retired `proposition` declaration surface belongs to
-  **PROOF-CONTRACT-MIGRATION**, not an independent membership-extension task.
-  Saved or call-produced result tags without a live predicate need ordinary
-  value/effect custody; do not replay initializers or callee bodies to recover
-  a tag after its evaluation point.
-  `cargo nextest run -p package-evidence --test callable_policy case_membership --no-fail-fast`
-  is the existing source-to-recovery control. Selected operator crash
-  invocations now project through both package crash projections: review emits
-  per-site rows (exact selected operator, caller state/statement, published and
-  surviving buckets; an empty surviving set is a proved discharge) via
-  `capture/behavior/crash/operator_projection.rs`, and callable policy consumes
-  the same retained rows at cause level. Regression:
-  `cargo nextest run -p package-evidence --test callable_policy --no-fail-fast`.
+  Remaining work:
 
-  Extend `facts/crash_entry_values.rs` beyond immutable stable-content roots to
-  state arrivals, rebinding, mutable field versions and receiver/case projections,
-  including the separate named-operator use path. Unknown
-  provenance must remain conservative; current spelling/live storage is not a
-  saved actual. This owns **MATCH-SELECTIVE-LOWERING**'s crash-qualified equality
-  dependency and shares entry snapshots with **STATE-LOCAL-VALUE-FRONTIER**.
+  - Supply provider evidence for the integer boundary comparison on the Omega
+    side: a selected ProviderPlan or an explicit builtin-realization commitment
+    for `Comparison::equal(i32, i32)`. The fixture's `boundary machine ==` has
+    none, so the checked use carries an empty `provider_plan_commitment` and
+    `expression_preparation/source_custody/comparisons.rs` refuses to emit it.
+    Then add an Omega consumer that rejoins
+    `selected_integer_comparison_occurrences` the way
+    `float_comparisons::associate` does, and lift the nonempty-roster refusal
+    in `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs`. Do
+    not realize a selected comparison as the builtin one.
+  - Give the remaining crash-qualified uses a replayable Terminal carrier. A
+    named `Namespace::requirement(...)` use has no emitted-operation join and
+    fails closed in the producer, as do a non-scalar or miscounted operand
+    roster and a call operation. `wrapper`'s direct scalar call continuation
+    lacks a checked scalar term
+    (`scalar_graph/scalar_graph_lowering/call_lowering.rs`). A guarded float
+    operator route has no structured form because `CheckedBooleanExpression`
+    has no IEEE ordering over scalar float formals; `proofs/crash_routes.rs`
+    rejects it. A generic operator or a guard through a structural formal
+    keeps identity only. Surviving routes are invocation-specific and may
+    carry no portable `scalar_expression` after conservative `Truth` widening;
+    copying checked rows onto `MachineContract` alone would not establish
+    replay meaning.
+  - Finish boundary crash outcomes. The trace profile observes a declared
+    ceiling at its call operation; the runtime trace and refinement join that
+    resolves one invocation's outcome
+    ([observations](wiki/spec/terminal-psi/observations.md#reconstructed-rows))
+    is absent. Omega carries a verified boundary crash contract on the
+    boundary declaration, but target lowering's Unit, borrowed and
+    aggregate-result call lanes (`operations.rs`, `borrowed_calls.rs` and
+    `aggregate_results.rs` under
+    `abstract-operations-to-target-operations/src/lowering/control_flow/`)
+    refuse nonempty `crash_continuations` with `UnsupportedControlFlow`, the
+    error `compiler/tests/behavior_exclusions.rs` pins for its crash-bearing
+    native fixture. Extend the source-to-execution controls in
+    `checked-trees-to-lowered-psi/tests/scalar_boundary_arguments.rs` while
+    preserving exact call sites, guard actuals, abandoned claims, staged
+    writeback and no-result/no-cleanup behavior. Source crash predicates lower
+    through fixed-width `ScalarTerm`; proof-only mathematical terms do not
+    imply an authored mathematical guard route.
+  - Carry qualified scalar results and the remaining normal-contract
+    vocabulary through ordered boundary completion. Reuse the machine-entry
+    and scalar normal-guarantee path pinned in
+    `checked-trees-to-lowered-psi/tests/unit_scalar_result_source/boundary_wrappers/`.
+    State/control contracts, mutable snapshots crossing state joins, and
+    field/arithmetic predicates still need their evidence joins. Preserve
+    authored callee contracts regardless of whether a helper is a direct
+    closure root or a transitive dependency; a checked call identity is not
+    contract proof. Mutable scalar inputs still need the shared
+    signature/storage path beyond the invocation-entry read checker. Do not
+    infer normal guarantees from crash ceilings or use current storage as an
+    entry snapshot.
+  - Package contract review still needs exact carrier/value custody for
+    declaration and result projections through indexes, case payloads and
+    generic field substitution beyond ordinary declaration-owned field paths.
+    Reuse Psi's exact carrier/case relation; do not manufacture a machine
+    owner from the classifier. Saved or call-produced result tags without a
+    live predicate need ordinary value/effect custody; do not replay
+    initializers or callee bodies to recover a tag after its evaluation
+    point. `package-evidence/tests/callable_policy/case_membership.rs` is the
+    existing source-to-recovery control. The retired `proposition`
+    declaration surface belongs to **PROOF-CONTRACT-MIGRATION**, not an
+    independent membership-extension task.
+  - Entry provenance still widens a surviving route to `Truth` for
+    `start..end` index leaves, `Opaque` and `ContentConservation` leaves, and
+    element reads below a collection root. Extend it only with proven
+    origins: divergent arrivals, unresolvable cycles and other unknown
+    provenance must remain conservative, and current spelling/live storage is
+    not a saved actual. This owns **MATCH-SELECTIVE-LOWERING**'s
+    crash-qualified equality dependency and shares entry snapshots with
+    **STATE-LOCAL-VALUE-FRONTIER**.
 
   Acceptance: source `operators/crash_routes` and crash-qualified float controls
   retain exact surviving-route evidence through independent Terminal replay and
   execution; package projections already carry the site rows. Safe uses
   discharge each route; changed guards, captures, substitutions, sites and stale
   writes reject. Preserve examined/discharged routes and caller coverage, not
-  only the final cause set. The replay gap is concrete: the Terminal verifier
-  reconstructs call crash continuations only from an ordinary callee's
-  `contract.crash_routes`, operator surviving routes are invocation-specific
-  and may carry no portable `scalar_expression` after conservative `Truth`
-  widening, and boundary operator declarations do not yet carry a replayable
-  Terminal crash contract; direct lowering rejects selected operator crash uses
-  at `checked-trees-to-lowered-psi/src/machine_lowering.rs`. Copying checked rows onto
-  `MachineContract` alone would not establish replay meaning. Checked scalar
-  computations now admit a selected integer boundary comparison such as
-  `Comparison::equal(i32, i32)` as
-  `CheckedScalarComputationKind::SelectedComparison`:
-  `checked_trees/operators/comparisons.rs`'s `selected_integer_comparison`
-  joins `selected_float_comparison`, and
-  `values/scalar/computations/dispatch.rs` admits either classifier while
-  retaining the exact operator use, authored operand order, and joined
-  published/surviving site rows. Terminal consumers still resolve selected
-  comparisons only through `selected_float_comparison`, so an integer
-  `SelectedComparison` rejects at lowering rather than replaying; the lowering
-  fence for crash-qualified uses is unchanged. Terminal now carries the
-  operation-level contract: `TerminalModule::operation_crash_contracts`
-  (`terminal-psi/src/terminal_module/proof/operation_crash_contracts.rs`) rows
-  name `(machine, operation)`, the operator's published routes in a
-  declaration-local formal namespace (scalar operand ordinal plus one, typed by
-  that operand, as boundary crash routes do) and the surviving continuations
-  in the machine's value namespace; the codec encodes the roster after scalar
-  block invariants under format marker 99, and
-  `terminal-verifier/src/validation/crash/operation_contracts.rs` rejects an
-  unknown or call/operand-free operation, a noncanonical or non-scalar
-  published roster, continuations that differ from the exact operand
-  substitution (empty, widened, swapped, recaused), and then applies
-  `validate_call_crash_coverage`. Regressions: `cargo nextest run -p
-  terminal-verifier --test suite operation_crash_contracts` (7) and `-p
-  terminal-codec --test suite operation_crash_contracts` (3, including the
-  format-98 layout rejection); macOS ARM64. The producer now writes the row:
-  `checked-trees-to-lowered-psi/src/retention/operation_crash_contracts.rs`
-  lowers each `CheckedCrashOperatorSite` in the lowered closure at the exact
-  operation emission joined to its `operator_use` (today only the selected
-  IEEE comparison join), through the same formal-telescope lowering boundary
-  declarations use (`proofs/crash_routes.rs::lower_formal_crash_routes`) and
-  the verifier's own `substitute_crash_routes` for the continuations; the
-  whole-program fence at `machine_lowering.rs` is lifted and replaced by
-  fail-closed rejections for a crash-qualified use without a site or without
-  an emitted join, a named-use site (no operation join exists), a non-scalar
-  or miscounted operand roster, and a call operation. Regression:
-  `cargo nextest run -p checked-trees-to-lowered-psi --lib
-  operation_crash_contracts` (6). Where the corpus stops next
-  (`omega inspect-terminal` on `operators/crash_routes`; its canary rows
-  are check-only and never lower): `safe`/`may_crash` reject at
-  `comparison has no exact selected IEEE meaning` (no executable Terminal
-  meaning for an integer `SelectedComparison`), `wrapper` rejects at
-  `direct scalar call crash continuation lacks a checked scalar term`, and a
-  guarded float operator route rejects at `guarded crash route is outside
-  structured scalar predicate lowering`. Operator published rows now carry
-  the guard's structured scalar form over the operator's own formals
-  (`facts/crash_plan_facts.rs::derive_authored_operator_crash_buckets`
-  through `CrashContractOwner::Operator` and
-  `values/scalar/contract_entry/crash_entry.rs::lower_operator_crash_contract_expression`,
-  the same reader bodyless signatures use; dense scalar position `k` is the
-  Terminal formal `k + 1`), for both `boundary operator` and
-  `boundary machine ==` declarations and for spelled and named uses; a
-  generic operator or a guard through a structural formal keeps identity
-  only. Neither form owns a `contract_plans` machine plan, so the site
-  roster is the producer's carrier. Regressions: `cargo nextest run -p typed-trees-to-checked-trees
-  --lib facts::operator_crashes::tests` and `-p checked-trees-to-lowered-psi
-  --lib operation_crash_contracts` (the guarded integer route lowers to
-  `!(0 <= formal 2)` and the verifier accepts its recomputed continuation at
-  an `IntegerEqual` operation). The selected integer comparison now has
-  the emitted-operation join: `lowered_psi::LoweredSelectedIntegerComparisonOccurrence`
-  (`LoweredPsi::selected_integer_comparison_occurrences`, keyed by the same
-  checked `operator_use` as the IEEE roster) is recorded by
-  `emission/operation_emission.rs` beside the exact `IntegerEqual` /
-  `IntegerLessThan` / `IntegerLessOrEqual` it emits for a `SelectedComparison`
-  whose `selected_integer_comparison` meaning has an admitted emission. All
-  six authored spellings join: `==`, `<` and `<=` emit their own operation
-  over the authored order, `>` and `>=` emit the reversed
-  `IntegerLessThan`/`IntegerLessOrEqual`, and `!=` emits `IntegerEqual`
-  plus one `BooleanNot` over its result, mirroring the checked stage's own
-  comparison normalization. The row records that exact mapping
-  (`operand_order`, `negated`), and `retention/operation_crash_contracts.rs`
-  reindexes the declaration's authored formal telescope into the emitted
-  operation's positional one through it, so the verifier's positional
-  substitution is unchanged and a mapping that cannot address the emitted
-  operand roster exactly fails closed. It joins a site through both
-  rosters. Control-flow cleanup keeps the joined operation as a sidecar,
-  Terminal production carries the roster on every checked
-  product (`selected_integer_comparison_occurrences()`), and Omega's
-  `checked-compilation-to-terminal-artifact` refuses a nonempty roster
-  (`native realization does not yet consume retained selected integer
-  comparison occurrence custody`) rather than realizing a selected
-  comparison as the builtin one. Regressions: `cargo nextest run -p
-  checked-trees-to-lowered-psi --lib operation_crash_contracts` (11; the
-  guarded integer `boundary operator` route lowers through `lower_machine`
-  end to end to one row at the emitted `IntegerEqual` whose continuation
-  the verifier accepts, the `>` route to a row whose published guard names
-  the reversed operation's formal 1, and the `!=` route to a row on the
-  equality the `BooleanNot` consumes; a reordered row left in the authored
-  telescope is a verifier rejection) and `--lib comparisons::tests` (7; the
-  six admitted emissions and the operand-mapping arity refusals). Where
-  `omega inspect-terminal` on `operators/crash_routes` stops now:
-  `safe`/`may_crash` reject at
-  `selected comparison has no complete provider plan evidence` (the
-  fixture's `boundary machine == Comparison::equal` has no selected
-  ProviderPlan, so the checked use carries an empty
-  `provider_plan_commitment` and lowering refuses to emit an unprovided
-  selected comparison); `wrapper` still rejects at `direct scalar call
-  crash continuation lacks a checked scalar term`. The terminal stage now
-  replays the integer roster into `checked_boundary_operator_scope`
-  (`lowered-psi-to-terminal-psi/src/boundary_operator_custody/integer_comparisons.rs`,
-  keyed by the same checked `operator_use` as the float replay: exact
-  application site, requirement operator, non-empty provider commitment,
-  comparison, operand mapping, negation and operand type, one exact
-  Terminal operation over operands of that type, one `BooleanNot` over its
-  result for a negated row, one exact checked application; a stale,
-  duplicated or foreign row rejects, including one whose recorded
-  `operand_order` or `negated` is not the authored spelling's admitted
-  emission, and because builtin integer comparisons emit the same three
-  operation kinds the artifact cannot count which were selected, so a
-  crash-qualified use without a row stays the producer's fail-closed
-  rejection). Regression: `cargo nextest run -p
-  checked-trees-to-lowered-psi --lib integer_comparison_replay` (4). The
-  next slice supplies the provider evidence for the integer boundary
-  comparison on the Omega side (a selected ProviderPlan or an explicit
-  builtin-realization commitment for `Comparison::equal(i32, i32)`, then an
-  Omega consumer that rejoins `selected_integer_comparison_occurrences` the
-  way `float_comparisons::associate` does and lifts
-  `checked-compilation-to-terminal-artifact`'s nonempty-roster refusal) so
-  `may_crash` reaches the producer-written row; the float operator route still has no structured
-  form (`CheckedBooleanExpression` has no IEEE ordering over scalar float
-  formals), and `wrapper`'s direct-call continuation is the separate
-  checked-scalar-term gap.
+  only the final cause set.
+
+  Flag: selected-operator custody is growing one roster per operator kind.
+  `LoweredPsi` holds `selected_ieee_float_comparison_occurrences`,
+  `selected_ieee_float_fma_occurrences` and
+  `selected_integer_comparison_occurrences`, each with its own replay module in
+  `lowered-psi-to-terminal-psi/src/boundary_operator_custody/` and its own Omega
+  association (`float_comparisons/`, `float_fma/`); the first bullet adds a
+  third. Named uses and every non-comparison operator still have no join. One
+  occurrence row from a checked `operator_use` or `named_use` to its emitted
+  operations, operand mapping and provider commitment, with one Psi replay and
+  one Omega rejoin, would give those uses a carrier without another roster.
 
 - **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Give the executable
   arithmetic policies of [numeric values](wiki/spec/language/numeric_values.md)
