@@ -36,6 +36,14 @@ fn anonymous_match_integer_quotients_preserve_canonical_indices() {
             "-6",
         ),
         (
+            "((match true { true -> 24, false -> 48 }) / (match true { true -> 2, false -> 4 }))",
+            "12",
+        ),
+        (
+            "((match true { true -> 24, false -> 48 }) / (match true { true -> -3, false -> -6 }))",
+            "-8",
+        ),
+        (
             "(match true { true -> 7, false -> ((match (1u8 / 0 == 0) { true -> 14, false -> 28 }) / (match (1u8 / 0 == 0) { true -> -2, false -> 2 })) })",
             "7",
         ),
@@ -71,6 +79,11 @@ fn anonymous_match_integer_quotients_retain_all_arm_obligations() {
         (
             "i32",
             "(12 / (match 0 { 0 -> -3, 1 -> 2, _ -> 5 }))",
+            "all-arm integral result proof",
+        ),
+        (
+            "i32",
+            "(12 / (match 0 { 0 -> 3, _ -> 5 }))",
             "all-arm integral result proof",
         ),
         (

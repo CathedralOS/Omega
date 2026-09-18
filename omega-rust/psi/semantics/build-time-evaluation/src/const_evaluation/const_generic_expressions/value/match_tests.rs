@@ -150,6 +150,56 @@ fn match_scalar_probe_rejects_stale_children_and_cycles_before_type_readers() {
 }
 
 #[test]
+fn nonconstant_divisor_lattices_prove_all_arm_integrality() {
+    for (body, expected) in [
+        // A joined same-sign hull is wider than a singleton, yet its lattice
+        // still names each admissible divisor exactly.
+        ("24 / (match true { true -> 2, false -> 3 })", "12"),
+        ("24 / (match false { true -> 2, false -> 3 })", "8"),
+        ("24 / (match true { true -> -2, false -> -3 })", "-12"),
+        ("24 / (match true { true -> 2, false -> 4 })", "12"),
+    ] {
+        let (program, expression) = program(body);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let (value, _warnings) = evaluate(
+            &program,
+            machine,
+            state,
+            expression,
+            PrimitiveType::I16,
+            None,
+        )
+        .unwrap_or_else(|error| panic!("{body}: {error}"));
+        assert_eq!(value.display, expected, "{body}");
+    }
+    for body in [
+        // An admissible divisor that does not divide evenly keeps the
+        // quotient lattice fractional; the landing still rejects.
+        "5 / (match true { true -> 2, false -> 3 })",
+        "24 / (match true { true -> 2, false -> 5 })",
+        // An admissible zero divisor still fails the nonzero proof.
+        "24 / (match true { true -> 0, false -> 2 })",
+    ] {
+        let (program, expression) = program(body);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        assert!(
+            evaluate(
+                &program,
+                machine,
+                state,
+                expression,
+                PrimitiveType::I16,
+                None
+            )
+            .is_err(),
+            "{body}"
+        );
+    }
+}
+
+#[test]
 fn match_wildcard_does_not_erase_undefined_anonymous_subject() {
     let (program, expression) = program("match (1 / 0) { _ -> 1 }");
     let machine = &program.machines()[0];

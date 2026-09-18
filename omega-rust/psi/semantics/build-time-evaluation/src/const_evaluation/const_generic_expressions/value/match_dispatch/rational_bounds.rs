@@ -22,10 +22,14 @@
 //! a nonzero Boolean alone would not justify dividing across a continuous pole.
 //! An integral pair of interval endpoints alone proves neither: joining 1, 1.5,
 //! and 2 must not erase the fractional interior. Division retains lattice
-//! evidence for singleton divisor intervals, including opposite-sign alternatives;
-//! wider nonconstant intervals still lose it even when their bounds remain useful.
-//! Integer interval analysis has different division and width semantics, so only
-//! its interval laws apply here; all arithmetic uses the shared exact rationals.
+//! evidence through the admissible divisor values inside each sign interval:
+//! the interval's intersection with the divisor's own lattice is a finite set
+//! of exact points, so a singleton bound is only the one-point case and a
+//! joined same-sign pair like {2, 3} still enumerates its two divisors. A hull
+//! whose lattice intersection is wider declines rather than scanning a range
+//! no finite evidence covers. Integer interval analysis has different division
+//! and width semantics, so only its interval laws apply here; all arithmetic
+//! uses the shared exact rationals.
 //!
 //! The caller has validated the complete acyclic scalar graph and checks every
 //! subject, pattern, and arm. This pass visits only anonymous result edges; it
@@ -261,7 +265,7 @@ impl RationalBounds {
             .zip(right.lattice.as_ref())
             .and_then(|(left, right)| left.apply(operator, right));
         if operator == BinaryOperator::Divide && lattice.is_none() {
-            lattice = self.divide_by_singleton_intervals(right);
+            lattice = self.divide_by_admissible_values(right);
         }
         let mut result = Self {
             lattice,
@@ -285,26 +289,34 @@ impl RationalBounds {
         Ok(result)
     }
 
-    fn divide_by_singleton_intervals(&self, right: &Self) -> Option<RationalLattice> {
+    fn divide_by_admissible_values(&self, right: &Self) -> Option<RationalLattice> {
         // For x in a+sZ and an exact nonzero d, x/d is in a/d+(s/d)Z.
-        // The sign hulls may prove each d exact even when their joined lattice
-        // has nonzero stride. Join every quotient lattice; one wider interval
-        // invalidates this proof, even if both of its endpoints divide evenly.
-        // This inspects at most three summary intervals, never authored arms.
+        // Each sign hull's admissible divisors are its intersection with the
+        // divisor's own lattice: a finite set of exact points, so a joined
+        // same-sign hull like [2,3] on 2+Z still contributes {2,3} and a
+        // lattice-free bound still needs the hull's single endpoint. Join
+        // every quotient lattice; one hull whose admissible set cannot be
+        // enumerated invalidates this proof, even if its endpoints divide
+        // evenly. This inspects at most three summary intervals and the
+        // bound's own lattice, never authored arms.
         let left = self.lattice.as_ref()?;
         let mut joined: Option<RationalLattice> = None;
         for interval in right.intervals() {
-            if interval.low != interval.high {
-                return None;
-            }
-            let quotient = RationalLattice {
-                offset: left.offset.div(&interval.low)?,
-                stride: left.stride.div(&interval.low)?,
+            let divisors = match right.lattice.as_ref() {
+                Some(lattice) => lattice.points_within(interval)?,
+                None if interval.low == interval.high => vec![interval.low.clone()],
+                None => return None,
             };
-            joined = Some(match joined {
-                Some(previous) => previous.join(&quotient)?,
-                None => quotient,
-            });
+            for divisor in divisors {
+                let quotient = RationalLattice {
+                    offset: left.offset.div(&divisor)?,
+                    stride: left.stride.div(&divisor)?,
+                };
+                joined = Some(match joined {
+                    Some(previous) => previous.join(&quotient)?,
+                    None => quotient,
+                });
+            }
         }
         joined
     }
@@ -345,6 +357,57 @@ impl RationalLattice {
         Some([positive.sub(&stride), positive])
     }
 
+    /// Every lattice point inside one closed interval, which is that
+    /// interval's admissible value set when the lattice already bounds it:
+    /// real values lie on both overapproximations, so their intersection
+    /// keeps the enumeration exact. A constant lattice contributes its
+    /// offset when covered. Otherwise the lattice indices are solved against
+    /// the endpoints with exact floor and ceiling; a wider solution than the
+    /// enumeration bound declines.
+    fn points_within(&self, interval: &RationalInterval) -> Option<Vec<BigRational>> {
+        if self.stride.is_zero() {
+            let covered = !self.offset.cmp_value(&interval.low).is_lt()
+                && !self.offset.cmp_value(&interval.high).is_gt();
+            return Some(if covered {
+                vec![self.offset.clone()]
+            } else {
+                Vec::new()
+            });
+        }
+        // The lattice is also offset + |stride|*k for integer k, so solving
+        // the endpoint indices against the absolute stride enumerates the
+        // same points in increasing order.
+        let stride = if self.stride.is_negative() {
+            self.stride.negate()
+        } else {
+            self.stride.clone()
+        };
+        let lowest = ceiling(&interval.low.sub(&self.offset).div(&stride)?);
+        let highest = floor(&interval.high.sub(&self.offset).div(&stride)?);
+        if highest < lowest {
+            return Some(Vec::new());
+        }
+        let width = highest.sub(&lowest);
+        let width = width.to_u64()?;
+        if width >= MAX_ENUMERATED_LATTICE_POINTS as u64 {
+            return None;
+        }
+        let mut points = Vec::with_capacity(width as usize + 1);
+        let mut point = self
+            .offset
+            .add(&stride.mul(&BigRational::from_integer(lowest.clone())));
+        let mut index = lowest;
+        loop {
+            points.push(point.clone());
+            if index == highest {
+                break;
+            }
+            index = index.add(&BigInt::from_u64(1));
+            point = point.add(&stride);
+        }
+        Some(points)
+    }
+
     fn join(&self, other: &Self) -> Option<Self> {
         Some(Self {
             offset: self.offset.clone(),
@@ -383,6 +446,42 @@ impl RationalLattice {
             _ => return None,
         };
         Some(Self { offset, stride })
+    }
+}
+
+/// The enumeration bound for one hull's admissible lattice points. Each point
+/// is an exact value of the bound itself rather than a branch combination,
+/// but a wide interval on a fine stride still declines rather than scanning
+/// a range no authored bound could distinguish.
+const MAX_ENUMERATED_LATTICE_POINTS: usize = 256;
+
+/// The exact floor of a rational: the greatest lattice index whose point
+/// still reaches its endpoint. Truncated division already rounds toward
+/// zero, so only a negative remainder steps down.
+fn floor(value: &BigRational) -> BigInt {
+    let (numerator, denominator) = value.as_integer_ratio();
+    let (quotient, remainder) = numerator
+        .div_rem(denominator)
+        .expect("a rational denominator is nonzero");
+    if remainder.is_negative() {
+        quotient.sub(&BigInt::from_u64(1))
+    } else {
+        quotient
+    }
+}
+
+/// The exact ceiling of a rational: the least lattice index whose point
+/// reaches its endpoint. Under truncated division only a positive remainder
+/// steps up.
+fn ceiling(value: &BigRational) -> BigInt {
+    let (numerator, denominator) = value.as_integer_ratio();
+    let (quotient, remainder) = numerator
+        .div_rem(denominator)
+        .expect("a rational denominator is nonzero");
+    if remainder.is_zero() || remainder.is_negative() {
+        quotient
+    } else {
+        quotient.add(&BigInt::from_u64(1))
     }
 }
 
