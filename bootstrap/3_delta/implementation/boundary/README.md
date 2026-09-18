@@ -420,8 +420,11 @@ plan construction, and the shared name-trie/cursor rebuilds per source
 occurrence, bounding the produced plan size `G <= 40*S + 15`. Name-trie branch
 replacement now prepends the fresh row at a fixed five pairs per rebuilt level
 instead of copying up to 63 sibling rows, so that product no longer multiplies
-departed levels by row count. What remains open is whether the per-occurrence
-products — now dominated by the capture `k*d` merge term and the residual
+departed levels by row count. The capture merge term is logarithmic in batch
+count per collection, and its aggregate over nested helper captures is closed
+by the emission audit's injective `(origin, ancestor cut)` charge at
+`sum(T) <= 32*N + 512*N*N`. What remains open is whether the per-occurrence
+products — now dominated by the closed capture aggregate and the residual
 `34*N` name-event envelope — stay below the pair arena for every admitted
 shape.
 

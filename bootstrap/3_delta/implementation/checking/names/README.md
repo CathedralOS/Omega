@@ -159,7 +159,8 @@ envelope: departed and rebuilt levels remain amortized by earlier descents
 through the zipper identity above, but a builder processing names with short
 shared prefixes departs a level per name byte, so this accounting does not by
 itself prove the product stays below the 40,265,318-pair arena for every
-admitted name order. That is the same posture as the capture `k*d` merge term
-in the
-[normalization audit](../../normalization/README.md#capture-allocation-ownership),
-not a demonstrated overflow.
+admitted name order. The capture merge aggregate is closed separately in the
+[normalization audit](../../normalization/README.md#capture-allocation-ownership);
+this residual name-event envelope is a closed bound of the same kind, not a
+demonstrated overflow or a demonstration that the whole-producer total stays
+below the arena.

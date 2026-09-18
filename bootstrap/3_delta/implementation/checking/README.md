@@ -132,4 +132,6 @@ admitted-source occurrence, but the constants do not establish that the total
 stays below the pair arena for maximum-size sources. Branch-level rebuilds no
 longer multiply by sibling count, so the former `1150*N` name-rebuild product
 is now `34*N`; what remains for a whole-producer pair bound is the residual
-name-event envelope together with the capture `k*d` term in normalization.
+name-event envelope together with the capture aggregate, now closed at
+`sum(T) <= 32*N + 512*N*N` by the
+[normalization audit](../normalization/README.md#capture-allocation-ownership).

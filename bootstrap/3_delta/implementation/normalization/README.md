@@ -147,10 +147,17 @@ For the current counted-list implementation, in pairs:
   three; adding an owned binder or a completed batch allocates four.
 - A nonfinal ordinary argument allocates three continuation/payload pairs;
   a let continuation allocates two.
-- Union consuming `q` prefix entries allocates `2q + 1`; difference copying
+- Union emitting `q` entries allocates `2q + 1`; difference copying
   `p` surviving entries allocates `2p + 1`. Unconsumed tails stay shared.
-- Sorting `n >= 1` direct entries allocates at most
-  `(2.5 * ceil(log2(n)) + 1) * n` pairs. Existing helper batches are not sorted.
+- Sorting `n >= 1` entries allocates at most
+  `2.5*n*ceil(log2(n)) + 3*n - 2` pairs: at most `2.5*n` per recursion level
+  for emitted entries, reversals, and split prefixes, plus at most two pairs
+  per internal node for the split result and union join and one per leaf for
+  the base result. An earlier statement of this bound used a `+1` linear
+  coefficient; the split-prefix pair and the union join make the linear term
+  `3*n - 2` (for example `n = 4` allocates 30 pairs, not 24). Existing helper
+  batches are not sorted, and an empty list still allocates its one-pair
+  counted result.
 
 `capture_finish` prepends the fragment's sorted direct references to its `k`
 completed helper batches and merges the `k + 1` sorted lists through
@@ -161,21 +168,51 @@ next pass, so an entry occurrence is emitted at most once per pass and at most
 associative and commutative on sorted unique lists, so the result is the same
 sorted batch the earlier left fold produced; every receipt byte is unchanged.
 With `T = R + E` total entry occurrences across the fragment's sorted
-references and `k` batches, one collection's merges and final difference
-therefore allocate at most `(2*T + 2)*ceil(log2(k + 1)) + 2*(k + 1) + 1` pairs:
-two per emitted entry plus join, one survivor cons and pass record per pass,
-and the two-pair input prepend. The previous left fold's `k*d` product —
-many batches each rescanning an accumulated union of up to `d` distinct
-bindings — is replaced by this per-occurrence logarithmic term. `d <= T`
-remains unbounded by the 68,608 simultaneously-active-environment allowance:
-fragment-owned binders can be numerous even though the difference removes them
-once. What is still not established below the selected pair arena is the
-aggregate `T` itself: each completed helper forwards its parameter list into
-its parent's collection, so program-wide `sum(T)` depends on nested helper
-captures as well as plan size. A collection runs once per extraction; authored
-definitions are never captured. The program-wide merge allocation is
-`sum((2*T + 2)*ceil(log2(k + 1)) + 2*(k + 1) + 1)` over at most `J`
-collections.
+references and `k` batches, one collection's merges and input prepend
+therefore allocate at most
+`(2*T + 2)*ceil(log2(k + 1)) + 2*(k + 1) + 1` pairs: two per emitted entry
+plus join, one survivor cons and pass record per pass, and the two-pair input
+prepend. When the fragment owns `O` binders, sorting them and running the
+final difference add at most `(2.5*ceil(log2(O)) + 3)*O + 2*T + 1` pairs: the
+difference is one further pass emitting at most `T` survivors. The previous
+left fold's `k*d` product — many batches each rescanning an accumulated union
+of up to `d` distinct bindings — is replaced by this per-occurrence
+logarithmic term. `d <= T` remains unbounded by the 68,608
+simultaneously-active-environment allowance: fragment-owned binders can be
+numerous even though the difference removes them once.
+
+The aggregate is now closed by the same incidence charge the
+[emission audit](../emission/README.md#reachable-byte-count-bound) derives.
+A collection runs once per extraction; authored definitions are never
+captured. Collections visit disjoint fragment interiors: each collection's
+direct references are distinct local-reference occurrences, so
+`sum(R) <= 32*N`, and fragment-owned binders are visited only by their
+innermost collection, so `sum(O) <= G <= 40*S + 15`. Each completed helper
+batch is prepended into exactly one parent collection, so `sum(k) <= J`, and
+`sum(E)` is the nested helpers' parameter totals — forwarded capture
+incidences bounded by the injective `(origin, ancestor cut)` charge at
+`C <= R*L <= 512*N*N`. Hence
+
+```text
+sum(T) = sum(R) + sum(E) <= 32*N + 512*N*N
+```
+
+Summing the traversal bullets and the complete finish bound over at most
+`J <= 64*N*N <= 2^50` collections — with `ceil(log2(R)) <= 27`,
+`ceil(log2(G)) <= 25`, and `ceil(log2(J + 1)) <= 51` under the admitted
+extents — bounds program-wide capture allocation by
+
+```text
+capture pairs <= 60,672*N*N + 5,680*N + 2,980*S + 1,118
+```
+
+This is a closed admitted-source envelope for the previously open `sum(T)`
+aggregate, not a demonstration that the total fits the 40,265,318-pair arena:
+the envelope already exceeds the arena at `N = 26` even with `S = 0`. The capture
+term is therefore no longer an unbounded expression, and the remaining
+allocation question reduces to whether real admitted-source allocation can be
+shown — by a sharper structural argument or by measured evidence — to stay
+below the selected pair arena.
 
 Earlier checking/lowering frames and rebuilt nodes also allocate or perform
 work; the [checking audit](../checking/README.md#traversal-and-rebuild-pairs)
@@ -326,8 +363,9 @@ pairs, where `A`, `C`, and `L` are argument edges and descended call and let
 occurrences, with `A + C + L <= 2*G`. This charges every normalizer frame and
 rebuild to the plan being traversed. `G` is produced by lowering, so the bound
 reduces the normalizer term to the earlier-phase plan size; it is not a fixed
-byte budget, and it does not bound the capture merge term's aggregate `T`
-above.
+byte budget. The capture merge term's aggregate `T` is separately closed by
+the incidence charge in the
+[capture allocation ownership](#capture-allocation-ownership) section above.
 
 ## Phase and receipt boundaries
 
