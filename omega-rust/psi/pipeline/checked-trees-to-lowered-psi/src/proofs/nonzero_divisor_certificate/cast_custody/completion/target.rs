@@ -7,7 +7,7 @@ use proof_admission::{
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::chain;
-use crate::proofs::nonzero_divisor_certificate::integer_evidence::closed_integer_relation;
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::relax;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prove(
@@ -52,43 +52,6 @@ pub(super) fn prove(
         {
             return Some(relaxed);
         }
-    }
-    None
-}
-
-fn relax(goal: &Proposition, mapped: ProofNode) -> Option<ProofNode> {
-    let (
-        Proposition::LessOrEqual(goal_left, goal_right),
-        Proposition::LessOrEqual(mapped_left, mapped_right),
-    ) = (goal, &mapped.conclusion)
-    else {
-        return None;
-    };
-    if goal_left == mapped_left {
-        let tail = closed_integer_relation(Proposition::LessOrEqual(
-            mapped_right.clone(),
-            goal_right.clone(),
-        ))?;
-        return Some(ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(mapped),
-                middle_less_or_equal_right: Box::new(tail),
-            },
-        });
-    }
-    if goal_right == mapped_right {
-        let head = closed_integer_relation(Proposition::LessOrEqual(
-            goal_left.clone(),
-            mapped_left.clone(),
-        ))?;
-        return Some(ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(head),
-                middle_less_or_equal_right: Box::new(mapped),
-            },
-        });
     }
     None
 }
