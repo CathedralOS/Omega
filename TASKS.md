@@ -3580,35 +3580,41 @@ Owners include
 
 - **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
   congruence theorem, and optional precondition transport for quotient-owned
-  operations. No structural or effectful observer crosses the quotient unless
-  its law is explicit and checked. Custody-bearing quotients remain fenced.
+  operations under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations).
+  No structural or effectful observer crosses the quotient unless its law is
+  explicit and checked. Custody-bearing quotients remain fenced.
 
-  Validation composes the canonical correspondence row on the ordinary path
-  and dispatches one bridged form from the composed certificate's evidence, so
-  checking and source erasure cannot disagree about which row a request earns,
-  and a selection whose representative or selected theorem has a transitive
-  closure reaching an admitted or boundary machine rejects. Every request still
-  rejects, and admitting one needs two things: a production caller of
-  `install_non_executable_quotient_correspondences`, and quotient handling in
-  `typed-trees-to-checked-trees`, which bails out of every value path carrying
-  a quotient operation. The sealed `Quotient` namespace now reaches validation
-  on the compiler route: call lowering stores an invalid receiver and clears
-  `machine_arguments` on the request (the `Plan::place_private` precedent, so
-  MP2b no longer reads theorem selections as unresolved generic arguments), and
-  value-call scanning exits early on `quotient_operation` so the quotient
-  formation and correspondence checks own the judgment. The six rule sources
-  moved from `validation/tests/quotient_blocked_sources` to
-  `tests/omega/fail/proofs` and are corpus canaries; each produces its pinned
-  rejection through `omega --check`.
+  Validation already composes the canonical correspondence row on the ordinary
+  path, dispatches one bridged form from the composed certificate's evidence,
+  rejects a representative or selected theorem whose transitive closure
+  reaches an admitted or boundary machine, and receives sealed
+  `Quotient::define`/`Quotient::lift` requests on the compiler route. Every
+  request still rejects; the `tests/omega/fail/proofs/quotient_*` canaries pin
+  the rule rejections through `omega --check`.
 
-  Remaining after that: a canonical wire payload for congruence-only
-  `lift<F, Congruence>`, whose language-semantics, codec, verifier and review
-  rows belong to **PROOF-CONTRACT-MIGRATION**; general adapted lift with
-  result computation, beyond the omission, permutation, repetition and closed
-  literals the direct rung covers; the conversion-independent closure over
-  helper types and statements; and generic or private applications,
-  preconditioned `define`, result aliases and forwarded result flow, none of
-  which has a canonical row.
+  Remaining work:
+
+  - Admit a request. That needs a production caller of
+    `install_non_executable_quotient_correspondences`
+    (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs`;
+    only its tests call it) and quotient handling in
+    `typed-trees-to-checked-trees`, which exits every value path whose call
+    carries `quotient_operation`.
+  - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
+    language-semantics, codec, verifier and review rows belong to
+    **PROOF-CONTRACT-MIGRATION**.
+  - General adapted lift with result computation, beyond the omission,
+    permutation, repetition and closed literals the direct rung covers.
+  - The conversion-independent closure over helper types and statements.
+  - Generic or private applications, preconditioned `define`, result aliases
+    and forwarded result flow, none of which has a canonical row.
+
+  Acceptance: an explicit direct `define` and a transport-backed `lift` admit
+  through `omega --check` with their
+  [published correspondence](wiki/spec/proofs/quotients.md#published-quotient-correspondence)
+  rows rederived on decode, while implicit lifts, missing, surplus or reversed
+  roles, admitted or boundary theorem closures, and custody-bearing quotients
+  still reject.
 
 - **EVALUATED-FOREIGN-BINDINGS.** Carry the typed compile-time locator values
   for PE, versioned ELF, and Darwin/Mach-O
