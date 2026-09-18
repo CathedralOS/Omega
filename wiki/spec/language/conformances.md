@@ -35,6 +35,13 @@ search. Overlapping blanket and specialized conformances may coexist because
 selection is explicit. Another package may declare a separately named map but
 cannot add, replace, or duplicate rows in an existing map.
 
+This same selection supplies operation and law requirements for computed static
+indices. A generic consumer requiring commutativity takes an ordinary conformance
+binder whose trait contains that law for the selected operation. The index
+checker consumes the selected evidence; it does not search for an algebra or
+infer one from operator punctuation. [Licensed normalization](../proofs/contracts.md#licensed-normalization)
+defines which transformations that evidence permits.
+
 Generic conformances own their telescopes rather than inheriting parameters
 from a carrier. Select one through a nested application with every type, const,
 and static-machine argument explicit; expected shape or visibility cannot infer

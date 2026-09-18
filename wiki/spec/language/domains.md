@@ -300,6 +300,15 @@ requires the exact selected checked algebra. Ordinary cited guarantees may
 discharge remaining compatibility; the compiler invents neither public generic
 preconditions nor ambient lemma search.
 
+Operations in an index use ordinary expression resolution and explicit
+conformance selection in the enclosing declaration. Consumers declare the trait
+laws needed for a normalization, and callers supply the checked conformance;
+the domain does not select a hidden algebra or redefine operators inside its
+arguments. A domain declaration adds no `using` clause or new selection scope.
+Commutativity is not a condition for forming an indexed family, only evidence
+for a rewrite that reorders operands. Exact operation and law identities survive
+generic substitution and interface publication.
+
 Units, coordinate frames, currencies, tensor shapes, scales, and encodings are
 library customers, not compiler cases. Metadata erasure removes no scaling,
 range-check, or rounding work from the chosen library operation. Runtime

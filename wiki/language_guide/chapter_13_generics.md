@@ -238,6 +238,24 @@ index. [Indexed domains](../spec/language/domains.md#indexed-families) and
 [licensed normalization](../spec/proofs/contracts.md#licensed-normalization)
 own the details.
 
+For example, a conversion between these open indices needs an equality:
+
+```text
+Indexed<combine(A, B)>  ->  Indexed<combine(B, A)>
+```
+
+Require a trait containing `combine` and its commutativity law, then have the
+caller supply a checked conformance. An ordinary binder such as
+`Algebra: Index satisfies CommutativeCombine` supplies both the operation and
+the proof; `CommutativeCombine` is a library trait, not a compiler keyword.
+Reassociation needs an associativity law as well. Merely carrying an index
+requires neither law, and naming an operation `+` proves neither one.
+
+The checker consumes that ordinary trait evidence. There is no domain-specific
+selection syntax, implicit implementation search, or need to repeat a selection
+beside every index expression. Citing an exact equality remains an alternative
+when general algebraic normalization is unnecessary.
+
 ## Machine Parameters
 
 A static parameter can select a machine declaration:
