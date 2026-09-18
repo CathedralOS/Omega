@@ -20,6 +20,8 @@ mod psi_optimization;
 mod retained_identities {
     pub(crate) mod proof_values;
     pub(crate) mod ranked_coverage;
+    #[cfg(test)]
+    mod tests;
 }
 mod sparse_conditional_constant_propagation;
 

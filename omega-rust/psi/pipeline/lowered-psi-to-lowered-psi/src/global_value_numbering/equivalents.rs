@@ -287,13 +287,15 @@ mod tests {
         BTreeSet, BlockId, OperationKind, TerminalMachine, Terminator, ValueDeclaration, ValueId,
         deduplicate,
     };
+    use lowered_psi::LoweredSourceCallOccurrence;
     use semantic_vocabulary::{
-        ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-        ScalarType,
+        ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+        OperationId, Proposition, ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId,
     };
     use terminal_psi::{
-        Block, MachineContract, Operation, OperationResult, TerminalMachineResult,
-        TerminalRankedScc,
+        Block, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
+        MachineContract, Operation, OperationResult, OutcomeSpecificEnsure, OutcomeSpecificGuard,
+        TerminalMachineResult, TerminalRankedScc,
     };
 
     fn i32_type() -> ScalarType {
@@ -662,5 +664,180 @@ mod tests {
         )]);
         deduplicate(&mut machine, &[], &BTreeSet::new());
         assert_eq!(machine.blocks[0].operations.len(), 1);
+    }
+
+    fn equal_v11_seven() -> Proposition {
+        Proposition::Equal(
+            ScalarTerm::Value {
+                id: ValueId::new(11).unwrap(),
+                scalar_type: i32_type(),
+            },
+            ScalarTerm::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                value: IntegerValue::Signed(7),
+            },
+        )
+    }
+
+    /// Three equal constants in one block: `v11` is the duplicate a carrier
+    /// names, `v12` is the unnamed duplicate that still collapses to `v10`
+    /// and supplies the observable contrast.
+    fn three_constant_machine() -> TerminalMachine {
+        machine(vec![block(
+            1,
+            vec![
+                constant(10, 10, 7),
+                constant(11, 11, 7),
+                constant(12, 12, 7),
+            ],
+            return_value(1, 12),
+        )])
+    }
+
+    fn deduplication_keeps_named_result(machine: &mut TerminalMachine) {
+        deduplicate(machine, &[], &BTreeSet::new());
+        let remaining = machine.blocks[0]
+            .operations
+            .iter()
+            .map(|operation| operation.id)
+            .collect::<Vec<_>>();
+        assert!(
+            remaining.contains(&OperationId::new(11).unwrap())
+                && !remaining.contains(&OperationId::new(12).unwrap()),
+            "the carrier-named duplicate keeps its identity: {remaining:?}"
+        );
+        let Terminator::Return { value, .. } = &machine.blocks[0].terminator else {
+            panic!("entry keeps its return")
+        };
+        assert_eq!(
+            *value,
+            ValueId::new(10).unwrap(),
+            "the unnamed duplicate substitutes the first surviving leader"
+        );
+    }
+
+    #[test]
+    fn contract_and_guard_propositions_retain_named_results() {
+        // Positive: ensures clauses, outcome-specific guarantees, contract
+        // crash-route predicates, operation crash continuations, and
+        // crash-terminator site guards each keep the duplicate's producer.
+        // Boundary: a `Truth` alternative retains nothing, so both duplicates
+        // collapse.
+        let mut ensures_machine = three_constant_machine();
+        ensures_machine.contract.ensures.push(ContractClause {
+            obligation: ObligationId::new(1).unwrap(),
+            proposition: equal_v11_seven(),
+        });
+        deduplication_keeps_named_result(&mut ensures_machine);
+
+        let mut outcome_machine = three_constant_machine();
+        outcome_machine
+            .contract
+            .outcome_specific_ensures
+            .push(OutcomeSpecificEnsure {
+                guard: OutcomeSpecificGuard {
+                    result_type: StructuralTypeId::new(1).unwrap(),
+                    result_case: StructuralCaseId::new(1).unwrap(),
+                },
+                position: 0,
+                obligation: ObligationId::new(2).unwrap(),
+                proposition: equal_v11_seven(),
+                evidence: None,
+            });
+        deduplication_keeps_named_result(&mut outcome_machine);
+
+        let mut route_machine = three_constant_machine();
+        route_machine.contract.crash_routes.push(CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                equal_v11_seven(),
+            ))],
+        });
+        deduplication_keeps_named_result(&mut route_machine);
+
+        let mut continuation_machine = three_constant_machine();
+        continuation_machine.blocks[0].operations.insert(
+            0,
+            Operation {
+                static_reach_binding: None,
+                id: OperationId::new(20).unwrap(),
+                result: OperationResult::Scalar(i32(20)),
+                kind: OperationKind::Call {
+                    callee: MachineId::new(9).unwrap(),
+                    arguments: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: vec![CrashRouteBucket {
+                        cause: CrashCause::Trap,
+                        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                            equal_v11_seven(),
+                        ))],
+                    }],
+                },
+            },
+        );
+        deduplication_keeps_named_result(&mut continuation_machine);
+
+        // The retention scan visits every block's terminator, so a crash site
+        // outside the reachable order still retains the named producer.
+        let mut guard_machine = three_constant_machine();
+        guard_machine.blocks.push(block(
+            2,
+            vec![],
+            Terminator::Crash {
+                edge: EdgeId::new(2).unwrap(),
+                cause: CrashCause::Trap,
+                site_guard: vec![CrashPredicateTerm::new(equal_v11_seven())],
+                frontier_lower_bound: Vec::new(),
+            },
+        ));
+        deduplication_keeps_named_result(&mut guard_machine);
+
+        let mut truth_machine = three_constant_machine();
+        truth_machine.contract.crash_routes.push(CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        });
+        deduplicate(&mut truth_machine, &[], &BTreeSet::new());
+        assert_eq!(
+            truth_machine.blocks[0].operations.len(),
+            1,
+            "a Truth alternative retains nothing"
+        );
+    }
+
+    #[test]
+    fn a_recorded_call_join_retains_named_results() {
+        // Positive: a recorded source-call join keeps the producer of every
+        // captured environment value. Boundary: a join naming an operation
+        // absent from this machine demands nothing.
+        let occurrence = |operation: u64| LoweredSourceCallOccurrence {
+            source_site: None,
+            source_state: symbols::SymbolHandle::from_arena_index(1),
+            statement_index: 0,
+            call_ordinal: 0,
+            terminal_operation: OperationId::new(operation).unwrap(),
+            source_target: symbols::SymbolHandle::from_arena_index(2),
+            source_values_before_call: vec![i32(11)],
+        };
+
+        let mut present = three_constant_machine();
+        deduplicate(&mut present, &[occurrence(10)], &BTreeSet::new());
+        assert_eq!(
+            present.blocks[0]
+                .operations
+                .iter()
+                .map(|operation| operation.id)
+                .collect::<Vec<_>>(),
+            vec![OperationId::new(10).unwrap(), OperationId::new(11).unwrap()],
+            "the joined capture keeps its producer"
+        );
+
+        let mut absent = three_constant_machine();
+        deduplicate(&mut absent, &[occurrence(99)], &BTreeSet::new());
+        assert_eq!(
+            absent.blocks[0].operations.len(),
+            1,
+            "a join naming no operation in this machine retains nothing"
+        );
     }
 }
