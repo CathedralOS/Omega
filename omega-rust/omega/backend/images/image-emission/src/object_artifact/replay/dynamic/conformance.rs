@@ -68,29 +68,17 @@ pub(crate) fn validate_dynamic_calls(
         {
             return Err(invalid());
         }
-        let selected_row = call
-            .dynamic_dispatch
-            .application
-            .rows
-            .iter()
-            .position(|row| {
-                row.declaring_trait_identity
-                    == call.dynamic_dispatch.dispatch.declaring_trait_identity
-                    && row.public_requirement_identity
-                        == call.dynamic_dispatch.dispatch.public_requirement_identity
-                    && row.requirement_identity
-                        == call.dynamic_dispatch.dispatch.requirement_identity
-                    && row.realization_identity
-                        == call.dynamic_dispatch.dispatch.realization_identity
-                    && row.realization_callable_identity.as_deref()
-                        == Some(
-                            call.dynamic_dispatch
-                                .dispatch
-                                .realization_callable_identity
-                                .as_str(),
-                        )
-            })
-            .ok_or_else(invalid)?;
+        let dispatch = &call.dynamic_dispatch.dispatch;
+        let selected_row = selected_row_position(
+            &call.dynamic_dispatch.application,
+            &dispatch.declaring_trait_identity,
+            &dispatch.public_requirement_identity,
+            &dispatch.family_tuple,
+            &dispatch.requirement_identity,
+            &dispatch.realization_identity,
+            &dispatch.realization_callable_identity,
+        )
+        .ok_or_else(invalid)?;
         let selected_offset = u32::try_from(selected_row)
             .ok()
             .and_then(|row| row.checked_mul(8))
@@ -293,29 +281,17 @@ pub(crate) fn validate_stored_dynamic_calls(
         {
             return Err(invalid());
         }
-        let selected_row = establishment
-            .stored
-            .application
-            .rows
-            .iter()
-            .position(|row| {
-                row.declaring_trait_identity
-                    == call.dynamic_dispatch.dispatch.declaring_trait_identity
-                    && row.public_requirement_identity
-                        == call.dynamic_dispatch.dispatch.public_requirement_identity
-                    && row.requirement_identity
-                        == call.dynamic_dispatch.dispatch.requirement_identity
-                    && row.realization_identity
-                        == call.dynamic_dispatch.dispatch.realization_identity
-                    && row.realization_callable_identity.as_deref()
-                        == Some(
-                            call.dynamic_dispatch
-                                .dispatch
-                                .realization_callable_identity
-                                .as_str(),
-                        )
-            })
-            .ok_or_else(invalid)?;
+        let dispatch = &call.dynamic_dispatch.dispatch;
+        let selected_row = selected_row_position(
+            &establishment.stored.application,
+            &dispatch.declaring_trait_identity,
+            &dispatch.public_requirement_identity,
+            &dispatch.family_tuple,
+            &dispatch.requirement_identity,
+            &dispatch.realization_identity,
+            &dispatch.realization_callable_identity,
+        )
+        .ok_or_else(invalid)?;
         let selected_offset = u32::try_from(selected_row)
             .ok()
             .and_then(|row| row.checked_mul(8))
@@ -652,6 +628,30 @@ fn validate_stored_indirect_call(
         return Err(invalid());
     }
     Ok(())
+}
+
+/// The table position one dynamic dispatch names: the exact
+/// `(declaring trait, complete requirement overload, canonical value tuple)`
+/// row that also retains the dispatch's realization coordinates, the same
+/// join terminal-verifier applies when it admits the dispatch row.
+#[allow(clippy::too_many_arguments)]
+fn selected_row_position(
+    application: &terminal_psi::ClosedConformanceApplication,
+    declaring_trait_identity: &str,
+    public_requirement_identity: &str,
+    family_tuple: &[String],
+    requirement_identity: &str,
+    realization_identity: &str,
+    realization_callable_identity: &str,
+) -> Option<usize> {
+    application.rows.iter().position(|row| {
+        row.declaring_trait_identity == declaring_trait_identity
+            && row.public_requirement_identity == public_requirement_identity
+            && row.family_tuple == family_tuple
+            && row.requirement_identity == requirement_identity
+            && row.realization_identity == realization_identity
+            && row.realization_callable_identity.as_deref() == Some(realization_callable_identity)
+    })
 }
 
 fn dynamic_result_matches(
@@ -1202,6 +1202,99 @@ fn expected_aarch64_memory_access(
             | (u32::from(base) << 5)
             | u32::from(register),
     )
+}
+
+#[cfg(test)]
+mod selected_row_tests {
+    //! The canonical value tuple is a row coordinate: replay must position a
+    //! dispatch on the exact `(trait, requirement, tuple)` row rather than
+    //! borrowing a sibling family row sharing the two identities.
+
+    use super::selected_row_position;
+    use terminal_psi::{ClosedConformanceApplication, ClosedConformanceRow};
+
+    fn row(tuple: &str, width: u64) -> ClosedConformanceRow {
+        ClosedConformanceRow {
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec![tuple.to_owned()],
+            requirement_identity: "test::Scanner::scan".to_owned(),
+            realization_identity: format!("test::Carrier::scan<{width}>"),
+            realization_callable_identity: Some(format!("test::Carrier::scan<{width}>::callable")),
+        }
+    }
+
+    fn application(rows: Vec<ClosedConformanceRow>) -> ClosedConformanceApplication {
+        ClosedConformanceApplication {
+            owner: semantic_vocabulary::MachineId::new(7).unwrap(),
+            declaration_identity: "test::CarrierImplementsScanner".to_owned(),
+            telescope: Vec::new(),
+            subject_identity: Some("test::Carrier".to_owned()),
+            trait_identity: "test::Scanner".to_owned(),
+            trait_lifetime_arguments: Vec::new(),
+            trait_arguments: Vec::new(),
+            realization_callables: Vec::new(),
+            rows,
+            report_fingerprint: 0,
+            commitment: Default::default(),
+        }
+    }
+
+    fn position(
+        application: &ClosedConformanceApplication,
+        tuple: &str,
+        width: u64,
+    ) -> Option<usize> {
+        selected_row_position(
+            application,
+            "test::Scanner",
+            "test::Scanner::scan()",
+            &[tuple.to_owned()],
+            "test::Scanner::scan",
+            &format!("test::Carrier::scan<{width}>"),
+            &format!("test::Carrier::scan<{width}>::callable"),
+        )
+    }
+
+    #[test]
+    fn family_tuple_is_part_of_the_selected_row_coordinate() {
+        let application = application(vec![
+            row("named(integer-const(16))", 16),
+            row("named(integer-const(32))", 32),
+        ]);
+
+        assert_eq!(
+            position(&application, "named(integer-const(32))", 32),
+            Some(1)
+        );
+        assert_eq!(
+            position(&application, "named(integer-const(16))", 16),
+            Some(0)
+        );
+        assert_eq!(
+            position(&application, "named(integer-const(16))", 32),
+            None,
+            "the width-16 tuple cannot borrow the width-32 realization's row",
+        );
+        assert_eq!(
+            position(&application, "named(integer-const(64))", 64),
+            None,
+            "a tuple absent from the roster rejoins no row",
+        );
+        assert_eq!(
+            selected_row_position(
+                &application,
+                "test::Scanner",
+                "test::Scanner::scan()",
+                &[],
+                "test::Scanner::scan",
+                "test::Carrier::scan<32>",
+                "test::Carrier::scan<32>::callable",
+            ),
+            None,
+            "a nongeneric dispatch cannot claim a family row",
+        );
+    }
 }
 
 #[cfg(test)]

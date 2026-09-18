@@ -290,6 +290,12 @@ fn encode_rebound_dynamic_dispatch(
     bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
     bytes.string(&dynamic_dispatch.dispatch.declaring_trait_identity);
     bytes.string(&dynamic_dispatch.dispatch.public_requirement_identity);
+    bytes.slice(
+        &dynamic_dispatch.dispatch.family_tuple,
+        |bytes, identity| {
+            bytes.string(identity);
+        },
+    );
     bytes.string(&dynamic_dispatch.dispatch.requirement_identity);
     bytes.string(&dynamic_dispatch.dispatch.realization_identity);
     bytes.string(&dynamic_dispatch.dispatch.realization_callable_identity);
@@ -320,6 +326,12 @@ fn encode_stored_dynamic_dispatch(
     bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
     bytes.string(&dynamic_dispatch.dispatch.declaring_trait_identity);
     bytes.string(&dynamic_dispatch.dispatch.public_requirement_identity);
+    bytes.slice(
+        &dynamic_dispatch.dispatch.family_tuple,
+        |bytes, identity| {
+            bytes.string(identity);
+        },
+    );
     bytes.string(&dynamic_dispatch.dispatch.requirement_identity);
     bytes.string(&dynamic_dispatch.dispatch.realization_identity);
     bytes.string(&dynamic_dispatch.dispatch.realization_callable_identity);
@@ -408,6 +420,9 @@ fn encode_dynamic_descriptor_parameter(
         bytes.u32(requirement.slot);
         bytes.string(&requirement.declaring_trait_identity);
         bytes.string(&requirement.public_requirement_identity);
+        bytes.slice(&requirement.family_tuple, |bytes, identity| {
+            bytes.string(identity);
+        });
         bytes.u8(match requirement.result {
             terminal_psi::ClosedConformanceCallableResult::Unit => 1,
             terminal_psi::ClosedConformanceCallableResult::I32 => 2,
@@ -466,6 +481,9 @@ fn encode_closed_conformance_application(
     bytes.slice(&application.rows, |bytes, row| {
         bytes.string(&row.declaring_trait_identity);
         bytes.string(&row.public_requirement_identity);
+        bytes.slice(&row.family_tuple, |bytes, identity| {
+            bytes.string(identity);
+        });
         bytes.string(&row.requirement_identity);
         bytes.string(&row.realization_identity);
         bytes.boolean(row.realization_callable_identity.is_some());
@@ -475,4 +493,170 @@ fn encode_closed_conformance_application(
     });
     bytes.u64(application.report_fingerprint);
     bytes.bytes(&application.commitment.as_bytes());
+}
+
+#[cfg(test)]
+mod tests {
+    //! The canonical value tuple is a row coordinate of every dynamic
+    //! dispatch, descriptor requirement, and table row, so it must enter the
+    //! canonical identity byte stream rather than borrow a sibling tuple.
+
+    use super::super::CanonicalBytes;
+    use super::encode;
+    use semantic_vocabulary::{MachineId, OperationId, PlaceId};
+    use terminal_psi::{
+        ClosedConformanceApplication, ClosedConformanceCallableResult,
+        ClosedConformanceRealizationCallable, ClosedConformanceRow, StructuralAccess,
+        StructuralArgument, TerminalDynamicConformanceSelection,
+        TerminalDynamicDescriptorParameter, TerminalDynamicRequirement,
+        TerminalIndirectDynamicDispatch, TerminalReboundDynamicDescriptor,
+    };
+
+    const WIDTH_16: &str = "named(integer-const(16))";
+    const WIDTH_32: &str = "named(integer-const(32))";
+
+    fn encoded(operation: &super::AbstractOperation) -> Vec<u8> {
+        let mut bytes = CanonicalBytes::collect();
+        encode(&mut bytes, operation);
+        bytes.finish()
+    }
+
+    fn owner() -> MachineId {
+        MachineId::new(7).unwrap()
+    }
+
+    fn selection(ordinal: u32) -> TerminalDynamicConformanceSelection {
+        TerminalDynamicConformanceSelection {
+            owner: owner(),
+            ordinal,
+            source: StructuralArgument {
+                place: PlaceId::new(11).unwrap(),
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+            conformance_application_report_fingerprint: 1,
+            conformance_application_commitment:
+                terminal_psi::ClosedConformanceApplicationCommitment::from_digest([9; 32]),
+        }
+    }
+
+    fn row(tuple: &str) -> ClosedConformanceRow {
+        ClosedConformanceRow {
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec![tuple.to_owned()],
+            requirement_identity: "test::Scanner::scan".to_owned(),
+            realization_identity: "test::Carrier::scan".to_owned(),
+            realization_callable_identity: Some("test::Carrier::scan::callable".to_owned()),
+        }
+    }
+
+    fn application(rows: Vec<ClosedConformanceRow>) -> ClosedConformanceApplication {
+        ClosedConformanceApplication {
+            owner: owner(),
+            declaration_identity: "test::CarrierImplementsScanner".to_owned(),
+            telescope: Vec::new(),
+            subject_identity: Some("test::Carrier".to_owned()),
+            trait_identity: "test::Scanner".to_owned(),
+            trait_lifetime_arguments: Vec::new(),
+            trait_arguments: Vec::new(),
+            realization_callables: vec![ClosedConformanceRealizationCallable {
+                source_callable_identity: "test::Carrier::scan::callable".to_owned(),
+                machine: MachineId::new(92).unwrap(),
+                result: ClosedConformanceCallableResult::Unit,
+            }],
+            rows,
+            report_fingerprint: 1,
+            commitment: terminal_psi::ClosedConformanceApplicationCommitment::from_digest([9; 32]),
+        }
+    }
+
+    fn rebound_operation(tuple: &str) -> super::AbstractOperation {
+        let application = application(vec![row(tuple)]);
+        super::AbstractOperation::CallDynamicUnit {
+            psi_operation: OperationId::new(42).unwrap(),
+            dynamic_dispatch: abstract_operations::AbstractReboundDynamicDispatch {
+                initial: selection(0),
+                rebound: selection(1),
+                descriptor: TerminalReboundDynamicDescriptor {
+                    owner: owner(),
+                    ordinal: 3,
+                    initial_selection_ordinal: 0,
+                    rebound_selection_ordinal: 1,
+                },
+                initial_application: application.clone(),
+                application,
+                dispatch: TerminalIndirectDynamicDispatch {
+                    owner: owner(),
+                    operation: OperationId::new(42).unwrap(),
+                    descriptor_ordinal: 3,
+                    declaring_trait_identity: "test::Scanner".to_owned(),
+                    public_requirement_identity: "test::Scanner::scan()".to_owned(),
+                    family_tuple: vec![tuple.to_owned()],
+                    requirement_identity: "test::Scanner::scan".to_owned(),
+                    realization_identity: "test::Carrier::scan".to_owned(),
+                    realization_callable_identity: "test::Carrier::scan::callable".to_owned(),
+                    realization: MachineId::new(92).unwrap(),
+                },
+            },
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn family_tuple_enters_rebound_dispatch_identity() {
+        // Every dispatch field other than the tuple stays fixed so the only
+        // byte-stream difference is the encoded family tuple itself.
+        assert_ne!(
+            encoded(&rebound_operation(WIDTH_16)),
+            encoded(&rebound_operation(WIDTH_32)),
+            "two family rows sharing the two identities must not collapse",
+        );
+    }
+
+    #[test]
+    fn family_tuple_enters_descriptor_parameter_identity() {
+        let parameter = |tuple: &str| super::AbstractOperation::DynamicDescriptorParameter {
+            parameter: TerminalDynamicDescriptorParameter {
+                owner: owner(),
+                ordinal: 0,
+                source_position: 0,
+                trait_identity: "test::Scanner".to_owned(),
+                access: StructuralAccess::SharedBorrow,
+                requirements: vec![TerminalDynamicRequirement {
+                    slot: 0,
+                    declaring_trait_identity: "test::Scanner".to_owned(),
+                    public_requirement_identity: "test::Scanner::scan()".to_owned(),
+                    family_tuple: vec![tuple.to_owned()],
+                    result: ClosedConformanceCallableResult::Unit,
+                }],
+            },
+        };
+
+        assert_ne!(
+            encoded(&parameter(WIDTH_16)),
+            encoded(&parameter(WIDTH_32)),
+            "descriptor requirement tuples must not collapse in the identity",
+        );
+    }
+
+    #[test]
+    fn family_tuple_enters_table_row_identity() {
+        // Hold the application's commitment bytes fixed so only the explicit
+        // per-row tuple coordinate can change the stream.
+        let rows_16 = application(vec![row(WIDTH_16)]);
+        let rows_32 = application(vec![row(WIDTH_32)]);
+        let encode_application = |application: &ClosedConformanceApplication| {
+            let mut bytes = CanonicalBytes::collect();
+            super::encode_closed_conformance_application(&mut bytes, application);
+            bytes.finish()
+        };
+
+        assert_ne!(
+            encode_application(&rows_16),
+            encode_application(&rows_32),
+            "table row tuples must not collapse in the identity",
+        );
+    }
 }

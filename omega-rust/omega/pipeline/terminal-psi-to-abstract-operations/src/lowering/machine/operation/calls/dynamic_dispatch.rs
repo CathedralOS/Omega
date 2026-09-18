@@ -209,6 +209,7 @@ pub(super) fn lower_rebound_dynamic_dispatch(
         .filter(|row| {
             row.declaring_trait_identity == dispatch.declaring_trait_identity
                 && row.public_requirement_identity == dispatch.public_requirement_identity
+                && row.family_tuple == dispatch.family_tuple
                 && row.requirement_identity == dispatch.requirement_identity
                 && row.realization_identity == dispatch.realization_identity
                 && row.realization_callable_identity.as_deref()
@@ -448,4 +449,221 @@ fn lower_rebound_argument_source(
         initial_application: (*initial_application).clone(),
         application: (*application).clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    //! The family tuple is a row coordinate: a dispatch rejoins the table row
+    //! whose `(declaring trait, complete requirement overload, canonical value
+    //! tuple)` all match, not merely the two identities.
+
+    use semantic_vocabulary::{BlockId, ContractId, MachineId, OperationId, PlaceId};
+    use terminal_psi::{
+        ClosedConformanceApplication, ClosedConformanceCallableResult,
+        ClosedConformanceRealizationCallable, ClosedConformanceRow, MachineContract, Operation,
+        OperationKind, OperationResult, StructuralAccess, StructuralArgument,
+        TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog,
+        TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult,
+        TerminalReboundDynamicDescriptor, closed_conformance_application_commitment,
+        closed_conformance_application_report_fingerprint,
+    };
+
+    use super::lower_rebound_dynamic_dispatch;
+
+    const WIDTH_16: &str = "named(integer-const(16))";
+    const WIDTH_32: &str = "named(integer-const(32))";
+    const WIDTH_64: &str = "named(integer-const(64))";
+
+    fn machine() -> TerminalMachine {
+        TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: Vec::new(),
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn family_row(tuple: &str, realization: MachineId) -> ClosedConformanceRow {
+        let width = realization.get();
+        ClosedConformanceRow {
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec![tuple.to_owned()],
+            requirement_identity: "test::Scanner::scan".to_owned(),
+            realization_identity: format!("test::Carrier::scan<{width}>"),
+            realization_callable_identity: Some(format!("test::Carrier::scan<{width}>::callable")),
+        }
+    }
+
+    fn widths_application(owner: MachineId) -> ClosedConformanceApplication {
+        let mut application = ClosedConformanceApplication {
+            owner,
+            declaration_identity: "test::CarrierImplementsScanner".to_owned(),
+            telescope: Vec::new(),
+            subject_identity: Some("test::Carrier".to_owned()),
+            trait_identity: "test::Scanner".to_owned(),
+            trait_lifetime_arguments: Vec::new(),
+            trait_arguments: Vec::new(),
+            realization_callables: vec![
+                ClosedConformanceRealizationCallable {
+                    source_callable_identity: "test::Carrier::scan<91>::callable".to_owned(),
+                    machine: MachineId::new(91).unwrap(),
+                    result: ClosedConformanceCallableResult::Unit,
+                },
+                ClosedConformanceRealizationCallable {
+                    source_callable_identity: "test::Carrier::scan<92>::callable".to_owned(),
+                    machine: MachineId::new(92).unwrap(),
+                    result: ClosedConformanceCallableResult::Unit,
+                },
+            ],
+            rows: vec![
+                family_row(WIDTH_16, MachineId::new(91).unwrap()),
+                family_row(WIDTH_32, MachineId::new(92).unwrap()),
+            ],
+            report_fingerprint: 0,
+            commitment: Default::default(),
+        };
+        application.report_fingerprint =
+            closed_conformance_application_report_fingerprint(&application);
+        application.commitment = closed_conformance_application_commitment(&application);
+        application
+    }
+
+    fn catalog_for(
+        owner: MachineId,
+        application: &ClosedConformanceApplication,
+        dispatch: TerminalIndirectDynamicDispatch,
+    ) -> TerminalDynamicDispatchCatalog {
+        let selection = |ordinal| TerminalDynamicConformanceSelection {
+            owner,
+            ordinal,
+            source: StructuralArgument {
+                place: PlaceId::new(11).unwrap(),
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+            conformance_application_report_fingerprint: application.report_fingerprint,
+            conformance_application_commitment: application.commitment,
+        };
+        TerminalDynamicDispatchCatalog {
+            selections: vec![selection(0), selection(1)],
+            rebound_descriptors: vec![TerminalReboundDynamicDescriptor {
+                owner,
+                ordinal: 3,
+                initial_selection_ordinal: 0,
+                rebound_selection_ordinal: 1,
+            }],
+            indirect_dispatches: vec![dispatch],
+            ..Default::default()
+        }
+    }
+
+    fn dispatch(
+        owner: MachineId,
+        tuple: &str,
+        realization: MachineId,
+    ) -> TerminalIndirectDynamicDispatch {
+        let width = realization.get();
+        TerminalIndirectDynamicDispatch {
+            owner,
+            operation: OperationId::new(42).unwrap(),
+            descriptor_ordinal: 3,
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec![tuple.to_owned()],
+            requirement_identity: "test::Scanner::scan".to_owned(),
+            realization_identity: format!("test::Carrier::scan<{width}>"),
+            realization_callable_identity: format!("test::Carrier::scan<{width}>::callable"),
+            realization,
+        }
+    }
+
+    #[test]
+    fn rebound_dispatch_rejoins_the_exact_family_tuple_row() {
+        let machine = machine();
+        let operation = Operation {
+            static_reach_binding: None,
+            id: OperationId::new(42).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallDynamicUnit {
+                descriptor_ordinal: 3,
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        };
+        let application = widths_application(machine.id);
+        let width_32 = MachineId::new(92).unwrap();
+        let width_64 = MachineId::new(93).unwrap();
+
+        let catalog = catalog_for(
+            machine.id,
+            &application,
+            dispatch(machine.id, WIDTH_32, width_32),
+        );
+        let lowered = lower_rebound_dynamic_dispatch(
+            &machine,
+            &operation,
+            3,
+            None,
+            &catalog,
+            std::slice::from_ref(&application),
+        )
+        .expect("the tuple-32 dispatch rejoins the tuple-32 family row");
+        assert_eq!(lowered.dispatch.realization, width_32);
+
+        let mismatched = catalog_for(
+            machine.id,
+            &application,
+            dispatch(machine.id, WIDTH_16, width_32),
+        );
+        assert!(
+            lower_rebound_dynamic_dispatch(
+                &machine,
+                &operation,
+                3,
+                None,
+                &mismatched,
+                std::slice::from_ref(&application),
+            )
+            .is_err(),
+            "the width-16 tuple cannot borrow the width-32 realization's row",
+        );
+
+        let absent = catalog_for(
+            machine.id,
+            &application,
+            dispatch(machine.id, WIDTH_64, width_64),
+        );
+        assert!(
+            lower_rebound_dynamic_dispatch(
+                &machine,
+                &operation,
+                3,
+                None,
+                &absent,
+                std::slice::from_ref(&application),
+            )
+            .is_err(),
+            "a tuple absent from the roster rejoins no row",
+        );
+    }
 }

@@ -336,19 +336,11 @@ impl<'a> ReviewContext<'a> {
                 "reachable machine {machine:?} dynamic parameter slot does not resolve exactly once"
             ));
         };
-        let rows = application
-            .rows
-            .iter()
-            .filter(|row| {
-                row.declaring_trait_identity == requirement.declaring_trait_identity
-                    && row.public_requirement_identity == requirement.public_requirement_identity
-            })
-            .collect::<Vec<_>>();
-        let [row] = rows.as_slice() else {
-            return Err(format!(
+        let row = requirement_row(application, requirement).ok_or_else(|| {
+            format!(
                 "reachable machine {machine:?} dynamic parameter requirement does not resolve exactly once"
-            ));
-        };
+            )
+        })?;
         let callable_identity = row.realization_callable_identity.as_deref().ok_or_else(|| {
             format!(
                 "reachable machine {machine:?} dynamic parameter requirement has no realization callable"
@@ -368,5 +360,105 @@ impl<'a> ReviewContext<'a> {
             ));
         };
         Ok(callable.machine)
+    }
+}
+
+/// The exact `(declaring trait, complete requirement overload, canonical
+/// value tuple)` row one descriptor requirement resolves to. A finite family
+/// places one row per declared tuple under the same two identities, so the
+/// tuple is a coordinate of the join, not a payload the row happens to carry.
+fn requirement_row<'a>(
+    application: &'a ClosedConformanceApplication,
+    requirement: &terminal_psi::TerminalDynamicRequirement,
+) -> Option<&'a terminal_psi::ClosedConformanceRow> {
+    let mut rows = application.rows.iter().filter(|row| {
+        row.declaring_trait_identity == requirement.declaring_trait_identity
+            && row.public_requirement_identity == requirement.public_requirement_identity
+            && row.family_tuple == requirement.family_tuple
+    });
+    match (rows.next(), rows.next()) {
+        (Some(row), None) => Some(row),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! A finite family keeps one table row per declared tuple under the same
+    //! `(trait, requirement)` identities, so descriptor-parameter replay must
+    //! carry the tuple through the join.
+
+    use super::requirement_row;
+    use terminal_psi::{
+        ClosedConformanceApplication, ClosedConformanceCallableResult, ClosedConformanceRow,
+        TerminalDynamicRequirement,
+    };
+
+    const WIDTH_16: &str = "named(integer-const(16))";
+    const WIDTH_32: &str = "named(integer-const(32))";
+    const WIDTH_64: &str = "named(integer-const(64))";
+
+    fn row(tuple: &str, width: u64) -> ClosedConformanceRow {
+        ClosedConformanceRow {
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec![tuple.to_owned()],
+            requirement_identity: "test::Scanner::scan".to_owned(),
+            realization_identity: format!("test::Carrier::scan<{width}>"),
+            realization_callable_identity: Some(format!("test::Carrier::scan<{width}>::callable")),
+        }
+    }
+
+    fn application_with_rows(rows: Vec<ClosedConformanceRow>) -> ClosedConformanceApplication {
+        ClosedConformanceApplication {
+            owner: semantic_vocabulary::MachineId::new(7).unwrap(),
+            declaration_identity: "test::CarrierImplementsScanner".to_owned(),
+            telescope: Vec::new(),
+            subject_identity: Some("test::Carrier".to_owned()),
+            trait_identity: "test::Scanner".to_owned(),
+            trait_lifetime_arguments: Vec::new(),
+            trait_arguments: Vec::new(),
+            realization_callables: Vec::new(),
+            rows,
+            report_fingerprint: 0,
+            commitment: Default::default(),
+        }
+    }
+
+    fn requirement(tuple: &str) -> TerminalDynamicRequirement {
+        TerminalDynamicRequirement {
+            slot: 0,
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec![tuple.to_owned()],
+            result: ClosedConformanceCallableResult::Unit,
+        }
+    }
+
+    #[test]
+    fn requirement_row_resolves_by_exact_family_tuple() {
+        let application = application_with_rows(vec![row(WIDTH_16, 16), row(WIDTH_32, 32)]);
+
+        let selected = requirement_row(&application, &requirement(WIDTH_32))
+            .expect("the tuple-32 requirement rejoins the tuple-32 row");
+        assert_eq!(selected.realization_identity, "test::Carrier::scan<32>");
+        assert!(
+            requirement_row(&application, &requirement(WIDTH_64)).is_none(),
+            "a tuple absent from the roster resolves no row",
+        );
+        let mut nongeneric = requirement(WIDTH_32);
+        nongeneric.family_tuple = Vec::new();
+        assert!(
+            requirement_row(&application, &nongeneric).is_none(),
+            "an empty tuple cannot claim a family row",
+        );
+
+        // Two sibling rows under the same two identities must not collapse:
+        // a requirement carrying no tuple finds no unique nongeneric row.
+        let duplicated = application_with_rows(vec![row(WIDTH_16, 16), row(WIDTH_16, 116)]);
+        assert!(
+            requirement_row(&duplicated, &requirement(WIDTH_16)).is_none(),
+            "duplicated family tuples still reject as ambiguous",
+        );
     }
 }
