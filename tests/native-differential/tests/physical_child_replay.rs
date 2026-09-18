@@ -74,6 +74,21 @@
 //! fault: the rule declares `FaultDischargedByObligation`, so the constant
 //! quotient is fixed by the literal while the consumer's carried nonzero
 //! divisor obligation already excludes the only reachable fault.
+//! `SelectedIncomingU12Load8IndexedOffset` joins them below: the free
+//! `Main::walk` body's guarded `data[3u64]` on a borrowed byte-view
+//! parameter lowers through `StructuralParameterIndexedRead` to
+//! `ByteSequenceRead`, whose selection emits a `MaterializeI64` of the
+//! literal index feeding operand 1 of `Load8Indexed` — the catalog's
+//! `LOAD8_INDEXED_U12` pair rule's source-reachable candidate, which
+//! rewrites the pair to a direct-offset `Load8` when the literal's
+//! register is the incoming spill victim. A scalar-returning boundary
+//! operator cannot carry the structural argument this family needs —
+//! ordinary scalar-result calls with structural arguments require a
+//! registered scalar target — so the candidate rides a unit-returning
+//! free machine invoked behind a nested `Main::invoke`: routing the
+//! established view through that frame keeps `Main::main`'s register
+//! pressure from evicting the view's `FrameAddress` resident, an
+//! `ActiveResident` victim no fold grammar admits.
 //! `SelectedIncomingExactDivideZeroDividendZeroMaterialization` joins them
 //! below: the provider body's guarded `0 / value` on an unsigned carrier
 //! materializes the zero literal into the dividend `Use` operand of the
@@ -2067,6 +2082,249 @@ machine Main::main(&mut self) {
     artifact
         .validate()
         .expect("exact-divide-zero-dividend native artifact should replay independently");
+    assert!(matches!(
+        artifact.physical_evidence_scope(),
+        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = artifact
+        .physical_evidence()
+        .expect("the surviving boundary occurrence retains nonempty physical evidence");
+    let [occurrence] = physical.projection().operator_occurrences() else {
+        panic!("the checked boundary operator must survive as exactly one operator occurrence")
+    };
+    assert!(physical.projection().boundary_occurrences().is_empty());
+    let [child] = physical.children() else {
+        panic!("the surviving occurrence must bind exactly one physical child")
+    };
+    assert_eq!(
+        child.occurrence(),
+        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+    );
+    assert_eq!(child.projection(), physical.projection().identity());
+    assert!(matches!(
+        child.parent(),
+        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+    ));
+    assert!(child.machine_span().byte_count() > 0);
+    assert!(child.object_span().byte_count() > 0);
+    assert_eq!(
+        child.relocation(),
+        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+    );
+
+    // Independent replay from the published parts alone: every mutation
+    // class must fail closed.
+    let parts = report
+        .into_retained_native_artifact()
+        .expect("owned native artifact")
+        .into_parts();
+
+    let mut missing = replay_native_artifact_parts(&parts);
+    let evidence = missing
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    missing.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: Vec::new(),
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        "a missing physical child must not replay"
+    );
+
+    let mut duplicate = replay_native_artifact_parts(&parts);
+    let evidence = duplicate
+        .physical_evidence
+        .take()
+        .expect("replay physical evidence")
+        .into_parts();
+    let [only_child] = evidence.children.as_slice() else {
+        panic!("one physical child before duplication")
+    };
+    duplicate.physical_evidence = Some(
+        native_realization::NativePhysicalEvidence::from_replayed_parts(
+            native_realization::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: vec![only_child.clone(), only_child.clone()],
+                identity: evidence.identity,
+            },
+        ),
+    );
+    assert!(
+        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        "a duplicate physical child must not replay"
+    );
+
+    let assert_mutated_child_rejected =
+        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+            let mut replay = replay_native_artifact_parts(&parts);
+            let evidence = replay
+                .physical_evidence
+                .take()
+                .expect("replay physical evidence")
+                .into_parts();
+            let [child] = evidence.children.as_slice() else {
+                panic!("one physical child before mutation")
+            };
+            let mut child = child.clone().into_parts();
+            mutate(&mut child);
+            replay.physical_evidence = Some(
+                native_realization::NativePhysicalEvidence::from_replayed_parts(
+                    native_realization::NativePhysicalEvidenceParts {
+                        projection: evidence.projection,
+                        children: vec![
+                            native_realization::NativePhysicalChild::from_replayed_parts(child),
+                        ],
+                        identity: evidence.identity,
+                    },
+                ),
+            );
+            assert!(
+                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                "a mutated physical child must not replay"
+            );
+        };
+    // Role-swapped: the operator occurrence cannot be re-presented as a
+    // boundary occurrence.
+    assert_mutated_child_rejected(&|child| {
+        assert!(matches!(
+            child.parent,
+            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        ));
+        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+            optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
+                child.occurrence.identity(),
+            ),
+        );
+    });
+    // Padded: the machine span must name exactly the emitted call interval.
+    assert_mutated_child_rejected(&|child| {
+        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+            child.machine_span.offset(),
+            child.machine_span.byte_count() + 1,
+        );
+    });
+    // Substituted: the child must bind the validated projection identity.
+    assert_mutated_child_rejected(&|child| {
+        child.projection =
+            optimization_core::NativeOptimizationProjectionIdentity::from_bytes([0x5A; 32]);
+    });
+    // Stale: an occurrence identity no surviving projection names cannot carry
+    // a child.
+    assert_mutated_child_rejected(&|child| {
+        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+            optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
+        );
+    });
+}
+
+#[test]
+fn selected_lowering_load8_indexed_occurrence_replays_one_exact_physical_child() {
+    // `SelectedIncomingU12Load8IndexedOffset` joins the catalog: the free
+    // `Main::walk` body's guarded `data[3u64]` on a borrowed byte-view
+    // parameter lowers through `StructuralParameterIndexedRead` to
+    // `ByteSequenceRead`, whose selection emits a `MaterializeI64` of the
+    // literal index feeding operand 1 of `Load8Indexed` — the catalog's
+    // `LOAD8_INDEXED_U12` pair rule's source-reachable candidate, folding
+    // to a direct-offset `Load8` under pressure. The application routes
+    // the literal view through a nested `Main::invoke` so `Main::main`
+    // carries only the boundary call and a unit call: a direct
+    // `Main::walk("hello")` beside the operator local leaves the
+    // established view's `FrameAddress` resident across the scalar call,
+    // and the spill choice evicts that resident — an `ActiveResident`
+    // victim the fold pass cannot recover. The surviving operator
+    // occurrence still binds exactly one OperatorApplicationCoverage child
+    // through allocation, layout, and native emission; independent replay
+    // rejects every mutation class — missing, duplicate, stale,
+    // substituted, padded, and role-swapped children.
+    let root = std::env::temp_dir().join(format!(
+        "omega-physical-child-load8-indexed-{}-{}",
+        std::process::id(),
+        PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("create load8-indexed physical-child project");
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data CheckedMath {}
+
+boundary operator CheckedMath::select_left(left: u64, right: u64) -> u64;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::select_left_impl(left: u64, right: u64) -> u64
+satisfies CheckedMath::select_left
+{
+    transition { _ -> (left) }
+}
+
+data Main {}
+
+machine Main::walk(data: &[u8]) {
+    transition 3u64 < data.len {
+        true -> done(data[3u64])
+        _ -> done(0u8)
+    }
+
+    state done(b: u8) { }
+}
+
+machine Main::invoke() {
+    Main::walk("hello");
+}
+
+machine Main::main(&mut self) {
+    let picked: u64 = CheckedMath::select_left(7u64, 9u64);
+    Main::invoke();
+}
+"#,
+    )
+    .expect("write load8-indexed physical-child main");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-load8-indexed-physical-child");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::SelectedIncomingU12Load8IndexedOffset);
+}
+"#,
+    )
+    .expect("write load8-indexed physical-child build");
+    let root_identity = package_identity(56);
+    let inputs = PackageCompilationInputs::new_package(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("load8-indexed physical-child package graph should validate");
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(root.join("build")),
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(inputs),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the load8-indexed selection must carry a boundary occurrence to native custody");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("load8-indexed compilation retains its native artifact");
+    artifact
+        .validate()
+        .expect("load8-indexed native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
         native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
