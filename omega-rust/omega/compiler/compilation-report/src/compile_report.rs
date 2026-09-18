@@ -977,4 +977,6 @@ impl CompileReport {
 }
 
 #[cfg(test)]
+mod custody_tests;
+#[cfg(test)]
 mod tests;
