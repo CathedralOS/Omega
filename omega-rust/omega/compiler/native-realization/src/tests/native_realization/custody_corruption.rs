@@ -1,7 +1,7 @@
 //! ProgramEntry rejection for source-signature, target, and Terminal artifact substitution.
 
 use crate::tests::fixtures::checked_source::checked;
-use crate::tests::fixtures::hosted::hosted_custody;
+use crate::tests::fixtures::hosted::{hosted_custody, paired_calling_plan_parts};
 use crate::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     validate_native_program_entry_settlement,
@@ -9,7 +9,7 @@ use crate::{
 
 #[test]
 fn rejects_source_signature_target_and_artifact_substitution() {
-    let (artifact, receipt, source) = hosted_custody();
+    let (artifact, receipt, source, plans) = hosted_custody();
     let substituted =
         program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
             source.target_slot(),
@@ -26,7 +26,11 @@ fn rejects_source_signature_target_and_artifact_substitution() {
         validate_native_program_entry_settlement(
             &artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&substituted, None, &[]),
+            NativeProgramEntrySettlement::new(
+                &substituted,
+                Some(paired_calling_plan_parts(&plans)),
+                &[],
+            ),
             target::NativeTarget::windows_x64(),
         ),
         Err(NativeProgramEntrySettlementError::SourceSignatureSubstitution)
@@ -35,7 +39,11 @@ fn rejects_source_signature_target_and_artifact_substitution() {
         validate_native_program_entry_settlement(
             &artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&source, None, &[]),
+            NativeProgramEntrySettlement::new(
+                &source,
+                Some(paired_calling_plan_parts(&plans)),
+                &[],
+            ),
             target::NativeTarget::linux_x64(),
         ),
         Err(NativeProgramEntrySettlementError::TargetDrift)
@@ -59,7 +67,11 @@ fn rejects_source_signature_target_and_artifact_substitution() {
         validate_native_program_entry_settlement(
             &substituted_artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&source, None, &[]),
+            NativeProgramEntrySettlement::new(
+                &source,
+                Some(paired_calling_plan_parts(&plans)),
+                &[],
+            ),
             target::NativeTarget::windows_x64(),
         ),
         Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution)

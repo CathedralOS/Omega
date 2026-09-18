@@ -14,6 +14,7 @@ fn entry_fixture(
 ) -> (
     terminal_production::ProducedProgramEntryTerminalArtifact,
     program_entry_plan::SelectedProgramEntrySourceSignature,
+    Option<build_evaluation::SelectedProgramEntryCallingPlans>,
 ) {
     let checked = checked(source_text);
     let selection = checked
@@ -70,11 +71,18 @@ fn entry_fixture(
     let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
         .produce_program_entry(signature.identity().bytes())
         .expect("source receiver store produces a receipt-coupled Terminal artifact");
-    (produced, signature)
+    // Slots that declare their two-surface calling custody need the evaluated
+    // paired plans; a hosted free entry supplies them for the profile.
+    let slot = signature.target_slot();
+    let plans = (matches!(slot.schema, target::ProgramEntrySchema::HostedApplication)
+        && slot.boundary_schema.is_some())
+    .then(|| crate::tests::fixtures::hosted::hosted_calling_plans(target_profile));
+    (produced, signature, plans)
 }
 
 fn request<'request>(
     signature: &'request program_entry_plan::SelectedProgramEntrySourceSignature,
+    plans: Option<&'request build_evaluation::SelectedProgramEntryCallingPlans>,
     profile: &'request proof_admission::AdmissionProfile,
     optimizations: &'request optimization_core::PostTerminalOptimizationSelections,
     providers: &'request effects::SelectedProviderPlanFacts,
@@ -87,7 +95,11 @@ fn request<'request>(
         profile,
         terminal_authority_policy: crate::current_compiler_intrinsic_terminal_authority_policy(),
         terminal_authority_permission_policy: crate::current_terminal_authority_permission_policy(),
-        program_entry: NativeProgramEntrySettlement::new(signature, None, &[]),
+        program_entry: NativeProgramEntrySettlement::new(
+            signature,
+            plans.map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+            &[],
+        ),
         optimization_selections: optimizations,
         selected_provider_plans: providers,
         external_binding_rows: &[],
@@ -102,7 +114,8 @@ fn request<'request>(
 
 #[test]
 fn executable_entry_rejects_lost_source_receiver_projection() {
-    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -129,7 +142,13 @@ fn executable_entry_rejects_lost_source_receiver_projection() {
         &plan,
         input.context().module(),
         artifact,
-        &request(&signature, &profile, &optimizations, &providers),
+        &request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        ),
     )
     .expect_err("lowering cannot change the source-selected receiver mode");
     assert!(
@@ -143,7 +162,7 @@ const ERASED_RECEIVER: &str = "data Main {} machine Main::launch(&mut self) {}";
 
 #[test]
 fn erased_receiver_cannot_discard_nominal_cleanup() {
-    let (produced, signature) = entry_fixture(
+    let (produced, signature, plans) = entry_fixture(
         "data Helper {}
          machine Helper::finish() {}
          data Main { value: i32; }
@@ -168,7 +187,13 @@ fn erased_receiver_cannot_discard_nominal_cleanup() {
     let providers = effects::SelectedProviderPlanFacts::default();
     let error = crate::realize_program_entry_native_artifact(
         produced,
-        request(&signature, &profile, &optimizations, &providers),
+        request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        ),
     )
     .expect_err("erasing an unused borrow cannot erase the provisioned owner's cleanup");
     assert!(
@@ -188,7 +213,7 @@ fn erased_receiver_eligibility_is_required_for_fresh_and_prepared_inputs() {
         "data Main { value: i32 [1..=9]; } machine Main::launch(&mut self) {}",
         "data Child {} machine Child::drop(&mut self) {} data Main { child: Child; } machine Main::launch(&mut self) {}",
     ] {
-        let (produced, signature) = entry_fixture(source, target::TargetProfile::WindowsX64);
+        let (produced, signature, plans) = entry_fixture(source, target::TargetProfile::WindowsX64);
         let (artifact, receipt, scope, _, _) = produced.into_parts();
         assert!(receipt.receiver_eligibility().is_none());
         let prepared = crate::prepare_native_realization_input(&artifact, &profile, &optimizations)
@@ -200,9 +225,21 @@ fn erased_receiver_eligibility_is_required_for_fresh_and_prepared_inputs() {
                 NativeRealizationRequest {
                     checked_scope: Some(&scope),
                     prepared_input,
-                    program_entry: NativeProgramEntrySettlement::new(&signature, None, &[])
-                        .with_checked_entry(&receipt),
-                    ..request(&signature, &profile, &optimizations, &providers)
+                    program_entry: NativeProgramEntrySettlement::new(
+                        &signature,
+                        plans
+                            .as_ref()
+                            .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+                        &[],
+                    )
+                    .with_checked_entry(&receipt),
+                    ..request(
+                        &signature,
+                        plans.as_ref(),
+                        &profile,
+                        &optimizations,
+                        &providers,
+                    )
                 },
             );
             let Err(error) = result else {
@@ -221,7 +258,8 @@ fn erased_receiver_eligibility_is_required_for_fresh_and_prepared_inputs() {
 
 #[test]
 fn provisioned_receiver_erased_before_realization_still_realizes_an_executable() {
-    let (produced, signature) = entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
+    let (produced, signature, plans) =
+        entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
     let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
     let entry = module
         .machines
@@ -242,7 +280,13 @@ fn provisioned_receiver_erased_before_realization_still_realizes_an_executable()
     let providers = effects::SelectedProviderPlanFacts::default();
     let native = crate::realize_program_entry_native_artifact(
         produced,
-        request(&signature, &profile, &optimizations, &providers),
+        request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        ),
     )
     .expect("checked erasure preserves the source receiver mode without storage");
     native
@@ -255,7 +299,8 @@ fn provisioned_receiver_erased_before_realization_still_realizes_an_executable()
 
 #[test]
 fn erased_provisioned_receiver_must_retain_its_attached_type() {
-    let (produced, signature) = entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
+    let (produced, signature, plans) =
+        entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -275,7 +320,13 @@ fn erased_provisioned_receiver_must_retain_its_attached_type() {
         &plan,
         input.context().module(),
         produced.artifact(),
-        &request(&signature, &profile, &optimizations, &providers),
+        &request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        ),
     )
     .expect_err("an erased provisioned receiver cannot lose its checked attachment owner");
     assert!(
@@ -287,7 +338,8 @@ fn erased_provisioned_receiver_must_retain_its_attached_type() {
 
 #[test]
 fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
-    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
     let (artifact, receipt, _, _, _) = produced.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
@@ -296,13 +348,25 @@ fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
         super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
             .expect("checked receiver input");
     let request = NativeRealizationRequest {
-        program_entry: NativeProgramEntrySettlement::new(&signature, None, &[])
-            .with_checked_entry(&receipt),
-        ..request(&signature, &profile, &optimizations, &providers)
+        program_entry: NativeProgramEntrySettlement::new(
+            &signature,
+            plans
+                .as_ref()
+                .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+            &[],
+        )
+        .with_checked_entry(&receipt),
+        ..request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        )
     };
-    // The unmutated retained receiver clears the identity join: this unit
-    // fixture carries no paired calling plans, so a later rejection is a
-    // separate settlement requirement, never a receiver-identity drift.
+    // The unmutated retained receiver clears the identity join: the paired
+    // calling plans settle first, so a later rejection is a separate
+    // settlement requirement, never a receiver-identity drift.
     if let Err(diagnostics) = super::validate_executable_entry_receiver(
         input.plan(),
         input.context().module(),
@@ -372,7 +436,8 @@ fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
 
 #[test]
 fn free_source_entry_cannot_acquire_a_receiver() {
-    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
     let artifact = produced.artifact();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
@@ -397,7 +462,13 @@ fn free_source_entry_cannot_acquire_a_receiver() {
         input.plan(),
         input.context().module(),
         artifact,
-        &request(&free_signature, &profile, &optimizations, &providers),
+        &request(
+            &free_signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        ),
     )
     .expect_err("a free source entry cannot acquire a receiver through lowering");
     assert!(
@@ -418,24 +489,25 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
         target::TargetProfile::WindowsX64,
         target::TargetProfile::UefiX64,
     ] {
-        let (produced, signature) = entry_fixture(RECEIVER_STORE, target_profile);
+        let (produced, signature, plans) = entry_fixture(RECEIVER_STORE, target_profile);
         let (artifact, receipt, scope, _, _) = produced.into_parts();
         let settlement = crate::validate_native_program_entry_settlement(
             &artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&signature, None, &[]),
+            NativeProgramEntrySettlement::new(
+                &signature,
+                plans
+                    .as_ref()
+                    .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+                &[],
+            ),
             target_profile.native_target(),
         );
-        if matches!(
-            target_profile,
-            target::TargetProfile::LinuxX64
-                | target::TargetProfile::LinuxArm64
-                | target::TargetProfile::UefiX64
-        ) {
-            // The Linux and UEFI slots declare their two-surface contracts, so
-            // a declaration-only settlement without the selected paired
-            // calling plans fails closed before receiver provisioning is
-            // examined.
+        if matches!(target_profile, target::TargetProfile::UefiX64) {
+            // The freestanding UEFI slot declares its two-surface contract but
+            // its authored storage roots cannot come from this hosted fixture,
+            // so a declaration-only settlement still fails closed before
+            // receiver provisioning is examined.
             assert!(matches!(
                 settlement,
                 Err(crate::NativeProgramEntrySettlementError::CallingPlanPairingDrift)
@@ -453,7 +525,13 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
             NativeRealizationRequest {
                 checked_scope: Some(&scope),
                 prepared_input: None,
-                ..request(&signature, &profile, &optimizations, &providers)
+                ..request(
+                    &signature,
+                    plans.as_ref(),
+                    &profile,
+                    &optimizations,
+                    &providers,
+                )
             },
         )
         .expect_err("direct executable must not use an unprovisioned receiver pointer");
@@ -462,7 +540,13 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
             NativeRealizationRequest {
                 checked_scope: Some(&scope),
                 prepared_input: Some(&prepared),
-                ..request(&signature, &profile, &optimizations, &providers)
+                ..request(
+                    &signature,
+                    plans.as_ref(),
+                    &profile,
+                    &optimizations,
+                    &providers,
+                )
             },
         )
         .expect_err("prepared input must not bypass executable receiver provisioning");
@@ -477,10 +561,14 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
                 "unexpected diagnostic: {}",
                 diagnostic.message
             );
+            // The hosted bridges exist; a declaration-only settlement without
+            // the checked entry custody cannot authorize receiver storage.
             assert!(
                 diagnostic
                     .message
-                    .contains("no root-backed bridge constructs and lends its receiver")
+                    .contains("requires exact checked initialization and cleanup custody"),
+                "unexpected diagnostic: {}",
+                diagnostic.message
             );
         }
     }
@@ -488,16 +576,29 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
 
 #[test]
 fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
-    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
     let (artifact, receipt, scope, _, _) = produced.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
     let request = NativeRealizationRequest {
         checked_scope: Some(&scope),
-        program_entry: NativeProgramEntrySettlement::new(&signature, None, &[])
-            .with_checked_entry(&receipt),
-        ..request(&signature, &profile, &optimizations, &providers)
+        program_entry: NativeProgramEntrySettlement::new(
+            &signature,
+            plans
+                .as_ref()
+                .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+            &[],
+        )
+        .with_checked_entry(&receipt),
+        ..request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        )
     };
     // Emitting without the admitted settlement is the bypass shape: the entry
     // code keeps its self parameter while no bridge constructs its receiver.
@@ -549,16 +650,29 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
 
 #[test]
 fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
-    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::LinuxX64);
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::LinuxX64);
     let (artifact, receipt, scope, _, _) = produced.into_parts();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
     let request = NativeRealizationRequest {
         checked_scope: Some(&scope),
-        program_entry: NativeProgramEntrySettlement::new(&signature, None, &[])
-            .with_checked_entry(&receipt),
-        ..request(&signature, &profile, &optimizations, &providers)
+        program_entry: NativeProgramEntrySettlement::new(
+            &signature,
+            plans
+                .as_ref()
+                .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+            &[],
+        )
+        .with_checked_entry(&receipt),
+        ..request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        )
     };
     let input =
         super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
@@ -669,7 +783,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
 
 #[test]
 fn namespace_attachment_without_receiver_still_realizes_an_executable() {
-    let (produced, signature) = entry_fixture(
+    let (produced, signature, plans) = entry_fixture(
         "data Main {} machine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
@@ -686,7 +800,13 @@ fn namespace_attachment_without_receiver_still_realizes_an_executable() {
     let providers = effects::SelectedProviderPlanFacts::default();
     let native = crate::realize_program_entry_native_artifact(
         produced,
-        request(&signature, &profile, &optimizations, &providers),
+        request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        ),
     )
     .expect("namespace attachment does not require receiver provisioning");
     native
@@ -699,7 +819,7 @@ fn namespace_attachment_without_receiver_still_realizes_an_executable() {
 
 #[test]
 fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
-    let (produced, signature) = entry_fixture(
+    let (produced, signature, plans) = entry_fixture(
         "data Main {} machine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
@@ -712,7 +832,13 @@ fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
     let mut expected_bytes = None;
     for checked_scope in [None, Some(&scope)] {
         for prepared_input in [None, Some(&prepared)] {
-            let mut request = request(&signature, &profile, &optimizations, &providers);
+            let mut request = request(
+                &signature,
+                plans.as_ref(),
+                &profile,
+                &optimizations,
+                &providers,
+            );
             request.checked_scope = checked_scope;
             request.prepared_input = prepared_input;
             let native = crate::realize_native_artifact(
@@ -736,12 +862,12 @@ fn native_request_scope_and_reuse_preserve_direct_image_bytes() {
 
 #[test]
 fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_request() {
-    let (produced, signature) = entry_fixture(
+    let (produced, signature, plans) = entry_fixture(
         "data Main {} machine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
     let (artifact, _, scope, _, _) = produced.into_parts();
-    let (other, _) = entry_fixture(
+    let (other, ..) = entry_fixture(
         "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
         target::TargetProfile::WindowsX64,
     );
@@ -759,7 +885,13 @@ fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_
         (Some(&other_scope), None, "checked boundary-operator scope"),
         (Some(&scope), Some(&other_prepared), "prepared native input"),
     ] {
-        let mut request = request(&signature, &profile, &optimizations, &providers);
+        let mut request = request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        );
         request.checked_scope = checked_scope;
         request.prepared_input = prepared_input;
         request.image_request = image_emission::ExecutableImageEmissionRequest::direct(19);
@@ -784,11 +916,11 @@ fn native_request_rejects_substituted_scope_or_prepared_input_and_returns_image_
 
 #[test]
 fn program_entry_adapter_does_not_ignore_supplied_scope() {
-    let (produced, signature) = entry_fixture(
+    let (produced, signature, plans) = entry_fixture(
         "data Main {} machine Main::launch() {}",
         target::TargetProfile::WindowsX64,
     );
-    let (other, _) = entry_fixture(
+    let (other, ..) = entry_fixture(
         "data Main {} machine Main::launch() { Main::work(); } machine Main::work() {}",
         target::TargetProfile::WindowsX64,
     );
@@ -796,7 +928,13 @@ fn program_entry_adapter_does_not_ignore_supplied_scope() {
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
-    let mut request = request(&signature, &profile, &optimizations, &providers);
+    let mut request = request(
+        &signature,
+        plans.as_ref(),
+        &profile,
+        &optimizations,
+        &providers,
+    );
     request.checked_scope = Some(&other_scope);
     let error = crate::realize_program_entry_native_artifact(produced, request)
         .expect_err("owned entry custody cannot hide substituted request custody");

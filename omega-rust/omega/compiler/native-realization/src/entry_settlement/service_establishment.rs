@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn selected_plan_digest_rejoins_exact_fused_root() {
-        let (artifact, _, source, fixture_row) = fused_service_custody();
+        let (artifact, _, source, _plans, fixture_row) = fused_service_custody();
         let plan = provider_plan();
         let row = program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
             source.identity(),

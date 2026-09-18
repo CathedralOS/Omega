@@ -1,6 +1,9 @@
 //! Independent settlement of exact hosted source and checked ProgramEntry custody.
 
-use crate::tests::fixtures::{checked_source::checked, hosted::hosted_custody};
+use crate::tests::fixtures::{
+    checked_source::checked,
+    hosted::{hosted_custody, paired_calling_plan_parts},
+};
 use crate::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     validate_native_program_entry_settlement,
@@ -8,11 +11,11 @@ use crate::{
 
 #[test]
 fn independently_settles_exact_hosted_source_and_entry() {
-    let (artifact, receipt, source) = hosted_custody();
+    let (artifact, receipt, source, plans) = hosted_custody();
     let settlement = validate_native_program_entry_settlement(
         &artifact,
         &receipt,
-        NativeProgramEntrySettlement::new(&source, None, &[]),
+        NativeProgramEntrySettlement::new(&source, Some(paired_calling_plan_parts(&plans)), &[]),
         target::NativeTarget::windows_x64(),
     )
     .expect("independent ProgramEntry settlement");
@@ -20,14 +23,17 @@ fn independently_settles_exact_hosted_source_and_entry() {
     assert_eq!(settlement.source(), &source);
     assert_eq!(settlement.checked_entry(), &receipt);
     assert_eq!(settlement.target(), target::NativeTarget::windows_x64());
-    assert!(settlement.semantic_boundary_entry_plan().is_none());
-    assert!(settlement.storage_entry().is_none());
+    assert_eq!(
+        settlement.semantic_boundary_entry_plan(),
+        Some(&plans.semantic_calling_application.boundary_entry_plan),
+    );
+    assert_eq!(settlement.storage_entry(), Some(&plans.storage_entry));
     assert!(settlement.fused_service_establishments().is_empty());
 }
 
 #[test]
 fn ordinary_erased_fields_cannot_acquire_fused_root_establishment() {
-    let (artifact, receipt, source, establishment) = fused_service_custody();
+    let (artifact, receipt, source, plans, establishment) = fused_service_custody();
     assert_ne!(
         source.receiver().normalized_type_identity(),
         Some(establishment.attachment_type_identity()),
@@ -37,7 +43,7 @@ fn ordinary_erased_fields_cannot_acquire_fused_root_establishment() {
     let settlement = validate_native_program_entry_settlement(
         &artifact,
         &receipt,
-        NativeProgramEntrySettlement::new(&source, None, &[]),
+        NativeProgramEntrySettlement::new(&source, Some(paired_calling_plan_parts(&plans)), &[]),
         target::NativeTarget::windows_x64(),
     )
     .expect("ordinary erased Evidence requires no service establishment");
@@ -47,7 +53,11 @@ fn ordinary_erased_fields_cannot_acquire_fused_root_establishment() {
         validate_native_program_entry_settlement(
             &artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&source, None, &rows),
+            NativeProgramEntrySettlement::new(
+                &source,
+                Some(paired_calling_plan_parts(&plans)),
+                &rows,
+            ),
             target::NativeTarget::windows_x64(),
         ),
         Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift),
@@ -64,7 +74,11 @@ fn ordinary_erased_fields_cannot_acquire_fused_root_establishment() {
         validate_native_program_entry_settlement(
             &artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&source, None, &[substituted]),
+            NativeProgramEntrySettlement::new(
+                &source,
+                Some(paired_calling_plan_parts(&plans)),
+                &[substituted],
+            ),
             target::NativeTarget::windows_x64(),
         ),
         Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift),
@@ -88,7 +102,11 @@ fn ordinary_erased_fields_cannot_acquire_fused_root_establishment() {
             validate_native_program_entry_settlement(
                 &artifact,
                 &receipt,
-                NativeProgramEntrySettlement::new(&source, None, &[substituted]),
+                NativeProgramEntrySettlement::new(
+                    &source,
+                    Some(paired_calling_plan_parts(&plans)),
+                    &[substituted],
+                ),
                 target::NativeTarget::windows_x64(),
             ),
             Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift),
@@ -101,7 +119,7 @@ fn ordinary_erased_fields_cannot_acquire_fused_root_establishment() {
             &receipt,
             NativeProgramEntrySettlement::new(
                 &source,
-                None,
+                Some(paired_calling_plan_parts(&plans)),
                 &[establishment.clone(), establishment],
             ),
             target::NativeTarget::windows_x64(),
@@ -114,6 +132,7 @@ pub(crate) fn fused_service_custody() -> (
     terminal_codec::CanonicalTerminalArtifact,
     terminal_psi::CheckedProgramEntryTerminalReceipt,
     program_entry_plan::SelectedProgramEntrySourceSignature,
+    build_evaluation::SelectedProgramEntryCallingPlans,
     program_entry_plan::ProgramEntryFusedServiceEstablishment,
 ) {
     let checked = checked(
@@ -131,47 +150,6 @@ pub(crate) fn fused_service_custody() -> (
         .iter()
         .find(|machine| machine.name == "Main::launch")
         .expect("terminal selection");
-    let provisional =
-        program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
-            target::TargetProfile::WindowsX64.program_entry_slot(),
-            selection.machine,
-            selection.machine,
-            selection.name.clone(),
-            "entry".into(),
-            "test::Main::launch(&mut self) -> Unit".into(),
-            program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
-                normalized_type_identity: "provisional".into(),
-            },
-            Vec::new(),
-        )
-        .expect("provisional hosted source signature");
-    let provisional_artifact =
-        terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
-            .produce_program_entry(provisional.identity().bytes())
-            .expect("provisional ProgramEntry Terminal artifact");
-    let module = terminal_codec::decode_module(provisional_artifact.artifact().semantic_bytes())
-        .expect("decode provisional Terminal module");
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .expect("unique Terminal entry");
-    let attachment = entry.attachment.expect("attached Terminal entry");
-    let attachment_type = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == attachment)
-        .expect("entry attachment type");
-    let terminal_psi::StructuralTypeShape::Record { fields } = &attachment_type.shape else {
-        panic!("entry attachment remains a record")
-    };
-    let field = fields
-        .iter()
-        .find(|field| field.identity == "service")
-        .expect("erased service field");
-    let terminal_psi::StructuralFieldType::Erased { type_identity } = &field.field_type else {
-        panic!("service fixture field remains erased")
-    };
     let source_machine = checked
         .machines()
         .iter()
@@ -201,6 +179,29 @@ pub(crate) fn fused_service_custody() -> (
     let produced = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
         .produce_program_entry(source.identity().bytes())
         .expect("ProgramEntry Terminal artifact");
+    let module = terminal_codec::decode_module(produced.artifact().semantic_bytes())
+        .expect("decode Terminal module");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("unique Terminal entry");
+    let attachment = entry.attachment.expect("attached Terminal entry");
+    let attachment_type = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == attachment)
+        .expect("entry attachment type");
+    let terminal_psi::StructuralTypeShape::Record { fields } = &attachment_type.shape else {
+        panic!("entry attachment remains a record")
+    };
+    let field = fields
+        .iter()
+        .find(|field| field.identity == "service")
+        .expect("erased service field");
+    let terminal_psi::StructuralFieldType::Erased { type_identity } = &field.field_type else {
+        panic!("service fixture field remains erased")
+    };
     let establishment =
         establishment_for_source(&source, &attachment_type.identity, "service", type_identity);
     let (
@@ -212,7 +213,13 @@ pub(crate) fn fused_service_custody() -> (
     ) = produced.into_parts();
     assert!(selected_ieee_float_fma_occurrences.is_empty());
     assert!(selected_ieee_float_comparison_occurrences.is_empty());
-    (artifact, receipt, source, establishment)
+    (
+        artifact,
+        receipt,
+        source,
+        crate::tests::fixtures::hosted::hosted_calling_plans(target::TargetProfile::WindowsX64),
+        establishment,
+    )
 }
 
 fn establishment_for_source(
