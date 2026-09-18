@@ -1,8 +1,10 @@
 //! Constant evaluation: facts.
 use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
-    Item, ProofFact, SyntaxTrees, TypeConstraintNode, TypeReferenceNode,
+    HashSet, Item, ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind,
+    TypeReferenceHandle, TypeReferenceNode,
 };
+use arena::HandleSpan;
 
 use crate::preparation::generic_data::ConstFactValue;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
@@ -187,13 +189,56 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
     };
     // The visiting key is the selected declaration's complete logical path so
     // two authored spellings of the same owner still catch recursion.
-    let domain_key = match crate::preparation::generic_data::module_constants::module_path(
+    let domain_key = module_domain_key(syntax, domain);
+    evaluate_selected_domain_facts(
+        syntax,
+        domain,
+        domain_key,
+        carrier,
+        value,
+        const_values,
+        &HashMap::new(),
+        visiting,
+        selection,
+        warnings,
+    )
+}
+
+/// The selected declaration's complete logical path — module prefix plus the
+/// declared name — so two authored spellings of the same owner share one
+/// recursion-guard key.
+fn module_domain_key(
+    syntax: &SyntaxTrees,
+    domain: &syntax_trees::item::DomainDefinition,
+) -> String {
+    match crate::preparation::generic_data::module_constants::module_path(
         syntax,
         domain.name.source_span().source_id,
     ) {
         Some(module) => format!("{module}::{}", domain.name.as_str()),
         None => domain.name.as_str().to_owned(),
-    };
+    }
+}
+
+/// Replay one already-selected domain declaration's facts against `value`
+/// with `self` bound and the application's closed index binders mapped in
+/// `parameter_values` (empty for a monomorphic domain). Unindexed and closed
+/// indexed membership share this body so both apply the same carrier check,
+/// recursion guard, and fact order. A nested indexed membership still
+/// declines: an open family application inside a fact keeps the whole
+/// evaluation on the checked-record path rather than discharge here.
+fn evaluate_selected_domain_facts(
+    syntax: &SyntaxTrees,
+    domain: &syntax_trees::item::DomainDefinition,
+    domain_key: String,
+    carrier: &str,
+    value: i128,
+    const_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, i128>,
+    visiting: &mut Vec<String>,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Option<bool>, String> {
     if visiting.iter().any(|name| name == &domain_key) {
         return Ok(None);
     }
@@ -217,6 +262,7 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
                     syntax,
                     *expression,
                     const_values,
+                    parameter_values,
                     value,
                     carrier,
                     visiting,
@@ -231,7 +277,7 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
                         syntax,
                         membership.value,
                         const_values,
-                        &HashMap::new(),
+                        parameter_values,
                         Some(value),
                         warnings,
                     )?
@@ -280,20 +326,329 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
     result
 }
 
+/// Evaluate `value in <authored><args>` — a closed index application of a
+/// generic domain family — at declaration site. The authored spelling selects
+/// the family under the same module name law `domain` applies to monomorphic
+/// domains (a qualified path names its exact owner, module-local precedence
+/// ranks same-leaf candidates, and relative spellings stay import-gated);
+/// contested, unreachable, or non-generic owners decline. Every index
+/// parameter must be an integer const binder and every supplied argument must
+/// close to a concrete integer against the enclosing scope's bindings; the
+/// family's facts then replay through the same evaluator monomorphic domains
+/// use, with `self` bound to `value` and each binder mapped to its argument.
+/// A carrier-polymorphic target, a non-integer or non-const index parameter,
+/// an argument that stays open (enclosing binders, module-constant spellings,
+/// names still owned by resolved selection), and an unprovable fact all
+/// decline with `None` so the declaration keeps its fence instead of
+/// discharging against a guessed binding.
+fn evaluate_indexed_const_domain(
+    syntax: &SyntaxTrees,
+    authored: &str,
+    argument_span: HandleSpan<TypeReferenceHandle>,
+    carrier: &str,
+    value: i128,
+    const_values: &HashMap<String, i128>,
+    argument_values: &HashMap<String, i128>,
+    visiting: &mut Vec<String>,
+    reference: source::SourceSpan,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Option<bool>, String> {
+    let domain = match selection {
+        Some(selection) => selection
+            .domain_family(syntax, authored, reference)
+            .map(|(_, definition)| definition),
+        None => {
+            // Source-free canonicalization has no module custody, so the
+            // fallback may only select an unmoduled family declared exactly
+            // once — the same restriction unindexed discharge applies.
+            let expanded = if authored.contains("::") {
+                authored.to_owned()
+            } else {
+                format!("{carrier}::{authored}")
+            };
+            let mut matches = syntax.root_items().filter_map(|item| match item {
+                Item::Domain(domain) if domain.name.as_str() == expanded => Some(domain),
+                _ => None,
+            });
+            match matches.next() {
+                Some(domain)
+                    if matches.next().is_none()
+                        && !domain.type_parameters.is_empty()
+                        && crate::preparation::generic_data::module_constants::module_path(
+                            syntax,
+                            domain.name.source_span().source_id,
+                        )
+                        .is_none() =>
+                {
+                    Some(domain)
+                }
+                _ => None,
+            }
+        }
+    };
+    let Some(domain) = domain else {
+        return Ok(None);
+    };
+    let domain_key = module_domain_key(syntax, domain);
+    // A carrier-polymorphic family (`domain<T, ...> T::D`) cannot prove
+    // membership for a concrete value until its carrier instantiates; the
+    // application keeps its authored shape for that stage.
+    let TypeReferenceNode::Named(domain_target) =
+        syntax.type_references.type_reference(domain.target_type)
+    else {
+        return Ok(None);
+    };
+    let parameters = syntax.items.type_parameters(domain.type_parameters);
+    if parameters.first().is_some_and(|parameter| {
+        matches!(parameter.kind, TypeParameterKind::Type)
+            && domain_target.as_str() == parameter.name.as_str()
+    }) {
+        return Ok(None);
+    }
+    let Some(index_parameters) =
+        crate::preparation::generic_data::domain_index_parameters(syntax, domain)
+    else {
+        return Ok(None);
+    };
+    let arguments = syntax.type_references.type_reference_handles(argument_span);
+    if index_parameters.is_empty() {
+        return Ok(None);
+    }
+    if arguments.len() != index_parameters.len() {
+        return Err(format!(
+            "indexed domain `{authored}` requires {} closed index argument(s), but {} were supplied",
+            index_parameters.len(),
+            arguments.len(),
+        ));
+    }
+    let mut parameter_values = HashMap::new();
+    for (parameter, argument) in index_parameters.iter().zip(arguments.iter()) {
+        let TypeParameterKind::Const {
+            type_reference: parameter_type,
+        } = parameter.kind
+        else {
+            return Ok(None);
+        };
+        let Some(bound) = evaluate_domain_index_argument(
+            syntax,
+            authored,
+            parameter.name.as_str(),
+            parameter_type,
+            *argument,
+            const_values,
+            argument_values,
+            selection,
+            warnings,
+        )?
+        else {
+            return Ok(None);
+        };
+        parameter_values.insert(parameter.name.as_str().to_owned(), bound);
+    }
+    evaluate_selected_domain_facts(
+        syntax,
+        domain,
+        domain_key,
+        carrier,
+        value,
+        const_values,
+        &parameter_values,
+        visiting,
+        selection,
+        warnings,
+    )
+}
+
+/// Evaluate one supplied index argument of a domain-family application to the
+/// integer its const binder receives, under the same admissible forms the
+/// closed-index canonicalizer accepts: literal and canonical leaves, the
+/// caller's bound index parameters, exactly selected constant declarations,
+/// and the scoped integer ledger. `Ok(None)` means the argument cannot be
+/// decided at this point — an unresolved name, a spelling ordinary resolution
+/// still owns, or a non-integer canonical value — so the application stays
+/// fenced rather than binding a guessed value.
+fn evaluate_domain_index_argument(
+    syntax: &SyntaxTrees,
+    family_name: &str,
+    parameter_name: &str,
+    parameter_type: TypeReferenceHandle,
+    argument: TypeReferenceHandle,
+    const_values: &HashMap<String, i128>,
+    argument_values: &HashMap<String, i128>,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Option<i128>, String> {
+    let Some(integer_type) =
+        crate::preparation::generic_data::const_integer_type(syntax, parameter_type)
+    else {
+        // Non-integer const index parameters (bool, data carriers) still owe
+        // their own checked evidence; keep the application fenced.
+        return Ok(None);
+    };
+    match syntax.type_references.type_reference(argument) {
+        TypeReferenceNode::Named(name) => {
+            if let Some(atom) = CanonicalConstValue::from_atom(name.as_str()) {
+                let required =
+                    crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
+                if atom.type_name != required {
+                    return Err(format!(
+                        "index argument for `{family_name}::{parameter_name}` has canonical type `{}`, expected `{required}`",
+                        atom.type_name,
+                    ));
+                }
+                return match atom.decode_encoding() {
+                    Some(
+                        language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                            value,
+                            ..
+                        },
+                    ) => Ok(Some(value)),
+                    _ => Ok(None),
+                };
+            }
+            if let Ok(value) = name.as_str().parse::<i128>() {
+                return Ok(Some(value));
+            }
+            if matches!(name.as_str(), "true" | "false") {
+                let required =
+                    crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
+                return Err(format!(
+                    "index argument for `{family_name}::{parameter_name}` has canonical type `bool`, expected `{required}`"
+                ));
+            }
+            if let Some(value) = argument_values.get(name.as_str()) {
+                return Ok(Some(*value));
+            }
+            if let Some(selection) = selection {
+                // The authored name selects its exact constant declaration
+                // under module name law — module-local constants, narrow
+                // imports, and qualified spellings all resolve here.
+                // Unresolved spellings stay authored for ordinary resolution
+                // rather than borrowing a lexical guess.
+                if let Some(definition) = selection
+                    .select(syntax, name)
+                    .map_err(|diagnostic| diagnostic.message)?
+                {
+                    let value = crate::preparation::generic_data::canonicalize_selected_const_definition(
+                        syntax,
+                        &definition,
+                        parameter_type,
+                        Some(selection),
+                    )
+                    .map_err(|reason| {
+                        format!(
+                            "index argument for `{family_name}::{parameter_name}` is invalid: {reason}"
+                        )
+                    })?;
+                    return match value.decode_encoding() {
+                        Some(
+                            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                                value,
+                                ..
+                            },
+                        ) => Ok(Some(value)),
+                        _ => Ok(None),
+                    };
+                }
+            }
+            if let Some(value) = const_values.get(name.as_str()) {
+                crate::preparation::generic_data::module_constants::reject_module_constant_selection(
+                    syntax,
+                    name.as_str(),
+                    name.source_span(),
+                )?;
+                return Ok(Some(*value));
+            }
+            // Without source-aware selection, a non-literal scoped const
+            // still evaluates through its own declaration. Module constants
+            // stay out of the ledger: their names require resolved
+            // declaration selection, which the guard enforces on any spelling
+            // that could reach one.
+            let mut definitions = syntax.root_items().filter_map(|item| match item {
+                Item::Const(definition)
+                    if !crate::preparation::generic_data::module_constants::is_module_constant(
+                        syntax, definition,
+                    ) && super::qualified_const_name(definition) == name.as_str() =>
+                {
+                    Some(definition)
+                }
+                _ => None,
+            });
+            let Some(definition) = definitions.next() else {
+                return Ok(None);
+            };
+            if definitions.next().is_some() {
+                return Ok(None);
+            }
+            crate::preparation::generic_data::module_constants::reject_module_constant_selection(
+                syntax,
+                name.as_str(),
+                name.source_span(),
+            )?;
+            let value = crate::preparation::generic_data::canonicalize_const_definition(
+                syntax,
+                definition,
+                parameter_type,
+            )
+            .map_err(|reason| {
+                format!("index argument for `{family_name}::{parameter_name}` is invalid: {reason}")
+            })?;
+            match value.decode_encoding() {
+                Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                    value,
+                    ..
+                }) => Ok(Some(value)),
+                _ => Ok(None),
+            }
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            // Open arguments (enclosing binders, names awaiting resolved
+            // selection, or operators needing declaration authority) keep
+            // their authored shape for the downstream pass.
+            if crate::preparation::generic_data::const_expression_contains_name(syntax, *expression)
+                || super::anonymous::requires_const_operator_selection(syntax, *expression)
+            {
+                return Ok(None);
+            }
+            let value = crate::preparation::generic_data::evaluate_const_argument_expression(
+                syntax,
+                *expression,
+                const_values,
+                argument_values,
+                &HashSet::new(),
+                Some(integer_type),
+                warnings,
+            )
+            .and_then(crate::preparation::generic_data::EvaluatedConst::into_concrete)
+            .map_err(|reason| {
+                format!("index argument expression for `{family_name}` is invalid: {reason}")
+            })?;
+            let required =
+                crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
+            crate::preparation::generic_data::validate_syntax_integer_range(&required, value)?;
+            Ok(Some(value))
+        }
+        _ => Ok(None),
+    }
+}
+
 /// The shared fence for constrained const declarations whose carrier's
 /// constraints cannot be proved at declaration site.
 const CONSTRAINED_CONST_FENCE: &str = "constrained const declarations require declaration-site proof checking before they can publish compatibility identity";
 
 /// Discharge a constrained const declaration's domain constraints at its
 /// canonical value — the declaration-site proof a constrained carrier owes
-/// before it may publish compatibility identity. Every constraint must be an
-/// unindexed `Domain` application whose authored spelling selects one exact
-/// owner under module name law (the same selection the resolver later applies
-/// to the declaration's retained type); its facts then replay with `self`
-/// bound to the value through the same evaluator `where`-membership discharge
-/// uses. Indexed applications, non-domain constraints, non-integer values,
-/// and contested or unreachable owners keep the declaration fenced rather
-/// than publishing identity against a guessed or absent owner.
+/// before it may publish compatibility identity. Every constraint must be a
+/// `Domain` application whose authored spelling selects one exact owner under
+/// module name law (the same selection the resolver later applies to the
+/// declaration's retained type); its facts then replay with `self` bound to
+/// the value through the same evaluator `where`-membership discharge uses. A
+/// closed index application additionally binds the family's index binders to
+/// its evaluated arguments before that replay. Non-domain constraints,
+/// non-integer values, contested or unreachable owners, open arguments, and
+/// unprovable facts keep the declaration fenced rather than publishing
+/// identity against a guessed or absent owner.
 ///
 /// Without a `ConstantSelection` (source-free canonicalization) the evaluator
 /// falls back to exact declared-name matching, which cannot see module
@@ -321,44 +676,56 @@ pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constrai
         let TypeConstraintNode::Domain(domain) = constraint else {
             return Err(CONSTRAINED_CONST_FENCE.to_owned());
         };
-        if !domain.arguments.is_empty() {
-            // A closed index application on a domain family still owes its
-            // open-template membership proof; keep the declaration fenced.
-            return Err(CONSTRAINED_CONST_FENCE.to_owned());
-        }
-        if selection.is_none() {
-            let expanded = if domain.name.as_str().contains("::") {
-                domain.name.as_str().to_owned()
-            } else {
-                format!("{carrier}::{}", domain.name.as_str())
-            };
-            let mut matches = syntax.root_items().filter_map(|item| match item {
-                Item::Domain(domain) if domain.name.as_str() == expanded => Some(domain),
-                _ => None,
-            });
-            let unmoduled_unique = matches.next().is_some_and(|domain| {
-                matches.next().is_none()
-                    && crate::preparation::generic_data::module_constants::module_path(
-                        syntax,
-                        domain.name.source_span().source_id,
-                    )
-                    .is_none()
-            });
-            if !unmoduled_unique {
-                return Err(CONSTRAINED_CONST_FENCE.to_owned());
+        let holds = if domain.arguments.is_empty() {
+            if selection.is_none() {
+                let expanded = if domain.name.as_str().contains("::") {
+                    domain.name.as_str().to_owned()
+                } else {
+                    format!("{carrier}::{}", domain.name.as_str())
+                };
+                let mut matches = syntax.root_items().filter_map(|item| match item {
+                    Item::Domain(domain) if domain.name.as_str() == expanded => Some(domain),
+                    _ => None,
+                });
+                let unmoduled_unique = matches.next().is_some_and(|domain| {
+                    matches.next().is_none()
+                        && crate::preparation::generic_data::module_constants::module_path(
+                            syntax,
+                            domain.name.source_span().source_id,
+                        )
+                        .is_none()
+                });
+                if !unmoduled_unique {
+                    return Err(CONSTRAINED_CONST_FENCE.to_owned());
+                }
             }
-        }
-        match evaluate_named_const_domain(
-            syntax,
-            domain.name.as_str(),
-            &carrier,
-            integer,
-            &const_values,
-            &mut Vec::new(),
-            domain.name.source_span(),
-            selection,
-            &mut warnings,
-        )? {
+            evaluate_named_const_domain(
+                syntax,
+                domain.name.as_str(),
+                &carrier,
+                integer,
+                &const_values,
+                &mut Vec::new(),
+                domain.name.source_span(),
+                selection,
+                &mut warnings,
+            )?
+        } else {
+            evaluate_indexed_const_domain(
+                syntax,
+                domain.name.as_str(),
+                domain.arguments,
+                &carrier,
+                integer,
+                &const_values,
+                &HashMap::new(),
+                &mut Vec::new(),
+                domain.name.source_span(),
+                selection,
+                &mut warnings,
+            )?
+        };
+        match holds {
             Some(true) => {}
             Some(false) => {
                 return Err(format!(
@@ -373,10 +740,15 @@ pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constrai
     Ok(())
 }
 
+/// Evaluate one fact expression inside a selected domain declaration with
+/// `self` bound to the checked value. `parameter_values` carries the
+/// application's closed index bindings so a family fact like `self < N`
+/// resolves its binder exactly; a monomorphic domain passes an empty map.
 pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, i128>,
     self_value: i128,
     carrier: &str,
     visiting: &mut Vec<String>,
@@ -393,7 +765,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
                 syntax,
                 membership.value,
                 const_values,
-                &HashMap::new(),
+                parameter_values,
                 Some(self_value),
                 warnings,
             )?
@@ -436,6 +808,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
                 syntax,
                 binary.left,
                 const_values,
+                parameter_values,
                 self_value,
                 carrier,
                 visiting,
@@ -449,6 +822,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
                 syntax,
                 binary.right,
                 const_values,
+                parameter_values,
                 self_value,
                 carrier,
                 visiting,
@@ -465,7 +839,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(
             syntax,
             expression,
             const_values,
-            &HashMap::new(),
+            parameter_values,
             Some(self_value),
             warnings,
         ),

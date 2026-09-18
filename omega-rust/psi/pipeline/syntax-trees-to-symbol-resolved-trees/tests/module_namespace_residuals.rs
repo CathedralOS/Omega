@@ -387,6 +387,87 @@ fn constrained_const_rejects_refuted_domain_fact() {
 }
 
 #[test]
+fn constrained_const_discharges_closed_indexed_domain() {
+    // `mine`'s local `Window` family outranks the imported same-leaf sibling
+    // under module-local precedence; its `self < N` fact replays with `N`
+    // bound to the closed index `8` and `self` to the canonical value, so the
+    // declaration publishes identity. The foreign sibling's `self <= N` would
+    // also hold for `3` — make it refuting (`self > N`) so a wrong owner
+    // would reject instead of discharge.
+    let program = lower_multi(&[
+        (
+            "units.omg",
+            "module units; pub domain<const N: u64> u64::Window<N> requires self > N;",
+        ),
+        (
+            "mine.omg",
+            "module mine; use units; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<8> = 3;",
+        ),
+    ])
+    .expect("closed indexed domain discharges the constrained const");
+    assert_eq!(const_named(&program, "X"), "mine::X");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::X")
+        .expect("mine::X");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "a discharged indexed constrained const publishes compatibility identity"
+    );
+}
+
+#[test]
+fn constrained_const_indexed_domain_reaches_foreign_family_and_named_index() {
+    // `units` owns the only reachable `Window` family. A generic family
+    // declares a leaf-named domain, so module name law reaches it through the
+    // narrow import's bare leaf or the complete qualified spelling — never a
+    // carrier-qualified `u64::Window` from outside its own module. An exactly
+    // selected module-constant index argument discharges against `units`'
+    // owner as well.
+    for (tag, declaring) in [
+        (
+            "narrow import",
+            "module mine; use units::Window; const X: u64 in Window<8> = 3;",
+        ),
+        (
+            "qualified",
+            "module mine; const X: u64 in units::Window<8> = 3;",
+        ),
+        (
+            "selected module const index",
+            "module mine; use units::Window; const W: u64 = 8; const X: u64 in Window<W> = 3;",
+        ),
+    ] {
+        let program = lower_multi(&[
+            (
+                "units.omg",
+                "module units; pub domain<const N: u64> u64::Window<N> requires self < N;",
+            ),
+            (
+                "decoys.omg",
+                "module decoys; pub domain<const N: u64> u64::Window<N> requires self > N;",
+            ),
+            ("mine.omg", declaring),
+        ])
+        .unwrap_or_else(|e| panic!("{tag} foreign indexed domain selection: {e}"));
+        assert_eq!(const_named(&program, "X"), "mine::X", "{tag}");
+    }
+}
+
+#[test]
+fn constrained_const_rejects_refuted_indexed_domain_fact() {
+    // The selected family replays `self < N` with `N` bound to `8` and `self`
+    // to `9` — a precise refutation, not the generic fence.
+    let error = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<8> = 9;",
+    )])
+    .expect_err("a refuted indexed constrained const rejects");
+    assert!(error.contains("is false"), "unexpected diagnostic: {error}");
+}
+
+#[test]
 fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
     for (tag, sources) in [
         // `Pos` exists only inside the unimported sibling `units`; the
@@ -414,13 +495,65 @@ fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
                 ),
             ][..],
         ),
-        // A closed index application on a domain family still owes its
-        // open-template membership proof.
+        // Two narrow-imported foreign families contest the bare leaf: the
+        // pool declines rather than bind the index against a guessed owner.
         (
-            "indexed domain family",
+            "contested indexed foreign owners",
+            &[
+                (
+                    "a.omg",
+                    "module a; pub domain<const N: u64> u64::Window<N> requires self < N;",
+                ),
+                (
+                    "b.omg",
+                    "module b; pub domain<const N: u64> u64::Window<N> requires self < N;",
+                ),
+                (
+                    "mine.omg",
+                    "module mine; use a::Window; use b::Window; const X: u64 in Window<8> = 3;",
+                ),
+            ][..],
+        ),
+        // The unimported sibling's family is unreachable from `mine`.
+        (
+            "unreachable indexed foreign family",
+            &[
+                (
+                    "units.omg",
+                    "module units; pub domain<const N: u64> u64::Window<N> requires self < N;",
+                ),
+                (
+                    "mine.omg",
+                    "module mine; const X: u64 in u64::Window<8> = 3;",
+                ),
+            ][..],
+        ),
+        // An unresolved index argument cannot bind a concrete value at
+        // declaration site; the application keeps its authored shape for
+        // ordinary resolution.
+        (
+            "open index argument",
             &[(
                 "mine.omg",
-                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<8> = 3;",
+                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<K> = 3;",
+            )][..],
+        ),
+        // A non-integer const index parameter still owes its own checked
+        // evidence.
+        (
+            "non-integer index parameter",
+            &[(
+                "mine.omg",
+                "module mine; domain<const F: bool> u64::Tag<F> requires self > 0; const X: u64 in u64::Tag<true> = 3;",
+            )][..],
+        ),
+        // An unindexed application of a generic family names no concrete
+        // instance; selection declines it.
+        (
+            "unindexed generic family application",
+            &[(
+                "mine.omg",
+                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window = 3;",
             )][..],
         ),
     ] {
