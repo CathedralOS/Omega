@@ -107,6 +107,46 @@ pub(super) fn project_boundary_call(
     Ok(kind)
 }
 
+/// Project one evaluated normalized foreign boundary call. The admitted
+/// provider execution and evaluated binding are custody carried verbatim from
+/// the unique target row; the scalar and structural argument rows it orders
+/// are the same evidence the input validator re-derives independently.
+pub(super) fn project_normalized_foreign_call(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    native: &TargetOperationPlan,
+    operation: OperationId,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::BoundaryCall { boundary, .. } = &node.operation else {
+        unreachable!("dispatched project_normalized_foreign_call")
+    };
+    let Some(target_operations::TargetUnitOperation::NormalizedForeignCall {
+        psi_operation,
+        boundary: row_boundary,
+        provider_execution,
+        binding,
+        scalar_arguments,
+        structural_arguments,
+        result_home,
+    }) = scalar_graph_input::normalized_foreign::row(native, optimized.machine, operation)?
+    else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    if *psi_operation != operation || *row_boundary != *boundary {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    Ok(LegalizedScalarInstructionKind::NormalizedForeignCall(
+        legalized_operations::LegalizedNormalizedForeignCall {
+            boundary: *boundary,
+            provider_execution: *provider_execution,
+            binding: binding.clone(),
+            scalar_arguments: scalar_arguments.clone(),
+            structural_arguments: structural_arguments.clone(),
+            result_home: *result_home,
+        },
+    ))
+}
+
 pub(super) fn project_call_unit(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,

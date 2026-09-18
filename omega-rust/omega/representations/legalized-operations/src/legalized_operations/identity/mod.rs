@@ -2,6 +2,7 @@
 
 mod calling;
 mod canonical;
+mod normalized_foreign;
 mod plan;
 mod scalar;
 mod scalar_graph;

@@ -144,6 +144,19 @@ pub(super) fn project(
                 path: path.clone(),
             }
         }
+        // An evaluated normalized foreign row precedes hosted settlement
+        // probing: the row carries its own provider execution and is never a
+        // hosted realization.
+        AbstractOperation::BoundaryCall { .. }
+            if scalar_graph_input::normalized_foreign::row(
+                native,
+                optimized.machine,
+                operation,
+            )?
+            .is_some() =>
+        {
+            call_instructions::project_normalized_foreign_call(node, optimized, native, operation)?
+        }
         AbstractOperation::BoundaryCall {
             boundary,
             result: abstract_operations::AbstractBoundaryResult::Structural(result),

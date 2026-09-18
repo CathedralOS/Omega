@@ -15,6 +15,7 @@ mod byte_view;
 pub(in crate::legalization::scalar_graph_input) mod control_flow;
 mod expressions;
 mod hosted_scalar;
+mod normalized_foreign;
 mod scalar_definitions;
 mod unit;
 pub(super) fn validate_target(

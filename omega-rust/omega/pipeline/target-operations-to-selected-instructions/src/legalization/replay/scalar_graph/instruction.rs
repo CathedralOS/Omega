@@ -13,6 +13,7 @@ use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 mod aggregate_results;
 mod call_instructions;
+mod normalized_foreign;
 mod scalar_instructions;
 mod storage_instructions;
 #[allow(clippy::too_many_arguments)]
@@ -430,6 +431,10 @@ pub(super) fn validate(
         (LegalizedScalarInstructionKind::Call(_), AbstractOperation::Call { .. }) => {
             call_instructions::validate_call_call(actual, node, native, plan, unit, proposed_plan)?
         }
+        (
+            LegalizedScalarInstructionKind::NormalizedForeignCall(_),
+            AbstractOperation::BoundaryCall { .. },
+        ) => normalized_foreign::validate(actual, node, optimized, native, plan, unit, operation)?,
         (
             LegalizedScalarInstructionKind::WrappingRemainder { .. },
             AbstractOperation::WrappingIntegerRemainder { .. },

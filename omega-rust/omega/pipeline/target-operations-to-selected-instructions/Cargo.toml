@@ -31,4 +31,6 @@ terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 
 [dev-dependencies]
+installation-evidence = { path = "../../representations/installation-evidence" }
 isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
+task-plans = { path = "../../representations/task-plans" }

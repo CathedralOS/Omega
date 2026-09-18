@@ -407,6 +407,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(6);
                     super::structural::encode_boundary_settlement(bytes, settlement);
                 }
+                LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+                    bytes.push(67);
+                    super::normalized_foreign::encode(bytes, call);
+                }
                 LegalizedScalarInstructionKind::SaturatingAdd {
                     carrier,
                     left,

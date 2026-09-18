@@ -429,6 +429,22 @@ pub(super) fn validate_operation(
             sources.push((result_home.source_value, Source::Home(*result_home)));
         }
         (
+            TargetUnitOperation::NormalizedForeignCall { .. },
+            AbstractOperation::BoundaryCall { .. },
+        ) => {
+            super::normalized_foreign::validate(
+                target,
+                abstracted,
+                function,
+                parameters,
+                native.target,
+                optimized,
+                plan,
+                unit,
+                sources,
+            )?;
+        }
+        (
             TargetUnitOperation::BoundarySettlement { .. },
             AbstractOperation::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(_),
