@@ -12,7 +12,9 @@
 //! at the exact invocation after operand effects, for both spelled operators
 //! and implicit Match comparisons. Statement-entry facts can describe overwritten
 //! storage or omit guarantees established by earlier operands. Copied scalars
-//! retain operand-time facts; other carriers additionally require those same
+//! and by-value carriers with stable observable contents retain operand-time
+//! facts — the bound operand is a detached copy a later write cannot reach;
+//! view carriers such as references and slices additionally require those same
 //! facts to remain live at invocation. This conservative intersection prevents
 //! a later guarantee or reference rebind from impersonating a captured value.
 //! This query checks the already
