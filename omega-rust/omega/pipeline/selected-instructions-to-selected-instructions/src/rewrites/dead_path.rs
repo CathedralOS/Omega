@@ -1,15 +1,20 @@
 //! The forward dead-on-path audit shared by the relocation rewrites that
-//! move one member across a branch or a join.
+//! move one member — or one contiguous run of members — across a branch
+//! or a join.
 //!
-//! Moving the member changes which traversals execute it. A sink into one
-//! arm removes its execution from every traversal that leaves the branch
-//! through a different edge; a hoist into a fork head or a sink into a join
-//! adds its execution to traversals that never ran it. Either move is sound
-//! only when nothing on the affected paths can observe the definitions the
-//! member no longer publishes, or newly publishes: every register the
-//! member writes and every condition-state unit it defines or clobbers must
-//! be dead on those paths — read by no body or terminator position and no
-//! edge transport before a write retires the stale or foreign definition.
+//! Moving the members changes which traversals execute them. A sink into
+//! one arm removes their execution from every traversal that leaves the
+//! branch through a different edge; a hoist into a fork head or a sink
+//! into a join adds their execution to traversals that never ran them.
+//! Either move is sound only when nothing on the affected paths can
+//! observe the definitions the members no longer publish, or newly
+//! publish: every register any member writes and every condition-state
+//! unit any member defines or clobbers must be dead on those paths —
+//! read by no body or terminator position and no edge transport before a
+//! write retires the stale or foreign definition. A run's locations are
+//! the union of its members': members move as one body, so a location one
+//! member publishes and another consumes still leaves the block with the
+//! run and must die on the paths that lose or gain the whole body.
 //!
 //! The audit is the forward mirror of `rewrites/condition_state`'s
 //! entry-event walk. Per-block entry sets of still-live member locations
@@ -22,35 +27,36 @@
 //! union at joins, so the walk is a monotone fixpoint over a finite subset
 //! lattice and terminates.
 //!
-//! Two positions are special. At the landing position the member's
+//! Two positions are special. At the landing position the moved body's
 //! occupancy on the walked paths decides what the walk sees
-//! ([`Landing`]). Where every traversal reaching the block runs the member
-//! there, its position republishes every location it writes and clears the
-//! live set. Where its execution is speculative on the walked paths, its
-//! reads belong to the added execution and go unaudited, while its writes
-//! republish member locations that are foreign to the path: the position
-//! re-seeds the live set rather than clearing it, so a reader after it
-//! still refuses and only an ordinary writer retires them. The destination
-//! instruction at the landing index sits after the member in the
-//! transformed stream and is scanned against the published set.
+//! ([`Landing`]). Where every traversal reaching the block runs the body
+//! there, its position republishes every location its members write and
+//! clears the live set. Where its execution is speculative on the walked
+//! paths, its reads belong to the added execution and go unaudited, while
+//! its writes republish member locations that are foreign to the path:
+//! the position re-seeds the live set rather than clearing it, so a
+//! reader after it still refuses and only an ordinary writer retires
+//! them. The destination instruction at the landing index sits after the
+//! body in the transformed stream and is scanned against the published
+//! set.
 //!
-//! In the member's own block the vacated index is absent from the
+//! In the body's own block the vacated span is absent from the
 //! transformed stream — a dead path that loops back through it scans the
-//! remaining positions only ([`Vacated`]). Whether the member's missing
-//! write diverges there depends on the move: when every walked path
-//! reaching the vacated block crossed the member's new position first, or
-//! when every position behind the vacated index that could observe the
-//! missing write sits inside the crossed window the hazard audit owns,
-//! the index stays silent. When a walked path can reach the vacated block
-//! without the member running — the confluence-hoist family, whose other
-//! inflow edges arrive beside the member's new position rather than
-//! through it — the vacated index is where the missing write leaves every
-//! member location divergent, so it publishes them into the live set and
-//! a later reader still refuses.
+//! remaining positions only ([`Vacated`]). Whether the members' missing
+//! writes diverge there depends on the move: when every walked path
+//! reaching the vacated block crossed the body's new position first, or
+//! when every position behind the vacated span that could observe the
+//! missing writes sits inside the crossed window the hazard audit owns,
+//! the span stays silent. When a walked path can reach the vacated block
+//! without the body running — the confluence-hoist family, whose other
+//! inflow edges arrive beside the body's new position rather than
+//! through it — the vacated span is where the missing writes leave every
+//! member location divergent, so each vacated position publishes them
+//! into the live set and a later reader still refuses.
 //!
-//! The member's own reads need no audit on the source side either: the
+//! The members' own reads need no audit on the source side either: the
 //! window's position-level hazard proof already refuses every write to a
-//! location the member reads between its old and new positions, on every
+//! location a member reads between its old and new positions, on every
 //! path — so the reaching definition it observes at the landing index is
 //! the one it observed at its original position.
 use std::collections::{BTreeSet, VecDeque};
@@ -64,46 +70,56 @@ use selected_instructions::{
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::rewrites::window_hazards::{register_reads, register_writes};
 
-/// How the moved member occupies its landing position on the paths the
+/// How the moved body occupies its landing position on the paths the
 /// audit walks.
 pub(super) enum Landing {
-    /// Every traversal reaching the landing block runs the member there — a
+    /// Every traversal reaching the landing block runs the body there — a
     /// sink into one arm, whose only predecessors are the branch's own
-    /// edges — so its position publishes every location it writes afresh.
+    /// edges — so its position publishes every location its members write
+    /// afresh.
     Executed,
-    /// The walked traversals never ran the member before — a hoist into a
+    /// The walked traversals never ran the body before — a hoist into a
     /// fork head, a sink into a join — so its writes at the landing
     /// position are foreign to the path and stay live until an ordinary
     /// writer retires them.
     Speculated,
 }
 
-/// What the member's absence at its old index means on the walked paths.
+/// What the members' absence at their old indices means on the walked
+/// paths.
 pub(super) enum Vacated {
-    /// The vacated index diverges nothing the walk must see: every walked
-    /// path reaching the vacated block crossed the member's new position
+    /// The vacated span diverges nothing the walk must see: every walked
+    /// path reaching the vacated block crossed the body's new position
     /// first — the hoist into a fork head, where reaching the arm means
-    /// the member already ran — or every position behind it that could
-    /// observe the missing write is a crossed window position the hazard
+    /// the body already ran — or every position behind it that could
+    /// observe the missing writes is a crossed window position the hazard
     /// audit already refuses, as the sink families' own-block tails are.
-    /// The index is simply absent from the scanned stream.
+    /// The span is simply absent from the scanned stream.
     Silent,
-    /// The member's write is missing where the source still ran it: a
-    /// walked path reaches the vacated block beside the member's new
-    /// position rather than through it, so every location the member
-    /// writes goes live at the vacated index — a later reader meets the
+    /// The members' writes are missing where the source still ran them: a
+    /// walked path reaches the vacated block beside the body's new
+    /// position rather than through it, so every location any member
+    /// writes goes live at the vacated span — a later reader meets the
     /// stale value where the source met the member's own.
     Removed,
 }
 
-/// The member's old and new positions in the transformed stream.
+/// The moved body's old and new positions in the transformed stream.
 pub(super) struct Relocation<'a> {
-    pub(super) member: &'a SelectedInstruction,
-    /// The block the member leaves; `vacated_index` is absent from its
-    /// transformed stream.
+    /// The moved members in their own order: one instruction for a
+    /// member-level move, or the contiguous run's members for a run move.
+    pub(super) members: &'a [&'a SelectedInstruction],
+    /// The block the members leave; the contiguous body span
+    /// `vacated_first..=vacated_last` is absent from its transformed
+    /// stream.
     pub(super) vacated_block: usize,
-    pub(super) vacated_index: usize,
-    /// The block the member enters and the index it occupies there.
+    /// The first body index the members vacated.
+    pub(super) vacated_first: usize,
+    /// The last body index the members vacated — `vacated_first` itself
+    /// for a member-level move.
+    pub(super) vacated_last: usize,
+    /// The block the members enter and the index the first member
+    /// occupies there; the run's members sit contiguously from it.
     pub(super) landing_block: usize,
     pub(super) landing_index: usize,
     pub(super) landing: Landing,
@@ -112,19 +128,20 @@ pub(super) struct Relocation<'a> {
 
 /// Where the walk begins.
 pub(super) enum Start<'a> {
-    /// The member's locations are live on each of these edges: the branch
+    /// The members' locations are live on each of these edges: the branch
     /// terminator's successor edges that do not reach the landing block.
     Edges(&'a [&'a SelectedSuccessor]),
     /// The walk enters this block with nothing live yet; its landing
-    /// position publishes the member's locations on every arrival, the
-    /// member's own inflow included, since the region behind and ahead of
+    /// position publishes the members' locations on every arrival, the
+    /// body's own inflow included, since the region behind and ahead of
     /// that position cannot tell which inflow a traversal took.
     Block(usize),
 }
 
-/// The locations a moved member publishes that a path it no longer
+/// The locations a moved body publishes that a path it no longer
 /// executes on, or newly executes on, must never observe: every register
-/// it writes and every condition-state unit it defines or clobbers.
+/// any member writes and every condition-state unit any member defines
+/// or clobbers.
 #[derive(Clone, Default)]
 struct LiveLocations {
     registers: BTreeSet<VirtualRegisterId>,
@@ -146,7 +163,7 @@ impl LiveLocations {
     }
 }
 
-/// Everything the member writes: written registers plus defined and
+/// Everything one member writes: written registers plus defined and
 /// clobbered condition-state units.
 fn member_locations(member: &SelectedInstruction) -> LiveLocations {
     LiveLocations {
@@ -158,6 +175,18 @@ fn member_locations(member: &SelectedInstruction) -> LiveLocations {
             .copied()
             .collect(),
     }
+}
+
+/// The moved body's published locations: the union of its members' write
+/// sets. A location one member publishes and a later member consumes
+/// still leaves the vacated block with the run, so the whole union is
+/// what a path that lost or gained the body must never observe.
+fn body_locations(members: &[&SelectedInstruction]) -> LiveLocations {
+    let mut locations = LiveLocations::default();
+    for member in members {
+        locations.union_with(&member_locations(member));
+    }
+    locations
 }
 
 /// The register surface one crossed edge carries at the boundary. Value
@@ -254,7 +283,7 @@ fn cross_edge(live: &LiveLocations, successor: &SelectedSuccessor) -> Option<Liv
     Some(out)
 }
 
-/// The member's landing position as a walked path sees it.
+/// The body's landing position as a walked path sees it.
 fn land(live: &mut LiveLocations, landing: &Landing, locations: &LiveLocations) {
     match landing {
         Landing::Executed => *live = LiveLocations::default(),
@@ -264,9 +293,9 @@ fn land(live: &mut LiveLocations, landing: &Landing, locations: &LiveLocations) 
     }
 }
 
-/// Prove every location the member writes dead on every path the walk
-/// reaches from `start`, with the member absent from its vacated position
-/// and present at its landing position as `relocation.landing` says.
+/// Prove every location the members write dead on every path the walk
+/// reaches from `start`, with the body absent from its vacated span and
+/// present at its landing position as `relocation.landing` says.
 ///
 /// Returns `false` the moment a still-live member location meets a reader:
 /// a body or terminator position reading it, or a crossed edge whose
@@ -276,7 +305,7 @@ pub(super) fn dead(
     relocation: Relocation<'_>,
     start: Start<'_>,
 ) -> bool {
-    let locations = member_locations(relocation.member);
+    let locations = body_locations(relocation.members);
     if locations.is_empty() {
         return true;
     }
@@ -305,7 +334,16 @@ pub(super) fn dead(
         let block = &function.blocks[current];
         let mut live = entry[current].clone();
         for (position, instruction) in block.instructions.iter().enumerate() {
-            if current == relocation.vacated_block && position == relocation.vacated_index {
+            if current == relocation.vacated_block
+                && (relocation.vacated_first..=relocation.vacated_last).contains(&position)
+            {
+                // Every position in the vacated span is absent from the
+                // transformed stream. Under `Removed` each publishes the
+                // body's missing locations — unioning the whole set at
+                // each skipped position reaches the same fixpoint as
+                // publishing the member's own locations at its own
+                // index, since no surviving position sits inside the
+                // span.
                 if matches!(relocation.vacated, Vacated::Removed) {
                     live.union_with(&locations);
                 }
