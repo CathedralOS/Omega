@@ -584,6 +584,102 @@ fn named_call_mutable_operand_invalidation_retires_prior_facts() {
     }));
 }
 
+/// A named call nested inside an enclosing call's operand list writes its
+/// `&mut` operand before the enclosing call binds: `x` was captured as
+/// `sink`'s first operand before `Ns::bump` rewrote its storage, so the
+/// `x >= 20` fact `bump` publishes describes a different storage version than
+/// the operand `sink` bound. Facts riding the rewritten source place must not
+/// survive the enclosing invocation to prove `admit`'s `requires`. An
+/// ordinary call already enters this operand-write timeline; a named call
+/// mints no borrow-call row for `invoke` to find, so its write set must join
+/// the timeline explicitly.
+#[test]
+fn named_call_operand_write_retires_facts_riding_the_rewritten_operand_source() {
+    for (declaration, call) in [
+        (
+            "machine bump(value: &mut i32) -> i32
+             ensures
+                 value >= 20
+             {
+                 value = 20;
+                 value
+             }",
+            "bump(&mut x)",
+        ),
+        (
+            "boundary operator Ns::bump(value: &mut i32) -> i32
+             ensures
+                 value >= 20;",
+            "Ns::bump(&mut x)",
+        ),
+    ] {
+        let source = format!(
+            r#"
+                {declaration}
+
+                machine sink(first: i32, second: i32) {{
+                }}
+
+                machine admit(value: i32)
+                requires
+                    value >= 20
+                {{
+                }}
+
+                machine drive(mut x: i32) {{
+                    sink(x, {call});
+                    admit(x);
+                }}
+            "#
+        );
+
+        let Err(diagnostics) = lower_typed_trees(parse_typed_trees(&source)) else {
+            panic!(
+                "a nested `&mut` operand write — spelled or named — must retire the ensures fact riding the rewritten operand source: {call}"
+            );
+        };
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("cannot prove requires contract for call admit")
+            }),
+            "{call}: {diagnostics:#?}"
+        );
+    }
+}
+
+/// The same nested named call writing storage no enclosing operand names is
+/// harmless: `x`'s captured operand is untouched, so the `y >= 20` ensures
+/// fact `bump` publishes survives `sink`'s invocation and discharges
+/// `admit`'s `requires` for `y`.
+#[test]
+fn named_call_operand_write_to_unrelated_storage_keeps_its_ensures_facts() {
+    let source = r#"
+        boundary operator Ns::bump(value: &mut i32) -> i32
+        ensures
+            value >= 20;
+
+        machine sink(first: i32, second: i32) {
+        }
+
+        machine admit(value: i32)
+        requires
+            value >= 20
+        {
+        }
+
+        machine drive(x: i32, mut y: i32) {
+            sink(x, Ns::bump(&mut y));
+            admit(y);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "a named call writing storage no enclosing operand names keeps its own ensures facts",
+    );
+}
+
 #[test]
 fn accepts_guarded_transition_that_establishes_state_arrival_requires() {
     let source = r#"
