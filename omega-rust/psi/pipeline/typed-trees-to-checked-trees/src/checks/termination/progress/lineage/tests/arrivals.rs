@@ -119,10 +119,12 @@ fn projected_arrival_through_a_reference_leaf_derives_the_replacement_premise() 
     );
 }
 
-/// An unknown write through the same reference leaf cannot be consumed as the
-/// path's origin; the projected arrival retains no checked guarantee.
+/// A store through the same reference leaf whose helper source is provably
+/// read-only on the demanded projection is consumable: `pick_mut` never
+/// writes `context.scheduler`, so the arrival keeps the exact input premise
+/// alongside the unchanged self-arrival.
 #[test]
-fn unknown_store_through_a_reference_leaf_retains_no_checked_guarantee() {
+fn read_only_helper_store_through_a_reference_leaf_derives_the_exact_premise() {
     let program = checked(
         r#"
         data Main {}
@@ -151,6 +153,8 @@ fn unknown_store_through_a_reference_leaf_retains_no_checked_guarantee() {
     let walk = machine(&program, "walk");
     let view = field(&program, "RefBox::view");
     let scheduler = field(&program, "Context::scheduler");
+    let entry_b = parameter(&program, 0, "b");
+    let entry_r = parameter(&program, 0, "r");
     let step_b = parameter(&program, 1, "b");
     let demand = ProgressSubject {
         root: step_b,
@@ -161,9 +165,22 @@ fn unknown_store_through_a_reference_leaf_retains_no_checked_guarantee() {
         Some(demand.clone())
     );
     let lineage = StateParameterLineage::derive(&program, &program.facts.flow, walk, &demand, None);
-    assert_eq!(
-        resolve_subject_lineage(&lineage.values, demand),
-        ParameterLineage::Ambiguous
+    let ParameterLineage::Exact(origins) = resolve_subject_lineage(&lineage.values, demand) else {
+        panic!("reference-leaf helper arrival keeps exact origins")
+    };
+    assert!(
+        origins.contains(&ProgressSubject {
+            root: entry_r,
+            projections: vec![scheduler],
+        }),
+        "the replacement input's exact premise: {origins:?}"
+    );
+    assert!(
+        origins.contains(&ProgressSubject {
+            root: entry_b,
+            projections: vec![view, scheduler],
+        }),
+        "the unchanged arrival's exact premise: {origins:?}"
     );
 }
 

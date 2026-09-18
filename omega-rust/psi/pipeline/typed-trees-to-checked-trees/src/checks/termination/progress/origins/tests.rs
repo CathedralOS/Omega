@@ -38,6 +38,7 @@ impl Fixture {
             machine Main::run(&mut self) {{}}
             data SchedulerHandle {{}}
             data Context {{ scheduler: SchedulerHandle; }}
+            data Dual {{ scheduler: SchedulerHandle; spare: SchedulerHandle; }}
             data Holder {{ view: Context; }}
             machine observe_scheduler(value: SchedulerHandle) -> u64 {{ 0 }}
             machine pick(context: &Context) -> SchedulerHandle {{ context.scheduler }}
@@ -45,9 +46,17 @@ impl Fixture {
             machine pick_cached(context: &Context) -> SchedulerHandle {{ let s: SchedulerHandle = context.scheduler; s }}
             machine pick_mutated(context: &Context) -> SchedulerHandle {{ let mut s: SchedulerHandle = context.scheduler; s = s; s }}
             machine pick_mut(context: &mut Context) -> SchedulerHandle {{ context.scheduler }}
+            machine poke_mut(context: &mut Context, fresh: SchedulerHandle) -> SchedulerHandle {{ context.scheduler = fresh; context.scheduler }}
+            machine poke_spare(dual: &mut Dual, fresh: SchedulerHandle) -> SchedulerHandle {{ dual.spare = fresh; dual.scheduler }}
             machine forward(context: &Context) -> SchedulerHandle {{ pick(context) }}
             machine forward_cached(context: &Context) -> SchedulerHandle {{ let s: SchedulerHandle = pick(context); s }}
             machine forward_mut(context: &mut Context) -> SchedulerHandle {{ pick_mut(context) }}
+            machine forward_poke(context: &mut Context, fresh: SchedulerHandle) -> SchedulerHandle {{ poke_mut(context, fresh) }}
+            machine poke_then_read(context: &mut Context, fresh: SchedulerHandle) -> SchedulerHandle {{ let taken: SchedulerHandle = poke_mut(context, fresh); context.scheduler }}
+            machine keep_spare(dual: &mut Dual) -> SchedulerHandle {{ let mut copy: Dual = Dual {{ scheduler: dual.scheduler, spare: dual.spare }}; copy.spare = copy.scheduler; copy.scheduler }}
+            machine keep_overwrite(dual: &mut Dual) -> SchedulerHandle {{ let mut copy: Dual = Dual {{ scheduler: dual.scheduler, spare: dual.spare }}; copy.scheduler = dual.spare; copy.scheduler }}
+            machine move_mut(mut value: Dual) -> SchedulerHandle {{ value.spare = value.scheduler; value.scheduler }}
+            machine take_mut(mut value: Dual) -> SchedulerHandle {{ value.scheduler = value.spare; value.scheduler }}
             machine rebuild(context: &Context) -> Context {{ Context {{ scheduler: context.scheduler }} }}
             machine rebuild_second(former: &Context, latter: &Context) -> Context {{ Context {{ scheduler: latter.scheduler }} }}
             machine rebuild_fresh(context: &Context) -> Context {{ Context {{ scheduler: SchedulerHandle {{}} }} }}
@@ -55,7 +64,7 @@ impl Fixture {
             machine rebuild_cached(context: &Context) -> Context {{ let c: Context = Context {{ scheduler: context.scheduler }}; c }}
             machine wrap_pick(context: &Context) -> Holder {{ Holder {{ view: Context {{ scheduler: pick(context) }} }} }}
             machine rebuild_pair(context: &Context) -> [SchedulerHandle; 2] {{ [context.scheduler, context.scheduler] }}
-            machine probe(context: &mut Context, replacement: &Context, holder: Holder) -> u64 {{
+            machine probe(context: &mut Context, replacement: &Context, holder: Holder, dual: &mut Dual) -> u64 {{
                 {statements}
                 transition {{ _ -> observe_scheduler({argument}) }}
             }}
@@ -445,7 +454,7 @@ fn mutable_body_capture_has_no_exact_origin() {
 }
 
 #[test]
-fn mutable_input_helper_result_has_no_exact_origin() {
+fn read_only_mutable_input_derives_the_exact_input_projection() {
     let fixture = Fixture::with_helper_calls(
         "context.scheduler = pick_mut(context);",
         "context.scheduler",
@@ -453,8 +462,41 @@ fn mutable_input_helper_result_has_no_exact_origin() {
     );
     assert_eq!(
         fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
-        None
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
     );
+}
+
+#[test]
+fn mutable_input_written_on_the_demanded_path_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "let out: SchedulerHandle = poke_mut(context, replacement.scheduler);",
+        "out",
+        &[0],
+    );
+    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
+}
+
+#[test]
+fn mutable_input_written_off_the_demanded_path_keeps_the_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "let out: SchedulerHandle = poke_spare(dual, context.scheduler);",
+        "out",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("out", &[])),
+        Some(fixture.subject("dual", &[("Dual", "scheduler")]))
+    );
+}
+
+#[test]
+fn embedded_call_written_on_the_demanded_path_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "let out: SchedulerHandle = poke_then_read(context, replacement.scheduler);",
+        "out",
+        &[0],
+    );
+    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
 }
 
 #[test]
@@ -497,7 +539,7 @@ fn nested_call_result_keeps_a_per_field_projection() {
 }
 
 #[test]
-fn nested_call_through_a_mutable_input_has_no_exact_origin() {
+fn nested_call_through_a_read_only_mutable_input_derives_the_exact_input_projection() {
     let fixture = Fixture::with_helper_calls(
         "context.scheduler = forward_mut(context);",
         "context.scheduler",
@@ -505,8 +547,18 @@ fn nested_call_through_a_mutable_input_has_no_exact_origin() {
     );
     assert_eq!(
         fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
-        None
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
     );
+}
+
+#[test]
+fn nested_call_written_on_the_demanded_path_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "let out: SchedulerHandle = forward_poke(context, replacement.scheduler);",
+        "out",
+        &[0],
+    );
+    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
 }
 
 #[test]
@@ -661,14 +713,63 @@ fn fresh_constructor_result_has_no_input_origin() {
 }
 
 #[test]
-fn mutable_input_constructor_result_has_no_exact_origin() {
+fn mutable_input_constructor_result_derives_the_exact_origin() {
     let fixture = Fixture::with_helper_calls(
         "context.scheduler = rebuild_mut(context).scheduler;",
         "context.scheduler",
         &[0],
     );
+    // The result-relative demanded path `[scheduler]` lands on the exact
+    // field `rebuild_mut` reads, and that body never writes it: the mutable
+    // input keeps its exact provenance.
     assert_eq!(
         fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
-        None
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
     );
+}
+
+#[test]
+fn mutable_local_disjoint_write_keeps_the_initializer_origin() {
+    let fixture =
+        Fixture::with_helper_calls("let out: SchedulerHandle = keep_spare(dual);", "out", &[0]);
+    assert_eq!(
+        fixture.query(fixture.subject("out", &[])),
+        Some(fixture.subject("dual", &[("Dual", "scheduler")]))
+    );
+}
+
+#[test]
+fn mutable_local_written_on_the_demanded_path_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "let out: SchedulerHandle = keep_overwrite(dual);",
+        "out",
+        &[0],
+    );
+    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
+}
+
+#[test]
+fn mutable_owned_parameter_disjoint_write_derives_the_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "let held: Dual = Dual { scheduler: context.scheduler, spare: replacement.scheduler }; let out: SchedulerHandle = move_mut(held);",
+        "out",
+        &[1],
+    );
+    // `mut value` binds as a mutable local inside the callee; the disjoint
+    // `spare` write leaves `scheduler` untouched, and `held.scheduler` traces
+    // through its own constructor initializer to `context.scheduler`.
+    assert_eq!(
+        fixture.query(fixture.subject("out", &[])),
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn mutable_owned_parameter_demanded_write_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "let held: Dual = Dual { scheduler: context.scheduler, spare: replacement.scheduler }; let out: SchedulerHandle = take_mut(held);",
+        "out",
+        &[1],
+    );
+    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
 }
