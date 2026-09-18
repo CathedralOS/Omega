@@ -4,14 +4,14 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
-    ValidatedAddressFold, ValidatedArmRelocation, ValidatedBypassRelocation,
-    ValidatedConfluenceRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
-    ValidatedCopyRemoval, ValidatedDeadCompare, ValidatedDeadStoreElimination,
-    ValidatedDiamondRelocation, ValidatedEdgeRelocation, ValidatedFixedViewCopies,
-    ValidatedForkRelocation, ValidatedInflowRelocation, ValidatedJoinRelocation,
-    ValidatedLiteralArithmetic, ValidatedLiteralCompare, ValidatedLiteralFold,
-    ValidatedLiteralMinuend, ValidatedLocalRelocation, ValidatedLocalSchedule,
-    ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
+    ValidatedAddressFold, ValidatedArmRelocation, ValidatedBoundaryBoolean,
+    ValidatedBypassRelocation, ValidatedConfluenceRelocation, ValidatedConstantBoolean,
+    ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedDeadCompare,
+    ValidatedDeadStoreElimination, ValidatedDiamondRelocation, ValidatedEdgeRelocation,
+    ValidatedFixedViewCopies, ValidatedForkRelocation, ValidatedInflowRelocation,
+    ValidatedJoinRelocation, ValidatedLiteralArithmetic, ValidatedLiteralCompare,
+    ValidatedLiteralFold, ValidatedLiteralMinuend, ValidatedLocalRelocation,
+    ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
     ValidatedPressureRematerialization, ValidatedRedundantCompare, ValidatedRedundantExtension,
     ValidatedRunInterchange, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
     ValidatedRuntimeSpill, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
@@ -45,6 +45,26 @@ impl ValidatedSelectedAnalysis for ValidatedAddressFold {
 impl sealed::Sealed for ValidatedArmRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedArmRelocation {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedBoundaryBoolean {}
+
+impl ValidatedSelectedAnalysis for ValidatedBoundaryBoolean {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
