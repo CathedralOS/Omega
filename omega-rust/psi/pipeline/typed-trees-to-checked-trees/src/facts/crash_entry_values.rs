@@ -54,6 +54,104 @@ pub(super) fn entry_operand(
     )
 }
 
+/// Whether `operand`'s storage still proves the invocation-entry value at the
+/// place `leaf` projects below its own root. `leaf` is a place occurrence
+/// inside a crash guard and roots at one of the operator's parameter symbols;
+/// `operand` is the caller expression bound to that parameter. A bare `cell`
+/// leaf asks for the operand's whole storage — the same boundary
+/// `entry_operand` draws — while `cell.count` asks only about the `count`
+/// projection, so writes confined to disjoint sibling storage keep the
+/// provenance the guard actually reads. The operand's own field steps prepend
+/// to the leaf's projection, so a leaf `cell.count` bound to operand
+/// `pair.cell` asks about `pair.cell.count`. Anything the rooted-place scan
+/// cannot separate — an opaque projection, an unresolvable member, a
+/// non-shared borrow, or a non-place operand carrying a non-empty projection
+/// — refuses the same way the whole-operand path did.
+pub(super) fn operand_entry_provenance(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    operand: ExpressionHandle,
+    leaf: ExpressionHandle,
+) -> bool {
+    let mut projection = Vec::new();
+    let mut leaf_place = leaf;
+    loop {
+        if !program.expression_table.expression_is_valid(leaf_place) {
+            return false;
+        }
+        match program.expression_table.expression(leaf_place) {
+            ExpressionNode::Member(member) => {
+                projection.push(
+                    if member.case_variant.is_none() && member.member_symbol.is_valid() {
+                        PlaceSegment::Field(member.member_symbol)
+                    } else {
+                        PlaceSegment::Opaque
+                    },
+                );
+                leaf_place = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                projection.push(PlaceSegment::Opaque);
+                leaf_place = indexed.collection;
+            }
+            ExpressionNode::Borrow(borrow) => leaf_place = borrow.target,
+            ExpressionNode::Name(_) => break,
+            // The occurrence did not root at a name, so no operand can carry
+            // its entry identity.
+            _ => return false,
+        }
+    }
+    projection.reverse();
+
+    let mut operand_place = operand;
+    loop {
+        if !program.expression_table.expression_is_valid(operand_place) {
+            return false;
+        }
+        match program.expression_table.expression(operand_place) {
+            ExpressionNode::Member(member)
+                if member.case_variant.is_none() && member.member_symbol.is_valid() =>
+            {
+                projection.insert(0, PlaceSegment::Field(member.member_symbol));
+                operand_place = member.receiver;
+            }
+            ExpressionNode::Borrow(borrow)
+                if borrow.access == language_core::ReferenceAccess::Shared =>
+            {
+                operand_place = borrow.target
+            }
+            ExpressionNode::Name(path) => {
+                return entry_operand_name_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    path,
+                    &projection,
+                    0,
+                )
+                .is_some();
+            }
+            // A non-place operand carries only whole-value provenance, and
+            // only when the leaf read it without projecting.
+            _ => {
+                return projection.is_empty()
+                    && entry_operand_at(
+                        program,
+                        machine_symbol,
+                        state_symbol,
+                        before_statement,
+                        operand,
+                        0,
+                    )
+                    .is_some();
+            }
+        }
+    }
+}
+
 fn entry_operand_at(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
