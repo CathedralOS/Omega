@@ -2952,25 +2952,42 @@ Owners include
   in `target-operations-to-selected-instructions/src/tests/legalization/unit_view_graph.rs`,
   which pins the retained block-parameter source and mutable access through
   legalization and its independent replay and keeps the shared-root rejection,
-  so the physical view alone never authorizes the access. Remaining: an exclusive borrow rooted in a
-  block parameter on the aggregate route. A projected path from a
-  block-parameter root already works, so the earlier note here naming an
-  empty-path requirement was wrong about the reason: `aggregate_borrows::argument`
-  (`abstract-operations-to-target-operations/src/lowering/control_flow/`) and the
-  legalization aggregate route
-  (`scalar_graph_input/aggregate_results/borrowed_arguments.rs`) each reconstruct
-  the root and then project `argument.path`, and each rejects only when the
-  argument access is not `SharedBorrow`. The empty-path requirement in the
-  byte-view routes is real but unreachable, because
-  `validate_structural_block_bindings` admits a borrowed block structural
-  parameter solely as `ByteSequence(BorrowedView)`, which has no interior to
-  project. Lifting the two access checks must follow the rule the legalization
-  route already states -- an owned or mutable root may lend a write-only or
-  shared view, and a shared root can never be widened back -- so the root's own
-  declared access authorizes the argument, exactly as the byte-view slice above
-  does. The shape is already exercised: block-parameter structural homes appear
-  in `native_boundaries/unit_graph/structural_cases.rs` and block-parameter case
-  sources in legalization's `structural_case.rs`.
+  so the physical view alone never authorizes the access. Remaining: an owned root cannot lend an
+  exclusive projected subloan. Two earlier notes here named the wrong reason --
+  first an empty-path requirement, then the aggregate access checks -- and both
+  were wrong; this one is instrumented rather than reasoned, and the two access
+  checks are never reached for the shape at all.
+
+  Measured 2026-09-18 by marker-tracing a witness through lowering and
+  legalization. A projected *shared* borrow rooted in an owned non-entry block
+  arrival lowers, legalizes and replays today, unmodified. Making only the
+  argument exclusive rejects in `validate_psi_optimization_unit_with_admitted_cycle_machines`
+  with `StructuralCallContractMismatch`, reached through legalization's
+  `source/custody.rs` -> `scalar_graph_input/custody.rs`, long before the
+  source-to-target join and before `structural_call::argument_at` is ever
+  called. Fourteen instrumented rejection points in the join layer and the
+  per-operation validator never fire.
+
+  The rule is `structural_arguments_match`
+  (`optimization-unit-semantics/src/unit_validation/operation_contracts/structural_access.rs`).
+  Its `static_borrowed_path` source/argument matrix admits mutable-to-anything,
+  shared-to-shared and write-only-to-write-only; `Owned` appears nowhere in it,
+  and `unrestricted_mutable_subloan` separately requires
+  `source.access == MutableBorrow`. `unrestricted_shared_subloan` constrains no
+  source access at all, which is exactly why the shared form passes and the
+  exclusive one does not. The restriction is therefore uniform over owned roots
+  -- an established record home is refused the same way -- and is not specific to
+  block arrivals; `established_home_borrow_plan` only appears to contradict that
+  because it never builds a `PsiOptimizationUnit` and so never runs this
+  validator.
+
+  So the open decision is whether owning storage may hand out an exclusive
+  projected loan while the owner still holds it. That is a custody question for
+  the loan contract, not a fence to widen in the aggregate routes: lowering and
+  legalization both admit the shape once the verifier does. Do not re-attempt it
+  by relaxing `aggregate_borrows::argument` or the legalization aggregate route;
+  an edit there lowers the program and then fails identically at unit-semantics
+  validation, which was measured and reverted rather than landed.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing
