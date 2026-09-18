@@ -1,4 +1,26 @@
 use super::{Fixture, assert_status};
+use std::process::Output;
+
+/// The target the targetless `run` route resolves to on this compiler host:
+/// the catalogued host profile when one exists, an exact declared target
+/// otherwise (macOS x86-64 owns no host profile). Legs asserting compile-side
+/// rejection pin it; legs that must execute a host artifact skip instead.
+fn probe_target_name() -> String {
+    target::TargetProfile::host_if_supported()
+        .map(|host| host.target_name().to_owned())
+        .unwrap_or_else(|| "linux_x86_64".to_owned())
+}
+
+/// `run --both` stays targetless on hosts with a catalogued profile and pins
+/// an exact target on hosts that own none, where the implicit host profile
+/// cannot resolve. Assertions that only observe compile-side rejection hold
+/// under either route.
+fn run_probe(fixture: &Fixture) -> Output {
+    match target::TargetProfile::host_if_supported() {
+        Some(_) => fixture.omega(&["run", "--both", "main.omg"]),
+        None => fixture.omega(&["run", "--both", "--target", "linux_x86_64", "main.omg"]),
+    }
+}
 
 fn application() -> Fixture {
     let fixture = Fixture::new();
@@ -47,8 +69,12 @@ fn accept(fixture: &Fixture, target: &str) {
 
 #[test]
 fn native_probe_resolves_package_aliases_for_both_engines() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping: this leg executes a host artifact");
+        return;
+    };
     let fixture = application();
-    accept(&fixture, target::TargetProfile::host().target_name());
+    accept(&fixture, host.target_name());
     let before = fixture.accepted_files();
     let output = fixture.omega(&["run", "--both", "main.omg"]);
     assert_status(&output, 0);
@@ -66,7 +92,7 @@ fn native_probe_requires_ordinary_package_acceptance() {
         "pub machine value() -> i32 { 7 }\nboundary machine trusted_zero() -> u64 ensures result == 0;\n",
     );
     let before = fixture.accepted_files();
-    let output = fixture.omega(&["run", "--both", "main.omg"]);
+    let output = run_probe(&fixture);
     assert_status(&output, 200);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("run omega update"), "{stderr}");
@@ -92,6 +118,10 @@ fn native_probe_explicit_target_only_compiles_the_package() {
 
 #[test]
 fn native_probe_observes_generated_package_source_in_both_engines() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping: this leg executes a host artifact");
+        return;
+    };
     let fixture = application();
     fixture.write(
         "dependency/main.omg",
@@ -109,7 +139,7 @@ fn native_probe_observes_generated_package_source_in_both_engines() {
 }
 "#,
     );
-    accept(&fixture, target::TargetProfile::host().target_name());
+    accept(&fixture, host.target_name());
     let before = fixture.accepted_files();
     let output = fixture.omega(&["run", "--both", "main.omg"]);
     assert_status(&output, 0);
@@ -123,7 +153,7 @@ fn native_probe_observes_generated_package_source_in_both_engines() {
 #[test]
 fn native_probe_rejects_malformed_and_stale_authored_admissions() {
     let fixture = application();
-    accept(&fixture, target::TargetProfile::host().target_name());
+    accept(&fixture, &probe_target_name());
     for (contents, diagnostic) in [
         ("not a trust receipt\n".to_owned(), "malformed"),
         (
@@ -132,7 +162,7 @@ fn native_probe_rejects_malformed_and_stale_authored_admissions() {
         ),
     ] {
         fixture.write("root/omega.admissions", &contents);
-        let output = fixture.omega(&["run", "--both", "main.omg"]);
+        let output = run_probe(&fixture);
         assert_status(&output, 200);
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(stderr.contains(diagnostic), "{stderr}");
@@ -158,7 +188,10 @@ fn standalone_probe_preserves_focused_compilation_and_reads_admissions() {
         String::from_utf8_lossy(&output.stderr)
     );
     fixture.write("root/omega.admissions", "not a trust receipt\n");
-    let output = fixture.omega(&["run", "main.omg"]);
+    let output = match target::TargetProfile::host_if_supported() {
+        Some(_) => fixture.omega(&["run", "main.omg"]),
+        None => fixture.omega(&["run", "--target", "linux_x86_64", "main.omg"]),
+    };
     assert_status(&output, 200);
     assert!(String::from_utf8_lossy(&output.stderr).contains("malformed"));
     assert!(!fixture.path("root/omega.lock").exists());

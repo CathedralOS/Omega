@@ -117,7 +117,9 @@ pub struct CompileRequest {
 
 impl CompileRequest {
     /// Create one checking configuration. An absent target remains target-neutral
-    /// for checking/Terminal production; native production resolves it to Host.
+    /// for checking/Terminal production; native production resolves it to the
+    /// host's catalogued profile, or rejects with a diagnostic on a host that
+    /// owns none.
     pub fn new(options: CompileOptions) -> Self {
         Self {
             shared: SharedCompileInputs {
@@ -232,7 +234,21 @@ impl CompileRequest {
             if shared.requested_product == RequestedCompileProduct::NativeArtifact
                 && configuration.target_name.is_none()
             {
-                configuration.target_name = Some(TargetProfile::host().target_name().to_owned());
+                match TargetProfile::host_if_supported() {
+                    Some(host) => {
+                        configuration.target_name = Some(host.target_name().to_owned());
+                    }
+                    None => {
+                        diagnostics.push(Diagnostic::error(
+                            "native production needs an exact target profile: none was \
+                             named and this host has no catalogued Omega deployment \
+                             profile (name one of linux_arm64, linux_x86_64, \
+                             macos_arm64, windows_x86_64, uefi_x86_64, \
+                             cross_platform_cli, or local_unchecked)",
+                        ));
+                        continue;
+                    }
+                }
             }
             let profile = match configuration
                 .target_name

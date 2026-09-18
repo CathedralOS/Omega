@@ -21,7 +21,17 @@ pub(crate) fn refresh(samples_root: &Path) -> ! {
         .map(|count| count.get())
         .unwrap_or(4)
         .min(total.max(1));
-    let target_name = target::TargetProfile::host().target_name().to_owned();
+    // Refresh compiles each sample for the compiler host's exact deployment
+    // profile; a host with no catalogued profile cannot produce them, so it
+    // reports the absence instead of panicking inside `TargetProfile::host`.
+    let Some(host) = TargetProfile::host_if_supported() else {
+        eprintln!(
+            "refresh-samples builds every sample for the compiler host's deployment \
+             profile; this host has no catalogued Omega deployment profile"
+        );
+        std::process::exit(2);
+    };
+    let target_name = host.target_name().to_owned();
 
     let queue = std::sync::Mutex::new(mains);
     let failures = std::sync::Mutex::new(Vec::<String>::new());
@@ -40,7 +50,7 @@ pub(crate) fn refresh(samples_root: &Path) -> ! {
                     let prepared = match package_manager::operations::prepare_local_project(
                         &main_path,
                         LocalProjectPreparationOptions {
-                            target: TargetProfile::host(),
+                            target: host,
                             offline: false,
                         },
                     ) {

@@ -103,13 +103,16 @@ pub fn inspect_terminal(
 /// build staging is placed beside the authored root exactly as the compile
 /// command places it; the compiler's default of `<entry>/../build` would
 /// otherwise fall inside that snapshot. Package preparation needs an exact
-/// target, and the checked compile then keeps that target so package
+/// target, so the invocation resolves one first: an explicit `--target`,
+/// else the compiler host's catalogued profile. A host that owns none
+/// reports that absence as an ordinary diagnostic rather than panicking.
+/// With the profile resolved, the checked compile keeps it so package
 /// inputs and target attachments agree; a standalone root without a target
 /// stays targetless, as before.
 fn checked_compile_request(
     request: &InspectTerminalRequest,
 ) -> Result<CheckedCompileRequest<'static>, InspectTerminalError> {
-    let target = target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
+    let target = crate::invocation_target_profile(request.target_name.as_deref())
         .map_err(|diagnostic| InspectTerminalError::Diagnostics(vec![diagnostic]))?;
     let prepared = packages::prepare_local_project(
         &request.root_path,

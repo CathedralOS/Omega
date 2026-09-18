@@ -26,7 +26,7 @@ pub(super) fn compile(
     interpret: bool,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let build_dir = options.retain_build_dir();
-    let target = target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
+    let target = crate::invocation_target_profile(options.target_name.as_deref())
         .map_err(|diagnostic| vec![diagnostic])?;
     let prepared = prepare_local_project(
         &options.root_path,

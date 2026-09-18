@@ -18,14 +18,37 @@ fn neutral_products_stay_neutral_and_native_resolves_host() {
     for product in [
         RequestedCompileProduct::Check,
         RequestedCompileProduct::TerminalArtifact,
-        RequestedCompileProduct::NativeArtifact,
     ] {
         let admitted = request(product).validate_for_execution().unwrap();
         assert_eq!(admitted.targets.len(), 1);
-        assert_eq!(
-            admitted.targets[0].profile,
-            (product == RequestedCompileProduct::NativeArtifact).then(TargetProfile::host)
-        );
+        assert_eq!(admitted.targets[0].profile, None);
+    }
+    match TargetProfile::host_if_supported() {
+        Some(host) => {
+            let admitted = request(RequestedCompileProduct::NativeArtifact)
+                .validate_for_execution()
+                .unwrap();
+            assert_eq!(admitted.targets.len(), 1);
+            assert_eq!(admitted.targets[0].profile, Some(host));
+            assert_eq!(
+                admitted.targets[0].options.target_name.as_deref(),
+                Some(host.target_name())
+            );
+        }
+        None => {
+            // A host with no catalogued profile cannot supply native
+            // production's implicit target; the request must report that
+            // absence as a diagnostic rather than panic inside host().
+            let diagnostics = request(RequestedCompileProduct::NativeArtifact)
+                .validate_for_execution()
+                .expect_err("an unprofiled host cannot resolve a native target");
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("no catalogued Omega deployment profile")),
+                "{diagnostics:?}"
+            );
+        }
     }
 }
 
@@ -44,11 +67,20 @@ fn rollback_is_checked_before_source_acquisition_for_every_configuration() {
             .validate_for_execution()
             .is_ok()
     );
+    // Native production names an exact target here: the targetless form
+    // resolves the compiler host's catalogued profile, which hosts without
+    // one (macOS x86-64) cannot supply; that leg is covered by
+    // `neutral_products_stay_neutral_and_native_resolves_host`.
     assert!(
-        request(RequestedCompileProduct::NativeArtifact)
-            .with_optimization_rollback(rollback)
-            .validate_for_execution()
-            .is_ok()
+        CompileRequest::new(CompileOptions {
+            root_path: "missing.omg".into(),
+            build_dir: None,
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_optimization_rollback(rollback)
+        .validate_for_execution()
+        .is_ok()
     );
     let native_only =
         OptimizationRollback::new([Optimization::SelectedIncomingU12ExactAddImmediate]).unwrap();

@@ -38,6 +38,17 @@ fn repository_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// Every invocation leg that names no `--target` selects the compiler host's
+/// catalogued profile. A host that owns none (macOS x86-64) cannot supply it,
+/// so coverage whose subject is not host selection pins an exact declared
+/// target instead.
+fn declared_target_when_host_is_unprofiled() -> Vec<&'static str> {
+    match target::TargetProfile::host_if_supported() {
+        Some(_) => Vec::new(),
+        None => vec!["--target", "linux_x86_64"],
+    }
+}
+
 #[test]
 fn timings_are_opt_in_stderr_output_without_debug_files() {
     let project = temp_path("timings");
@@ -48,6 +59,7 @@ fn timings_are_opt_in_stderr_output_without_debug_files() {
         if enabled {
             arguments.push("--timings");
         }
+        arguments.extend(declared_target_when_host_is_unprofiled());
         let output = omega_in(&project, &arguments);
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(output.status.success(), "{stderr}");
@@ -63,7 +75,9 @@ fn timings_are_opt_in_stderr_output_without_debug_files() {
         assert!(!String::from_utf8_lossy(&output.stdout).contains("total elapsed"));
         assert!(!project.join("observations").exists());
     }
-    let failed = omega_in(&project, &["--check", "--timings", "missing.omg"]);
+    let mut failed_arguments = vec!["--check", "--timings", "missing.omg"];
+    failed_arguments.extend(declared_target_when_host_is_unprofiled());
+    let failed = omega_in(&project, &failed_arguments);
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("total elapsed"));
     let obsolete = omega_in(&project, &["--check", "--output-only", "main.omg"]);
@@ -103,10 +117,14 @@ fn check_leaves_no_directory_beside_the_root() {
         )
         .expect("write project entry");
         expected.sort();
-        for arguments in [
+        let mut invocations = vec![
             vec!["--check", "main.omg"],
             vec!["--check", "--build-dir", "explicit", "main.omg"],
-        ] {
+        ];
+        for arguments in &mut invocations {
+            arguments.extend(declared_target_when_host_is_unprofiled());
+        }
+        for arguments in invocations {
             let output = omega_in(&project, &arguments);
             assert!(
                 output.status.success(),
@@ -128,6 +146,68 @@ fn check_leaves_no_directory_beside_the_root() {
     }
 }
 
+/// A host with no catalogued deployment profile cannot supply the implicit
+/// target these targetless invocations resolve first; each must report that
+/// absence as an ordinary diagnostic instead of panicking inside
+/// `TargetProfile::host`. Hosts that own a profile take the neighboring
+/// tests' successful legs instead.
+#[test]
+fn unprofiled_host_reports_targetless_invocations_without_panicking() {
+    if target::TargetProfile::host_if_supported().is_some() {
+        eprintln!(
+            "skipping: this host admits a catalogued Omega target profile, \
+             so targetless invocations resolve it"
+        );
+        return;
+    }
+    let project = temp_path("unprofiled-host");
+    std::fs::create_dir(&project).expect("create unprofiled-host project");
+    std::fs::write(project.join("main.omg"), "machine main() {}\n")
+        .expect("write unprofiled-host entry");
+    std::fs::write(
+        project.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.application(\"unprofiled-host\"); }\n",
+    )
+    .expect("write unprofiled-host build declaration");
+    let assert_reported = |output: &Output, invocation: &str, code: i32| {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(code), "{invocation}: {stderr}");
+        assert!(
+            stderr.contains("no catalogued Omega deployment profile"),
+            "{invocation}: {stderr}"
+        );
+        assert!(!stderr.contains("panic"), "{invocation}: {stderr}");
+    };
+    // `omega --check` and `omega <root.omg>` resolve the invocation target
+    // before package preparation.
+    assert_reported(&omega_in(&project, &["--check", "main.omg"]), "check", 1);
+    assert_reported(&omega_in(&project, &["main.omg"]), "native compile", 1);
+    // `omega run` maps compilation failure to its usual code.
+    assert_reported(&omega_in(&project, &["run", "main.omg"]), "run", 200);
+    // `inspect-terminal` shares the checked-compile preparation.
+    assert_reported(
+        &omega_in(
+            &project,
+            &["inspect-terminal", "--machine", "main", "main.omg"],
+        ),
+        "inspect-terminal",
+        1,
+    );
+    // `omega update` needs an exact target for its package review rows.
+    assert_reported(&omega_in(&project, &["update", "--offline"]), "update", 1);
+    // `refresh-samples` only produces host artifacts, so it has no --target
+    // route; it reports the missing host profile and declines.
+    let refresh = omega_in(&project, &["refresh-samples", "."]);
+    let refresh_stderr = String::from_utf8_lossy(&refresh.stderr);
+    assert_eq!(refresh.status.code(), Some(2), "{refresh_stderr}");
+    assert!(
+        refresh_stderr.contains("no catalogued Omega deployment profile"),
+        "{refresh_stderr}"
+    );
+    assert!(!refresh_stderr.contains("panic"), "{refresh_stderr}");
+    std::fs::remove_dir_all(project).expect("remove unprofiled-host project");
+}
+
 #[test]
 fn routed_production_entry_roots_pass_real_package_resolution() {
     for (label, relative) in [
@@ -139,11 +219,24 @@ fn routed_production_entry_roots_pass_real_package_resolution() {
         let source = source.to_string_lossy().into_owned();
         let build_dir_argument = build_dir.to_string_lossy().into_owned();
         let output = omega(&["--check", "--build-dir", &build_dir_argument, &source]);
-        assert!(
-            output.status.success(),
-            "{relative} should pass real package resolution:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        match target::TargetProfile::host_if_supported() {
+            Some(_) => assert!(
+                output.status.success(),
+                "{relative} should pass real package resolution:\n{stderr}"
+            ),
+            // The targetless route resolves the compiler host's catalogued
+            // profile first; a host that owns none reports that absence
+            // instead of reaching package resolution.
+            None => {
+                assert_eq!(output.status.code(), Some(1), "{stderr}");
+                assert!(
+                    stderr.contains("no catalogued Omega deployment profile"),
+                    "{stderr}"
+                );
+                assert!(!stderr.contains("panic"), "{stderr}");
+            }
+        }
         let _ = std::fs::remove_dir_all(build_dir);
     }
 }
@@ -156,7 +249,9 @@ fn package_command_words_do_not_reserve_ordinary_source_filenames() {
         std::fs::write(project.join(source_name), b"machine main() {}\n")
             .expect("write ordinary source");
 
-        let output = omega_in(&project, &[source_name, "--check"]);
+        let mut arguments = vec![source_name, "--check"];
+        arguments.extend(declared_target_when_host_is_unprofiled());
+        let output = omega_in(&project, &arguments);
 
         assert!(
             output.status.success(),
@@ -184,7 +279,9 @@ fn dependency_free_build_project_still_enters_reconciled_source_custody() {
     std::fs::write(&outside, b"machine escaped() {}\n").expect("write outside source");
     symlink(&outside, project.join("escaped.omg")).expect("create escaping source link");
 
-    let output = omega_in(&project, &["main.omg", "--check"]);
+    let mut arguments = vec!["main.omg", "--check"];
+    arguments.extend(declared_target_when_host_is_unprofiled());
+    let output = omega_in(&project, &arguments);
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -249,12 +346,14 @@ fn optimizer_rollback_cli_requires_exact_unique_names() {
 
 #[test]
 fn optimizer_rollback_cli_rejects_check_before_reading_source() {
-    let output = omega(&[
+    let mut arguments = vec![
         "--check",
         "--disable-optimization",
         "ControlFlowCleanup",
         "missing.omg",
-    ]);
+    ];
+    arguments.extend(declared_target_when_host_is_unprofiled());
+    let output = omega(&arguments);
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("names stages not executed by Check"));
@@ -536,12 +635,25 @@ fn the_primary_native_route_survives_a_real_sample() {
         "
 "
     );
-    assert!(
-        stderr.contains("run omega update"),
-        "stderr was:{}{stderr}",
-        "
+    match target::TargetProfile::host_if_supported() {
+        Some(_) => assert!(
+            stderr.contains("run omega update"),
+            "stderr was:{}{stderr}",
+            "
 "
-    );
+        ),
+        // Without a catalogued host profile the implicit native target does
+        // not resolve, so the invocation reports that absence rather than
+        // reaching package acceptance. The neighboring
+        // `unprofiled_host_reports_targetless_invocations_without_panicking`
+        // test owns the same assertion through a fast synthetic fixture.
+        None => assert!(
+            stderr.contains("no catalogued Omega deployment profile"),
+            "stderr was:{}{stderr}",
+            "
+"
+        ),
+    }
     let _ = std::fs::remove_dir_all(build_dir);
 }
 
