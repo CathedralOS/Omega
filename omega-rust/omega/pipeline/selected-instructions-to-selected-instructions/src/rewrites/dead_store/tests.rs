@@ -472,6 +472,17 @@ fn span_length() -> ValueId {
 /// position, so the write can cover the exact dead byte it lands on.
 const SEQUENCE_INDEX: VirtualRegisterId = VirtualRegisterId(14);
 
+/// The byte-sequence dead store's own index register: when a covering
+/// sequence write names a different `index` value, both must resolve to a
+/// materialized constant whose `byte_offset + index` sum lands on the dead
+/// byte.
+const DEAD_SEQUENCE_INDEX: VirtualRegisterId = VirtualRegisterId(16);
+
+/// The materialize instruction defining the dead store's index register —
+/// distinct from `MATERIALIZE_COUNT` so two clean definitions can coexist
+/// in one fixture.
+const MATERIALIZE_INDEX: SelectedInstructionId = SelectedInstructionId(12);
+
 /// Narrow the fixture's dead store to a one-byte `Store` at `offset` — the
 /// only exact dead range a byte-sequence write's single byte can cover.
 /// Works on the chained fixture too: its block 0 keeps the same head.
@@ -604,6 +615,32 @@ fn define_count(
     source_value: ValueId,
     bits: u64,
 ) {
+    define_count_as(
+        function,
+        environment,
+        block,
+        position,
+        MATERIALIZE_COUNT,
+        register,
+        source_value,
+        bits,
+    );
+}
+
+/// `define_count` under a caller-chosen instruction id, for fixtures that
+/// materialize two constants — the dead store's index beside the covering
+/// write's.
+#[allow(clippy::too_many_arguments)]
+fn define_count_as(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    block: usize,
+    position: usize,
+    id: SelectedInstructionId,
+    register: VirtualRegisterId,
+    source_value: ValueId,
+    bits: u64,
+) {
     let materialize = environment
         .constraint(environment.selected_keys().materialize_i64)
         .unwrap();
@@ -612,7 +649,7 @@ fn define_count(
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         class: materialize.operands[0].class,
         origin: VirtualRegisterOrigin::InstructionResult {
-            instruction: MATERIALIZE_COUNT,
+            instruction: id,
             source_value,
         },
         definition_site: None,
@@ -621,7 +658,7 @@ fn define_count(
     function.blocks[block].instructions.insert(
         position,
         instruction(
-            MATERIALIZE_COUNT,
+            id,
             SelectedInstructionKind::MaterializeI64 {
                 value: IntegerValue::Unsigned(u128::from(bits)),
             },

@@ -71,11 +71,15 @@
 //! exactly when that is it. A runtime index still lands the write anywhere
 //! at or past the payload base and cannot provably rewrite one fixed byte.
 //! A byte-sequence dead store is covered only by another byte-sequence
-//! store whose `WriteByteSequence` row names the same payload base and the
-//! same `index` value — both then spell the byte at `byte_offset + index`
-//! exactly, while any exact or local row would have to contain a byte
-//! placed at runtime, and a sequence write at another offset or index may
-//! land on a different byte entirely.
+//! store whose `WriteByteSequence` row spells the same byte: the same
+//! payload base and the same `index` value place it exactly, and distinct
+//! index values still do when each resolves to a clean `MaterializeI64`
+//! under the same carrier audit the exact-range route runs — the two
+//! `byte_offset + index` sums then name one fixed position apiece, and
+//! equal sums are the same byte. Any exact or local row would have to
+//! contain a byte placed at runtime, and a sequence write whose index
+//! stays runtime or lands elsewhere may land on a different byte
+//! entirely.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they
