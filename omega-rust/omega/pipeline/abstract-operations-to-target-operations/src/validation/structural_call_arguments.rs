@@ -22,22 +22,26 @@ use calling_conventions::{
     ValueShape, evaluate_call_plan,
 };
 use semantic_vocabulary::{
-    BoundaryMachineId, IntegerSign, IntegerType, MachineId, ObligationId, OperationId, PlaceId,
-    ScalarType, StructuralTypeId, ValueId,
+    BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
 use target_operations::{
-    NativeCallOrigin, NormalizedForeignCallBinding, ProviderExecutionBinding, ScalarAbiValue,
-    ScalarFunctionAbi, TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceSource,
-    TargetDynamicDescriptorParameterAbi, TargetFunction, TargetStructuralArgument,
-    TargetStructuralArgumentSource, TargetStructuralHomeRequirement, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
+    BoundaryScalarArgument, CompilerBuiltinExecution, NativeCallOrigin,
+    NormalizedForeignCallBinding, ProviderExecutionBinding, ScalarAbiValue, ScalarFunctionAbi,
+    TargetBoundaryResult, TargetControlTerminator, TargetDynamicDescriptorArgument,
+    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi, TargetFunction,
+    TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralHomeRequirement,
+    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, ClosedConformanceCallableResult, CrashRouteBucket,
-    StructuralAccess, StructuralArgument, StructuralOperationResult,
+    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalDynamicRequirement,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalDynamicRequirement,
 };
 
 use super::structural_shapes;
@@ -150,6 +154,25 @@ enum EmbeddedCall<'a> {
         structural_arguments: &'a [TargetStructuralArgument],
         result_home: &'a Option<TargetUnitScalarHomeRequirement>,
     },
+    /// `BoundarySettlement`: a compiler-builtin settlement retains its closed
+    /// realization, admitted execution custody, verbatim semantic rosters,
+    /// and the runtime scalar lane its hosted realization consumes.
+    /// `nonreturning_tail` records whether the row is its block's last
+    /// operation followed by a plain `Return` — the shape the producer's
+    /// exit settlement requires.
+    Settlement {
+        boundary: BoundaryMachineId,
+        result: &'a TargetBoundaryResult,
+        execution: &'a BoundaryExecutionBinding,
+        realization: &'a BoundaryRealization,
+        scalar_arguments: &'a [BoundaryScalarArgument],
+        runtime_scalar_arguments: &'a [TargetUnitScalarCallArgument],
+        arguments: &'a [StructuralArgument],
+        byte_sequence_arguments: &'a [BoundaryByteSequenceArgument],
+        completion_claim_sources: &'a [CompletionClaimSource],
+        completion_receipts: &'a [terminal_psi::CompletionReceipt],
+        nonreturning_tail: bool,
+    },
 }
 
 /// The result contract one source operation binds the embedded call to.
@@ -196,8 +219,13 @@ pub(super) fn validate(
         .graph
         .blocks
         .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| {
+        .flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .map(move |operation| (block, operation))
+        })
+        .filter_map(|(block, operation)| {
             let call = match operation {
                 TargetUnitOperation::Call {
                     origin,
@@ -488,6 +516,48 @@ pub(super) fn validate(
                         result_home,
                     },
                 ),
+                TargetUnitOperation::BoundarySettlement {
+                    psi_operation,
+                    boundary,
+                    result,
+                    execution,
+                    realization,
+                    scalar_arguments,
+                    runtime_scalar_arguments,
+                    arguments,
+                    byte_sequence_arguments,
+                    completion_claim_sources,
+                    completion_receipts,
+                } => (
+                    *psi_operation,
+                    EmbeddedCall::Settlement {
+                        boundary: *boundary,
+                        result,
+                        execution,
+                        realization,
+                        scalar_arguments,
+                        runtime_scalar_arguments,
+                        arguments,
+                        byte_sequence_arguments,
+                        completion_claim_sources,
+                        completion_receipts,
+                        // An exit settlement ends its block: the producer
+                        // rejects any later operation and admits only a plain
+                        // `Return` terminator after a `HostedExitProcessI32`
+                        // row.
+                        nonreturning_tail: block
+                            .operations
+                            .last()
+                            .is_some_and(|last| std::ptr::eq(last, operation))
+                            && matches!(
+                                &block.terminator,
+                                TargetControlTerminator::Return {
+                                    cleanup_actions,
+                                    ..
+                                } if cleanup_actions.is_empty()
+                            ),
+                    },
+                ),
                 _ => return None,
             };
             Some(call)
@@ -539,7 +609,7 @@ pub(super) fn validate(
         roots: &roots,
     };
 
-    for operation in &source.operations {
+    for (position, operation) in source.operations.iter().enumerate() {
         match operation {
             AbstractOperation::CallUnit {
                 psi_operation,
@@ -620,6 +690,7 @@ pub(super) fn validate(
                 completion_receipts,
             } => replay.boundary_call(
                 *psi_operation,
+                position,
                 result,
                 *boundary,
                 arguments,
@@ -907,6 +978,7 @@ impl Replay<'_> {
     fn boundary_call(
         &self,
         psi_operation: OperationId,
+        position: usize,
         result: &AbstractBoundaryResult,
         boundary: semantic_vocabulary::BoundaryMachineId,
         arguments: &[ValueId],
@@ -921,6 +993,19 @@ impl Replay<'_> {
         if let EmbeddedCall::NormalizedForeign { .. } = call {
             return self.normalized_foreign_call(
                 psi_operation,
+                result,
+                boundary,
+                arguments,
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+                call,
+            );
+        }
+        if let EmbeddedCall::Settlement { .. } = call {
+            return self.boundary_settlement(
+                psi_operation,
+                position,
                 result,
                 boundary,
                 arguments,
@@ -1377,6 +1462,332 @@ impl Replay<'_> {
             }
         }
         Ok(())
+    }
+
+    /// A compiler-builtin `BoundarySettlement` is not a call through a callee
+    /// signature: it retains the closed realization, the admitted execution
+    /// custody, the verbatim semantic rosters, and the hosted runtime scalar
+    /// lane its realization consumes. Every retained coordinate replays
+    /// against the unique boundary declaration and the caller's own scalar
+    /// provenance — the retained rows are never admission authority. Only the
+    /// three hosted realizations produce this row; every other lane fails
+    /// closed at the routing guard before the settlement exists.
+    #[allow(clippy::too_many_arguments)]
+    fn boundary_settlement(
+        &self,
+        psi_operation: OperationId,
+        position: usize,
+        result: &AbstractBoundaryResult,
+        boundary: BoundaryMachineId,
+        arguments: &[ValueId],
+        structural_arguments: &[StructuralArgument],
+        completion_claim_sources: &[CompletionClaimSource],
+        completion_receipts: &[terminal_psi::CompletionReceipt],
+        call: &EmbeddedCall<'_>,
+    ) -> Result<(), OperationId> {
+        let EmbeddedCall::Settlement {
+            boundary: actual_boundary,
+            result: actual_result,
+            execution,
+            realization,
+            scalar_arguments,
+            runtime_scalar_arguments,
+            arguments: actual_arguments,
+            byte_sequence_arguments,
+            completion_claim_sources: actual_sources,
+            completion_receipts: actual_receipts,
+            nonreturning_tail,
+        } = call
+        else {
+            return Err(psi_operation);
+        };
+        // The semantic rosters are verbatim clones of the source operation;
+        // the compile-time scalar roster and the byte-sequence roster are
+        // always empty on every lane this producer can emit.
+        if *actual_boundary != boundary
+            || *actual_arguments != structural_arguments
+            || *actual_sources != completion_claim_sources
+            || *actual_receipts != completion_receipts
+            || !scalar_arguments.is_empty()
+            || !byte_sequence_arguments.is_empty()
+        {
+            return Err(psi_operation);
+        }
+        // Execution custody is admission evidence the artifact cannot
+        // reconstruct, but a compiler builtin always pairs with its own
+        // realization — a mismatched builtin pair is forged by construction.
+        let execution_matches = match *execution {
+            BoundaryExecutionBinding::CompilerBuiltin(
+                CompilerBuiltinExecution::HostedExitProcessI32,
+            ) => matches!(realization, BoundaryRealization::HostedExitProcessI32(_)),
+            BoundaryExecutionBinding::CompilerBuiltin(
+                CompilerBuiltinExecution::HostedWriteByteI32,
+            ) => matches!(realization, BoundaryRealization::HostedWriteByteI32(_)),
+            BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte) => {
+                matches!(realization, BoundaryRealization::HostedReadByte(_))
+            }
+            BoundaryExecutionBinding::AdmittedProvider(_) => true,
+        };
+        if !execution_matches {
+            return Err(psi_operation);
+        }
+        // Exactly one declaration may carry the retained boundary identity.
+        let mut declarations = self
+            .boundary_machines
+            .iter()
+            .filter(|row| row.id == boundary);
+        let declaration = declarations.next().ok_or(psi_operation)?;
+        if declarations.next().is_some() {
+            return Err(psi_operation);
+        }
+        // A builtin settlement admits a Unit result only when the declaration
+        // returns Unit and the realization is not the hosted byte read. A
+        // Structural result requires the declared carrier identity and the
+        // independently reconstructed conventional-sum home, and only the
+        // hosted byte read carries one. A scalar boundary result has no
+        // honest builtin settlement row at all.
+        let result_home = match (result, *actual_result) {
+            (AbstractBoundaryResult::Unit, TargetBoundaryResult::Unit) => {
+                if !declaration.result.is_unit()
+                    || matches!(realization, BoundaryRealization::HostedReadByte(_))
+                {
+                    return Err(psi_operation);
+                }
+                None
+            }
+            (
+                AbstractBoundaryResult::Structural(result),
+                TargetBoundaryResult::Structural(home),
+            ) => {
+                if !matches!(realization, BoundaryRealization::HostedReadByte(_)) {
+                    return Err(psi_operation);
+                }
+                let terminal_psi::BoundaryMachineResult::Structural(expected) = &declaration.result
+                else {
+                    return Err(psi_operation);
+                };
+                if result.structural_type != expected.structural_type
+                    || result.multiplicity != expected.multiplicity
+                    || result.qualifications != expected.qualifications
+                    || !result.projected_qualifications.is_empty()
+                    || !result.claims.is_empty()
+                {
+                    return Err(psi_operation);
+                }
+                let expected_home = structural_shapes::boundary_result_home(
+                    psi_operation,
+                    result,
+                    self.declarations,
+                )
+                .map_err(|_| psi_operation)?;
+                if *home != expected_home {
+                    return Err(psi_operation);
+                }
+                Some((result, home))
+            }
+            _ => return Err(psi_operation),
+        };
+        match realization {
+            BoundaryRealization::HostedWriteByteI32(_)
+            | BoundaryRealization::HostedExitProcessI32(_) => {
+                // The hosted scalar lane forwards exactly one signed i32
+                // argument through the evaluated one-parameter native plan;
+                // the retained source's provenance replays independently.
+                let i32_type =
+                    IntegerType::new(IntegerSign::Signed, 32).expect("i32 is a valid type");
+                let shape = structural_signatures::fixed_native_integer_shape(i32_type)
+                    .ok_or(psi_operation)?;
+                let call_plan = evaluate_call_plan(
+                    CallingPolicy::native_for_target(self.native_target),
+                    &CallSignature {
+                        parameters: vec![shape],
+                        result: None,
+                    },
+                )
+                .map_err(|_| psi_operation)?;
+                let [placement] = call_plan.parameters.as_slice() else {
+                    return Err(psi_operation);
+                };
+                let exits = matches!(realization, BoundaryRealization::HostedExitProcessI32(_));
+                let supports_target = if exits {
+                    target_operations::HostedExitProcessI32Realization::supports_target(
+                        self.native_target,
+                    )
+                } else {
+                    target_operations::HostedWriteByteI32Realization::supports_target(
+                        self.native_target,
+                    )
+                };
+                let [row] = *runtime_scalar_arguments else {
+                    return Err(psi_operation);
+                };
+                let [source_value] = *arguments else {
+                    return Err(psi_operation);
+                };
+                if !supports_target
+                    || declaration.scalar_parameters.as_slice() != [ScalarType::Integer(i32_type)]
+                    || !declaration.structural_parameters.is_empty()
+                    || !structural_arguments.is_empty()
+                    || row.parameter_index != 0
+                    || row.placement != *placement
+                {
+                    return Err(psi_operation);
+                }
+                // `HostedExitProcessI32` never returns: the settlement is the
+                // last operation of its block and the block closes on a plain
+                // `Return`, and the source call must end its own block on a
+                // cleanup-free `ReturnUnit`.
+                if exits && (!*nonreturning_tail || !hosted_exit_source_tail(self.source, position))
+                {
+                    return Err(psi_operation);
+                }
+                self.hosted_scalar_source(psi_operation, source_value, i32_type, &row.source)
+            }
+            BoundaryRealization::HostedReadByte(_) => {
+                // The hosted byte read writes one `[empty, byte]` sum result:
+                // an empty first case and a single signed 32-bit payload
+                // field whose declared or bounded carrier covers a byte.
+                let Some((result, home)) = result_home else {
+                    return Err(psi_operation);
+                };
+                let Some(result_declaration) = self
+                    .declarations
+                    .iter()
+                    .find(|declaration| declaration.id == result.structural_type)
+                else {
+                    return Err(psi_operation);
+                };
+                let StructuralTypeShape::Sum { cases } = &result_declaration.shape else {
+                    return Err(psi_operation);
+                };
+                let [empty, byte] = cases.as_slice() else {
+                    return Err(psi_operation);
+                };
+                let [field] = byte.fields.as_slice() else {
+                    return Err(psi_operation);
+                };
+                let valid_payload = empty.fields.is_empty()
+                    && !field.relevance.is_erased()
+                    && match field.field_type {
+                        StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                            !integer.is_address()
+                                && integer.sign() == IntegerSign::Signed
+                                && integer.bits() == 32
+                        }
+                        StructuralFieldType::BoundedInteger(bounds) => {
+                            let integer = bounds.integer_type();
+                            !integer.is_address()
+                                && integer.sign() == IntegerSign::Signed
+                                && integer.bits() == 32
+                                && bounds.contains(IntegerValue::Signed(0))
+                                && bounds.contains(IntegerValue::Signed(255))
+                        }
+                        _ => false,
+                    };
+                if !target_operations::HostedReadByteRealization::supports_target(
+                    self.native_target,
+                ) || !valid_payload
+                    || !arguments.is_empty()
+                    || !structural_arguments.is_empty()
+                    || !declaration.scalar_parameters.is_empty()
+                    || !declaration.structural_parameters.is_empty()
+                    || !completion_claim_sources.is_empty()
+                    || !completion_receipts.is_empty()
+                    || !runtime_scalar_arguments.is_empty()
+                    || home.layout.sum().is_none_or(|layout| {
+                        layout.tag_byte_offset != 0 || layout.tag_shape != ValueShape::integer(4, 4)
+                    })
+                {
+                    return Err(psi_operation);
+                }
+                Ok(())
+            }
+            _ => Err(psi_operation),
+        }
+    }
+
+    /// One hosted scalar lane argument replays the producer's known-integer
+    /// source: an incoming parameter, a non-entry block parameter, an
+    /// `IntegerConstant` the source body already defined, or the durable home
+    /// one earlier integer result left behind. Every other `source` kind is
+    /// a substitution.
+    fn hosted_scalar_source(
+        &self,
+        psi_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        source: &TargetUnitScalarArgumentSource,
+    ) -> Result<(), OperationId> {
+        let expected_scalar = ScalarType::Integer(scalar_type);
+        let valid = match source {
+            TargetUnitScalarArgumentSource::Parameter {
+                parameter_index,
+                source_value: actual,
+                scalar_type: actual_type,
+            } => {
+                *actual == source_value
+                    && *actual_type == expected_scalar
+                    && usize::try_from(*parameter_index)
+                        .ok()
+                        .and_then(|index| self.source.parameters.get(index))
+                        .is_some_and(|parameter| {
+                            parameter.value == source_value
+                                && parameter.scalar_type == expected_scalar
+                        })
+            }
+            TargetUnitScalarArgumentSource::BlockParameter(parameter) => {
+                parameter.value == source_value
+                    && parameter.scalar_type == expected_scalar
+                    && self.source.block_entries.iter().any(|entry| {
+                        entry.block == parameter.block
+                            && entry.block != self.source.entry
+                            && entry.parameters.iter().any(|block_parameter| {
+                                block_parameter.value == source_value
+                                    && block_parameter.scalar_type == parameter.scalar_type
+                            })
+                    })
+            }
+            TargetUnitScalarArgumentSource::IntegerImmediate {
+                defining_operation,
+                source_value: actual,
+                scalar_type: actual_type,
+                value,
+            } => {
+                *actual == source_value
+                    && *actual_type == scalar_type
+                    && actual_type.admits(*value)
+                    && self.source.operations.iter().any(|operation| {
+                        matches!(
+                            operation,
+                            AbstractOperation::IntegerConstant {
+                                psi_operation: produced,
+                                result,
+                                scalar_type: declared,
+                                value: literal,
+                            } if *produced == *defining_operation
+                                && *result == *actual
+                                && *declared == expected_scalar
+                                && *literal == *value
+                        )
+                    })
+            }
+            TargetUnitScalarArgumentSource::Home(home) => {
+                home.source_value == source_value
+                    && home.scalar_type == expected_scalar
+                    && home.defining_operation != psi_operation
+                    && Some(home.shape)
+                        == structural_signatures::fixed_native_integer_shape(scalar_type)
+                    && self.source.operations.iter().any(|operation| {
+                        integer_home_result(operation).is_some_and(|(produced, result)| {
+                            produced == home.defining_operation
+                                && result.value == home.source_value
+                                && result.scalar_type == home.scalar_type
+                        })
+                    })
+            }
+            _ => false,
+        };
+        if valid { Ok(()) } else { Err(psi_operation) }
     }
 
     /// A scalar-result direct call replays the published fixed-native scalar
@@ -2596,6 +3007,277 @@ fn matches_referent_argument(
         && actual.source_byte_offset == 0
         && actual.fixed_array_length.is_none()
         && actual.element_stride.is_none()
+}
+
+/// A `HostedExitProcessI32` settlement never returns: the source boundary
+/// call is the last non-terminator operation of its block and the block
+/// closes on a `ReturnUnit` with no cleanup — the shape the producer's
+/// nonreturning guard requires.
+fn hosted_exit_source_tail(source: &AbstractFunction, position: usize) -> bool {
+    let mut block_end = None;
+    for (index, entry) in source.block_entries.iter().enumerate() {
+        let end = source
+            .block_entries
+            .get(index + 1)
+            .map_or(source.operations.len(), |next| next.operation_offset);
+        if entry.operation_offset <= position && position < end {
+            block_end = Some(end);
+            break;
+        }
+    }
+    let Some(end) = block_end else {
+        return false;
+    };
+    position + 2 == end
+        && matches!(
+            source.operations.get(end - 1),
+            Some(AbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            }) if cleanup_actions.is_empty()
+        )
+}
+
+/// The integer-result operations whose durable scalar home enters the
+/// producer's known-integer map: scalar definitions, structural scalar
+/// reads, and the scalar-result call family. Constants bind `Immediate`
+/// sources and parameters bind parameter sources, so a `Home` citation can
+/// only name one of these producing operations.
+fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, AbstractResult)> {
+    let integer = |operation: OperationId, result: ValueId, scalar_type: IntegerType| {
+        (
+            operation,
+            AbstractResult {
+                value: result,
+                scalar_type: ScalarType::Integer(scalar_type),
+            },
+        )
+    };
+    Some(match operation {
+        AbstractOperation::PrimitiveScalarRead {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerStructuralField {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::StructuralByteSequenceFieldLength {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::StructuralCaseMembership {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ByteSequenceLength {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ByteSequenceRead {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::CallStructuralScalar {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::CallStoredDynamicScalar {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::CallDynamicScalar {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::CallDynamicParameterScalar {
+            psi_operation,
+            result,
+            ..
+        } => (*psi_operation, *result),
+        AbstractOperation::Call {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } => (
+            *psi_operation,
+            AbstractResult {
+                value: *result,
+                scalar_type: *scalar_type,
+            },
+        ),
+        AbstractOperation::BoundaryCall {
+            psi_operation,
+            result: AbstractBoundaryResult::Scalar(result),
+            ..
+        } => (*psi_operation, *result),
+        AbstractOperation::IntegerWiden {
+            psi_operation,
+            result,
+            target_type,
+            ..
+        }
+        | AbstractOperation::IntegerExactCast {
+            psi_operation,
+            result,
+            target_type,
+            ..
+        } => integer(*psi_operation, *result, *target_type),
+        AbstractOperation::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            ..
+        } => integer(*psi_operation, *result, *value_type),
+        AbstractOperation::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseOr {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseXor {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::IntegerBitwiseNot {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } => integer(*psi_operation, *result, *scalar_type),
+        _ => return None,
+    })
 }
 
 /// Reconstruct each argument place's referent declaration in the same

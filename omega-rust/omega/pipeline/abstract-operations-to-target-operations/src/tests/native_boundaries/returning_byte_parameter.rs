@@ -208,3 +208,191 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
         }
     }
 }
+
+#[test]
+fn hosted_write_settlement_replays_and_rejects_forged_rows() {
+    let plan = fixture();
+    let binding = crate::AdmittedBoundarySettlement {
+        boundary: plan.boundary_machines[0].id,
+        execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
+            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+        ),
+        realization: target_operations::HostedWriteByteI32Realization.into(),
+    };
+    let value = plan.functions[0].parameters[0].value;
+    let scalar_type = plan.functions[0].parameters[0].scalar_type;
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = crate::lower_to_target_operations(
+            &plan,
+            crate::TargetLoweringRequest {
+                target: native,
+                settlements: std::slice::from_ref(&binding),
+                installation: None,
+                ieee_float_fma: &[],
+            },
+        )
+        .unwrap();
+        crate::validate_abstract_to_target_translation(&plan, native, &lowered)
+            .expect("honest hosted write settlement replays");
+
+        for mutation in 0..15 {
+            let mut changed = lowered.clone();
+            {
+                let TargetUnitOperation::BoundarySettlement {
+                    psi_operation,
+                    boundary,
+                    result,
+                    execution,
+                    realization,
+                    scalar_arguments,
+                    runtime_scalar_arguments,
+                    arguments,
+                    completion_claim_sources,
+                    completion_receipts,
+                    ..
+                } = &mut changed.functions[0].graph.blocks[0].operations[0]
+                else {
+                    panic!("boundary settlement row")
+                };
+                match mutation {
+                    0 => *psi_operation = OperationId::new(999).unwrap(),
+                    1 => *boundary = BoundaryMachineId::new(999).unwrap(),
+                    2 => {
+                        *execution = target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                            target_operations::CompilerBuiltinExecution::HostedReadByte,
+                        )
+                    }
+                    3 => {
+                        *realization = target_operations::BoundaryRealization::HostedReadByte(
+                            target_operations::HostedReadByteRealization,
+                        )
+                    }
+                    4 => {
+                        *realization = target_operations::BoundaryRealization::ClaimCompletionOnly(
+                            target_operations::ClaimCompletionOnlyRealization,
+                        )
+                    }
+                    5 => {
+                        *result = target_operations::TargetBoundaryResult::Structural(
+                            target_operations::TargetStructuralHomeRequirement {
+                                origin:
+                                    target_operations::TargetStructuralHomeOrigin::OperationResult {
+                                        operation: *psi_operation,
+                                        result: terminal_psi::StructuralOperationResult {
+                                            place: semantic_vocabulary::PlaceId::new(999).unwrap(),
+                                            structural_type:
+                                                semantic_vocabulary::StructuralTypeId::new(999)
+                                                    .unwrap(),
+                                            multiplicity:
+                                                terminal_psi::StructuralMultiplicity::Affine,
+                                            qualifications: Vec::new(),
+                                            projected_qualifications: Vec::new(),
+                                            claims: Vec::new(),
+                                        },
+                                    },
+                                layout: target_operations::TargetStructuralHomeLayout::Aggregate(
+                                    calling_conventions::ValueShape::integer(4, 4),
+                                ),
+                            },
+                        )
+                    }
+                    6 => runtime_scalar_arguments[0].parameter_index = 7,
+                    7 => {
+                        runtime_scalar_arguments[0].placement.shape =
+                            calling_conventions::ValueShape::integer(8, 8)
+                    }
+                    8 => {
+                        let target_operations::TargetUnitScalarArgumentSource::Parameter {
+                            parameter_index,
+                            ..
+                        } = &mut runtime_scalar_arguments[0].source
+                        else {
+                            panic!("parameter source")
+                        };
+                        *parameter_index = 7;
+                    }
+                    9 => {
+                        let target_operations::TargetUnitScalarArgumentSource::Parameter {
+                            source_value,
+                            ..
+                        } = &mut runtime_scalar_arguments[0].source
+                        else {
+                            panic!("parameter source")
+                        };
+                        *source_value = ValueId::new(999).unwrap();
+                    }
+                    10 => {
+                        runtime_scalar_arguments[0].source =
+                            target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                                defining_operation: OperationId::new(999).unwrap(),
+                                source_value: value,
+                                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                                value: semantic_vocabulary::IntegerValue::Signed(37),
+                            }
+                    }
+                    11 => scalar_arguments.push(target_operations::BoundaryScalarArgument {
+                        source_value: value,
+                        scalar_type,
+                        immediate: semantic_vocabulary::IntegerValue::Signed(37),
+                        destination: calling_conventions::MachineRegister::X86Rax,
+                    }),
+                    _ => {
+                        if mutation == 12 {
+                            arguments.push(terminal_psi::StructuralArgument {
+                                place: semantic_vocabulary::PlaceId::new(999).unwrap(),
+                                path: Vec::new(),
+                                access: terminal_psi::StructuralAccess::SharedBorrow,
+                            });
+                        } else if mutation == 13 {
+                            completion_claim_sources.push(
+                                abstract_operations::CompletionClaimSource {
+                                    claim: semantic_vocabulary::ClaimId::new(999).unwrap(),
+                                    entry: None,
+                                    content: None,
+                                },
+                            );
+                        } else {
+                            completion_receipts.push(terminal_psi::CompletionReceipt {
+                                claim: semantic_vocabulary::ClaimId::new(999).unwrap(),
+                                argument_index: 0,
+                            });
+                        }
+                    }
+                }
+            }
+            let forged_key = (mutation == 0).then_some(OperationId::new(999).unwrap());
+            assert_eq!(
+                crate::validate_abstract_to_target_translation(&plan, native, &changed),
+                Err(
+                    crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+                        machine: plan.entry,
+                        operation: forged_key.unwrap_or(OperationId::new(902).unwrap()),
+                    }
+                ),
+                "accepted forged write settlement mutation {mutation} on {native:?}"
+            );
+        }
+
+        // A duplicated retained row under the same source operation key is
+        // forged by construction.
+        let mut changed = lowered.clone();
+        let duplicate = changed.functions[0].graph.blocks[0].operations[0].clone();
+        changed.functions[0].graph.blocks[0]
+            .operations
+            .push(duplicate);
+        assert_eq!(
+            crate::validate_abstract_to_target_translation(&plan, native, &changed),
+            Err(
+                crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+                    machine: plan.entry,
+                    operation: OperationId::new(902).unwrap(),
+                }
+            ),
+            "accepted a duplicated write settlement row"
+        );
+    }
+}
