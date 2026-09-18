@@ -3,7 +3,7 @@
 
 use crate::TypeLayout;
 use crate::builder::generic_bindings::{
-    GenericLayoutBinding, binding_for_type, fixed_array_length_with_bindings,
+    GenericLayoutBinding, binding_for_type, fixed_array_length,
 };
 use crate::builder::{LayoutBuilder, OpaqueRepresentationDemand};
 use crate::packing::placement_overflow;
@@ -19,14 +19,9 @@ use representation_selections::selection_for_opaque;
 use symbols::SymbolHandle;
 
 impl<'program> LayoutBuilder<'program> {
+    /// Lay out a type reference under `bindings`; callers outside any generic
+    /// instance pass no bindings.
     pub(crate) fn layout_type_reference_handle(
-        &mut self,
-        type_reference: TypeReferenceHandle,
-    ) -> Result<TypeLayout, Diagnostic> {
-        self.layout_type_reference_handle_with_bindings(type_reference, &[])
-    }
-
-    pub(crate) fn layout_type_reference_handle_with_bindings(
         &mut self,
         type_reference: TypeReferenceHandle,
         bindings: &[GenericLayoutBinding<'program>],
@@ -75,8 +70,7 @@ impl<'program> LayoutBuilder<'program> {
                 base_type,
                 constraints,
             } => {
-                let base_layout =
-                    self.layout_type_reference_handle_with_bindings(*base_type, bindings)?;
+                let base_layout = self.layout_type_reference_handle(*base_type, bindings)?;
                 // The owned bounded byte carrier `[u8; N] in <named-domain>` lays
                 // out as `{ len, bytes }`: a pointer-sized length word followed by
                 // the N inline bytes. Must agree with the BoundedByteBuffer arm of
@@ -123,10 +117,8 @@ impl<'program> LayoutBuilder<'program> {
                 element_type,
                 length,
             } => {
-                let element_layout =
-                    self.layout_type_reference_handle_with_bindings(*element_type, bindings)?;
-                let Some(length) = fixed_array_length_with_bindings(self.program, length, bindings)
-                else {
+                let element_layout = self.layout_type_reference_handle(*element_type, bindings)?;
+                let Some(length) = fixed_array_length(self.program, length, bindings) else {
                     return Ok(TypeLayout::default());
                 };
 
@@ -158,8 +150,7 @@ impl<'program> LayoutBuilder<'program> {
                 ..
             } => {
                 if let Some(binding) = binding_for_type(*base_symbol, base_name, bindings) {
-                    return self
-                        .layout_type_reference_handle_with_bindings(binding.argument, bindings);
+                    return self.layout_type_reference_handle(binding.argument, bindings);
                 }
 
                 if let Some(layout) = self.builtin_type_layout(*base_symbol) {
@@ -187,8 +178,7 @@ impl<'program> LayoutBuilder<'program> {
             }
             TypeReferenceNode::Named { symbol, name } => {
                 if let Some(binding) = binding_for_type(*symbol, name, bindings) {
-                    return self
-                        .layout_type_reference_handle_with_bindings(binding.argument, bindings);
+                    return self.layout_type_reference_handle(binding.argument, bindings);
                 }
 
                 self.layout_named_type(*symbol, name)

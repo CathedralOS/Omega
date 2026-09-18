@@ -64,8 +64,7 @@ impl<'program> LayoutBuilder<'program> {
                 DataMember::Variant(_) => None,
             })
             .map(|field| {
-                let layout = self
-                    .layout_type_reference_handle_with_bindings(field.type_reference, bindings)?;
+                let layout = self.layout_type_reference_handle(field.type_reference, bindings)?;
                 Ok(PlannedField {
                     symbol: field.symbol,
                     name: field.name.clone(),
@@ -74,8 +73,7 @@ impl<'program> LayoutBuilder<'program> {
                         .program
                         .display_type_reference_with_constraints(field.type_reference)
                         .into(),
-                    type_descriptor: self
-                        .type_descriptor_with_bindings(field.type_reference, bindings),
+                    type_descriptor: self.type_descriptor(field.type_reference, bindings),
                     layout,
                 })
             })
@@ -322,8 +320,7 @@ impl<'program> LayoutBuilder<'program> {
                 DataMember::Variant(_) => None,
             })
             .map(|field| {
-                let layout = self
-                    .layout_type_reference_handle_with_bindings(field.type_reference, bindings)?;
+                let layout = self.layout_type_reference_handle(field.type_reference, bindings)?;
                 Ok(PlannedField {
                     symbol: field.symbol,
                     name: field.name.clone(),
@@ -332,8 +329,7 @@ impl<'program> LayoutBuilder<'program> {
                         .program
                         .display_type_reference_with_constraints(field.type_reference)
                         .into(),
-                    type_descriptor: self
-                        .type_descriptor_with_bindings(field.type_reference, bindings),
+                    type_descriptor: self.type_descriptor(field.type_reference, bindings),
                     layout,
                 })
             })
@@ -356,10 +352,8 @@ impl<'program> LayoutBuilder<'program> {
                 .iter()
                 .filter(|field| !field.relevance.is_erased())
                 .map(|field| {
-                    let layout = self.layout_type_reference_handle_with_bindings(
-                        field.type_reference,
-                        bindings,
-                    )?;
+                    let layout =
+                        self.layout_type_reference_handle(field.type_reference, bindings)?;
                     Ok(PlannedField {
                         symbol: field.symbol,
                         name: field.name.clone(),
@@ -368,8 +362,7 @@ impl<'program> LayoutBuilder<'program> {
                             .program
                             .display_type_reference_with_constraints(field.type_reference)
                             .into(),
-                        type_descriptor: self
-                            .type_descriptor_with_bindings(field.type_reference, bindings),
+                        type_descriptor: self.type_descriptor(field.type_reference, bindings),
                         layout,
                     })
                 })
@@ -470,8 +463,8 @@ impl<'program> LayoutBuilder<'program> {
                         .program
                         .display_type_reference_with_constraints(field.type_reference)
                         .into(),
-                    type_descriptor: self.type_descriptor(field.type_reference),
-                    layout: self.layout_type_reference_handle(field.type_reference)?,
+                    type_descriptor: self.type_descriptor(field.type_reference, &[]),
+                    layout: self.layout_type_reference_handle(field.type_reference, &[])?,
                 });
             }
         }
@@ -487,8 +480,8 @@ impl<'program> LayoutBuilder<'program> {
                     .program
                     .display_type_reference_with_constraints(owned_data.type_reference)
                     .into(),
-                type_descriptor: self.type_descriptor(owned_data.type_reference),
-                layout: self.layout_type_reference_handle(owned_data.type_reference)?,
+                type_descriptor: self.type_descriptor(owned_data.type_reference, &[]),
+                layout: self.layout_type_reference_handle(owned_data.type_reference, &[])?,
             });
         }
 

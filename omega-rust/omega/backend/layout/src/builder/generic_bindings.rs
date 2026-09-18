@@ -28,7 +28,7 @@ pub(crate) fn binding_for_type<'program>(
         .copied()
 }
 
-pub(crate) fn fixed_array_length_with_bindings(
+pub(crate) fn fixed_array_length(
     program: &CheckedTrees,
     length: &FixedArrayLength,
     bindings: &[GenericLayoutBinding<'_>],
