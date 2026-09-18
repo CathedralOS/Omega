@@ -247,6 +247,27 @@ impl NativePlacedImageEvidence {
         };
         let pointer_size = reader.usize("target pointer size")?;
         let pointer_alignment = reader.usize("target pointer alignment")?;
+        // The declared target set is closed — the same (architecture,
+        // object-format) pairs and 8-byte pointer axes every realization path
+        // can produce. The pointer axes are bound only here: the semantic
+        // profile carries the pointer size but no replay leg re-derives the
+        // alignment, so a section naming a target nothing realizes is
+        // malformed rather than a claim that survives to a downstream leg.
+        if pointer_size != 8
+            || pointer_alignment != 8
+            || !matches!(
+                (architecture, object_format),
+                (
+                    target::Architecture::X86_64,
+                    target::ObjectFormat::Elf | target::ObjectFormat::Coff
+                ) | (
+                    target::Architecture::Aarch64,
+                    target::ObjectFormat::Elf | target::ObjectFormat::MachO
+                )
+            )
+        {
+            return Err(malformed("native evidence names an undeclared target"));
+        }
         let text_file_offset = reader.u64()?;
 
         let text_address = reader.u64()?;
@@ -745,3 +766,7 @@ mod tests {
         assert!(decode_machine_state_set(0x200).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "native_evidence/custody_tests.rs"]
+mod custody_tests;
