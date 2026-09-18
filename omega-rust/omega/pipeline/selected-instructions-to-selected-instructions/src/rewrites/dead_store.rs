@@ -11,6 +11,10 @@
 //! under the same byte coordinates — through the slot's materialized
 //! address, and a `Store64` writes that slot directly; a dead store
 //! carrying the `WriteLocal` row on such a slot is removed the same way.
+//! The byte-sequence store is the last dead-store route: a `Store { 0, 1 }`
+//! through a fully computed view address carries one `WriteByteSequence`
+//! row, so its dead extent is dynamic — the written byte sits at the row's
+//! `byte_offset + index`, unbounded upward from that fixed offset.
 //! A `Structural` slot the place's declaration does not charge to that
 //! operation only stages bytes that name the place and stays inadmissible.
 //! A later write of the place's storage whose byte range
@@ -36,7 +40,10 @@
 //! `offset + index` — so one whose offset starts below the dead range's
 //! end still reaches its last bytes and interferes like an overlapping
 //! row, while one starting at or past the end is provably disjoint and
-//! walks past like any disjoint row.
+//! walks past like any disjoint row. When the dead extent is itself
+//! dynamic the directions mirror: an exact or local row still reaches the
+//! dead byte once its own extent ends past the row's fixed offset, and a
+//! dynamic-extent row on the dead place always meets it.
 //! The covering write must be the first access on the dead place after the
 //! removed store, carrying exactly one row on the dead place whose encoded
 //! byte range contains the dead range entirely — the row need only cover,
@@ -49,6 +56,12 @@
 //! its materialized address. Any other `Structural` operation slot only
 //! stages bytes that merely name the place — a call's staged view
 //! descriptor — so its writes and addresses are not the dead bytes at all.
+//! A byte-sequence dead store is covered only by another byte-sequence
+//! store whose `WriteByteSequence` row names the same payload base and the
+//! same `index` value — both then spell the byte at `byte_offset + index`
+//! exactly, while any exact or local row would have to contain a byte
+//! placed at runtime, and a sequence write at another offset or index may
+//! land on a different byte entirely.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they

@@ -1,7 +1,7 @@
 use super::{
     BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
     crossed_edge, eliminate, fixture, instruction, make_packed_dead, mutated_chained,
-    packed_dead_chained, place, settlement, settlement_at, successor,
+    packed_dead_chained, place, sequence_store, settlement, settlement_at, successor,
 };
 use crate::rewrites::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
@@ -925,6 +925,153 @@ fn cross_block_dynamic_extent_rows_past_the_dead_range_walk_past() {
         eliminate(&body_inside, &environment).unwrap_err(),
         DeadStoreEliminationError::InterveningAccess
     );
+}
+
+/// The byte-sequence dead store crosses edges the same way an exact store
+/// does: a covering byte-sequence write at the crossed block's head spells
+/// the same `offset + index` byte and removes it. A dynamic-extent row on
+/// the dead place interferes with the dynamic dead extent wherever its own
+/// offset starts — two unbounded-upward reaches can always share a byte —
+/// so a sequence row on the crossed terminator still rejects however far
+/// past the payload base it begins.
+#[test]
+fn cross_block_byte_sequence_dead_store_eliminates_across_the_edge() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let covered = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+        });
+        let result =
+            eliminate_selected_dead_store(&covered, 0, STORE, &environment, budget()).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN]
+        );
+        // The covering byte-sequence store stays at the successor's head.
+        assert_eq!(
+            function.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![KILLER]
+        );
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.byte_offset, access.role))
+                .collect::<Vec<_>>(),
+            vec![(
+                KILLER,
+                8,
+                SelectedMemoryAccessRole::WriteByteSequence {
+                    index: ValueId::new(5).unwrap(),
+                    value: ValueId::new(6).unwrap(),
+                    length: ValueId::new(7).unwrap(),
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32]
+                    ),
+                }
+            )]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A covering sequence write through a different runtime index may
+        // land on a different byte.
+        let other_index = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 9, SCRATCH);
+        });
+        assert_eq!(
+            eliminate(&other_index, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // A sequence row on the crossed terminator meets the dynamic dead
+        // extent wherever it starts — two reaches unbounded upward on one
+        // place always share a byte — so the walk ends at the terminator.
+        let terminator_sequence = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            function.memory_accesses.insert(
+                1,
+                SelectedMemoryAccess {
+                    byte_count: 1,
+                    ..access(
+                        SelectedInstructionId(6),
+                        3,
+                        place(),
+                        64,
+                        SelectedMemoryAccessRole::WriteByteSequence {
+                            index: ValueId::new(9).unwrap(),
+                            value: ValueId::new(6).unwrap(),
+                            length: ValueId::new(7).unwrap(),
+                            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                            accepted_fact:
+                                optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                                    [3; 32],
+                                ),
+                        },
+                    )
+                },
+            );
+        });
+        assert_eq!(
+            eliminate(&terminator_sequence, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // A boundary settlement inside the crossed interval could still
+        // observe the dead byte before the covering write lands.
+        let settled = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            function
+                .boundary_settlements
+                .push(settlement_at(SelectedBlockId(1), 0));
+        });
+        assert_eq!(
+            eliminate(&settled, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // No covering write at all lets the runtime-placed byte escape at
+        // the return — dead or not is then unproven.
+        let uncovered = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap();
+            function.blocks[1].instructions[0] = instruction(
+                KILLER,
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[POINTER, SCRATCH],
+            );
+            function.memory_accesses.remove(1);
+        });
+        assert_eq!(
+            eliminate(&uncovered, &environment).unwrap_err(),
+            DeadStoreEliminationError::UnsupportedPair
+        );
+    }
 }
 
 #[test]
