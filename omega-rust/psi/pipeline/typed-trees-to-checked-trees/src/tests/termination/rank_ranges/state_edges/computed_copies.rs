@@ -51,12 +51,20 @@ fn computed_rank_copies_do_not_depend_on_operand_order() {
 fn computed_rank_copies_reject_unequal_initial_arrivals_even_with_valid_ranges() {
     // Both actuals fit 0..=5. Only their required equality is missing.
     let source = ACYCLIC.replace("remaining: u32 [0..=5]", "remaining: u32 [1..=4]");
-    for actuals in [
-        "remaining, remaining + 1",
-        "remaining + 1, remaining",
-        "remaining, remaining - 1",
-        "remaining - 1, remaining",
-    ] {
+    // A `carrier +/- positive` arrival names the moved copy as the ranked
+    // carrier; the stale sibling demotes. `finish(left + (right - right))`
+    // still reads the named copy's atom through cancellation, so the arrival
+    // order decides which slot's claim survives.
+    for actuals in ["remaining + 1, remaining", "remaining - 1, remaining"] {
+        prove(&source.replace(
+            "prepare(remaining, remaining)",
+            &format!("prepare({actuals})"),
+        ));
+    }
+    for actuals in ["remaining, remaining + 1", "remaining, remaining - 1"] {
+        // Here `finish` reads the demoted stale copy's atom: `left + (right -
+        // right)` substitutes a free `left` for the role `right` carries, so
+        // the produced rank has no bound.
         reject(&source.replace(
             "prepare(remaining, remaining)",
             &format!("prepare({actuals})"),
@@ -72,12 +80,18 @@ fn computed_rank_copies_reestablish_equality_and_descent_on_every_cycle_edge() {
             .replace("left + (right - right)", "right + (left - left)")
             .replace("transition left > 0", "transition right > 0"),
     );
-    for actuals in ["result - 1, result", "result, result - 1"] {
-        reject(&CYCLIC.replace(
-            "prepare(result - 1, result - 1)",
-            &format!("prepare({actuals})"),
-        ));
-    }
+    // `result - 1` names `left` as the moved copy of `remaining`: the stale
+    // `right` demotes and `left` keeps descending through the loop.
+    prove(&CYCLIC.replace(
+        "prepare(result - 1, result - 1)",
+        "prepare(result - 1, result)",
+    ));
+    // Stepping the other copy names `right` instead; `finish` then reads the
+    // demoted `left`, whose atom no hypothesis bounds.
+    reject(&CYCLIC.replace(
+        "prepare(result - 1, result - 1)",
+        "prepare(result, result - 1)",
+    ));
     // Equality and range membership cannot replace strict cyclic decrease.
     reject(&CYCLIC.replace(
         "finish(left + (right - right) - 1)",
@@ -193,6 +207,53 @@ terminates by remaining in 0..=5;
         "tally(count - 1, total, echo)",
         "tally(count - 1, total, count - 1)",
     ));
+}
+
+#[test]
+fn a_strict_step_names_the_ranked_copy_among_duplicated_arrivals() {
+    // `live` receives the strict step while `saved` forwards only a stale
+    // snapshot: the telescope names `live` the carrier of `remaining`, and
+    // the loop still descends. Before strict-step naming, the equal-copies
+    // obligation `live - 1 == saved` rejected this outright.
+    let source = r#"
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> pair(remaining, remaining) }
+    state pair(live: u32 [0..=5], saved: u32 [0..=5]) {
+        transition live > 0 {
+            true -> pair(live - 1, saved)
+            false -> live
+        }
+    }
+}
+"#;
+    prove(source);
+    // Stepping both copies differently stays ambiguous: neither claimant is
+    // named over the other, so the edge judgment still owes equality and
+    // `live - 1 != saved - 2` fails it.
+    reject(&source.replace("pair(live - 1, saved)", "pair(live - 1, saved - 2)"));
+    // A stale read cannot hide behind the stepped copy: once `saved` is
+    // demoted, `finish(saved)` arrives with no `remaining` role and cannot
+    // prove the endpoint bound on `result`.
+    reject(
+        r#"
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> pair(remaining, remaining) }
+    state pair(live: u32 [0..=5], saved: u32 [0..=5]) {
+        transition live > 0 {
+            true -> pair(live - 1, saved)
+            false -> finish(saved)
+        }
+    }
+    state finish(result: u32 [0..=5]) {
+        transition { _ -> result }
+    }
+}
+"#,
+    );
 }
 
 #[test]

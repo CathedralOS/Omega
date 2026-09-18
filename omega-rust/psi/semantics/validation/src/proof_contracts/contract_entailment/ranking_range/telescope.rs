@@ -19,7 +19,9 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// an already-anchored role, and conflicting proposals remove the state.
 /// `required` names the entry symbols the caller's rank judgment holds equal
 /// at every arrival; a duplicated claim on any other entry resolves to its
-/// bare forward so one slot stays the unique carrier.
+/// bare forward so one slot stays the unique carrier, and a duplicated
+/// required claim resolves to the one slot the role ever reaches through a
+/// strict `carrier +/- positive` step.
 pub fn discover_state_entry_mappings(
     program: &TypedTrees,
     machine: &Machine,
@@ -119,7 +121,163 @@ pub fn discover_state_entry_mappings_preferring(
             }
         }
     }
+    demote_stale_required_copies(program, machine, &occurrences, &mut mappings, required);
     mappings.into_iter().collect()
+}
+
+/// Resolve which copy of a duplicated required entry the rank reads. The edge
+/// judgment holds every claim on a required entry equal at each arrival, so a
+/// diverging transfer like `s(remaining, remaining)` followed by
+/// `s(left - 1, right)` cannot be proved while both slots carry the role.
+/// When exactly one claimant ever receives the entry through a strict
+/// `carrier +/- positive` step, that moved copy is the continuation the rank
+/// must read; a sibling whose arrivals are all bare forwards still denotes
+/// the entry's own value -- a stale snapshot, not an equal carrier -- so its
+/// claim demotes rather than forcing an equality the step broke. Naming the
+/// moved copy is arrival-shape evidence, not a positional guess: zero or
+/// several stepped claimants leave the set contested, and a claimant with any
+/// non-step computed arrival keeps its equality obligation, since the edge
+/// judgment may still prove it equal (a `carrier + 0` spell changes nothing).
+/// Slots never touched by the demotion keep the rules `argument_mapping`
+/// already applied.
+fn demote_stale_required_copies(
+    program: &TypedTrees,
+    machine: &Machine,
+    occurrences: &[(usize, usize, &[ExpressionHandle])],
+    mappings: &mut [Option<Vec<SymbolHandle>>],
+    required: &[SymbolHandle],
+) {
+    if required.is_empty() {
+        return;
+    }
+    let states = program.machine_states(machine);
+    // Per destination slot: whether any arrival computes a non-forward actual
+    // and whether any arrival is a strict step of a carrier of the slot's own
+    // (pre-demotion) role. Raw merged claims answer both questions, since the
+    // fixpoint already established that every arrival proposes the same role.
+    let mut stepped = mappings
+        .iter()
+        .map(|mapping| vec![false; mapping.as_ref().map_or(0, Vec::len)])
+        .collect::<Vec<_>>();
+    let mut computed = stepped.clone();
+    for &(source_position, target_position, arguments) in occurrences {
+        if target_position == 0 {
+            continue;
+        }
+        let (Some(source), Some(source_mapping), Some(target_mapping)) = (
+            states.get(source_position),
+            mappings.get(source_position).and_then(Option::as_deref),
+            mappings.get(target_position).and_then(Option::as_deref),
+        ) else {
+            continue;
+        };
+        for (position, (claimed, argument)) in
+            target_mapping.iter().zip(arguments.iter()).enumerate()
+        {
+            if !matches!(
+                program.expression_table.expression(*argument),
+                ExpressionNode::Name(name)
+                    if name.symbol.is_valid() && name.head_symbol == name.symbol
+            ) {
+                computed[target_position][position] = true;
+            }
+            if claimed.is_valid()
+                && required.contains(claimed)
+                && strict_step_claim(program, source, source_mapping, *argument, *claimed)
+            {
+                stepped[target_position][position] = true;
+            }
+        }
+    }
+    for (state_position, mapping) in mappings.iter_mut().enumerate() {
+        let Some(mapping) = mapping else {
+            continue;
+        };
+        for entry in required {
+            let claimants = mapping
+                .iter()
+                .enumerate()
+                .filter_map(|(position, claimed)| (*claimed == *entry).then_some(position))
+                .collect::<Vec<_>>();
+            if claimants.len() < 2 {
+                continue;
+            }
+            let moved = claimants
+                .iter()
+                .copied()
+                .filter(|position| stepped[state_position][*position])
+                .collect::<Vec<_>>();
+            if moved.len() != 1 {
+                continue;
+            }
+            for position in claimants {
+                if position != moved[0] && !computed[state_position][position] {
+                    mapping[position] = SymbolHandle::default();
+                }
+            }
+        }
+    }
+}
+
+/// Whether `argument` is `carrier +/- positive` where `carrier` names a source
+/// formal that still carries `claimed`. This is the strict-step half of
+/// `carrier_arrival_bound`'s arrival shapes in the call-component judgment:
+/// a moved copy of the role, rather than a forward or a value the role never
+/// described. The carrier is the formal the step reads -- including the
+/// destination slot's own symbol on a self-edge -- and it must carry the same
+/// entry the slot claims, or the step moved some other role's value.
+fn strict_step_claim(
+    program: &TypedTrees,
+    source: &State,
+    source_mapping: &[SymbolHandle],
+    argument: ExpressionHandle,
+    claimed: SymbolHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program
+        .expression_table
+        .expression(unwrapped(program, argument))
+    else {
+        return false;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Add | BinaryOperator::Subtract
+    ) {
+        return false;
+    }
+    let ExpressionNode::Integer(literal) = program
+        .expression_table
+        .expression(unwrapped(program, binary.right))
+    else {
+        return false;
+    };
+    if !literal.value_i64().is_some_and(|amount| amount > 0) {
+        return false;
+    }
+    let ExpressionNode::Name(name) = program
+        .expression_table
+        .expression(unwrapped(program, binary.left))
+    else {
+        return false;
+    };
+    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+        return false;
+    }
+    program
+        .state_parameters(source)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.symbol == name.symbol && !parameter.is_const)
+        .is_some_and(|position| source_mapping.get(position).copied() == Some(claimed))
+}
+
+/// Strip `Atomic` wrappers, matching the call-component judgment's arrival
+/// reading: an atomically-evaluated step is still a step.
+fn unwrapped(program: &TypedTrees, mut expression: ExpressionHandle) -> ExpressionHandle {
+    while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) {
+        expression = atomic.value;
+    }
+    expression
 }
 
 /// Every authored internal arrival: `(source index, destination index,

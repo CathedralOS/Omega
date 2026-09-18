@@ -1,0 +1,34 @@
+// PASS CANARY. `right` arrives as the strict step `remaining - 1`: among the
+// duplicated `remaining` copies the moved one names the continuation the rank
+// reads, so `pair`'s telescope demotes the stale `left` snapshot rather than
+// forcing an equality the step broke, and `step(right)` transports the
+// descended copy through the call component.
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining > 0 {
+        true -> pair(remaining, remaining - 1)
+        false -> remaining
+    }
+    state pair(left: u32 [0..=9], right: u32 [0..=9]) {
+        transition left > 0 {
+            true -> self.step(right)
+            false -> right
+        }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 {
+        true -> self.count(n - 1)
+        false -> n
+    }
+}

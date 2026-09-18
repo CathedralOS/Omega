@@ -137,17 +137,25 @@ fn internal_state_calls_read_duplicated_rank_copies() {
     // the member's own ranged arrival judgment -- which the checked stage
     // runs for every multi-state ranged member -- is what proves the copy
     // equal, and the component consumes that evidence rather than re-running
-    // it. The same trust covers a spelling the member's judgment would
-    // reject (`remaining + 1`): this harness isolates `check_component`, so
-    // the unequal copy's rejection belongs to the member-level check the
-    // `unequal_computed_rank_copies` fail canary exercises.
-    for copy in ["remaining + 0", "remaining + 1"] {
-        let computed = source.replace(
-            "pair(remaining, remaining)",
-            &format!("pair(remaining, {copy})"),
-        );
-        assert_eq!(admitted(&typed_source(&computed)).len(), 1, "{copy}");
-    }
+    // it. `remaining + 0` is not a strict step, so no claimant is named the
+    // moved copy and the equal-copy trust still applies.
+    let computed = source.replace(
+        "pair(remaining, remaining)",
+        "pair(remaining, remaining + 0)",
+    );
+    assert_eq!(admitted(&typed_source(&computed)).len(), 1);
+    // `remaining + 1` is a strict `carrier + positive` step, so discovery
+    // names `right` the moved copy and demotes `left`. The component then
+    // reads the increased carrier directly: an `AtLeast` bound cannot prove
+    // the descending rank, so the rejection the member-level check used to
+    // own now surfaces here too -- `pair(remaining, remaining + 1)` feeding
+    // `step(right)` hands `remaining + 1` to a callee that subtracts one,
+    // and the cycle preserves the rank instead of decreasing it.
+    let moved = source.replace(
+        "pair(remaining, remaining)",
+        "pair(remaining, remaining + 1)",
+    );
+    assert!(admitted(&typed_source(&moved)).is_empty());
     // A computed copy of an entry the range proof never names keeps no
     // premise claim: `right` spells `spare + 0`, so the site has no route
     // from the rank to the transported value.

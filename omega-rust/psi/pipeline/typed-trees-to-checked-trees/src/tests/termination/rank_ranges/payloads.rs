@@ -216,6 +216,9 @@ fn duplicated_rank_inputs_are_equal_at_every_arrival() {
             "cursor + 1, cursor + 1, enabled, ceiling",
         );
     prove(&source);
+    // `index + 1` names `carried` as the moved copy of `index`, so `cursor`
+    // demotes to a stale snapshot: the `cursor + 1` reentry then moves an
+    // atom no hypothesis relates to the carried rank, and descent fails.
     reject(&source.replace(
         "iterate(index, index, flag, limit)",
         "iterate(index + 1, index, flag, limit)",
@@ -224,7 +227,10 @@ fn duplicated_rank_inputs_are_equal_at_every_arrival() {
         "cursor + 1, cursor + 1, enabled, ceiling",
         "cursor + 1, cursor, enabled, ceiling",
     ));
-    reject(&source.replace(
+    // The moved copy `cursor` keeps climbing while `carried` stays stale:
+    // the telescope names `cursor` the ranked carrier and the increasing
+    // distance still decreases.
+    prove(&source.replace(
         "cursor + 1, cursor + 1, enabled, ceiling",
         "cursor, cursor + 1, enabled, ceiling",
     ));
@@ -298,33 +304,35 @@ fn auxiliary_step_copies_are_an_inductively_checked_premise() {
 
 #[test]
 fn duplicated_rank_or_endpoint_slots_cannot_choose_a_convenient_copy() {
-    for (actual, arrivals) in [
-        (
-            "index",
-            [
-                "cursor + 1, cursor, enabled, ceiling",
-                "cursor, cursor + 1, enabled, ceiling",
-            ],
-        ),
-        (
-            "limit",
-            [
-                "ceiling + 1, cursor + 1, enabled, ceiling",
-                "ceiling, cursor + 1, enabled, ceiling + 1",
-            ],
-        ),
+    // A moved copy is named only by its strict step; it cannot be swapped for
+    // a stale sibling when the step would make the stale copy the carrier.
+    for (actual, arrival) in [
+        ("index", "cursor + 1, cursor, enabled, ceiling"),
+        ("limit", "ceiling + 1, cursor + 1, enabled, ceiling"),
+        ("limit", "ceiling, cursor + 1, enabled, ceiling + 1"),
     ] {
-        for arrival in arrivals {
-            let source = CLIMB
-                .replace(
-                    "iterate(payload, index, flag, limit)",
-                    &format!("iterate({actual}, index, flag, limit)"),
-                )
-                .replace("carried: Payload", "carried: u64")
-                .replace("carried, cursor + 1, enabled, ceiling", arrival);
-            reject(&source);
-        }
+        let source = CLIMB
+            .replace(
+                "iterate(payload, index, flag, limit)",
+                &format!("iterate({actual}, index, flag, limit)"),
+            )
+            .replace("carried: Payload", "carried: u64")
+            .replace("carried, cursor + 1, enabled, ceiling", arrival);
+        reject(&source);
     }
+    // Naming the stepped copy is not a convenience: `cursor` genuinely keeps
+    // climbing toward `ceiling`, so the increasing distance still descends.
+    let source = CLIMB
+        .replace(
+            "iterate(payload, index, flag, limit)",
+            "iterate(index, index, flag, limit)",
+        )
+        .replace("carried: Payload", "carried: u64")
+        .replace(
+            "carried, cursor + 1, enabled, ceiling",
+            "cursor, cursor + 1, enabled, ceiling",
+        );
+    prove(&source);
 }
 
 #[test]

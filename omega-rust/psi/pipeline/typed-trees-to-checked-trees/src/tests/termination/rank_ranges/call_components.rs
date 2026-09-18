@@ -454,15 +454,23 @@ fn component_calls_carry_rank_through_duplicated_arrival_copies() {
     // claims because every arrival forwarded a bare name, so the copies are
     // equal and the call may read either carrier.
     prove(DUPLICATED);
-    // A copy that diverged at the arrival cannot stay an equal carrier:
-    // `remaining - 1` still lands inside every declared range, so no
-    // store-enforced invariant preempts -- the member's own arrival judgment
-    // must hold the duplicated copies equal and `remaining - 1 != remaining`
-    // fails that proof outright.
-    reject(&DUPLICATED.replace(
+    // `remaining - 1` names `right` as the moved copy of `remaining`; the
+    // stale `left` demotes and `step(right)` transports the descended copy,
+    // so the component still terminates.
+    prove(&DUPLICATED.replace(
         "pair(remaining, remaining)",
         "pair(remaining, remaining - 1)",
     ));
+    // The stale copy cannot stand in for the rank: once `left` demotes,
+    // `step(left)` hands the callee a slot carrying no `remaining` role.
+    reject(
+        &DUPLICATED
+            .replace(
+                "pair(remaining, remaining)",
+                "pair(remaining, remaining - 1)",
+            )
+            .replace("self.step(right)", "self.step(left)"),
+    );
     reject(&DUPLICATED.replace("self.step(right)", "self.step(right + 1)"));
     // An intervening write to a carrier invalidates the copied premise.
     reject(
