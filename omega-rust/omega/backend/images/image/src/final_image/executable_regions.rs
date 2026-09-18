@@ -502,7 +502,7 @@ fn placed_gap_from_bytes(
     })
 }
 
-fn executable_inventory_digest(
+pub(crate) fn executable_inventory_digest(
     text_address: u64,
     text_byte_count: usize,
     text_digest: FinalExecutableTextDigest,
@@ -605,7 +605,7 @@ pub(crate) fn byte_report_fingerprint(bytes: &[u8]) -> u64 {
     hash
 }
 
-fn executable_inventory_report_fingerprint(
+pub(crate) fn executable_inventory_report_fingerprint(
     text_address: u64,
     text_byte_count: usize,
     text_report_fingerprint: u64,
