@@ -9,7 +9,7 @@ use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::ResolvedGitSource;
 use crate::storage::RetainedStorageLane;
 
-use super::acquisition::resolve_git_source_from_retained_cache_with_selection;
+use super::acquisition::resolve_git_source_from_retained_cache;
 use super::materialization::materialize_whole_git_source;
 use super::selection::{GitRevisionSelection, RecordedGitRevision};
 
@@ -53,7 +53,7 @@ fn resolve_recorded(
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     let package_controlled_roots = resolver_package_controlled_roots(&[lane.path()])?;
     lane.verify_path_identity()?;
-    let result = resolve_git_source_from_retained_cache_with_selection(
+    let result = resolve_git_source_from_retained_cache(
         primary_git,
         &package_controlled_roots,
         request,

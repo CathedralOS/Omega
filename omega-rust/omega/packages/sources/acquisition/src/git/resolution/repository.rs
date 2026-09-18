@@ -16,51 +16,12 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use super::materialization::GitMaterializedSource;
-#[cfg(test)]
-use super::materialization::materialize_whole_git_source;
 use super::network::bounded_git_fetch_arguments;
 use super::recorded_objects::recorded_revision_needs_fetch;
 use super::selection::GitRevisionSelection;
 
-#[cfg(test)]
-pub(crate) fn resolve_verified_git_cache_entry(
-    executor: &GitExecutor,
-    cache_directory: &CapabilityDirectory,
-    entry_name: &OsStr,
-    entry_root: &Path,
-    requested_locator: &str,
-    lineage: &SourceLineage,
-    locator_identity: &str,
-    fetch_locator: &str,
-    requested_rev: &str,
-    execution_transport: GitExecutionTransport,
-    limits: LocalSourceLimits,
-    fetch_remote: bool,
-) -> Result<PendingResolvedGitSource, SourceResolveError> {
-    match resolve_verified_git_cache_entry_with(
-        executor,
-        cache_directory,
-        entry_name,
-        entry_root,
-        requested_locator,
-        lineage,
-        locator_identity,
-        fetch_locator,
-        requested_rev,
-        execution_transport,
-        limits,
-        fetch_remote,
-        GitRevisionSelection::Ordinary(None),
-        materialize_whole_git_source,
-    ) {
-        Ok((pending, ())) => Ok(pending),
-        Err(GitWorkspaceProjectionError::Source(error)) => Err(error),
-        Err(GitWorkspaceProjectionError::Planner(never)) => match never {},
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
-pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
+pub(super) fn resolve_verified_git_cache_entry<Evidence, PlannerError>(
     executor: &GitExecutor,
     cache_directory: &CapabilityDirectory,
     entry_name: &OsStr,

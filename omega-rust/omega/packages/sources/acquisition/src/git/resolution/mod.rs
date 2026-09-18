@@ -10,8 +10,7 @@ use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_co
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 use crate::storage::{RetainedStorageLane, SourceResolverStorage};
-use cap_std::fs::Dir as CapabilityDirectory;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use super::request::GitSourceRequest;
 use super::workspace::GitWorkspaceProjectionError;
@@ -27,8 +26,9 @@ mod repository;
 mod selection;
 mod workspace_member;
 
-use acquisition::resolve_git_source_from_retained_cache_with;
+use acquisition::resolve_git_source_from_retained_cache;
 use materialization::materialize_whole_git_source;
+use selection::GitRevisionSelection;
 
 pub use pinned_source::resolve_git_source_from_pin_in_lane;
 
@@ -70,15 +70,20 @@ fn resolve_git_source_in_lane_with_selected_roots(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     lane.verify_path_identity()?;
-    let result = resolve_git_source_from_retained_cache(
+    let result = match resolve_git_source_from_retained_cache(
         primary_git,
         package_controlled_roots,
         request,
-        pin,
         lane.path(),
         lane.directory(),
         limits.compiler_bounded(),
-    );
+        GitRevisionSelection::Ordinary(pin),
+        materialize_whole_git_source,
+    ) {
+        Ok((source, ())) => Ok(source),
+        Err(GitWorkspaceProjectionError::Source(error)) => Err(error),
+        Err(GitWorkspaceProjectionError::Planner(never)) => match never {},
+    };
     lane.verify_path_identity()?;
     result
 }
@@ -97,29 +102,4 @@ pub fn resolve_git_source(
     );
     storage.verify_path_identity()?;
     result
-}
-
-fn resolve_git_source_from_retained_cache(
-    primary_git: &PrimaryGitSelection,
-    package_controlled_roots: &[PathBuf],
-    request: &GitSourceRequest,
-    pin: Option<&GitAcquisitionPin>,
-    cache_dir: &Path,
-    cache_directory: &CapabilityDirectory,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedGitSource, SourceResolveError> {
-    match resolve_git_source_from_retained_cache_with(
-        primary_git,
-        package_controlled_roots,
-        request,
-        cache_dir,
-        cache_directory,
-        limits,
-        pin,
-        materialize_whole_git_source,
-    ) {
-        Ok((source, ())) => Ok(source),
-        Err(GitWorkspaceProjectionError::Source(error)) => Err(error),
-        Err(GitWorkspaceProjectionError::Planner(never)) => match never {},
-    }
 }
