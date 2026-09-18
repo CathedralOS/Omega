@@ -458,8 +458,23 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 expression,
                             });
                         }
+                        // A call delivering its result to an assignment target
+                        // needs the same scalar-argument custody rows as one
+                        // delivering it to a local: the arguments are evaluated
+                        // and transferred identically, and where the result
+                        // lands does not change their source bindings. The
+                        // qualified-call spelling below stays for the cast
+                        // chains only ordinary integer-returning machines have.
                         if let Some(expression) =
-                            scalar_qualified_call_expression(program, assignment.value)
+                            scalar_qualified_call_expression(program, assignment.value).or_else(
+                                || {
+                                    matches!(
+                                        program.expression_table.expression(assignment.value),
+                                        ExpressionNode::Call(_)
+                                    )
+                                    .then_some(assignment.value)
+                                },
+                            )
                             && let ExpressionNode::Call(call) =
                                 program.expression_table.expression(expression)
                             && let Some(arguments) = lower_call_arguments(

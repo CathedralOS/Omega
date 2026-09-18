@@ -191,6 +191,7 @@ pub(super) fn build_structural_scalar_field_store(
         result_local,
         selected_scalar_result_local.is_some(),
         false,
+        None,
         trace,
     )?;
     let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation else {
@@ -241,49 +242,91 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         return None;
     }
     trace.phase("scalar field store sequence: assignment store");
-    statements
-        .iter()
-        .enumerate()
-        .skip(statement_start)
-        .filter_map(|(statement_index, statement)| {
-            let StatementNode::Assignment(assignment) = statement else {
-                return None;
-            };
-            trace.statement(u32::try_from(statement_index).ok());
-            Some(
-                u32::try_from(statement_index)
-                    .ok()
-                    .and_then(|statement_index| {
-                        if let Some(store) = super::primitive_store::build_primitive_store_at(
-                            program,
-                            facts,
-                            machine,
-                            state,
-                            structural_parameters,
-                            statement_index,
-                            assignment,
-                        ) {
-                            return Some(store);
-                        }
-                        trace.phase("scalar field store sequence: structural field store");
-                        build_structural_field_store_at(
-                            program,
-                            facts,
-                            machine,
-                            state,
-                            structural_parameters,
-                            scalar_parameters,
-                            statement_index,
-                            assignment,
-                            None,
-                            false,
-                            true,
-                            trace,
-                        )
-                    }),
-            )
-        })
-        .collect()
+    let mut stores = Vec::new();
+    for (statement_index, statement) in statements.iter().enumerate().skip(statement_start) {
+        let StatementNode::Assignment(assignment) = statement else {
+            continue;
+        };
+        let statement_index = u32::try_from(statement_index).ok()?;
+        trace.statement(Some(statement_index));
+        if let Some(store) = super::primitive_store::build_primitive_store_at(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            assignment,
+        ) {
+            stores.push(store);
+            continue;
+        }
+        trace.phase("scalar field store sequence: structural field store");
+        if let Some(store) = build_structural_field_store_at(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            scalar_parameters,
+            statement_index,
+            assignment,
+            None,
+            false,
+            true,
+            None,
+            trace,
+        ) {
+            stores.push(store);
+            continue;
+        }
+        // An assignment whose source is this statement's own call has no
+        // authored scalar expression to store. Its call operation is sequenced
+        // with the other calls, and the store consuming that result is
+        // appended there; it deliberately produces no row here.
+        if matches!(
+            program.expression_table.expression(assignment.value),
+            ExpressionNode::Call(_)
+        ) {
+            continue;
+        }
+        return None;
+    }
+    Some(stores)
+}
+
+/// Ordinary composition for `self.field = call(..)`: the statement's scalar
+/// call establishes its result and this store consumes that SSA value. Every
+/// destination check -- exclusive borrowed authority, carrier path, relevant
+/// unconstrained scalar field, and the exact state write frame -- is the one
+/// the authored-source route makes; only where the value comes from differs.
+pub(super) fn build_structural_call_result_field_store(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    call_result: (u32, PrimitiveType),
+    trace: &LocalConstructionTrace,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    build_structural_field_store_at(
+        program,
+        facts,
+        machine,
+        state,
+        structural_parameters,
+        scalar_parameters,
+        statement_index,
+        assignment,
+        None,
+        false,
+        true,
+        Some(call_result),
+        trace,
+    )
 }
 
 /// Test convenience: the traced builder without a trace.
@@ -323,6 +366,10 @@ fn build_structural_field_store_at(
     result_local: Option<&CheckedUnitScalarResultBindingPlan>,
     selected_result: bool,
     exact_sequence_frame: bool,
+    // Dense scalar-namespace position and result type of the call this same
+    // statement performs, when the store's source is that call's SSA result
+    // rather than an authored scalar expression.
+    call_result: Option<(u32, PrimitiveType)>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     if let Some(write) = structural_parameters.iter().find_map(|destination| {
@@ -712,6 +759,40 @@ fn build_structural_field_store_at(
         ));
     }
     trace.phase("structural field store: pure source");
+    // A store may also read the SSA result of the scalar call this same
+    // statement performs. That authored form binds no local, so no
+    // `AssignmentValue` scalar-expression row names the value; the ordered
+    // call operation established it, which is exactly the "already-defined,
+    // exactly typed SSA value" the store vocabulary asks for
+    // (wiki/spec/terminal-psi/structural_access.md, Store vocabulary).
+    if let Some((position, result_type)) = call_result {
+        if !exact_sequence_frame
+            || result_local.is_some()
+            || selected_result
+            || result_type != primitive_type
+            || !matches!(
+                program.expression_table.expression(assignment.value),
+                ExpressionNode::Call(_)
+            )
+        {
+            return None;
+        }
+        return Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+            CheckedStructuralScalarFieldStorePlan {
+                statement_index,
+                destination:
+                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                        position: destination.position,
+                    },
+                carrier_path,
+                field_identity: terminal_field_identity(program, field.symbol)?,
+                primitive_type,
+                value: checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult {
+                    position,
+                },
+            },
+        ));
+    }
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,

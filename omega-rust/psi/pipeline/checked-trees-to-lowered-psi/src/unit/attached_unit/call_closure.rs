@@ -370,6 +370,39 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
+            // A store consuming its own statement's scalar call result shares
+            // that call's coordinate, so it has no separate position in the
+            // canonical order. Its place is reconstructed the same way a call
+            // continuation cleanup's is: the producing call must be the
+            // operation immediately before it.
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
+                if matches!(
+                    store.value,
+                    checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                ) =>
+            {
+                if !matches!(
+                    operation_index
+                        .checked_sub(1)
+                        .and_then(|previous| machine.operations.get(previous)),
+                    Some(
+                        CheckedUnitEffectOperationPlan::ScalarCall {
+                            coordinate, result, ..
+                        }
+                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                            coordinate, result, ..
+                        }
+                    ) if coordinate.statement_index == store.statement_index
+                        && coordinate.call_ordinal == 0
+                        && result.statement_index == store.statement_index
+                        && result.primitive_type == store.primitive_type
+                ) {
+                    return unsupported(
+                        "field store call result has no immediately preceding scalar call",
+                    );
+                }
+                continue;
+            }
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: store.statement_index,

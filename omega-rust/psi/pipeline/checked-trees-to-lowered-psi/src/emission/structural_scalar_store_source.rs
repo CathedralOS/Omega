@@ -449,6 +449,26 @@ pub(crate) fn validate_assignment(
                 && expression.role == role
         })
         .collect::<Vec<_>>();
+    // A store reading its own statement's call result has no authored scalar
+    // expression to select: the right-hand side is the call. The destination
+    // place was rejoined above, and the producing call is reconstructed where
+    // the operation order and the value are lowered. A selected expression
+    // here would mean the checked stage chose a different source.
+    if matches!(
+        store.value,
+        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+    ) {
+        if !expressions.is_empty() {
+            return unsupported("structural scalar store replaced a selected RHS with a result");
+        }
+        if !matches!(
+            checked.expression_table.expression(assignment.value),
+            ExpressionNode::Call(_)
+        ) {
+            return unsupported("structural scalar store call result has no authored call");
+        }
+        return Ok(());
+    }
     let [expression] = expressions.as_slice() else {
         return unsupported("structural scalar store has no unique selected RHS");
     };
