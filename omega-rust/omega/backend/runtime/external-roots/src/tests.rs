@@ -13,6 +13,7 @@ mod program_local_root_joins;
 mod progress_profiles;
 mod provider_execution;
 mod required_root_closures;
+mod root_admission_custody;
 mod root_installation;
 mod root_installation_fixtures;
 mod stack_and_fuel_composition;
