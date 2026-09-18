@@ -29,6 +29,13 @@ pub(super) enum Syntax {
     W(Box<Syntax>, Box<Syntax>),
     Sup(Box<Syntax>, Box<Syntax>, Box<Syntax>, Box<Syntax>),
     IndW(Box<Syntax>, Box<Syntax>, Box<Syntax>),
+    Squash(Box<Syntax>),
+    SquashIntro(Box<Syntax>, Box<Syntax>),
+    /// `Box S` — named `Boxed` so `Box` stays the allocator inside this
+    /// file's `Box<Syntax>` fields.
+    Boxed(Box<Syntax>),
+    BoxIntro(Box<Syntax>, Box<Syntax>),
+    BoxElim(Box<Syntax>, Box<Syntax>, Box<Syntax>),
     /// A scheme declaration reference — `Constant { declaration,
     /// levels }` at the exact instantiation the referring declaration
     /// supplies. Every `Level::Parameter(i)` inside `levels` names the
@@ -136,6 +143,34 @@ pub(super) fn build(
             let tree = build(arena, scope, tree);
             arena.insert(Term::IndW { motive, step, tree })
         }
+        Syntax::Squash(ty) => {
+            let ty = build(arena, scope, ty);
+            arena.insert(Term::Squash { ty })
+        }
+        Syntax::SquashIntro(ty, value) => {
+            let ty = build(arena, scope, ty);
+            let value = build(arena, scope, value);
+            arena.insert(Term::SquashIntro { ty, value })
+        }
+        Syntax::Boxed(ty) => {
+            let ty = build(arena, scope, ty);
+            arena.insert(Term::Box { ty })
+        }
+        Syntax::BoxIntro(ty, value) => {
+            let ty = build(arena, scope, ty);
+            let value = build(arena, scope, value);
+            arena.insert(Term::BoxIntro { ty, value })
+        }
+        Syntax::BoxElim(motive, body, scrutinee) => {
+            let motive = build(arena, scope, motive);
+            let body = build(arena, scope, body);
+            let scrutinee = build(arena, scope, scrutinee);
+            arena.insert(Term::BoxElim {
+                motive,
+                body,
+                scrutinee,
+            })
+        }
         Syntax::Scheme(declaration, levels) => arena.insert(Term::Constant {
             declaration: *declaration,
             levels: levels.clone(),
@@ -155,6 +190,12 @@ pub(super) fn sort(level: Level) -> Syntax {
 /// declaration's own level scope.
 pub(super) fn ty(parameter: u32) -> Syntax {
     sort(Level::Parameter(parameter))
+}
+
+/// `Strict u` at universe parameter `parameter` of the referring
+/// declaration's own level scope.
+pub(super) fn strict(parameter: u32) -> Syntax {
+    Syntax::Sort(Sort::Strict(Level::Parameter(parameter)))
 }
 
 pub(super) fn app(function: Syntax, argument: Syntax) -> Syntax {
@@ -222,6 +263,31 @@ pub(super) fn jelim(motive: Syntax, base: Syntax, endpoint: Syntax, proof: Synta
 
 pub(super) fn indw(motive: Syntax, step: Syntax, tree: Syntax) -> Syntax {
     Syntax::IndW(Box::new(motive), Box::new(step), Box::new(tree))
+}
+
+/// `Squash A` — the strict squash former over a relevant `A`.
+pub(super) fn squash(ty: Syntax) -> Syntax {
+    Syntax::Squash(Box::new(ty))
+}
+
+/// `sq_A x` — squash introduction, carrying its carrier annotation.
+pub(super) fn squash_intro(ty: Syntax, value: Syntax) -> Syntax {
+    Syntax::SquashIntro(Box::new(ty), Box::new(value))
+}
+
+/// `Box S` — boxing the strict proposition `S` as relevant data.
+pub(super) fn boxed(ty: Syntax) -> Syntax {
+    Syntax::Boxed(Box::new(ty))
+}
+
+/// `box_S x` — box introduction, carrying its strict annotation.
+pub(super) fn box_intro(ty: Syntax, value: Syntax) -> Syntax {
+    Syntax::BoxIntro(Box::new(ty), Box::new(value))
+}
+
+/// `unbox P f x` — box elimination: `f : Π(a : S). P (box a)`.
+pub(super) fn box_elim(motive: Syntax, body: Syntax, scrutinee: Syntax) -> Syntax {
+    Syntax::BoxElim(Box::new(motive), Box::new(body), Box::new(scrutinee))
 }
 
 /// A scheme declaration reference at the explicit instantiation

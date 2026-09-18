@@ -4,11 +4,12 @@ use crate::mathematical_core::tests::{
 };
 use crate::mathematical_core::{
     Context, CoreError, Declaration, Level, MathematicalCertificate, QUOTIENT, QUOTIENT_BETA,
-    QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_TRANS, QUOTIENT_IS_SET, QUOTIENT_LIFT,
-    QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
-    QUOTIENT_TRANSPORT_CONST, TermArena, assumption_closure, certificate_assumption_closure,
-    check_signature, check_type, convertible, infer_type, judgment_assumption_closure,
-    quotient_scheme, verify_mathematical_certificate,
+    QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE, QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL,
+    QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT,
+    QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET, QUOTIENT_SET,
+    QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, TermArena,
+    assumption_closure, certificate_assumption_closure, check_signature, check_type, convertible,
+    infer_type, judgment_assumption_closure, quotient_scheme, verify_mathematical_certificate,
 };
 
 #[test]
@@ -16,7 +17,7 @@ fn quotient_scheme_checks_as_a_parametric_signature() {
     let mut arena = TermArena::new();
     let mut budget = default_budget();
     let declarations = quotient_scheme(&mut arena);
-    assert_eq!(declarations.len(), 13);
+    assert_eq!(declarations.len(), 20);
 
     // The whole scheme re-decides parametrically: every assumption
     // statement is a type under its level arity and every definition
@@ -26,13 +27,14 @@ fn quotient_scheme_checks_as_a_parametric_signature() {
     // producer flag.
     let before = budget.remaining();
     let signature = check_signature(&mut arena, &declarations, &mut budget).unwrap();
-    assert_eq!(signature.len(), 13);
+    assert_eq!(signature.len(), 20);
     assert!(before - budget.remaining() > 0);
     assert!(!arena.is_empty());
 
     // Exactly the specification's interface plus the extensionality-
     // blocked `liftPre` are admitted assumptions; `isSet`, `transport`,
-    // the identity lemmas and `lift` are checked definitions.
+    // the identity lemmas, `lift` and the derived proposition-induction,
+    // coverage and uniqueness theorems are checked definitions.
     let assumptions = [
         QUOTIENT,
         QUOTIENT_PROJECT,
@@ -49,6 +51,13 @@ fn quotient_scheme_checks_as_a_parametric_signature() {
         QUOTIENT_ID_TRANS,
         QUOTIENT_TRANSPORT_CONST,
         QUOTIENT_LIFT,
+        QUOTIENT_ID_SYM,
+        QUOTIENT_ID_CANCEL,
+        QUOTIENT_PROP_IS_SET,
+        QUOTIENT_BOX_PROP,
+        QUOTIENT_IND_PROP,
+        QUOTIENT_COVERAGE,
+        QUOTIENT_UNIQUE,
     ];
     for (position, declaration) in signature.declarations().iter().enumerate() {
         let position = position as u32;
