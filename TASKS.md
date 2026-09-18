@@ -2057,7 +2057,17 @@ Owners include
   remaining failure is the documented wall, callback ABI transport absent
   from the common instruction pipeline. Other fixtures that bind
   `windows_x86_64::ProgramEntry` beside a package-local library copy may have
-  broken the same way at that commit and are worth checking.
+  broken the same way at that commit, and one had: `calling_policy_plans` was
+  45 of 59. `hosted_entry_contract_seed` seeds the authored target contract
+  into every target-selected compilation, needing no build declaration and no
+  entry binding, so any fixture carrying its own copy of a bundled
+  standard-library source declares it twice. Eleven calling-vocabulary tests
+  copied the calling module and three macOS entry tests copied the target
+  contract itself; taking the standard library as an ordinary dependency, and
+  checking the bundled contract under its custody as the Linux and Windows
+  fixtures already did, returns that suite to 59 of 59. One of those tests had
+  been asserting a rejection the compile never produced, so it passed while
+  observing nothing, and now reaches exactly that one diagnostic.
 - **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
   external root, and unregister as the operation that ends it before code and
   component leases release, under
