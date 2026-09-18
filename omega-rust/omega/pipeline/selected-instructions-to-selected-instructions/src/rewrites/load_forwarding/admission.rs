@@ -19,13 +19,27 @@
 //! of the read rejects — no selected extract can slice a register's middle
 //! bytes.
 //!
+//! `Load8Indexed` reads a dynamic extent instead: the single byte at its
+//! `ReadByteSequence` row's payload base plus the runtime `index` the row
+//! carries. Only the byte-exact writer sources the forward — a
+//! `Store { 0, 1 }` through a fully computed view address whose
+//! `WriteByteSequence` row names the same payload base and the same index
+//! value — forwarding to `ZeroExtendU8` of the stored register. An exact
+//! or local range cannot contain a runtime-placed byte, and a sequence
+//! write at another offset or index may land on a different byte entirely,
+//! so both still reject as the source while remaining interference.
+//!
 //! Interference is decided from the validated access roster. A row naming the
 //! forwarded place blocks on any overlapping write and on
 //! any materialized local address for the place's own storage. A
 //! dynamic-extent write reaches only upward from its fixed offset — a span
 //! covers `length` bytes there and a sequence row touches
 //! `offset + index` — so it still blocks while that offset starts below the
-//! read's end, and walks past once it begins at or after it. A `WriteLocal`
+//! read's end, and walks past once it begins at or after it. When the read
+//! itself is dynamic the directions mirror the byte-sequence dead store's:
+//! an exact or local row still reaches the read byte once its own extent
+//! ends past the payload base, and a dynamic-extent row on the place
+//! always meets it. A `WriteLocal`
 //! row names an exact range on a slot: when the slot is the place's own
 //! storage — its parameter or block-parameter home, or the producing
 //! operation's `Structural` home — an intersecting row still has to be the
@@ -82,27 +96,43 @@ pub(super) struct Admission<'source> {
     pub provenance: SelectedInstructionProvenance,
     pub value: VirtualRegisterId,
     pub output: VirtualRegisterId,
-    /// Index of the load's single `ReadPlace` row in `memory_accesses`; replay
-    /// requires the proposed roster to drop exactly this row.
+    /// Index of the load's single read row in `memory_accesses` — `ReadPlace`
+    /// for a fixed-offset load, `ReadByteSequence` for the indexed byte load;
+    /// replay requires the proposed roster to drop exactly this row.
     pub load_access: usize,
     pub copy: &'source RegisterInstructionConstraint,
     /// The replacement kind: `CopyI64` for a full-width forward, the matching
-    /// `ZeroExtend` for an exact-width sub-word forward. Every form shares the
-    /// target's plain `[use, def]` copy row.
+    /// `ZeroExtend` for an exact-width sub-word forward and for the indexed
+    /// byte load's single-byte forward. Every form shares the target's plain
+    /// `[use, def]` copy row.
     pub kind: SelectedInstructionKind,
 }
 
-/// One exact byte range within one place root.
+/// The bytes the load reads within one place root: an exact range, or a
+/// dynamic extent when the load is the indexed byte load — its single read
+/// byte sits at `byte_offset + index` for the runtime `index` the
+/// `ReadByteSequence` row carries, so every position it can touch lies at or
+/// after `byte_offset` with no static upper bound.
 struct Forwarded {
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
+    /// The indexed byte load's runtime index, deciding the read byte's
+    /// position: `byte_offset + index`. `None` for an exact load.
+    sequence_index: Option<semantic_vocabulary::ValueId>,
 }
 
 impl Forwarded {
     /// Exact rows intersect when their half-open byte intervals share a byte;
-    /// widened to u64 so edge offsets cannot wrap.
+    /// widened to u64 so edge offsets cannot wrap. A dynamic read extent is
+    /// unbounded upward from `byte_offset`, so the exact row still reaches
+    /// the read byte once its own extent ends past that offset — ending at
+    /// or below it is the only provable disjointness.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
+        if self.sequence_index.is_some() {
+            return u64::from(self.byte_offset)
+                < u64::from(access.byte_offset) + u64::from(access.byte_count);
+        }
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
             && u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count)
@@ -111,11 +141,16 @@ impl Forwarded {
     /// A dynamic-extent row's reach is unbounded only upward: a span row
     /// covers `length` bytes starting at `byte_offset` and a sequence row
     /// touches the single byte `byte_offset + index`, so every byte the row
-    /// can touch lies at or after `byte_offset`. It still reaches this range
-    /// exactly while its fixed offset starts below the range's end; an
+    /// can touch lies at or after `byte_offset`. It still reaches an exact
+    /// range exactly while its fixed offset starts below the range's end; an
     /// offset at or past the end is provably disjoint however far the reach
-    /// extends.
+    /// extends. When the read extent is itself dynamic the row can always
+    /// meet it — two runtime-placed reaches on one place share no provable
+    /// disjointness — so it always interferes.
     fn reached_by(&self, access: &SelectedMemoryAccess) -> bool {
+        if self.sequence_index.is_some() {
+            return true;
+        }
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
     }
 }
@@ -127,6 +162,7 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
         place,
         byte_offset: 8,
         byte_count: 8,
+        sequence_index: None,
     };
     let length = semantic_vocabulary::ValueId::new(3).unwrap();
     let obligation = semantic_vocabulary::ObligationId::new(4).unwrap();
@@ -191,6 +227,79 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
     assert!(interferes(&forwarded, &access, &[]));
 }
 
+#[test]
+fn dynamic_read_extent_reverses_the_interference_directions() {
+    let place = PlaceId::new(1).unwrap();
+    // The indexed byte load reads one byte at `8 + index`: unbounded upward
+    // from the payload base, so an exact row reaches it only while its own
+    // extent ends past 8 and a dynamic-extent row on the place always meets
+    // it.
+    let forwarded = Forwarded {
+        place,
+        byte_offset: 8,
+        byte_count: 1,
+        sequence_index: Some(semantic_vocabulary::ValueId::new(5).unwrap()),
+    };
+    let obligation = semantic_vocabulary::ObligationId::new(4).unwrap();
+    let accepted_fact = optimization_core::AcceptedObligationFactIdentity::from_bytes([5; 32]);
+    let mut access = SelectedMemoryAccess {
+        instruction: SelectedInstructionId(1),
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+            semantic_vocabulary::OperationId::new(1).unwrap(),
+        ),
+        place,
+        byte_offset: 0,
+        byte_count: 9,
+        role: SelectedMemoryAccessRole::WritePlace,
+    };
+    // An exact write ending one byte past the payload base can touch the
+    // runtime byte; ending at or below it cannot.
+    assert!(interferes(&forwarded, &access, &[]));
+    access.byte_count = 8;
+    assert!(!interferes(&forwarded, &access, &[]));
+    access.byte_count = 7;
+    assert!(!interferes(&forwarded, &access, &[]));
+    access.byte_count = 0;
+    assert!(!interferes(&forwarded, &access, &[]));
+    // Dynamic-extent rows on the place always interfere however far below
+    // their fixed offset starts.
+    access.byte_count = 1;
+    access.byte_offset = 0;
+    access.role = SelectedMemoryAccessRole::WriteByteSequence {
+        index: semantic_vocabulary::ValueId::new(6).unwrap(),
+        value: semantic_vocabulary::ValueId::new(7).unwrap(),
+        length: semantic_vocabulary::ValueId::new(8).unwrap(),
+        obligation,
+        accepted_fact,
+    };
+    assert!(interferes(&forwarded, &access, &[]));
+    access.role = SelectedMemoryAccessRole::WriteByteSpan {
+        length: semantic_vocabulary::ValueId::new(8).unwrap(),
+        obligation,
+        accepted_fact,
+    };
+    access.byte_count = 0;
+    assert!(interferes(&forwarded, &access, &[]));
+    // A read or a different place still walks past.
+    access.role = SelectedMemoryAccessRole::ReadByteSequence {
+        index: semantic_vocabulary::ValueId::new(6).unwrap(),
+        length: semantic_vocabulary::ValueId::new(8).unwrap(),
+        obligation,
+        accepted_fact,
+    };
+    assert!(!interferes(&forwarded, &access, &[]));
+    access.role = SelectedMemoryAccessRole::WriteByteSequence {
+        index: semantic_vocabulary::ValueId::new(6).unwrap(),
+        value: semantic_vocabulary::ValueId::new(7).unwrap(),
+        length: semantic_vocabulary::ValueId::new(8).unwrap(),
+        obligation,
+        accepted_fact,
+    };
+    access.byte_count = 1;
+    access.place = PlaceId::new(2).unwrap();
+    assert!(!interferes(&forwarded, &access, &[]));
+}
+
 pub(super) fn admit<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
     function_index: usize,
@@ -220,15 +329,22 @@ pub(super) fn admit<'source>(
         .ok_or(StoredLoadForwardingError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let forwarded_load = &block.instructions[load_index];
-    let (byte_offset, width): (u32, u32) = match forwarded_load.kind {
+    let indexed = matches!(forwarded_load.kind, SelectedInstructionKind::Load8Indexed);
+    let (encoded_offset, width): (u32, u32) = match forwarded_load.kind {
         SelectedInstructionKind::Load8 { byte_offset } => (byte_offset, 1),
         SelectedInstructionKind::Load16 { byte_offset } => (byte_offset, 2),
         SelectedInstructionKind::Load32 { byte_offset } => (byte_offset, 4),
         SelectedInstructionKind::Load64 { byte_offset } => (byte_offset, 8),
+        // The indexed byte load encodes no offset of its own: the byte it
+        // reads sits at the roster row's payload base plus the runtime
+        // index the row carries.
+        SelectedInstructionKind::Load8Indexed => (0, 1),
         _ => return Err(StoredLoadForwardingError::UnsupportedInstruction),
     };
     // The read's semantic identity: exactly one roster row, one place root,
-    // and the same bytes the instruction encodes.
+    // and the same bytes the instruction reads — the encoded range on a
+    // `ReadPlace` row for a fixed-offset load, or the `ReadByteSequence`
+    // row's one-byte dynamic extent for the indexed byte load.
     let mut rows = function
         .memory_accesses
         .iter()
@@ -237,17 +353,27 @@ pub(super) fn admit<'source>(
     let (load_access, read) = rows
         .next()
         .ok_or(StoredLoadForwardingError::UnsupportedInstruction)?;
-    if rows.next().is_some()
-        || read.role != SelectedMemoryAccessRole::ReadPlace
-        || read.byte_offset != byte_offset
-        || read.byte_count != width
-    {
+    if rows.next().is_some() {
         return Err(StoredLoadForwardingError::UnsupportedPair);
     }
+    let sequence_index = match read.role {
+        SelectedMemoryAccessRole::ReadPlace
+            if !indexed && read.byte_offset == encoded_offset && read.byte_count == width =>
+        {
+            None
+        }
+        SelectedMemoryAccessRole::ReadByteSequence { index, .. }
+            if indexed && read.byte_count == width =>
+        {
+            Some(index)
+        }
+        _ => return Err(StoredLoadForwardingError::UnsupportedPair),
+    };
     let forwarded = Forwarded {
         place: read.place,
         byte_offset: read.byte_offset,
         byte_count: width,
+        sequence_index,
     };
     // The load's result must be defined only here; the copy keeps the register.
     let output = single_def(forwarded_load)?;
@@ -266,18 +392,31 @@ pub(super) fn admit<'source>(
     if output_instruction != load {
         return Err(StoredLoadForwardingError::UnsupportedUse);
     }
-    // The load row must follow the target's [use pointer, def result] shape so
-    // the replacement copy can reuse the result operand's class.
+    // The load row must follow the target's load surface so the replacement
+    // copy can reuse the result operand's class: [use pointer, def result]
+    // for a fixed-offset load, [use pointer, use index, def result] for the
+    // indexed byte load.
     let load_row = environment
         .constraint(forwarded_load.constraint)
         .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
-    if load_row.operands.len() != 2
-        || load_row.operands[0].operand != 0
-        || load_row.operands[0].access != RegisterOperandAccess::Use
-        || load_row.operands[1].operand != 1
-        || load_row.operands[1].access != RegisterOperandAccess::Def
-        || load_row.operands[1].class != output_register.class
-    {
+    let load_shape = if indexed {
+        load_row.operands.len() == 3
+            && load_row.operands[0].operand == 0
+            && load_row.operands[0].access == RegisterOperandAccess::Use
+            && load_row.operands[1].operand == 1
+            && load_row.operands[1].access == RegisterOperandAccess::Use
+            && load_row.operands[2].operand == 2
+            && load_row.operands[2].access == RegisterOperandAccess::Def
+            && load_row.operands[2].class == output_register.class
+    } else {
+        load_row.operands.len() == 2
+            && load_row.operands[0].operand == 0
+            && load_row.operands[0].access == RegisterOperandAccess::Use
+            && load_row.operands[1].operand == 1
+            && load_row.operands[1].access == RegisterOperandAccess::Def
+            && load_row.operands[1].class == output_register.class
+    };
+    if !load_shape {
         return Err(StoredLoadForwardingError::ConstraintMismatch);
     }
     // Walk back to the last writer of the forwarded range on every path to
@@ -669,7 +808,10 @@ fn single_def(
 /// reaches only upward from its fixed offset, so it blocks exactly while
 /// that offset starts below the read's end — a write beginning at or past
 /// the end is provably disjoint and walks past like a disjoint `WritePlace`.
-/// A `WriteLocal` row names an exact range on a slot:
+/// When the read itself is a dynamic extent the directions reverse: an
+/// exact-range write still reaches the runtime-placed byte once its own
+/// extent ends past the payload base, while every dynamic-extent row on the
+/// place meets it. A `WriteLocal` row names an exact range on a slot:
 /// when the slot is the forwarded place's own storage, range intersection
 /// decides and an intersecting row still has to be the exact writer; when the
 /// slot only stages bytes naming the place, its bytes are not the place's at
@@ -706,16 +848,22 @@ fn interferes(
     }
 }
 
-/// The found writer must produce the read's exact bytes from one register:
-/// one roster row on the forwarded place naming the identical byte offset
-/// and byte count, on the target's own operand surface. Two routes to the
-/// place's storage qualify:
+/// The found writer must produce the read's bytes from one register: one
+/// roster row on the forwarded place naming the identical byte offset and
+/// byte count, on the target's own operand surface. The routes to the
+/// place's storage that qualify:
 /// - a `Store` of the read's exact width carrying `WritePlace` — through the
 ///   referent pointer — or `WriteLocal` on the place's own parameter
 ///   storage, through that slot's materialized address;
 /// - a `Store64` into `Local(slot)` carrying `WriteLocal` on that same
 ///   slot — directly into the place's own parameter storage. The slot store
-///   is always eight bytes, so only `Load64` pairs with it.
+///   is always eight bytes, so only `Load64` pairs with it;
+/// - for the indexed byte load's dynamic read, only the byte-exact writer:
+///   a `Store { 0, 1 }` through a fully computed view address carrying
+///   `WriteByteSequence` — equal payload base and equal index value place
+///   the same byte, while an exact or local range cannot contain a
+///   runtime-placed byte and a sequence write at another offset or index
+///   may land on a different byte entirely.
 ///
 /// A wider, narrower, or shifted writer cannot produce the read's bytes from
 /// one register without an extract the selected vocabulary does not carry. A
@@ -732,7 +880,9 @@ fn forwarding_source(
     let reject = || StoredLoadForwardingError::AliasingWrite;
     let structural_places = structural_place_declarations(function);
     // The writer's semantic identity: exactly one roster row on the
-    // forwarded place naming the read's exact byte range.
+    // forwarded place naming the read's byte range — the exact range for a
+    // fixed-offset read, the payload base and one-byte count for the
+    // indexed load's dynamic read.
     let mut rows = function
         .memory_accesses
         .iter()
@@ -752,15 +902,25 @@ fn forwarding_source(
             byte_offset,
             byte_size,
         } => {
-            if byte_offset != forwarded.byte_offset || u32::from(byte_size) != forwarded.byte_count
-            {
-                return Err(reject());
-            }
-            let place_route = match row.role {
-                SelectedMemoryAccessRole::WritePlace => true,
-                SelectedMemoryAccessRole::WriteLocal { slot } => {
-                    local_slot_is_place_storage(slot, forwarded.place, structural_places)
+            let place_route = match (forwarded.sequence_index, row.role) {
+                (None, SelectedMemoryAccessRole::WritePlace) => {
+                    byte_offset == forwarded.byte_offset
+                        && u32::from(byte_size) == forwarded.byte_count
                 }
+                (None, SelectedMemoryAccessRole::WriteLocal { slot }) => {
+                    byte_offset == forwarded.byte_offset
+                        && u32::from(byte_size) == forwarded.byte_count
+                        && local_slot_is_place_storage(slot, forwarded.place, structural_places)
+                }
+                // The dynamic read's byte-exact writer: the sequence
+                // store's encoded `Store { 0, 1 }` writes through a fully
+                // computed view address, so its row's payload base — not
+                // the encoded offset — plus an equal index value place the
+                // same byte the read observes.
+                (
+                    Some(index),
+                    SelectedMemoryAccessRole::WriteByteSequence { index: written, .. },
+                ) => byte_offset == 0 && byte_size == 1 && written == index,
                 _ => false,
             };
             if !place_route {
