@@ -19,6 +19,8 @@ mod pcc;
 mod pcc_custody;
 #[path = "artifact/proof_section.rs"]
 mod proof_section;
+#[path = "artifact/proof_section_custody.rs"]
+mod proof_section_custody;
 #[path = "artifact/transport_round_trips.rs"]
 mod transport_round_trips;
 
@@ -28,9 +30,10 @@ use proof_admission::{
     RecursiveEdgeCertificate,
 };
 use semantic_vocabulary::{
-    AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId, Proposition,
-    ScalarTerm, ScalarType, StructuralCaseId, StructuralFieldId, ValueId,
+    AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IntegerSign,
+    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId,
+    Proposition, PropositionId, ScalarTerm, ScalarType, StructuralCaseId, StructuralFieldId,
+    ValueId,
 };
 use terminal_codec::{CanonicalTerminalArtifact, build_identity_optimization_execution_record};
 use terminal_psi::{
@@ -367,3 +370,5 @@ id_constructor!(edge_id, EdgeId);
 id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
 id_constructor!(evidence_id, EvidenceIdentity);
+id_constructor!(proposition_id, PropositionId);
+id_constructor!(evidence_term_id, EvidenceTermId);
