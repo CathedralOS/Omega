@@ -1137,3 +1137,124 @@ fn projected_reference_result_rejects_nested_call_operands() {
         "a nested call operand of a bound value call stays rejected"
     );
 }
+
+const PROJECTED_RECORD_ARGUMENT_SOURCE: &str = "data View { body: &mut i32; }
+        data Outer { inner: View; }
+        machine select(value: View) -> &mut i32 { value.body }
+        machine replace(value: &mut i32) { value = 29; }
+        machine exercise(value: &mut i32) -> i32 {
+            let input: Outer = Outer { inner: View { body: value } };
+            let held: &mut i32 = select(input.inner);
+            replace(held);
+            value
+        }";
+
+#[test]
+fn projected_record_argument_preserves_original_storage() {
+    let checked =
+        typed_trees_to_checked_trees::lower_typed_trees(typed(PROJECTED_RECORD_ARGUMENT_SOURCE))
+            .unwrap_or_else(|diagnostics| {
+                panic!("projected record-argument checking: {diagnostics:#?}")
+            });
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("a projected record operand keeps exact ingress custody");
+    execute(&artifact, 1, 1);
+}
+
+#[test]
+fn projected_record_argument_rejects_changed_leaf_custody() {
+    use checked_trees::{
+        CheckedUnitEffectOperationPlan as Operation,
+        CheckedUnitStructuralArgumentSourcePlan as Source,
+    };
+    let original =
+        typed_trees_to_checked_trees::lower_typed_trees(typed(PROJECTED_RECORD_ARGUMENT_SOURCE))
+            .unwrap();
+    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
+        .produce_artifact()
+        .expect("untampered projected record-argument custody");
+    for mutation in 0..4 {
+        let mut changed = original.clone();
+        let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
+        match mutation {
+            // The argument must keep its exact projected field edge.
+            0 => {
+                let Operation::StructuralCall {
+                    structural_arguments,
+                    ..
+                } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
+                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].path.clear();
+            }
+            // The projected operand must keep its exact result binding.
+            1 => {
+                let Operation::StructuralCall {
+                    structural_arguments,
+                    ..
+                } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
+                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].source = Source::Parameter { parameter_index: 0 };
+            }
+            // The owned subtree moves whole; a borrowed projection cannot.
+            2 => {
+                let Operation::StructuralCall {
+                    structural_arguments,
+                    ..
+                } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
+                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].access =
+                    checked_trees::CheckedStructuralAccess::SharedBorrow;
+            }
+            // The result loan must keep its exact leaf provenance.
+            3 => {
+                let Operation::StructuralCall { custody, .. } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { custody, .. }
+                            if custody.reference_loan.is_valid())
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                custody.reference_loan = arena::Handle::invalid();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
+                .produce_artifact()
+                .is_err(),
+            "projected record-argument custody mutation {mutation} must reject"
+        );
+    }
+}

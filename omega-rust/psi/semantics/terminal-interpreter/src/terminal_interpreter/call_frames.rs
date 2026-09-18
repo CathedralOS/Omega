@@ -13,7 +13,7 @@ use crate::terminal_interpreter::execution::RuntimeDynamicDescriptor;
 use crate::terminal_interpreter::execution::SuspendedCall;
 use crate::terminal_interpreter::execution::SuspendedCallResult;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
@@ -425,6 +425,19 @@ impl TerminalExecution {
                                             )
                                         })
                             }))
+                    // An owned operand may also name a declared-field subtree
+                    // when the callee returns reference custody: the result's
+                    // published source roster pins each moved leaf, and the
+                    // affine projection split already removed it from the
+                    // caller's frontier.
+                    && !(argument.access == StructuralAccess::Owned
+                        && parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                        && !callee_result.reference_sources.is_empty()
+                        && argument.path.iter().all(|segment| matches!(segment,
+                            StructuralPathSegment::Field(_)))
+                        && prepared_arguments.values.get(&parameter.place).is_some_and(|value|
+                            value.structural_type == parameter.structural_type))
                     && !matches!(
                         prepared_arguments.byte_sequences.get(&parameter.place),
                         Some(
@@ -470,6 +483,7 @@ impl TerminalExecution {
         )?;
 
         let mut caller_affine_frontier = self.live_affine_frontier.clone();
+        let mut retired_carriers = BTreeSet::new();
         for (argument, parameter) in structural_arguments
             .iter()
             .zip(&callee.structural_parameters)
@@ -478,6 +492,16 @@ impl TerminalExecution {
                 && argument.access == StructuralAccess::Owned
             {
                 self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
+                // A projected operand that consumed every affine subtree
+                // retires its carrier: no residual frontier entry survives
+                // to answer for the root, so its value cannot remain either.
+                if !argument.path.is_empty()
+                    && !caller_affine_frontier
+                        .iter()
+                        .any(|entry| entry.place == argument.place)
+                {
+                    retired_carriers.insert(argument.place);
+                }
             }
         }
         let mut caller_structural_values = self.structural_values.clone();
@@ -485,8 +509,9 @@ impl TerminalExecution {
             .iter()
             .zip(&callee.structural_parameters)
             .filter(|(argument, parameter)| {
-                argument.path.is_empty()
-                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                (argument.path.is_empty()
+                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                    || retired_carriers.contains(&argument.place)
             })
         {
             if caller_structural_values.remove(&argument.place).is_none()

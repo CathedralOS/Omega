@@ -68,6 +68,7 @@ pub(super) struct ClosureCatalog<'a> {
 mod boundary_calls;
 mod calls;
 mod locals;
+mod projected_moves;
 mod stores;
 
 /// One ordinary machine's emission in flight: the shared catalog it resolves
@@ -512,10 +513,21 @@ pub(super) fn emit(
     // Parameter selection sources have no result row: they follow the
     // result rows in descending authored position so the splice replaces
     // each row with its residual join parameter.
+    // A projected owned argument can move the complete subtree roster out
+    // of a result carrier, in which case the frontier retires the place at
+    // the consuming call and the return roster must not discard its root.
+    let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
     let mut selection_roster = structural_result_places
         .iter()
         .rev()
-        .map(|(place, discard)| (place.id, *discard))
+        .map(|(place, discard)| {
+            let retired = moved_subtrees
+                .get(&evaluation.current_structural_place(place.id))
+                .is_some_and(|moved| {
+                    projected_moves::retires(structural_types, &operations.operations, place, moved)
+                });
+            (place.id, *discard && !retired)
+        })
         .collect::<Vec<_>>();
     let mut parameter_sources = Vec::new();
     for cleanup in &evaluation.selection_cleanups {
