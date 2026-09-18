@@ -1,12 +1,12 @@
 use super::super::super::{
     PackageLock, Path, PreparedLocalProject, ResolvedPackageSourceClosure, SourceResolverStorage,
 };
-use super::super::{PathBuf, temporary_root};
+use super::super::{PathBuf, preparation_target, temporary_root};
 use super::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, ExternalSourceContext,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, LOCAL_PROJECT_CONTEXT,
     LocalSourceLimits, PackageLockTarget, PackageSourceClosureLimits, PrepareLocalProjectError,
-    TargetProfile, compile_resolved_package_reviews, fs, prepare_local_project_in_storage,
+    compile_resolved_package_reviews, fs, prepare_local_project_in_storage,
 };
 use crate::operations::LocalProjectPreparationOptions;
 use crate::resolution::graph::GitResolutionOptions;
@@ -61,7 +61,7 @@ impl Project {
         prepare_local_project_in_storage(
             &self.root().join("main.omg"),
             LocalProjectPreparationOptions {
-                target: TargetProfile::host(),
+                target: preparation_target(),
                 offline: false,
             },
             |_| Ok(self.storage()),
@@ -74,7 +74,7 @@ impl Project {
     }
 
     pub(super) fn lock_closure(&self, closure: &ResolvedPackageSourceClosure) -> PackageLock {
-        let target = closure.for_exact_target(TargetProfile::host());
+        let target = closure.for_exact_target(preparation_target());
         let reviews = compile_resolved_package_reviews(
             &target,
             &self.0.join("review"),

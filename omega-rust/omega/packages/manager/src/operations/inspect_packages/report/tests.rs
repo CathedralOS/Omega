@@ -362,17 +362,14 @@ fn equal_policy_is_shown_once_and_unavailable_keeps_accepted_meaning() {
     assert!(!unavailable.contains(&policy));
     assert!(unavailable.contains("fresh-analysis unavailable: \"checkout missing\\nerror\""));
     assert!(!unavailable.contains("equal-to-fresh"));
-    assert!(
-        render(
-            TargetProfile::host(),
-            Some(&baseline),
-            None,
-            None,
-            MAXIMUM_BYTES
-        )
-        .is_err()
-            || TargetProfile::host() == TARGET
-    );
+    // An accepted baseline recorded for another target must reject: pick a
+    // catalogued profile that is never TARGET so the mismatch fires on every
+    // host, including ones with no catalogued host profile (macOS x86-64).
+    let foreign = TargetProfile::ALL
+        .into_iter()
+        .find(|profile| *profile != TARGET)
+        .expect("the profile catalog holds more than one target");
+    assert!(render(foreign, Some(&baseline), None, None, MAXIMUM_BYTES).is_err());
     assert!(
         render(
             TARGET,

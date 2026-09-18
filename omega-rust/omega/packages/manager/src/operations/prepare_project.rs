@@ -296,6 +296,15 @@ mod tests {
 
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+    /// The exact target these legs prepare for: the compiler host's
+    /// catalogued profile when it owns one, an exact declared target
+    /// otherwise (macOS x86-64 owns no host profile). Every leg needs one
+    /// consistent exact target; none execute a host artifact, so an
+    /// unprofiled host keeps the suite running rather than skipping.
+    fn preparation_target() -> TargetProfile {
+        TargetProfile::host_if_supported().unwrap_or(TargetProfile::LinuxX64)
+    }
+
     fn temporary_root(name: &str) -> PathBuf {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -318,7 +327,7 @@ mod tests {
         let prepared = prepare_local_project(
             &entry,
             LocalProjectPreparationOptions {
-                target: TargetProfile::host(),
+                target: preparation_target(),
                 offline: false,
             },
         )
