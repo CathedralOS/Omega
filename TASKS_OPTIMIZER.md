@@ -1793,217 +1793,67 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Proof-, ownership-, and state-aware optimization
 
-- **ALIAS-AWARE-MEMORY.** Add borrow-aware load forwarding, dead-store
-  elimination, and mutation motion on the selected CFG, each decided from
-  the validated `memory_accesses` roster under place exclusivity and
-  replayed by restore-by-content validation. Landed:
-  `rewrites/load_forwarding` rewrites a `Load64`/`Load32`/`Load16`/`Load8`
-  whose same-block writer is a `Store` with the read's exact same-width
-  `WritePlace` row at the identical byte offset — `CopyI64` of the stored
-  register at full width, the matching `ZeroExtend` at sub-word width,
-  since a same-width store-then-load round-trips the register's low bits
-  in the target's own byte order — and `rewrites/dead_store` removes an
-  exact-width `Store` whose dead range a later place store rewrites
-  unobserved — the first access on the dead place decides, and the
-  covering store's single `WritePlace` row need only contain the dead
-  range entirely, so a wider `Store` or a `StorePacked` kills a
-  narrower or shifted dead store while partial overlap, a row that
-  disagrees with its instruction's encoded range, and a packed store
-  on the wrong constraint still reject; boundary settlements inside
-  the dead interval reject while later positions shift one ordinal.
-  Dead-store search also walks forward
-  across edges when every outgoing edge of a crossed block names one
-  block — each path forward then reaches the covering store before any
-  observer — checking each crossed terminator's roster rows and each
-  crossed edge's transports: joins at crossed blocks are harmless
-  because coverage looks forward, while forks to distinct blocks,
-  returns and hosted exits, re-entered blocks, and edge transports
-  writing or retiring the dead place's storage end the walk unproven.
-  `rewrites/store_motion` sinks a place `Store` or `StorePacked`
-  carrying exactly one `WritePlace` row — or, through the place's own
-  local storage, a `Store`/`StorePacked` through the slot's
-  materialized address or a `Store64` into that slot directly, each
-  carrying one `WriteLocal` row on the place's storage, the direct
-  store's row naming the same slot it encodes — to just before the
-  first position that must stay ordered after it — an interfering
-  roster row on the moved place, a call or hosted effect, a
-  carried-register redefinition, an unaccounted memory-capable
-  instruction, or a boundary settlement — and keeps walking forward
-  across a terminator when every outgoing edge names one block that
-  sees the crossed block as its only predecessor, checking each
-  crossed terminator's roster rows and each edge's transports: forks
-  to distinct blocks, joins into the successor, successors that can
-  reach back to the walked chain, and transports redefining the
-  carried registers or writing the moved place's storage land the
-  store at the last proven position rather than rejecting. The packed
-  form carries the target's declared `store_packed` row — `[use
-  pointer, use packed value, def scratch]` with the scratch
-  early-clobbered — and its scratch `Def` and declared clobbers move
-  with it, so the coupling the walk already enforces on the carried
-  reads guards its writes too: a window instruction or crossed
-  terminator may not read or rewrite the scratch nor read or publish
-  a condition-state unit the row clobbers, and a crossed edge's
-  transports may not carry the scratch in either direction — on a
-  flag-publishing target a flag writer or reader in the window and a
-  flag-reading terminator each bound the motion at the last proven
-  position, while a target whose packed row publishes no condition
-  state slides past them (crate `nextest`: 986 pass). The roster
-  names the store by instruction identity, so it stays unchanged;
-  boundary settlements at or after a crossed-block landing shift one
-  ordinal. Load forwarding also walks
-  back across edges when the load's block has exactly one predecessor
-  block — every
-  path to the load then carries that block's writer — checking each
-  crossed terminator's roster rows and each crossed edge's transports:
-  edge-defined register parameters colliding with the carried value or
-  the load's result reject, as do structural destinations, case custody
-  slots, and custody discards touching the forwarded place's storage,
-  while joins, unreachable blocks, self-loops, and the function entry
-  end the walk unproven (crate `nextest`: 357 pass). Dead-store
-  admission also accepts `StorePacked` as the removed store: the
-  instruction's encoded byte offset and packed width define the dead
-  range, its single `WritePlace` row must name that exact place and
-  range, and the instruction must carry the target's declared
-  `store_packed` constraint with its `[use pointer, use packed value,
-  def scratch]` operand row — the scratch `Def` early-clobbered in the
-  constraint — while the scratch virtual register must occur exactly
-  once in the whole function across body and terminator operands,
-  successor structural bindings, case payloads, and edge transports,
-  so the removal cannot strand a surviving mention; the kill side is
-  unchanged, with any later covering store — plain or packed —
-  rewriting the dead range unobserved in-block or across a
-  single-successor edge (crate `nextest`: 414 pass). Dead-store
-  covering also admits a write into the dead place's own local
-  storage — its `StructuralParameter` or `StructuralBlockParameter`
-  slot, which is the place's storage under the same byte
-  coordinates: a `Store64` naming that slot, or a place
-  `Store`/`StorePacked` through its materialized address, each
-  carrying exactly one `WriteLocal` row whose encoded range
-  contains the dead range; a disjoint `WriteLocal` on any
-  place-backed slot now walks past by range intersection since it
-  cannot touch the dead bytes either way, while an operation-owned
-  `Structural` slot — which can stage bytes that merely name the
-  place, like a call's staged view descriptor — still interferes
-  on intersection and never covers (crate `nextest`: 450 pass).
-  The dead store may itself take the local route: a `Store` or
-  `StorePacked` through the place's own parameter slot's
-  materialized address, or a `Store64` into that slot directly,
-  each carrying exactly one `WriteLocal` row whose encoded range
-  defines the dead range — the direct slot store's row naming the
-  same slot it encodes — while a `WriteLocal` on an
-  operation-owned `Structural` slot, a `WritePlace` row on the
-  slot store, a slot or range disagreement, a second row, a
-  partial covering write, and a boundary settlement inside the
-  dead interval each still reject (crate `nextest`: 756 pass).
-  Load forwarding also crosses joins: a block whose body shows no
-  interfering access defers to every predecessor block, and it
-  resolves once each predecessor path resolves to the same stored
-  register — a store dominating the join decides all its legs, as
-  does each leg's own last writer of that register — while the
-  entry block, a block no edge reaches, legs whose writers store
-  different registers, and deferred regions that never resolve,
-  self-loops and writerless cycles included, still leave the pair
-  unproven (crate `nextest`: 493 pass). Load-forwarding writers
-  also reach the forwarded place's own local storage — its
-  `StructuralParameter` or `StructuralBlockParameter` slot, which
-  is the place's storage under the same byte coordinates: a
-  `Store64` into that slot directly, or a place `Store` through
-  the slot's materialized address, each sourcing the forward when
-  its single `WriteLocal` row names the read's exact byte range;
-  the slot store is always eight bytes, so only `Load64` pairs
-  with it. A `WriteLocal` row now decides interference by range
-  intersection the way `WritePlace` does, so a disjoint local
-  write walks past whether its slot is the place's storage or
-  only stages bytes naming the place, while an operation-owned
-  `Structural` slot still interferes on intersection and never
-  sources, a row disagreeing with its instruction's slot or
-  encoded range rejects, and a `Store64` under a sub-word read
-  rejects (crate `nextest`: 535 pass). All three rules now treat a
-  dynamic-extent row's reach as unbounded only upward from its fixed
-  byte offset — a span covers `length` bytes there and a sequence row
-  touches `offset + index` — so a dynamic read or write on the
-  contested place whose offset starts at or past the contested
-  range's end is provably disjoint and walks past like any disjoint
-  row, while one starting below that end still interferes however far
-  its reach extends (crate `nextest`: 1154 pass on macOS x86-64).
-  Store motion also admits the byte-sequence store as the moved
-  store: a `Store { 0, 1 }` through a fully computed view address
-  carrying exactly one `WriteByteSequence` row — the written byte
-  sits at the row's `byte_offset + index` for the runtime `index`,
-  so the moved extent is unbounded upward from that fixed offset and
-  the interference direction mirrors the contested-range rule: an
-  exact or local row still reaches the moved byte once its own
-  extent ends past the row's fixed offset, and a dynamic-extent row
-  on the moved place always meets it. The encoded one-byte store,
-  the row's one-byte count, and the single row pin the route while
-  the packed widths never encode one byte and the direct slot store
-  names a slot, so neither carries a sequence row (crate `nextest`:
-  1192 pass on macOS x86-64). Dead-store elimination admits the
-  byte-sequence route for the removed store as well: a `Store
-  { 0, 1 }` carrying exactly one `WriteByteSequence` row writes the
-  dead byte at `byte_offset + index`, so the dead extent is
-  unbounded upward from the row's fixed offset and the interference
-  directions mirror the moved-extent rule — an exact or local row
-  still reaches the dead byte once its own extent ends past the
-  row's fixed offset, and a dynamic-extent row on the dead place
-  always meets it. Coverage stays byte-exact rather than extent
-  containment: only a later `Store { 0, 1 }` whose single
-  `WriteByteSequence` row names the same payload base and the same
-  index value provably rewrites the dead byte — an exact or local
-  range cannot contain a runtime-placed byte, and a sequence row at
-  another offset or index may land on a different byte entirely
-  (crate `nextest`: 1221 pass on macOS x86-64). Load forwarding
-  admits the indexed byte load as the read: a `Load8Indexed`
-  carrying `ReadByteSequence` reads the single byte at the row's
-  payload base plus the runtime index, so its read extent is
-  unbounded upward from the base and the interference directions
-  mirror the byte-sequence dead store's — an exact or local row
-  still reaches the read byte once its own extent ends past the
-  payload base, while a dynamic-extent row on the place always
-  meets it. Sourcing stays byte-exact rather than extent
-  containment: only a `Store { 0, 1 }` through a fully computed
-  view address whose single `WriteByteSequence` row names the same
-  payload base and the same index value sources the forward, to
-  `ZeroExtendU8` of the stored register — an exact or local range
-  cannot contain a runtime-placed byte, and a sequence write at
-  another offset or index may land on a different byte entirely
-  (crate `nextest`: 1289 pass on macOS x86-64). Dead-store covering
-  also admits the `CopyBytes` route into the dead place — the one
-  covering write whose roster holds several rows: the destination
-  `WriteByteSpan` must be the single row reaching the dead range,
-  and its dynamic extent covers the exact dead range when the
-  count register carries the row's `length` value and resolves to
-  a clean `MaterializeI64`, so the span writes a compile-time
-  `count` bytes at its fixed `byte_offset` and containment decides
-  on constants. The copy's source `ReadByteSpan` rides on another
-  place under place exclusivity, while a reaching source read or
-  second row on the dead place, a short or unmaterialized count, a
-  count register naming another source value, a second definition
-  or an edge transport on the count, a nonzero recorded byte
-  count, and a `CopyBytes` kind off the target's `copy_bytes` row
-  each reject — and a byte-sequence dead store still needs the
-  byte-exact sequence write since no fixed span contains a
-  runtime-placed byte (crate `nextest`: 1302 pass on macOS
-  x86-64). Dead-store covering also admits the byte-sequence
-  store for an exact dead range once its index resolves constant:
-  the `index` value's sole `InstructionResult` register must hold
-  the function's one clean `MaterializeI64` definition with no
-  edge-transport or case-payload redefinition, so the write lands
-  on the one fixed byte `byte_offset + index` and a single-byte
-  dead range is covered exactly when that is the dead byte; a
-  runtime or unproduced index, a second carrier or definition, a
-  landing byte off the dead byte, a wider dead range, a
-  miscounted row, and a shifted or foreign-row store each reject
-  (crate `nextest`: 1328 pass on macOS x86-64). Remaining:
-  staging `Structural` slots still cannot die, cover, source, or
-  move — a `Structural` slot the place's declaration does not
-  charge to its producer only stages bytes that name the place —
-  a constant-index sequence row landing off the dead byte still
-  interferes rather than walking past, a dynamic dead extent
-  still needs the byte-exact sequence write, a span's
-  unmaterialized count leaves its reach unproven, and legs whose
-  paths resolve to different writers or never resolve stay
-  unproven.
+- **ALIAS-AWARE-MEMORY.** Execute borrow-aware load forwarding, dead-store
+  elimination, and mutation motion on compiler-produced selected programs,
+  with non-aliasing justified by retained ownership evidence under
+  [evidence and control flow](wiki/spec/build/optimizations.md#evidence-and-control-flow).
+  Owner: `load_forwarding`, `dead_store` and `store_motion` in
+  `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/`.
+  Each entrance takes one caller-named load or store, decides interference
+  from the validated `memory_accesses` roster, walks across edges, and replays
+  by restore-by-content. They handle exact-width `Store` and `StorePacked`,
+  the place's own local slot, byte-sequence stores, indexed byte loads, and
+  constant-count `CopyBytes` covers. None is an `Optimization` member, has a
+  catalog row or candidate discovery, or has a caller outside its own tests,
+  which hand-build `SelectedInstructionPlan` fixtures.
+
+  Remaining work:
+
+  - Bind the non-aliasing premise to evidence. `interferes` in each
+    `admission.rs` treats a row naming another `PlaceId` as unable to observe
+    or disturb the subject, on the documented premise that exclusivity was
+    enforced before selection. `SelectedMemoryAccess` and the three receipts
+    carry no loan, compatibility-certificate or accepted-fact identity for
+    that premise, and [loans](wiki/spec/terminal-psi/loans.md) states that a
+    live exclusive loan does not prove projections disjoint. Either retain
+    the consumed fact identities in candidate and receipt, or establish at
+    the roster's producer, under independent validation, that distinct
+    `PlaceId`s in one function never overlap. `AnalysisKind::PlaceAliases`
+    and `MemoryVersions` are declared in `optimization-core` and have no
+    producer.
+  - Add the execution route and separate validation from proposal as
+    EXACT-MACHINE-SIMPLIFICATIONS describes. All three `validation.rs` files
+    call their own rewrite's `admission::admit`.
+  - Remaining refusals: forwarding into a join whose legs stored different
+    registers, which needs a merged value on the edges; store motion through
+    a fork or into a join, where the store lands at the last proven position;
+    a dynamic dead extent without the byte-exact sequence write; a span whose
+    count is not a materialized literal; a constant-index sequence row that
+    lands off the dead byte still interferes; stores into `Structural`
+    staging slots are not candidates.
+
+  Acceptance: source-produced programs select each rule by exact name through
+  `optimize_selected_instructions`, execute natively on a supported host, and
+  replay independently after publication. The empty selection and each
+  disabled rule reproduce identity output. Negative controls: a read through
+  a shared reborrow or field projection of the stored place between two
+  stores (the first store survives), an intervening call or hosted effect, a
+  volatile or placed access, a partial overlap, a stale candidate, an
+  exhausted budget, and one-field corruption of the receipt's fact
+  identities. A hand-built plan is not the customer.
+
+  Flag: byte-extent reasoning has one copy per rewrite. `intersects`,
+  `reached_by` and `interferes` are defined in all three `admission.rs`
+  files (the `dead_store` and `store_motion` copies of `interferes` differ
+  only in the subject's name), the place, packed and local store-shape
+  recognizers twice, and `commuting_accesses.rs` holds a fourth disjointness
+  decision. Each access kind (packed, local slot, byte sequence, byte span)
+  was then added to each rewrite as its own role-by-route case. The general
+  mechanism is one owner that maps a roster row to place, storage route and
+  extent (exact range, lower-bounded dynamic reach, or base plus index value)
+  with may-overlap, must-cover and must-equal relations, consumed by the
+  three rewrites and the commutation audit. `place_storage.rs` is the start
+  of that owner.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
