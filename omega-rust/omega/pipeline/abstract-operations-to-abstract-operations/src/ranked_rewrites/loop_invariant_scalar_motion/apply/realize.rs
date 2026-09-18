@@ -134,14 +134,16 @@ pub(crate) fn realize(
         .checked_sub(1)
         .and_then(|jump| jump.checked_sub(certificate_tail))
         .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
-    // An affine scalar-case result or structural-call result the run
+    // An affine scalar-case, empty-record, or structural-call result the run
     // relocates keeps one persistent preheader place live through the whole
     // component where the source established — and discarded — a fresh place
     // at every traversal's dispatch.
     let case_results: BTreeSet<PlaceId> = nodes
         .iter()
         .filter_map(|node| match &node.operation {
-            O::EstablishScalarCase { result, .. } | O::CallStructural { result, .. }
+            O::EstablishScalarCase { result, .. }
+            | O::EstablishRecord { result, .. }
+            | O::CallStructural { result, .. }
                 if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine =>
             {
                 Some(result.place)

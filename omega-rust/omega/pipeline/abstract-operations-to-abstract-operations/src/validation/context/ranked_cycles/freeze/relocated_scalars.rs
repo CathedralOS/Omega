@@ -23,7 +23,12 @@
 //! while each scalar field value obeys the re-derived substitution and each
 //! structural field copy keeps or rebinds its root under the same
 //! preheader-landing rule a shared-borrow call argument obeys, all under
-//! the same no-member-stores custody bound), an admissible
+//! the same no-member-stores custody bound — while an affine result,
+//! admitted only for the field-free declaration the composed-control
+//! lowering emits for a trivial affine local, re-expresses the scalar-case
+//! custody frontier: the persistent preheader place stays live across
+//! member-internal edges and every exit edge and member return disposes
+//! it), an admissible
 //! scalar-array establishment (whose declared place, structural type, and
 //! claim-free unrestricted result custody relocate byte-exact while each
 //! element operand obeys the re-derived substitution under the same
@@ -196,7 +201,8 @@ pub(super) fn validate(
         }
     }
     let no_relocated_roots = BTreeSet::new();
-    // Affine scalar-case and structural-call results every relocated
+    // Affine scalar-case, empty-record, and structural-call results every
+    // relocated
     // establishment or call produced,
     // keyed by its home component: the relocation re-expresses their
     // dispatch custody — member-internal edges keep the one persistent
@@ -208,6 +214,7 @@ pub(super) fn validate(
     for relocation in &moved {
         let result = match &relocation.expected.operation {
             abstract_operations::AbstractOperation::EstablishScalarCase { result, .. }
+            | abstract_operations::AbstractOperation::EstablishRecord { result, .. }
             | abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
             _ => continue,
         };
@@ -679,8 +686,9 @@ pub(super) fn validate(
         {
             return Err(mismatch(machine, expected_block.id));
         }
-        // A block inside a component whose run relocated affine scalar-case
-        // or structural-call results keeps every retained node but spells
+        // A block inside a component whose run relocated affine scalar-case,
+        // empty-record, or structural-call results keeps every retained node
+        // but spells
         // the persistent result's custody differently — member-internal
         // edges keep it live while exit edges and member returns dispose
         // it. Normalize each
@@ -782,8 +790,9 @@ fn same_relocated_node(
         && expected.ownership == current.ownership
 }
 
-/// A retained member node whose component relocated affine scalar-case or
-/// structural-call results spells their persistent custody differently from
+/// A retained member node whose component relocated affine scalar-case,
+/// empty-record, or structural-call results spells their persistent custody
+/// differently from
 /// the seed:
 /// member-internal edges keep the place live where the source's fresh place
 /// died at dispatch, and every exit edge and member return disposes it

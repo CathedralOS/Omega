@@ -9119,3 +9119,682 @@ fn stale_structural_call_frontier_catalog_is_rejected() {
         ) if rejected_machine == machine
     ));
 }
+
+/// Two-state cycle whose `step` member establishes `marker`, the
+/// field-free affine record the composed-control lowering emits for a
+/// trivial affine local: the cyclic eligibility fence already confined the
+/// fresh place to `step`'s member block, discarding it on every departing
+/// edge, and `step` dominates both exit sources — so the establishment
+/// relocates into the unique preheader while the retained member edges keep
+/// the one persistent place live inside the roster and every exit edge
+/// disposes it instead.
+const MEMBER_AFFINE_RECORD_SOURCE: &str = r#"
+    data Root {}
+    data Marker {}
+
+    machine Root::scan(scale: u32, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32, pending: u32 [0..=5]) {
+            let marker: Marker = Marker {};
+            transition pending > 0 {
+                true -> check(s, pending - 1)
+                _ -> finish(s)
+            }
+        }
+        state check(v: u32, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> step(v, pending)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32) {}
+    }
+"#;
+
+/// The component's unique entry edge is one of two successors on the
+/// preheader's terminator: reaching the preheader does not guarantee
+/// entering the loop, so relocating the `marker` establishment would execute
+/// it on traversals that never enter the component. The establishment stays
+/// inside; work-free scalar-constant leaves still relocate.
+const CONDITIONAL_ENTRY_AFFINE_RECORD_SOURCE: &str = r#"
+    data Root {}
+    data Marker {}
+
+    machine Root::enter(scale: u32, go: bool, remaining: u32 [0..=5])
+    {
+        transition go {
+            true -> scan(scale, remaining)
+            _ -> done()
+        }
+        state scan(s: u32, pending: u32 [0..=5]) {
+            let marker: Marker = Marker {};
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(s)
+            }
+        }
+        state done() {}
+        state finish(r: u32) {}
+    }
+"#;
+
+/// Same two-state cycle, but the empty affine record is established inside
+/// `check`: a traversal can leave through `step`'s own `finish` arm without
+/// ever reaching `check`, so hoisting the establishment would speculate the
+/// work and the member stays inside.
+const BYPASSED_AFFINE_RECORD_SOURCE: &str = r#"
+    data Root {}
+    data Marker {}
+
+    machine Root::scan(scale: u32, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> check(s, pending - 1)
+                _ -> finish(s)
+            }
+        }
+        state check(v: u32, pending: u32 [0..=5]) {
+            let marker: Marker = Marker {};
+            transition pending > 0 {
+                true -> step(v, pending)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32) {}
+    }
+"#;
+
+/// Every `EstablishRecord` node inside `component`'s member blocks whose
+/// result is affine — the empty-declaration custody-rewriting counterpart of
+/// [`member_record_establishments`].
+fn member_affine_record_establishments<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> Vec<(
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+)> {
+    member_record_establishments(function, component)
+        .into_iter()
+        .filter(|(_, node)| {
+            matches!(
+                &node.operation,
+                AbstractOperation::EstablishRecord { result, .. }
+                    if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn affine_empty_record_establishment_relocates_re_expressing_disposal_custody() {
+    let session = lowered_session_entry(
+        MEMBER_AFFINE_RECORD_SOURCE,
+        "member affine empty-record loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let records = member_affine_record_establishments(function, component);
+    let [(_, establishment)] = records.as_slice() else {
+        panic!("one member affine empty-record establishment")
+    };
+    let (record_operation, picked) = match &establishment.operation {
+        AbstractOperation::EstablishRecord {
+            psi_operation,
+            result,
+            fields,
+            ..
+        } => {
+            assert!(
+                fields.is_empty(),
+                "the composed-control affine record declares no fields"
+            );
+            assert_eq!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Affine,
+                "the result is the confined affine place"
+            );
+            assert!(
+                result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty(),
+                "the affine result is claim-free"
+            );
+            (*psi_operation, result.place)
+        }
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    // The seed disposes the fresh affine place through member-roster discard
+    // rosters — the custody the relocation re-expresses — while no edge
+    // departing a non-member block ever spells it.
+    let (member_roster_discards, foreign_spellings): (usize, usize) = function
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            let member = member_targets.contains(&block.id);
+            block
+                .nodes
+                .iter()
+                .flat_map(move |node| node.successors.iter().map(move |edge| (member, edge)))
+        })
+        .fold((0, 0), |(member_discards, foreign), (member, edge)| {
+            let spells = edge.trivial_affine_discards.contains(&picked)
+                || edge
+                    .residual_affine_discards
+                    .iter()
+                    .any(|discard| discard.place == picked)
+                || edge
+                    .structural_bindings
+                    .iter()
+                    .any(|binding| binding.parameter == picked || binding.argument.place == picked);
+            match (member, spells) {
+                (true, true) => (member_discards + 1, foreign),
+                (false, true) => (member_discards, foreign + 1),
+                _ => (member_discards, foreign),
+            }
+        });
+    assert!(
+        member_roster_discards > 0,
+        "the seed's member edges discard the fresh affine record"
+    );
+    assert_eq!(
+        foreign_spellings, 0,
+        "the affine place stays inside the member roster"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == record_operation)
+        .expect("the affine empty-record establishment is a planned relocation");
+    let LoopInvariantNodeResult::Structural(result) = relocation.node().result() else {
+        panic!("the affine empty-record establishment relocates its structural result")
+    };
+    assert_eq!(result.place, picked, "the declared place is byte-exact");
+    assert_eq!(
+        result.multiplicity,
+        terminal_psi::StructuralMultiplicity::Affine,
+        "the declared multiplicity is byte-exact"
+    );
+    assert!(
+        relocation.node().operand_rewrites().is_empty()
+            && relocation.node().argument_rewrites().is_empty(),
+        "the empty declaration carries no operand or root rewrites"
+    );
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::EstablishRecord { result, fields, .. } => {
+            assert_eq!(result.place, picked, "the declared place is byte-exact");
+            assert!(fields.is_empty(), "the moved declaration stays empty");
+        }
+        operation => panic!("relocated node keeps its record operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    // The retained member edges keep the persistent result live across
+    // member-internal hops and dispose it on every component exit — the
+    // affine place survives every traversal and is discarded exactly once on
+    // the way out.
+    let internal_discards: Vec<_> = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .filter(|block| member_targets.contains(&block.id))
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| member_targets.contains(&edge.target))
+        .map(|edge| edge.trivial_affine_discards.contains(&picked))
+        .collect();
+    assert!(
+        !internal_discards.is_empty() && internal_discards.iter().all(|discard| !*discard),
+        "every member-internal edge keeps the persistent result live"
+    );
+    let exit_discards: Vec<_> = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .filter(|block| member_targets.contains(&block.id))
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| !member_targets.contains(&edge.target))
+        .map(|edge| edge.trivial_affine_discards.contains(&picked))
+        .collect();
+    assert!(
+        !exit_discards.is_empty() && exit_discards.iter().all(|discard| *discard),
+        "every member exit edge disposes the persistent result exactly once"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn conditional_entry_affine_record_establishment_stays_inside() {
+    let session = lowered_session_entry(
+        CONDITIONAL_ENTRY_AFFINE_RECORD_SOURCE,
+        "conditional-entry affine record loop",
+        "Root::enter",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let records = member_affine_record_establishments(function, component);
+    let [(_, establishment)] = records.as_slice() else {
+        panic!("one member affine empty-record establishment")
+    };
+    let record_operation = operation_of(establishment);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != record_operation),
+        "an affine record behind a conditional entry stays inside"
+    );
+}
+
+#[test]
+fn bypassed_member_affine_record_establishment_stays_inside() {
+    let session = lowered_session_entry(
+        BYPASSED_AFFINE_RECORD_SOURCE,
+        "bypassed affine record loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let records = member_affine_record_establishments(function, component);
+    let [(_, establishment)] = records.as_slice() else {
+        panic!("one member affine empty-record establishment")
+    };
+    let record_operation = operation_of(establishment);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != record_operation),
+        "an affine record a bypassing exit can skip stays inside"
+    );
+}
+
+#[test]
+fn forged_affine_record_result_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_AFFINE_RECORD_SOURCE,
+        "member affine empty-record loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let records = member_affine_record_establishments(function, component);
+    let [(_, establishment)] = records.as_slice() else {
+        panic!("one member affine empty-record establishment")
+    };
+    let record_operation = operation_of(establishment);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == record_operation)
+        .expect("the affine empty-record establishment is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the moved result's multiplicity to unrestricted drops the
+    // affine custody the relocation re-expressed — the replayed operation
+    // comparison retains every source-owned field, so the drifted spelling
+    // rejects byte-exact.
+    let forged = find_operation_mut(&mut unit, record_operation);
+    if let AbstractOperation::EstablishRecord { result, .. } = &mut forged.operation {
+        result.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn kept_internal_affine_record_discard_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_AFFINE_RECORD_SOURCE,
+        "member affine empty-record loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let records = member_affine_record_establishments(function, component);
+    let [(_, establishment)] = records.as_slice() else {
+        panic!("one member affine empty-record establishment")
+    };
+    let picked = match &establishment.operation {
+        AbstractOperation::EstablishRecord { result, .. } => result.place,
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging a member-internal edge to keep discarding the persistent
+    // result restores the source's per-traversal custody: the first
+    // traversal would end the one preheader place the next traversal still
+    // owns. The freeze replay normalizes the seed's retained node through
+    // the same custody rewrite — internal edges stripped, exits disposing —
+    // so the kept discard rejects byte-exact.
+    let mut forged = false;
+    for function in &mut unit.functions {
+        for block in &mut function.blocks {
+            if !member_targets.contains(&block.id) {
+                continue;
+            }
+            for node in &mut block.nodes {
+                for edge in &mut node.successors {
+                    if member_targets.contains(&edge.target)
+                        && !edge.trivial_affine_discards.contains(&picked)
+                    {
+                        edge.trivial_affine_discards.push(picked);
+                        forged = true;
+                    }
+                }
+                match &mut node.operation {
+                    AbstractOperation::Jump {
+                        target,
+                        trivial_affine_discards,
+                        ..
+                    } if member_targets.contains(target) => {
+                        if !trivial_affine_discards.contains(&picked) {
+                            trivial_affine_discards.push(picked);
+                        }
+                    }
+                    AbstractOperation::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        for successor in [when_true, when_false] {
+                            if member_targets.contains(&successor.target)
+                                && !successor.trivial_affine_discards.contains(&picked)
+                            {
+                                successor.trivial_affine_discards.push(picked);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    assert!(forged, "a member-internal edge carried the forged discard");
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                ..
+            }
+        ) if rejected_machine == machine
+    ));
+}
+
+#[test]
+fn dropped_exit_affine_record_disposal_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_AFFINE_RECORD_SOURCE,
+        "member affine empty-record loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let records = member_affine_record_establishments(function, component);
+    let [(_, establishment)] = records.as_slice() else {
+        panic!("one member affine empty-record establishment")
+    };
+    let picked = match &establishment.operation {
+        AbstractOperation::EstablishRecord { result, .. } => result.place,
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    // The exit edge is a member terminator edge departing the roster —
+    // `check`'s `finish` arm — which must dispose the persistent result.
+    let exit = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.nodes.iter())
+        })
+        .flat_map(|node| node.successors.iter())
+        .find(|edge| !member_targets.contains(&edge.target))
+        .expect("the component has an exit edge");
+    let exit_edge = exit.psi_edge;
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // The applied transform disposes `picked` on the exit edge. Forging the
+    // edge back to the seed's empty roster leaves the persistent place live
+    // outside the component — the freeze replay's normalized custody expects
+    // the disposal, so the drop rejects byte-exact.
+    let mut forged = false;
+    for function in &mut unit.functions {
+        for block in &mut function.blocks {
+            if !member_targets.contains(&block.id) {
+                continue;
+            }
+            for node in &mut block.nodes {
+                for edge in &mut node.successors {
+                    if edge.psi_edge == exit_edge
+                        && let Some(index) = edge
+                            .trivial_affine_discards
+                            .iter()
+                            .position(|place| *place == picked)
+                    {
+                        edge.trivial_affine_discards.remove(index);
+                        forged = true;
+                    }
+                }
+                match &mut node.operation {
+                    AbstractOperation::Jump {
+                        trivial_affine_discards,
+                        ..
+                    } if node
+                        .successors
+                        .first()
+                        .is_some_and(|edge| edge.psi_edge == exit_edge) =>
+                    {
+                        trivial_affine_discards.retain(|place| *place != picked);
+                    }
+                    AbstractOperation::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        for successor in [when_true, when_false] {
+                            if successor.psi_edge == exit_edge {
+                                forged |= !successor.trivial_affine_discards.is_empty();
+                                successor
+                                    .trivial_affine_discards
+                                    .retain(|place| *place != picked);
+                            }
+                        }
+                    }
+                    AbstractOperation::StructuralCase { cases, .. } => {
+                        for case in cases {
+                            if case.psi_edge == exit_edge {
+                                forged |= !case.trivial_affine_discards.is_empty();
+                                case.trivial_affine_discards
+                                    .retain(|place| *place != picked);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    assert!(
+        forged,
+        "the exit edge carried the relocated result's disposal"
+    );
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                ..
+            }
+        ) if rejected_machine == machine
+    ));
+}
+
+#[test]
+fn stale_affine_record_frontier_catalog_is_rejected() {
+    let session = lowered_session_entry(
+        MEMBER_AFFINE_RECORD_SOURCE,
+        "member affine empty-record loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    // The seed catalog still carries the source's per-traversal custody:
+    // `picked` owned between its member establishment and the member-edge
+    // discards, dead everywhere else.
+    let seed_frontier_facts = session.unit().ownership_frontier_facts.clone();
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the frontier catalog back to the seed's spelling leaves the
+    // affine-authority replay reading custody the transformed edges no
+    // longer execute — internal edges keep the persistent place live where
+    // the stale catalog still ends it at dispatch — so the stale
+    // membership rejects before the catalog comparison is even reached.
+    unit.ownership_frontier_facts = seed_frontier_facts;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
+                machine: rejected_machine,
+                ..
+            }
+        ) if rejected_machine == machine
+    ));
+}

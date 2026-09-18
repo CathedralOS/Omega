@@ -89,7 +89,11 @@ fn component_candidate(
 /// structural field copy's root lands like a shared-borrow call
 /// argument's — the
 /// whole-component custody bound proving no member stores to the declared
-/// place), an invariant scalar
+/// place; an affine result, admitted only for the field-free declaration
+/// the composed-control lowering emits for a trivial affine local, instead
+/// replays the scalar-case containment bound and re-expresses its disposal
+/// custody through the same member-edge and exit rewrite), an invariant
+/// scalar
 /// computation (an obligated variant keeps
 /// its discharged obligation byte-exact inside the moved operation), an
 /// invariant scalar-signature call whose callee's transitive effect summary
@@ -311,20 +315,27 @@ fn admit_member_node(
         substitution.into_iter().collect()
     } else if crate::validation::admissible_invariant_record(node).is_some() {
         // A record establishment is the primitive local's multi-field
-        // sibling: it declares a fresh claim-free unrestricted record place
+        // sibling: it declares a fresh claim-free record place
         // whose declaration-ordered initializers are scalar reads or owned
         // copies of unrestricted roots.
         // Establishing the record performs work a bypassed traversal would
-        // not, so both halves of the non-speculative gate apply; the
-        // whole-component custody bound then proves no member stores to the
-        // declared place — the one condition under which a record
+        // not, so both halves of the non-speculative gate apply. An
+        // unrestricted result's whole-component custody bound proves no
+        // member stores to the declared place — the one condition under
+        // which a record
         // established once still reads its initializers on every traversal —
         // each scalar field value obeys the scalar substitution, and each
         // copied root must land somewhere the run can see it: already
         // preheader-visible, resolved through an invariant member structural
         // parameter (rebound on the moved node), or produced by a node
         // earlier in the same run (the argument keeps spelling the
-        // preserved place identity). The declared place, structural type,
+        // preserved place identity). An affine result — admitted only for
+        // the field-free declaration — instead replays the scalar-case
+        // family's containment bound: the cyclic eligibility fence confined
+        // the fresh place to its producing member's disposal edges, so the
+        // realization keeps the one persistent preheader place live across
+        // member-internal edges and disposes it on every exit edge and
+        // member return. The declared place, structural type,
         // result custody, declaration order, and range obligations move
         // byte-exact inside the moved operation.
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {

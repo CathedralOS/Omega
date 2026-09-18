@@ -132,7 +132,7 @@ pub use model::{
 /// post-write contents never stays behind while its producer leaves.
 /// An `EstablishRecord` adds the family's third establishment relocation —
 /// the primitive local's multi-field sibling: it declares a fresh claim-free
-/// unrestricted record place whose declaration-ordered scalar initializers
+/// record place whose declaration-ordered scalar initializers
 /// each obey the same use-site substitution, while a structural field
 /// initializer copies a whole unrestricted root whose landing obeys the
 /// shared-borrow call-argument rule — already visible at the preheader
@@ -143,7 +143,16 @@ pub use model::{
 /// bounded-integer range obligations move byte-exact inside the moved
 /// operation. The same whole-component custody bound makes the hoist sound:
 /// only when no member stores to the declared place does a record
-/// established once still read its initializers on every traversal.
+/// established once still read its initializers on every traversal. An
+/// affine `EstablishRecord` — admitted only for the field-free declaration
+/// the composed-control lowering emits for a trivial affine local — instead
+/// joins the scalar-case family's custody-rewriting move: the cyclic
+/// eligibility fence already confined the fresh place to the member block
+/// that established it, discarding it on every departing edge, so hoisting
+/// the establishment keeps the one persistent preheader place live across
+/// member-internal edges while every exit edge and member return disposes
+/// it — the same containment bound and frontier re-expression the affine
+/// scalar-case and structural-call results obey.
 /// An `EstablishScalarArray` adds the family's fourth establishment
 /// relocation — the record's flat sibling: it declares a fresh claim-free
 /// unrestricted scalar-array place whose row-major scalar leaves each obey
