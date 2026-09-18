@@ -1,9 +1,19 @@
-// package-manager fixture: the root's build entry imports through a
-// build-scope dependency alias. Product sources may never select it.
+// package-manager fixture: the composition project's build entry imports the
+// build-only topology package through a build-scope dependency alias and
+// publishes `payments.plan` as a required artifact of an artifact-only
+// application build. Product sources may never select the build-scope alias.
 use topology::policies;
 
 machine build(builder: &mut Build) {
-    builder.package("topology-root");
+    builder.application("payments-deployment");
+    builder.artifact_only();
     builder.build_depend_as("topology", Source::Path { location: "../topology" });
     builder.log.write_line(policies::banner());
+
+    let obligation: RequiredOutput = builder.output.require("payments.plan");
+    let plan_path: BuildPath = builder.output.resolve("payments.plan");
+    let descriptor: i32 = builder.output.create(plan_path, 420);
+    policies::publish(&mut builder.output, descriptor);
+    let closed: i32 = builder.output.close(descriptor);
+    _ = builder.output.complete(obligation, plan_path);
 }
