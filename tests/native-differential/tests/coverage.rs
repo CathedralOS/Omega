@@ -72,7 +72,7 @@ data Main {
     class: FloatClass;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.zero = 0.0;
     self.nan = self.zero / self.zero;
     let finite: bool = F64::is_finite(2.0);
@@ -139,7 +139,7 @@ data Main {
     result: f32 in Saturating;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.maximum = 340282346638528859811704183484516925440.0;
     self.two = 2.0;
     self.zero = 0.0;
@@ -365,7 +365,7 @@ data Main {
     cmd: Command;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cmd = Command::Move { steps: 70 };
 
     transition self.cmd {
@@ -422,7 +422,7 @@ data Main {
     other: Command;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cmd = Command::Quit;
     self.other = Command::Move { steps: 9 };
 
@@ -482,7 +482,7 @@ data Main {
     cmd: Command;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cmd = Command::Walk { dx: 60, dy: 10 };
 
     transition self.cmd {
@@ -592,7 +592,7 @@ data Main {
     q: Square;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 in Wrapping = self.dispatch(&mut self.c);
     let b: i32 in Wrapping = self.dispatch(&mut self.q);
     let n: i32 in Wrapping = a * 10 + b;
@@ -666,7 +666,7 @@ data Main {
     q: Square;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let a: i32 in Wrapping = self.dispatch(&mut self.q);
     let b: i32 in Wrapping = self.dispatch(&mut self.c);
     let n: i32 in Wrapping = a * 10 + b;
@@ -813,7 +813,7 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.source[0] = 72;
     self.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
@@ -878,7 +878,7 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.source[0] = -1;
     self.source[1] = 64;
     self.source[2] = -65;
@@ -969,7 +969,7 @@ data Main {
 machine Main::main(&mut self) {
     self.mk("/adir/x");
 }
-machine Main::mk(&mut self, path: &[u8] in Path) {
+machine Main::mk(&mut self, path: &[u8] in Path) reaches Console + FilesystemHost {
     self.k = 5;
     transition self.k < path.len { true -> makeit(path) _ -> fail() }
     state makeit(&mut self, path: &[u8] in Path) {
@@ -1014,7 +1014,7 @@ data Main {
     parent: [u8; 32] in Path;
     child: [u8; 64] in Path;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // Pure-CARRIER concat: a bounded parent CARRIER + literal into a bounded
     // child CARRIER. Isolates whether Path carrier concat works end to end
     // (domain preserved + fits), independent of the slice->carrier length-bound.
@@ -1053,7 +1053,7 @@ data Main {
     dirmode: i32;
     n: i64;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.rdonly = 0;
     self.filemode = 420;
     self.dirmode = 493;
@@ -1110,7 +1110,7 @@ data Main {
     close_rc: i32;
     present: bool;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("/rt");
     self.open_result = self.fs.create("/rt/f1");
     transition self.open_result { OpenResult::Ok { file } -> s1(file) _ -> fail() }
@@ -1186,7 +1186,7 @@ data Main {
     buffer: [u8; 64];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.mode = 420;
     self.read_flags = 0;
     self.cap = 64;
@@ -1233,7 +1233,7 @@ data Main {
     buffer: [u8; 64];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.mode = 420;
     self.append_flags = 9;
     self.read_flags = 0;
@@ -1283,7 +1283,7 @@ data Main {
     size: i64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.mode = 420;
     self.zero = 0;
     self.seek_end = 2;
@@ -1328,7 +1328,7 @@ data Main {
     buffer: [u8; 64];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.mode = 420;
     self.read_flags = 0;
     self.cap = 64;
@@ -1385,36 +1385,36 @@ data Filesystem {
     create_mode: i32;
     read_flags: i32;
 }
-machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
+machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult reaches FilesystemHost {
     self.create_mode = 420;
     let fd: i32 = self.host.create(path, self.create_mode);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { OpenResult::Error }
 }
-machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
+machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult reaches FilesystemHost {
     self.read_flags = 0;
     let fd: i32 = self.host.open(path, self.read_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { OpenResult::Error }
 }
-machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
+machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult reaches FilesystemHost {
     let n: i64 = self.host.write(file.fd, bytes);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { IoResult::Error }
 }
-machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: u64) -> IoResult {
+machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: u64) -> IoResult reaches FilesystemHost {
     let n: i64 = self.host.read(file.fd, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
     state err(&mut self) -> IoResult { IoResult::Error }
 }
-machine Filesystem::close(&mut self, file: File) -> i32 {
+machine Filesystem::close(&mut self, file: File) -> i32 reaches FilesystemHost {
     self.host.close(file.fd)
 }
-machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
+machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult reaches FilesystemHost {
     let rc: i32 = self.host.remove(path);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
@@ -1431,7 +1431,7 @@ data Main {
     cap: u64;
     buffer: [u8; 64];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 64;
     self.open_result = self.fs.create("/erg.txt");
     transition self.open_result {
@@ -1494,7 +1494,7 @@ data Main {
     ab: bool;
     abc: bool;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir_all("/a/bb/c");
     transition self.unit_result { UnitResult::Ok -> verify() _ -> fail() }
     state verify(&mut self) {
@@ -1545,7 +1545,7 @@ data Main {
     open_result: OpenResult;
     close_rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("/rd");
     self.open_result = self.fs.create("/rd/a");
     transition self.open_result { OpenResult::Ok { file } -> made_a(file) _ -> fail() }
@@ -1601,7 +1601,7 @@ data Main {
     open_result: OpenResult;
     close_rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("/rs");
     self.open_result = self.fs.create("/rs/f1");
     transition self.open_result { OpenResult::Ok { file } -> made1(file) _ -> fail() }
@@ -1665,7 +1665,7 @@ data Main {
     open_result: OpenResult;
     close_rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("/it");
     self.open_result = self.fs.create("/it/aaa");
     transition self.open_result { OpenResult::Ok { file } -> m1(file) _ -> fail() }
@@ -1742,7 +1742,7 @@ data Main {
     open_result: OpenResult;
     close_rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("/em");
     self.empty_result = self.fs.read_dir_is_empty("/em");
     transition self.empty_result { EmptyResult::Empty -> addfile() _ -> fail() }
@@ -1800,7 +1800,7 @@ data Main {
     count: i32 in Wrapping;
     first_ok: bool;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("/lp");
     self.open_result = self.fs.create("/lp/w");
     transition self.open_result { OpenResult::Ok { file } -> mk2(file) _ -> fail() }
@@ -1884,7 +1884,7 @@ data Main {
     cap: u64;
     buffer: [u8; 64];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 64;
     self.open_result = self.fs.create("/std.txt");
     transition self.open_result {
@@ -1948,7 +1948,7 @@ data Main {
     rc: i32;
     size: i64;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.mode = 420;
     self.new_len = 5;
     self.zero = 0;
@@ -1995,7 +1995,7 @@ data Main {
     cap: u64;
     buffer: [u8; 64];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 64;
     self.open_result = self.fs.create("/m.txt");
     transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
@@ -2058,7 +2058,7 @@ data Main {
     ro: Permissions;
     close_rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.ro = Permissions { mode: 292 };
     self.unit_result = self.fs.write_all("/fm.txt", "abcd");
     transition self.unit_result { UnitResult::Ok -> chmodit() _ -> fail() }
@@ -2131,7 +2131,7 @@ data Main {
     cap: u64;
     buffer: [u8; 64];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 64;
     self.rw_opts = OpenOptions { read: true, write: true, append: false, truncate: false };
     self.unit_result = self.fs.write_all("/pio.txt", "0123456789");
@@ -2200,7 +2200,7 @@ data Main {
     meta_result: MetadataResult;
     close_rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/t.txt", "hi");
     transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
     state openit(&mut self) {
@@ -2255,7 +2255,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/nl.txt", "hi");
     transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
     state statit(&mut self) {
@@ -2301,7 +2301,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/me.txt", "hi");
     transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
     state statit(&mut self) {
@@ -2352,7 +2352,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/cd.txt", "hi");
     transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
     state statit(&mut self) {
@@ -2404,7 +2404,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/bk.txt", "hi");
     transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
     state statit(&mut self) {
@@ -2458,7 +2458,7 @@ data Main {
     meta_result: MetadataResult;
     close_rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.open_result = self.fs.create("/s.txt");
     transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
     state wrote(&mut self, file: File) {
@@ -2510,7 +2510,7 @@ data Main {
     meta_result: MetadataResult;
     close_rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.open_result = self.fs.create("/sd.txt");
     transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
     state wrote(&mut self, file: File) {
@@ -2566,7 +2566,7 @@ data Main {
     append_opts: OpenOptions;
     trunc_opts: OpenOptions;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.append_opts = OpenOptions { read: false, write: false, append: true, truncate: false };
     self.trunc_opts = OpenOptions { read: false, write: true, append: false, truncate: true };
     self.open_result = self.fs.create("/o.txt");
@@ -2646,7 +2646,7 @@ data Main {
     first: u8;
     buffer: [u8; 64];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 64;
     self.unit_result = self.fs.write_all("/w.txt", "one-shot bytes!");
     transition self.unit_result { UnitResult::Ok -> readback() _ -> fail() }
@@ -2710,7 +2710,7 @@ data Main {
     first: u8;
     buffer: [u8; 512];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.dirmode = 493;
     self.filemode = 420;
     self.rdonly = 0;
@@ -2790,7 +2790,7 @@ data Main {
     reclen: u64 in Wrapping;
     buffer: [u8; 512];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.dirmode = 493;
     self.filemode = 420;
     self.rdonly = 0;
@@ -2863,7 +2863,7 @@ data Main {
     rc: i32;
     code: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.rdonly = 0;
     self.mode = 493;
     self.fd = self.fs.open("/nope.txt", self.rdonly);
@@ -2909,7 +2909,7 @@ data Main {
     open_result: OpenResult;
     unit_result: UnitResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.open_result = self.fs.open("/absent.txt");
     // The failure self-describes: the kind is embedded in the Error case.
     transition self.open_result { OpenResult::Error { kind } -> not_found(kind) _ -> fail() }
@@ -2963,7 +2963,7 @@ data Main {
     present: bool;
     no_access: Permissions;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.present = self.fs.exists("/q.txt");
     transition self.present { true -> fail() _ -> makeit() }
     state makeit(&mut self) {
@@ -3034,7 +3034,7 @@ data Main {
     buffer: [u8; 64];
     verify: [u8; 64];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 64;
     self.unit_result = self.fs.write_all("/src.txt", "copy me please");
     transition self.unit_result { UnitResult::Ok -> setperm() _ -> fail() }
@@ -3107,7 +3107,7 @@ data Main {
     open_result: OpenResult;
     write_opts: OpenOptions;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.write_opts = OpenOptions { read: false, write: true, append: false, truncate: false };
     self.unit_result = self.fs.create_dir("/d");
     transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
@@ -3154,7 +3154,7 @@ data Main {
     read_only: Permissions;
     write_opts: OpenOptions;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.read_only = Permissions { mode: 292 };
     self.write_opts = OpenOptions { read: false, write: true, append: false, truncate: false };
     self.unit_result = self.fs.write_all("/p.txt", "content");
@@ -3219,7 +3219,7 @@ data Main {{
     first: u8;
     buffer: [u8; 32];
 }}
-machine Main::main(&mut self) {{
+machine Main::main(&mut self) reaches Console {{
     self.cap = 32;
     self.unit_result = self.fs.write_all("/orig.txt", "linked bytes");
     transition self.unit_result {{ UnitResult::Ok -> linkit() _ -> fail() }}
@@ -3283,7 +3283,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/f.txt", "abc");
     transition self.unit_result { UnitResult::Ok -> statfile() _ -> fail() }
     state statfile(&mut self) {
@@ -3345,7 +3345,7 @@ data Main {
     read_only: Permissions;
     perms: Permissions;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.read_only = Permissions { mode: 292 };
     self.unit_result = self.fs.write_all("/rw.txt", "data");
     transition self.unit_result { UnitResult::Ok -> statfresh() _ -> fail() }
@@ -3415,7 +3415,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/t.txt", "when");
     transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
     state statit(&mut self) {
@@ -3464,7 +3464,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/t.txt", "when");
     transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
     state statit(&mut self) {
@@ -3512,7 +3512,7 @@ data Main {
     console: Console;
     perms: Permissions;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.perms = Permissions { mode: 420 };
     // 0o644 is writable
     transition self.perms.readonly() { true -> fail() _ -> lockit() }
@@ -3565,7 +3565,7 @@ data Main {
     read_only: Permissions;
     write_opts: OpenOptions;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.read_only = Permissions { mode: 292 };
     self.write_opts = OpenOptions { read: false, write: true, append: false, truncate: false };
     self.open_result = self.fs.create("/ff.txt");
@@ -3628,7 +3628,7 @@ data Main {
     first: u8;
     buffer: [u8; 64];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 64;
     self.unit_result = self.fs.symlink("the_target!!", "/link");
     transition self.unit_result { UnitResult::Ok -> readit() _ -> fail() }
@@ -3683,7 +3683,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/target.txt", "hello");
     transition self.unit_result { UnitResult::Ok -> mklink() _ -> fail() }
     state mklink(&mut self) {
@@ -3756,7 +3756,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     // /dev/null -> character device, NOT a regular file, not the other kinds
     self.meta_result = self.fs.metadata_path("/dev/null");
     transition self.meta_result { MetadataResult::Ok { meta } -> checkchar(meta) _ -> fail() }
@@ -3833,7 +3833,7 @@ data Main {
     first: u8;
     buffer: [u8; 32];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 32;
     self.unit_result = self.fs.create_dir("/wf");
     transition self.unit_result { UnitResult::Ok -> writefile() _ -> fail() }
@@ -3932,7 +3932,7 @@ data Main {
     cap: u64;
     buffer: [u8; 16];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 16;
     self.open_result = self.fs.create_new("/cn.txt");
     transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
@@ -4009,7 +4009,7 @@ data Main {
     b1: u8;
     buffer: [u8; 1024];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/target.txt", "hi");
     transition self.unit_result { UnitResult::Ok -> mklink() _ -> fail() }
     state mklink(&mut self) {
@@ -4080,7 +4080,7 @@ data Main {
     cap: u64;
     buffer: [u8; 64];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.cap = 64;
     self.unit_result = self.fs.write_all("/dup.txt", "hello");
     transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
@@ -4143,7 +4143,7 @@ data Main {
     try_result: TryLockResult;
     rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/lock.txt", "hi");
     transition self.unit_result { UnitResult::Ok -> open1() _ -> fail() }
     state open1(&mut self) {
@@ -4209,7 +4209,7 @@ data Main {
     open_result: OpenResult;
     rc: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("/own.txt", "hi");
     transition self.unit_result { UnitResult::Ok -> missing() _ -> fail() }
     state missing(&mut self) {
@@ -4279,7 +4279,7 @@ data Main {
     exists_result: ExistsResult;
     no_access: Permissions;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.no_access = Permissions { mode: 0 };
     self.unit_result = self.fs.write_all("/te.txt", "here");
     transition self.unit_result { UnitResult::Ok -> present() _ -> fail() }
@@ -4350,7 +4350,7 @@ data Main {
     verdict: Verdict;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.pick = 1;
     self.verdict = match self.pick {
         1 -> Verdict::Ok,
@@ -4392,7 +4392,7 @@ data Main {
     sum: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition { _ -> rd() }
 
     state rd(&mut self) {
