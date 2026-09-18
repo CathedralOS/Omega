@@ -495,6 +495,32 @@ fn shape_inner(
                     .shape,
             )
         }
+        // A mixed declaration keeps its tag prefix, common fields, and
+        // overlaid case payloads. Storage geometry uses the same leaf
+        // coverage as record fields; observing its tag or projecting a common
+        // field remains a separate, narrower admission.
+        StructuralTypeShape::Mixed { fields, cases } => {
+            let common = fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .map(|field| field_shape(&field.field_type, declarations, active))
+                .collect::<Option<Vec<_>>>()?;
+            let payloads = cases
+                .iter()
+                .map(|case| {
+                    case.fields
+                        .iter()
+                        .filter(|field| !field.relevance.is_erased())
+                        .map(|field| field_shape(&field.field_type, declarations, active))
+                        .collect::<Option<Vec<_>>>()
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(
+                calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
+                    .ok()?
+                    .shape,
+            )
+        }
         // A reference carrier transports no referent storage: custody is
         // compile-time metadata, so its shape is an empty aggregate slot
         // rather than a pointer-sized payload.

@@ -124,6 +124,345 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
 }
 
 #[test]
+fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
+    use semantic_vocabulary::{
+        BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralCaseId,
+        StructuralFieldId, StructuralTypeId,
+    };
+    use terminal_psi::{
+        BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
+        StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let root = StructuralTypeId::new(1).unwrap();
+    let sum = StructuralTypeId::new(2).unwrap();
+    let field = |field_type| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(1).unwrap(),
+        identity: "value".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+    };
+    let case = |fields| StructuralCaseDeclaration {
+        id: StructuralCaseId::new(1).unwrap(),
+        identity: "Say".into(),
+        fields,
+    };
+    let sum_declaration = |fields: Vec<StructuralFieldDeclaration>| StructuralTypeDeclaration {
+        id: sum,
+        identity: "sum".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![
+                case(fields),
+                StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(2).unwrap(),
+                    identity: "Quiet".into(),
+                    fields: vec![field(StructuralFieldType::Erased {
+                        type_identity: "unestablished".into(),
+                    })],
+                },
+            ],
+        },
+    };
+    let declarations = |sum_shape: StructuralTypeDeclaration| {
+        vec![
+            StructuralTypeDeclaration {
+                id: root,
+                identity: "outer".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![field(StructuralFieldType::Structural(sum))],
+                },
+            },
+            sum_shape,
+        ]
+    };
+    // A payloadless or zero-valid first case inhabits zero storage; later
+    // cases — even erased or invalid ones — are never reached.
+    assert!(zero_valid_record_storage(
+        &declarations(sum_declaration(vec![])),
+        root,
+        &mut Vec::new()
+    ));
+    assert!(zero_valid_record_storage(
+        &declarations(sum_declaration(vec![field(StructuralFieldType::Scalar(
+            ScalarType::Boolean
+        ))])),
+        root,
+        &mut Vec::new()
+    ));
+    for first_case_fields in [
+        vec![field(StructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                IntegerValue::Signed(1),
+                IntegerValue::Signed(9),
+            )
+            .unwrap(),
+        ))],
+        vec![field(StructuralFieldType::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BorrowedView,
+        ))],
+        vec![StructuralFieldDeclaration {
+            relevance: BindingRelevance::Erased,
+            ..field(StructuralFieldType::Scalar(ScalarType::Boolean))
+        }],
+        vec![field(StructuralFieldType::Erased {
+            type_identity: "nested-service".into(),
+        })],
+    ] {
+        let label = format!("{first_case_fields:?}");
+        assert!(
+            !zero_valid_record_storage(
+                &declarations(sum_declaration(first_case_fields)),
+                root,
+                &mut Vec::new()
+            ),
+            "first-case payload {label}"
+        );
+    }
+    // A sum with no cases has no zero-storage inhabitant.
+    let mut empty = sum_declaration(vec![]);
+    empty.shape = StructuralTypeShape::Sum { cases: vec![] };
+    assert!(!zero_valid_record_storage(
+        &declarations(empty),
+        root,
+        &mut Vec::new()
+    ));
+}
+
+#[test]
+fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
+    use semantic_vocabulary::{
+        BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralCaseId,
+        StructuralFieldId, StructuralTypeId,
+    };
+    use terminal_psi::{
+        BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
+        StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let root = StructuralTypeId::new(1).unwrap();
+    let array = StructuralTypeId::new(2).unwrap();
+    let element = StructuralTypeId::new(3).unwrap();
+    let nested_array = StructuralTypeId::new(5).unwrap();
+    let leaf = StructuralTypeId::new(6).unwrap();
+    let mixed = StructuralTypeId::new(4).unwrap();
+    let field = |field_type| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(1).unwrap(),
+        identity: "value".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+    };
+    // Record element arrays and nested fixed arrays are zero-valid when the
+    // complete element chain is; the element judgment is length-independent.
+    for (length, element_shape) in [
+        (
+            2,
+            StructuralTypeShape::Record {
+                fields: vec![field(StructuralFieldType::Scalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                )))],
+            },
+        ),
+        (0, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
+        (
+            3,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                capacity: 4,
+            }),
+        ),
+        (
+            2,
+            StructuralTypeShape::FixedArray {
+                element: leaf,
+                length: 5,
+            },
+        ),
+    ] {
+        let mut declarations = vec![
+            StructuralTypeDeclaration {
+                id: root,
+                identity: "outer".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![field(StructuralFieldType::Structural(array))],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: array,
+                identity: "array".into(),
+                shape: StructuralTypeShape::FixedArray { element, length },
+            },
+            StructuralTypeDeclaration {
+                id: element,
+                identity: "element".into(),
+                shape: element_shape.clone(),
+            },
+        ];
+        if let StructuralTypeShape::FixedArray { .. } = element_shape {
+            // A fixed array of fixed arrays bottoms out in a scalar leaf.
+            declarations[1].shape = StructuralTypeShape::FixedArray {
+                element: nested_array,
+                length,
+            };
+            declarations[2].id = nested_array;
+            declarations.push(StructuralTypeDeclaration {
+                id: leaf,
+                identity: "leaf".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+            });
+        }
+        assert!(
+            zero_valid_record_storage(&declarations, root, &mut Vec::new()),
+            "length {length} element {element_shape:?}"
+        );
+    }
+    // Elements that zero cannot establish reject through the same chain.
+    for element_shape in [
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+        StructuralTypeShape::Record {
+            fields: vec![field(StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                    IntegerValue::Signed(1),
+                    IntegerValue::Signed(9),
+                )
+                .unwrap(),
+            ))],
+        },
+    ] {
+        let expected = matches!(
+            element_shape,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
+        );
+        let declarations = vec![
+            StructuralTypeDeclaration {
+                id: root,
+                identity: "outer".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![field(StructuralFieldType::Structural(array))],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: array,
+                identity: "array".into(),
+                shape: StructuralTypeShape::FixedArray { element, length: 0 },
+            },
+            StructuralTypeDeclaration {
+                id: element,
+                identity: "element".into(),
+                shape: element_shape.clone(),
+            },
+        ];
+        assert_eq!(
+            zero_valid_record_storage(&declarations, root, &mut Vec::new()),
+            expected,
+            "element {element_shape:?}"
+        );
+    }
+    // A cyclic element chain rejects even beneath an empty dimension.
+    let cyclic = vec![
+        StructuralTypeDeclaration {
+            id: root,
+            identity: "outer".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field(StructuralFieldType::Structural(array))],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: array,
+            identity: "array".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: array,
+                length: 0,
+            },
+        },
+    ];
+    assert!(!zero_valid_record_storage(&cyclic, root, &mut Vec::new()));
+    // A mixed shape composes common fields with the zero-tag case payload.
+    let mixed_declaration =
+        |common: Vec<StructuralFieldDeclaration>, case_fields| StructuralTypeDeclaration {
+            id: mixed,
+            identity: "mixed".into(),
+            shape: StructuralTypeShape::Mixed {
+                fields: common,
+                cases: vec![
+                    StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(1).unwrap(),
+                        identity: "Empty".into(),
+                        fields: case_fields,
+                    },
+                    StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(2).unwrap(),
+                        identity: "Full".into(),
+                        fields: vec![field(StructuralFieldType::Erased {
+                            type_identity: "unestablished".into(),
+                        })],
+                    },
+                ],
+            },
+        };
+    let root_mixed = |mixed_declaration: StructuralTypeDeclaration| {
+        vec![
+            StructuralTypeDeclaration {
+                id: root,
+                identity: "outer".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![field(StructuralFieldType::Structural(mixed))],
+                },
+            },
+            mixed_declaration,
+        ]
+    };
+    assert!(zero_valid_record_storage(
+        &root_mixed(mixed_declaration(
+            vec![field(StructuralFieldType::Scalar(ScalarType::Boolean))],
+            vec![]
+        )),
+        root,
+        &mut Vec::new()
+    ));
+    for (common, case_fields) in [
+        (
+            vec![field(StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                    IntegerValue::Signed(1),
+                    IntegerValue::Signed(9),
+                )
+                .unwrap(),
+            ))],
+            vec![],
+        ),
+        (
+            vec![StructuralFieldDeclaration {
+                relevance: BindingRelevance::Erased,
+                ..field(StructuralFieldType::Scalar(ScalarType::Boolean))
+            }],
+            vec![],
+        ),
+        (
+            vec![field(StructuralFieldType::Scalar(ScalarType::Boolean))],
+            vec![field(StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                    IntegerValue::Signed(1),
+                    IntegerValue::Signed(9),
+                )
+                .unwrap(),
+            ))],
+        ),
+    ] {
+        let label = format!("common {common:?} case {case_fields:?}");
+        assert!(
+            !zero_valid_record_storage(
+                &root_mixed(mixed_declaration(common, case_fields)),
+                root,
+                &mut Vec::new()
+            ),
+            "{label}"
+        );
+    }
+}
+
+#[test]
 fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
     use calling_conventions::{
         CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,

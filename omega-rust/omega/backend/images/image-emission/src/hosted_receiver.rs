@@ -898,13 +898,19 @@ fn receiver_layout(
     ))
 }
 
+/// Whether zero-filled storage is an established value of one nested
+/// declaration: scalar leaves, bounded integers containing zero, owned byte
+/// carriers, records and their transitive fields, fixed arrays whose element
+/// type is zero-valid at any length, and the first declared case of a closed
+/// sum — the zero tag selects it, so later cases never inhabit provisioned
+/// storage. Borrowed carriers, references, erased nested fields, unknown or
+/// duplicated declarations, and cycles all reject.
 fn zero_valid_record_storage(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     structural_type: semantic_vocabulary::StructuralTypeId,
     visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
 ) -> bool {
-    use semantic_vocabulary::{IntegerValue, ScalarType};
-    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
     if visiting.contains(&structural_type) {
         return false;
     }
@@ -917,39 +923,67 @@ fn zero_valid_record_storage(
     if matches.next().is_some() {
         return false;
     }
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return terminal_semantics::scalar_array_leaf_shape(declarations.iter(), structural_type)
-            .is_some_and(|(scalar, _)| {
-                matches!(
-                    scalar,
-                    ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_)
-                )
-            });
-    };
     visiting.push(structural_type);
-    let valid = fields.iter().all(|field| {
-        !field.relevance.is_erased()
-            && match field.field_type {
-                StructuralFieldType::Scalar(
-                    ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
-                )
-                | StructuralFieldType::IeeeFloat(_) => true,
-                StructuralFieldType::BoundedInteger(integer) => {
-                    integer.contains(IntegerValue::Signed(0))
-                        || integer.contains(IntegerValue::Unsigned(0))
-                }
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                ) => true,
-                StructuralFieldType::Structural(child) => {
-                    zero_valid_record_storage(declarations, child, visiting)
-                }
-                // No nested service occurrence is established by this bridge.
-                _ => false,
-            }
-    });
+    let valid = match &declaration.shape {
+        StructuralTypeShape::Record { fields } => fields
+            .iter()
+            .all(|field| zero_valid_field(declarations, field, visiting)),
+        StructuralTypeShape::FixedArray { element, .. } => {
+            zero_valid_record_storage(declarations, *element, visiting)
+        }
+        StructuralTypeShape::Sum { cases } => cases.first().is_some_and(|case| {
+            case.fields
+                .iter()
+                .all(|field| zero_valid_field(declarations, field, visiting))
+        }),
+        StructuralTypeShape::Mixed { fields, cases } => {
+            fields
+                .iter()
+                .all(|field| zero_valid_field(declarations, field, visiting))
+                && cases.first().is_some_and(|case| {
+                    case.fields
+                        .iter()
+                        .all(|field| zero_valid_field(declarations, field, visiting))
+                })
+        }
+        StructuralTypeShape::PrimitiveScalar(
+            semantic_vocabulary::ScalarType::Boolean
+            | semantic_vocabulary::ScalarType::Integer(_)
+            | semantic_vocabulary::ScalarType::IeeeFloat(_),
+        )
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
+        _ => false,
+    };
     visiting.pop();
     valid
+}
+
+fn zero_valid_field(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    field: &terminal_psi::StructuralFieldDeclaration,
+    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+) -> bool {
+    use semantic_vocabulary::{IntegerValue, ScalarType};
+    use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
+    !field.relevance.is_erased()
+        && match field.field_type {
+            StructuralFieldType::Scalar(
+                ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
+            )
+            | StructuralFieldType::IeeeFloat(_) => true,
+            StructuralFieldType::BoundedInteger(integer) => {
+                integer.contains(IntegerValue::Signed(0))
+                    || integer.contains(IntegerValue::Unsigned(0))
+            }
+            // Zero-filled owned storage has live length zero for every
+            // capacity. Source receipts separately establish its domains.
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
+            StructuralFieldType::Structural(child) => {
+                zero_valid_record_storage(declarations, child, visiting)
+            }
+            // No nested service occurrence is established by this bridge.
+            _ => false,
+        }
 }
 
 /// The bridge supplies an address in the target's first integer-argument
