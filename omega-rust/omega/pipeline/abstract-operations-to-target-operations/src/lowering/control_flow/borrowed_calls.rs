@@ -264,8 +264,10 @@ pub(super) fn argument(
 /// Borrowed byte views keep their exact descriptor source through ordinary
 /// calls: an established literal or subslice producer, a borrowed block
 /// parameter, or the caller's own machine parameter. Shared views may arrive
-/// from all three; exclusive views stay on their incoming machine parameter,
-/// matching the legalized replay's receiving contract.
+/// from all three. An exclusive view arrives on its incoming machine parameter
+/// or on an exclusive block parameter, which control flow establishes with the
+/// same custody; an established producer stays shared. The root's own access
+/// authorizes the argument, so a shared root never supplies an exclusive one.
 #[allow(clippy::too_many_arguments)]
 fn byte_argument(
     argument: &terminal_psi::StructuralArgument,
@@ -293,7 +295,7 @@ fn byte_argument(
                     psi_operation: *producer,
                 },
             )
-        } else if shared && live.block_views.contains(&argument.place) {
+        } else if live.block_views.contains(&argument.place) {
             let (entry, parameter) = function
                 .block_entries
                 .iter()
@@ -305,7 +307,15 @@ fn byte_argument(
                         .map(|parameter| (entry, parameter))
                 })
                 .ok_or_else(invalid)?;
-            if parameter.access != StructuralAccess::SharedBorrow {
+            // The root's own access authorizes the argument, exactly as an
+            // incoming machine parameter does: an exclusive block parameter
+            // lends shared, exclusive or write-only, a shared one only shared.
+            let allowed = match parameter.access {
+                StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
+                StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+                StructuralAccess::WriteOnlyBorrow | StructuralAccess::Owned => false,
+            };
+            if !allowed {
                 return Err(invalid());
             }
             (

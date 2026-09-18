@@ -302,12 +302,16 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        // A borrowed view established by control flow lives in `block_views`,
+        // never in the parameter roster the unit family resolves against, so
+        // only the borrowed-call family can reconstruct its source.
         AbstractOperation::CallUnit {
             structural_arguments,
             ..
         } if structural_arguments.iter().any(|argument| {
             live.structural_homes.contains_key(&argument.place)
                 || super::references::touches(function, structural_types, live, argument)
+                || live.block_views.contains(&argument.place)
                 || (argument.access == StructuralAccess::Owned
                     && function.structural_parameters.iter().any(|parameter| {
                         parameter.place == argument.place
