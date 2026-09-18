@@ -14,6 +14,7 @@ mod ranges;
 
 pub use collection::build_proof_plan;
 pub(crate) use collection::declared_integer_range;
+pub(crate) use constraints::expression_constraints;
 pub(crate) use plan::FloatRange;
 pub use plan::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedCallArgumentObligation,
@@ -21,5 +22,7 @@ pub use plan::{
     BoundedTransitionArgumentObligation, BoundedValueObligation, GuardedTransitionObligation,
     IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
 };
-pub(crate) use program_queries::{data_field_type_by_name, dehoisted_condition, dehoisted_operand};
+pub(crate) use program_queries::{
+    data_field_type_by_name, dehoisted_condition, dehoisted_operand, expression_type_reference,
+};
 pub(crate) use ranges::integer_binary_range;

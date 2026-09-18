@@ -6,7 +6,8 @@ use crate::checker::assignment_stability::{
     collect_read_place_paths, expression_contains_call, member_paths_may_alias, written_place_path,
 };
 use crate::checker::certificate::{
-    CertificateVerdict, bounded_integer_value_verdict, state_return_integer_verdict,
+    CertificateVerdict, bounded_integer_value_verdict, guarded_transition_integer_verdict,
+    state_return_integer_verdict,
 };
 use crate::checker::dependent_bounds::{
     dependent_call_field_floor, dependent_field_floor, guard_proves_dependent_upper,
@@ -538,8 +539,9 @@ pub(crate) fn check_bounded_transition_argument(
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
         // The certificate route covers the anonymous, literal and declared
-        // legs in the same order the ordinary derivation tries them; guard
-        // narrowing and the arrival rescue stay on the uncovered path.
+        // legs in the same order the ordinary derivation tries them, then the
+        // guard-narrowed legs (direct and `place +- K` refold); point
+        // exclusions and the arrival rescue stay on the uncovered path.
         match bounded_integer_value_verdict(
             proof_plan,
             obligation.argument,
@@ -558,31 +560,51 @@ pub(crate) fn check_bounded_transition_argument(
                 ));
             }
             CertificateVerdict::Uncovered => {
-                let argument_range =
-                    guarded_integer_range_for_transition_argument(proof_plan, obligation);
-
-                if argument_range.minimum < target_range.minimum
-                    || argument_range.maximum > target_range.maximum
-                {
-                    // Use the shared arithmetic owner for this exact occurrence.
-                    // Named/dependent constraints remain independent checks below.
-                    let arrival_fits = validation::arrival_integer_expression_bounds(
-                        proof_plan.program,
-                        obligation.machine_symbol,
-                        obligation.state_symbol,
-                        obligation.statement_index,
-                        obligation.argument,
-                    )
-                    .is_some_and(|(minimum, maximum)| {
-                        BigInt::from_i64(minimum) >= target_range.minimum
-                            && BigInt::from_i64(maximum) <= target_range.maximum
-                    });
-                    if !arrival_fits {
+                // The guard-narrowed leg cites the arm's guard and refuted
+                // exit guards as explicit premises on the argument's atom;
+                // shapes it cannot certify keep the trusted narrowing below.
+                match guarded_transition_integer_verdict(
+                    proof_plan,
+                    obligation,
+                    &target_range,
+                    seed,
+                ) {
+                    CertificateVerdict::Certified => {}
+                    CertificateVerdict::Rejected => {
                         diagnostics.push(cannot_prove_bounded_transition_integer(
                             proof_plan,
                             obligation,
                             target_range,
                         ));
+                    }
+                    CertificateVerdict::Uncovered => {
+                        let argument_range =
+                            guarded_integer_range_for_transition_argument(proof_plan, obligation);
+
+                        if argument_range.minimum < target_range.minimum
+                            || argument_range.maximum > target_range.maximum
+                        {
+                            // Use the shared arithmetic owner for this exact occurrence.
+                            // Named/dependent constraints remain independent checks below.
+                            let arrival_fits = validation::arrival_integer_expression_bounds(
+                                proof_plan.program,
+                                obligation.machine_symbol,
+                                obligation.state_symbol,
+                                obligation.statement_index,
+                                obligation.argument,
+                            )
+                            .is_some_and(|(minimum, maximum)| {
+                                BigInt::from_i64(minimum) >= target_range.minimum
+                                    && BigInt::from_i64(maximum) <= target_range.maximum
+                            });
+                            if !arrival_fits {
+                                diagnostics.push(cannot_prove_bounded_transition_integer(
+                                    proof_plan,
+                                    obligation,
+                                    target_range,
+                                ));
+                            }
+                        }
                     }
                 }
             }

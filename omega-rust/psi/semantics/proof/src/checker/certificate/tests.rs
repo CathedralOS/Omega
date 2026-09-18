@@ -2,7 +2,10 @@
 //! every package. Valid packages must verify; forged premises, mismatched
 //! steps and out-of-range values must be rejected by the kernel itself.
 
-use super::{bigint_math_literal, closed_bounds_certificate, declared_interval_certificate};
+use super::{
+    bigint_math_literal, closed_bounds_certificate, declared_interval_certificate,
+    guarded_bounds_certificate, refold_bounds_certificate, scalar_integer_term,
+};
 use crate::obligations::IntegerRange;
 use numerics::bignum::BigInt;
 use proof_admission::{
@@ -11,7 +14,7 @@ use proof_admission::{
 };
 use semantic_vocabulary::{
     IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, ObligationId, Proposition,
-    PropositionContext,
+    PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
 fn math_literal(value: i64) -> IntegerMathLiteral {
@@ -217,4 +220,240 @@ fn kernel_derived_route_still_decides_the_same_closed_claim() {
     )
     .expect("kernel accepts a true closed relation");
     assert_eq!(fact.proposition, conclusion);
+}
+
+fn math_atom(integer_type: IntegerType, seed: u64) -> (ValueId, IntegerMathTerm) {
+    let value = ValueId::new(seed).expect("value id");
+    (
+        value,
+        IntegerMathTerm::MathValue {
+            source_type: integer_type,
+            value,
+        },
+    )
+}
+
+/// The direct guarded leg's certificate: declared interval plus guard facts
+/// (`pending > 0 && pending <= 100`) as premises on one opaque atom, claimed
+/// against `u8 [0..=200]`.
+fn guarded_argument_certificate(seed: u64) -> super::BoundedValueCertificate {
+    let integer_type = u8_type();
+    let (value, atom) = math_atom(integer_type, seed);
+    let context =
+        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))])
+            .expect("context");
+    let assumptions = vec![
+        // Declared `u8` interval.
+        Proposition::IntegerMathLessOrEqual(literal_term(0), atom.clone()),
+        Proposition::IntegerMathLessOrEqual(atom.clone(), literal_term(255)),
+        // Guard facts: `pending > 0` restates as `1 <= pending`, and
+        // `pending <= 100` enters verbatim.
+        Proposition::IntegerMathLessOrEqual(literal_term(1), atom.clone()),
+        Proposition::IntegerMathLessOrEqual(atom.clone(), literal_term(100)),
+    ];
+    guarded_bounds_certificate(atom, assumptions, context, &integer_range(0, 200), seed)
+        .expect("certificate")
+}
+
+#[test]
+fn guarded_argument_premises_verify_under_the_kernel() {
+    let certificate = guarded_argument_certificate(31);
+    let fact = certificate.verify().expect("kernel accepts");
+    assert_eq!(fact.proposition, certificate.obligation.proposition);
+    let AcceptedFactRoute::CertificateDerived { acceptance, .. } = fact.route else {
+        panic!("certificate-derived route");
+    };
+    // Only the two strongest anchors are cited; the roster may carry more.
+    assert_eq!(acceptance.assumptions.len(), 2);
+    assert!(
+        acceptance
+            .rules
+            .contains(&AcceptedProofRule::IntegerLessOrEqualTransitivity)
+    );
+}
+
+#[test]
+fn guarded_argument_gap_stays_uncovered() {
+    // Premises `1 <= pending <= 100` cannot reach a `[50, 200]` target; the
+    // leg emits nothing and the trusted derivation keeps the verdict.
+    let integer_type = u8_type();
+    let (value, atom) = math_atom(integer_type, 32);
+    let context =
+        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))])
+            .expect("context");
+    let assumptions = vec![
+        Proposition::IntegerMathLessOrEqual(literal_term(1), atom.clone()),
+        Proposition::IntegerMathLessOrEqual(atom.clone(), literal_term(100)),
+    ];
+    assert!(
+        guarded_bounds_certificate(atom, assumptions, context, &integer_range(50, 200), 32)
+            .is_none()
+    );
+}
+
+#[test]
+fn guarded_argument_certificate_rejects_a_miscited_premise() {
+    let mut certificate = guarded_argument_certificate(33);
+    // Forge: the lower leg cites index 0 (`0 <= pending`) where it derived
+    // `1 <= pending` -- the transitivity middle no longer matches.
+    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
+        panic!("conjunction root");
+    };
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        middle_less_or_equal_right,
+        ..
+    } = &mut conjuncts[0].rule
+    else {
+        panic!("transitivity leg");
+    };
+    middle_less_or_equal_right.rule = ProofRule::Assumption { index: 0 };
+    assert!(certificate.verify().is_err());
+}
+
+#[test]
+fn guarded_argument_certificate_rejects_a_dropped_premise() {
+    let mut certificate = guarded_argument_certificate(34);
+    // Forge: drop the cited guard upper bound from the roster the kernel sees.
+    certificate.assumptions.remove(3);
+    assert!(certificate.verify().is_err());
+}
+
+/// The refold leg's certificate for `fuel - 1`: premises `2 <= fuel` (the
+/// `fuel > 1` guard) and `fuel <= 128` (declared), mapped through the affine
+/// witness to `1 <= fuel - 1 <= 127`, claimed against `u8 [0..=127]`.
+fn fuel_decrement_certificate(seed: u64) -> super::BoundedValueCertificate {
+    let integer_type = u8_type();
+    let value = ValueId::new(seed).expect("value id");
+    let place = ScalarTerm::value(value, ScalarType::Integer(integer_type));
+    let place_math = IntegerMathTerm::MathValue {
+        source_type: integer_type,
+        value,
+    };
+    let context =
+        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))])
+            .expect("context");
+    let scalar_bound = |bound| scalar_integer_term(integer_type, &BigInt::from_i64(bound));
+    let assumptions = vec![
+        Proposition::LessOrEqual(scalar_bound(2).expect("scalar"), place.clone()),
+        Proposition::LessOrEqual(place.clone(), scalar_bound(128).expect("scalar")),
+    ];
+    refold_bounds_certificate(
+        place,
+        place_math,
+        integer_type,
+        BigInt::from_i64(1),
+        true,
+        assumptions,
+        (0, BigInt::from_i64(2)),
+        (1, BigInt::from_i64(128)),
+        context,
+        &integer_range(0, 127),
+        seed,
+    )
+    .expect("certificate")
+}
+
+#[test]
+fn affine_refold_bound_verifies_under_the_kernel() {
+    let certificate = fuel_decrement_certificate(41);
+    let fact = certificate.verify().expect("kernel accepts");
+    assert_eq!(fact.proposition, certificate.obligation.proposition);
+    let AcceptedFactRoute::CertificateDerived { acceptance, .. } = fact.route else {
+        panic!("certificate-derived route");
+    };
+    assert_eq!(acceptance.assumptions.len(), 2);
+    assert!(
+        acceptance
+            .rules
+            .contains(&AcceptedProofRule::IntegerAffineBound)
+    );
+}
+
+#[test]
+fn affine_refold_rejects_a_wrong_mapped_endpoint() {
+    let mut certificate = fuel_decrement_certificate(42);
+    // Forge: claim `5 <= fuel - 1` where the cited premise `2 <= fuel` maps
+    // only to `1 <= fuel - 1`; the kernel's affine map must refuse it.
+    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
+        panic!("conjunction root");
+    };
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        middle_less_or_equal_right,
+        ..
+    } = &mut conjuncts[0].rule
+    else {
+        panic!("transitivity leg");
+    };
+    let ProofRule::IntegerAffineBound { .. } = middle_less_or_equal_right.rule else {
+        panic!("affine leg");
+    };
+    let Proposition::IntegerMathLessOrEqual(_, argument) = &middle_less_or_equal_right.conclusion
+    else {
+        panic!("integer <= conclusion");
+    };
+    let argument = argument.clone();
+    middle_less_or_equal_right.conclusion =
+        Proposition::IntegerMathLessOrEqual(literal_term(5), argument);
+    assert!(certificate.verify().is_err());
+}
+
+#[test]
+fn affine_refold_rejects_a_foreign_witness_root() {
+    let mut certificate = fuel_decrement_certificate(43);
+    // Forge: repoint the affine witness at a different atom, so the cited
+    // `2 <= fuel` premise no longer binds the witness's root.
+    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
+        panic!("conjunction root");
+    };
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        middle_less_or_equal_right,
+        ..
+    } = &mut conjuncts[0].rule
+    else {
+        panic!("transitivity leg");
+    };
+    let ProofRule::IntegerAffineBound { witness, .. } = &mut middle_less_or_equal_right.rule else {
+        panic!("affine leg");
+    };
+    let foreign = ValueId::new(999).expect("value id");
+    witness.root = ScalarTerm::value(foreign, ScalarType::Integer(u8_type()));
+    assert!(certificate.verify().is_err());
+}
+
+#[test]
+fn affine_refold_gap_stays_uncovered() {
+    // Premise `1 <= fuel` maps to `0 <= fuel - 1`, which cannot reach a
+    // `[1, 127]` target's lower endpoint: the leg emits nothing rather than a
+    // certificate the kernel would refuse.
+    let integer_type = u8_type();
+    let value = ValueId::new(44).expect("value id");
+    let place = ScalarTerm::value(value, ScalarType::Integer(integer_type));
+    let place_math = IntegerMathTerm::MathValue {
+        source_type: integer_type,
+        value,
+    };
+    let context =
+        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))])
+            .expect("context");
+    let scalar_bound = |bound| scalar_integer_term(integer_type, &BigInt::from_i64(bound));
+    let assumptions = vec![
+        Proposition::LessOrEqual(scalar_bound(1).expect("scalar"), place.clone()),
+        Proposition::LessOrEqual(place.clone(), scalar_bound(128).expect("scalar")),
+    ];
+    assert!(
+        refold_bounds_certificate(
+            place,
+            place_math,
+            integer_type,
+            BigInt::from_i64(1),
+            true,
+            assumptions,
+            (0, BigInt::from_i64(1)),
+            (1, BigInt::from_i64(128)),
+            context,
+            &integer_range(1, 127),
+            44,
+        )
+        .is_none()
+    );
 }
