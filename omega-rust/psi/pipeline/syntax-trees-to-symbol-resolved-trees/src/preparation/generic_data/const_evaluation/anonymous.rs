@@ -194,14 +194,24 @@ pub(super) fn has_no_authored_spelling(syntax: &SyntaxTrees, spelling: OperatorS
     // This pre-resolution evaluator has no selected-operator authority. Any
     // potentially relevant authored spelling makes this narrow builtin check
     // decline; it does not authorize that declaration or certify the existing
-    // const evaluator's handling of authored operator meanings.
+    // const evaluator's handling of authored operator meanings. A fixed token
+    // after `machine` authors the same spelling the retired `operator` head
+    // did (`boundary machine % Math::remainder` is that slot's new spelling),
+    // and a trait requirement may bind one too, so machine items and trait
+    // member signatures join the fence alongside the two legacy lanes.
     !syntax.root_items().any(|item| match item {
         Item::Operator(operator) => operator.spelling == Some(spelling),
+        Item::Machine(machine) => machine.spelling == Some(spelling),
         Item::Domain(domain) => syntax
             .items
             .operators(domain.operators)
             .iter()
             .any(|operator| operator.spelling == Some(spelling)),
+        Item::Trait(trait_definition) => syntax
+            .items
+            .state_signatures(trait_definition.machines)
+            .iter()
+            .any(|handle| syntax.items.state_signature(*handle).spelling == Some(spelling)),
         _ => false,
     })
 }
