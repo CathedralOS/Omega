@@ -1,0 +1,1 @@
+a selected theorem's transitive call closure reaches an admitted or boundary proof machine

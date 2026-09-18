@@ -626,6 +626,24 @@ const CORPUS_FIXTURES: &[CorpusFixture] = &[
         ),
     },
     CorpusFixture {
+        name: "quotient_representative_admitted_closure_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_representative_admitted_closure_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_representative_admitted_closure_rejected/expected.txt"
+        ),
+    },
+    CorpusFixture {
+        name: "quotient_theorem_admitted_closure_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_admitted_closure_rejected/expected.txt"
+        ),
+    },
+    CorpusFixture {
         name: "quotient_transport_roles_reversed_rejected",
         source: include_str!(
             "../../../../../tests/omega/fail/proofs/quotient_transport_roles_reversed_rejected/main.omg"
@@ -655,4 +673,45 @@ fn every_quotient_role_corpus_fixture_produces_its_recorded_fragment() {
             fixture.name,
         );
     }
+}
+
+#[test]
+fn an_admitted_closure_cannot_reach_a_representative_or_theorem_selection() {
+    let boundary_declaration = "boundary machine observe(value: Representative) -> bool;\n\n";
+
+    // The representative itself stays an ordinary checked body; only its call
+    // closure reaches the boundary seam.
+    let effectful_representative = TOTAL_DIRECT_DEFINE.replace(
+        "machine representative(value: Representative) -> Representative {\n    value\n}",
+        &format!(
+            "{boundary_declaration}machine representative(value: Representative) -> Representative {{\n    let seen: bool = observe(value);\n    value\n}}"
+        ),
+    );
+    assert_ne!(effectful_representative, TOTAL_DIRECT_DEFINE);
+    let program = lower(&effectful_representative);
+    assert_mentions(
+        &validation_messages(&program),
+        "the selected representative operation's transitive call closure reaches an admitted or boundary machine",
+    );
+    assert!(
+        extraction_errors(&program)
+            .iter()
+            .any(|message| message.contains("direct faithful plan is unresolved")),
+        "no canonical row may compose over an admitted closure"
+    );
+
+    // The same control applies to a theorem selection, whose direct
+    // declaration is also an ordinary checked body here.
+    let admitted_theorem = TOTAL_DIRECT_DEFINE.replace(
+        "machine representative_respects(left: Representative, right: Representative)\nrequires equivalent(left, right)\nensures equivalent(representative(left), representative(right))\n{\n}",
+        &format!(
+            "{boundary_declaration}machine representative_respects(left: Representative, right: Representative)\nrequires equivalent(left, right)\nensures equivalent(representative(left), representative(right))\n{{\n    let seen: bool = observe(left);\n}}"
+        ),
+    );
+    assert_ne!(admitted_theorem, TOTAL_DIRECT_DEFINE);
+    let program = lower(&admitted_theorem);
+    assert_mentions(
+        &validation_messages(&program),
+        "a selected theorem's transitive call closure reaches an admitted or boundary proof machine",
+    );
 }

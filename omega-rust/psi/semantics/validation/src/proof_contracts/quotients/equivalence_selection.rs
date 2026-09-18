@@ -510,7 +510,14 @@ fn type_reference_symbol(
     }
 }
 
-fn checked_proof_dependency<'program>(
+/// Walk a proof machine's transitive call closure and report the first entry
+/// that is not an ordinary checked body.
+///
+/// wiki/spec/proofs/quotients.md requires acceptance under a policy refusing
+/// quotient assumptions, and that control is "conversion-independent transitive
+/// assumption closure" rather than an inspection of the directly named entry.
+/// Helper types and statements remain outside this machine-call closure.
+pub(super) fn checked_proof_dependency<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
     visited: &mut HashSet<u32>,
