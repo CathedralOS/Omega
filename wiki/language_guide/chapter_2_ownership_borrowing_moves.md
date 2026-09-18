@@ -97,6 +97,33 @@ While the place is mutably borrowed, another active route cannot read or mutate
 it incompatibly. Arithmetic and value invariants remain ordinary obligations;
 exclusive access does not prove the new health fits.
 
+### Temporarily Moving Out A Field
+
+An exclusive borrow may temporarily leave a field empty while you own its former
+contents:
+
+```omega
+machine InventorySystem::rearrange(&mut self) {
+    let inventory: Inventory = self.inventory;
+    // inventory owns the value; self.inventory is temporarily absent.
+    self.inventory = move inventory;
+}
+```
+
+This opens an ownership invariant window. You may transform the detached value
+and install a different valid replacement, provided every returning path repairs
+the original field. While it is absent, reading it, borrowing it, or passing
+`self` as a whole valid object rejects. Unaffected fields remain usable where
+their borrows and invariants permit. A nominal whole-value cleanup hook still
+prevents partial extraction.
+
+The window cannot escape by returning early or ending the borrow. Calls and
+suspension must preserve exclusive custody and prevent observation of the hole;
+failure does not invent a replacement or roll the move back. See
+[borrowed-storage invariant windows](../spec/language/ownership.md#borrowed-storage-invariant-windows)
+for the exact outcome and restoration rules. No placeholder or new syntax is
+required.
+
 ## Write-Only Borrows
 
 Write-only access exclusively lends an existing valid value without permitting

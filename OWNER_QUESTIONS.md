@@ -337,46 +337,7 @@ must be surfaced before relying on them.
    Until answered, the product check stops on this row once the calling-policy
    admission bug is fixed; everything before that stop is engineering.
 
-9. **May an affine value be moved out of storage reached through `&mut` when
-   the same statement sequence installs a replacement before the borrow ends?**
-   (named decision: `borrowed-storage-owner-replacement`). Since 036d60d9c9
-   the checker rejects every owned transfer out of a borrowed record field
-   ("cannot transfer a non-copy value out of borrowed storage without
-   replacing its owner", `checks/multiplicity/projected_affine.rs`
-   `is_borrowed_place_transfer`), and it has no owner-replacement route at all:
-   the pass fixture `tests/omega/pass/ownership/move_keyword_field_assignment`
-   (`let replacement: Inventory = self.inventory; self.inventory = move
-   replacement;`, chapter 2's spelling) is rejected with that diagnostic on
-   main, and the product parser had to be respelled to borrow the lexer's
-   token stream instead of taking it (b30c5ae693). The
-   [ownership contract](wiki/spec/language/ownership.md) says a borrow grants
-   no ownership of an affine referent and that partial moves retain unselected
-   siblings, and the [lifetimes contract](wiki/spec/language/lifetimes.md)
-   says assignment "evaluates the replacement while old loans remain active,
-   ends the overwritten field's carried loans, then installs the replacement's
-   exact loans", but neither says whether a move out through `&mut` followed
-   by an assignment back is a legal replacement of the owner's content or a
-   forbidden transfer. Options:
-
-   - (a) Legal when every path from the move to the end of the exclusive
-     borrow (return, transition, exit, or any call that can observe the place)
-     assigns a replacement to the same place before anything observes it; the
-     checker tracks the hole as a partial move of the borrowed root and clears
-     it on the assignment. Matches the fixture, the diagnostic's own wording
-     and chapter 2. Recommended default.
-   - (b) Never legal through a reference; owner replacement needs an explicit
-     consuming route (a `move self` machine, or a builtin exchange such as
-     `swap`/`take` on the place). Simplest checker; the fixture and chapter 2
-     must change, and the product parser's borrow respell becomes the only
-     idiom.
-   - (c) Legal only as one atomic exchange expression (`self.field = move
-     replacement` returning the old value), never as a two-statement
-     move-then-assign.
-
-   Until answered, `ownership/move_keyword_field_assignment` stays on the
-   known-failing pass list and product source avoids the shape.
-
-10. **Which route admits the complete Beta-encoding certificate, or does the
+9. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:
     `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
     acceptance requires the produced
@@ -428,7 +389,7 @@ must be surfaced before relying on them.
     certificate measured but inadmissible, and the chain retains its
     explicit assumption that the selected evaluator implements Gamma.
 
-11. **Does a transported contract instantiate its `FloatMeaning` projections
+10. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,
