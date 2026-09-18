@@ -1259,12 +1259,15 @@ fn replays_loan_event(
     true
 }
 
-/// The record referent of a shared-borrow `&T` result/local type: `T` must be
-/// a named record whose contents the structural pipeline carries, the same
-/// admissible carrier the checked value planner required. The rule is
+/// The referent of a shared-borrow `&T` result/local type: `T` must be a named
+/// record, or a primitive, whose contents the structural pipeline carries --
+/// the same admissible carrier the checked value planner required. The rule is
 /// linear-tolerant for the same reason it is there: a shared borrow observes
 /// the referent instead of moving it, so a linear declaration's claim stays
-/// with the referent's owner and never becomes an obligation of this join.
+/// with the referent's owner and never becomes an obligation of this join. A
+/// primitive referent has no data declaration to resolve; its structural
+/// carrier is the `PrimitiveScalar` shape the type catalog already registers,
+/// and the borrow still denotes the original storage rather than a snapshot.
 /// `None` for owned types, `&mut` carriers (which keep their own
 /// `reference_result_custody` lane), and sums. Shared by source replay and
 /// attached-unit registration, so it lives here rather than in a machine
@@ -1281,6 +1284,9 @@ pub(crate) fn shared_borrow_record_referent(
     };
     if *access != language_semantics::ReferenceAccess::Shared {
         return None;
+    }
+    if checked.primitive_type_reference(*referee).is_some() {
+        return validation::has_linear_owned_contents(&checked.typed, *referee).then_some(*referee);
     }
     let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
         checked.type_reference_table.type_reference(*referee)

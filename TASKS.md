@@ -3512,32 +3512,38 @@ Owners include
   reachable arm moves the same live source place -- a whole local or
   parameter, or one projected linear child under an affine root -- with
   residual sibling claims staying live and consumable, and `1016f39c26`
-  admits a fresh structural call product as an owned arm. Remaining borrowed
-  joins: all of them are gated in one single place, which was measured rather
-  than inferred. The three the previous slice listed -- a primitive referent
-  (`&u64`), exclusive (`&mut`) arms, and case-bearing referents -- plus a
-  fourth that list never named, a fixed-index projection (`&x.items[0]`), all
-  reject today at `selected_shared_borrow_place` in validation. Forcing that
-  gate true admits all four through checked compilation, but the checked arm
-  planner then builds *zero* `SharedBorrow` argument plans for each (against
-  two for an already admitted record projection) and lowering reports
-  "machine has no source-independent checked scalar control plan". So none of
-  the four is a validation-side widening: each first needs `borrowed_place` /
-  `shared_record_reference` in `typed-trees-to-checked-trees/src/values/
-  scalar/computations/structural_values.rs` to build the carrier. A primitive
-  referent has no data declaration for the referent rule to resolve; a `&mut`
-  result is refused by `reference_result_custody::parts` (which admits only a
-  primitive referee) and has no MutableBorrow arm builder at all; a
-  case-bearing referent is excluded by the variant check; and a fixed-index
-  target fails `expression_is_direct_place_path`, which admits only
-  `Name`/`Member`. Widening that shared predicate is not a way around it: its
-  only other two call sites are both inside that same crate, so it would
-  change that crate's behavior invisibly to its owners. That crate was under
-  four concurrent claims, so this slice pinned the two previously unpinned
-  rejections instead
-  (`shared_borrow_arms_reject_referents_the_checked_arm_planner_cannot_carry`
-  in `validation/src/value_custody/expression_types/match_dispatch/tests.rs`,
-  macOS ARM64) and left the joins themselves undone. The remaining linear
+  admits a fresh structural call product as an owned arm. The primitive
+  referent (`&u64`) now builds its carrier: the checked `shared_record_reference`,
+  `selected_shared_borrow_place` and the lowering `shared_borrow_record_referent`
+  each admit a referent that resolves to a primitive, which has no data
+  declaration for the record rule to resolve. That selection planned 0
+  `SharedBorrow` argument plans before and plans 2 now, matching an admitted
+  record projection, each arm keeping its authored root and field.
+  It does not lower yet, and the blocker is neither the carrier nor the
+  primitive. Measured at 9f4c85b12b against record-shaped controls: an unread
+  view rejects with "structural local carried a borrow event with no recorded
+  loan", a whole-parameter root with "computed shared argument lost its
+  established local", and a call consumer with "machine has no
+  source-independent checked scalar control plan" -- each identical for the
+  already-admitted `&Payload` referent. The only record shape that lowers end
+  to end reads its view with a member access, and a borrowed primitive local
+  has no such spelling: `primitive_reference_read` admits only state
+  parameters, so a call is the only consumer `&u64` can have and it rejects for
+  both referents. Closing any one of those three consumer gaps serves both
+  referents; a source read spelling for a borrowed primitive local is an owner
+  question rather than a carrier one. Tests
+  `borrowed_selection_{plans_a_primitive_referent_carrier,
+  call_consumers_reject_for_every_referent}` in
+  `checked-trees-to-lowered-psi/tests/value_dispatch/borrowed_results.rs` pin
+  the planned carrier and that parity, and
+  `shared_borrow_arms_{join_a_primitive_referent_without_a_data_declaration,
+  reject_a_fixed_index_place_the_planner_cannot_carry}` pin the gate (macOS
+  ARM64). Remaining borrowed joins, each a separate question rather than a
+  wider carrier: exclusive (`&mut`) arms have affine custody of their own --
+  "Exclusive carriers have affine custody even when their referent is
+  unrestricted" -- case-bearing referents stay outside the record-shaped
+  frontier, and a fixed-index place (`&x.items[0]`) is not a direct place path,
+  so it never becomes a canonical root and path. The remaining linear
   join -- a whole affine root carrying linear children, moved whole -- is
   blocked on the receipt representation rather than on the admission gate. A
   linear-bearing affine root gets no whole-place claim entry at all:
