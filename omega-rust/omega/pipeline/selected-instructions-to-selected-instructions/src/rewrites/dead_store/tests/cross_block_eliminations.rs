@@ -1,8 +1,9 @@
 use super::{
-    BETWEEN, KILLER, MATERIALIZE_COUNT, PACKED_SCRATCH, POINTER, SCRATCH, SEQUENCE_INDEX,
-    SPAN_COUNT, STORE, VALUE, access, budget, chained, crossed_edge, dead_byte, define_count,
-    eliminate, fixture, instruction, make_packed_dead, mutated_chained, packed_dead_chained, place,
-    sequence_store, settlement, settlement_at, span_copy, span_length, successor,
+    BETWEEN, DEAD_SEQUENCE_INDEX, KILLER, MATERIALIZE_COUNT, MATERIALIZE_INDEX, PACKED_SCRATCH,
+    POINTER, SCRATCH, SEQUENCE_INDEX, SPAN_COUNT, STORE, VALUE, access, budget, chained,
+    crossed_edge, dead_byte, define_count, define_count_as, eliminate, fixture, instruction,
+    make_packed_dead, mutated_chained, packed_dead_chained, place, sequence_store, settlement,
+    settlement_at, span_copy, span_length, successor,
 };
 use crate::rewrites::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
@@ -1246,6 +1247,120 @@ fn cross_block_byte_sequence_store_covers_across_the_edge() {
                 transport: SelectedValueTransport::Registers {
                     argument: SCRATCH,
                     parameter: SEQUENCE_INDEX,
+                },
+            });
+        });
+        assert_eq!(
+            eliminate(&transported, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+    }
+}
+
+/// A byte-sequence dead store is covered across an edge by a distinct
+/// index value too: each index's sole `InstructionResult` carrier holds a
+/// clean `MaterializeI64` somewhere in the function, so equal
+/// `byte_offset + index` sums spell the dead byte on every path forward.
+/// An edge transport redefining the dead index's carrier escapes the
+/// instruction audit, so the constant no longer pins the dead byte.
+#[test]
+fn cross_block_byte_sequence_dead_store_covers_under_equal_constants() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Dead byte at `8 + 3` in block 0; the covering sequence write
+        // opens block 1 at base 8 with a distinct index value materialized
+        // to 3.
+        let covered = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 9, SCRATCH);
+            define_count_as(
+                function,
+                environment,
+                0,
+                1,
+                MATERIALIZE_INDEX,
+                DEAD_SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                3,
+            );
+            define_count(
+                function,
+                environment,
+                1,
+                0,
+                SEQUENCE_INDEX,
+                ValueId::new(9).unwrap(),
+                3,
+            );
+        });
+        let result = eliminate(&covered, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), MATERIALIZE_INDEX, BETWEEN]
+        );
+        assert_eq!(
+            function.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![MATERIALIZE_COUNT, KILLER]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // An edge binding that defines the dead index's carrier is a
+        // second definition the operand audit cannot see — the materialized
+        // constant no longer pins the dead byte.
+        let transported = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 9, SCRATCH);
+            define_count_as(
+                function,
+                environment,
+                0,
+                1,
+                MATERIALIZE_INDEX,
+                DEAD_SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                3,
+            );
+            define_count(
+                function,
+                environment,
+                1,
+                0,
+                SEQUENCE_INDEX,
+                ValueId::new(9).unwrap(),
+                3,
+            );
+            crossed_edge(function).bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(5).unwrap(),
+                    argument: ValueId::new(1).unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: SCRATCH,
+                    parameter: DEAD_SEQUENCE_INDEX,
                 },
             });
         });

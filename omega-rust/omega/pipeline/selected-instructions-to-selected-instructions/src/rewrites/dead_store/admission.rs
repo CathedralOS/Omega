@@ -637,9 +637,11 @@ fn interferes(
 /// - for a byte-sequence dead store, another `Store { 0, 1 }` carrying
 ///   `WriteByteSequence` — the only write that can provably land on the
 ///   dead byte: same payload base and same runtime `index` spell the same
-///   position, while any exact or local row would have to contain a byte
-///   placed at runtime, and a sequence write at another offset or index
-///   may land on a different byte entirely.
+///   position, and distinct index values still do when both resolve to
+///   constants whose `byte_offset + index` sums agree. Any exact or local
+///   row would have to contain a byte placed at runtime, and a sequence
+///   write whose index stays runtime or lands elsewhere may land on a
+///   different byte entirely.
 ///
 /// A write that only partially overlaps the dead range leaves the remaining
 /// bytes observable. A `WriteLocal` on an operation-owned `Structural` slot
@@ -678,7 +680,11 @@ fn covering_source(
     // `byte_offset + index`; the covering write must spell that same byte.
     // Equal row offset and equal index identity place it exactly — no other
     // write route can, since an exact range cannot contain a byte whose
-    // position is only known at runtime.
+    // position is only known at runtime. Distinct index values still spell
+    // one byte when each resolves to a compile-time constant — the same
+    // carrier audit the exact-dead-range route runs — because the two
+    // `byte_offset + index` sums then name one fixed position apiece, and
+    // equal sums are the same byte whatever the payload bases were.
     if let Some(index) = dead.sequence_index {
         if !matches!(
             instruction.kind,
@@ -690,16 +696,32 @@ fn covering_source(
             return Err(reject());
         }
         place_store_shape(instruction, environment)?;
-        return match row.role {
-            SelectedMemoryAccessRole::WriteByteSequence {
-                index: covering, ..
-            } if row.byte_offset == dead.byte_offset
-                && row.byte_count == 1
-                && covering == index =>
-            {
+        let SelectedMemoryAccessRole::WriteByteSequence {
+            index: covering, ..
+        } = row.role
+        else {
+            return Err(reject());
+        };
+        if row.byte_count != 1 {
+            return Err(reject());
+        }
+        if covering == index {
+            return if row.byte_offset == dead.byte_offset {
                 Ok(())
-            }
-            _ => Err(reject()),
+            } else {
+                Err(reject())
+            };
+        }
+        let dead_byte = u64::from(dead.byte_offset)
+            .checked_add(constant_index(function, index)?)
+            .ok_or_else(reject)?;
+        let written = u64::from(row.byte_offset)
+            .checked_add(constant_index(function, covering)?)
+            .ok_or_else(reject)?;
+        return if written == dead_byte {
+            Ok(())
+        } else {
+            Err(reject())
         };
     }
     // An exact dead byte's other covering route: a sequence write whose
@@ -906,12 +928,35 @@ fn byte_sequence_covering(
         return Err(reject());
     }
     place_store_shape(instruction, environment)?;
-    // The register carrying the `index` value: its sole `InstructionResult`
-    // origin names the producing instruction, the way the copy's count
-    // operand names the span's extent. An `index` no instruction result
-    // carries — an entry or block parameter — has no producer to resolve,
-    // and two instruction results claiming one value make the constant
-    // ambiguous; both stay unproven.
+    let landed = constant_index(function, index)?;
+    // The write lands on one byte; the dead range is covered exactly when
+    // it is that byte.
+    if dead.byte_count != 1
+        || u64::from(row.byte_offset)
+            .checked_add(landed)
+            .ok_or_else(reject)?
+            != u64::from(dead.byte_offset)
+    {
+        return Err(reject());
+    }
+    Ok(())
+}
+
+/// The compile-time constant a byte-sequence row's `index` resolves to, when
+/// it does. The register carrying the `index` value is its sole
+/// `InstructionResult` carrier — the way the copy's count operand names the
+/// span's extent — so an `index` no instruction result carries (an entry or
+/// block parameter) has no producer to resolve, and two instruction results
+/// claiming one value make the constant ambiguous; both stay unproven. The
+/// carrier must then hold the function's one clean `MaterializeI64`
+/// definition and never be redefined by an edge transport or case payload
+/// the instruction audit cannot see — only then does `byte_offset + index`
+/// name a fixed position rather than a runtime-placed byte.
+fn constant_index(
+    function: &SelectedFunction,
+    index: semantic_vocabulary::ValueId,
+) -> Result<u64, DeadStoreEliminationError> {
+    let reject = || DeadStoreEliminationError::InterveningAccess;
     let mut carriers = function.virtual_registers.iter().filter(|register| {
         matches!(
             register.origin,
@@ -926,17 +971,7 @@ fn byte_sequence_covering(
     if transport_defines(function, carrier.id) {
         return Err(reject());
     }
-    // The write lands on one byte; the dead range is covered exactly when
-    // it is that byte.
-    if dead.byte_count != 1
-        || u64::from(row.byte_offset)
-            .checked_add(landed)
-            .ok_or_else(reject)?
-            != u64::from(dead.byte_offset)
-    {
-        return Err(reject());
-    }
-    Ok(())
+    Ok(landed)
 }
 
 /// Whether an edge transport or case payload defines `register` — a
