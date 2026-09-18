@@ -199,7 +199,10 @@ fn overlapping_or_dynamic_writes_between_reject() {
         forward(&dynamic, &environment).unwrap_err(),
         StoredLoadForwardingError::AliasingWrite
     );
-    // A place-backed local slot write targets the forwarded place's storage.
+    // An operation-owned `Structural` slot write the contract does not charge
+    // to the place's producer only stages bytes that name the place — a
+    // call's staged view descriptor — so it holds none of the forwarded
+    // bytes and walks past.
     let local = mutated(target, |function, environment| {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
@@ -228,10 +231,7 @@ fn overlapping_or_dynamic_writes_between_reject() {
             ),
         );
     });
-    assert_eq!(
-        forward(&local, &environment).unwrap_err(),
-        StoredLoadForwardingError::AliasingWrite
-    );
+    forward(&local, &environment).unwrap();
     // Materializing the place-backed local address lets later writes reach it.
     let address = mutated(target, |function, _| {
         let slot = LocalStorageSlotId::StructuralParameter { place: place() };
@@ -707,8 +707,10 @@ fn local_slot_sources_stay_exact() {
         forward(&wrong_constraint, &environment).unwrap_err(),
         StoredLoadForwardingError::ConstraintMismatch
     );
-    // An operation-owned `Structural` slot can stage bytes that merely name
-    // the place, so even an exact-range `Store64` into it cannot source.
+    // An operation-owned `Structural` slot the contract does not charge to
+    // the place's producer stages bytes that merely name the place, so the
+    // `Store64` into it walks past — and with no real writer upstream the
+    // read is left unproven.
     let staging = mutated(target, |function, environment| {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
@@ -735,7 +737,7 @@ fn local_slot_sources_stay_exact() {
     });
     assert_eq!(
         forward(&staging, &environment).unwrap_err(),
-        StoredLoadForwardingError::AliasingWrite
+        StoredLoadForwardingError::UnsupportedPair
     );
     // A place `Store` through a staging slot's materialized address carries
     // the same non-storage `WriteLocal` row and cannot source either.
@@ -749,7 +751,7 @@ fn local_slot_sources_stay_exact() {
     });
     assert_eq!(
         forward(&staged_store, &environment).unwrap_err(),
-        StoredLoadForwardingError::AliasingWrite
+        StoredLoadForwardingError::UnsupportedPair
     );
     // The eight-byte slot store cannot produce a sub-word read's bytes.
     let subword = {
