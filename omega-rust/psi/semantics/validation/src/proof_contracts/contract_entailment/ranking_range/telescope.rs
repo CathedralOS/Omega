@@ -159,7 +159,7 @@ pub fn discover_state_entry_mappings_preferring(
             }
         }
     }
-    demote_stale_required_copies(program, machine, &occurrences, &mut mappings, required);
+    demote_stale_copies(program, machine, &occurrences, &mut mappings, required);
     mappings.into_iter().collect()
 }
 
@@ -177,18 +177,22 @@ pub fn discover_state_entry_mappings_preferring(
 /// several stepped claimants leave the set contested, and a claimant with any
 /// non-step computed arrival keeps its equality obligation, since the edge
 /// judgment may still prove it equal (a `carrier + 0` spell changes nothing).
+/// The same naming also resolves duplicated claims on entries outside
+/// `required`: a slice or record carrier diverges through shapes
+/// `carrier +/- positive` cannot spell, so a strict subslice or a rebuilt
+/// literal marks the continuation while a stale forward's claim demotes. The
+/// demotion runs even when `required` is empty -- an unranged member's slice
+/// or record subjects are never required symbols, but their telescopes still
+/// feed the call-component site judgment.
 /// Slots never touched by the demotion keep the rules `argument_mapping`
 /// already applied.
-fn demote_stale_required_copies(
+fn demote_stale_copies(
     program: &TypedTrees,
     machine: &Machine,
     occurrences: &[(usize, usize, &[ExpressionHandle])],
     mappings: &mut [Option<Vec<SymbolHandle>>],
     required: &[SymbolHandle],
 ) {
-    if required.is_empty() {
-        return;
-    }
     let states = program.machine_states(machine);
     // Per destination slot: whether any arrival computes a non-forward actual
     // and whether any arrival is a strict step of a carrier of the slot's own
@@ -199,6 +203,7 @@ fn demote_stale_required_copies(
         .map(|mapping| vec![false; mapping.as_ref().map_or(0, Vec::len)])
         .collect::<Vec<_>>();
     let mut computed = stepped.clone();
+    let mut moved = stepped.clone();
     for &(source_position, target_position, arguments) in occurrences {
         if target_position == 0 {
             continue;
@@ -220,11 +225,22 @@ fn demote_stale_required_copies(
             ) {
                 computed[target_position][position] = true;
             }
-            if claimed.is_valid()
-                && required.contains(claimed)
-                && strict_step_claim(program, source, source_mapping, *argument, *claimed)
-            {
-                stepped[target_position][position] = true;
+            if !claimed.is_valid() {
+                continue;
+            }
+            if required.contains(claimed) {
+                if strict_step_claim(program, source, source_mapping, *argument, *claimed) {
+                    stepped[target_position][position] = true;
+                }
+            } else if moved_unranked_claim(
+                program,
+                machine,
+                source,
+                source_mapping,
+                *argument,
+                *claimed,
+            ) {
+                moved[target_position][position] = true;
             }
         }
     }
@@ -251,6 +267,40 @@ fn demote_stale_required_copies(
             }
             for position in claimants {
                 if position != moved[0] && !computed[state_position][position] {
+                    mapping[position] = SymbolHandle::default();
+                }
+            }
+        }
+        // A duplicated non-required claim carries no equality obligation, so
+        // demotion only ever needs the unique moved copy: `live[1..]` or a
+        // rebuilt literal names the continuation the rank reads, and every
+        // other claimant -- bare forward or other computation -- is a stale
+        // sibling. Zero or several stepped claimants leave the set contested.
+        let mut entries: Vec<SymbolHandle> = Vec::new();
+        for claimed in mapping.iter() {
+            if claimed.is_valid() && !required.contains(claimed) && !entries.contains(claimed) {
+                entries.push(*claimed);
+            }
+        }
+        for entry in entries {
+            let claimants = mapping
+                .iter()
+                .enumerate()
+                .filter_map(|(position, claimed)| (*claimed == entry).then_some(position))
+                .collect::<Vec<_>>();
+            if claimants.len() < 2 {
+                continue;
+            }
+            let named = claimants
+                .iter()
+                .copied()
+                .filter(|position| moved[state_position][*position])
+                .collect::<Vec<_>>();
+            if named.len() != 1 {
+                continue;
+            }
+            for position in claimants {
+                if position != named[0] {
                     mapping[position] = SymbolHandle::default();
                 }
             }
@@ -302,6 +352,145 @@ fn strict_step_claim(
         .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == name.symbol && !parameter.is_const)
         .is_some_and(|position| source_mapping.get(position).copied() == Some(claimed))
+}
+
+/// Whether `argument` is a strict step of a source formal carrying
+/// `claimed`, spelled for the carriers `carrier +/- positive` cannot reach:
+/// a slice carrier moves through a builtin subslice whose front bound is
+/// proved positive (`carrier[1..]`, of a bare formal or a member chain
+/// rooted at one), and a record carrier moves through a literal rebuild
+/// whose some field value is itself a strict leaf step of that carrier's
+/// chain (`&R { f: carrier.f - 1 }`). A bare `carrier +/- positive` actual
+/// is the integer shape `strict_step_claim` already judges for required
+/// entries; for an unrequired integer role the bare forward keeps naming
+/// the carrier exactly as before.
+fn moved_unranked_claim(
+    program: &TypedTrees,
+    machine: &Machine,
+    source: &State,
+    source_mapping: &[SymbolHandle],
+    argument: ExpressionHandle,
+    claimed: SymbolHandle,
+) -> bool {
+    let argument = unwrapped(program, argument);
+    match program.expression_table.expression(argument) {
+        ExpressionNode::Borrow(borrow) => moved_unranked_claim(
+            program,
+            machine,
+            source,
+            source_mapping,
+            borrow.target,
+            claimed,
+        ),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| {
+                moved_leaf_step(
+                    program,
+                    machine,
+                    source,
+                    source_mapping,
+                    field.value,
+                    claimed,
+                )
+            }),
+        ExpressionNode::Indexed(_) => {
+            moved_leaf_step(program, machine, source, source_mapping, argument, claimed)
+        }
+        _ => false,
+    }
+}
+
+/// One field value's -- or a slice argument's own -- strict step:
+/// `carrier.path +/- positive` or `carrier.path[positive..]`, where the
+/// chain's root formal still carries `claimed` at the source. A subslice
+/// must drop a proved-positive front segment; `carrier[..end]` or a zero
+/// start keeps the window's length unbounded below and is not divergence
+/// evidence.
+fn moved_leaf_step(
+    program: &TypedTrees,
+    machine: &Machine,
+    source: &State,
+    source_mapping: &[SymbolHandle],
+    expression: ExpressionHandle,
+    claimed: SymbolHandle,
+) -> bool {
+    let expression = unwrapped(program, expression);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Subtract
+            ) =>
+        {
+            positive_step_amount(program, source, binary.right)
+                && carrier_root_carries(program, source, source_mapping, binary.left, claimed)
+        }
+        ExpressionNode::Indexed(indexed)
+            if crate::value_custody::places::has_builtin_subslice_meaning(
+                program,
+                machine,
+                Some(source),
+                expression,
+            ) =>
+        {
+            let ExpressionNode::Range(range) = program
+                .expression_table
+                .expression(unwrapped(program, indexed.index))
+            else {
+                return false;
+            };
+            range.start.is_valid()
+                && positive_step_amount(program, source, range.start)
+                && carrier_root_carries(
+                    program,
+                    source,
+                    source_mapping,
+                    indexed.collection,
+                    claimed,
+                )
+        }
+        _ => false,
+    }
+}
+
+/// The step's carrier resolves through borrows and member chains to a
+/// non-const source formal whose discovered role is `claimed` -- the step
+/// moved this copy of the entry, not an unrelated value. This is the
+/// member-chain generalization of the bare-name carrier `strict_step_claim`
+/// requires: `live`, `live.power`, and `&holder.items` all root at the
+/// formal whose role decides.
+fn carrier_root_carries(
+    program: &TypedTrees,
+    source: &State,
+    source_mapping: &[SymbolHandle],
+    mut expression: ExpressionHandle,
+    claimed: SymbolHandle,
+) -> bool {
+    loop {
+        match program
+            .expression_table
+            .expression(unwrapped(program, expression))
+        {
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Name(name)
+                if name.symbol.is_valid() && name.head_symbol == name.symbol =>
+            {
+                return program
+                    .state_parameters(source)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .position(|parameter| parameter.symbol == name.symbol && !parameter.is_const)
+                    .is_some_and(|position| {
+                        source_mapping.get(position).copied() == Some(claimed)
+                    });
+            }
+            _ => return false,
+        }
+    }
 }
 
 /// Whether `expression` is a proved-positive step amount evaluated in
@@ -482,11 +671,28 @@ fn argument_mapping(
     for (position, argument) in arguments.iter().enumerate() {
         subjects.clear();
         argument_subjects(program, machine, source, *argument, &mut subjects, 0)?;
-        bare_forwards.push(matches!(
-            program.expression_table.expression(*argument),
-            ExpressionNode::Name(name)
-                if name.symbol.is_valid() && name.head_symbol == name.symbol
-        ));
+        // A bare forward names the exact formal -- including under one
+        // borrow, the only way a record carrier forwards its role: `&card`
+        // denotes `card`'s record, while `&pair.left` denotes a projection
+        // and stays computed.
+        bare_forwards.push(
+            match program
+                .expression_table
+                .expression(unwrapped(program, *argument))
+            {
+                ExpressionNode::Name(name) => {
+                    name.symbol.is_valid() && name.head_symbol == name.symbol
+                }
+                ExpressionNode::Borrow(borrow) => matches!(
+                    program
+                        .expression_table
+                        .expression(unwrapped(program, borrow.target)),
+                    ExpressionNode::Name(name)
+                        if name.symbol.is_valid() && name.head_symbol == name.symbol
+                ),
+                _ => false,
+            },
+        );
         let mut selected_entry = None;
         for subject in &subjects {
             let source_position = source_parameters
@@ -540,26 +746,49 @@ fn argument_mapping(
     // Entries the rank obligation reads keep every claim: the edge judgment
     // holds those copies equal at every arrival, which is what rejects a
     // diverging transfer of a ranked subject or a pinned endpoint. Any other
-    // claimed entry has no such equality evidence to preserve, so the bare
-    // forward alone names the carrier and a computed claimant becomes a
-    // premise-free payload — letting an edge that computes a copy agree with
-    // sibling arrivals that leave the slot unmapped, and leaving one carrier
-    // for records whose field coordinate cannot be read through two slots.
+    // claimed entry has no such equality evidence to preserve, so the moved
+    // copy alone names the carrier when exactly one claimant is a strict
+    // step of a role carrier -- `live[1..]` or a rebuilt record literal
+    // against bare forwards -- and otherwise the bare forward names it while
+    // a computed claimant becomes a premise-free payload — letting an edge
+    // that computes a copy agree with sibling arrivals that leave the slot
+    // unmapped, and leaving one carrier for records whose field coordinate
+    // cannot be read through two slots.
     for position in 0..parameters.len() {
         let entry = parameters[position];
-        if !entry.is_valid()
-            || bare_forwards[position]
-            || required.contains(&entry)
-            || parameters
-                .iter()
-                .filter(|candidate| **candidate == entry)
-                .take(2)
-                .count()
-                == 1
-        {
+        if !entry.is_valid() || required.contains(&entry) {
             continue;
         }
-        parameters[position] = SymbolHandle::default();
+        let claimants = (0..parameters.len())
+            .filter(|&slot| parameters[slot] == entry)
+            .collect::<Vec<_>>();
+        if claimants.len() < 2 {
+            continue;
+        }
+        let moved = claimants
+            .iter()
+            .copied()
+            .filter(|&slot| {
+                moved_unranked_claim(
+                    program,
+                    machine,
+                    source,
+                    source_mapping,
+                    arguments[slot],
+                    entry,
+                )
+            })
+            .collect::<Vec<_>>();
+        for slot in claimants {
+            let keeps = if moved.len() == 1 {
+                slot == moved[0]
+            } else {
+                bare_forwards[slot]
+            };
+            if !keeps {
+                parameters[slot] = SymbolHandle::default();
+            }
+        }
     }
     Some(parameters)
 }

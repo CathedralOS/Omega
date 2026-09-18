@@ -1,0 +1,45 @@
+// PASS CANARY. `entries[1..]` names `live` the moved copy of the duplicated
+// slice carriers at `pair`, so the call `drain(live, bound)` transports the
+// windowed collection through the component: `rest.len` is the produced
+// length of the named copy, while `saved` stays a stale snapshot.
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) -> u64 {
+    let view: &[Entry] = self.entries.as_slice();
+
+    transition {
+        _ -> self.scan(view, 4)
+    }
+}
+
+machine Main::scan(&mut self, entries: &[Entry], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 {
+        true -> pair(entries, entries[1..], capacity)
+        false -> 0
+    }
+    state pair(saved: &[Entry], live: &[Entry], bound: u64) {
+        transition live.len > 0 && live.len <= bound {
+            true -> self.drain(live, bound)
+            false -> 0
+        }
+    }
+}
+
+machine Main::drain(&mut self, rest: &[Entry], capacity: u64)
+requires rest.len <= capacity;
+terminates by rest -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition rest.len > 0 {
+        true -> self.scan(rest[1..], capacity)
+        false -> 0
+    }
+}

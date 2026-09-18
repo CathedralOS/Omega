@@ -242,13 +242,25 @@ fn slice_component_reads_duplicated_collection_copies() {
             transition rest.len > 0 { true -> self.scan(rest[1..], capacity) false -> 0 }
         }";
     assert_eq!(admitted(&typed_source(source)).len(), 1);
-    // A windowed second copy is not the same produced length; the computed
-    // claimant demotes and the transported rank cannot prove nonincrease.
+    // A windowed second copy is the moved copy of the collection: `second`
+    // names the continuation the rank reads -- `rest.len` is `items.len - 1`
+    // at the site -- while the stale `first` snapshot demotes.
     let diverged = source.replace(
         "pair(items, items, capacity)",
         "pair(items, items[1..], capacity)",
     );
-    assert!(admitted(&typed_source(&diverged)).is_empty());
+    assert_eq!(admitted(&typed_source(&diverged)).len(), 1);
+    // Transporting the demoted copy instead leaves the callee's slice
+    // unranked: `first` forwards the pre-step value and carries no role.
+    let stale = diverged.replace("self.step(second, bound)", "self.step(first, bound)");
+    assert!(admitted(&typed_source(&stale)).is_empty());
+    // When both copies arrive through the same window, no unique moved copy
+    // exists and the rank has no carrier at all.
+    let ambiguous = source.replace(
+        "pair(items, items, capacity)",
+        "pair(items[1..], items[1..], capacity)",
+    );
+    assert!(admitted(&typed_source(&ambiguous)).is_empty());
 }
 
 #[test]

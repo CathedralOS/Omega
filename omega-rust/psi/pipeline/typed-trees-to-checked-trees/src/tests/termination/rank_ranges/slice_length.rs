@@ -104,6 +104,66 @@ fn source_selected_subslicing_cannot_supply_builtin_length_geometry() {
     ));
 }
 
+/// Two copies of the ranked collection: a strict subslice arrival names the
+/// moved copy, and the stale sibling demotes rather than sharing the role.
+const DUPLICATED: &str = r#"
+machine walk(entries: &[u32], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 {
+        true -> pair(entries, entries, capacity)
+        false -> 0
+    }
+    state pair(live: &[u32], saved: &[u32], bound: u64) {
+        transition live.len > 0 {
+            true -> pair(live[1..], saved, bound)
+            false -> 0
+        }
+    }
+}
+"#;
+
+#[test]
+fn duplicated_slice_copies_name_the_subslice_step_as_continuation() {
+    prove(DUPLICATED);
+    // Whichever slot receives the strict subslice is the continuation: the
+    // naming follows the moved arrival, not a position.
+    prove(
+        &DUPLICATED
+            .replace("transition live.len > 0", "transition saved.len > 0")
+            .replace(
+                "true -> pair(live[1..], saved, bound)",
+                "true -> pair(live, saved[1..], bound)",
+            ),
+    );
+    // The diverging window may already arrive at the state: `saved` holds
+    // the pre-step snapshot and `live` is the moved copy from the start.
+    prove(&DUPLICATED.replace(
+        "true -> pair(entries, entries, capacity)",
+        "true -> pair(entries[1..], entries, capacity)",
+    ));
+    // Both copies windowing leaves the continuation ambiguous -- neither is
+    // the unique moved copy.
+    reject(&DUPLICATED.replace(
+        "true -> pair(live[1..], saved, bound)",
+        "true -> pair(live[1..], saved[1..], bound)",
+    ));
+    // A window that drops no proved-positive front segment is not divergence
+    // evidence: `live` demotes to the stale `saved` forward and the rank
+    // never decreases.
+    reject(&DUPLICATED.replace(
+        "true -> pair(live[1..], saved, bound)",
+        "true -> pair(live[0..], saved, bound)",
+    ));
+    // Reading the demoted copy as the next collection is rejected: `rest`
+    // receives `saved`'s pre-step slice while the role named `live`.
+    reject(&DUPLICATED.replace(
+        "false -> 0\n        }\n    }\n}",
+        "false -> finish(saved)\n        }\n    }\n    state finish(rest: &[u32]) {\n        transition rest.len > 0 {\n            true -> finish(rest[1..])\n            false -> 0\n        }\n    }\n}",
+    ));
+}
+
 #[test]
 fn mutable_slice_parameter_proves_only_while_the_prefix_preserves_its_path() {
     // A mutable slice parameter still denotes its arrival value while no
