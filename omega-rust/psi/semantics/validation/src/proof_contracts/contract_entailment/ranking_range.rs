@@ -934,6 +934,11 @@ fn prove_edge(
             substitutions.insert(identity.clone(), actual);
         }
     }
+    // Remainder/quotient atoms embed their operand's display, so the map
+    // cannot reach them by name: each minted term whose operand substitutes
+    // completely re-mints under the transported operand. An operand leaf the
+    // loop above did not cover keeps its atom unmapped and fails closed here.
+    engine.extend_argument_map_over_opaque_terms(&mut substitutions);
     let next_rank = inductive_judgment::apply_argument_map(&rank, &substitutions)?;
     let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
     let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;

@@ -619,3 +619,111 @@ mod field_views {
         assert!(!entry(&unbounded));
     }
 }
+
+mod remainder_endpoints {
+    //! Opaque remainder atoms embed their operand's display: the edge map
+    //! transports them only through the operand's own simultaneous
+    //! substitution, re-minted under the actual's exact polynomial.
+    use super::super::{
+        RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, prove_ranking_range_edge,
+        prove_ranking_range_entry,
+    };
+    use super::typed;
+    use typed_trees::TypedTrees;
+    use typed_trees::machine::Machine;
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+    const COMPUTED_COPY: &str = r#"
+        machine dive(remaining: u64 [0..=5], cap: u64)
+        terminates by remaining in 0..(cap % 5 + 6);
+        -> u64 {
+            transition remaining > 0 {
+                true -> dive(remaining - 1, cap - 0)
+                false -> remaining
+            }
+        }
+    "#;
+
+    const MOVED_COPY: &str = r#"
+        machine dive(remaining: u64 [0..=5], cap: u64, spare: u64)
+        terminates by remaining in 0..(cap % 5 + 6);
+        -> u64 {
+            transition remaining > 0 {
+                true -> dive(remaining - 1, spare, cap)
+                false -> remaining
+            }
+        }
+    "#;
+
+    fn edge(program: &TypedTrees, premises: RankingRangePremises) -> Option<RankingRangeEdgeProof> {
+        let machine: &Machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        let range = custody.rank_range.expect("range");
+        let StatementNode::Transition(transition) =
+            &program.statement_table.statements(root.statement_nodes)[0]
+        else {
+            panic!("one transition");
+        };
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            panic!("guarded transition");
+        };
+        let TransitionTargetNode::Named { arguments, .. } =
+            program.statement_table.transition_target(transition.target)
+        else {
+            panic!("named self edge");
+        };
+        prove_ranking_range_edge(
+            program,
+            machine,
+            root,
+            range,
+            RankingRangeMeasure::Single(custody.subjects[0]),
+            premises,
+            &[(guard, true)],
+            &[],
+            program.statement_table.expression_handles(*arguments),
+        )
+    }
+
+    fn entry(program: &TypedTrees) -> bool {
+        let machine: &Machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        let range = custody.rank_range.expect("range");
+        prove_ranking_range_entry(
+            program,
+            machine,
+            root,
+            range,
+            RankingRangeMeasure::Single(custody.subjects[0]),
+        )
+    }
+
+    #[test]
+    fn remainder_endpoints_transport_through_value_equal_actuals() {
+        // `cap - 0` is not the bare formal the static pin requires, but the
+        // relational edge proves the substituted endpoint identical.
+        let program = typed(COMPUTED_COPY);
+        assert!(entry(&program));
+        for premises in [
+            RankingRangePremises::RankInvariant,
+            RankingRangePremises::EntryInvariant,
+        ] {
+            let proof = edge(&program, premises).expect("self edge");
+            assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        }
+        // A different carrier changes the endpoint value: the re-minted atom
+        // keeps the operand's exact identity rather than forcing equality.
+        // Entry still proves -- the rejection is the edge's transport, not
+        // the fixture's own range.
+        let moved = typed(MOVED_COPY);
+        assert!(entry(&moved));
+        assert!(edge(&moved, RankingRangePremises::RankInvariant).is_none());
+        assert!(edge(&moved, RankingRangePremises::EntryInvariant).is_none());
+    }
+}

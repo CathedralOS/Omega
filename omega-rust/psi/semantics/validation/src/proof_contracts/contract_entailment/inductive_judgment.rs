@@ -485,6 +485,9 @@ fn self_call_argument_map(
         let polynomial = engine.normalize(*argument)?;
         map.insert(name, polynomial);
     }
+    // Remainder/quotient atoms embed their operand's display; let a measure
+    // or conjunct carrying one transport through the same simultaneous map.
+    engine.extend_argument_map_over_opaque_terms(&mut map);
     Some(map)
 }
 
