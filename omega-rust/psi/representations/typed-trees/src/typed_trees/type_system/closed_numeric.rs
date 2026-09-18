@@ -395,6 +395,23 @@ pub fn has_anonymous_operator_meaning(program: &TypedTrees, expression: Expressi
 
 /// Require anonymous operand lookup and each retained authored occurrence to
 /// permit builtin meaning. The spelling alone never grants that authority.
+///
+/// The lookup passes unconstrained operands, which declared operators treat as
+/// wildcards, so a competing declaration is admitted on its spelling alone
+/// while the tree still has no carrier. A wholly anonymous numeric tree does
+/// have one settled fact about its operands: they are numeric literals, and
+/// [numeric values](../../../../../../../wiki/spec/language/numeric_values.md)
+/// makes the carriers part of the meaning — "an operation's selected
+/// declaration, operand carriers, and arithmetic policy determine its
+/// meaning". A declaration whose own operand carrier is an ordinary data type
+/// can never be selected by such a tree, so it does not compete. Without that
+/// distinction `core/nat.omg`'s `operator - Nat::subtract(left: Nat, right:
+/// Nat)` removed builtin meaning from every anonymous subtraction in every
+/// program importing the bundled library.
+///
+/// A primitive, refined, or generic operand carrier still competes: a declared
+/// `operator / f64::divide(left: f64, right: f64)` remains this tree's
+/// possible meaning, and its literal may not fold.
 pub fn has_builtin_anonymous_operands(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -405,7 +422,14 @@ pub fn has_builtin_anonymous_operands(
         AuthoredDeclarationSelectionLateBinding as LateBinding,
         AuthoredDeclarationSelectionTarget as Target,
     };
-    crate::operator::resolve_spelling_for_operands(program, spelling, &[None, None]).is_empty()
+    crate::operator::resolve_spelling_for_operands(program, spelling, &[None, None])
+        .iter()
+        .all(|candidate| {
+            program
+                .operator_parameters(candidate.operator)
+                .iter()
+                .any(|parameter| data_carrier_operand(program, parameter.type_reference))
+        })
         && program
             .expression_table
             .authored_selection_occurrences(expression)
@@ -421,6 +445,33 @@ pub fn has_builtin_anonymous_operands(
                         )
                     })
             })
+}
+
+/// Whether this declared operand carrier is an ordinary data declaration, and
+/// so cannot be the landing carrier of an anonymous numeric literal. A
+/// primitive, an unresolved or generic parameter, a domain-refined carrier, an
+/// array, and a slice all answer `false`: each may still accept the literal,
+/// or its carrier is not settled at this stage.
+fn data_carrier_operand(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    use crate::types::TypeReferenceNode;
+
+    if !type_reference.is_valid() || program.primitive_type_reference(type_reference).is_some() {
+        return false;
+    }
+    let symbol = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            return data_carrier_operand(program, *referee);
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            return data_carrier_operand(program, *base_type);
+        }
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        _ => return false,
+    };
+    program
+        .data_definitions()
+        .iter()
+        .any(|definition| definition.symbol == symbol)
 }
 
 #[cfg(test)]
