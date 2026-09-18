@@ -413,7 +413,8 @@ prerequisite to every lower-rung milestone.
   support section, `GammaComposedV2` record, and repacked
   canonical closure in `tools/bootstrap/delta/compiler_env.sh` (which also
   checks the record names the selected evaluator, packed closure, and packed
-  support section), the
+  support section, and binds the staged-compiler gate's
+  `development_driver.gamma` diagnostic entry), the
   Epsilon evaluator manifest and repacked closure, the canonical slice
   driver `execution_driver.delta`, and the reconstructed evaluator receipt
   obligation in
@@ -429,8 +430,9 @@ prerequisite to every lower-rung milestone.
   closure now reaches it through the bound materializers or their
   `require_*_identity` checks; only gate-local diagnostic closures and
   per-gate prefix entries still pack on top of the bound member bytes (the
-  shared slice driver is bound; the remaining unbound prefixes are each
-  gate's own driver and D's gate-local entries).
+  shared slice driver and the registered staged-compiler development entry
+  are bound; the remaining unbound prefixes are the other gate-local drivers
+  and D's gate-local entries).
   Next: bind D's OCREQ request
   entry, the omega0/omega compiler tapes, and the eventual certificate and
   disclosed admission records the same way as those artifacts land.
