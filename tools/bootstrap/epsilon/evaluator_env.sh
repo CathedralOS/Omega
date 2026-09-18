@@ -39,6 +39,28 @@ EPSILON_EXECUTION_DRIVER_SHA256=ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a
 EPSILON_EVALUATOR_RECEIPT_SIZE=721484
 EPSILON_EVALUATOR_RECEIPT_SHA256=71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082
 
+# Bound canonical section-11 entry and its reconstructed obligation. The
+# canonical evaluator entry tests/epsilon/evaluator-entry/evaluator_entry.delta
+# is the evaluator's real `main`: appended after the packed evaluator it forms
+# the Delta subject whose compilation through the bound Delta compiler and
+# support section reconstructs exactly one canonical evaluator receipt - the
+# artifact that consumes the EREQ envelope and publishes canonical
+# observations or EEOUT refusal frames
+# (bootstrap/4_epsilon/EVALUATOR_ENTRY.md). The entry lives outside the
+# closure because the closure's source inventory owns every .delta file under
+# bootstrap/4_epsilon/; it sits beside its boundary gate under the same
+# placement rule as the diagnostic driver. The identical pins in
+# tests/epsilon/evaluator-entry/{README.md,run.sh} and
+# bootstrap/4_epsilon/EVALUATOR_ENTRY.md are records of this one obligation,
+# not independent identities. A digest here is an identity check on the entry
+# source or the reconstructed bytes; it is not a proof of evaluation. Changing
+# the entry, the packed closure, the compiler, or the support section changes
+# the receipt and must update every record together.
+EPSILON_EVALUATOR_ENTRY_SIZE=10950
+EPSILON_EVALUATOR_ENTRY_SHA256=52032438c1236f51095b761afcb3111df2ae2d73ac9be7e91883bbfbd273e5e3
+EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE=729060
+EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256=bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368
+
 # require_epsilon_evaluator_identity : the canonical manifest is the bound
 # file and repacking it reproduces exactly the bound evaluator closure.
 # Every materialization runs it; tests may call it directly. bootstrap_sha256
@@ -92,6 +114,31 @@ require_epsilon_evaluator_receipt_identity() {
   require_bound_identity "Epsilon evaluator receipt" "$1" \
     "$EPSILON_EVALUATOR_RECEIPT_SIZE" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
     "tests/epsilon/interpreted-omega-experiment/README.md"
+}
+
+# require_epsilon_evaluator_entry_identity : the canonical section-11 entry
+# appended after the packed evaluator to form the canonical Delta subject is
+# the bound file. The entry is a separate input to the DCREQ subject, so
+# consumers that frame evaluator+entry requests run this before compiling;
+# tests may call it directly. It is not part of the source closure and does
+# not run during materialization.
+require_epsilon_evaluator_entry_identity() {
+  require_bound_identity "evaluator_entry.delta" \
+    "${OMEGA_PATH_EPSILON_EVALUATOR_ENTRY:-$OMEGA_REPO_ROOT/tests/epsilon/evaluator-entry/evaluator_entry.delta}" \
+    "$EPSILON_EVALUATOR_ENTRY_SIZE" "$EPSILON_EVALUATOR_ENTRY_SHA256" \
+    "tests/epsilon/evaluator-entry/README.md"
+}
+
+# require_epsilon_evaluator_entry_receipt_identity RECEIPT : the canonical
+# receipt a caller reconstructed by executing the bound Delta compiler over
+# the bound evaluator, bound entry, and bound support section is exactly the
+# bound obligation. The check executes nothing; a divergent reconstruction is
+# refused before the caller could consume it.
+require_epsilon_evaluator_entry_receipt_identity() {
+  require_bound_identity "Epsilon evaluator canonical receipt" "$1" \
+    "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE" \
+    "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256" \
+    "tests/epsilon/evaluator-entry/README.md"
 }
 
 # materialize_epsilon_evaluator DEST : write the canonical packed evaluator

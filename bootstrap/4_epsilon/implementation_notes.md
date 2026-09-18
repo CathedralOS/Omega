@@ -30,8 +30,14 @@ authors no transient token objects into the generated program's fixed immutable
 heap. The ambiguous arm-level `return expression?` uses the same scalar
 lookahead to recognize a complete following `pattern ->` prefix. Parser success
 wrappers contain only their native AST value and no duplicated cursor or span.
-It deliberately has no final evaluator `main` or composed executable identity.
-The staging execution path starts from `Main::main` accepted by the current
+The closure deliberately still has no `main` of its own: the canonical
+evaluator `main` is the bound edge source
+[`tests/epsilon/evaluator-entry/evaluator_entry.delta`](../../tests/epsilon/evaluator-entry/evaluator_entry.delta),
+appended after the packed closure to form the canonical Delta subject. Its
+receipt, EREQ request envelope, canonical observation grammar, and EEOUT
+refusal frame are defined in [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) and
+executed by `tests/epsilon/evaluator-entry/run.sh`. The staging execution
+path starts from `Main::main` accepted by the current
 checking pipeline; the remaining conformance obligations below still apply.
 Local, machine-parameter, state-parameter, and transition-payload bindings retain
 exact checked declaration identity while their roots distinguish invocations.
@@ -192,8 +198,11 @@ rejection for the resulting array view are implemented. Its execution route
 retains only a place-backed full view, as described above.
 All grammar-level execution forms have staging implementations. This does not
 prove their semantics: contract-derived conformance and independent refinement
-remain required. The final evaluator boundary and `main`, resource containment,
-and complete Omega D composition remain implementation gaps. New execution work
+remain required. The evaluator boundary and `main` are now realized by
+[`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) within current construct coverage;
+resource containment beyond the derived lower-chain profile, complete Omega D
+composition, and independent `RunEpsilon` refinement remain implementation
+gaps. New execution work
 must name a concrete failing program or required conformance/refinement
 obligation, not assume an unspecified syntax form is unimplemented.
 The entry-diagnostic and profile-independent structural type-formation judgments

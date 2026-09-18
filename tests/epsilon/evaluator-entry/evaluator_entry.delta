@@ -1,0 +1,252 @@
+; evaluator_entry.delta - canonical section-11 evaluator entry.
+;
+; This file is the evaluator's real `main`: appended after the packed
+; epsilon_compiler.delta.sources closure it forms the Delta subject that the
+; bound Delta compiler lowers into the canonical Epsilon evaluator artifact.
+; The closure owns every .delta file under bootstrap/4_epsilon/ through its
+; source inventory, so the edge entry lives beside its boundary gate here,
+; the same placement the private development driver uses in
+; tests/epsilon/interpreted-omega-experiment/execution_driver.delta. That
+; adapter remains the diagnostic transport and is not this boundary.
+;
+; EREQ v1 request (the complete sealed input):
+;   0..8    identity 45 45 52 45 51 01 00 00 ("EEREQ" version 1, reserved zero)
+;   8..12   evaluator profile, little-endian u32; version 1 assigns exactly 1
+;           (ExactConsoleV1: exact source closure, exact stdin, exact
+;           observation, no host parsing or policy)
+;  12..16   source closure length, little-endian u32, high bit clear
+;  16..20   sealed stdin length, little-endian u32, high bit clear
+;  20..52   claimed evaluator-closure identity: SHA-256 of the packed
+;           epsilon_compiler.delta.sources closure this artifact was composed
+;           from, checked byte-for-byte against the bound identity embedded
+;           below, so a request prepared for another artifact refuses on this
+;           artifact rather than evaluating the wrong boundary
+;  52..     exact source closure bytes, then exact stdin bytes, then exact end
+;
+; Status-zero publications fall into two disjoint classes selected by their
+; first byte; neither class is producible by the other:
+;
+;   Canonical observations (the complete RunEpsilon observation):
+;     00 + i32 exit code, little-endian + exact stdout bytes
+;     01 + trap kind u8                    + exact stdout prefix
+;     02 + reject reason u8 + u32 source coordinate, little-endian
+;
+;   Refusal frames, always 40 bytes: FF 45 45 4F 55 54 01 00
+;   ("EEOUT" version 1) followed by:
+;     u8  outcome   (1 = request refusal, 3 = internal failure)
+;     u8  space     (1 = request byte coordinate, 2 = internal diagnostic
+;                    coordinate reported by the evaluator)
+;     u16 reserved  (zero)
+;     u32 code      (request refusals: 1 short_header, 2 identity_or_reserved,
+;                    3 unknown_profile, 4 length_high_bit, 5 artifact_mismatch,
+;                    6 section_extent, 7 trailing_input;
+;                    internal failures: 1 evaluator_internal)
+;     u64 coordinate, u64 limit, u64 requested, little-endian
+;
+; Every malformed request, unknown profile, or artifact mismatch publishes an
+; EEOUT frame and never an Epsilon observation. Resource refusals (sealed
+; input extent, publication extent, evaluator storage) remain lower-chain
+; nonzero statuses with empty stdout: no frame and no observation are
+; published. Evaluator-internal contradictions publish EEOUT outcome 3 rather
+; than an observation tag.
+
+; Request identity "EEREQ" 01 00 00.
+(def epsilon_edge_identity_byte ((index Int)) Int
+  (if (eq index 0) 69
+    (if (eq index 1) 69
+      (if (eq index 2) 82
+        (if (eq index 3) 69
+          (if (eq index 4) 81
+            (if (eq index 5) 1
+              0)))))))
+
+; Refusal-frame identity FF "EEOUT" 01 00.
+(def epsilon_edge_refusal_byte ((index Int)) Int
+  (if (eq index 0) 255
+    (if (eq index 1) 69
+      (if (eq index 2) 69
+        (if (eq index 3) 79
+          (if (eq index 4) 85
+            (if (eq index 5) 84
+              (if (eq index 6) 1
+                0))))))))
+
+; Bound evaluator-closure identity this artifact was composed from: SHA-256
+; 4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e of the
+; packed epsilon_compiler.delta.sources closure. Changing the closure changes
+; this identity and must update every bound record together.
+(def epsilon_edge_closure_byte ((index Int)) Int
+  (if (lt index 16)
+    (if (lt index 8)
+      (if (eq index 0) 74
+        (if (eq index 1) 140
+          (if (eq index 2) 151
+            (if (eq index 3) 249
+              (if (eq index 4) 173
+                (if (eq index 5) 143
+                  (if (eq index 6) 62
+                    245)))))))
+      (if (eq index 8) 186
+        (if (eq index 9) 230
+          (if (eq index 10) 194
+            (if (eq index 11) 249
+              (if (eq index 12) 161
+                (if (eq index 13) 199
+                  (if (eq index 14) 47
+                    52))))))))
+    (if (lt index 24)
+      (if (eq index 16) 51
+        (if (eq index 17) 64
+          (if (eq index 18) 94
+            (if (eq index 19) 110
+              (if (eq index 20) 121
+                (if (eq index 21) 97
+                  (if (eq index 22) 1
+                    105)))))))
+      (if (eq index 24) 176
+        (if (eq index 25) 59
+          (if (eq index 26) 3
+            (if (eq index 27) 167
+              (if (eq index 28) 66
+                (if (eq index 29) 23
+                  (if (eq index 30) 253
+                    142))))))))))
+
+; Fixed-width encoders: the boundary's publications are exact little-endian
+; bytes, matching the diagnostic edge's observation byte order.
+(def epsilon_edge_u32 ((value Int)) Bytes
+  (bytes_concat
+    (bytes_concat
+      (bytes_single (% value 256))
+      (bytes_single (% (/ value 256) 256)))
+    (bytes_concat
+      (bytes_single (% (/ value 65536) 256))
+      (bytes_single (% (/ value 16777216) 256)))))
+
+(def epsilon_edge_u64 ((value Int)) Bytes
+  (bytes_concat
+    (epsilon_edge_u32 (% value 4294967296))
+    (epsilon_edge_u32 (/ value 4294967296))))
+
+(def epsilon_edge_u32_at ((request Bytes) (offset Int)) Int
+  (+ (+ (bytes_get request offset)
+        (* (bytes_get request (+ offset 1)) 256))
+     (+ (* (bytes_get request (+ offset 2)) 65536)
+        (* (bytes_get request (+ offset 3)) 16777216))))
+
+(def epsilon_edge_refusal_identity ((index Int)) Bytes
+  (if (eq index 8)
+    (bytes_empty)
+    (bytes_concat
+      (bytes_single (epsilon_edge_refusal_byte index))
+      (epsilon_edge_refusal_identity (+ index 1)))))
+
+(def epsilon_edge_refusal ((outcome Int) (space Int) (code Int)
+  (coordinate Int) (limit Int) (requested Int)) Bytes
+  (bytes_concat
+    (epsilon_edge_refusal_identity 0)
+    (bytes_concat
+      (bytes_single outcome)
+      (bytes_concat
+        (bytes_single space)
+        (bytes_concat
+          (bytes_single 0)
+          (bytes_concat
+            (bytes_single 0)
+            (bytes_concat
+              (epsilon_edge_u32 code)
+              (bytes_concat
+                (epsilon_edge_u64 coordinate)
+                (bytes_concat
+                  (epsilon_edge_u64 limit)
+                  (epsilon_edge_u64 requested))))))))))
+
+(def epsilon_edge_request_refusal ((code Int) (coordinate Int)) Bytes
+  (epsilon_edge_refusal 1 1 code coordinate 0 0))
+
+(def epsilon_edge_extent_refusal ((coordinate Int) (limit Int) (requested Int)) Bytes
+  (epsilon_edge_refusal 1 1 6 coordinate limit requested))
+
+; Sealed stdin is an exact declared section; the evaluator consumes it as a
+; balanced byte tree so indexing stays cheap for repeated reads.
+(def epsilon_edge_take_bytes ((input Bytes) (start Int) (end Int)) Bytes
+  (if (eq start end)
+    (bytes_empty)
+    (if (eq (+ start 1) end)
+      (bytes_single (bytes_get input start))
+      (let middle Int (+ start (/ (- end start) 2))
+        (bytes_concat
+          (epsilon_edge_take_bytes input start middle)
+          (epsilon_edge_take_bytes input middle end))))))
+
+; Admission stages: each returns the final publication (a canonical
+; observation or an EEOUT frame); a failed stage never reaches evaluation.
+(def epsilon_edge_check_identity ((request Bytes) (index Int) (extent Int)) Bytes
+  (if (eq index 8)
+    (epsilon_edge_check_profile request extent)
+    (if (eq (bytes_get request index) (epsilon_edge_identity_byte index))
+      (epsilon_edge_check_identity request (+ index 1) extent)
+      (epsilon_edge_request_refusal 2 index))))
+
+(def epsilon_edge_check_profile ((request Bytes) (extent Int)) Bytes
+  (if (eq (epsilon_edge_u32_at request 8) 1)
+    (epsilon_edge_check_lengths request extent)
+    (epsilon_edge_request_refusal 3 8)))
+
+(def epsilon_edge_check_lengths ((request Bytes) (extent Int)) Bytes
+  (if (lt 127 (bytes_get request 15))
+    (epsilon_edge_request_refusal 4 15)
+    (if (lt 127 (bytes_get request 19))
+      (epsilon_edge_request_refusal 4 19)
+      (epsilon_edge_check_artifact request 0 extent))))
+
+(def epsilon_edge_check_artifact ((request Bytes) (index Int) (extent Int)) Bytes
+  (if (eq index 32)
+    (epsilon_edge_check_extents request extent)
+    (if (eq (bytes_get request (+ 20 index)) (epsilon_edge_closure_byte index))
+      (epsilon_edge_check_artifact request (+ index 1) extent)
+      (epsilon_edge_request_refusal 5 (+ 20 index)))))
+
+(def epsilon_edge_check_extents ((request Bytes) (extent Int)) Bytes
+  (let sourceLength Int (epsilon_edge_u32_at request 12)
+    (if (lt (- extent 52) sourceLength)
+      (epsilon_edge_extent_refusal 12 (- extent 52) sourceLength)
+      (let stdinLength Int (epsilon_edge_u32_at request 16)
+        (if (lt (- (- extent 52) sourceLength) stdinLength)
+          (epsilon_edge_extent_refusal 16
+            (- (- extent 52) sourceLength) stdinLength)
+          (if (eq extent (+ (+ 52 sourceLength) stdinLength))
+            (epsilon_edge_run request sourceLength extent)
+            (epsilon_edge_request_refusal 7
+              (+ (+ 52 sourceLength) stdinLength))))))))
+
+; The evaluator itself: checking plus execution through the entry evaluator,
+; serialized into the canonical observation or an internal EEOUT frame.
+(def epsilon_edge_run ((request Bytes) (sourceLength Int) (extent Int)) Bytes
+  (match (epsilon_source_view request 52 sourceLength)
+    (InvalidEpsilonSourceView
+      (epsilon_edge_request_refusal 6 12))
+    ((ValidEpsilonSourceView source)
+      (match (epsilon_evaluate_entry_view source
+               (epsilon_edge_take_bytes request (+ 52 sourceLength) extent))
+        ((EpsilonEvaluatorSliceExit code output)
+          (bytes_concat (bytes_single 0)
+            (bytes_concat
+              (epsilon_edge_u32 (if (lt code 0) (+ code 4294967296) code))
+              output)))
+        ((EpsilonEvaluatorSliceTrap kind output)
+          (bytes_concat (bytes_single 1)
+            (bytes_concat (bytes_single kind) output)))
+        ((EpsilonEvaluatorSliceRejected reasonValue errorOffset)
+          (bytes_concat (bytes_single 2)
+            (bytes_concat
+              (bytes_single (epsilon_reject_reason_identity reasonValue))
+              (epsilon_edge_u32 errorOffset))))
+        ((EpsilonEvaluatorSliceInternal errorOffset)
+          (epsilon_edge_refusal 3 2 1 errorOffset 0 0))))))
+
+(def main ((request Bytes)) Bytes
+  (let extent Int (bytes_length request)
+    (if (lt extent 52)
+      (epsilon_edge_request_refusal 1 extent)
+      (epsilon_edge_check_identity request 0 extent))))

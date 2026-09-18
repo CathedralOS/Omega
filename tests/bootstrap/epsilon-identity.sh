@@ -98,6 +98,57 @@ rc=0
   fail "truncated driver: expected exit 3, got $rc"
 echo "driver: a truncated driver is refused"
 
+require_epsilon_evaluator_entry_identity ||
+  fail "bound entry identity check refused the canonical entry"
+echo "entry: canonical evaluator entry passes the bound identity check"
+
+EPSILON_ENTRY_FILE="$OMEGA_REPO_ROOT/tests/epsilon/evaluator-entry/evaluator_entry.delta"
+cp "$EPSILON_ENTRY_FILE" "$TMP/corrupt-entry.delta"
+if [ "$(od -An -tc -j 100 -N1 "$TMP/corrupt-entry.delta" | tr -d ' ')" = "a" ]; then
+  printf 'b' | dd of="$TMP/corrupt-entry.delta" bs=1 seek=100 conv=notrunc status=none
+else
+  printf 'a' | dd of="$TMP/corrupt-entry.delta" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_EPSILON_EVALUATOR_ENTRY=$TMP/corrupt-entry.delta
+  require_epsilon_evaluator_entry_identity
+) 2>"$TMP/corrupt-entry.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted entry: expected exit 3, got $rc"
+grep -q 'evaluator-entry/README.md' "$TMP/corrupt-entry.err" ||
+  fail "corrupted entry: refusal did not cite the entry record"
+echo "entry: a one-byte entry change is refused"
+
+head -c $((EPSILON_EVALUATOR_ENTRY_SIZE - 1)) \
+  "$EPSILON_ENTRY_FILE" > "$TMP/truncated-entry.delta"
+rc=0
+(
+  export OMEGA_PATH_EPSILON_EVALUATOR_ENTRY=$TMP/truncated-entry.delta
+  require_epsilon_evaluator_entry_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated entry: expected exit 3, got $rc"
+echo "entry: a truncated entry is refused"
+
+printf 'not the reconstructed canonical receipt' > "$TMP/short-entry-receipt"
+rc=0
+require_epsilon_evaluator_entry_receipt_identity "$TMP/short-entry-receipt" \
+  2>"$TMP/short-entry-receipt.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "short canonical receipt: expected exit 3, got $rc"
+grep -q 'evaluator-entry/README.md' "$TMP/short-entry-receipt.err" ||
+  fail "short canonical receipt: refusal did not cite the receipt record"
+echo "entry receipt: a wrong-size reconstruction is refused"
+
+head -c "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE" /dev/zero > "$TMP/zero-entry-receipt"
+rc=0
+require_epsilon_evaluator_entry_receipt_identity "$TMP/zero-entry-receipt" \
+  2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "zero canonical receipt: expected exit 3, got $rc"
+echo "entry receipt: a same-size divergent reconstruction is refused"
+
 printf 'not the reconstructed evaluator receipt' > "$TMP/short-receipt"
 rc=0
 require_epsilon_evaluator_receipt_identity "$TMP/short-receipt" \
@@ -174,6 +225,18 @@ do
     "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/EVALUATOR_PROFILE.md" ||
     fail "4_epsilon EVALUATOR_PROFILE.md lacks bound record $needle"
 done
-echo "records: bound identities match the rung README, the edge profile, the driver owner README, and every consuming gate"
+for needle in \
+  "$EPSILON_EVALUATOR_ENTRY_SHA256" \
+  "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256" \
+  "$EPSILON_EVALUATOR_PACKED_SHA256" "10,950" "729,060"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/EVALUATOR_ENTRY.md" ||
+    fail "4_epsilon EVALUATOR_ENTRY.md lacks bound record $needle"
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/tests/epsilon/evaluator-entry/README.md" ||
+    fail "evaluator-entry README lacks bound record $needle"
+done
+echo "records: bound identities match the rung README, the edge profile, the entry envelope, the driver and entry owner READMEs, and every consuming gate"
 
-echo "Epsilon identity: bound closure materialized exactly; corrupted manifest, member, driver, and receipt refused"
+echo "Epsilon identity: bound closure materialized exactly; corrupted manifest, member, driver, entry, and receipts refused"
