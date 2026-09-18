@@ -377,6 +377,240 @@ fn declared_data_symbol(program: &typed_trees::TypedTrees, type_name: &str) -> S
         .symbol
 }
 
+/// Drop every retained symbol along a member receiver's place chain — name
+/// path member/head/leaf symbols and intermediate member symbols — so only
+/// the contextual place walk can still identify the demanded member. This is
+/// the gap `resolve_member_symbol_from_place` exists for; with the receiver's
+/// symbols present the expression route answers first.
+fn strip_receiver_symbols(program: &mut typed_trees::TypedTrees, receiver: ExpressionHandle) {
+    let mut cursor = receiver;
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
+            ExpressionNode::Borrow(borrow) => cursor = borrow.target,
+            ExpressionNode::Member(member) => {
+                let next = member.receiver;
+                let ExpressionNode::Member(member) =
+                    program.expression_table.expression_mut(cursor)
+                else {
+                    unreachable!();
+                };
+                member.member_symbol = SymbolHandle::invalid();
+                cursor = next;
+            }
+            ExpressionNode::Name(path) => {
+                let member_symbols = path.member_symbols;
+                let count = program
+                    .expression_table
+                    .name_path_member_symbols(member_symbols)
+                    .len();
+                for offset in 0..count {
+                    program
+                        .expression_table
+                        .set_name_path_member_symbol_at_offset(
+                            member_symbols,
+                            offset as u32,
+                            SymbolHandle::invalid(),
+                        );
+                }
+                let ExpressionNode::Name(path) = program.expression_table.expression_mut(cursor)
+                else {
+                    unreachable!();
+                };
+                path.head_symbol = SymbolHandle::invalid();
+                path.symbol = SymbolHandle::invalid();
+                break;
+            }
+            _ => break,
+        }
+    }
+}
+
+/// The statement index carrying `member_handle`, so the contextual walk sees
+/// the same local-prefix window the real call site passes.
+fn member_statement_index(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    member_handle: ExpressionHandle,
+) -> usize {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .position(|statement| {
+            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                return false;
+            };
+            let mut cursor = local.initial_value;
+            loop {
+                if cursor == member_handle {
+                    return true;
+                }
+                cursor = match program.expression_table.expression(cursor) {
+                    ExpressionNode::Member(member) => member.receiver,
+                    ExpressionNode::Indexed(indexed) => indexed.collection,
+                    ExpressionNode::Borrow(borrow) => borrow.target,
+                    _ => return false,
+                };
+            }
+        })
+        .expect("the member expression belongs to a local initializer in the fixture")
+}
+
+/// `values[<lit>].item` members under `machine hold(values: &[Box<Context>])`,
+/// selected by whether the index is a compile-time constant. Returns the
+/// member handle, the holding state's symbol, and the statement index.
+fn indexed_item_member(
+    program: &typed_trees::TypedTrees,
+    constant_index: bool,
+) -> (ExpressionHandle, SymbolHandle, usize) {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "hold")
+        .expect("hold machine");
+    let state = &program.machine_states(machine)[0];
+    let member_handle = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            if member.member.as_str() != "item" {
+                return None;
+            }
+            let ExpressionNode::Indexed(indexed) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            (program
+                .expression_table
+                .constant_integer_value(indexed.index)
+                .is_some()
+                == constant_index)
+                .then_some(handle)
+        })
+        .expect("values[..].item member expression");
+    let statement_index = member_statement_index(program, state, member_handle);
+    (member_handle, state.symbol, statement_index)
+}
+
+#[test]
+fn place_member_resolution_replays_an_indexed_generic_leaf() {
+    let (mut program, _, _) = indexed_generic_leaf_fixture();
+    let item_symbol = declared_field(&program, "Box", "item");
+    let (member_handle, state_symbol, statement_index) = indexed_item_member(&program, true);
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "hold")
+        .unwrap();
+    let values_parameter = program
+        .state_parameters(&program.machine_states(machine)[0])
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "values")
+        .expect("values parameter")
+        .symbol;
+
+    // The retained receiver symbols are what let `effective_member_symbol`
+    // answer first; strip them so the demanded member can only be resolved by
+    // replaying the place walk over the parameter's declared `&[Box<Context>]`.
+    let member = match program.expression_table.expression(member_handle) {
+        ExpressionNode::Member(member) => member.clone(),
+        _ => unreachable!(),
+    };
+    let receiver = member.receiver;
+    strip_receiver_symbols(&mut program, receiver);
+    assert!(
+        !effective_member_symbol(&program, receiver, &member).is_valid(),
+        "the stripped receiver must leave the expression route unanswered"
+    );
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("a parameter-rooted indexed member place resolves");
+    assert_eq!(place.root, facts::PlaceRoot::Symbol(values_parameter));
+    assert_eq!(
+        place.segments,
+        [
+            facts::PlaceSegment::FixedIndex { index: 0 },
+            facts::PlaceSegment::Field {
+                symbol: item_symbol
+            },
+        ]
+    );
+}
+
+#[test]
+fn place_member_resolution_replays_a_runtime_indexed_generic_leaf() {
+    let (mut program, _, _) = indexed_generic_leaf_fixture();
+    let item_symbol = declared_field(&program, "Box", "item");
+    let (member_handle, state_symbol, statement_index) = indexed_item_member(&program, false);
+    let ExpressionNode::Member(member) = program.expression_table.expression(member_handle) else {
+        unreachable!();
+    };
+    let receiver = member.receiver;
+    let index = match program.expression_table.expression(receiver) {
+        ExpressionNode::Indexed(indexed) => indexed.index,
+        _ => unreachable!(),
+    };
+    strip_receiver_symbols(&mut program, receiver);
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("a parameter-rooted indexed member place resolves");
+    assert_eq!(
+        place.segments,
+        [
+            facts::PlaceSegment::Index { expression: index },
+            facts::PlaceSegment::Field {
+                symbol: item_symbol
+            },
+        ]
+    );
+}
+
+#[test]
+fn place_member_resolution_across_an_index_still_requires_a_declared_member() {
+    let (mut program, _, _) = indexed_generic_leaf_fixture();
+    let (member_handle, state_symbol, statement_index) = indexed_item_member(&program, true);
+    let receiver = match program.expression_table.expression(member_handle) {
+        ExpressionNode::Member(member) => member.receiver,
+        _ => unreachable!(),
+    };
+    strip_receiver_symbols(&mut program, receiver);
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(member_handle)
+    else {
+        unreachable!();
+    };
+    member.member = Identifier::generated("missing");
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("the place walk still builds");
+    // The index hop replays onto `Box<Context>`, whose declaration has no
+    // `missing` member: the demanded field stays unresolved rather than
+    // minting the collection's own identity for it.
+    assert!(matches!(
+        place.segments.last(),
+        Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
+    ));
+}
+
 #[test]
 fn case_qualified_payload_does_not_fall_back_when_qualification_is_missing() {
     let (program, original) = fixture();
