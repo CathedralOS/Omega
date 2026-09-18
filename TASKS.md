@@ -1732,32 +1732,44 @@ Owners include
   operation carrying an ordered per-position parameter class, a result class
   and a callee source, realized by the target's calling policy.
 
-- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete [representation agreement](wiki/spec/build/opaque_representations.md) at
-  independently compiled by-value exchanges. Dependency-first review compilation
-  now rejoins each consumer's actual foreign opaque uses to the producer review's
-  own declaration and opaque/conformance/carrier availability rows, bound to the
-  producer review's immutable source instance, with strong selected-application
-  equality enforced against the producer's own selection at actual exchanges
-  (`PackagePolicyRepresentation::rejoin_foreign_demands`), witnessed through
-  the package-manager review path by the two-package canaries in
-  `package-manager/tests/opaque_boundary_agreement.rs` (agreement rejoins the
-  consumer's `Token` demand to the producer's `Carrier`/`TokenRepresentation`;
-  a consumer-local application rejects with `SelectedApplicationMismatch`);
-  remaining: physical movement and lifecycle planning, including transitive
-  inert-carrier proof and multiplicity checks. Equal size/alignment or compact
-  fingerprints cannot establish agreement. External compatibility and
-  native-foreign binding materialization now consume the same authoritative
-  selection list (`evaluate_compatibility_boundary_entry_plan`), witnessed by
-  `calling_policy_plans::compatibility_boundary_materializes_the_selected_opaque_carrier`
-  and `calling_policy_plans::compatibility_boundary_rejects_opaque_by_value_without_build_selection`;
-  physical transport, artifact custody, and lifecycle/drop planning remain open.
+- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete
+  [representation agreement](wiki/spec/build/opaque_representations.md) at
+  independently compiled by-value exchanges. Selection and review exist.
+  `representation-planning` admits a selection only after the transitive
+  inert-carrier and copy checks
+  (`src/representation_selection/carrier_closure.rs`); calling-policy closure,
+  general layout and compatibility boundaries derive the carrier from that one
+  selection list (`evaluate_compatibility_boundary_entry_plan`); and
+  dependency-first review
+  rejoins each consumer's foreign opaque use to the producer's own declaration,
+  availability rows and selection, rejecting a consumer-local application with
+  `SelectedApplicationMismatch`
+  (`PackagePolicyRepresentation::rejoin_foreign_demands`,
+  `package-manager/tests/opaque_boundary_agreement.rs`). That is compile-time
+  and review-time policy. No native artifact carries the selected application,
+  and no opaque by-value crossing is transported or executed.
 
-  Carry the application through native artifacts, replacement compatibility,
-  stable-handle eras, and independently replaceable provider contracts.
+  Remaining work:
+
+  - Physical transport in Omega lowering and the backend: move the selected
+    carrier's bytes through argument, result and nested-field placements. An
+    affine or linear value keeps one semantic occurrence while bytes are copied
+    for placement; only a checked semantic copy creates another occurrence.
+  - Artifact custody: bind the strong selected-application commitment into
+    native artifacts, installation records and replay, so producer and
+    consumer artifacts compare it at each actual by-value edge.
+  - Replacement: carry the application through replacement compatibility,
+    stable-handle eras and independently replaceable provider contracts.
+    **COMPONENT-SUBSTRATE** owns the component closure these attach to.
+  - Cleanup-owning carriers need the separate versioned lifecycle relationship
+    the specification reserves. Until it exists every selection stays `Inert`
+    and a cleanup-owning carrier rejects.
+
   Acceptance: independently compiled producer/consumer and historical-selection
   canaries cover sealed `Ptr<T>` target semantics, proof-only `Real`,
-  `EfiSystemTable`, provider/replay drift, cleanup, and multiplicity; incompatible
-  by-value exchanges and replacements reject before execution.
+  `EfiSystemTable`, provider/replay drift, cleanup, and multiplicity;
+  incompatible by-value exchanges and replacements reject before execution.
+  Equal size/alignment or a compact fingerprint never establishes agreement.
 
 - **WRITE-ONLY-BORROW.** Finish `&write T` through projected aggregates,
   calls/results, dynamic dispatch, cleanup and native execution. Extend ordinary
