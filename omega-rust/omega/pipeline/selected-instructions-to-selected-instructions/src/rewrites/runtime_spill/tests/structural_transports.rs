@@ -19,7 +19,7 @@ use super::{
 use crate::RuntimeSpillError;
 use crate::ValidatedRuntimeSpill;
 use crate::rewrites::runtime_spill::admission;
-use crate::rewrites::runtime_spill::tests::budget;
+use crate::rewrites::runtime_spill::tests::{budget, fixture};
 use crate::spill_selected_runtime_value;
 use crate::validate_runtime_spill;
 use register_model::RegisterUnitId;
@@ -664,6 +664,316 @@ fn instruction_defined_transport_register_spills_through_its_uses() {
                 )
                 .is_ok()
             );
+        }
+    }
+}
+
+/// A transport pointer defined by an address-forming instruction —
+/// `FrameAddress`, `AddressOffset`, or `ByteViewAddress` — is stored and
+/// reloaded like any other result: the resolved address round-trips its bits
+/// through private storage. The victim's `AbiTransport` provenance stays on
+/// the forming instruction, the `Descriptor` snapshot's chunk loads are `Edge`
+/// accesses designed to follow the reload, and the binding's `argument` moves
+/// to the shared chunk reload exactly as for a `CopyI64` pointer.
+#[test]
+fn address_defined_transport_pointers_serve_snapshot_arguments() {
+    for target in targets() {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.selected_keys();
+        for (kind, key, registers) in [
+            (
+                SelectedInstructionKind::AddressOffset { byte_offset: 8 },
+                keys.address_offset,
+                vec![VirtualRegisterId(0), VirtualRegisterId(1)],
+            ),
+            (
+                SelectedInstructionKind::ByteViewAddress,
+                Some(keys.add_i64),
+                vec![
+                    VirtualRegisterId(0),
+                    VirtualRegisterId(0),
+                    VirtualRegisterId(1),
+                ],
+            ),
+            (
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(destination().0),
+                    byte_offset: 0,
+                },
+                keys.frame_address,
+                vec![VirtualRegisterId(1)],
+            ),
+        ] {
+            let mut source = descriptor_fixture(target);
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            function.blocks[1].instructions[0] = admission::instruction(
+                SelectedInstructionId(1),
+                kind,
+                environment.constraint(key.unwrap()).unwrap(),
+                &registers,
+            );
+            function.virtual_registers[1].origin = VirtualRegisterOrigin::AbiTransport {
+                instruction: SelectedInstructionId(1),
+                place: argument_place(),
+                byte_offset: 0,
+            };
+            function.virtual_registers[1].definition_site = None;
+            seal(&mut source);
+            let result = spill_selected_runtime_value(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+            )
+            .unwrap();
+            let transformed = &result.transformed().functions[0];
+            // The store lands immediately after the forming instruction and
+            // the snapshot's chunk loads share the block's one open reload —
+            // the register the binding's `argument` follows.
+            assert_eq!(
+                transformed.blocks[1].instructions[1].kind,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                        register: VirtualRegisterId(1)
+                    }),
+                    byte_offset: 0
+                },
+                "target {target:?} kind {kind:?}"
+            );
+            let first = bridge_instruction(transformed, 10).operands[0].virtual_register;
+            assert_eq!(
+                first,
+                bridge_instruction(transformed, 11).operands[0].virtual_register
+            );
+            assert_ne!(first, VirtualRegisterId(1));
+            let SelectedStructuralTransport::Descriptor { argument, .. } =
+                bridge_terminator_binding(transformed)
+            else {
+                unreachable!()
+            };
+            assert_eq!(argument, first);
+            // Independent replay restores the admitted source by content.
+            assert!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    result.transformed().clone()
+                )
+                .is_ok(),
+                "target {target:?} kind {kind:?}"
+            );
+            // A store that never landed is not the admitted plan.
+            let mut forged = result.transformed().clone();
+            forged.functions[0].blocks[1].instructions.remove(1);
+            assert_eq!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    forged
+                )
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch,
+                "target {target:?} kind {kind:?}"
+            );
+        }
+    }
+}
+
+/// A `FrameAddress` pointer that establishes a primitive local is different:
+/// the establishment replay binds the `WritePlace` store's address operand to
+/// the `AddressLocal` result verbatim, so the victim keeps that operand —
+/// admission refuses the pair rather than orphan the recorded establishment.
+/// Any `WritePlace` store outside that pair — another operation, or another
+/// place — binds no such operand, and a `ReadPlace` load's address operand is
+/// never bound at all; those uses follow the reload like every other one.
+#[test]
+fn established_pointer_victims_refuse_only_their_recorded_store() {
+    let place = argument_place();
+    let operation = OperationId::new(3).unwrap();
+    let other_operation = OperationId::new(4).unwrap();
+    let other_place = PlaceId::new(12).unwrap();
+    for target in targets() {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.selected_keys();
+        for (kind, key, registers, role, access_operation, access_place, admitted) in [
+            // The establishment store itself: the victim is the address
+            // operand the replay joins to the `AddressLocal` result.
+            (
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                },
+                keys.store,
+                vec![VirtualRegisterId(1), VirtualRegisterId(0)],
+                SelectedMemoryAccessRole::WritePlace,
+                operation,
+                place,
+                false,
+            ),
+            // A later write to the same place is replayed as an ordinary
+            // primitive-local store, whose address operand is content-free.
+            (
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                },
+                keys.store,
+                vec![VirtualRegisterId(1), VirtualRegisterId(0)],
+                SelectedMemoryAccessRole::WritePlace,
+                other_operation,
+                place,
+                true,
+            ),
+            // A write to another place through the same pointer pairs no
+            // `AddressLocal` at all.
+            (
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                },
+                keys.store,
+                vec![VirtualRegisterId(1), VirtualRegisterId(0)],
+                SelectedMemoryAccessRole::WritePlace,
+                operation,
+                other_place,
+                true,
+            ),
+            // The dominant shape — a recorded read through the pointer — has
+            // no operand binding; only the load's own result is replayed.
+            (
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                keys.load64,
+                vec![VirtualRegisterId(1), VirtualRegisterId(0)],
+                SelectedMemoryAccessRole::ReadPlace,
+                operation,
+                place,
+                true,
+            ),
+            // A frame-slot `Store64` carries the pointer's bits as its value
+            // operand under `WriteLocal`, which no replay joins to the
+            // `AddressLocal` result either.
+            (
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(LocalStorageSlotId::Structural {
+                        operation,
+                        place,
+                    }),
+                    byte_offset: 0,
+                },
+                keys.store64,
+                vec![VirtualRegisterId(1)],
+                SelectedMemoryAccessRole::WriteLocal {
+                    slot: LocalStorageSlotId::Structural { operation, place },
+                },
+                operation,
+                place,
+                true,
+            ),
+        ] {
+            let mut source = fixture(target);
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            let slot = LocalStorageSlotId::Structural { operation, place };
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 8,
+                alignment: 8,
+            });
+            // The victim is the place's `FrameAddress` pointer, and the
+            // `AddressLocal` access on its definition is what turns one
+            // `WritePlace` store into the establishment store.
+            function.blocks[0].instructions[0] = admission::instruction(
+                SelectedInstructionId(1),
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                environment.constraint(keys.frame_address.unwrap()).unwrap(),
+                &[VirtualRegisterId(1)],
+            );
+            function.virtual_registers[1].origin = VirtualRegisterOrigin::AbiTransport {
+                instruction: SelectedInstructionId(1),
+                place,
+                byte_offset: 0,
+            };
+            function.virtual_registers[1].definition_site = None;
+            function.memory_accesses.push(SelectedMemoryAccess {
+                instruction: SelectedInstructionId(1),
+                origin: SelectedMemoryAccessOrigin::Operation(operation),
+                place,
+                byte_offset: 0,
+                byte_count: 8,
+                role: SelectedMemoryAccessRole::AddressLocal { slot },
+            });
+            // Instruction 2 is the access under test; instructions 3 and 4
+            // stay ordinary `CopyI64` uses of the victim.
+            function.blocks[0].instructions[1] = admission::instruction(
+                SelectedInstructionId(2),
+                kind,
+                environment.constraint(key.unwrap()).unwrap(),
+                &registers,
+            );
+            function.memory_accesses.push(SelectedMemoryAccess {
+                instruction: SelectedInstructionId(2),
+                origin: SelectedMemoryAccessOrigin::Operation(access_operation),
+                place: access_place,
+                byte_offset: 0,
+                byte_count: 8,
+                role,
+            });
+            seal(&mut source);
+            if admitted {
+                let result = spill_selected_runtime_value(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                )
+                .unwrap();
+                let transformed = &result.transformed().functions[0];
+                let instruction = transformed.blocks[0]
+                    .instructions
+                    .iter()
+                    .find(|instruction| instruction.id == SelectedInstructionId(2))
+                    .unwrap();
+                assert_ne!(
+                    instruction.operands[0].virtual_register,
+                    VirtualRegisterId(1),
+                    "target {target:?} role {role:?}"
+                );
+                assert!(
+                    validate_runtime_spill(
+                        &source,
+                        0,
+                        VirtualRegisterId(1),
+                        &environment,
+                        budget(),
+                        result.transformed().clone()
+                    )
+                    .is_ok(),
+                    "target {target:?} role {role:?}"
+                );
+            } else {
+                assert_eq!(
+                    spill_selected_runtime_value(
+                        &source,
+                        0,
+                        VirtualRegisterId(1),
+                        &environment,
+                        budget()
+                    )
+                    .unwrap_err(),
+                    RuntimeSpillError::UnsupportedUse,
+                    "target {target:?}"
+                );
+            }
         }
     }
 }

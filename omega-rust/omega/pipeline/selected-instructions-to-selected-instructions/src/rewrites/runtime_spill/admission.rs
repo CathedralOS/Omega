@@ -11,7 +11,9 @@ use selected_instructions::{
     SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{EdgeId, IntegerSign, IntegerType, PlaceId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
+};
 
 use super::RuntimeSpillError;
 use super::slot;
@@ -400,6 +402,50 @@ pub(super) fn admit<'source>(
     // these records only pin down which loads belong to each binding so the
     // rewrite can retarget the binding's argument to one reload register.
     let mut structural_uses: Vec<StructuralArgumentUse> = Vec::new();
+    // An instruction-defined victim may be produced by an address-forming
+    // instruction — `FrameAddress`, `AddressOffset`, or `ByteViewAddress` —
+    // whose resolved address round-trips its bits through private storage
+    // like any other result. One operand position cannot follow the reload,
+    // though: the primitive-local establishment replay binds a `WritePlace`
+    // store's address operand to the `AddressLocal` `FrameAddress` result
+    // verbatim, so when such an access names this victim's own definition for
+    // an (operation, place) pair, the `WritePlace` store for that same pair
+    // must keep the victim register — substituting a reload register would
+    // orphan the recorded establishment. Reads, snapshot chunk loads, calls,
+    // and the store's value operand are content-bound elsewhere — by source
+    // value, by result origin, or by the access's own coordinates — so only
+    // the paired store's instruction is refused here.
+    let establishing: std::collections::BTreeSet<(OperationId, PlaceId)> = definition
+        .into_iter()
+        .flat_map(|definition| {
+            function.memory_accesses.iter().filter_map(move |access| {
+                match (access.origin, access.role) {
+                    (
+                        SelectedMemoryAccessOrigin::Operation(operation),
+                        SelectedMemoryAccessRole::AddressLocal { .. },
+                    ) if access.instruction == definition => Some((operation, access.place)),
+                    _ => None,
+                }
+            })
+        })
+        .collect();
+    let established_stores: std::collections::BTreeSet<SelectedInstructionId> = if establishing
+        .is_empty()
+    {
+        std::collections::BTreeSet::new()
+    } else {
+        function
+            .memory_accesses
+            .iter()
+            .filter_map(|access| match (access.origin, access.role) {
+                (
+                    SelectedMemoryAccessOrigin::Operation(operation),
+                    SelectedMemoryAccessRole::WritePlace,
+                ) if establishing.contains(&(operation, access.place)) => Some(access.instruction),
+                _ => None,
+            })
+            .collect()
+    };
     for (current_block_index, block) in function.blocks.iter().enumerate() {
         let previous_uses = uses;
         let (terminal, successors) = super::control(&block.terminator);
@@ -587,14 +633,6 @@ pub(super) fn admit<'source>(
                             && current_block_index == block_index
                             && Some(instruction.id) == definition =>
                     {
-                        if matches!(
-                            instruction.kind,
-                            SelectedInstructionKind::FrameAddress { .. }
-                                | SelectedInstructionKind::AddressOffset { .. }
-                                | SelectedInstructionKind::ByteViewAddress
-                        ) {
-                            return Err(RuntimeSpillError::UnsupportedValue);
-                        }
                         defined = true;
                     }
                     RegisterOperandAccess::Use
@@ -604,6 +642,13 @@ pub(super) fn admit<'source>(
                             && !operand.early_clobber
                             && operand.class == victim.class =>
                     {
+                        // A `WritePlace` store paired with the `AddressLocal`
+                        // access on the victim's own definition keeps the
+                        // address operand's register identity verbatim; the
+                        // reload cannot stand in for it there.
+                        if established_stores.contains(&instruction.id) {
+                            return Err(RuntimeSpillError::UnsupportedUse);
+                        }
                         // A fixed view on this operand stays attached to the
                         // rewritten use, so the fresh reload register is a
                         // precolored segment pinned to that physical view for
@@ -690,8 +735,11 @@ pub(super) fn admit<'source>(
         })
         .and_then(|total| total.checked_add(slot_scan))
         // The structural-argument check groups the memory accesses once, then
-        // each pending binding walks its own access group.
-        .and_then(|total| total.checked_add(function.memory_accesses.len()))
+        // each pending binding walks its own access group. The establishment
+        // pairing above scans them twice more — once for the `AddressLocal`
+        // records on the victim's definition, once for the paired `WritePlace`
+        // stores.
+        .and_then(|total| total.checked_add(function.memory_accesses.len().checked_mul(3)?))
         .and_then(|total| {
             total.checked_add(
                 structural_uses
