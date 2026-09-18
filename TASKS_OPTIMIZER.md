@@ -1719,13 +1719,28 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   index value provably rewrites the dead byte — an exact or local
   range cannot contain a runtime-placed byte, and a sequence row at
   another offset or index may land on a different byte entirely
-  (crate `nextest`: 1221 pass on macOS x86-64). Remaining: staging
+  (crate `nextest`: 1221 pass on macOS x86-64). Load forwarding
+  admits the indexed byte load as the read: a `Load8Indexed`
+  carrying `ReadByteSequence` reads the single byte at the row's
+  payload base plus the runtime index, so its read extent is
+  unbounded upward from the base and the interference directions
+  mirror the byte-sequence dead store's — an exact or local row
+  still reaches the read byte once its own extent ends past the
+  payload base, while a dynamic-extent row on the place always
+  meets it. Sourcing stays byte-exact rather than extent
+  containment: only a `Store { 0, 1 }` through a fully computed
+  view address whose single `WriteByteSequence` row names the same
+  payload base and the same index value sources the forward, to
+  `ZeroExtendU8` of the stored register — an exact or local range
+  cannot contain a runtime-placed byte, and a sequence write at
+  another offset or index may land on a different byte entirely
+  (crate `nextest`: 1289 pass on macOS x86-64). Remaining: staging
   `Structural` slots still cannot die, cover, source, or move — a
   `Structural` slot the place's declaration does not charge to its
   producer only stages bytes that name the place — dynamic-extent
-  rows still cannot cover an exact dead range or serve as the
-  forwarding source, and legs whose paths resolve to different
-  writers or never resolve stay unproven.
+  rows still cannot cover an exact dead range, and legs whose
+  paths resolve to different writers or never resolve stay
+  unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
