@@ -71,9 +71,7 @@ pub(crate) fn resolve_selected_float_intrinsic_call(
     let plans = report_matches
         .iter()
         .copied()
-        .filter(|plan| {
-            plan.identity_digest().as_bytes() == commitment.as_bytes()
-        })
+        .filter(|plan| plan.identity_digest().as_bytes() == commitment.as_bytes())
         .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         return Err(Diagnostic::error(
