@@ -108,36 +108,51 @@ prerequisite to every lower-rung milestone.
 
 <a id="gamma-product-checking"></a>
 
-- **GAMMA-PRODUCT-COMPARISON.** Compare ordinary pairs, dynamically checked named
-  products, and static nominal typing for the seven-field continuation in
-  [Delta argument checking](bootstrap/3_delta/implementation/checking/types/calls.gamma).
-  This is exploratory engineering, not owner-blocked work or accepted syntax.
-  The current producer and consumer manually agree on nested-pair layout;
-  grouped bindings expose the decoding but do not check that agreement.
-  At `355ea00d55` on macOS, ordinary constructor/accessor wrappers preserved six
-  compiler results but grew the module from 4,731 to 5,542 bytes and four to
-  twelve definitions, traversing 21 tail links instead of six. They added no
-  layout guarantee and were not retained; do not repeat them as the solution.
+- **GAMMA-PRODUCT-COMPARISON.** Decide how the seven-field continuation in
+  [Delta argument checking](bootstrap/3_delta/implementation/checking/types/calls.gamma)
+  should be represented: ordinary nested pairs, a dynamically checked named
+  product, or static nominal typing. `typing_arguments` builds the payload and
+  `typing_resume_argument` decodes it; the two agree on the nested-pair layout
+  by hand, and grouped bindings expose the decoding without checking it. This
+  is exploratory engineering, not owner-blocked work or accepted syntax.
+
   The [product comparison experiment](tests/gamma/product-comparison-experiment/README.md)
-  at `7595f3028e` pins one construction and one destructuring of that payload
-  as nested pairs against a source-emulated named product with identity and
-  arity words: same order, scope, and tail behavior; 6 versus 8 pairs and
-  101,859 versus 147,419 whole-run Alpha steps under the untrusted reference
-  interpreter on Linux (selected-evaluator runs remain unmeasured there); a
-  wrong identity or arity maps to a chosen scalar status instead of an anonymous
-  trap; and a forged header passes both checks and traps exactly like pairs,
-  so source-level checks remove no manual layout obligation. Enforcement needs
-  evaluator-minted identities, whose representation, Beta, contract, heap
-  capacity, test, and proof costs the experiment README counts but does not
-  build. Static typing is a separate candidate with additional declaration and
-  call judgments, not an assumed feature bundle; no fixture represents it.
-  Human defect-localization evidence from the customer remains unmeasured.
-  Acceptance: compare the Beta implementation, representation, validation,
-  resources, tests, and proof obligations against the customer code and manual
-  layout obligations removed. Check construction order, scope, tail behavior,
-  forged identities, arity, and failure mapping. Keep experiments separate from
-  the selected language; adoption requires reconciled contracts and evidence,
-  not a ruling merely to explore the alternatives.
+  now covers every candidate on that payload: pairs, a source-emulated product
+  with identity and arity words, the kind word the checker's frame already
+  carries, and nominal data compiled by the canonical Delta compiler. It
+  checks construction order, scope, tail behavior, arity, forged identities,
+  and failure mapping, and counts without building the evaluator, contract,
+  test, and proof cost of an evaluator-minted product and of nominal typing
+  inside Gamma. Its finding retains plain pairs with the existing
+  kind-boundary status: source-level checks remove no layout obligation, only
+  nominal typing does, and nothing measured justifies that cost in the
+  trusted evaluator. Same-typed field order stays unchecked under every
+  candidate.
+
+  Remaining work:
+
+  - Measure seeded-defect localization on the customer under each candidate,
+    or state in the README why the decision does not need it. No record shows
+    how often the manual layout agreement has failed.
+  - Record the decision in `checking/types/README.md`, keep only the evidence
+    that decision cites, and delete the experiment directory together with its
+    README check in `tests/bootstrap/delta-identity.sh`, per the
+    [retention row](tests/gamma/README.md).
+
+  Acceptance: the recorded decision compares Beta implementation,
+  representation, validation, resources, tests, and proof obligations against
+  the customer code and manual layout obligations removed. Experiments stay
+  separate from the selected language; adoption requires reconciled contracts
+  and evidence. Do not repeat per-field accessor wrappers: they grew
+  `calls.gamma` from four to twelve definitions with no layout guarantee.
+
+  Flag: three experiment slices (`1c2f473404`, `ee7fef49c8`, `a7aa9c4006`)
+  each ended at "retain plain pairs", and the directory is now 23 files with a
+  gate that compiles nine Delta fixtures through the canonical compiler. The
+  chain identity gate also depends on it: `tests/bootstrap/delta-identity.sh`
+  fails when the experiment README lacks the packed-closure size. The original
+  acceptance named no exit for a negative result, so non-authoritative
+  evidence is accumulating as permanent validation.
 
 ## Alpha execution hardening
 
