@@ -30,9 +30,19 @@ custody and the supplied nonmoving `StackLease` enter `accept_invocation`
 together, every rejection returns them whole, the ledger retains the lease
 while the claim lives, and settlement releases the spent authority.
 
+[provider_admission.rs](src/provider_admission.rs) is the provider-side
+gate consuming those carriers: one admitted runtime instance owns its
+ledger plus its fixed stack provisioning, mints fresh lease eras, and
+commits the slot spend and the claim inside one admission, so capacity is
+real authority rather than an `available >= 1` observation. Provider-
+provisioned rejections conserve the moved arguments (the minted lease was
+never caller custody); caller-supplied storage rejections return it whole
+through `TaskStartRejection`. Settlement returns provisioned backing to
+the free set while the spent era stays burned.
+
 These carriers still do not establish a source `Task<T>`, marshal actual
-argument bytes, or execute a provider. Routed source establishment, stack
-provisioning, cancellation conformance, and real runtime execution remain
+argument bytes, execute park/resume, or run cancellation. Routed source
+establishment, cancellation conformance, and real runtime execution remain
 separate consumers. The bounded
 scalar suspension carrier likewise does not license receiver/structural/claim
 frontiers without their exact joins; see the
