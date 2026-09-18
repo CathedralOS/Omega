@@ -3980,94 +3980,79 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   differential implementation, not source for this task. Work backward from
   complete Omega behavior in small, live vertical slices; do not create a
   bootstrap-private dialect, file allowlist, or parallel source-to-native path.
+  What exists is a lexer and a partial parser: about 3,600 lines across
+  `source/psi/{lex,parse,source,syntax,tokens}/`, the parser gate at
+  `source/psi/gates/parser/`, and a 70-line `source/omega/main.omg` that drives
+  lexing and parsing over console input. `omega --check
+  source/omega/main.omg` reaches the end of the Psi checked stage and std
+  calling-policy admission before stopping on the first item below.
+
+  Remaining work:
+
+  - Target-profile recognition. The product check stops on `root slot
+    alpha_bootstrap::ProgramEntry belongs to unknown target profile
+    alpha_bootstrap`, raised by
+    `omega-rust/omega/build/build-evaluation/src/admission/selection.rs`
+    because `target::TargetProfile` enumerates seven profiles and no Alpha row.
+    Recognize the Alpha profile and slot through the ordinary target-package
+    route under settled
+    [target recognition and availability](wiki/spec/build/configuration.md#target-recognition-and-implementation-availability);
+    keep the binding at `source/omega/build.omg:11` and add no parallel
+    bootstrap selection mechanism. An inactive recognized Alpha row must not
+    demand Alpha realization, unknown profile and slot names must still reject,
+    and a selected unimplemented Alpha operation must report not implemented
+    without claiming a checked result or emitting an artifact. Rust Alpha
+    emission is not part of this task.
+  - Exact narrowing with no positive evidence. Checking accepts
+    `self.lexer.append_source_byte(value as u8)` where `value` is an unbounded
+    `i32` field, contrary to
+    [counts and addresses](wiki/spec/language/counts_and_addresses.md); only
+    the Unit builder refuses it, pinned by
+    `typed-trees-to-checked-trees/src/tests/flow/terminal_unit/call_argument_casts.rs`
+    (`exact_cast_argument_without_positive_evidence_stays_omitted`). The repair
+    belongs in checking.
+  - Std name shadowing. A user declaration spelled like a std one (`ByteRead`,
+    `Lexer`) makes std's own machines fail checking: `read_line`'s `store`
+    overflow and `MacosArm64::extent_shape`'s range. The three red
+    `compiler/tests/calling_policy_plans/macos_entry.rs` tests are the same
+    family and the cheapest reproduction.
+  - The parser gate's next Unit omission: `statement sequence: call: call
+    operation`, state `source_full`, statement 1 of
+    `source/psi/gates/parser/harness.omg` — an attached call through a nested
+    receiver whose first argument is a copy-enum case literal beside two ranged
+    scalars. `Main::main` has no such call, so the product's own next stop
+    after target recognition is unmeasured.
+  - Native production for `pass/structs/runtime_copy_sum_array_receiver_exit`
+    and `pass/calls/runtime_nested_receiver_cast_argument_exit`, both on
+    `canary_suite.rs`'s checked-only roster. Their entry statements stop at
+    `structural field store: scalar field type`, `local data: structural call
+    binding`, and `state graph: terminator: conditional successors: parameter
+    transfer`. **STATE-LOCAL-VALUE-FRONTIER** owns those Unit slices.
+  - Gate-check cost. A full parser-gate check takes about 6,500 s wall against
+    about 1,500 s before `d0371277e3..fc633a98ae`, with sampling inside
+    `typed-trees-to-checked-trees` `flow::builder::build_flow_facts` calling
+    `validation/src/machine_calls/calls/write_frames/`. Attribute it before
+    taking the next slice; iteration at that cost is the practical blocker.
+  - Everything after the parser. Resolution, typing, checking, proof and
+    Terminal production in `source/psi/`, and the whole `source/omega/`
+    consumer, are unwritten.
 
   Acceptance: the exact Omega source closure implements the complete language
   and production pipeline, passes the shared product suite, and publishes a
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
-  Resume (macOS ARM64, 4bfa009246 on eb6f223ce5): `omega --check
-  source/omega/main.omg` runs the complete Psi checked stage and the std
-  calling-policy admission and stops on one diagnostic, `root slot
-  alpha_bootstrap::ProgramEntry belongs to unknown target profile
-  alpha_bootstrap` from `source/omega/build.omg:11` (601.8 s wall at
-  dd8bb81386, 704.0 s at a3b3ecd8c4 beside a concurrent gate check);
-  this is an implementation gap under settled
-  [target recognition and availability](wiki/spec/build/configuration.md#target-recognition-and-implementation-availability),
-  not an owner blocker. In target-profile recognition and Build root selection,
-  recognize the Alpha profile/slot through the ordinary target-package route
-  without requiring an Alpha backend for the native child. Keep the binding in
-  `source/omega/build.omg`; do not inject it through bootstrap tooling. Acceptance
-  for this repair: the native product check advances past this diagnostic,
-  inactive recognized Alpha rows do not demand Alpha realization, unknown
-  profile/slot names still reject, and explicitly selecting an unimplemented
-  Alpha operation reports not implemented without claiming a checked result or
-  emitting an artifact. Rust Alpha emission is not part of this task.
-  The stops before it are retired: the parser borrows the
-  lexer's stream (b30c5ae693; the borrowed-storage restoration gap in
-  `pass/ownership/move_keyword_field_assignment` is tracked by
-  BORROWED-STORAGE-RESTORATION) and build-time member selections confine on their
-  exact owner package (43ed6089a2). The generic `selected ProgramEntry
-  establishment rejoins 0 Terminal attachment identities; expected one`
-  stop was a regression from 8508aec01e (std `read_line`/`read_byte`
-  gained `blocks;` while the Unit builder refused blocking boundary
-  calls); ccfa48ddae admits them and `omega --check
-  samples/cli/basics/cli_mvp/main.omg` compiles again in 248.2 s. Behind
-  it the native leg of the cli_mvp library test stops in Terminal
-  verification on `CallCrashContinuationUncovered { operation:
-  OperationId(5), cause: Trap }` (a private body's inferred crash
-  interface lowers to no crash routes,
-  `checked-trees-to-lowered-psi/src/proofs/crash_routes.rs`) and, with
-  `crashes Trap` authored on the std `read_line` adapter and the sample
-  entry, on native lowering's
-  `UnsupportedBoundaryCrashContract(BoundaryMachineId(2))`; both are
-  CRASH-CONTRACT scope and neither declaration was kept. The parser gate
-  (`source/psi/gates/parser/`; f6c762c501 harness reach/span fixes;
-  5c40dd26b0 write-frame law, 3340.6 s kill to 174.4 s) completes the
-  checked stage and still stops on the establishment rejoin, one Unit
-  statement at a time: 587ae15689 gave its receiver a shape (a fixed
-  array of a copy sum with payload cases, `TokenStream.tokens: [Token;
-  16384]`, is a material array element; `pass/structs/runtime_copy_sum_array_receiver_exit`
-  exits 70 in the interpreter and establishes its entry), and
-  4bfa009246 retains exact integer cast evidence for call-statement
-  arguments so `retain`'s `self.lexer.append_source_byte(value as u8)`
-  plans on the `[0..=255]` payload bound the transition transports (the
-  nested receiver was never refused; `tests/flow/terminal_unit/call_argument_casts.rs`
-  pins the three probe shapes and
-  `pass/calls/runtime_nested_receiver_cast_argument_exit` exits 70 in
-  the interpreter and establishes its entry). The gate's next omission is
-  `statement sequence: call: call operation`, state 3 (`source_full`),
-  statement 1: `self.lexer.reject(LexDiagnosticCode::SourceCapacityExceeded,
-  length, length)`, an attached call through the nested receiver whose
-  first argument is a copy-enum case literal beside two ranged scalars;
-  the product `Main::main` has no such call, so its own next stop after
-  the target-recognition repair is unmeasured. Gate check
-  timing moved with main, not with these commits: 1538.3 s wall / 1402.2 s
-  user at d0371277e3 became
-  6463.8 s / 4370.1 s at 4bfa009246 and 6458.5 s / 4367.7 s with the
-  validation change reverted on the same base; a `sample` of the run sits
-  in `typed-trees-to-checked-trees` `flow::builder::build_flow_facts ->
-  state flow -> transition exits` calling `validation` write frames
-  (`permuted_cycle_frames`, `place_paths`, `stored_origins`), so one of
-  d0371277e3..fc633a98ae's call-frame commits (ca6e517527, 1544a206ec,
-  90cde5211e, f5d4abc290) is the likely cost and is unattributed here.
-  Native production of the two new fixtures is not claimed: their entry
-  statements stop at `structural field store: scalar field type`, `local
-  data: structural call binding` and `state graph: terminator: conditional
-  successors: parameter transfer` (a sum-literal state argument), separate
-  Unit slices, so both sit on the checked-only roster. Validation still
-  accepts an exact `i32 as u8` narrowing with no positive evidence (an
-  unbounded field source), contrary to counts_and_addresses.md; the Unit
-  builder fails closed on it. A user declaration spelled like a std one
-  (`ByteRead`, `Lexer`) makes std's own machines fail checking
-  (`read_line` `store` overflow, `MacosArm64::extent_shape` range), the
-  same family as the 3 red `calling_policy_plans::macos_entry` tests.
-  Known baseline reds met on the way (fc633a98ae): those 3 tests,
-  `validation` suite's
-  `match_values::fresh_match_containers_cannot_hide_existing_owned_inputs_or_cleanup`,
-  `typed-trees-to-checked-trees --lib` 3 failures and 8 clippy errors,
-  `canary_suite`'s `discovered_exact_native_coverage_is_consistent` (798
-  against 797) and its unused-import clippy errors on macOS, and the
-  `control_flow/` pass leg's 23 fixtures.
+
+  **BORROWED-STORAGE-RESTORATION** and **CRASH-CONTRACT** own stops split out
+  of this item.
+
+  Flag: a checking gap is being closed one stage below where it opens. The
+  narrowing cast above is accepted in checking and fenced in the Unit builder,
+  and the pinned test asserts the builder's omission rather than a rejection,
+  so a program that should not check does check and stops later with a lowering
+  message. The gate advances the same way: one statement shape per slice, each
+  landing a canary for the arrangement the harness reaches next, the next
+  omission again a single statement, while the general mechanism is the
+  ordinary statement sequencing **STATE-LOCAL-VALUE-FRONTIER** names.
 
 ## Platform-gated verification
 
