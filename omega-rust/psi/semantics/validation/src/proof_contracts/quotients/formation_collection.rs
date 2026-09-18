@@ -186,6 +186,34 @@ pub(crate) fn reject_quotient_operation_requests(
                             )
                         })
                         .flatten();
+                    // Compose the exact canonical Terminal row this plan's own
+                    // certificate licenses. Ordinary validation rederives the
+                    // complete congruence/transport join here rather than
+                    // listing it as an assumed outstanding obligation; the
+                    // reconstruction stays diagnostic and grants no execution
+                    // authority.
+                    let canonical_correspondence = complete_result_flow
+                        .zip(representative_purity)
+                        .map(|(result_flow, purity)| {
+                            relation_plan::canonical_direct_correspondence(
+                                program,
+                                machine,
+                                state,
+                                result_root.request_expression,
+                                &plan,
+                                purity,
+                                result_flow,
+                            )
+                        });
+                    let canonical_join = match &canonical_correspondence {
+                        Some(Ok(_)) => {
+                            " plus rederived canonical Terminal correspondence".to_owned()
+                        }
+                        Some(Err(reason)) => {
+                            format!(" (canonical Terminal correspondence unavailable: {reason})")
+                        }
+                        None => String::new(),
+                    };
                     let correspondence = plan
                         .render_define_correspondence()
                         .or_else(|| plan.render_direct_lift_correspondence())
@@ -343,7 +371,15 @@ pub(crate) fn reject_quotient_operation_requests(
                     if complete_result_flow.is_none() && complete_forwarded_result_flow.is_none() {
                         remaining.push("all normalized result exits".to_owned());
                     }
-                    if request.kind == typed_trees::expression::QuotientOperationKind::Lift {
+                    // A composed certificate already carries the whole Q => P
+                    // lane: the automatic exact/arithmetic rung for
+                    // `lift<F, Congruence>` and the selected theorem for
+                    // `lift<F, Congruence, Transport>`. Only an absent
+                    // certificate leaves the general implication and adapted
+                    // argument judgments outstanding.
+                    if request.kind == typed_trees::expression::QuotientOperationKind::Lift
+                        && plan.correspondence_certificate.is_none()
+                    {
                         remaining.push(
                             "general precondition implication and adapted lift arguments"
                                 .to_owned(),
@@ -352,13 +388,22 @@ pub(crate) fn reject_quotient_operation_requests(
                     if plan.has_undischarged_fixed_representative_preconditions() {
                         remaining.push("fixed representative call obligations".to_owned());
                     }
-                    remaining.push("canonical Terminal correspondence replay".to_owned());
+                    if !matches!(canonical_correspondence, Some(Ok(_))) {
+                        remaining.push("canonical Terminal correspondence".to_owned());
+                    }
+                    let fence = if remaining.is_empty() {
+                        "but executable quotient operations are not admitted until executable quotient lowering exists".to_owned()
+                    } else {
+                        format!(
+                            "but executable quotient operations are not admitted until {} are independently checked",
+                            remaining.join(", "),
+                        )
+                    };
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{transport}{transport_schema}{transport_termination}{transport_purity}{transport_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence}{fixed_call_preconditions}{correspondence_certificate} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{transport}{transport_schema}{transport_termination}{transport_purity}{transport_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence}{fixed_call_preconditions}{correspondence_certificate}{canonical_join} and {result_flow}, {fence}",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),
-                        remaining.join(", "),
                     )))
                 }
                 Err(reason) => {

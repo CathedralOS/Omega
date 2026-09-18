@@ -77,6 +77,21 @@ fn lower(source: &str) -> TypedTrees {
 }
 
 fn lower_with_package(source: &str, package: Option<PackageKeyIdentity>) -> TypedTrees {
+    try_lower_with_package(source, package).expect("type lowering")
+}
+
+/// Lower a quotient fixture, returning the typing-stage rejection instead of
+/// panicking. The sealed `Quotient` role roster is checked while typed trees
+/// are produced, so its arity and role diagnostics never reach validation.
+fn try_lower(source: &str) -> Result<TypedTrees, String> {
+    let package = PackageKeyIdentity::from_digest([0x71; 32]).expect("nonzero package identity");
+    try_lower_with_package(source, Some(package))
+}
+
+fn try_lower_with_package(
+    source: &str,
+    package: Option<PackageKeyIdentity>,
+) -> Result<TypedTrees, String> {
     let mut sources = SourceMap::default();
     let core_source_id = sources
         .add_with_metadata(
@@ -107,28 +122,46 @@ fn lower_with_package(source: &str, package: Option<PackageKeyIdentity>) -> Type
         top_level_bindings: Vec::new(),
     })
     .expect("package-aware resolution");
-    let mut program = lower_symbol_resolved_trees(&resolved).expect("type lowering");
-    let checked_total = program
-        .machines()
-        .iter()
-        .enumerate()
-        .filter_map(|(position, machine)| {
-            matches!(
-                program.symbols.name(machine.symbol),
-                "representative" | "representative_respects" | "admitted"
-            )
-            .then_some(position)
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(checked_total.len(), 3);
-    for position in checked_total {
-        program.machines_mut()[position]
-            .termination_plan
-            .checked_summary = language_semantics::TerminationGuarantee::Terminates {
-            premises: Vec::new(),
-        };
+    let mut program =
+        lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| diagnostic.message)?;
+    // Termination is established by a later stage; these fixtures exercise the
+    // quotient join, so the proof machines carry their checked summary here.
+    let mut terminating = 0;
+    for machine in program.machines_mut() {
+        let name = machine.name.as_str();
+        if name.starts_with("representative") || name.starts_with("admitted") {
+            machine.termination_plan.checked_summary =
+                language_semantics::TerminationGuarantee::Terminates {
+                    premises: Vec::new(),
+                };
+            terminating += 1;
+        }
     }
-    program
+    assert!(terminating >= 2, "quotient fixtures need proof machines");
+    Ok(program)
+}
+
+fn validation_messages(program: &TypedTrees) -> Vec<String> {
+    validate_program(program)
+        .expect_err("ordinary validation must retain the executable quotient-operation fence")
+        .iter()
+        .map(|diagnostic| diagnostic.message.clone())
+        .collect()
+}
+
+fn assert_mentions(messages: &[String], fragment: &str) {
+    assert!(
+        messages.iter().any(|message| message.contains(fragment)),
+        "no diagnostic contained `{fragment}`; got {messages:#?}"
+    );
+}
+
+fn extraction_errors(program: &TypedTrees) -> Vec<String> {
+    extract_non_executable_quotient_correspondences(program)
+        .expect_err("the request must not extract")
+        .iter()
+        .map(|diagnostic| diagnostic.message.clone())
+        .collect()
 }
 
 #[test]
@@ -170,13 +203,15 @@ fn extracts_one_source_free_total_direct_define_without_weakening_normal_validat
     assert_eq!(theorem.relation_premises.len(), 1);
     assert!(theorem.legality_premises.is_empty());
 
-    let diagnostics = validate_program(&program)
-        .expect_err("ordinary validation must retain the executable quotient-operation fence");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("executable quotient operations are not admitted")
-    }));
+    let messages = validation_messages(&program);
+    assert_mentions(
+        &messages,
+        "plus rederived canonical Terminal correspondence",
+    );
+    assert_mentions(
+        &messages,
+        "executable quotient operations are not admitted until executable quotient lowering exists",
+    );
 }
 
 #[test]
@@ -214,5 +249,296 @@ fn fails_the_whole_batch_when_one_request_is_unsupported() {
     assert!(
         extract_non_executable_quotient_correspondences(&program).is_err(),
         "one unsupported request must prevent returning the otherwise valid define row"
+    );
+}
+
+/// Position-preserving `lift` with an explicit congruence theorem and an
+/// explicit forward precondition transport theorem.
+///
+/// `representative` carries a representative precondition `P`, `admitted`
+/// carries the public precondition `Q`, and `representative_transports` is the
+/// one selected resultless theorem proving the complete ordered `Q -> P`
+/// schema for both representative sides.
+const TRANSPORT_BACKED_LIFT: &str = r#"
+use omega::language::core::relation;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine representative(value: Representative) -> Representative
+requires value == value
+{
+    value
+}
+
+machine representative_respects(left: Representative, right: Representative)
+requires
+    equivalent(left, right)
+    left == left
+    right == right
+ensures equivalent(representative(left), representative(right))
+{
+}
+
+machine representative_transports(left: Representative, right: Representative)
+requires
+    left == left
+    right == right
+ensures
+    left == left
+    right == right
+{
+}
+
+machine admitted(value: EquivalenceClass) -> EquivalenceClass
+requires value == value
+{
+    Quotient::lift<
+        representative,
+        representative_respects,
+        representative_transports
+    >(value)
+}
+"#;
+
+const SELECTED_ROLES: &str =
+    "        representative_respects,\n        representative_transports\n";
+
+#[test]
+fn transport_backed_lift_rederives_both_theorem_roles_in_canonical_order() {
+    let program = lower(TRANSPORT_BACKED_LIFT);
+
+    let rows = extract_non_executable_quotient_correspondences(&program)
+        .expect("the position-preserving transport-backed lift should extract");
+    assert_eq!(rows.len(), 1, "one canonical transport-backed lift row");
+    let row = &rows[0];
+    assert_eq!(
+        row.operation_kind,
+        language_semantics::quotient_correspondence::QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport
+    );
+    let roles = row
+        .theorem_evidence
+        .iter()
+        .map(|evidence| evidence.role)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        roles,
+        vec![
+            language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence,
+            language_semantics::quotient_correspondence::QuotientTheoremRole::ForwardPreconditionTransport,
+        ],
+        "role tags precede application and payload in identity"
+    );
+    let language_semantics::quotient_correspondence::QuotientTheoremCorrespondence::ForwardPreconditionTransport(
+        transport,
+    ) = &row.theorem_evidence[1].correspondence
+    else {
+        panic!("the transport role must retain a transport payload")
+    };
+    assert_eq!(
+        transport.public_premises.len(),
+        2,
+        "one public premise per representative side"
+    );
+    assert_eq!(
+        transport.representative_conclusions.len(),
+        2,
+        "one representative conclusion per representative side"
+    );
+
+    // The same complete join is rederived on the ordinary validation path, and
+    // the fence now names executable lowering rather than an assumed list of
+    // unchecked obligations.
+    let messages = validation_messages(&program);
+    assert_mentions(
+        &messages,
+        "plus rederived canonical Terminal correspondence",
+    );
+    assert_mentions(
+        &messages,
+        "executable quotient operations are not admitted until executable quotient lowering exists",
+    );
+}
+
+#[test]
+fn reversed_theorem_roles_reject_both_role_specific_joins() {
+    let reversed = TRANSPORT_BACKED_LIFT.replace(
+        SELECTED_ROLES,
+        "        representative_transports,\n        representative_respects\n",
+    );
+    assert_ne!(reversed, TRANSPORT_BACKED_LIFT);
+    let program = lower(&reversed);
+
+    assert!(
+        extraction_errors(&program)
+            .iter()
+            .any(|message| message.contains("the complete correspondence certificate is absent")),
+    );
+    let messages = validation_messages(&program);
+    assert_mentions(
+        &messages,
+        "(verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises)",
+    );
+    assert_mentions(
+        &messages,
+        "transport-schema verification failed: the selected transport theorem's requires fact count does not exactly match the complete ordered public-Q roster for both representative sides",
+    );
+    assert_mentions(&messages, "canonical Terminal correspondence");
+}
+
+#[test]
+fn a_substituted_congruence_theorem_rejects_the_derived_schema() {
+    // `equivalent_symmetric` is a checked resultless theorem over the same
+    // carrier, so only the derived schema separates it from the authored
+    // congruence selection.
+    let substituted = TRANSPORT_BACKED_LIFT.replace(
+        "        representative_respects,\n",
+        "        equivalent_symmetric,\n",
+    );
+    assert_ne!(substituted, TRANSPORT_BACKED_LIFT);
+    let program = lower(&substituted);
+
+    assert!(
+        extraction_errors(&program)
+            .iter()
+            .any(|message| message.contains("the complete correspondence certificate is absent")),
+    );
+    let messages = validation_messages(&program);
+    assert_mentions(
+        &messages,
+        "verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises",
+    );
+    assert_mentions(&messages, "canonical Terminal correspondence");
+}
+
+#[test]
+fn a_result_bearing_theorem_cannot_occupy_a_role_selection() {
+    let result_bearing = TOTAL_DIRECT_DEFINE.replace(
+        "machine representative_respects(left: Representative, right: Representative)\n",
+        "machine representative_respects(left: Representative, right: Representative) -> bool\n",
+    );
+    assert_ne!(result_bearing, TOTAL_DIRECT_DEFINE);
+    let result_bearing = result_bearing.replace(
+        "ensures equivalent(representative(left), representative(right))\n{\n}",
+        "ensures equivalent(representative(left), representative(right))\n{\n    true\n}",
+    );
+    let program = lower(&result_bearing);
+
+    assert_mentions(
+        &validation_messages(&program),
+        "the selected theorem must return Unit; a result-bearing machine is not proof-static authority",
+    );
+}
+
+#[test]
+fn a_boundary_theorem_cannot_occupy_a_role_selection() {
+    let boundary = TOTAL_DIRECT_DEFINE.replace(
+        "machine representative_respects(left: Representative, right: Representative)\nrequires equivalent(left, right)\nensures equivalent(representative(left), representative(right))\n{\n}",
+        "boundary machine representative_respects(left: Representative, right: Representative)\nrequires equivalent(left, right)\nensures equivalent(representative(left), representative(right));",
+    );
+    assert_ne!(boundary, TOTAL_DIRECT_DEFINE);
+    let program = lower(&boundary);
+
+    assert_mentions(
+        &validation_messages(&program),
+        "the selected theorem must be one bodyful checked machine",
+    );
+}
+
+#[test]
+fn missing_surplus_and_wrong_form_role_rosters_reject_before_validation() {
+    let missing = TOTAL_DIRECT_DEFINE.replace(
+        "Quotient::define<representative, representative_respects>(value)",
+        "Quotient::lift<representative>(value)",
+    );
+    assert_ne!(missing, TOTAL_DIRECT_DEFINE);
+    assert_eq!(
+        try_lower(&missing).expect_err("a congruence-free lift must reject"),
+        "`Quotient::lift` requires `F, Congruence` or `F, Congruence, Transport` in canonical role order",
+    );
+
+    let surplus = TRANSPORT_BACKED_LIFT.replace(
+        "        representative_transports\n",
+        "        representative_transports,\n        representative_transports\n",
+    );
+    assert_ne!(surplus, TRANSPORT_BACKED_LIFT);
+    assert_eq!(
+        try_lower(&surplus).expect_err("a surplus fourth role must reject"),
+        "`Quotient::lift` requires `F, Congruence` or `F, Congruence, Transport` in canonical role order",
+    );
+
+    let define_transport = TOTAL_DIRECT_DEFINE.replace(
+        "Quotient::define<representative, representative_respects>(value)",
+        "Quotient::define<representative, representative_respects, representative_transports>(value)",
+    );
+    assert_ne!(define_transport, TOTAL_DIRECT_DEFINE);
+    assert_eq!(
+        try_lower(&define_transport).expect_err("there is no `define` transport role"),
+        "`Quotient::define` requires exactly `F, Congruence`; forward transport is not a `define` role",
+    );
+}
+
+#[test]
+fn a_congruence_only_lift_has_no_canonical_row_and_keeps_its_fence() {
+    let congruence_only = TOTAL_DIRECT_DEFINE.replace(
+        "Quotient::define<representative, representative_respects>(value)",
+        "Quotient::lift<representative, representative_respects>(value)",
+    );
+    assert_ne!(congruence_only, TOTAL_DIRECT_DEFINE);
+    let program = lower(&congruence_only);
+
+    assert!(
+        extraction_errors(&program).iter().any(|message| message
+            .contains(
+                "the proof-only bridge admits faithful `define` or direct transport-backed `lift` only"
+            )),
+        "the automatic implication rung has no canonical payload yet"
+    );
+    let messages = validation_messages(&program);
+    assert_mentions(
+        &messages,
+        "(canonical Terminal correspondence unavailable: the proof-only bridge admits faithful `define` or direct transport-backed `lift` only)",
+    );
+    assert_mentions(
+        &messages,
+        "are not admitted until canonical Terminal correspondence are independently checked",
     );
 }

@@ -2,7 +2,7 @@
 
 use language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, QuotientOperationKind};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn extract(
     program: &TypedTrees,
@@ -100,42 +100,16 @@ fn extract_one(
         super::relation_plan::complete_single_state_result_flow(program, machine, state, *root)
             .ok_or_else(|| "result flow is not complete direct single-state flow".to_owned())?;
 
-    match (request.kind, request.theorem_evidence.as_ref()) {
-        (QuotientOperationKind::Define, [_]) => {
-            super::relation_plan::canonical_total_define_correspondence(
-                program,
-                machine,
-                state,
-                request_expression,
-                &plan,
-                representative_purity,
-                result_flow,
-            )
-        }
-        (
-            QuotientOperationKind::Lift,
-            [
-                typed_trees::expression::QuotientTheoremSelection {
-                    role: typed_trees::expression::QuotientTheoremRole::Congruence,
-                    ..
-                },
-                typed_trees::expression::QuotientTheoremSelection {
-                    role: typed_trees::expression::QuotientTheoremRole::ForwardPreconditionTransport,
-                    ..
-                },
-            ],
-        ) => super::relation_plan::canonical_transport_lift_correspondence(
-            program,
-            machine,
-            state,
-            request_expression,
-            &plan,
-            representative_purity,
-            result_flow,
-        ),
-        _ => Err(
-            "the proof-only bridge admits faithful `define` or direct transport-backed `lift` only"
-                .to_owned(),
-        ),
-    }
+    // The composed certificate, not the authored request kind, decides which
+    // canonical row the request earns. `derive_direct_terminal_plan` already
+    // refused a missing, duplicated, surplus, or reordered role collection.
+    super::relation_plan::canonical_direct_correspondence(
+        program,
+        machine,
+        state,
+        request_expression,
+        &plan,
+        representative_purity,
+        result_flow,
+    )
 }
