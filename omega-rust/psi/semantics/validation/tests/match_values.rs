@@ -124,11 +124,25 @@ fn fresh_match_construction_keeps_affine_results_without_input_transfers() {
 #[test]
 fn fresh_match_containers_cannot_hide_existing_owned_inputs_or_cleanup() {
     for source in [
+        // A fresh container whose field or element moves an existing owned
+        // parameter still joins predecessor custody on the selected edge.
         "data Payload { value: u64; } data Box { payload: Payload; } machine choose(flag: bool, payload: Payload) -> Box { match flag { true -> Box { payload: payload }, false -> Box { payload: Payload { value: 0 } } } }",
         "data Payload { value: u64; } machine choose(flag: bool, payload: Payload) -> [Payload; 1] { match flag { true -> [payload], false -> [Payload { value: 0 }] } }",
-        "data Payload [linear] { value: u64; } machine choose(flag: bool) -> Payload { match flag { true -> Payload { value: 1 }, false -> Payload { value: 2 } } }",
+        // Wrapping a nominal cleanup hook in a fresh container does not erase
+        // the whole-value entitlement its death edge owes.
         "data Payload { value: u64; } machine Payload::drop(&mut self) {} data Box { payload: Payload; } machine choose(flag: bool) -> Box { match flag { true -> Box { payload: Payload { value: 1 } }, false -> Box { payload: Payload { value: 2 } } } }",
-        "data Payload { value: u64; } machine fresh() -> Payload { Payload { value: 1 } } machine choose(flag: bool) -> Payload { match flag { true -> fresh(), false -> Payload { value: 2 } } }",
+        // A linear claim hidden under a fresh affine container is not plain
+        // owned storage, whether the child moves an existing input or is
+        // itself freshly constructed on each edge.
+        "data Payload [linear] { value: u64; } data Box { payload: Payload; } machine choose(flag: bool, payload: Payload) -> Box { match flag { true -> Box { payload: payload }, false -> Box { payload: Payload { value: 0 } } } }",
+        "data Payload [linear] { value: u64; } data Box { payload: Payload; } machine choose(flag: bool) -> Box { match flag { true -> Box { payload: Payload { value: 1 } }, false -> Box { payload: Payload { value: 0 } } } }",
+        // A fresh linear result whose type also declares nominal cleanup still
+        // owes that hook's join; `[linear]` admission does not cover it.
+        "data Payload [linear] { value: u64; } machine Payload::drop(&mut self) {} machine choose(flag: bool) -> Payload { match flag { true -> Payload { value: 1 }, false -> Payload { value: 2 } } }",
+        // Array literals carry no fresh-linear admission lane, so a linear
+        // element joins predecessor custody whether fresh or moved.
+        "data Payload [linear] { value: u64; } machine choose(flag: bool) -> [Payload; 1] { match flag { true -> [Payload { value: 1 }], false -> [Payload { value: 2 }] } }",
+        "data Payload [linear] { value: u64; } machine choose(flag: bool, payload: Payload) -> [Payload; 1] { match flag { true -> [payload], false -> [Payload { value: 0 }] } }",
     ] {
         let errors = diagnostics(source);
         assert!(
@@ -137,6 +151,20 @@ fn fresh_match_containers_cannot_hide_existing_owned_inputs_or_cleanup() {
                 .any(|error| error.contains("branch custody join")),
             "{source}: {errors:?}"
         );
+    }
+    // Deliberate admissions: each edge establishes its own fresh obligation,
+    // so the reconvergence agrees on the live ownership frontier and hides no
+    // predecessor custody. `ac5ed74dcb` admitted the fresh `[linear]` product
+    // (fresh per-edge products join vacuously) and `1016f39c26` admitted a
+    // call's structural product as fresh arm storage rather than predecessor
+    // custody. Type admission alone: the checker's multiplicity pass still
+    // rejects a nonuniform frontier such as one arm moving a live source.
+    for admitted in [
+        "data Payload [linear] { value: u64; } machine choose(flag: bool) -> Payload { match flag { true -> Payload { value: 1 }, false -> Payload { value: 2 } } }",
+        "data Payload { value: u64; } machine fresh() -> Payload { Payload { value: 1 } } machine choose(flag: bool) -> Payload { match flag { true -> fresh(), false -> Payload { value: 2 } } }",
+    ] {
+        let errors = diagnostics(admitted);
+        assert!(errors.is_empty(), "{admitted}: {errors:?}");
     }
 }
 
