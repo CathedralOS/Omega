@@ -30,6 +30,16 @@
 //! custody bound — a bound that also tolerates a member call copying a
 //! member-produced unrestricted array into the callee through an `Owned`
 //! argument, since the copy observes rather than moves the fresh root),
+//! an admissible scalar-case establishment (whose declared place, result
+//! case, and claim-free result custody relocate byte-exact while each
+//! scalar field value obeys the re-derived substitution — and the family's
+//! first custody-rewriting move: an affine result's dispatch edges no
+//! longer discard it inside the component, since the one persistent
+//! preheader place stays live across traversals, while every exit edge
+//! and member return disposes it instead, a frontier the retained-member
+//! comparison re-derives through the same custody rewrite rather than
+//! trusting the transformed spelling; an unrestricted result instead keeps
+//! the shared no-member-stores custody bound and moves byte-exact),
 //! an admissible scalar-signature call (its callee's transitive effect
 //! summary proves no observable effect, crash, or suspension, and every node
 //! inside the member roster is unobservable, so hoisting the call's possible
@@ -180,6 +190,25 @@ pub(super) fn validate(
         }
     }
     let no_relocated_roots = BTreeSet::new();
+    // Affine scalar-case results every relocated establishment produced,
+    // keyed by its home component: the relocation re-expresses their
+    // dispatch custody — member-internal edges keep the one persistent
+    // place live while exit edges and member returns dispose it — so the
+    // retained-member comparison below normalizes each seed node through
+    // the same custody rewrite the realization performs before comparing
+    // byte-exact.
+    let mut relocated_case_results: BTreeMap<CycleComponentId, BTreeSet<PlaceId>> = BTreeMap::new();
+    for relocation in &moved {
+        if let abstract_operations::AbstractOperation::EstablishScalarCase { result, .. } =
+            &relocation.expected.operation
+            && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        {
+            relocated_case_results
+                .entry(relocation.home.id.clone())
+                .or_default()
+                .insert(result.place);
+        }
+    }
 
     // Each relocated node must land in its own component's unique preheader
     // ahead of the terminator that owns every entry edge, and it must retain
@@ -492,6 +521,30 @@ pub(super) fn validate(
                 Some(substitution) => (substitution, None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
+        } else if crate::validation::admissible_invariant_scalar_case(relocation.expected).is_some()
+        {
+            // A scalar-case establishment replays its whole admission from
+            // the seed: an affine result's dispatch custody must stay inside
+            // the component spelled only through positions the custody
+            // rewrite re-expresses — the retained-member comparison below
+            // normalizes the same frontier the realization writes, so a kept
+            // member-internal discard or a missing exit disposal rejects —
+            // while each scalar field value obeys the re-derived
+            // substitution. The declared place, result case, and claim-free
+            // result custody stay byte-exact inside the moved operation, so
+            // a forged declaration or a skipped field rebind rejects here or
+            // in `same_relocated_node`'s operation comparison.
+            match crate::validation::invariant_scalar_case_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+            ) {
+                Some(substitution) => (substitution, None, BTreeMap::new()),
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
         } else {
             match crate::validation::invariant_scalar_operand_substitution(
                 expected,
@@ -588,13 +641,30 @@ pub(super) fn validate(
         {
             return Err(mismatch(machine, expected_block.id));
         }
+        // A block inside a component whose run relocated affine scalar-case
+        // results keeps every retained node but spells the persistent
+        // result's custody differently — member-internal edges keep it live
+        // while exit edges and member returns dispose it. Normalize each
+        // seed node through the same custody rewrite the realization
+        // performs so a forged spelling — a kept internal discard, a missing
+        // exit disposal, a reordered roster — rejects byte-exact.
+        let custody = components
+            .iter()
+            .find(|component| component.members.contains(&expected_block.id))
+            .and_then(|component| {
+                relocated_case_results
+                    .get(&component.id)
+                    .map(|case_results| (*component, case_results))
+            });
         let expected_nodes = retained_nodes(expected_block, &relocated_operations);
         let current_nodes = retained_nodes(current_block, &relocated_operations);
         if expected_nodes.len() != current_nodes.len()
             || expected_nodes
                 .iter()
                 .zip(current_nodes)
-                .any(|(expected, current)| !same_position_normalized_node(expected, current))
+                .any(|(expected_node, current_node)| {
+                    !same_retained_node(expected, expected_node, current_node, custody)
+                })
         {
             return Err(mismatch(machine, expected_block.id));
         }
@@ -671,6 +741,34 @@ fn same_relocated_node(
             .eq(current.uses.iter().map(|value_use| value_use.value))
         && expected.successors == current.successors
         && expected.ownership == current.ownership
+}
+
+/// A retained member node whose component relocated affine scalar-case
+/// results spells their persistent custody differently from the seed:
+/// member-internal edges keep the place live where the source's fresh place
+/// died at dispatch, and every exit edge and member return disposes it
+/// instead. Normalize the seed node through the same custody rewrite the
+/// realization performs ([`crate::validation::rewrite_scalar_case_custody`])
+/// before comparing byte-exact — a forged transformed spelling cannot pass
+/// unless it is exactly the re-derived frontier.
+fn same_retained_node(
+    function: &PsiOptimizationFunction,
+    expected: &OptimizationNode,
+    current: &OptimizationNode,
+    custody: Option<(&OptimizerCycleComponent, &BTreeSet<PlaceId>)>,
+) -> bool {
+    let Some((component, case_results)) = custody else {
+        return same_position_normalized_node(expected, current);
+    };
+    let mut normalized = expected.clone();
+    let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+    crate::validation::rewrite_scalar_case_custody(
+        &function.structural_places,
+        &members,
+        case_results,
+        &mut normalized,
+    );
+    same_position_normalized_node(&normalized, current)
 }
 
 fn same_position_normalized_node(expected: &OptimizationNode, current: &OptimizationNode) -> bool {

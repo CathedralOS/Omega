@@ -32,8 +32,22 @@ pub(super) fn validate_context_projection(
     if proof_questions != unit.proof_questions {
         return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
     }
-    let ownership_frontiers = independently_project_ownership_frontiers(input)
+    let mut ownership_frontiers = independently_project_ownership_frontiers(input)
         .ok_or(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)?;
+    // A relocated affine scalar-case result re-times where the transformed
+    // custody owns it — the seed established and discarded a fresh place
+    // inside the member while the transformed unit keeps one persistent
+    // preheader place live across member-internal edges and disposes it at
+    // component exits and member returns. Re-express that one place's
+    // membership through the unit's own graph — the same reconstruction the
+    // realization ran — so the comparison below checks the re-derived
+    // frontier delta rather than trusting the attached catalog.
+    let relocated = super::super::relocated_scalar_case_result_places(input, unit);
+    super::super::rewrite_relocated_case_result_frontiers(
+        &mut ownership_frontiers,
+        unit,
+        &relocated,
+    );
     if ownership_frontiers != unit.ownership_frontier_facts {
         return Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch);
     }

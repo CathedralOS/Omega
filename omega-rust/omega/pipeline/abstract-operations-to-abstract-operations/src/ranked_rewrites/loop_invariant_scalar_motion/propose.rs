@@ -363,6 +363,32 @@ fn admit_member_node(
             return None;
         }
         substitution.into_iter().collect()
+    } else if crate::validation::admissible_invariant_scalar_case(node).is_some() {
+        // A scalar-case establishment is the family's first custody-rewriting
+        // relocation: the cyclic eligibility fence already confines its
+        // affine sum result to the member block that dispatches or returns
+        // it, discarding the fresh place on every dispatch edge. Moving the
+        // establishment into the preheader keeps one persistent result live
+        // through the whole component, so the realization strips it from
+        // member-internal edges and disposes it on every exit edge and
+        // member return instead — the admission replays the containment
+        // bound proving the result is only ever spelled through member
+        // positions that rewrite covers. Establishing the sum performs work
+        // a bypassed traversal would not, so both halves of the
+        // non-speculative gate apply, and each scalar field value obeys the
+        // shared member-parameter substitution. An unrestricted result is
+        // copyable custody instead: the shared no-member-stores bound
+        // applies and no edge custody changes.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let substitution = crate::validation::invariant_scalar_case_admission(
+            function, component, node, relocating,
+        )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        substitution.into_iter().collect()
     } else if crate::validation::admissible_invariant_scalar_call(node).is_some() {
         // A scalar-signature call keeps the full non-speculative gate — it
         // performs callee work a skipped traversal would not — and then adds
@@ -662,6 +688,12 @@ pub(super) fn component_plan(
                         }
                         AbstractOperation::EstablishScalarArray { result, .. }
                             if crate::validation::admissible_invariant_scalar_array(node)
+                                .is_some() =>
+                        {
+                            LoopInvariantNodeResult::Structural(result.clone())
+                        }
+                        AbstractOperation::EstablishScalarCase { result, .. }
+                            if crate::validation::admissible_invariant_scalar_case(node)
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
