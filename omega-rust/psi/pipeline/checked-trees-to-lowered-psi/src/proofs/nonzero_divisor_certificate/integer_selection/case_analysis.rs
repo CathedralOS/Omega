@@ -58,7 +58,26 @@ fn eliminate_cases(
             .map(|disjunct| {
                 let mut branch_assumptions = assumptions.to_vec();
                 branch_assumptions.push(disjunct.clone());
-                prove_branch(goal, &branch_assumptions, &cases[index + 1..], ordinary)
+                // The assumed alternative can carry alternatives of its own
+                // (a nested computation's negative polarity, for example).
+                // They are facts only inside this branch, so they extend this
+                // branch's roster rather than the ambient case list; the
+                // remaining shared cases still keep their citation order.
+                let mut branch_cases = cases[index + 1..].to_vec();
+                for nested in super::super::integer_evidence::nested_case_facts(
+                    assumptions.len(),
+                    branch_assumptions
+                        .last()
+                        .expect("branch assumption pushed above"),
+                ) {
+                    if !branch_cases
+                        .iter()
+                        .any(|case| case.proposition == nested.proposition)
+                    {
+                        branch_cases.push(nested);
+                    }
+                }
+                prove_branch(goal, &branch_assumptions, &branch_cases, ordinary)
             })
             .collect::<Option<Vec<_>>>();
         if let Some(branches) = branches {
