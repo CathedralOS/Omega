@@ -57,7 +57,8 @@ pub(crate) fn resolve_selected_float_intrinsic_call(
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
     selected_use: &SelectedIntrinsicUse,
 ) -> Result<Option<StagedNamedFloatRewrite>, Diagnostic> {
-    if selected_use.provider_plan_commitment.is_empty() {
+    let commitment = selected_use.provider_plan_commitment;
+    if commitment.is_empty() {
         return Err(Diagnostic::error(format!(
             "named float use carries ProviderPlan report fingerprint {:#018x} without an exact commitment",
             selected_use.provider_plan_report_fingerprint,
@@ -71,7 +72,7 @@ pub(crate) fn resolve_selected_float_intrinsic_call(
         .iter()
         .copied()
         .filter(|plan| {
-            plan.identity_digest().as_bytes() == selected_use.provider_plan_commitment.as_bytes()
+            plan.identity_digest().as_bytes() == commitment.as_bytes()
         })
         .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
