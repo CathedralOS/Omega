@@ -13,6 +13,8 @@ mod obligation_ledger_custody;
 mod optimization_execution_custody;
 #[path = "artifact/pcc.rs"]
 mod pcc;
+#[path = "artifact/pcc_custody.rs"]
+mod pcc_custody;
 #[path = "artifact/proof_section.rs"]
 mod proof_section;
 #[path = "artifact/transport_round_trips.rs"]
