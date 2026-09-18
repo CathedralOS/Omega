@@ -821,59 +821,54 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   AArch64
   (`runtime_spill_composition::residual_active_resident_pressure_composes_runtime_spill_after_rematerialization`).
 
-- **ALLOCATION-REFINEMENT.** Complete coalescing, live-range splitting,
-  fixed/precolored intervals, and rematerialization cost decisions while
-  preserving exact register-unit aliases, liveness, and target custody.
-  Landed: runtime-spill recovery orders rematerialization before private
-  storage — a pressured victim defined by one pure MaterializeI64
-  regenerates a fresh materialization at each admitted flexible use, creating
-  no reload interval or stack slot, independently replayed through the
-  post-allocation manifest ledger (codec 9) on all four targets
-  (`runtime_rematerialization_pressure::loop_carried_rematerialization_replays_through_callable_publication`).
-  Landed: home-assignment coalescing ranks legal candidates by the guaranteed
-  coalesces a still-unassigned constrained neighbor would lose, after
-  assigned-partner edges and partner votes, mirrored in independent replay and
-  the scan reference
-  (`copy_affinity_avoids_stealing_a_constrained_neighbors_guaranteed_home`).
-  Landed: runtime-spill recovery admits fixed-view body instruction uses —
-  a pressured victim feeding an ABI-pinned call operand gets its own
-  address/load pair immediately before the consumer while the operand
-  keeps its fixed view, pinning the fresh reload to that physical unit
-  for exactly the load-to-use window on all four targets
-  (`fixed_view_instruction_uses_pin_their_reload_at_the_call_operand`).
-  Landed: the default allocation route sequences the fixed/precolored
-  interval stages for authenticated unresolved entry-fixed-view
-  transitions — segment homes, a leaf-local fixed-view copy policy,
-  selected reanalysis, and post-copy homes retain and publish with
-  replay-bound evidence while the declared shared-entry route and
-  runtime-spill recovery stay distinct
-  (`default_path_routes_entry_transitions_into_the_leaf_local_fixed_view_sequence`).
-  Landed: fixed/precolored segment-home placement coalesces across split
-  points — each recorded copy affinity binds to the two segment domains
-  covering the copy's exact use/def points, so a preference never crosses
-  an incompatible fixed-use boundary, and among already-legal candidates
-  the view satisfying the most assigned-partner copy edges wins, then the
-  view the most still-unassigned partners would take, then the view
-  stealing the fewest constrained-neighbor coalesces — after dropping any
-  candidate that would leave such a neighbor with no viable view; the
-  identical ranking replays from the plan with matching work accounting
-  (`copy_partner_home_pulls_the_copy_domain_across_the_split_point`,
-  `coalesce_loses_to_keeping_a_constrained_neighbor_feasible`,
-  `affinity_binds_to_the_domain_covering_the_copy_point`).
-  Landed: that coalescing is gated on residual feasibility — a candidate
-  propagates the forced homes it creates (a domain reduced to one
-  retained view must take it, removing its conflicting views from
-  constrained still-unassigned domains in turn) and a
-  pairwise-constrained clique retaining only subsets of a pool smaller
-  than itself can never place, so a candidate failing either check loses
-  to one after which the residual still completes; viable sets and
-  copy-affinity edge scans move incrementally through a forward conflict
-  adjacency and a member-indexed edge map, mirrored in independent
-  replay
-  (`coalesce_loses_to_a_forced_move_cascade_through_constrained_neighbors`,
-  `coalesce_loses_to_a_constrained_clique_outnumbering_its_pool`,
-  `runtime_spill_composition::fixed_view_copies_compose_into_runtime_spill_when_post_copy_pressure_remains`).
-  Remaining: live-range splitting.
+- **ALLOCATION-REFINEMENT.** Add general live-range splitting to
+  [register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)
+  while preserving exact register-unit aliases, liveness, and target custody.
+  Copy-affinity coalescing in home assignment and in fixed/precolored segment
+  homes, rematerialization ahead of private storage, and the fixed/precolored
+  interval stages on the default route already exist. Splitting exists only
+  as fixed-use recovery in `selected-instructions-to-selected-instructions`:
+  `src/rewrites/allocation_recovery/fixed_view_copy/` inserts a copy only for
+  a `u64` `EntryParameter` whose entry fixed view differs from the fixed view
+  of a `Return` operand in a non-entry block (`compute.rs`,
+  `compute/preflight.rs::find_leaf_block`). Every other pressure case goes to
+  rematerialization or runtime spill.
+
+  Remaining work:
+
+  - Split a live range at allocation-chosen points and home each segment
+    independently, for any admitted origin, scalar type and use, not only an
+    entry parameter returned from a leaf. Insert the connecting copies through
+    the selected rewrite owner, then accept homes only over fresh liveness,
+    ranges and legality.
+  - Lift the limits in `src/analyses/fixed_precolored_split_requirements/`.
+    Tied registers, early-clobber domains, and ranges whose fragments join,
+    cycle or lack a source connector reject as `UnsupportedTiedRegister`,
+    `UnsupportedEarlyClobberDomain` and `UnsupportedCrossBlockRange`
+    (`compute/partition.rs`, `compute/topology.rs`).
+  - Place splitting in the recovery order.
+    `assignment/runtime_spill/recovery.rs` tries rematerialization, then a
+    call-crossing spill, then a bounded spill; a split that frees a home
+    without storage has no position there.
+
+  Acceptance: a value other than a leaf-returned entry parameter, with uses on
+  incompatible views or across a pressure region, allocates through recorded
+  split points and per-segment homes, and replays through callable
+  publication on every admitted target. Independent replay reconstructs the
+  split points, copies and segment homes from current facts. A moved or
+  omitted split point, a copy across an incompatible fixed-use boundary, a
+  segment home that aliases a live register unit, and stale post-split
+  analyses reject. `SPILL-REALIZATION` owns private storage; this item adds
+  no slot.
+
+  Flag: one of the two allocation-recovery selections,
+  `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1`, is a whole-function
+  template. `fixed_view_copy/compute/shared_entry.rs` requires exactly two
+  boundaries of one `u64` entry parameter, an entry block holding a single
+  `CompareI64Zero`, and a `ConditionalBranch` to two distinct return leaves.
+  General splitting with a copy-placement decision (one copy at a dominating
+  point when that is cheaper than one per use) should replace this selection,
+  not gain a sibling per CFG arrangement.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
   CFG families: red-zone policy, probing, unwind
