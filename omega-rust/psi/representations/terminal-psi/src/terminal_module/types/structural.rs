@@ -96,14 +96,22 @@ impl StructuralFieldType {
     /// The declared structural shape a plain leaf field resolves to at a path
     /// end. Bounded leaves keep their restriction out of borrowed shapes, and
     /// erased or structural children are resolved by their own owners.
+    ///
+    /// An inline byte field resolves to nothing. Its extent, capacity, and
+    /// live length belong to the owning record declaration, so it has no
+    /// standalone type identity a consumer could substitute at a path end;
+    /// a byte field reaches a call parameter only through the inline
+    /// presentation routes, which keep the owning root and path.
     pub fn canonical_leaf_shape(&self) -> Option<StructuralTypeShape> {
         match self {
             Self::Scalar(scalar_type) => Some(StructuralTypeShape::PrimitiveScalar(*scalar_type)),
             Self::IeeeFloat(format) => Some(StructuralTypeShape::PrimitiveScalar(
                 ScalarType::IeeeFloat(*format),
             )),
-            Self::ByteSequence(carrier) => Some(StructuralTypeShape::ByteSequence(*carrier)),
-            Self::BoundedInteger(_) | Self::Structural(_) | Self::Erased { .. } => None,
+            Self::ByteSequence(_)
+            | Self::BoundedInteger(_)
+            | Self::Structural(_)
+            | Self::Erased { .. } => None,
         }
     }
 }
