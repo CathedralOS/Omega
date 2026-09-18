@@ -2743,7 +2743,19 @@ Owners include
   `src/tests/scalar_abi.rs` and `src/tests/scalar_primitive_stores.rs`; native
   caller-visible writes and register/stack pointer passing replay through the
   `primitive_store_return` and `terminal_psi_indexed_receivers` differential
-  legs. Remaining: the control-flow call path beyond standalone entrances.
+  legs. The byte-carrier half of "shared physical shape cannot authorize
+  access substitution" is enforced at its owner: an inline byte field
+  resolves to no standalone leaf shape, so a `ByteSequence(BorrowedView)`
+  field can no longer satisfy a callee parameter by shape equality and must
+  reach it through the inline presentation route
+  (`structural_unit::boundary_buffers::inline_byte_identity`, six rows over
+  ordinary and boundary calls, mutable and shared access, and nested carrier
+  paths, with positive controls for every admitted bounded-owned
+  presentation). Remaining: the control-flow call path beyond standalone
+  entrances, and a codec-side regression of its own, since
+  `terminal-codec/src/.../module_foundation_validation.rs` is an independent
+  implementation of the same argument check that carried the identical hole
+  and is now closed by the representation without a test pinning it there.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing

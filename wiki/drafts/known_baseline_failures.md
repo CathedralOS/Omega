@@ -56,10 +56,10 @@ three, with the production site each needs:
 
 `cargo nextest run -p terminal-verifier --no-fail-fast` at a66852a558
 (2026-09-18, macOS arm64, dependency crates rebuilt from the same tree):
-726 run, 719 passed, 7 failed; 721 passed, 5 failed after the repair below.
-The earlier reading at e62b4ae06f was 713 run, 706 passed, 7 failed. Only
-two of the six non-ledger failures were `InvalidPartialAffineCleanup`; each
-of the other four has its own cause, recorded separately here.
+726 run, 719 passed, 7 failed, then 721 passed and 5 failed after the
+jump-edge repair, and 732 run, 729 passed, 3 failed after the byte-field
+repair beside this row. Only two of the six non-ledger failures were
+`InvalidPartialAffineCleanup`; each of the others had its own cause.
 
 - `trusted_surface::recorded_digests_match_the_working_tree` (and its
   `source_coverage_fires_on_a_changed_implementation` sibling): the ledger
@@ -79,27 +79,20 @@ of the other four has its own cause, recorded separately here.
   argument and parameter counts itself, in a pass that runs before
   `control_flow::validate_control_flow` and the structural frontier own
   those two checks. That lane now defers both shapes.
-- `structural_unit::boundary_buffers::ordinary_unit_byte_subloan_rejects_wrong_leaf_type_access_and_path`
+- Repaired: `structural_unit::boundary_buffers::ordinary_unit_byte_subloan_rejects_wrong_leaf_type_access_and_path`
   (mutation 1) and
   `structural_unit::boundary_buffers::boundary_buffer_rejects_wrong_leaf_erasure_access_and_type`
-  are a lost rejection, not an ordering change: a record field retyped to
-  `StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView)` and
-  passed as a whole argument now validates, where it was rejected with
-  `InvalidStructuralArgumentPath`. 2fc3f6ad67 taught
-  `terminal-psi`'s `StructuralFieldType::canonical_leaf_shape` to resolve a
-  path ending at a leaf field, describing the intent as "scalar and IEEE
-  leafs at the path end while bounded or erased leafs stay unresolved", but
-  the implementation also answers `Some` for `ByteSequence(carrier)`. A
-  `BorrowedView` field then resolves to the module's `BorrowedView` type
-  declaration and matches the callee parameter exactly in
-  `structural_operations/structural_arguments/argument_checks.rs`, bypassing
-  the inline presentation route (`terminal_semantics::boundary_buffer_capacity`,
-  which admits only a `BoundedOwned` field). A `BoundedOwned` field is
-  unaffected, because `structural_types.rs` rejects a type declaration with
-  that shape, so no declaration can match it. The repair belongs to the
-  lane that owns `terminal-psi` byte carriers and its seven leaf-shape
-  consumers (codec, interpreter custody, optimization-unit catalog, scalar
-  graph input, reference input, layout, translation replay).
+  were a lost rejection, not an ordering change: `canonical_leaf_shape`
+  answered `Some` for `ByteSequence(carrier)` since 2fc3f6ad67, so a record
+  field typed `ByteSequence(BorrowedView)` resolved by shape equality to the
+  module's standalone declaration and satisfied a callee parameter directly,
+  bypassing the inline presentation route that
+  [byte views](../spec/terminal-psi/byte_views.md) and
+  [structural access](../spec/terminal-psi/structural_access.md) make the
+  only way a field-projected byte argument reaches a parameter. It answers
+  `None` now, which closes the same hole in terminal-codec's independent
+  validation; all seven leaf-shape consumers were followed and none needed
+  explicit byte handling.
 - `structural_unit::boundary_buffers::fixed_array_views::fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence`
   expects `InvalidStructuralArrayLength(StructuralTypeId(3))` for a
   zero-length fixed byte array and now sees
