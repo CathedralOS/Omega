@@ -1090,7 +1090,12 @@ fn invariant_place_observation_relocates_with_its_chained_computation() {
         "no member mutates or moves custody of any place"
     );
     assert_eq!(
-        crate::validation::invariant_place_observation_admission(function, component, read),
+        crate::validation::invariant_place_observation_admission(
+            function,
+            component,
+            read,
+            &std::collections::BTreeSet::new(),
+        ),
         Some(read_source),
         "the field observation passes the shared admission and keeps its own root"
     );
@@ -1246,8 +1251,13 @@ fn member_store_keeps_place_observations_inside() {
         .collect::<Vec<_>>();
     for (_, read) in &reads {
         assert!(
-            crate::validation::invariant_place_observation_admission(function, component, read)
-                .is_none(),
+            crate::validation::invariant_place_observation_admission(
+                function,
+                component,
+                read,
+                &std::collections::BTreeSet::new(),
+            )
+            .is_none(),
             "the shared admission refuses the observation"
         );
     }
@@ -1432,8 +1442,12 @@ fn member_view_parameter_observation_relocates_rebinding_its_root() {
         panic!("the machine carries one structural parameter")
     };
     assert_eq!(
-        crate::validation::invariant_member_place_parameters(function, component)
-            .get(&view_parameter.place),
+        crate::validation::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::new()
+        )
+        .get(&view_parameter.place),
         Some(&entries_parameter.place),
         "the member view parameter resolves transitively to the machine's `entries` root"
     );
@@ -1447,7 +1461,12 @@ fn member_view_parameter_observation_relocates_rebinding_its_root() {
         "the observation reads through the member view parameter"
     );
     assert_eq!(
-        crate::validation::invariant_place_observation_admission(function, component, read),
+        crate::validation::invariant_place_observation_admission(
+            function,
+            component,
+            read,
+            &std::collections::BTreeSet::new(),
+        ),
         Some(entries_parameter.place),
         "the admission rebinds the observed root to the preheader-visible representative"
     );
@@ -1612,7 +1631,12 @@ fn member_view_parameters_resolve_across_member_edges() {
     // with the entry edge's `entries` anchor breaking the tie.
     for (_, read) in &reads {
         assert_eq!(
-            crate::validation::invariant_place_observation_admission(function, component, read),
+            crate::validation::invariant_place_observation_admission(
+                function,
+                component,
+                read,
+                &std::collections::BTreeSet::new(),
+            ),
             Some(entries_parameter.place),
             "each member view observation resolves its root to `entries`"
         );
@@ -1744,8 +1768,12 @@ fn member_produced_view_parameter_stays_loop_carried() {
         panic!("the observing member carries one view structural parameter")
     };
     assert!(
-        !crate::validation::invariant_member_place_parameters(function, component)
-            .contains_key(&view_parameter.place),
+        !crate::validation::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::new()
+        )
+        .contains_key(&view_parameter.place),
         "a member-produced back-edge binding keeps the member view parameter loop-carried"
     );
     // The member's own subslice establishment no longer closes the custody
@@ -1764,8 +1792,13 @@ fn member_produced_view_parameter_stays_loop_carried() {
         .iter()
         .map(|(_, read)| {
             assert!(
-                crate::validation::invariant_place_observation_admission(function, component, read)
-                    .is_none(),
+                crate::validation::invariant_place_observation_admission(
+                    function,
+                    component,
+                    read,
+                    &std::collections::BTreeSet::new(),
+                )
+                .is_none(),
                 "the shared admission refuses each observation on the carried root"
             );
             match read.provenance.first() {
@@ -2100,7 +2133,12 @@ fn invariant_byte_read_relocates_rebinding_its_root_and_index() {
     );
     let entries_place = entries_parameter.place;
     assert_eq!(
-        crate::validation::invariant_member_place_parameters(function, component).get(&read_source),
+        crate::validation::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::new()
+        )
+        .get(&read_source),
         Some(&entries_place),
         "the read's member view parameter resolves to `entries`"
     );
@@ -2125,7 +2163,13 @@ fn invariant_byte_read_relocates_rebinding_its_root_and_index() {
     );
     let relocating = std::collections::BTreeSet::from([read_length]);
     assert_eq!(
-        crate::validation::invariant_byte_read_admission(function, component, read, &relocating),
+        crate::validation::invariant_byte_read_admission(
+            function,
+            component,
+            read,
+            &relocating,
+            &std::collections::BTreeSet::new(),
+        ),
         Some((
             entries_place,
             std::collections::BTreeMap::from([(read_index, index_anchor)])
@@ -2315,14 +2359,24 @@ fn carried_index_keeps_the_byte_read_inside() {
     );
     // The root half still resolves — only the carried index operand refuses.
     assert!(
-        crate::validation::invariant_member_place_parameters(function, component)
-            .contains_key(&read_source),
+        crate::validation::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::new()
+        )
+        .contains_key(&read_source),
         "the member view parameter still resolves to `entries`"
     );
     let relocating = std::collections::BTreeSet::from([read_length]);
     assert!(
-        crate::validation::invariant_byte_read_admission(function, component, read, &relocating)
-            .is_none(),
+        crate::validation::invariant_byte_read_admission(
+            function,
+            component,
+            read,
+            &relocating,
+            &std::collections::BTreeSet::new(),
+        )
+        .is_none(),
         "the shared admission refuses the carried index operand"
     );
     let read_operation = operation_of(read);
@@ -2371,14 +2425,24 @@ fn carried_view_keeps_the_byte_read_inside() {
         _ => unreachable!("member_byte_reads only yields byte reads"),
     };
     assert!(
-        !crate::validation::invariant_member_place_parameters(function, component)
-            .contains_key(&read_source),
+        !crate::validation::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::new()
+        )
+        .contains_key(&read_source),
         "a member-produced back-edge binding keeps the member view parameter loop-carried"
     );
     let relocating = std::collections::BTreeSet::from([read_length]);
     assert!(
-        crate::validation::invariant_byte_read_admission(function, component, read, &relocating)
-            .is_none(),
+        crate::validation::invariant_byte_read_admission(
+            function,
+            component,
+            read,
+            &relocating,
+            &std::collections::BTreeSet::new(),
+        )
+        .is_none(),
         "the shared admission refuses the carried view root"
     );
     let read_operation = operation_of(read);
@@ -2765,8 +2829,12 @@ fn invariant_byte_subslice_relocates_preserving_its_structural_result() {
     );
     let entries_place = entries_parameter.place;
     assert_eq!(
-        crate::validation::invariant_member_place_parameters(function, component)
-            .get(&subslice_source),
+        crate::validation::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::new()
+        )
+        .get(&subslice_source),
         Some(&entries_place),
         "the subslice's member view parameter resolves to `entries`"
     );
@@ -2775,7 +2843,13 @@ fn invariant_byte_subslice_relocates_preserving_its_structural_result() {
     // the same run relocates, so the substitution is empty.
     let relocating = std::collections::BTreeSet::from([start, end, length]);
     assert_eq!(
-        crate::validation::invariant_subslice_admission(function, component, subslice, &relocating),
+        crate::validation::invariant_subslice_admission(
+            function,
+            component,
+            subslice,
+            &relocating,
+            &std::collections::BTreeSet::new(),
+        ),
         Some((entries_place, std::collections::BTreeMap::new())),
         "the shared admission rebinds the root and keeps every operand bound"
     );
@@ -4890,8 +4964,11 @@ fn invariant_unit_call_relocates_rebinding_its_borrowed_root() {
     };
     // The borrowed root is `step`'s member structural parameter; every
     // reaching edge resolves it to the `buf` parameter root.
-    let representative =
-        crate::validation::invariant_member_place_parameters(function, component)[&argument_place];
+    let representative = crate::validation::invariant_member_place_parameters(
+        function,
+        component,
+        &std::collections::BTreeSet::new(),
+    )[&argument_place];
     assert_ne!(representative, argument_place);
 
     let candidates =
@@ -5004,8 +5081,12 @@ fn carried_borrow_unit_call_stays_inside() {
         operation => panic!("the member node is a unit call: {operation:?}"),
     };
     assert!(
-        !crate::validation::invariant_member_place_parameters(function, component)
-            .contains_key(&call_argument),
+        !crate::validation::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::new()
+        )
+        .contains_key(&call_argument),
         "the carried borrow's parameter has no invariant representative"
     );
 
@@ -6493,4 +6574,454 @@ fn forged_primitive_local_initializer_is_rejected_by_the_freeze_fence() {
             }
         ) if rejected_machine == machine && block == member
     ));
+}
+
+/// A cyclic `let mut` primitive local kept alive by a shared borrow to a
+/// pure structural scalar call, then read by a member `PrimitiveScalarRead`:
+/// `scratch`'s root is produced inside the component, but the establishment
+/// relocates and the run covers the root — so the read relocates behind its
+/// producer spelling the same member-produced root byte-exact, the call's
+/// shared-borrow argument does the same, and the `measured & observed`
+/// computation chained on both results relocates through the scalar path.
+const MEMBER_READ_LOCAL_SOURCE: &str = r#"
+    machine measure(value: &u64, bias: u64) -> u64 { bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = 7;
+        let measured: u64 = measure(&scratch, scale);
+        let observed: u64 = scratch;
+        let combined: u64 = measured & observed;
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> combined
+        }
+    }
+"#;
+
+/// Same component shape, but the borrowed local's initializer is the
+/// loop-carried countdown: the establishment cannot leave, so the run never
+/// covers `scratch`'s root — the member read, the borrowing call, and the
+/// chained computation all stay inside even though the call's scalar
+/// argument is invariant.
+const CARRIED_LOCAL_READ_SOURCE: &str = r#"
+    machine measure(value: &u64, bias: u64) -> u64 { bias }
+
+    machine scan(remaining: u64 [0..=5], scale: u64) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let mut scratch: u64 = remaining;
+        let measured: u64 = measure(&scratch, scale);
+        let observed: u64 = scratch;
+        let combined: u64 = measured & observed;
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> combined
+        }
+    }
+"#;
+
+/// A two-member component whose `swap` member view parameter binds only the
+/// subslice `step` establishes fresh each traversal: `view` keeps resolving
+/// to the machine's `entries` root through `carry`, while `other`'s single
+/// binding edge spells the member-produced subslice root. When the run
+/// covers the subslice, `other` resolves to its declared place — so
+/// `other.len` relocates out of `swap` rebinding its observed root to the
+/// moved subslice's byte-exact result place.
+const MEMBER_PRODUCED_VIEW_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::scan(scale: u64, entries: &[u8], remaining: u64 [0..=5])
+    {
+        transition { _ -> step(scale, entries, remaining) }
+        state step(s: u64, view: &[u8], pending: u64 [0..=5]) {
+            let length: u64 = view.len;
+            transition { _ -> swap(s, view[0..view.len], view, pending) }
+        }
+        state swap(t: u64, other: &[u8], carry: &[u8], rest: u64 [0..=5]) {
+            let width: u64 = other.len;
+            transition rest > 0 {
+                true -> step(t, carry, rest - 1)
+                _ -> finish(width)
+            }
+        }
+        state finish(r: u64) {}
+    }
+"#;
+
+/// The `PrimitiveScalarRead` node inside a member block and its block —
+/// the read counterpart of [`member_primitive_local`].
+fn member_scalar_read<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> (
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+) {
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::PrimitiveScalarRead { .. } = &node.operation {
+                return (block, node);
+            }
+        }
+    }
+    panic!("the primitive-scalar read lives in a member block")
+}
+
+#[test]
+fn member_read_relocates_with_its_member_produced_root() {
+    let session = lowered_session_entry(MEMBER_READ_LOCAL_SOURCE, "member read local loop", "scan");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let (_, read) = member_scalar_read(function, component);
+    let (local_operation, local_place) = match &local.operation {
+        AbstractOperation::EstablishPrimitiveLocal {
+            psi_operation,
+            result,
+            ..
+        } => (*psi_operation, result.place),
+        operation => panic!("the member node is a primitive-local establishment: {operation:?}"),
+    };
+    let call_operation = operation_of(call);
+    let (read_operation, read_source, read_result) = match &read.operation {
+        AbstractOperation::PrimitiveScalarRead {
+            psi_operation,
+            result,
+            source,
+            ..
+        } => (*psi_operation, *source, result.value),
+        operation => panic!("the member node is a scalar read: {operation:?}"),
+    };
+    assert_eq!(
+        read_source, local_place,
+        "the member read observes the local's member-produced root"
+    );
+    // The admission boundary, both ways: the read's member-produced root is
+    // invisible at the preheader and no member parameter resolves it, so an
+    // empty run refuses — covering the producer's root admits the read and
+    // resolves to the root it already spells.
+    assert!(
+        crate::validation::invariant_place_observation_admission(
+            function,
+            component,
+            read,
+            &std::collections::BTreeSet::new(),
+        )
+        .is_none(),
+        "an uncovered member-produced root keeps the read inside"
+    );
+    assert_eq!(
+        crate::validation::invariant_place_observation_admission(
+            function,
+            component,
+            read,
+            &std::collections::BTreeSet::from([local_place]),
+        ),
+        Some(local_place),
+        "the run-covered member-produced root admits the read byte-exact"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let local_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == local_operation)
+        .expect("the primitive-local establishment relocates");
+    let call_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the shared-borrow call relocates with its producer");
+    let read_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == read_operation)
+        .expect("the member read relocates behind its producer");
+    // The member-produced root is already what the moved operations spell:
+    // the producer's declared place identity survives byte-exact, so the read
+    // needs no root rewrite and the call no argument rewrite.
+    assert!(read_relocation.node().root_rewrite().is_none());
+    assert!(call_relocation.node().argument_rewrites().is_empty());
+    assert!(
+        local_relocation.destination().node < read_relocation.destination().node
+            && local_relocation.destination().node < call_relocation.destination().node,
+        "the relocated producer lands ahead of both member-produced-root consumers"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == read_relocation.destination().block)
+        .expect("destination block exists");
+    let moved_read =
+        &destination.nodes[usize::try_from(read_relocation.destination().node).unwrap()];
+    match &moved_read.operation {
+        AbstractOperation::PrimitiveScalarRead { source, result, .. } => {
+            assert_eq!(
+                *source, local_place,
+                "the relocated read keeps spelling the member-produced root"
+            );
+            assert_eq!(result.value, read_result);
+        }
+        operation => panic!("relocated read keeps its operation: {operation:?}"),
+    }
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn member_read_stays_when_its_producer_cannot_relocate() {
+    let session =
+        lowered_session_entry(CARRIED_LOCAL_READ_SOURCE, "carried local read loop", "scan");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, local) = member_primitive_local(function, component);
+    let (_, call) = member_structural_scalar_call(function, component);
+    let (_, read) = member_scalar_read(function, component);
+    let local_operation = operation_of(local);
+    let call_operation = operation_of(call);
+    let read_operation = operation_of(read);
+    assert!(
+        crate::validation::invariant_place_observation_admission(
+            function,
+            component,
+            read,
+            &std::collections::BTreeSet::new(),
+        )
+        .is_none(),
+        "the member-produced root is not run-covered while its producer stays"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    for candidate in &candidates {
+        // The establishment's initializer is the loop-carried countdown, so
+        // the producer never enters the run — and with the root uncovered,
+        // the read and the borrowing call have no landing either.
+        assert!(
+            candidate
+                .relocations()
+                .iter()
+                .all(
+                    |relocation| relocation.node().psi_operation() != local_operation
+                        && relocation.node().psi_operation() != call_operation
+                        && relocation.node().psi_operation() != read_operation
+                ),
+            "a staying producer keeps the local, the call, and the read inside"
+        );
+    }
+}
+
+#[test]
+fn member_read_moved_without_its_producer_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(MEMBER_READ_LOCAL_SOURCE, "member read local loop", "scan");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (read_block, read) = member_scalar_read(function, component);
+    let member = read_block.id;
+    let preheader = entry.source;
+    let read_operation = operation_of(read);
+    let (input, mut unit) = session.into_parts();
+    // Hand-move only the read: its source still spells the local's
+    // member-produced root, but the establishment stayed inside — the freeze
+    // fence re-derives the admission with an empty relocated-root set for the
+    // component and refuses because no moved node covered the observed root.
+    let moved = take_operation(&mut unit, read_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn member_parameter_rebinds_to_a_run_covered_member_produced_root() {
+    let session = lowered_session(MEMBER_PRODUCED_VIEW_SOURCE, "member-produced view loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    // `swap`'s `other` member parameter binds only the subslice root `step`
+    // establishes each traversal — member-produced, so the parameter resolves
+    // only when the relocation run covers the subslice's declared place.
+    let (subslice, lengths) = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+        })
+        .fold((None, Vec::new()), |(mut subslice, mut lengths), node| {
+            match &node.operation {
+                AbstractOperation::ByteSequenceSubslice { .. } => subslice = Some(node),
+                AbstractOperation::ByteSequenceLength { .. } => lengths.push(node),
+                _ => {}
+            }
+            (subslice, lengths)
+        });
+    let subslice = subslice.expect("the member subslice exists");
+    let (subslice_operation, subslice_place, subslice_source) = match &subslice.operation {
+        AbstractOperation::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            source,
+            ..
+        } => (*psi_operation, result.place, *source),
+        operation => panic!("the member node is a subslice: {operation:?}"),
+    };
+    let [_, other_length] = lengths.as_slice() else {
+        panic!("`view.len` and `other.len` are the member length observations")
+    };
+    let (length_operation, length_source) = match &other_length.operation {
+        AbstractOperation::ByteSequenceLength {
+            psi_operation,
+            source,
+            ..
+        } => (*psi_operation, *source),
+        operation => panic!("the member node is a length observation: {operation:?}"),
+    };
+    assert_ne!(
+        length_source, subslice_source,
+        "`other.len` observes `swap`'s own parameter, not `step`'s `view`"
+    );
+    // The observation root is `swap`'s member parameter; every reaching edge
+    // binds it to the member-produced subslice root, so the representative is
+    // the covered root — not a preheader-visible place.
+    assert!(
+        !crate::validation::place_observation_root_visible(
+            function,
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == entry.source)
+                .expect("preheader exists"),
+            subslice_place,
+        ),
+        "the member-produced subslice root is not preheader-visible"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let subslice_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == subslice_operation)
+        .expect("the member subslice relocates");
+    let length_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == length_operation)
+        .expect("the member observation relocates behind its covered root's producer");
+    assert_eq!(
+        length_relocation.node().root_rewrite(),
+        Some((length_source, subslice_place)),
+        "the moved observation rebinds its member parameter to the covered member-produced root"
+    );
+    assert!(
+        subslice_relocation.destination().node < length_relocation.destination().node,
+        "the relocated subslice lands ahead of the observation spelling its root"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == length_relocation.destination().block)
+        .expect("destination block exists");
+    let moved_length =
+        &destination.nodes[usize::try_from(length_relocation.destination().node).unwrap()];
+    match &moved_length.operation {
+        AbstractOperation::ByteSequenceLength { source, .. } => assert_eq!(
+            *source, subslice_place,
+            "the relocated observation spells the covered member-produced root"
+        ),
+        operation => panic!("relocated observation keeps its operation: {operation:?}"),
+    }
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
 }

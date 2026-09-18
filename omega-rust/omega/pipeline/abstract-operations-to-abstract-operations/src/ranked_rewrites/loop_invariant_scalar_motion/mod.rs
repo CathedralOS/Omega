@@ -50,9 +50,14 @@ pub use model::{
 /// chain of computations moves together in def-before-use order. A place
 /// observation — one verifier-approved read of an established storage root —
 /// is admissible only when its component performs no place mutation or
-/// custody movement at all and the observed root is visible at the
-/// preheader insertion point: either directly, or through a member structural
-/// parameter every reaching edge resolves to the same preheader-visible
+/// custody movement at all and the observed root lands where the relocated
+/// run can see it: visible at the
+/// preheader insertion point directly, produced by a node the same run
+/// already covers (the persistent cell holds the same contents on every
+/// traversal, so the read relocates byte-exact behind its producer), or
+/// through a member structural
+/// parameter every reaching edge resolves to the same preheader-visible or
+/// run-covered
 /// representative — the root analog of member scalar-parameter resolution,
 /// rebound on the moved node rather than relocated byte-exact. The byte
 /// family adds its own evidence: a `ByteSequenceRead` or

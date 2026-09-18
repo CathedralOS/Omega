@@ -98,12 +98,21 @@ fn validate_surviving_byte_operations(
     // as that representative; every other place stays byte-exact. The scalar
     // analog covers a relocated byte read's `index`/`length` operands: each
     // may re-spell an invariant member scalar parameter as its agreed
-    // representative, and the obligation stays byte-exact.
+    // representative, and the obligation stays byte-exact. The run-covered
+    // root set is empty: this unit is already transformed, so a root whose
+    // producer relocated is produced in the preheader, not by a member, and
+    // a still-member-produced root is genuinely loop-carried here.
     let representatives: BTreeMap<semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId> =
         components
             .iter()
             .filter(|component| component.id.machine == function.machine)
-            .flat_map(|component| invariant_member_place_parameters(function, component))
+            .flat_map(|component| {
+                invariant_member_place_parameters(
+                    function,
+                    component,
+                    &std::collections::BTreeSet::new(),
+                )
+            })
             .collect();
     let scalar_representatives: BTreeMap<
         semantic_vocabulary::ValueId,

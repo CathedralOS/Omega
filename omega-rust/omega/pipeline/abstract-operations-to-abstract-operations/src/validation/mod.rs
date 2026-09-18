@@ -231,10 +231,10 @@ pub(crate) fn admissible_invariant_subslice(
 /// admitted for loop-invariant motion — the byte family's non-observation
 /// member. The node declares a fresh immutable borrowed-view place over
 /// constant bytes: it reads no scalar or structural operand, mutates no
-/// existing place, and its declared root can never anchor another
-/// parameter's invariant representative because
-/// [`invariant_member_place_parameters`] already refuses member-produced
-/// roots. The relocated operation therefore moves byte-exact — the place
+/// existing place, and its declared root can anchor another parameter's
+/// invariant representative only when the relocation run covers this node —
+/// [`invariant_member_place_parameters`] treats an uncovered member-produced
+/// root as loop-carried. The relocated operation therefore moves byte-exact — the place
 /// declaration, structural type, and payload stay inside it — while every
 /// consumer keeps spelling the same place identity. The node must still
 /// name its own operation as the first provenance row, define no scalar
@@ -262,9 +262,10 @@ pub(crate) fn admissible_invariant_byte_literal(node: &OptimizationNode) -> bool
 /// produced the borrowed root leaves in the same run. The node declares a
 /// fresh claim-free mutable storage cell initialized to one scalar `value`:
 /// it reads exactly that scalar operand, mutates no existing place, and its
-/// declared root can never anchor another parameter's invariant
-/// representative because [`invariant_member_place_parameters`] already
-/// refuses member-produced roots. The node must name its own operation as
+/// declared root can anchor another parameter's invariant representative only
+/// when the relocation run covers this node —
+/// [`invariant_member_place_parameters`] treats an uncovered member-produced
+/// root as loop-carried. The node must name its own operation as
 /// the first provenance row, define no scalar value (its result is the
 /// declared place), use exactly its `value` operand, carry no successors or
 /// ownership events, and keep the result claim-free the way
@@ -349,10 +350,9 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// source root's extent without mutating the root, the literal reads
 /// nothing at all, and the primitive local declares a fresh claim-free
 /// storage cell without mutating an existing place — each establishes only a
-/// fresh root —
-/// [`invariant_member_place_parameters`] already refuses member-produced
-/// roots as representatives, so the fresh view or cell can never anchor a
-/// rebind and
+/// fresh root, and a member-produced root can anchor a rebind only when the
+/// relocation run covers its producer
+/// ([`invariant_member_place_parameters`]), so
 /// no member observation of an existing root changes across traversals. A
 /// member call node always carries one `ClaimTransfer` ownership row — the
 /// custody mirror of its `claim_transfers` roster — so the bound reads the
@@ -427,8 +427,8 @@ pub(crate) fn component_preserves_place_observations(
 /// root, a byte-sequence literal establishes only a fresh immutable view
 /// root over constant bytes, and a primitive-local establishment declares
 /// only a fresh claim-free storage cell — no existing place mutates, and a
-/// fresh member-produced root can never anchor another parameter's invariant
-/// representative; control
+/// fresh member-produced root anchors another parameter's invariant
+/// representative only when its producer relocates in the same run; control
 /// nodes carry their custody on their successor edges, which the edge scan
 /// checks; a port write touches a service port rather than a place; a plain
 /// scalar `Call` has no place or claim surface at all; and a unit or scalar
@@ -808,9 +808,13 @@ fn member_place_references(operation: &O, references: &mut BTreeSet<PlaceId>) ->
 /// scalar constants and never produce places, so scanning every
 /// non-terminator preheader node here is exactly the proposal's
 /// ahead-of-insertion computation. A root produced inside the component or a
-/// place only another non-preheader block establishes stays invisible; a
+/// place only another non-preheader block establishes stays invisible —
+/// though [`invariant_observation_root`] still admits a member-produced root
+/// the relocation run already covers, since its producer lands in the
+/// preheader ahead of the run's consumers; a
 /// member structural parameter is never itself visible but may rebind to a
-/// visible representative through [`invariant_member_place_parameters`].
+/// visible or run-covered representative through
+/// [`invariant_member_place_parameters`].
 pub(crate) fn place_observation_root_visible(
     function: &PsiOptimizationFunction,
     preheader: &OptimizationBlock,
@@ -948,37 +952,42 @@ fn member_root_producer_count(
 /// shape ([`admissible_invariant_place_read`]), the component must perform no
 /// place mutation or custody movement
 /// ([`component_preserves_place_observations`]), and the root it observes must
-/// be visible at the unique preheader insertion point
-/// ([`place_observation_root_visible`]) — either directly, or transitively
-/// when the observed root is a member structural parameter every reaching
-/// edge binds to the same preheader-visible representative
+/// land somewhere the relocated run can see it — visible at the unique
+/// preheader insertion point ([`place_observation_root_visible`]), produced
+/// by a node earlier in the same relocation run (`relocating_roots`), or
+/// transitively when the observed root is a member structural parameter every
+/// reaching edge binds to one such representative
 /// ([`invariant_member_place_parameters`]). Returns the root the relocated
 /// observation rebinds to: the node's own root when it is already
-/// preheader-visible, so a byte-exact move and a member-parameter rebind
-/// share one admission.
+/// preheader-visible or run-covered, so a byte-exact move, a member-parameter
+/// rebind, and a run-covered member-produced root share one admission.
 pub(crate) fn invariant_place_observation_admission(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     node: &OptimizationNode,
+    relocating_roots: &BTreeSet<PlaceId>,
 ) -> Option<PlaceId> {
     let source = admissible_invariant_place_read(node)?;
-    invariant_observation_root(function, component, source)
+    invariant_observation_root(function, component, source, relocating_roots)
 }
 
 /// The root an admitted observation rebinds to when it relocates: `source`
 /// itself when it is already visible at the unique preheader insertion
-/// point, so a byte-exact move and a member-parameter rebind share one
-/// admission. The whole-component place-custody gate
-/// ([`component_preserves_place_observations`]) and the root's preheader
-/// visibility ([`place_observation_root_visible`]) — direct or through the
-/// member structural parameter's agreed representative
-/// ([`invariant_member_place_parameters`]) — are enforced here so both the
-/// proposal and the relocation freeze replay derive the same root from the
-/// seed rather than trusting a plan.
+/// point or produced by a node the same relocation run covers, so a
+/// byte-exact move and a member-parameter rebind share one admission. The
+/// whole-component place-custody gate
+/// ([`component_preserves_place_observations`]) and the root's landing —
+/// preheader visibility ([`place_observation_root_visible`]) or a uniquely
+/// member-produced root the run already relocates — are enforced here so both
+/// the proposal and the relocation freeze replay derive the same root from
+/// the seed rather than trusting a plan. A run-covered root qualifies only
+/// when its member producer is unique: a second producer would re-establish
+/// the cell each traversal behind the relocated observation's single read.
 pub(crate) fn invariant_observation_root(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     source: PlaceId,
+    relocating_roots: &BTreeSet<PlaceId>,
 ) -> Option<PlaceId> {
     let preheader_source = shared_entry_source(component)?;
     if !component_preserves_place_observations(function, component) {
@@ -988,19 +997,26 @@ pub(crate) fn invariant_observation_root(
         .blocks
         .iter()
         .find(|block| block.id == preheader_source)?;
-    if place_observation_root_visible(function, preheader, source) {
+    if place_observation_root_visible(function, preheader, source)
+        || (relocating_roots.contains(&source)
+            && member_root_producer_count(function, component, source) == 1)
+    {
         return Some(source);
     }
-    let representatives = invariant_member_place_parameters(function, component);
+    let representatives = invariant_member_place_parameters(function, component, relocating_roots);
     let representative = representatives.get(&source)?;
-    place_observation_root_visible(function, preheader, *representative).then_some(*representative)
+    (place_observation_root_visible(function, preheader, *representative)
+        || (relocating_roots.contains(representative)
+            && member_root_producer_count(function, component, *representative) == 1))
+        .then_some(*representative)
 }
 
 /// The complete `ByteSequenceRead` admission shared by the proposal and the
 /// relocation freeze replay: `node` must carry the source-owned byte-read
 /// shape ([`admissible_invariant_byte_read`]), its storage root must resolve
-/// to a preheader-visible root through the shared observation-root admission
-/// ([`invariant_observation_root`]), and each scalar operand must satisfy the
+/// to a root the relocated run can see through the shared observation-root
+/// admission ([`invariant_observation_root`]) — preheader-visible or produced
+/// by a node the same run covers — and each scalar operand must satisfy the
 /// same use-site invariance rule an admitted scalar computation obeys —
 /// defined outside the component, an invariant member parameter rebound to
 /// its agreed representative, or the preserved result of a node earlier in
@@ -1023,20 +1039,22 @@ pub(crate) fn invariant_byte_read_admission(
     component: &OptimizerCycleComponent,
     node: &OptimizationNode,
     relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
 ) -> Option<(PlaceId, BTreeMap<ValueId, ValueId>)> {
     let (source, _, length) = admissible_invariant_byte_read(node)?;
-    let root = invariant_observation_root(function, component, source)?;
+    let root = invariant_observation_root(function, component, source, relocating_roots)?;
     let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
     let rebound_length = substitution.get(&length).copied().unwrap_or(length);
-    byte_length_operand_measures_root(function, component, root, rebound_length)
+    byte_length_operand_measures_root(function, component, root, rebound_length, relocating_roots)
         .then_some((root, substitution))
 }
 
 /// The complete `ByteSequenceSubslice` admission shared by the proposal and
 /// the relocation freeze replay: `node` must carry the source-owned subslice
 /// shape ([`admissible_invariant_subslice`]), its storage root must resolve
-/// to a preheader-visible root through the shared observation-root admission
-/// ([`invariant_observation_root`]), and each scalar operand — `start`,
+/// to a root the relocated run can see through the shared observation-root
+/// admission ([`invariant_observation_root`]) — preheader-visible or produced
+/// by a node the same run covers — and each scalar operand — `start`,
 /// `end`, and `length` — must satisfy the same use-site invariance rule an
 /// admitted scalar computation obeys: defined outside the component, an
 /// invariant member parameter rebound to its agreed representative, or the
@@ -1057,12 +1075,13 @@ pub(crate) fn invariant_subslice_admission(
     component: &OptimizerCycleComponent,
     node: &OptimizationNode,
     relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
 ) -> Option<(PlaceId, BTreeMap<ValueId, ValueId>)> {
     let (source, _, _, length) = admissible_invariant_subslice(node)?;
-    let root = invariant_observation_root(function, component, source)?;
+    let root = invariant_observation_root(function, component, source, relocating_roots)?;
     let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
     let rebound_length = substitution.get(&length).copied().unwrap_or(length);
-    byte_length_operand_measures_root(function, component, root, rebound_length)
+    byte_length_operand_measures_root(function, component, root, rebound_length, relocating_roots)
         .then_some((root, substitution))
 }
 
@@ -1070,14 +1089,16 @@ pub(crate) fn invariant_subslice_admission(
 /// byte read or subslice relocates with — is defined by a `ByteSequenceLength`
 /// measuring `root`, the rebound storage root the operation observes. A
 /// member-internal producer qualifies only when its own observation root
-/// resolves to that same root — the operand substitution keeps it bound only
-/// when it relocates in the same run; a producer outside the component must
-/// already measure the root directly.
+/// resolves to that same root under the same run-covered member roots — the
+/// operand substitution keeps it bound only when it relocates in the same
+/// run; a producer outside the component must already measure the root
+/// directly.
 fn byte_length_operand_measures_root(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     root: PlaceId,
     rebound_length: ValueId,
+    relocating_roots: &BTreeSet<PlaceId>,
 ) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
     let sites = value_definition_sites(function);
@@ -1100,7 +1121,8 @@ fn byte_length_operand_measures_root(
         O::ByteSequenceLength {
             source: measured, ..
         } if members.contains(block) => {
-            invariant_observation_root(function, component, *measured) == Some(root)
+            invariant_observation_root(function, component, *measured, relocating_roots)
+                == Some(root)
         }
         O::ByteSequenceLength {
             source: measured, ..
@@ -1114,17 +1136,22 @@ fn byte_length_operand_measures_root(
 /// [`invariant_member_parameters`]. A member view parameter qualifies when
 /// every edge reaching its block binds it to itself, to a member structural
 /// parameter that resolves to the same representative, or to that
-/// representative — a root no member block establishes. An observation
-/// reading through such a parameter can be re-expressed on the
-/// representative root when that root is visible at the preheader insertion
-/// point.
+/// representative — a root no member block establishes, or a member-produced
+/// root the relocation run already covers. An observation reading through
+/// such a parameter can be re-expressed on the representative root when that
+/// root is visible at the preheader insertion point or lands there with its
+/// run-covered producer.
 ///
 /// A projected binding (`argument.path` nonempty) cannot anchor a root
 /// rebind: the observation grammar names one root place, so a parameter
 /// bound to `self.field` or to a subview stays loop-carried. A binding to a
 /// root a member block establishes — an operation result, a byte-sequence
-/// literal, or an affine local — is likewise loop-carried: the traversal
-/// re-establishes that root every iteration. Verified edge bindings already
+/// literal, or an affine local — is likewise loop-carried when the run does
+/// not cover its producer: the traversal re-establishes that root every
+/// iteration. A run-covered member-produced root instead anchors like any
+/// outside root — the relocated producer lands in the preheader ahead of the
+/// run's consumers, so the root persists across traversals and the parameter
+/// spells it on every one. Verified edge bindings already
 /// guarantee the argument's access is compatible with the parameter's, so
 /// the resolved representative carries at least the access the member
 /// observation used.
@@ -1137,6 +1164,7 @@ fn byte_length_operand_measures_root(
 pub(crate) fn invariant_member_place_parameters(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
+    relocating_roots: &BTreeSet<PlaceId>,
 ) -> BTreeMap<PlaceId, PlaceId> {
     /// Resolution states during the fixed point. `Unresolved` may promote once
     /// its deferred dependencies resolve; `Representative` can still degrade
@@ -1164,8 +1192,10 @@ pub(crate) fn invariant_member_place_parameters(
         })
         .collect();
     // Whether `place` is a root a member block establishes: every iteration
-    // produces a fresh root, so a binding to one can never anchor an
-    // invariant representative.
+    // produces a fresh root, so a binding to one can anchor an invariant
+    // representative only when the relocation run covers its producer — the
+    // moved establishment lands in the preheader ahead of the run's
+    // consumers, and the root then persists across traversals.
     let member_produced = |place: PlaceId| {
         member_blocks.iter().any(|block| {
             block
@@ -1226,7 +1256,15 @@ pub(crate) fn invariant_member_place_parameters(
                         .get(&argument.place)
                         .copied()
                         .unwrap_or(Resolution::LoopCarried)
-                } else if member_produced(argument.place) {
+                } else if member_produced(argument.place)
+                    && !relocating_roots.contains(&argument.place)
+                {
+                    // A member-produced root the run does not cover is
+                    // re-established fresh every traversal — loop-carried.
+                    // A covered root's producer lands in the preheader ahead
+                    // of the run's consumers, so the root persists like any
+                    // outside-established place and can anchor the
+                    // representative.
                     Resolution::LoopCarried
                 } else {
                     Resolution::Representative(argument.place)
@@ -1988,7 +2026,7 @@ fn borrow_call_admission(
         .blocks
         .iter()
         .find(|block| block.id == preheader_source)?;
-    let representatives = invariant_member_place_parameters(function, component);
+    let representatives = invariant_member_place_parameters(function, component, relocating_roots);
     let mut rewrites = Vec::new();
     for argument in structural_arguments {
         match argument.access {
@@ -2009,9 +2047,11 @@ fn borrow_call_admission(
             // `WriteOnlyBorrow` a caller root would be consistent in
             // principle — the callee cannot read it — but no admitted cyclic
             // source shape produces one today, so both take the single
-            // member-produced rule. A member structural parameter cannot
-            // carry a member-produced root, so the spelled place is the root
-            // itself.
+            // member-produced rule. The spelled place must be the covered
+            // root itself: a member structural parameter that resolves to
+            // the root is not rebound here, because the callee writes
+            // through the argument place it names and this admission never
+            // substitutes a mutating argument's spelling.
             terminal_psi::StructuralAccess::MutableBorrow
             | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
                 if !(relocating_roots.contains(&argument.place)
@@ -2340,8 +2380,9 @@ pub(crate) fn substitute_invariant_place_root(
 }
 
 /// Rebind the structural-argument roots of an admitted call operation:
-/// `rewrites` maps each member-parameter or member-produced root the
-/// admission resolved to the preheader-visible root the relocated call now
+/// `rewrites` maps each member-parameter root the
+/// admission resolved to the preheader-visible or run-covered root the
+/// relocated call now
 /// names. Every static-call variant carries the same `structural_arguments`
 /// field shape, so the substitution walks whichever one the operation is —
 /// `CallUnit` and `CallStructuralScalar` are the admitted
