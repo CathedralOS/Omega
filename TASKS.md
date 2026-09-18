@@ -1093,195 +1093,91 @@ Owners include
   Unit/scalar/aggregate functions already share that native graph; do not
   recreate the deleted Unit planner or unsigned-countdown native route.
 
-  Extend bounded safety/proof admission to qualified and partial owned custody,
-  structural results, projected claims and effectful calls. Preserve dominance,
-  exact successor transfers, ownership frontiers, current-iteration guards and
-  test-fuel suspension/resumption. General cyclic invariants/ranking views need
-  retained evidence; guarded-crash checking must not enumerate unbounded paths.
-  Source production must compose projected helpers, Console structural operands,
-  indexed/aggregate writes and computed results without state duplication.
-  Finite fuel or a relaxed shape check is not a safety proof.
+  Composed cyclic Unit plans, path-scoped store invalidation, stored-field
+  equations, storage-observation block invariants and checked wrapping-update
+  bound transport already exist. The guarded divisor bound is covered by the
+  `cyclic_field_divisor_*` controls in
+  `checked-trees-to-lowered-psi/src/tests/cyclic_byte_literal_calls.rs`; do not
+  re-derive a counter/divisor invariant. None of this carries the decimal
+  conversion loop through Terminal production yet, and the verifier admits a
+  cyclic machine only through the shape allowlist in
+  `validation/control_flow/unranked_cycles.rs`.
+
+  Remaining work:
+
+  - Resume at the indexed byte store. On 2026-09-18 (macOS ARM64)
+    `text/runtime_number_to_decimal_exit` compiled under
+    `pass_canaries_compile`, but
+    `content_text_and_carriers::runtime_number_to_decimal_exit_canary_runs`
+    failed before the native run: Terminal production refuses `Main::main`
+    with `InvalidUnitMachinePlan`, "attached Unit closure is missing a checked
+    transitive machine plan", omission "local construction stopped at
+    statement sequence: scalar field store sequence, state 7". The index
+    counts the `machine_states` span whose slot 0 is the entry body, so state
+    7 is `digit_write`, not `digit_div`. Its
+    `self.out[self.p] = narrow_u32_to_u8_wrapping(self.ch as u32)` reaches the
+    `BoundedOwned` byte-sequence branch of
+    `execution/unit/structural_scalar_store/mod.rs`, which reads both operands
+    from the pure `scalar_expressions` plan through `bound_expression_at`:
+    `AssignmentIndex` is bound and `AssignmentValue` is not, so the store
+    sequence collapses. `values/scalar/computations.rs` does record an
+    `AssignmentValue` computation root for an `Indexed` target, and the scalar
+    field lanes of the same builder accept `Computation` and same-statement
+    `ScalarResult` values; the two byte-store lanes accept only a pure value.
+    Which gate in `values/scalar/expression_plans.rs` (target type reference,
+    `assignment_target_primitive_type`, or `lower_return_expression`) drops
+    the pure binding is unmeasured; re-probe before relying on it. Resolve the
+    store value once for every destination lane, not through a byte-store
+    call-result arm.
+  - Lowering still gives a live scalar call result only a `Return` or
+    `LocalInitializer` role in `emission/call_source_custody.rs`, so a store
+    consuming its own statement's call result has no authored destination
+    there. `filesystem/native_close` stops at that point. The checked-stage
+    half exists (`structural_scalar_store/tests/call_results.rs`).
+    **MATCH-SELECTIVE-LOWERING** works the same `values/scalar` and emission
+    paths; check the claims registry first.
+  - Indexed byte-field writes need composed cyclic-Unit and customer closure
+    coverage. Reuse the ordinary native bounded-field store and exact
+    live-length replay, not a new byte-view adapter.
+    `compiler/tests/byte_field_replacement/indexed.rs` covers direct and nested
+    source writes only.
+  - Extend bounded safety/proof admission to qualified and partial owned
+    custody, structural results, projected claims and effectful calls.
+    `unranked_cycles.rs` admits claims pinned on owned entry parameters and
+    call requirement/crash rosters; it still refuses claim transfers, content
+    reshuffles and partition compositions, qualified parameters, and any
+    structural result other than a plain scalar case. Preserve dominance,
+    exact successor transfers, ownership frontiers, current-iteration guards
+    and test-fuel suspension/resumption. General cyclic invariants/ranking
+    views need retained evidence; guarded-crash checking must not enumerate
+    unbounded paths. Finite fuel or a relaxed shape check is not a safety
+    proof.
+  - Source production must compose projected helpers, Console structural
+    operands, indexed/aggregate writes and computed results without state
+    duplication.
 
   Acceptance: the unchanged customer reaches native exit/output on the hosted
   matrix, with exact caller/callee resource composition and independently checked
   ranking where declared. Corrupt arrivals, ownership, guards, effects and proof
-  groups reject. **SAMPLE-CORPUS** owns whole-customer execution and its current
-  strategy pause; interpreted loops or isolated graph tests cannot close it.
+  groups reject. The unchanged decimal loop is the next source acceptance, then
+  the native customer. **SAMPLE-CORPUS** owns whole-customer execution and its
+  current scope pause; interpreted loops or isolated graph tests cannot close
+  it. The store-value repairs are ordinary value transport shared with
+  **STATE-LOCAL-VALUE-FRONTIER**; they stay here only as this customer's resume
+  point.
 
-  Linux x86-64 resume evidence: `print_squares`'s `Main::main` now declares
-  `reaches Console` (the direct-boundary rule in
-  [effects](wiki/spec/language/effects.md)); before that, every Console sample
-  stopped at source checking with `publishes service reach <none>`. `58dd5c0482`
-  retains composed cyclic Unit plans (`Main::main`,
-  `ConsoleNativeProvider::read_line`, `console_write_bytes`): the closure
-  keeps its checked transitive machine plan through nested/prefixed control
-  assembly, cyclic write-frame inference, trivially discardable affine
-  boundary results, and exact result custody/cleanup; shared inline byte
-  fields present to boundary byte-view parameters end to end. Store fact
-  invalidation is now scoped to the canonical written path, so disjoint
-  sibling-field observations survive (`repro_cyclic` b0-b8). Scalar field
-  stores now publish the exact `field == stored value` equation on the
-  canonical write path (`terminal-verifier` `operation_facts` reconstruction;
-  `structural_scalar_store` field-obligation tests), so obligations whose
-  subject was stored on the dominating path — e.g. `x / self.place` after
-  `self.place = 100` — prove through the existing kernel-checked equality
-  transport; a covering write expires the equation, so stale bounds cannot
-  leak.
-
-  Storage-observation invariant scope is now admitted: scalar block
-  invariant predicates may name `IntegerField`/`BooleanField` terms rooted
-  at places alive for the whole invocation — machine structural parameters
-  and the header's own block parameters — through the shared
-  `scalar_block_invariant_scope` telescope used by both module validation
-  and producer candidate checking. The producer's `field_bounds` pass
-  transports an unprovable cyclic field-read bound obligation through the
-  read's exact `value == field` equation into a candidate invariant at
-  every externally entered component header; each candidate is still a
-  proposal, proved independently at every actual arrival before retention.
-  `cyclic_field_divisor_retains_storage_observation_invariant` witnesses
-  the slice end to end: `x / self.place` with `place` initialized before
-  the loop lowers, reload-verifies, and interprets to its `done` trace.
-
-  The guarded-exit divisor bound is no longer the probe stop: it landed at
-  `4823e93ea7` as the counter lockstep family, which recognizes the
-  divide-by-ten/bump-counter update pair and rewrites the guarded bound into
-  `counter < k -> B * d^(N-k) <= divisor` for `k` in `1..=N`. The control this
-  paragraph used to name, `cyclic_field_divisor_awaits_storage_observation_invariants`,
-  exists nowhere in the tree; five `cyclic_field_divisor_*` tests in
-  `checked-trees-to-lowered-psi/src/tests/cyclic_byte_literal_calls.rs` now
-  pass, reload, independently verify and interpret.
-
-  The blocker moved. Measured 2026-09-18 on macOS ARM64: the acceptance
-  customer `tests/omega/pass/text/runtime_number_to_decimal_exit` compiles
-  under `pass_canaries_compile`, but its own run test
-  `content_text_and_carriers::runtime_number_to_decimal_exit_canary_runs` fails
-  before the native run. Terminal production refuses `Main::main` with
-  `InvalidUnitMachinePlan`, reason "attached Unit closure is missing a checked
-  transitive machine plan", omission "`Main::main` has no admitted body (local
-  construction stopped at statement sequence: scalar field store sequence,
-  state 7)". The state index is the position in the `machine_states` span,
-  whose slot 0 carries the entry body (it supplies `states[0].return_type`), so
-  state 7 is `digit_write` -- three scalar field stores plus the
-  runtime-indexed carrier write -- and not `digit_div`. Resume at the
-  field-store sequence; do not re-derive a counter/divisor invariant that has
-  already landed.
-
-  The field-store refusal is located, measured 2026-09-18 by instrumenting the
-  builders and re-running that canary test. `digit_write`'s statement 1 is
-  `self.out[self.p] = narrow_u32_to_u8_wrapping(self.ch as u32)`, a
-  runtime-indexed carrier write. In
-  `execution/unit/structural_scalar_store/build_structural_scalar_store.rs` the
-  byte-sequence branch is entered -- the carrier resolves as
-  `BoundedOwned { capacity: 5 }` -- and the `Utf8` domain-constraint check
-  passes. It then refuses at the pair of
-  `facts.values.scalar_expressions.bound_expression_at(..)?` lookups: the
-  `AssignmentIndex` role is bound for that statement and `AssignmentValue` is
-  NOT, so the `?` collapses the whole store sequence and the state yields no
-  admitted body. `frame::matches` is not involved; it passed on every traversal.
-
-  The producers explain the asymmetry. `AssignmentIndex` is recorded in
-  `values/scalar/expression_plans.rs` inside the assignment arm's
-  `ExpressionNode::Indexed` branch. `AssignmentValue` is recorded in two other
-  places: the same file after a target type-reference gate, and
-  `values/scalar/computations.rs`, whose assignment arm records it only for
-  `ExpressionNode::Member` targets with a primitive declared place type and for
-  `ExpressionNode::Name` targets naming a mutable local or a mutable non-self,
-  non-const state parameter. An `Indexed` target matches neither, so an indexed
-  destination gets its index bound and its value unbound. Note
-  `assignment_target_primitive_type` also has no fixed-array case: it unwraps
-  `Constrained` and one `Reference` and otherwise asks for a primitive type
-  reference, which `[u8; 5] in Utf8` is not.
-
-  Not yet established: exactly which gate in `expression_plans.rs` ends that
-  arm for this statement. Repeated instrumentation there gave inconsistent
-  results across runs (a sentinel proved both files live in the same binary, so
-  it is not a stale build), so treat any claim about that specific exit as
-  unmeasured until re-probed. The two facts above -- the missing
-  `AssignmentValue` binding, and that no producer records it for an `Indexed`
-  target -- are reproducible.
-  Existing order transitivity, exact equality bridges and closed literal
-  predicate denotation already discharge incompatible integer guards;
-  no new contradiction rule is needed. Equality-cited bounds now join that
-  same bounded two-leg search: an exact `counter == 9` store fact weakens
-  through checked order legs and contradicts the guarded premise
-  `counter < 3`, while closed arithmetic endpoints evaluate through the
-  checked closed-relation primitive before denotation.
-  `integer_guarded_exit_retains_equality_bound_invariant` witnesses it end
-  to end: the retire edge pins `self.counter = 9`, the lockstep invariant
-  retains every arrival, the artifact publishes, reload-verifies and
-  interprets `step,step,step,done`; a stored bound inside the guard and a
-  mutated stored constant both reject. Saved scalar correlations also survive
-  writes and mutating calls through `terminal-verifier/src/verification/field_snapshots.rs`:
-  live exact field-to-SSA equalities capture affected facts before invalidation,
-  without retaining stale field observations or multiplying fact variants.
-  Resume at stronger field-bound candidates and checked wrapping-update proofs,
-  not snapshot reconstruction or implication plumbing. `field_bounds` now
-  carries scoped field comparisons as candidate premises; `integer_selection/implications`
-  makes proved consequences available to ordinary arithmetic through existing
-  implication introduction/elimination, without a new trusted rule. At
-  `00ed8d4fc9`, macOS arm64, run
-  `RUST_MIN_STACK=67108864 cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast -E 'test(nonzero_divisor_certificate) | test(cyclic_byte_literal_calls) | test(scalar_block_invariant) | test(structural_scalar_store)'`.
-  `guarded_field_divisor_remains_valid_until_loop_exit` publishes, reload-verifies
-  and interprets three iterations plus exit despite clearing the divisor on the
-  exit backedge; leaving its guard live rejects both fresh production and old
-  proof replay. This is dependency progress, not decimal/native acceptance.
-  A local SSA feasibility probe established the three candidate clauses
-  `(p < 3 -> place >= 1)`, `(p < 2 -> place >= 10)`,
-  `(p < 1 -> place >= 100)` initially and derived division safety, but could
-  not prove any of their three preservation obligations from actual wrapping
-  add/divide equations. Coordinate the missing checked arithmetic bridge with
-  **PROOF-KERNEL-CORE** before synthesizing that strengthening; do not substitute
-  exact arithmetic or enumerate loop states. The checked wrapping bridge now
-  exists: the affine witness replays unsigned `WrappingIntegerAdd` steps
-  backward to an operand and forward to the sum, and `WrappingIntegerDivide`
-  steps toward the quotient; `map_integer_affine_bound` maps a strict or
-  non-strict root only alongside an independently proved no-wrap conjunct
-  (`operand <= maximum - addend`), so bounds transport through wrapping
-  updates without substituting exact arithmetic or enumerating loop states.
-  `integer_selection/wrapping` discovers those words and assembles the
-  root-bound conjunction from cited facts under its own memoization. The
-  strengthened counter/divisor clauses still need their preservation
-  obligations proved through this bridge; the unchanged decimal loop remains
-  the next source acceptance, followed by the native customer.
-  Indexed byte-field writes still need composed cyclic-Unit/customer closure
-  coverage. Reuse the ordinary native bounded-field store and exact live-length
-  replay, not a new byte-view adapter. Direct/nested source writes have a focused
-  macOS ARM64 runtime and four-target publication probe:
-  `cargo nextest run -p compiler --test byte_field_replacement indexed --no-fail-fast`
-  (`RUST_MIN_STACK=67108864`). This does not close the unchanged decimal or Console
-  customer; their missing invariant and transitive-call evidence remains above.
-
-
-  The single-state `structural field store: pure source` stop is closed: a
-  structural scalar field store may read the SSA result of the scalar call
-  its own statement performs, through a third
-  `CheckedStructuralScalarFieldStoreValue` source admitted at the existing
-  pure-source phase, behind every destination, carrier, domain and
-  write-frame check the authored-source route already makes
-  ([store vocabulary](wiki/spec/terminal-psi/structural_access.md) retains an
-  already-defined exactly typed SSA value, and a call result is one). The
-  rejection had turned on whether the source named a local: the same body
-  spelled through a local binding was already admitted. Three regressions in
-  `execution/unit/structural_scalar_store/tests/call_results.rs` pin the
-  admitted shape, two consecutive call-result stores keeping dense positions,
-  and a domain-constrained destination still refusing an unproved result.
-
-  No canary changes state on this alone, measured both ways at the landing
-  base: the `filesystem/,calls/` pass-canary filter reports the same forty
-  failures with and without it, name for name. Closing a fixture needs the
-  second half, in `emission/call_source_custody`, which still demands an
-  authored `LocalInitializer` for a live scalar call result: its `locate_source`
-  needs an assignment whose value is a call admitted as a direct root, and
-  the same-statement store consuming that result must be recognized as the
-  authored destination instead. Both arms sit under a live
-  **MATCH-SELECTIVE-LOWERING** claim. `filesystem/native_close` clears this
-  gate and stops exactly there.
-
-  Corpus note: the `filesystem/native_*` family, about 45 fixtures, is
-  uniformly unrunnable and unregistered, carrying no `build.omg` and the
-  retired `omega::language::std::` import spelling that package admission now
-  refuses. `native_close` is repaired; the rest need the same two edits
-  before any of them can report a real result.
+  Flag: two mechanisms here grow per customer shape. The verifier's
+  `unranked_cycles.rs` (`eligible`, `cycle_operation_eligible`) is a 780-line
+  allowlist of machine, place, terminator and operation shapes with 27 commits
+  since 2026-09-07, most admitting one more shape; its own comments say
+  eligibility carries no proof authority and the per-arrival frontier
+  comparison is the custody proof. Completing that comparison for cyclic
+  arrivals would let the allowlist be deleted instead of widened. The producer's
+  `proofs/scalar_block_invariants/lockstep.rs` recognizes exactly one update
+  pair (`divisor = divisor / d`, `counter = counter + 1` under `counter < N`,
+  at most 64 clauses) to make the decimal loop's bound inductive. Its output is
+  a proposal the verifier re-proves, so it is not a trust hole, but it is a
+  recognizer for one customer's arithmetic, not a general strengthening rule.
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.
   Owners include `facts/operator_crashes.rs`, `CrashPlan::checked_operators`,
