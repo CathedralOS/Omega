@@ -1,10 +1,11 @@
 //! Target descriptions: semantics, x86 feature sets, ELF loading, UEFI tables.
 //!
-//! `target_semantics` names each supported native target and what it promises;
-//! `x86_features` records feature requirements; `elf_loader` and the
-//! `uefi_*` modules describe the loader and firmware structures a program may
-//! be handed, with their occurrence carriers; `foreign_locator` identifies
-//! foreign providers. Emission reads these; none of them emits bytes.
+//! Start at `target_semantics.rs`: it names each supported native target and
+//! what it promises. `x86_features` records feature requirements; `elf_loader`
+//! and the `uefi_*` folders describe the loader and firmware structures a
+//! program may be handed, each with its occurrence carrier beside it;
+//! `foreign_locator` identifies foreign providers. Emission reads these; none
+//! of them emits bytes.
 
 use diagnostics::Diagnostic;
 
@@ -12,11 +13,8 @@ mod elf_loader;
 mod foreign_locator;
 mod target_semantics;
 mod uefi_boot_services;
-mod uefi_boot_services_occurrence;
 mod uefi_loaded_image;
-mod uefi_loaded_image_occurrence;
 mod uefi_system_table;
-mod uefi_system_table_occurrence;
 mod x86_features;
 
 pub use elf_loader::{
@@ -30,32 +28,32 @@ pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetEntryStackSubject,
     TargetSemanticObservationError, TargetSemantics, UefiX86_64,
 };
+pub use uefi_boot_services::occurrence::{
+    UEFI_BOOT_SERVICES_SIGNATURE, UefiBootServicesOccurrenceValidationError,
+    ValidatedUefiBootServicesHeaderIntegrity, validate_uefi_boot_services_occurrence,
+};
 pub use uefi_boot_services::{
     UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
     UefiBootServicesNativeFieldLayout, UefiBootServicesNativeLayoutError, UefiProtocolGuid,
     ValidatedUefiBootServicesNativeLayout, plan_uefi_boot_services_native_layout,
 };
-pub use uefi_boot_services_occurrence::{
-    UEFI_BOOT_SERVICES_SIGNATURE, UefiBootServicesOccurrenceValidationError,
-    ValidatedUefiBootServicesHeaderIntegrity, validate_uefi_boot_services_occurrence,
+pub use uefi_loaded_image::occurrence::{
+    UEFI_LOADED_IMAGE_PROTOCOL_REVISION, UefiLoadedImageOccurrenceValidationError,
+    ValidatedUefiLoadedImageGeometry, validate_uefi_loaded_image_occurrence,
 };
 pub use uefi_loaded_image::{
     UefiLoadedImageNativeField, UefiLoadedImageNativeFieldKind, UefiLoadedImageNativeFieldLayout,
     UefiLoadedImageNativeLayoutError, ValidatedUefiLoadedImageNativeLayout,
     plan_uefi_loaded_image_native_layout,
 };
-pub use uefi_loaded_image_occurrence::{
-    UEFI_LOADED_IMAGE_PROTOCOL_REVISION, UefiLoadedImageOccurrenceValidationError,
-    ValidatedUefiLoadedImageGeometry, validate_uefi_loaded_image_occurrence,
+pub use uefi_system_table::occurrence::{
+    UEFI_SYSTEM_TABLE_SIGNATURE, UefiSystemTableOccurrenceValidationError,
+    ValidatedUefiSystemTableHeaderIntegrity, validate_uefi_system_table_occurrence,
 };
 pub use uefi_system_table::{
     UefiSystemTableNativeField, UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
     UefiSystemTableNativeLayoutError, ValidatedUefiSystemTableNativeLayout,
     plan_uefi_system_table_native_layout,
-};
-pub use uefi_system_table_occurrence::{
-    UEFI_SYSTEM_TABLE_SIGNATURE, UefiSystemTableOccurrenceValidationError,
-    ValidatedUefiSystemTableHeaderIntegrity, validate_uefi_system_table_occurrence,
 };
 pub use x86_features::{
     AdmittedX86ScalarFmaProvider, X86_SCALAR_FMA_REQUIRED_FEATURES, X86DeploymentFeatures,

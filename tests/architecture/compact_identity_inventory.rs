@@ -593,7 +593,7 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
             &["plan_by_identity"][..],
         ),
         (
-            "omega-rust/omega/representations/target/src/uefi_system_table.rs",
+            "omega-rust/omega/representations/target/src/uefi_system_table/mod.rs",
             &["fn layout_identity(&self) -> u64"][..],
         ),
         (

@@ -7,6 +7,8 @@
 //!
 //! [UEFI Boot Services table]: https://uefi.org/specs/UEFI/2.11/04_EFI_System_Table.html#efi-boot-services-table
 
+pub(crate) mod occurrence;
+
 use crate::{
     Architecture, ObjectFormat, ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
     ProgramEntrySlotDeclaration, TargetProfile,

@@ -8,6 +8,8 @@
 //!
 //! [UEFI Loaded Image protocol]: https://uefi.org/specs/UEFI/2.11/09_Protocols_EFI_Loaded_Image.html
 
+pub(crate) mod occurrence;
+
 use crate::{
     Architecture, ObjectFormat, ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
     ProgramEntrySlotDeclaration, TargetProfile,

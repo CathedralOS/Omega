@@ -5001,7 +5001,7 @@ fn native_provider_execution_compact_coordinates_are_report_only() {
 #[test]
 fn uefi_target_layout_fingerprint_is_report_only_beside_exact_replay() {
     let root = workspace_root();
-    let target_path = root.join("omega-rust/omega/representations/target/src/uefi_system_table.rs");
+    let target_path = root.join("omega-rust/omega/representations/target/src/uefi_system_table/mod.rs");
     let target = std::fs::read_to_string(&target_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", target_path.display()));
     assert!(
