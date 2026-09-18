@@ -1202,213 +1202,51 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Verification and rollout
 
-- **PER-RULE-COVERAGE.** Finish positive, negative, boundary, disabled, budget,
-  determinism, fixed-point/idempotence, and corruption coverage for every exact
-  rule. Do not call repeated reconstruction idempotence when the published
-  artifact is not a legal second input. The eight SelectedLowering literal-fold
-  rules are now fully covered in
-  `selected-instructions-to-selected-instructions` (326 lib tests pass on Linux
-  x86-64): every rule carries positive, negative, disabled-policy, budget,
-  determinism, and replay-corruption evidence; the five 12-bit-immediate rules
-  (exact add, exact subtract, compare, indexed byte load, byte-view address)
-  exercise both sides of the 4095/4096 boundary; and each fixed-point leg feeds
-  the published `ValidatedLiteralFold` back through the real liveness, range,
-  legality, victim-selection, and classification analyses as the legal second
-  input. `CheckedTreeProductPruning` is now fully covered in
-  `typed-trees-to-checked-trees` and the `assembled-syntax-to-checked-compilation`
-  phase entrance (20 focused tests pass on macOS arm64): enabled pruning,
-  disabled/unselected identity, wrong-phase rejection, duplicate/unknown/absent
-  roots, empty-root interface-surface retention, boundary retention, transitive
-  and duplicate dependency retention, determinism, root-order canonicalization,
-  exact root-set identity binding, roster and root corruption rejected by
-  independent product validation, and a fixed-point leg that feeds the
-  published pruned product back through the same plan as a legal second input
-  and observes an empty pruned roster; the phase has no budget axis. The
-  three named memory-rewrite rules in
-  `selected-instructions-to-selected-instructions` — `dead_store`,
-  `load_forwarding`, and `store_motion` — are now fully covered (375 lib
-  tests pass on Linux x86-64): each carries same-block and cross-block
-  positive, negative, and boundary legs; deterministic repeated runs;
-  same-block and cross-block replay-corruption rejection; exact measured
-  validation-step boundaries that admit at the measured count and reject one
-  step below on both the proposal and independent-replay paths; and
-  fixed-point legs that feed the published validated artifact itself back as
-  the legal second input and observe the terminal rejection on both the
-  transformed instruction and the covering store. The three rules have no
-  disabled-policy axis: they are not `Optimization` selection-vocabulary
-  members, so admission is an explicit per-instruction validated call.
-  `address_fold` and the two allocation-recovery selection members —
-  `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` and
-  `ActiveResidentImmediateU64MultiUseRematerializationV1` — now carry the
-  same matrix (392 lib tests pass on macOS arm64). The address fold gains
-  the measured validation-step boundary at two block sizes on both the
-  proposal and independent-replay paths, replay-corruption rejection for
-  drift in blocks the fold never touched, and a producer-site terminal
-  leg; it has no disabled-policy axis for the same reason. The
-  allocation-recovery entrance pins the empty-phase decline shared by both
-  rules. The shared-entry copy carries determinism at the build core, the
-  exact two-boundary admission window — an empty boundary set admits no
-  copy while one or three refuse — and transformed-function re-admission
-  refusal on both the build and replay cores, whose second input is a
-  legal raw `SelectedFunction`; its measured staged budget boundary and
-  disabled legs live in the native-differential `fixed_view_copy_operational`
-  suite. The multiple-use rematerialization carries determinism and
-  terminal re-admission at the rule core — the transformed plan's
-  rewritten uses cannot admit a second application — with staged budget,
-  disabled, corruption, and rebuilt-analysis fixed-point legs in the
-  native-differential suite. The phase's four remaining per-instruction
-  exact rules — `copy_removal`, `literal_compare`,
-  `redundant_extension`, and `runtime_rematerialization` — now carry the
-  same matrix (400 lib tests pass on macOS arm64): each admits at its
-  measured validation-step count and rejects one step below on both the
-  proposal and independent-replay paths at two fixture sizes — an
-  edge-transport successor for `copy_removal`, a widened instruction
-  scan for `literal_compare` and `redundant_extension`, and a dominated
-  successor block for `runtime_rematerialization` — and each rejects
-  replay drift in blocks the rewrite never touched through the
-  restore-by-content check. `copy_removal` also gains its determinism
-  and fixed-point legs: the published artifact is a legal second input
-  through the sealed analysis boundary, re-admission at the removed
-  copy's site refuses, and a surviving chained copy whose destination
-  nobody reads is dead code the rule declines. Like the memory rules,
-  none of the four is an `Optimization` selection-vocabulary member, so
-  the disabled-policy axis stays absent. The phase's last two
-  per-instruction rules — `literal_minuend` and `local_schedule` — now
-  carry the same matrix (480 lib tests pass on Linux x86-64).
-  `literal_minuend` already held the positive, negative, boundary,
-  corruption, determinism, and fixed-point legs — the published
-  `ValidatedLiteralMinuend` feeds back as a legal second input and the
-  folded compare's site refuses re-admission — and its measured
-  validation-step boundary now admits at the exact count and rejects
-  one step below on both the proposal and independent-replay paths at a
-  second fixture size whose flag audit crosses an edge into the
-  consumer's block. `local_schedule` gains the measured boundary at
-  three fixture sizes — the single-block scan, a two-block scan with
-  the pair in the later block, and a roster-carrying load member
-  growing the member-surface and roster terms — admitting at the exact
-  count and rejecting one step below on both paths; determinism across
-  repeated runs; and replay-corruption rejection for drift in a block
-  the interchange never touched. Its fixed-point leg is an involution:
-  the published `ValidatedLocalSchedule` is a legal second input
-  through the sealed analysis boundary, the pair's stale order refuses,
-  and the flipped order interchanges back to restore the source
-  bit-identically while a hazard-coupled pair still declines and a
-  different independent pair still admits. Neither rule is an
-  `Optimization` selection-vocabulary member, so the disabled-policy
-  axis stays absent. All six
-  `lowered-psi-to-lowered-psi` rules — `ControlFlowCleanup`,
-  `SparseConditionalConstantPropagation`, `CopyPropagation`,
-  `GlobalValueNumbering`, `DeadPureScalarElimination`, and
-  `ProofCheckElision` — now carry the same matrix through the public
-  `run_psi_optimization` entrance (117 tests pass on macOS arm64): each
-  is a `PsiOptimization` selection member, so the disabled-policy axis
-  is a sibling-selection identity leg on the rule's own workload; the
-  validators carry no step budget, so the phase has no measured-budget
-  axis; every fixed-point leg feeds the published `LoweredPsi` back
-  through the entrance as a legal second input and observes the
-  recorded identity; and replay corruption is the independent
-  `terminal_verifier::validate_*` check rejecting forged `after`
-  modules — non-copy or non-total removals, survivors with drifted
-  contents, parameter and edge-argument drift, missing dominating
-  equivalents, structural change — plus malformed carriers refused at
-  the stage's module-validation gate. Both proof-freeze triggers are
-  covered: a contract `ensures` clause and an operation-site obligation
-  each freeze the whole closure with an identity record.
-  `resolved-layout-to-resolved-layout`'s sole exact rule,
-  `X86RelaxConditionalBranchesToRel8V1` (`x86_branch_relaxation`), now
-  carries the same matrix (17 lib tests and 13 native-differential stage
-  tests pass on macOS arm64): it is the sole `FunctionRelativeLayout`
-  `Optimization` selection member, so the disabled leg is the empty phase
-  projection retaining the baseline layout by shared `Arc`; positive legs
-  cover all three conditional predicates with their `jb`/`jl` opcode
-  choices and jump re-encoding across a shrink; boundary legs cover the
-  +127/-128 reachable and +128/-129 refused displacements on both the
-  production and replay inspectors; structural legs cover absent taken
-  blocks, non-adjacent fallthroughs, drifted recorded effects, and
-  malformed short opcodes; the measured five-axis budget admits at the
-  exact usage and refuses one below on each axis, and the
-  independent-replay admission path both honors the measured budget and
-  rejects a forged recorded budget; determinism holds across independent
-  stagings and repeated phase executions; and corruption legs reject
-  reauthenticated action bytes, attempt-roster outcomes, retained-layout
-  drift outside the rewrite, foreign evidence substitution, and every
-  receipt, manifest, and exit-contract field. Its fixed-point leg is the
-  recorded terminal no-change sweep that re-declines every conditional
-  branch on the final layout — the relaxed published layout is
-  intentionally not a legal second input because baseline admission plans
-  the six-byte branch rows the rewrite replaced — while a change-free
-  output admits as a fresh baseline and re-stages to no actions.
-  All six `abstract-operations-to-abstract-operations` selection members
-  — `SparseConditionalConstantPropagation`, `ControlFlowCleanup`,
-  `CopyPropagation`, `GlobalValueNumbering`, `ProofCheckElision`, and
-  `DeadPureScalarElimination` — now carry the same matrix through the
-  public `run_psi_pipeline`, `publish_optimization_run`, and
-  `optimize_abstract_operations` entrances (365 lib tests pass on macOS
-  arm64): each positive leg runs a verified Terminal-Psi artifact
-  admitted through the real `lower_artifact_for_optimization` boundary
-  and commits through the selection's own rule; negative legs decline
-  the empty workload; boundary legs decline near-miss workloads — a
-  conditional join with distinct returns for control-flow cleanup, a
-  merge parameter with a distinct false-arm source for copy
-  propagation, an add over unknown parameters for sparse conditional
-  constant propagation and global value numbering, a certified
-  obligation no elision rule covers for proof-check elision, and
-  all-live scalar work for dead scalar elimination; every member is a
-  `PsiOptimization` selection, so disabled legs are sibling-selection
-  identities on the member's own positive workload; the measured
-  five-axis `OptimizationWorkBudget` admits at the exact recorded usage
-  and refuses one step below on every axis; determinism legs compare
-  independent runs and publications across commits, usage, decisions,
-  manifests, ledgers, and identity bundles; fixed-point legs re-admit
-  the published run's transformed unit through
-  `VerifiedPsiOptimizationSession::from_transformed` — the legal second
-  input — and re-run the selected registry to a terminal decline;
-  corruption legs reject drifted phase projections, forged commit
-  outputs, foreign sessions, ledgers, manifests, decision logs, and
-  usage records through the independent publication replay, plus a
-  foreign complete-selection projection refused at the phase entrance;
-  and malformed carriers fail closed at the external-decision decode
-  and artifact admission boundaries.
-  The phase's `runtime_spill` exact rule — including this wave's shared
-  call-spanning reloads — now carries the same matrix (484 lib tests pass
-  on Linux x86-64): positive legs cover instruction-result and
-  edge-initialized parameter victims across body, terminator, binding, and
-  case-payload uses on all four targets, with a dedicated leg showing one
-  shared reload interval spanning an intervening `CallUnit`; negative legs
-  cover address and non-GPR-width values, undominated and bypassed uses,
-  inconsistent transport declarations, and incomplete edge arrivals; the
-  measured validation-step boundary admits at the exact count and rejects
-  one step below on both the proposal and independent-replay paths at
-  three fixture sizes exercising the plan-scan, use, definition, and
-  block terms; the shared/private boundary keeps every flexible use on a
-  private pair when no view of the victim's class survives the block's
-  effects; determinism holds across repeated runs; replay corruption
-  rejects drift in storage, stream, terminator, settlement, roster, and
-  slot content, including a forged extra pair inside the shared shape;
-  and the fixed-point leg feeds the published `ValidatedRuntimeSpill` back
-  through the sealed analysis boundary — the real liveness and live-range
-  analyses accept it, re-admission of the same victim refuses on its
-  existing slot, the produced `SpillAddress` register stays outside
-  admission, and the shared reload register admits a second independently
-  validated spill whose receipt chains the first artifact's identity.
-  Like the memory rules, `runtime_spill` is not an `Optimization`
-  selection-vocabulary member — admission is an explicit per-victim
-  validated call — so the disabled-policy axis stays absent.
-  Every exact rule in the current phase set now carries the full matrix,
-  re-verified on Linux x86-64: 142 `lowered-psi-to-lowered-psi` tests —
-  the six selection rules plus the shared `retained_identities` family
-  (proposition-carried proof values, machine crash routes, operation
-  crash continuations, crash-site guards, recorded source-call joins,
-  and ranked-scc coverage), which carries the same matrix through
-  helper, consumer, and public-entrance legs — 1392
-  `selected-instructions-to-selected-instructions` lib tests, 413
-  `abstract-operations-to-abstract-operations` lib tests, 17
-  `resolved-layout-to-resolved-layout` tests, and the 20 checked-tree
-  product-pruning legs all pass. No uncovered exact-rule family remains:
-  the target-operations and pre-allocation selections are empty identity
-  boundaries, and the retired post-allocation machine spellings reject
-  rather than execute. Remaining: the same matrix for exact rules as
-  they land in other phases.
+- **PER-RULE-COVERAGE.** Keep positive, negative, boundary, disabled, budget,
+  determinism, fixed-point/idempotence, and corruption coverage complete for
+  every exact rule, as
+  [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
+  requires. Do not call repeated reconstruction idempotence when the published
+  artifact is not a legal second input. Every row of the checked
+  [rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
+  has those legs beside its rule, as do the mandatory `runtime_spill` and
+  `runtime_rematerialization` recovery rewrites, which have no disabled axis
+  by design. The 40 uncalled rewrite modules under
+  `selected-instructions-to-selected-instructions/src/rewrites/` (the
+  EXACT-MACHINE-SIMPLIFICATIONS and ALIAS-AWARE-MEMORY families) have
+  positive, negative, boundary, budget, determinism, fixed-point and
+  corruption legs on hand-built plans only. They have no disabled,
+  exact-selection, empty-identity, unsupported-composition or
+  downstream-replay leg, because none has a selection name or a stage caller.
+  An isolated applied-rule test does not establish compiler-generated
+  application or publication support.
+
+  Remaining work:
+
+  - As those two items give a module a catalog row, add the missing legs
+    through `optimize_selected_instructions` and the native-differential
+    suites: exact selection, disabled and empty selection producing identity
+    output, rollback by `--disable-optimization`, unsupported composition,
+    and replay after allocation and emission.
+  - New exact rules in any phase land with the full matrix; this item does
+    not list them. `TargetOperations` and `PreAllocation` are empty identity
+    boundaries today.
+
+  Acceptance: every inventory row and every rewrite reachable from a stage
+  exercises each axis through its stage's public entrance, with the published
+  artifact as the second input for the fixed-point leg. No rule counts as
+  covered while an axis is recorded as absent.
+
+  Flag: coverage is maintained by hand. Under `rewrites/`, 45 test modules
+  each define their own `budget()`, 44 their own `instruction()` fixture, and
+  37 rewrite modules their own measured-boundary test, about 119,000 test
+  lines in total; this entry tracked the result as prose. No check fails when
+  a rule lacks an axis. `tests/architecture/optimizer_rollout` already
+  derives the rule set from `Optimization::ALL` and the stage catalogs and
+  reconciles names, phase, applicability and rollback. The general mechanism
+  is a checked per-rule axis table in that gate, or one shared matrix harness
+  parameterised by a rule fixture, so that a missing axis fails the
+  repository gate.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target.
