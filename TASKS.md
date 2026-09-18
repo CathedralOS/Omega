@@ -398,53 +398,40 @@ accepted contracts, not claims of implementation. Existing
 extend that route, not a second build language or plugin executor. Any semantic
 or trust amendment found here or later goes through [owner questions](OWNER_QUESTIONS.md).
 
-- **BUILD-DEPENDENCY-PURPOSES.** Extend `omega-rust/omega/packages/` acquisition,
-  review and locks, `omega-rust/omega/build/` declaration projection, and Psi
-  package-aware resolution to retain explicit build/product edges and checked
-  occurrences. Preserve one root Build and direct discovery. Host libraries use
-  their own ordinary dependencies; schedule the combined purpose/profile/target
-  prerequisite graph and reject cycles before affected execution. Version the
-  lock/review migration without broadening legacy product edges or inferring
-  permissions from imports. Acceptance: real acquisition and multi-file builds
-  exercise dual-purpose std, conflicting cross-scope aliases, host/product targets,
-  missing edges, dependency cycles and cache separation. Removing a build or
-  product edge rejects only its authorized selections; source sharing never
-  substitutes host output or admission for target evidence.
-  CLI audit at c3aca8bbdf (macOS ARM64, product target linux_x86_64):
-  dual-purpose std, conflicting cross-scope aliases, one package in both
-  purposes, each scope rejecting the other scope's edge with the import,
-  file and scope named, product cycles, and edge removal after
-  publication all hold; `omega/tests/package_commands/build_purposes.rs`
-  pins them through the shipped binary at 380c6f3fdb over
-  `tests/fixtures/packages/build-purposes`. Build-scope sources select
-  their target-scoped machines against the admitted build execution profile
-  (`CheckedCompileRequest::build_execution_profile`, defaulting to the
-  compiler host) while product sources keep the product target
-  (`build-evaluation/src/admission/target_machines.rs::filter_target_machines_by_scope`
-  over `AssembledSyntax::build_scope_sources`). The build scope holds the
-  build entry, the root-local helpers it imports, and every physical source
-  of a package the root reaches only through build-purpose edges, including
-  such a package's own ordinary dependencies
-  (`frontend/mod.rs::build_only_packages`, decided from the reconciled
-  package graph rather than import order); witnessed by
-  `assembled-syntax-to-checked-compilation/src/checking/execution_profile_tests.rs`,
-  macOS ARM64 (a free target-scoped machine still cannot be imported by
-  name, so helpers keep std's attached-machine spelling). Open: a package
-  the root reaches through both purposes stays product scope, so its
-  target-scoped rows still select against the product target, and a file
-  imported by both scopes is rejected rather than checked twice (the
-  cross-scope import diagnostic names the `builder.depend_as`/`build_depend_as`
-  declaration that would close the gap); and non-root packages cannot author
-  build rows, so cross-purpose cycles and per-helper build activations stay
-  unexercised. A build-only package's generated dependency source now joins
-  `build_scope_sources` beside that package's physical files
-  (`source_assembly.rs::assemble_syntax` reads package ownership from the
-  mounted logical path for both), so its target-scoped rows select against
-  the build execution profile while a product package's generated source
-  keeps the product target; witnessed by the two generated-source tests in
-  `execution_profile_tests.rs` and
-  `checkpoint/tests.rs::generated_source_joins_the_build_scope_with_its_build_only_owner`,
-  macOS ARM64.
+- **BUILD-DEPENDENCY-PURPOSES.** Complete the
+  [separate checked contexts and prerequisite graph](wiki/spec/build/scoped_execution.md#two-checked-contexts)
+  for host/build and product code. Purpose-tagged acquisition, review, lock rows,
+  alias isolation, and build-only target selection already exist.
+
+  - Check a package/file separately when both purposes select it.
+    `source-files-to-assembled-syntax/src/frontend/mod.rs::build_only_packages`
+    currently leaves dual-purpose packages in product scope, while
+    `claim_import_scope` rejects a root-local file used in both scopes.
+    Source bytes may be shared; checked instances, target rows, generated
+    bundles, provider plans, and admission/cache identities may not be
+    conflated. Replace the one-scope-per-source model rather than adding
+    import-order exceptions.
+  - Schedule each helper's own build activation in its correct execution
+    profile and prerequisite graph. Package-manager reconciliation/closure
+    validation and `package-compilation` currently reject non-root build
+    dependency rows. Remove that implementation restriction only with scoped
+    activation ownership and cross-purpose cycle detection. An imported
+    helper still cannot declare dependencies for the caller or import another
+    activation's build entry.
+  - Retain exact purpose/profile/target and accepted authority through
+    acquisition, review, lock recovery, generated-source handoff, and checking.
+    Extend the existing owners; no second dependency resolver or build executor.
+
+  Acceptance: real acquisition and CLI multi-file builds use the same std/helper
+  sources in both contexts with different target-scoped implementations, plus
+  a helper that needs its own build dependency. Reject cross-purpose cycles
+  before affected execution, conflicting within-scope aliases, missing edges,
+  and stale or cross-profile cached outputs. Cross-scope aliases may differ;
+  removing one edge affects only its authorized selections. Reuse
+  `omega/tests/package_commands/build_purposes.rs`,
+  `package-manager/tests/dependency_purposes.rs`, and assembled checking's
+  `checking/execution_profile_tests.rs`; include physical and generated files.
+  Existing dual-edge tests do not establish dual-context target checking.
 
 - **BUILD-PRODUCT-REFERENCES.** In Psi source selection and the existing Build
   root/provider owners, implement designated product operands and qualified
