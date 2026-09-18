@@ -8,8 +8,9 @@ use super::super::{
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalMachineResult, Terminator,
     ValueDeclaration, allocate_dense, contract_id, edge_id, lookup_type_id,
-    lower_installation_machine_service_ceiling, machine_id, place_id, retain_exact_unit_boundary,
-    terminal_scalar_type, unique_unit_boundary, unsupported, value_id,
+    lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling, machine_id,
+    place_id, retain_exact_unit_boundary, terminal_scalar_type, unique_unit_boundary, unsupported,
+    value_id,
 };
 use super::{
     CheckedTrees, LoweringError, SourceMappedLowered, admission, catalogs, custody, emission,
@@ -463,7 +464,7 @@ fn emit(
         blocks,
         contract: MachineContract {
             id: contract_id(1),
-            crash_routes: Vec::new(),
+            crash_routes: lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &[])?,
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),

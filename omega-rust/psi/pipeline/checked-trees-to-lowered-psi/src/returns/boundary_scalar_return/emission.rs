@@ -6,9 +6,8 @@ use super::super::{
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
     TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult, Terminator,
     ValueDeclaration, allocate_dense, claim_id, edge_id, lookup_claim_id,
-    lower_checked_crash_route_buckets, lower_checked_crash_routes,
-    lower_installation_machine_service_ceiling, lower_structural_arguments, lower_structural_path,
-    validate_transfer_shape, value_id,
+    lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
+    lower_structural_arguments, lower_structural_path, validate_transfer_shape, value_id,
 };
 use super::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
@@ -336,7 +335,7 @@ pub(crate) fn emit_boundary_scalar_return(
         contract: MachineContract {
             id: identities.contract,
             crash_routes: lower_checked_crash_route_buckets(
-                &lower_checked_crash_routes(checked, plan.machine)?,
+                &crate::unit::effective_crash_routes(checked, plan.machine)?,
                 &scalar_parameters,
             )?,
             requires: crate::scalar_graph::scalar_contracts::clauses(

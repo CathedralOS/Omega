@@ -286,15 +286,20 @@ impl MachineEmission<'_> {
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?
         };
-        let target_contract = checked
+        if checked
             .facts
             .contract_plans
             .for_machine(*realization_machine)
-            .ok_or(LoweringError::Unsupported(
+            .is_none()
+        {
+            return Err(LoweringError::Unsupported(
                 "Unit scalar call target has no checked contract",
-            ))?;
-        let crash_continuations =
-            lower_checked_crash_route_buckets(target_contract.crash.published(), &arguments)?;
+            ));
+        }
+        let crash_continuations = lower_checked_crash_route_buckets(
+            &crate::unit::effective_crash_routes(checked, *realization_machine)?,
+            &arguments,
+        )?;
         let requirement_count = self
             .scalar_requirement_counts
             .iter()

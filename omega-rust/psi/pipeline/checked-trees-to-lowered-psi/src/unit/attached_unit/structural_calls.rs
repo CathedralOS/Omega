@@ -326,10 +326,15 @@ pub(super) fn emit(
             && matches!(integer.bits(), 8 | 16 | 32 | 64))) {
         return unsupported("ordinary structural side arguments require fixed-width integers");
     }
-    let arguments = argument_evaluation::validated_values(evaluated, &scalar_types)?
-        .iter()
-        .map(|value| value.id)
-        .collect();
+    let scalar_values = argument_evaluation::validated_values(evaluated, &scalar_types)?;
+    let arguments = scalar_values.iter().map(|value| value.id).collect();
+    // A claim-free affine leaf still publishes the crash ceiling its checked
+    // plan carries; scalar side arguments substitute its parameter-relative
+    // routes into this call's continuations.
+    let crash_continuations = crate::proofs::crash_routes::lower_checked_crash_route_buckets(
+        &crate::unit::effective_crash_routes(checked, *target_machine)?,
+        &scalar_values,
+    )?;
     let structural_arguments = lower_structural_arguments(
         structural_arguments,
         parameters,
@@ -373,7 +378,7 @@ pub(super) fn emit(
             claim_transfers: Vec::new(),
             returned_claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
-            crash_continuations: Vec::new(),
+            crash_continuations,
         },
     });
     Ok((

@@ -57,9 +57,7 @@ use crate::proofs::content_conservation::{
     RESULT_STRUCTURAL_PLACE_ID, lower_boundary_content_guarantees,
     lower_content_identity_reshuffles,
 };
-use crate::proofs::crash_routes::{
-    lower_boundary_crash_routes, lower_checked_crash_route_buckets, lower_checked_crash_routes,
-};
+use crate::proofs::crash_routes::{lower_boundary_crash_routes, lower_checked_crash_route_buckets};
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::returns::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::returns::structural_types::{

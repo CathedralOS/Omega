@@ -70,7 +70,7 @@ use crate::expression_preparation::prepare_expression::{
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
-    lower_boundary_crash_routes, lower_checked_crash_route_buckets, lower_checked_crash_routes,
+    lower_boundary_crash_routes, lower_checked_crash_route_buckets,
     lower_structural_crash_route_buckets, structural_crash_route_argument_prefix,
     substitute_structural_crash_route_roots,
 };
@@ -97,6 +97,8 @@ use crate::unit::attached_unit::{
 };
 
 pub(crate) mod attached_unit;
+pub(crate) mod crash_interface;
+pub(crate) use crash_interface::effective_crash_routes;
 pub(crate) mod plan_omissions;
 pub(crate) use plan_omissions::unit_plan_omission_explanation;
 pub(crate) mod dynamic_composed_unit;
