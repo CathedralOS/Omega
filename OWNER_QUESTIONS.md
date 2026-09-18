@@ -380,6 +380,39 @@ must be surfaced before relying on them.
     open with the Terminal identities, codec tags and verifier rejoins landed
     and unreachable from any producer.
 
+9. **May the compiler-owned build vocabulary offer a constrained
+   filesystem open/query/close chain?** The two-axis review's remaining
+   acceptance is a witness that an ordinary compile earns the evidence-bound
+   explicit-empty release row. No authored source can produce the retained
+   occurrence that witness needs. `BUILD_PRELUDE`
+   (`source-files-to-assembled-syntax/src/source_assembly.rs`) declares only
+   `BuildSource::{resolve, open, read, close}` and the `BuildOutput` and
+   `BuildLog` facets, and `build_facet_filesystem_operation`
+   (`checked-interpreter/.../evaluator/build_paths.rs`) maps exactly those
+   names onto open, read, close, create and write, none of which is the
+   constrained acquisition
+   (`build-evaluation/src/evidence/replay_eligibility.rs` wants an
+   `open_path_handle` attempt). Reaching the raw boundary instead is refused
+   by a settled rule in `build-evaluation/src/admitted_build_program.rs`:
+   "build.omg may not reach runtime boundary services; use the
+   compiler-owned Build facets." Witnessed at 7be8d50205 (macOS ARM64):
+   a compile running the widest lifecycle a build machine can request
+   retains three receipted attempts and a verified replay record, and
+   `filesystem_native_handle_query_release_contracts` still derives zero
+   contracts (`compiler/tests/terminal_authority.rs`). Decision needed:
+   (a) add one compiler-owned Source facet that issues the constrained
+   chain over a `BuildPath`, the shape std already composes for Windows
+   canonicalization (`open_path_handle`, `final_path_name_by_handle`,
+   `close_handle`), which widens the authored build surface that
+   [permissions](wiki/spec/build/permissions.md) and
+   [declarations](wiki/spec/build/declarations.md) currently fix; or (b)
+   the constrained row is earned only by program-side filesystem release
+   and never by a build, in which case the two-axis acceptance should name
+   a program customer instead, and the broad `Filesystem` summary retires
+   on that route. Until answered, the summary stays, the settlement wiring
+   stands unused, and **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** and
+   **FILESYSTEM-RELEASE-CONTRACT** cannot close.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required

@@ -4266,9 +4266,23 @@ Owners include
   `filesystem_release_occurrence_mechanism_rows` and merges them into the
   terminal-authority policy, and `settlements/source_imports.rs` now takes
   those contracts as a parameter, so the earlier "nothing hands a compile's
-  retained build filesystem replay record" sentence is stale. Remaining: a
-  witness that a real compile earns the constrained row end to end, after
-  which the broad `Filesystem` summary retires.
+  retained build filesystem replay record" sentence is stale. Remaining: no authored source can
+  produce the retained occurrence, so the witness is blocked and the broad
+  `Filesystem` summary stays. `compiler/tests/terminal_authority.rs` runs the
+  widest filesystem lifecycle a build machine can request through
+  `compile_to_checked` under a real sponsor: the activation retains three
+  receipted attempts and issues a verified replay record, yet
+  `filesystem_native_handle_query_release_contracts` derives no contracts,
+  because no attempt carries the constrained `open_path_handle` acquisition.
+  The build vocabulary offers no facet that issues that chain and the raw
+  boundary is refused from `build.omg` by a settled rule, so this is
+  [owner question 9](OWNER_QUESTIONS.md), not a fixture. The settlement
+  wiring itself needs no further change. The broad summary retires at the
+  `FilesystemHostService` arm of
+  `packages/review/evidence/src/capture/authority.rs::dangerous_authority_class`,
+  with its triage consumers and the one-row assertion in
+  `packages/manager/tests/standard_library_package_resolution.rs`, once the
+  witness passes.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Implement bounded occurrence-specific
   open/query/close evidence through checked flow and native realization replay.
@@ -4298,9 +4312,12 @@ Owners include
   `native-realization` derives one release contract per retained occurrence
   and binds it into a direct-syscall key or a normalized-foreign checked
   coordinate (`terminal_authority_policy/filesystem.rs`); the reviewer admits
-  the constrained close under either role. Next leg: the settlement wiring
-  named under **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, so an ordinary compile
-  hands its retained record into the settled mechanisms.
+  the constrained close under either role. Next leg: the settlement wiring landed; what is
+  missing is any authored route that produces a retained occurrence at all,
+  which is [owner question 9](OWNER_QUESTIONS.md). The attached-Unit gap
+  below is not specific to `windows_canonicalize_exit`:
+  `filesystem/native_close` stops at the same gate on the macOS ARM64 std
+  package route.
 
   Native acceptance also needs the checked transitive machine plan missing
   from `filesystem/windows_canonicalize_exit`: Terminal production currently
