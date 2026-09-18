@@ -754,6 +754,55 @@ fn unknown_written_mutable_actual_stays_conservative() {
 }
 
 #[test]
+fn sibling_written_mutable_actual_keeps_the_read_fields_entry_identity() {
+    // `rec.other = 1` ends `rec`'s whole-operand entry provenance, but the
+    // guard reads only `cell.count`: the surviving route names the caller's
+    // `rec.count` entry snapshot instead of widening to `Truth`.
+    let buckets = call_site_buckets(
+        "data Rec { count: i32; other: i32; }
+         machine inner(cell: &Rec) -> bool crashes Trap !(cell.count >= 0) { true }
+         machine outer(mut rec: Rec) -> bool crashes Trap { rec.other = 1; inner(&rec) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the sibling write leaves the read field's entry operand: {buckets:?}")
+    };
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Unary {
+            operator: UnaryOperator::LogicalNot as u8,
+            operand: Box::new(CrashPredicateExpression::Binary {
+                operator: BinaryOperator::GreaterOrEqual as u8,
+                left: Box::new(CrashPredicateExpression::Member {
+                    receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                    member: "count".to_owned(),
+                }),
+                right: Box::new(CrashPredicateExpression::Integer("0".to_owned())),
+            }),
+        }),
+    );
+}
+
+#[test]
+fn read_field_rewritten_mutable_actual_widens_to_truth() {
+    // `rec.count = -1` reaches the exact projection the guard reads, so no
+    // per-field entry identity survives and the cause stays unconditional.
+    let buckets = call_site_buckets(
+        "data Rec { count: i32; other: i32; }
+         machine inner(cell: &Rec) -> bool crashes Trap !(cell.count >= 0) { true }
+         machine outer(mut rec: Rec) -> bool crashes Trap { rec.count = -1; inner(&rec) }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "a rewritten read projection keeps the unconditional route: {buckets:?}"
+    );
+}
+
+#[test]
 fn mutable_scalar_storage_feeds_arithmetic_actuals() {
     // A mutable local in the prefix is outside the immutable scalar-prefix
     // namespace, but the literal arithmetic actual still lowers and

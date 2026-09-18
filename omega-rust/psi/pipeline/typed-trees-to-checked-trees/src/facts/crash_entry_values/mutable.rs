@@ -59,7 +59,7 @@ pub(super) fn self_target_ordinals(
 /// scan cannot separate — an indexed element, a case-qualified payload, or an
 /// unresolvable member — which interferes with every read at or below it.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum PlaceSegment {
+pub(crate) enum PlaceSegment {
     Field(SymbolHandle),
     Opaque,
 }

@@ -170,6 +170,21 @@ impl SummaryCrashBucket {
     }
 
     pub(crate) fn substitute(&self, arguments: &CallArgumentSubstitution) -> Self {
+        self.substitute_with_entry_resolver(arguments, None)
+    }
+
+    /// `substitute` with an optional per-projection operand resolver. When
+    /// `resolve` is present it answers each referenced formal's entry operand
+    /// at the member projection the guard reads — a caller written only in a
+    /// sibling field keeps the read field's caller name instead of widening
+    /// to `Truth`. Callers without live invocation context (the private
+    /// fixed point, hand-built test substitutions) pass `None` and keep the
+    /// whole-operand `arguments.identity` boundary.
+    pub(crate) fn substitute_with_entry_resolver(
+        &self,
+        arguments: &CallArgumentSubstitution,
+        mut resolve: Option<&mut dyn FnMut(u32, &[String]) -> Option<CrashPredicateExpression>>,
+    ) -> Self {
         let mut guards = self
             .alternative_guards
             .iter()
@@ -195,10 +210,19 @@ impl SummaryCrashBucket {
                     }) {
                         return value.then_some(SummaryCrashRouteGuard::Truth);
                     }
-                    let Some(identity) = crate::facts::crash_entry_values::substitute_entry(
-                        &predicate.identity,
-                        &arguments.identity,
-                    ) else {
+                    let identity = match resolve.as_deref_mut() {
+                        Some(resolve) => {
+                            crate::facts::crash_entry_values::substitute_entry_projected(
+                                &predicate.identity,
+                                resolve,
+                            )
+                        }
+                        None => crate::facts::crash_entry_values::substitute_entry(
+                            &predicate.identity,
+                            &arguments.identity,
+                        ),
+                    };
+                    let Some(identity) = identity else {
                         // A current storage read with no entry-value custody
                         // cannot become a caller Parameter. Retain its cause,
                         // without inventing a guard in the caller namespace.
