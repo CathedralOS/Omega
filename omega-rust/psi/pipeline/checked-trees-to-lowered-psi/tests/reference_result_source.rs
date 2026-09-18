@@ -976,3 +976,164 @@ fn execute(
     assert_eq!(meter.usage(), &usage);
     assert_eq!(execution.structural_primitive_values(), vec![written]);
 }
+
+const PROJECTED_REFERENCE_RESULT_SOURCE: &str = "data View { body: &mut i32; }
+        machine select(value: View) -> &mut i32 { value.body }
+        machine replace(value: &mut i32) { value = 29; }
+        machine exercise(value: &mut i32) -> i32 {
+            let input: View = View { body: value };
+            let held: &mut i32 = select(input);
+            replace(held);
+            value
+        }";
+
+#[test]
+fn projected_reference_result_preserves_original_storage() {
+    let checked =
+        typed_trees_to_checked_trees::lower_typed_trees(typed(PROJECTED_REFERENCE_RESULT_SOURCE))
+            .unwrap_or_else(|diagnostics| {
+                panic!("projected reference-result checking: {diagnostics:#?}")
+            });
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
+        .produce_artifact()
+        .expect("a projected leaf return keeps exact ingress custody");
+    execute(&artifact, 1, 1);
+}
+
+#[test]
+fn projected_reference_result_rejects_changed_leaf_custody() {
+    use checked_trees::{
+        CheckedUnitEffectOperationPlan as Operation,
+        CheckedUnitStructuralArgumentSourcePlan as Source,
+    };
+    let original =
+        typed_trees_to_checked_trees::lower_typed_trees(typed(PROJECTED_REFERENCE_RESULT_SOURCE))
+            .unwrap();
+    let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
+        .produce_artifact()
+        .expect("untampered projected leaf custody");
+    for mutation in 0..6 {
+        let mut changed = original.clone();
+        let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
+        match mutation {
+            // The establishment must keep its exact projected leaf path.
+            0 => {
+                let Operation::EstablishReference { source, .. } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::EstablishReference { source, .. }
+                            if !source.path.is_empty())
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                source.path.clear();
+            }
+            // The establishment must keep its exact ingress parameter.
+            1 => {
+                let Operation::EstablishReference { source, .. } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::EstablishReference { source, .. }
+                            if !source.path.is_empty())
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                source.source = Source::Parameter { parameter_index: 1 };
+            }
+            // The projected leaf is a mutable borrow, not a shared read.
+            2 => {
+                let Operation::EstablishReference { source, .. } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::EstablishReference { source, .. }
+                            if !source.path.is_empty())
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                source.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+            }
+            // The declared result source must retain the same leaf path.
+            3 => {
+                let result = plans
+                    .iter_mut()
+                    .find_map(|machine| machine.structural_result.as_mut())
+                    .unwrap();
+                result.reference_sources[0].source.path.clear();
+            }
+            // The declared result source must point at the same parameter.
+            4 => {
+                let result = plans
+                    .iter_mut()
+                    .find_map(|machine| machine.structural_result.as_mut())
+                    .unwrap();
+                result.reference_sources[0].source.source =
+                    Source::Parameter { parameter_index: 1 };
+            }
+            // The caller's leaf loan evidence stays exact.
+            5 => {
+                let Operation::StructuralCall { custody, .. } = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .find(|operation| {
+                        matches!(operation, Operation::StructuralCall { custody, .. }
+                            if custody.reference_loan.is_valid())
+                    })
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                custody.reference_loan = arena::Handle::invalid();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(&changed, "exercise")
+                .produce_artifact()
+                .is_err(),
+            "projected leaf custody mutation {mutation} must reject"
+        );
+    }
+}
+
+#[test]
+fn projected_reference_result_rejects_sibling_leaf_rosters() {
+    // A record carrying two borrowed leaves cannot give one leaf to a bare
+    // reference result: consuming the carrier would strand the sibling, and
+    // the borrowed-source inference already refuses the ambiguous origin.
+    let source = "data Pair { left: &mut i32; right: &mut i32; }
+        machine pick(pair: Pair) -> &mut i32 { pair.left }";
+    assert!(
+        typed_trees_to_checked_trees::lower_typed_trees(typed(source)).is_err(),
+        "a multi-leaf carrier cannot donate one leaf to a bare result"
+    );
+}
+
+#[test]
+fn projected_reference_result_rejects_nested_call_operands() {
+    // Nested projected call operands are not yet materialized as real
+    // producers; the bound value-call fence still rejects them.
+    let source = "data View { body: &mut i32; }
+        data Outer { inner: View; }
+        machine select(value: View) -> &mut i32 { value.body }
+        machine forward_outer(outer: Outer) -> Outer { outer }
+        machine replace(value: &mut i32) { value = 29; }
+        machine exercise(value: &mut i32) -> i32 {
+            let outer: Outer = Outer { inner: View { body: value } };
+            let held: &mut i32 = select(forward_outer(outer).inner);
+            replace(held);
+            value
+        }";
+    assert!(
+        typed_trees_to_checked_trees::lower_typed_trees(typed(source)).is_err(),
+        "a nested call operand of a bound value call stays rejected"
+    );
+}

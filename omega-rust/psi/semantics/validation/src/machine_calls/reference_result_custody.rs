@@ -985,6 +985,131 @@ pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State)
         })
 }
 
+/// A bare reference result may also name one projected leaf of an owned
+/// record formal: `value.body` selects the carrier leaf without minting a
+/// fresh source. The returned position indexes the callee's authored
+/// parameters (call arguments share that order); the argument plan is the
+/// leaf's borrowed-referent ingress exactly as `formal_record_sources`
+/// encodes it. Only declared `Member` projections through reference records
+/// qualify — indexes, case payloads, and non-record receivers stay opaque.
+pub fn source_leaf(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)> {
+    parts(program, state.return_type)?;
+    let StatementNode::Expression(expression) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()?
+    else {
+        return None;
+    };
+    let mut members = Vec::new();
+    let mut current = *expression;
+    while let ExpressionNode::Member(member) = program.expression_table.expression(current) {
+        if member.case_variant.is_some() {
+            return None;
+        }
+        members.push(member);
+        current = member.receiver;
+    }
+    if members.is_empty() {
+        return None;
+    }
+    let ExpressionNode::Name(path) = program.expression_table.expression(current) else {
+        return None;
+    };
+    if path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let (position, parameter) = program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.symbol == path.symbol)?;
+    if parameter.is_self
+        || parameter.is_const
+        || program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+    {
+        return None;
+    }
+    // Every projection must stay inside a checked reference record and the
+    // selected leaf must be the declared reference result itself.
+    let mut selected = parameter.type_reference;
+    let mut leaf_path = Vec::new();
+    for member in members.iter().rev() {
+        if !is_reference_record(program, selected) {
+            return None;
+        }
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(selected)
+        else {
+            return None;
+        };
+        let data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *symbol)?;
+        let member_symbol = member.member_symbol;
+        let field = program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.symbol == member_symbol => {
+                    Some(field)
+                }
+                _ => None,
+            })?;
+        leaf_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            field
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| field.name.as_str().to_owned()),
+        ));
+        selected = field.type_reference;
+    }
+    if program.normalized_type_identity(selected)
+        != program.normalized_type_identity(state.return_type)
+    {
+        return None;
+    }
+    let (ordinal, _) = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .enumerate()
+        .find(|(_, candidate)| candidate.symbol == parameter.symbol)?;
+    let sources = formal_record_sources(
+        program,
+        parameter.type_reference,
+        u32::try_from(ordinal).ok()?,
+    )?;
+    // The establishment moves the carrier's leaf into the bare reference
+    // result and consumes the carrier whole, so the selected leaf must be the
+    // record's entire declared reference roster. A sibling leaf would strand
+    // live custody under a consumed place.
+    if sources.len() != 1 {
+        return None;
+    }
+    sources
+        .into_iter()
+        .find(|source| source.path == leaf_path)
+        .map(|source| (position, source.source))
+}
+
 /// Reconstruct actual call substitution, not only the return lifetime annotation.
 /// The callee's ordinary completion independently verifies this ingress source.
 pub fn result_loan(
@@ -1022,7 +1147,17 @@ pub fn result_loan(
         .iter()
         .flat_map(|machine| program.machine_states(machine))
         .find(|candidate| candidate.symbol == call.target_symbol)?;
-    let position = source_parameter(program, callee)?;
+    // The returned carrier either forwards a whole `&mut` ingress argument or
+    // selects one declared leaf out of an owned record argument. Both lanes
+    // must end in the same single result loan below.
+    let leaf = source_parameter(program, callee)
+        .is_none()
+        .then(|| source_leaf(program, callee))
+        .flatten();
+    let position = leaf
+        .as_ref()
+        .map(|(position, _)| *position)
+        .or_else(|| source_parameter(program, callee))?;
     let argument = *program
         .expression_table
         .expression_handles(expression.arguments)
@@ -1036,17 +1171,68 @@ pub fn result_loan(
             .name_path_members(actual.members)
             .len()
             != 1
-        || !program.state_parameters(state).iter().any(|parameter| {
+    {
+        return None;
+    }
+    let expected_root = if let Some((_, leaf_source)) = leaf {
+        // The argument is an owned record local; the returned leaf's loan is
+        // the exact captured leaf loan from its construction, and this call
+        // is that loan's last use.
+        let [
+            path @ ..,
+            checked_trees::CheckedUnitStructuralPathSegment::Referent,
+        ] = leaf_source.path.as_slice()
+        else {
+            return None;
+        };
+        let (index, input) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+            .find_map(|(index, statement)| match statement {
+                StatementNode::LocalData(local) if local.symbol == actual.symbol => {
+                    Some((index, local))
+                }
+                _ => None,
+            })?;
+        if input.is_mutable
+            || index >= call.statement_index
+            || !is_reference_record(program, input.type_reference)
+            || program
+                .state_parameters(callee)
+                .get(position)
+                .is_none_or(|parameter| {
+                    program.normalized_type_identity(parameter.type_reference)
+                        != program.normalized_type_identity(input.type_reference)
+                })
+        {
+            return None;
+        }
+        let loans = local_record_loans(program, facts, machine, state, u32::try_from(index).ok()?)?;
+        let mut matching = loans.iter().filter(|(source, _)| source.path == path);
+        let (_, leaf_loan) = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        let leaf_loan = facts.borrow.loans.get(*leaf_loan);
+        if leaf_loan.last_use_statement_index != call.statement_index {
+            return None;
+        }
+        leaf_loan.root_symbol
+    } else {
+        if !program.state_parameters(state).iter().any(|parameter| {
             parameter.symbol == actual.symbol
                 && !parameter.is_const
                 && !parameter.is_self
                 && parts(program, parameter.type_reference).is_some()
                 && program.normalized_type_identity(parameter.type_reference)
                     == program.normalized_type_identity(local.type_reference)
-        })
-    {
-        return None;
-    }
+        }) {
+            return None;
+        }
+        actual.symbol
+    };
     let mut states = facts
         .borrow
         .states
@@ -1065,7 +1251,7 @@ pub fn result_loan(
     let (handle, loan) = loans.next()?;
     if loans.next().is_some()
         || loan.statement_index != call.statement_index
-        || loan.root_symbol != actual.symbol
+        || loan.root_symbol != expected_root
         || loan.kind != checked_trees::BorrowAccessKind::Mutable
         || !facts.borrow.loan_segments(loan).is_empty()
         || !facts.borrow.loan_owner_path(loan).is_empty()

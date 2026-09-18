@@ -140,6 +140,44 @@ fn returned_parameter(
     })
 }
 
+/// A `value.body`-style completion selects one borrowed carrier leaf of an
+/// owned record formal rather than forwarding the whole parameter. The leaf
+/// argument already carries its exact ingress path; the shared
+/// reference-result block emits its establishment and rewrites the result
+/// source to that binding. The establishment consumes the carrier whole, so
+/// `source_leaf` only admits a record whose declared reference roster is
+/// exactly the selected leaf.
+fn returned_reference_leaf(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+) -> Option<CheckedUnitStructuralReturnPlan> {
+    let (_, source) = validation::reference_result_custody::source_leaf(program, state)?;
+    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
+    else {
+        return None;
+    };
+    let parameter = parameters.get(parameter_index as usize)?;
+    if parameter.access != CheckedStructuralAccess::Owned
+        || parameter.multiplicity != Multiplicity::Affine
+        || !parameter.qualifications.is_empty()
+        || parameter.fused_service_erasure.is_some()
+    {
+        return None;
+    }
+    Some(CheckedUnitStructuralReturnPlan {
+        source: source.source.clone(),
+        type_identity: program
+            .normalized_type_identity(state.return_type)
+            .into_string(),
+        multiplicity: Multiplicity::Affine,
+        reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
+            path: Vec::new(),
+            source,
+        }],
+    })
+}
+
 pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) scalar_result:
         Option<CheckedUnitScalarResultBindingPlan>,
@@ -269,12 +307,15 @@ pub(super) fn has_statement_shape(
                         ) || matches!(
                             program.expression_table.expression(*expression),
                             ExpressionNode::Name(_)
-                        ) || validation::is_closed_primitive_array_type(
-                            program,
-                            state.return_type,
-                        ) || program
-                            .primitive_type_reference(state.return_type)
-                            .is_some()))
+                        ) || validation::reference_result_custody::source_leaf(program, state)
+                            .is_some()
+                            || validation::is_closed_primitive_array_type(
+                                program,
+                                state.return_type,
+                            )
+                            || program
+                                .primitive_type_reference(state.return_type)
+                                .is_some()))
             }
             StatementNode::LocalData(local) => {
                 program
@@ -1039,6 +1080,8 @@ pub(in crate::execution::terminal_unit) fn build(
         // Completion can forward an existing formal directly. A retained Name
         // value describes possible materialization, not a requirement to create
         // a second binding and bypass the exact parameter-return custody owner.
+        Some(result)
+    } else if let Some(result) = returned_reference_leaf(program, state, structural_parameters) {
         Some(result)
     } else if let Some(root) = returned_value {
         trace.phase("statement sequence: structural result: returned value");

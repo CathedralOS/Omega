@@ -28,6 +28,16 @@ pub(super) fn apply_operation(
         dominators,
         ..
     } = *walk;
+    // A projected reference establishment selects its carrier's leaf: the
+    // carrier is consumed whole by that move, so detect it before the
+    // reference transaction re-homes the leaf under the result.
+    let leaf_moved_place = super::super::references::establishment_moves_leaf(
+        module,
+        machine,
+        &frontier.references,
+        operation,
+    )
+    .map(|(place, _)| place);
     super::super::references::apply_operation(
         module,
         machine,
@@ -47,7 +57,8 @@ pub(super) fn apply_operation(
             place: destination,
         });
     }
-    let consumed_places = consumed_places(walk, operation);
+    let mut consumed_places = consumed_places(walk, operation);
+    consumed_places.extend(leaf_moved_place);
     // A shared successor loan keeps its referent root stable for the whole
     // duration of the block that bound it: while a joined view observes the
     // root, no operation here may move it, take an exclusive subloan on it,
