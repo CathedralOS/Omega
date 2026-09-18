@@ -22,10 +22,8 @@
 //! union at joins, so the walk is a monotone fixpoint over a finite subset
 //! lattice and terminates.
 //!
-//! Two positions are special. In the member's own block the vacated index
-//! is absent from the transformed stream — a dead path that loops back
-//! through it scans the remaining positions only. At the landing position
-//! the member's occupancy on the walked paths decides what the walk sees
+//! Two positions are special. At the landing position the member's
+//! occupancy on the walked paths decides what the walk sees
 //! ([`Landing`]). Where every traversal reaching the block runs the member
 //! there, its position republishes every location it writes and clears the
 //! live set. Where its execution is speculative on the walked paths, its
@@ -35,6 +33,20 @@
 //! still refuses and only an ordinary writer retires them. The destination
 //! instruction at the landing index sits after the member in the
 //! transformed stream and is scanned against the published set.
+//!
+//! In the member's own block the vacated index is absent from the
+//! transformed stream — a dead path that loops back through it scans the
+//! remaining positions only ([`Vacated`]). Whether the member's missing
+//! write diverges there depends on the move: when every walked path
+//! reaching the vacated block crossed the member's new position first, or
+//! when every position behind the vacated index that could observe the
+//! missing write sits inside the crossed window the hazard audit owns,
+//! the index stays silent. When a walked path can reach the vacated block
+//! without the member running — the confluence-hoist family, whose other
+//! inflow edges arrive beside the member's new position rather than
+//! through it — the vacated index is where the missing write leaves every
+//! member location divergent, so it publishes them into the live set and
+//! a later reader still refuses.
 //!
 //! The member's own reads need no audit on the source side either: the
 //! window's position-level hazard proof already refuses every write to a
@@ -66,6 +78,24 @@ pub(super) enum Landing {
     Speculated,
 }
 
+/// What the member's absence at its old index means on the walked paths.
+pub(super) enum Vacated {
+    /// The vacated index diverges nothing the walk must see: every walked
+    /// path reaching the vacated block crossed the member's new position
+    /// first — the hoist into a fork head, where reaching the arm means
+    /// the member already ran — or every position behind it that could
+    /// observe the missing write is a crossed window position the hazard
+    /// audit already refuses, as the sink families' own-block tails are.
+    /// The index is simply absent from the scanned stream.
+    Silent,
+    /// The member's write is missing where the source still ran it: a
+    /// walked path reaches the vacated block beside the member's new
+    /// position rather than through it, so every location the member
+    /// writes goes live at the vacated index — a later reader meets the
+    /// stale value where the source met the member's own.
+    Removed,
+}
+
 /// The member's old and new positions in the transformed stream.
 pub(super) struct Relocation<'a> {
     pub(super) member: &'a SelectedInstruction,
@@ -77,6 +107,7 @@ pub(super) struct Relocation<'a> {
     pub(super) landing_block: usize,
     pub(super) landing_index: usize,
     pub(super) landing: Landing,
+    pub(super) vacated: Vacated,
 }
 
 /// Where the walk begins.
@@ -275,6 +306,9 @@ pub(super) fn dead(
         let mut live = entry[current].clone();
         for (position, instruction) in block.instructions.iter().enumerate() {
             if current == relocation.vacated_block && position == relocation.vacated_index {
+                if matches!(relocation.vacated, Vacated::Removed) {
+                    live.union_with(&locations);
+                }
                 continue;
             }
             if current == relocation.landing_block && position == relocation.landing_index {
