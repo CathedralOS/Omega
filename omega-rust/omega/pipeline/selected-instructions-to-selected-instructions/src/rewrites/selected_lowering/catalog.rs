@@ -31,7 +31,7 @@ pub type SelectedLoweringRuleCatalogEntry =
     OptimizationCatalogDescriptor<SelectedLoweringRuleCatalogPayload>;
 
 /// The single selected-lowering enable/order catalog.
-pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 21] = [
+pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 22] = [
     SelectedLoweringRuleCatalogEntry::new(
         Optimization::SelectedIncomingU12ExactAddImmediate,
         SelectedLoweringRuleCatalogPayload {
@@ -203,6 +203,14 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 21]
             pairs: &SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS,
         },
     ),
+    SelectedLoweringRuleCatalogEntry::new(
+        Optimization::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization,
+        SelectedLoweringRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy: LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1,
+            pairs: &[SelectedInstructionPairRule::WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE],
+        },
+    ),
 ];
 
 /// Descriptors of every catalog row enabled by `policy`, in catalog order.
@@ -216,7 +224,7 @@ pub fn enabled_pair_rules(
 }
 
 /// Compatibility view derived from the descriptor catalog.
-pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 21] = [
+pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 22] = [
     SELECTED_LOWERING_RULE_CATALOG[0].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[1].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[2].optimization(),
@@ -238,6 +246,7 @@ pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 21] = [
     SELECTED_LOWERING_RULE_CATALOG[18].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[19].optimization(),
     SELECTED_LOWERING_RULE_CATALOG[20].optimization(),
+    SELECTED_LOWERING_RULE_CATALOG[21].optimization(),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

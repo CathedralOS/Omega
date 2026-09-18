@@ -106,7 +106,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    40;
+    41;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -307,6 +307,11 @@ optimization_vocabulary! {
         counter: "selected_incoming_saturating_add_upper_bound_materialization",
         phase: SelectedLowering
     },
+    SelectedIncomingWrappingRemainderMinusOneZeroMaterialization = 41 => {
+        case: "SelectedIncomingWrappingRemainderMinusOneZeroMaterialization",
+        counter: "selected_incoming_wrapping_remainder_minus_one_zero_materialization",
+        phase: SelectedLowering
+    },
 }
 
 impl Optimization {
@@ -358,7 +363,8 @@ impl Optimization {
             | Self::SelectedIncomingSaturatingDivideOneIdentityCopy
             | Self::SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization
             | Self::SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization
-            | Self::SelectedIncomingSaturatingAddUpperBoundMaterialization => None,
+            | Self::SelectedIncomingSaturatingAddUpperBoundMaterialization
+            | Self::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization => None,
         }
     }
 }

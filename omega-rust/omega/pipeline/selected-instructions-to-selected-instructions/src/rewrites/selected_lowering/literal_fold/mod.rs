@@ -101,7 +101,17 @@ pub use validate::validate_literal_fold;
 /// tail operand under the same mixed custody, and retiring the
 /// consumer's implicit unit definitions under the same deadness gate;
 /// the zero-dividend fold stays disjoint on the folded literal's operand
-/// position from its divisor-one sibling.
+/// position from its divisor-one sibling — or the all-ones literal
+/// `u64::MAX` — the normalized-i64 divisor `-1` — at the divisor operand
+/// of a wrapping remainder into a `MaterializeI64` of the constant zero:
+/// `x % -1` is `0` for every `x`, including the `i64::MIN` dividend the
+/// kind's semantics defines to produce zero rather than trap, so the
+/// folded divisor literal itself discharges the consumer's encoded fault
+/// surface under the same `FaultDischargedByLiteral` relationship the
+/// divisor-one fold declares, dropping the dividend `Use` and dead
+/// scratch `Def` operands; the minus-one fold stays disjoint on the
+/// folded literal's value from its divisor-one sibling at the same
+/// operand position.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

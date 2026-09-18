@@ -1184,9 +1184,39 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   the recorded immediate's equality with the carrier maximum —
   re-derives the materialized maximum from the instruction record, runs
   its own dead-unit scan, and never consults the pair descriptor).
+  `WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE` declares the first
+  same-position value-disjoint trap relationship: `MaterializeI64`
+  producing `u64::MAX` — the normalized-i64 divisor `-1` — feeding the
+  divisor operand of `WrappingRemainderI64` folds into a
+  `MaterializeI64` of the constant zero at the result register under
+  `LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1` — `x % -1` is `0`
+  for every `x`, and `i64::MIN % -1` is the exceptional case the kind's
+  semantics defines to produce zero rather than trap, so the folded
+  divisor literal itself discharges the consumer's encoded architectural
+  fault under the same `FaultDischargedByLiteral` surface the
+  divisor-one fold declares (a divisor of `-1` never divides by zero,
+  and the x86-64 realization's `-1` guard skips the `idiv` for exactly
+  the overflow-prone dividend). The family shares its consumer kind and
+  operand position with the divisor-one fold; admission selects between
+  the two `WrappingRemainderI64` divisor families by the folded
+  literal's exact value, and `SelectedIncomingWrappingRemainderMinusOneZeroMaterialization`
+  is optimization 41 in the vocabulary. The validator restates the
+  grammar through its own `RemainderMinusOne` source shape — selecting
+  the family from the victim's operand position and the recorded
+  literal's equality with `u64::MAX` — re-derives the zero
+  materialization, result register, dropped-`Def` custody, and rebuilt
+  row from the instruction record under its own policy-gated row
+  binding, and never consults the pair descriptor (1228 crate lib
+  tests pass, including firing on both Linux targets, non-`u64::MAX`
+  divisor rejection in both directions of the sibling-family boundary,
+  scratch-custody negatives, forbidden operand bindings, wrong-policy
+  and wrong-position rejections, decision-field substitution, and
+  all-families-enabled value dispatch; the replay's operand-1 literal
+  check and row binding are the minus-one family's own).
   Remaining: further unit roles beyond retired implicit definitions,
   stack- and control-flow-carrying relationships, and trap relationships
-  beyond the existing `FaultDischargedByLiteral`,
+  beyond the landed `FaultDischargedByLiteral` family — which now covers
+  a second distinct discharging literal — plus the
   `FaultDischargedByObligation`, `FaultDischargedByLiteralDeadUnitDefs`,
   and `FaultDischargedByObligationDeadUnitDefs` descriptors. Those
   fault-discharge variants do not admit arbitrary trap preservation or

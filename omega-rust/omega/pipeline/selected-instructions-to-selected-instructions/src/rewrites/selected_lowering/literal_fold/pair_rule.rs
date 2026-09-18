@@ -1321,6 +1321,58 @@ impl SelectedInstructionPairRule {
         rule
     };
 
+    /// Eliminate `MaterializeI64` feeding the divisor operand of
+    /// `WrappingRemainderI64` when the literal is `u64::MAX` — the
+    /// normalized-i64 divisor `-1`: a wrapping remainder by minus one is
+    /// always zero — `x % -1` is `0` for every `x`, and `i64::MIN % -1`
+    /// is the exceptional case the kind's semantics defines to produce
+    /// zero rather than trap — so the rewrite is a `MaterializeI64` of
+    /// the constant zero at the consumer's result register. The declared
+    /// surface carries the dimensions an `idiv`-class realization brings:
+    /// the consumer may encode an architectural fault — divide by zero
+    /// or quotient overflow — which the folded divisor of minus one
+    /// discharges under
+    /// [`FaultDischargedByLiteral`](PairMachineEffects::FaultDischargedByLiteral):
+    /// a divisor of `-1` can never divide by zero, and the one dividend
+    /// whose `idiv` would overflow is the case the kind defines away —
+    /// the x86-64 realization's `-1` guard skips the divide for exactly
+    /// it — so the encoded fault cannot fire on this instruction. The
+    /// operands may carry the register pins and early-clobber marks a
+    /// pinned-scratch realization requires under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// the operand-0 dividend `Use` is dropped with the form because the
+    /// constant result never reads it, and every operand past the
+    /// operand-2 `Def` result — the dead quotient scratch an x86-64
+    /// `idiv` realization writes — is a `Def` the fold drops under
+    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult),
+    /// which requires each such register to occur nowhere else in the
+    /// function. Targets whose remainder row carries no scratch `Def` —
+    /// aarch64's `udiv`/`msub` realization — admit the same rule with an
+    /// empty scratch tail. The family shares its consumer kind and
+    /// operand position with the divisor-one fold; the grammars stay
+    /// disjoint on the folded literal's value — `1` admits only the
+    /// divisor-one pair, `u64::MAX` only this one.
+    pub const WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE: Self = {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::WrappingRemainderI64,
+            rewritten: MachineSemanticKind::MaterializeI64,
+            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            immediate_bound: PairImmediateBound::Exactly(u64::MAX),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::FaultDischargedByLiteral,
+        };
+        assert!(
+            matches!(
+                rule.machine_effects,
+                PairMachineEffects::FaultDischargedByLiteral
+            ) && matches!(rule.immediate_bound, PairImmediateBound::Exactly(u64::MAX)),
+            "the fault discharge holds only for the divisor literal minus one"
+        );
+        rule
+    };
+
     /// Eliminate `MaterializeI64` feeding the dividend operand of
     /// `WrappingRemainderI64` when the literal is exactly zero: a
     /// remainder of a zero dividend is always zero — `0 % x` is `0` for

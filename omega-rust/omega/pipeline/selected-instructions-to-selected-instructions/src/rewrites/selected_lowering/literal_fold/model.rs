@@ -13,7 +13,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 11;
+const LITERAL_FOLD_VERSION: u32 = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -57,6 +57,7 @@ impl LiteralFoldPolicy {
     const SATURATING_DIVIDE_ZERO_BIT: u32 = 1 << 18;
     const SATURATING_SUBTRACT_ZERO_MINUEND_BIT: u32 = 1 << 19;
     const SATURATING_ADD_UPPER_BOUND_BIT: u32 = 1 << 20;
+    const WRAPPING_REMAINDER_MINUS_ONE_BIT: u32 = 1 << 21;
     const KNOWN_BITS: u32 = Self::EXACT_ADD_BIT
         | Self::EXACT_SUBTRACT_BIT
         | Self::COMPARE_BIT
@@ -77,7 +78,8 @@ impl LiteralFoldPolicy {
         | Self::SATURATING_DIVIDE_ONE_BIT
         | Self::SATURATING_DIVIDE_ZERO_BIT
         | Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT
-        | Self::SATURATING_ADD_UPPER_BOUND_BIT;
+        | Self::SATURATING_ADD_UPPER_BOUND_BIT
+        | Self::WRAPPING_REMAINDER_MINUS_ONE_BIT;
 
     pub const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
@@ -340,6 +342,26 @@ impl LiteralFoldPolicy {
     pub const SATURATING_ADD_UPPER_BOUND_V1: Self = Self {
         enabled_rules: Self::SATURATING_ADD_UPPER_BOUND_BIT,
     };
+    /// Wrapping-remainder minus-one fold: fold a materialized literal
+    /// `u64::MAX` — the normalized-i64 divisor `-1` — feeding its sole
+    /// `WrappingRemainderI64` consumer's divisor operand into a
+    /// `MaterializeI64` of zero at the result register — a remainder by
+    /// minus one is always zero: `x % -1` is `0` for every `x`, and
+    /// `i64::MIN % -1` is the exceptional case the kind's semantics
+    /// defines to produce zero rather than trap. The literal is itself
+    /// the evidence the consumer's encoded fault surface cannot fire —
+    /// a divisor of `-1` can never divide by zero, and the one dividend
+    /// whose `idiv` would overflow is the case the realization's `-1`
+    /// guard skips — so the fold retires the trap surface wholesale
+    /// while dropping the dividend `Use` and dead scratch `Def`
+    /// operands. The minus-one grammar is disjoint from the divisor-one
+    /// family on the folded literal's value at the same operand
+    /// position: the producer selects between the two
+    /// `WrappingRemainderI64` divisor families by which exact literal
+    /// the enabled rules admit.
+    pub const WRAPPING_REMAINDER_MINUS_ONE_V1: Self = Self {
+        enabled_rules: Self::WRAPPING_REMAINDER_MINUS_ONE_BIT,
+    };
 
     pub(crate) const fn empty() -> Self {
         Self { enabled_rules: 0 }
@@ -437,6 +459,10 @@ impl LiteralFoldPolicy {
 
     pub const fn enables_saturating_add_upper_bound(self) -> bool {
         self.enabled_rules & Self::SATURATING_ADD_UPPER_BOUND_BIT != 0
+    }
+
+    pub const fn enables_wrapping_remainder_minus_one(self) -> bool {
+        self.enabled_rules & Self::WRAPPING_REMAINDER_MINUS_ONE_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u32 {

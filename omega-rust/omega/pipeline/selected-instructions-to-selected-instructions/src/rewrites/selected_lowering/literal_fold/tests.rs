@@ -23,10 +23,10 @@ mod wrapping_add_zero_copies;
 use staged_arithmetic_inputs::{
     BlockZeroTerminator, staged_add_inputs, staged_and_inputs, staged_and_ones_inputs,
     staged_divide_inputs, staged_divide_zero_dividend_inputs, staged_remainder_inputs,
-    staged_remainder_zero_dividend_inputs, staged_saturating_add_carrier_inputs,
-    staged_saturating_add_inputs, staged_saturating_add_upper_bound_carrier_inputs,
-    staged_saturating_divide_carrier_inputs, staged_saturating_divide_inputs,
-    staged_saturating_divide_zero_dividend_carrier_inputs,
+    staged_remainder_minus_one_inputs, staged_remainder_zero_dividend_inputs,
+    staged_saturating_add_carrier_inputs, staged_saturating_add_inputs,
+    staged_saturating_add_upper_bound_carrier_inputs, staged_saturating_divide_carrier_inputs,
+    staged_saturating_divide_inputs, staged_saturating_divide_zero_dividend_carrier_inputs,
     staged_saturating_subtract_carrier_inputs, staged_saturating_subtract_inputs,
     staged_saturating_subtract_zero_minuend_carrier_inputs, staged_subtract_inputs,
     staged_wrapping_add_inputs, staged_xor_inputs,
@@ -665,6 +665,7 @@ fn policy_without_all(disabled: &[LiteralFoldPolicy]) -> LiteralFoldPolicy {
         LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
         LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
         LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
+        LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1,
     ]
     .into_iter()
     .filter(|policy| !disabled.contains(policy))
