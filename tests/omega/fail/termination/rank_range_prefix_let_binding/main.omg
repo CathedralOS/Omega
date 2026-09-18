@@ -1,0 +1,31 @@
+// FAIL CANARY. `walk` binds a machine call in its ranked body
+// (`let seen: u32 = self.level(remaining);`). `preserves_rank` walks only
+// assignment and call statements; a root binding reaches the match's
+// catch-all, so no statement in the cycle preserves the entry-relative rank
+// and the range proof never forms.
+//
+// This is `pass/termination/rank_range_prefix_call` with one variable moved.
+// There the prefix statement is the call `self.audit(remaining)`, admitted
+// because its complete write frame misses every premise carrier. Binding a
+// call's result instead of issuing it as a statement is what this canary
+// pins, and the admission does not extend to it.
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.walk(4, 9) }
+}
+
+machine Main::level(&self, value: u32) -> u32 {
+    transition { _ -> value }
+}
+
+machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    let seen: u32 = self.level(remaining);
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}
