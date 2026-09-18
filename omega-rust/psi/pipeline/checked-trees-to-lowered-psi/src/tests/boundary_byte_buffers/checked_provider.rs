@@ -14,7 +14,7 @@ use terminal_interpreter::{
 
 #[test]
 fn checked_provider_byte_buffers_forward_original_field_across_fuel_suspension() {
-    assert_forwarded_input(INPUT_SOURCE, false);
+    assert_forwarded_input(INPUT_SOURCE, false, &[b"fin", b"QQ", b"fin"]);
 }
 
 #[test]
@@ -26,16 +26,27 @@ fn checked_provider_byte_buffers_forward_original_array_path_across_fuel_suspens
             "data Record { cells: [Cell; 2]; } machine Record::run",
         )
         .replace("self.out", "self.cells[1].out")
-        .replace("self.other", "self.cells[1].other");
-    assert_forwarded_input(&source, false);
+        .replace("self.other", "self.cells[1].other")
+        // The boundary loans retired every `self.cells` element's `Utf8`
+        // coverage, so all four leaf fields are re-established before the
+        // `&mut self` return re-proves them.
+        .replace(
+            "self.cells[1].out = \"fin\";",
+            "self.cells[1].out = \"fin\";\n            self.cells[1].other = \"QQ\";\n            self.cells[0].out = \"aa\";\n            self.cells[0].other = \"bb\";",
+        );
+    assert_forwarded_input(
+        &source,
+        false,
+        &[b"fin", b"QQ", b"fin", b"QQ", b"aa", b"bb"],
+    );
 }
 
 #[test]
 fn checked_provider_byte_buffers_forward_through_ordinary_helper() {
-    assert_forwarded_input(INPUT_SOURCE, true);
+    assert_forwarded_input(INPUT_SOURCE, true, &[b"fin", b"QQ", b"fin"]);
 }
 
-fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
+fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: &[&[u8]]) {
     let mut source = source.replace(
         "boundary trait Input { machine read(out: &mut [u8]) reaches Input; }",
         "boundary trait Input { machine read(out: &mut [u8]) reaches Input invokes Input; machine refill(out: &mut [u8]) reaches Input; }",
@@ -157,6 +168,17 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
             Ok(TerminalEffectResult::Unit)
         }
     }
+    let (out_path, out_field) = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            OperationKind::StructuralByteSequenceFieldStore { path, field, .. } => {
+                Some((path.clone(), *field))
+            }
+            _ => None,
+        })
+        .expect("the borrowed field's authored store");
     let mut usages = Vec::new();
     for incremental in [false, true] {
         let mut execution = TerminalExecution::start_installed_artifact(
@@ -179,6 +201,7 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
         let mut fuel =
             terminal_fuel::TerminalFuelMeter::with_allowance(if incremental { 0 } else { 100 });
         let mut complete = false;
+        let mut committed = Vec::new();
         for _ in 0..100 {
             match execution
                 .resume(&mut fuel, &mut input)
@@ -188,14 +211,37 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
                     complete = true;
                     break;
                 }
-                TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
+                TerminalExecutionStatus::SponsorExhausted(_) => {
+                    committed.push(
+                        execution
+                            .structural_byte_sequence_field(73, &out_path, out_field)
+                            .map(<[u8]>::to_vec),
+                    );
+                    fuel.replenish(1).unwrap();
+                }
                 status => panic!("unexpected {status:?}"),
             }
         }
         assert!(complete);
         assert_eq!(input.calls, 2);
         assert_eq!(execution.effects().len(), 2);
-        assert_stored_fields(&module, &execution, &[b"X", b"QQ"]);
+        if incremental {
+            // The forwarded writebacks committed to the borrowed field before
+            // the return's domain repair overwrote them.
+            assert!(
+                committed
+                    .iter()
+                    .any(|bytes| bytes.as_deref() == Some(&[0, 128, 255][..])),
+                "the first forwarded writeback committed: {committed:?}"
+            );
+            assert!(
+                committed
+                    .iter()
+                    .any(|bytes| bytes.as_deref() == Some(b"X".as_slice())),
+                "the second forwarded writeback committed: {committed:?}"
+            );
+        }
+        assert_stored_fields(&module, &execution, expected_stored);
         for operation in entry.blocks.iter().flat_map(|block| &block.operations) {
             if let OperationKind::StructuralByteSequenceFieldStore { path, field, .. } =
                 &operation.kind
@@ -204,11 +250,22 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
                 if let Some(segment) = sibling.iter_mut().find(|segment| {
                     matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
                 }) {
-                    *segment = terminal_psi::StructuralPathSegment::FixedIndex(0);
-                    assert_eq!(
-                        execution.structural_byte_sequence_field(73, &sibling, *field),
-                        None,
-                        "forwarding cannot initialize a different array element"
+                    // The forwarded writebacks committed only to the borrowed
+                    // element; its sibling element keeps its own literals.
+                    let terminal_psi::StructuralPathSegment::FixedIndex(index) = *segment else {
+                        unreachable!()
+                    };
+                    *segment = terminal_psi::StructuralPathSegment::FixedIndex(1 - index);
+                    let bytes = execution.structural_byte_sequence_field(73, &sibling, *field);
+                    assert_ne!(
+                        bytes,
+                        Some(&[0, 128, 255][..]),
+                        "forwarding cannot write a different array element"
+                    );
+                    assert_ne!(
+                        bytes,
+                        Some(b"X".as_slice()),
+                        "forwarding cannot write a different array element"
                     );
                 }
             }
@@ -239,6 +296,12 @@ fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
             self.out = "old";
             self.other = "QQ";
             Input::read(&mut self.out, &mut self.other);
+            // The boundary loan retired both borrowed fields' `Utf8`
+            // coverage; the return re-proves the readable `&mut` referent's
+            // declared field facts, so both are re-established before `self`
+            // is handed back.
+            self.out = "zz";
+            self.other = "QQ";
         }
     "#;
     let checked = checked_source(source);

@@ -156,6 +156,12 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
             self.other = "QQ";
             put(&mut self.out, 65);
             put(&mut self.out, 0);
+            // The loans retired `self.out`'s `Utf8` coverage and a machine's
+            // return re-proves its readable `&mut` referents' declared field
+            // facts, so the field is re-established before `self` is handed
+            // back. The committed `put` bytes are observed mid-execution at
+            // the fuel pauses below.
+            self.out = "ok";
         }}
     "#
         ));
@@ -236,6 +242,7 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
         .unwrap();
         let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
         let mut complete = false;
+        let mut observed = Vec::new();
         for _ in 0..100 {
             let status = execution
                 .resume(&mut fuel, &mut AcceptTerminalEffects)
@@ -245,6 +252,7 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
                 .map(<[u8]>::to_vec);
             match status {
                 terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => {
+                    observed.push(before.clone());
                     assert!(matches!(
                         execution
                             .resume(&mut fuel, &mut AcceptTerminalEffects)
@@ -259,14 +267,7 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
                 }
                 terminal_interpreter::TerminalExecutionStatus::Complete(_) => {
                     assert!(execution.effects().is_empty());
-                    assert_eq!(
-                        before.as_deref(),
-                        Some(if initial.is_empty() {
-                            initial.as_bytes()
-                        } else {
-                            b"\0ld".as_slice()
-                        })
-                    );
+                    assert_eq!(before.as_deref(), Some(b"ok".as_slice()));
                     assert_eq!(
                         execution.structural_byte_sequence_field(73, &fields[1].0, fields[1].1),
                         Some(b"QQ".as_slice())
@@ -282,6 +283,15 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
         assert!(
             complete,
             "guarded writes did not complete with incremental fuel"
+        );
+        assert!(
+            observed.iter().any(|bytes| bytes.as_deref()
+                == Some(if initial.is_empty() {
+                    initial.as_bytes()
+                } else {
+                    b"\0ld".as_slice()
+                })),
+            "the committed guarded writes were observable before the return repair: {observed:?}"
         );
     }
 }

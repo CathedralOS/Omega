@@ -636,6 +636,11 @@ fn attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_provider_
         {
             self.console.write_line("ready");
             self.console.read_line(&mut self.pause);
+            // The boundary loan retired `self.pause`'s `Utf8` coverage and a
+            // machine's return re-proves its readable `&mut` referents'
+            // declared field facts, so the field is re-established before
+            // `self` is handed back.
+            self.pause = "done";
         }
         "#,
     );

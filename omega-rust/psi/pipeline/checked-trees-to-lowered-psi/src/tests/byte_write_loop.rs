@@ -724,6 +724,11 @@ fn byte_write_loop_empty_initialized_view_never_writes() {
             self.out = "";
             self.other = "QQ";
             fill(&mut self.out, 165);
+            // The loan retires `self.out`'s `Utf8` coverage: a machine's
+            // return re-proves its readable `&mut` referents' declared field
+            // facts, so the field is re-established before handing `self`
+            // back. The view stayed empty, so the write lands nothing.
+            self.out = "";
         }}
     "#
     ));
