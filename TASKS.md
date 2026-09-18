@@ -4798,12 +4798,45 @@ Owners include
   to fused (`tests/independent_component_settlement.rs`, 9 tests through
   `filter_target_machines` and `settle_checked_providers`).
   `component-description` exposes `test_support` (feature `test-support`)
-  for consumer fixtures. Next slice, in order: the compiler builds a
-  `ComponentCandidate` for a dependency compiled as its own component,
-  describes it, and attaches `IndependentComponentDescription` to the
-  root's target inputs (`compiler.rs` stops at `NativeArtifact`); then a
-  build vocabulary for accepted assumption digests so mechanism-bearing
-  components can be admitted (settlement accepts none today). The
+  for consumer fixtures. The producer landed beside it:
+  `compiler::published_independent_component_description` publishes a
+  dependency's canonical description from that dependency's own checked
+  compilation through `describe_component_facts`, binding the package
+  identity from its checked package custody and the expected subject from
+  `terminal_psi_identity` of the module it produced, verifying nothing
+  itself; `stack_demand` and `realization_identity` stay absent because a
+  Psi capsule has no native realization. `component-candidate` is not
+  reachable from `compiler` (the layering quarantine
+  `ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners`
+  forbids it), so the compiler describes below that quarantine. A real
+  two-package compile of a root selecting `Independent` over a described
+  dependency now settles, with no description, substituted bytes under the
+  published subject, an unrelated verifiable component, and a description
+  stale across an adapter rename all still rejecting through three owners
+  (`tests/package_compilation_inputs/independent_components.rs`).
+
+  Next slice, in order: the compiler still does not invoke that producer
+  itself. `compiler.rs` produces no dependency artifacts, and a root's
+  `Independent` selections are known only inside the sealed check that also
+  runs the fence (`assembled-syntax-to-checked-compilation/src/checking/
+  execution_settlement.rs` hands `build_config.provider_selections`
+  straight to `settle_checked_providers`, and `ComputedBuildConfig` never
+  leaves that crate), while attaching speculatively is refused by the
+  join's unmatched-component rule. So: a discovery stop in
+  `assembled-syntax-to-checked-compilation` returning the evaluated build's
+  `Independent` selections with the dependency package each names, then the
+  producer call in `packages/manager`'s existing `compile_dependency_closure`,
+  which already compiles each package as its own root and threads
+  `PackageCompilationInputs` per consumer. Also open in
+  `component-description`: `verify_component` rejects any component that
+  selects its own checked adapter, because `derive_component_inventory`
+  reads called requirements only from Terminal `BoundaryCall` while fused
+  lowering erases that call, so the retained plan reads as a smuggled
+  requirement (`component_verification.rs`); until that admissible set
+  widens, a publishable component must seal its own requirement with a
+  surviving external binding and carry the checked adapter beside it. Then
+  a build vocabulary for accepted assumption digests so mechanism-bearing
+    components can be admitted (settlement accepts none today). The
   composition-mode admission failures witnessed beside the fence input
   (`independent_provider_selection_reaches_the_componentization_fence` and
   the two `provider_selection_rejects_*composition_mode*` tests) were
