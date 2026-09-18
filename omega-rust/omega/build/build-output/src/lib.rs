@@ -7,11 +7,11 @@
 //! commitment; `captured_source` does the same for captured source inputs and
 //! `replayed_tree` rebuilds a tree from retained entries without rerunning.
 //!
-//! `staged_output_tree.rs` is the root: the tree, its commitment and its
-//! sealed entries. `capture.rs` builds one from the host filesystem,
-//! `materialization.rs` writes and verifies one, `portable_paths.rs` holds
-//! the path rules both sides share, and `captured_source.rs`,
-//! `replayed_directories.rs` and `replayed_tree.rs` cover captured sources
+//! Start at `staged_output_tree.rs`, the root: the tree, its commitment and its
+//! sealed entries. `capture` builds one from the host filesystem,
+//! `materialization` writes and verifies one, `portable_paths` holds
+//! the path rules both sides share, and `captured_source`,
+//! `replayed_directories` and `replayed_tree` cover captured sources
 //! and replayed trees.
 
 mod capture;
