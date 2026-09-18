@@ -5,6 +5,8 @@
 mod content_and_component_proof_formats;
 #[path = "artifact/control_cycles.rs"]
 mod control_cycles;
+#[path = "artifact/debug_map_custody.rs"]
+mod debug_map_custody;
 #[path = "artifact/integer_proof_formats.rs"]
 mod integer_proof_formats;
 #[path = "artifact/obligation_ledger_custody.rs"]
