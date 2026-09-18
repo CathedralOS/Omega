@@ -4783,35 +4783,6 @@ Owners include
   Carry normalized locator, evaluated plan, target applicability, and producer
   custody through provider selection and native emission. Raw foreign bytes are
   data, never Omega symbol names or ambient lookup authority.
-  Resume: `ConstEvaluable` now admits synthesized closed const-generic data
-  instances — closed application origin plus the substituted member walk — so
-  a `via` producer's `Binding<O,S,V>` result crosses build-time evaluation as
-  an ordinary typed value through
-  `evaluate_const_evaluable_machine_symbol_for_invocation_measured` with the
-  authored `via` span retained as invocation custody
-  (`omega-rust/psi/semantics/build-time-evaluation/src/admission/const_evaluable.rs`,
-  `omega-rust/omega/build/provider-planning/src/evaluated_via_bindings.rs`).
-  The string-backed bootstrap is retired (macOS ARM64, 2026-09-17): the Psi
-  syntax `ExternalBinding::DllImport` variant, the review and policy
-  vocabulary rows that mirrored it, and the typed
-  `language_semantics::ExternalBindingIdentity::Import` with
-  `ExternalBindingMechanism::Import` no longer exist. The parser's
-  `Binding::DllImport` rejection is the only remaining source diagnostic; the
-  type system now enforces what the provider-planning
-  `reject_string_backed_import_identities` / `external_provider_binding` and
-  package-evidence `project_external_binding` rejections used to check, so
-  those rejections and the tests pinning them are gone and
-  `external_provider_binding` is infallible. No decoder rebuilds a typed
-  identity: review recovery still reports the old encoded tags as
-  `RetiredVocabulary` without a version bump, no producible encoding changed,
-  and `ExternalBindingMechanism::identity_tag` keeps its numbering gap at 1 so
-  every surviving contract fingerprint stays byte-identical. Remaining
-  deletion, still fenced by a live claim on its owning crate: the uninhabited
-  `ProviderBinding::StringBackedImportBootstrap` variant and its vacuous
-  `match *retired {}` arms (effects, package-evidence, trust-model,
-  provider-planning), whose last arm is
-  `native-realization/src/native_realization/terminal_authority_review/reviewer.rs`.
-  Open after that: the wider acceptance replay.
 
   Extend [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement)
   from fixed-width scalar calls to a
