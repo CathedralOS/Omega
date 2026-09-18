@@ -97,9 +97,11 @@ pub fn typed_operator_authored_selection_candidates(
 }
 
 /// Independently rederive the exact visible boundary requirement selected by
-/// one normalized `min`, `max`, or `sqrt` builtin call. This compiler-private
-/// seam lets selected execution reject drift without trusting the checked fact
-/// it is validating.
+/// one normalized `min`, `max`, or `sqrt` builtin call: the tokenless
+/// `F32::`/`F64::` boundary operator, or the top-level `boundary requirement`
+/// machine when core spells the slot that way. This compiler-private seam
+/// lets selected execution reject drift without trusting the checked fact it
+/// is validating.
 pub fn resolve_checked_builtin_float_operator_requirement(
     program: &typed_trees::TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,

@@ -228,7 +228,14 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     .machine_states(requirement)
                     .first()
                     .is_some_and(|entry| entry.symbol == call.target_symbol)
-            });
+            })
+            || super::builtin_float_operator_selection(
+                program,
+                requirement_use.expression,
+                requirement_use.origin,
+                call,
+            )
+            .is_some_and(|(selected, _)| selected == requirement_use.requirement_symbol);
         if !rejoins {
             diagnostics.push(diagnostics::Diagnostic::error(
                 "retained direct requirement use does not rejoin its requirement's entry state",

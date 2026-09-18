@@ -112,7 +112,16 @@ fn named_requirement_use_fact(
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
 ) -> Option<CheckedNamedRequirementUseFact> {
-    let requirement = directly_callable_requirement(program, call.target_symbol)?;
+    let requirement = directly_callable_requirement(program, call.target_symbol).or_else(|| {
+        // `min`/`max`/`sqrt` shorthand for a requirement-spelled
+        // `F32::minimum`-family slot retains the same use the direct call does.
+        let (selected, _) =
+            super::builtin_float_operator_selection(program, expression, origin, call)?;
+        program.machines().iter().find(|machine| {
+            machine.symbol == selected
+                && machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        })
+    })?;
     let entry = program.machine_states(requirement).first()?;
     let policy_adapter = match program.primitive_type_reference(entry.return_type) {
         Some(PrimitiveType::F32) => {
@@ -131,4 +140,89 @@ fn named_requirement_use_fact(
         provider_plan_report_fingerprint: 0,
         provider_plan_commitment: Default::default(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    fn checked(source: &str) -> checked_trees::CheckedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("symbols");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("types");
+        crate::lower_typed_trees(typed).expect("check")
+    }
+
+    const SOURCE: &str = r#"
+        pub data F32 {}
+        pub boundary requirement F32::maximum(left: f32, right: f32) -> f32;
+        machine run() -> f32 {
+            let direct: f32 = F32::maximum(1.0f32, 2.0f32);
+            let shorthand: f32 = max(direct, 3.0f32);
+            transition { _ -> (shorthand) }
+        }
+    "#;
+
+    /// `max(..)` over f32 operands is the shorthand for the visible
+    /// `F32::maximum` slot; spelled as a top-level boundary requirement, the
+    /// shorthand retains the same named requirement use the direct call does
+    /// and no named operator use, and the drift resolver names the requirement.
+    #[test]
+    fn min_max_shorthand_resolves_to_a_requirement_spelled_slot() {
+        let checked = checked(SOURCE);
+        let requirement = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "F32::maximum")
+            .expect("requirement");
+        let mut uses = checked
+            .facts
+            .operators
+            .named_requirement_uses()
+            .map(|selected_use| {
+                let call = match checked
+                    .typed
+                    .expression_table
+                    .expression(selected_use.expression)
+                {
+                    typed_trees::expression::ExpressionNode::Call(call) => {
+                        call.target.as_str().to_owned()
+                    }
+                    other => panic!("use is not a call: {other:?}"),
+                };
+                assert_eq!(selected_use.requirement_symbol, requirement.symbol);
+                assert_eq!(
+                    crate::resolve_checked_builtin_float_operator_requirement(
+                        &checked.typed,
+                        selected_use.expression,
+                        selected_use.origin,
+                    )
+                    .is_some(),
+                    call == "max",
+                    "the drift resolver names the requirement only for the shorthand"
+                );
+                call
+            })
+            .collect::<Vec<_>>();
+        uses.sort();
+        assert_eq!(uses, ["max", "maximum"]);
+        assert_eq!(checked.facts.operators.named_uses().count(), 0);
+        assert_eq!(
+            checked
+                .facts
+                .operators
+                .boundary_applications
+                .iter()
+                .filter(|demand| demand.requirement_symbol == requirement.symbol)
+                .count(),
+            2,
+            "both spellings of the call are requirement-keyed D29 demands"
+        );
+    }
 }
