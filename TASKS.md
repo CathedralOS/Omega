@@ -3170,74 +3170,67 @@ Owners include
   without exposing private types or hiding admissions. Resource capacity and
   classification-specific boundary-route restrictions remain unchanged.
 
-- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Separate ordinary artifact production
-  from [explicit receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission).
-  Remove the default empty receiving-policy gate from source-to-native and
-  retained-Terminal production, including `operations/compile_project.rs` and
-  the native request/realization join. Absence means no receiver verdict, not
-  deny-all, allow-all, or a policy fabricated from accepted package rows. Preserve
-  project acceptance, proof/provider/lowering checks, build-host grants, and
-  requested physical exclusions. Keep the independent receiver policy at actual
-  admission/installation and explicit deployment-compatibility checking.
+- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish receiver admission under
+  [artifact production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
+  and the settled
+  [filesystem control/lifecycle policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
+  The production/admission split exists: the receiving permission policy is
+  `Option` at every join from
+  `packages/manager/src/operations/compile_project.rs` through native
+  realization, absence makes no receiver-admission claim, and an unclaimed
+  artifact cannot satisfy explicit admission replay. The canonical
+  `FilesystemHost` cohort table and its permission/mechanism row emitters
+  exist in
+  `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`.
+  Neither is established at a customer. No named customer has been observed
+  emitting without receiving-policy input, only tests call the facet-cohort
+  row emitters, and package review still publishes the broad `Filesystem`
+  class.
 
-  Acceptance: after ordinary package acceptance, the unchanged `cli_mvp`,
-  console-exit-app, Squalr native route, and Cathedral native smoke no longer
-  need receiving-policy input merely to emit. Report remaining unrelated
-  blockers rather than claiming their end-to-end completion. The same artifact
-  must reject at explicit admission under a denying policy and admit under a
-  sufficient accepted policy; absent policy must never yield an admission receipt.
-  Forged classifications, invalid proofs, and violated requested physical
-  exclusions still reject. No PCC request becomes mandatory.
+  Remaining work:
 
-  Finish receiver permission rows and
-  exact target-mechanism classification under the settled [filesystem
-  control/lifecycle
-  policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
-  Receiver-admission acceptance: every admitted leaf has one exact mechanism/contract row;
-  unknowns and duplicates reject; exercised classes fit independently supplied
-  service permissions. Explicit empties retain service reach and exact review
-  identity. Retire the transitional broad `Filesystem` summary only after
-  exact replacement closes. Generic close need not be supported to admit a
-  separately proved constrained occurrence; do not fabricate a broad union to
-  complete the table. Slice landed at 2212af0bb4 on Linux x86-64: the three
-  ordinary-release cohorts emit one evidence-bound explicit-empty mechanism
-  row for the direct-syscall mechanism carrying a retained
-  `FilesystemOrdinaryReleaseContract` in its checked argument-contract
-  coordinate, and the review admits one constrained close leaf with empty
-  exercised and permitted classes while the unconstrained sibling under the
-  same syscall number stays unclassified. A normalized foreign mechanism now
-  carries an argument-contract coordinate beside its admitted calling plan
-  (`effects::NormalizedForeignArgumentContract`): the admitted-plan key keeps
-  its published bytes, and a checked coordinate binds the same retained
-  release contract, so a constrained `kernel32!CloseHandle` import occurrence
-  earns the evidence-bound empty row under review while the unconstrained
-  import of the same symbol stays unclassified
-  (`terminal_authority_review/tests.rs::
-  foreign_release_occurrence_review_binds_the_retained_record`, macOS ARM64).
-  The settlement wiring landed at a56b3b6265:
-  `native-realization/src/native_product/realization.rs` captures the verified
-  filesystem replay record, calls
-  `filesystem_native_handle_query_release_contracts`, derives
-  `filesystem_release_occurrence_mechanism_rows` and merges them into the
-  terminal-authority policy, and `settlements/source_imports.rs` now takes
-  those contracts as a parameter, so the earlier "nothing hands a compile's
-  retained build filesystem replay record" sentence is stale. Remaining: no authored source can
-  produce the retained occurrence, so the witness is blocked and the broad
-  `Filesystem` summary stays. `compiler/tests/terminal_authority.rs` runs the
-  widest filesystem lifecycle a build machine can request through
-  `compile_to_checked` under a real sponsor: the activation retains three
-  receipted attempts and issues a verified replay record, yet
-  `filesystem_native_handle_query_release_contracts` derives no contracts,
-  because no attempt carries the constrained `open_path_handle` acquisition.
-  The build vocabulary offers no facet that issues that chain and the raw
-  boundary is refused from `build.omg` by a settled rule, so this is
-  the [constrained build-filesystem chain question](OWNER_QUESTIONS.md), not a fixture. The settlement
-  wiring itself needs no further change. The broad summary retires at the
-  `FilesystemHostService` arm of
-  `packages/review/evidence/src/capture/authority.rs::dangerous_authority_class`,
-  with its triage consumers and the one-row assertion in
-  `packages/manager/tests/standard_library_package_resolution.rs`, once the
-  witness passes.
+  - Rerun `cli_mvp`, console-exit-app, the Squalr native route and the
+    Cathedral native smoke after ordinary package acceptance with no
+    receiving-policy input, and report each one's next unrelated blocker
+    without claiming its end-to-end completion.
+    `samples/cli/basics/cli_mvp/README.md` and
+    `tests/fixtures/packages/console-exit-app/README.md` still describe the
+    removed gate. SAMPLE-CORPUS and CANARY-CORPUS own the harness copies that
+    mirror accepted package rows into an explicit receiving policy.
+  - Receiver rows for the exact replacement: every admitted leaf has one exact
+    mechanism/contract row, unknowns and duplicates reject, exercised classes
+    fit independently supplied service permissions, and explicit empties
+    retain service reach and exact review identity. Do not fabricate a broad
+    union to complete the table.
+  - Retire the transitional broad `Filesystem` summary only after that
+    replacement closes: the `FilesystemHostService` arm of
+    `packages/review/evidence/src/capture/authority.rs::dangerous_authority_class`,
+    its triage consumers in `packages/manager/src/review/audit/triage/`, and
+    the "one transitional broad filesystem row" assertion in
+    `packages/manager/tests/standard_library_package_resolution.rs`.
+  - The release cohort (`close`, `find_close`, `close_handle`) is blocked. Its
+    evidence-bound explicit-empty row needs a retained occurrence, and no
+    authored source can produce one;
+    `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
+    that stop. Which customer earns the row is the constrained
+    build-filesystem chain question in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+    FILESYSTEM-RELEASE-CONTRACT owns the occurrence evidence. Generic close
+    need not be supported to admit a separately proved constrained
+    occurrence.
+
+  Flag: the console-exit-app witness was narrowed when the gate was removed.
+  `omega/tests/package_commands/console_exit_permission.rs` dropped its exit
+  status assertion and now checks only that two gate diagnostics are absent
+  from stderr, so a compile that fails at any later stage still passes it.
+  Assert the emitted artifact or the named next blocker. See also the flag on
+  FILESYSTEM-RELEASE-CONTRACT before extending the release-row settlement.
+
+  Acceptance: after ordinary package acceptance the four customers above emit
+  with no receiving-policy input. The same program rejects at explicit
+  admission under a denying policy and admits under a sufficient accepted
+  policy; an absent policy never yields an admission receipt. Forged
+  classifications, invalid proofs and violated requested physical exclusions
+  still reject. No PCC request becomes mandatory.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Implement bounded occurrence-specific
   open/query/close evidence through checked flow and native realization replay.
