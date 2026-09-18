@@ -1771,114 +1771,81 @@ Owners include
   incompatible by-value exchanges and replacements reject before execution.
   Equal size/alignment or a compact fingerprint never establishes agreement.
 
-- **WRITE-ONLY-BORROW.** Finish `&write T` through projected aggregates,
-  calls/results, dynamic dispatch, cleanup and native execution. Extend ordinary
-  reference preparation/receiving replay in
-  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/`
-  and image/installation publication; **STRUCTURAL-BORROW-IDENTITY** owns the
-  common reference ABI. Reuse `terminal_psi_indexed_receivers` native tests,
-  including `publication::` and `primitive_stores::`, rather than a
-  store-specific emitter. Cross-emission is not matching-host execution.
+- **WRITE-ONLY-BORROW.** Finish `&write T` under
+  [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority)
+  through calls/results, dynamic dispatch, cleanup and native execution. Every
+  artifact Psi emits today already replays natively through ordinary reference
+  preparation in
+  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/`:
+  projected `&write`/`&mut` receivers and arguments, disjoint argument pairs,
+  re-forwarding, literal-indexed element and field stores, IEEE value stores,
+  head-of-body `let` subloans with restored parents, and reference carriers
+  through installation
+  (`tests/native-differential/tests/terminal_psi_indexed_receivers/`). The open
+  work is upstream: for the shapes below Psi produces no artifact, mostly with
+  `machine has no source-independent checked scalar control plan`
+  (`checked-trees-to-lowered-psi/src/machine_lowering/machine_dispatch.rs`).
+  **STRUCTURAL-BORROW-IDENTITY** owns the common reference ABI.
 
-  Remaining work includes early loan closure/restored-parent use, escaping
-  carriers, dynamic indexes and reference-bearing projections that can be
-  located without reading a stored pointer/descriptor. Computed IEEE stores need
-  a real source-selected operation, result transport and ordinary store
-  composition, not widened admission: Psi's
-  `execution/unit/selected_ieee_float.rs` and Omega's shared graph/provider
-  route must retain format, selected occurrence and result evidence. The removed
-  Unit/FMA planner is not a dependency to rebuild.
+  Remaining work. The list was recorded 2026-09-15 and Psi borrow planning has
+  changed since; rerun `tests/native-differential/tests/zz_wob_probe.rs`, which
+  prints each candidate's outcome, before assuming a row still fails.
+
+  - A borrow held in a `let` is usable only as a head-of-body receiver. Make it
+    an ordinary place alias in checked execution planning
+    (`typed-trees-to-checked-trees/src/execution/`): `let` borrows after other
+    statements, a held scalar or aggregate borrow as a call argument or store
+    root (`held[2] = 17` rejects while `held[1].replace()` composes), and a
+    `&mut` receiver call on the parent while a disjoint subloan is live.
+  - Stores through a borrow beyond primitive leaves: a projected-element scalar
+    store on a borrowed array (`records[1].value = 17` under `&mut`) and whole
+    aggregate or `[copy]` sum replacement.
+  - An owned record's field lent as a call argument. Its exclusive form is the
+    owned-root subloan rule in **STRUCTURAL-BORROW-IDENTITY**.
+  - Shared `&` scalar callee bodies: "scalar callee has no checked executable
+    body" (`checked-trees-to-lowered-psi/src/scalar_graph/scalar_call_closure/callee.rs`).
+  - Runtime indexes. Terminal Psi has `WriteOnlyIndexedPrimitiveStore` with
+    verifier, codec and interpreter support. No Psi producer emits it, a
+    declared `[0..=3]` index range still yields no plan, and Omega rejects it
+    with `LoweringError::UnsupportedIndexedPrimitiveStore`
+    (`terminal-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs`)
+    because the abstract inventory has no runtime-index carrier or bounds
+    obligation.
+  - `&mut dyn` dispatch.
+  - Computed IEEE stores: a source-selected floating operation, its result
+    transport and an ordinary store, retaining format, selected occurrence and
+    result evidence through Psi's `execution/unit/selected_ieee_float.rs` and
+    Omega's shared graph/provider route. Widening store admission is not the
+    repair; **FLOAT-PROVIDERS** owns the operations. A 135-file slice for this
+    was parked on an unpublished local branch `write-only-borrow`
+    (71a647f464); it is not on `origin`. Ask the coordinator whether it still
+    exists before re-implementing.
 
   Acceptance: writes affect the original caller referent across calls and
-  register/stack passing; reads through write-only access reject. Cover exact
-  width/write coverage, untouched neighbors, runtime signed/Boolean/floating
-  sources, restoration/return behavior, access substitution and independent
-  artifact replay. Observe computed floating stores on the caller, not just
-  checking or a copied frame home. Run both Linux target runtime legs when
-  available and record unavailable hosts.
+  register/stack passing; reads through write-only access, bare `&write`
+  forwarding, `&write`-to-`&mut` widening and same-root `&write` argument pairs
+  reject. Cover exact width/write coverage, untouched neighbors, runtime
+  signed/Boolean/floating sources, restoration/return behavior, access
+  substitution and independent artifact replay. Observe computed floating
+  stores on the caller, not only in checking or a copied frame home. Add each
+  shape to the `terminal_psi_indexed_receivers` suite, not a store-specific
+  emitter. Run both Linux target runtime legs when available and record
+  unavailable hosts; cross-emission is not matching-host execution.
 
-  Borrowed byte-view call transport now composes through the ordinary control
-  graph: shared views arrive from established literal/subslice producers,
-  shared block parameters, or the incoming machine parameter, byte-sequence
-  literal establishment lowers in `control_flow/operations.rs`, scalar-ABI
-  callers admit literal place rosters, mixed-ABI callers admit borrowed block
-  structural parameters, and installation records publish internal Unit calls
-  in physical text order rather than source block-roster order.
-
-  `&write` projected aggregates now compose through ordinary calls:
-  `aggregate_results::borrowed_arguments` admits `WriteOnlyBorrow` arguments to
-  record/sum referents, so projected `&write`/`&mut` receivers, closed-loan
-  restored parents, and nested alias chains transport the incoming root pointer
-  plus its exact projected byte offset through register and stack ABI slots and
-  installation replay. On macOS ARM64
-  `mbx nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers`
-  passes 38/38 including caller-storage observation, exact widths, neighbors,
-  signed/Boolean/IEEE sources, and access-substitution rejection; both Linux
-  legs were not run. `terminal_byte_views` `natural_writer::` (8) is
-  unrelated red at this base, owned by the in-flight IRFUEL work;
-  `terminal_psi_source` compiles again (1a56e53b8d) and its 8 remaining
-  failures are attributed in
-  [known baseline failures](wiki/drafts/known_baseline_failures.md).
-
-  Call-boundary validation is converged: expression-call and transition-target
-  arguments route through the same `validate_call_argument` projected-subloan
-  admission as statement calls, and value-position calls enforce the shared
-  reference-access contract — explicit `&write` attenuation for write-only
-  parameters, no widening of `&write` authority into readable access. Checked
-  terminal plans retain `WriteOnlyBorrow` with exact `Field`/`FixedIndex`
-  segments; see `typed-trees-to-checked-trees/tests/write_only_call_arguments.rs`.
-
-  Scalar-leaf projections now compose through ordinary borrow calls:
-  `mutate(&mut self.value)` and `fill(&write self.value)` verify, admit through
-  Omega optimization, lower, publish and execute on host — one canonical
-  leaf-shape resolution joins verifier, codec, interpreter, optimization
-  catalog, `scalar_graph_input` reference preparation and target replay.
-  Restored-parent `let` bindings still fail upstream in
-  `typed-trees-to-checked-trees/src/flow` (live NOMINAL-FIELD-FLOW claim).
-
-  Ordinary borrowed-argument replay now covers more than receivers:
-  disjoint `&write` argument pairs, mixed `&write`/`&mut` disjoint field
-  arguments, owned-local scalar borrows, explicit `&write` re-forwarding
-  through callee parameters, bare `&mut` forwarding, and attached callees
-  carrying extra `&write` parameters all publish on the four hosted targets
-  and execute on host with exact referent custody
-  (`terminal_psi_indexed_receivers::borrowed_arguments::`, 7 tests; host run
-  Linux x86-64). Native exports order borrowed parameters after scalars.
-  Every artifact Psi currently emits already replays through
-  `scalar_graph_input`; probing found no Omega-side gap to fill.
-
-  Early loan closure now replays natively for the `let`-bound shapes Psi
-  emits: head-of-body `let` subloans over projected elements and fields
-  restore the parent for later calls, two live disjoint subloans close
-  independently, the restored parent reaches the same element the closed
-  subloan used, and the shape replays inside a borrowed callee, under
-  `&write` and `&mut` parents — `terminal_psi_indexed_receivers::
-  loan_closures::` (5 tests; published on the four hosted targets,
-  executed on macOS arm64).
-
-  Remaining acceptance is upstream in Psi, which produces no artifact for:
-  `let` borrow declarations after non-let statements (mid-body or
-  sequential lets), scalar and aggregate `let` borrows forwarded as call
-  arguments or used as store roots
-  (`let held: &write [u16; 4] = &write values; held[2] = 17` is rejected while
-  `held[1].replace()` composes), `&mut` receiver calls on a borrowed parent
-  while a subloan exists, projected-element scalar stores on borrowed
-  arrays (`records[1].value = 17` on `&mut`), whole aggregate or `[copy]` sum
-  replacement through borrows, owned-record field borrows as call arguments,
-  shared `&` scalar callee bodies ("scalar callee has no checked executable
-  body"), escaping borrow-carrying aggregates, dynamic indexes (unbounded
-  indexes fail bounds proof; declared `[0..=3]` ranges still produce no
-  source-independent plan), `&mut dyn` dispatch, and computed IEEE stores —
-  all with `machine has no source-independent checked scalar control plan`
-  unless noted. Reads of
-  `&write` roots, bare `&write` forwarding, `&write`→`&mut` widening, and
-  same-root `&write` argument pairs still reject upstream as required.
-
-  Parked WIP: unmerged local branch `write-only-borrow` at 71a647f464 (over
-  348c542350, Windows coordinator checkout) carries the computed-IEEE-stores
-  slice — selected IEEE binary operations through the native pipeline plus
-  `&write` field reads/computed stores, 135 files. Have the coordinator merge
-  it to main through the landing queue before re-implementing that slice.
+  Flag: the `let`, store and owned-field rows fail at one place, not three. The
+  attached Unit planner admits bodies by statement shape
+  (`typed-trees-to-checked-trees/src/execution/unit/control/checked_machine.rs`:
+  a `take_while` over leading `LocalData` statements, a `borrow_alias_prefix`,
+  and tests such as `local_count != 1 || calls.len() != 1 ||
+  statements.len() != 2`), so every new arrangement of lets, calls and stores
+  needs another case. The general mechanism is ordinary statement sequencing
+  over places and loans, which **STATE-LOCAL-VALUE-FRONTIER** names; closing
+  rows here one by one extends the recognizer. Separately, `zz_wob_probe.rs`
+  reached `main` in two `wip(write-only-borrow): interrupted mid-slice`
+  commits: one test sweeps 21 candidate sources and asserts 4, so the other 17
+  can change outcome unobserved. Promote passing candidates into named suite
+  tests with caller-storage observation, pin the rest as rejections, and
+  delete the probe.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
