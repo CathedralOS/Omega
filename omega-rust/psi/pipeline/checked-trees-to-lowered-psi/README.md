@@ -97,8 +97,8 @@ place allocation stays there too.
 [Expression preparation](src/expression_preparation/prepare_expression.rs)
 joins the checked expression to its authored role, prepares its scalar or Boolean
 form, and independently replays source custody before returning it. Its
-[bindings](src/expression_preparation/bindings/bind_values.rs) resolve current
-storage and structural paths. [Source replay](src/expression_preparation/source_custody/replay_source.rs)
+[bindings](src/expression_preparation/bindings/mod.rs) resolve current
+storage and structural paths. [Source replay](src/expression_preparation/source_custody/mod.rs)
 owns exact call and borrow occurrences, constructor operands, comparisons,
 record observations and structural ownership. These operations use shared
 [checked-graph queries](src/expression_preparation/computation_graph.rs), not

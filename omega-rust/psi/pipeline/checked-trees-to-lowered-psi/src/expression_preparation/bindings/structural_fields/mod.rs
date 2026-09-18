@@ -9,7 +9,6 @@ use super::{
     StructuralTypeDeclaration, unsupported,
 };
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 #[derive(Clone)]

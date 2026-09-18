@@ -10,19 +10,12 @@ use super::{
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
 use crate::expression_preparation::source_custody::borrow_occurrences as borrow_rows;
-#[path = "dispatch.rs"]
 mod dispatch;
-#[path = "mixed_arguments/replay_mixed_arguments.rs"]
 mod mixed_arguments;
-#[path = "operand_scopes.rs"]
 mod operand_scopes;
-#[path = "owned_arguments.rs"]
 mod owned_arguments;
-#[path = "primitive_arguments.rs"]
 pub(crate) mod primitive_arguments;
-#[path = "qualifications/replay_qualifications.rs"]
 mod qualifications;
-#[path = "shared_nominal_arguments.rs"]
 mod shared_nominal_arguments;
 
 pub(crate) use mixed_arguments::access_occurrences::rejoin as rejoin_call_accesses;

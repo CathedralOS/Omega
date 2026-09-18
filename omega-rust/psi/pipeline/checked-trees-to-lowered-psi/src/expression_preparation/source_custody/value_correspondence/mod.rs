@@ -22,7 +22,6 @@ use checked_trees::{
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 
-#[path = "extents/replay_extents.rs"]
 mod extents;
 
 pub(crate) fn validate(

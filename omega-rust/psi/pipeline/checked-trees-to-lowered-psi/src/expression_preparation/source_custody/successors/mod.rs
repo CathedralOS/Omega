@@ -18,7 +18,6 @@ use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 pub(super) fn validate(

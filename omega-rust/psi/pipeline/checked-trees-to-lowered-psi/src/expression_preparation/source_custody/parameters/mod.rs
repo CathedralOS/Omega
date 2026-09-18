@@ -4,9 +4,7 @@ use super::super::Multiplicity;
 use super::{
     CheckedTrees, LoweringError, authored_state, supported_mutable_parameter, unsupported,
 };
-#[path = "owned.rs"]
 mod owned;
-#[path = "owned_types/replay_owned_types.rs"]
 mod owned_types;
 
 pub(crate) fn parameter_storage<'checked>(

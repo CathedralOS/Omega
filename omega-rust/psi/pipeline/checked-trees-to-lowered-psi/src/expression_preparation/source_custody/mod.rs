@@ -1,16 +1,9 @@
-#[path = "array_sources.rs"]
 pub(crate) mod array_sources;
-#[path = "borrow_occurrences.rs"]
 pub(crate) mod borrow_occurrences;
-#[path = "case_sources.rs"]
 pub(crate) mod case_sources;
-#[path = "comparisons.rs"]
 pub(crate) mod comparisons;
-#[path = "flow_calls.rs"]
 pub(crate) mod flow_calls;
-#[path = "record_fields.rs"]
 pub(crate) mod record_fields;
-#[path = "structural/replay_structural.rs"]
 pub(crate) mod structural;
 use super::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
@@ -21,21 +14,13 @@ use checked_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
-#[path = "computation_calls/replay_computation_calls.rs"]
 pub(crate) mod computation_calls;
-#[path = "direct_calls.rs"]
 pub(crate) mod direct_calls;
-#[path = "guarded_exits.rs"]
 pub(crate) mod guarded_exits;
-#[path = "parameters/replay_parameters.rs"]
 mod parameters;
-#[path = "primitive_references.rs"]
 pub(crate) mod primitive_references;
-#[path = "storage_reads/replay_storage_reads.rs"]
 mod storage_reads;
-#[path = "successors/replay_successors.rs"]
 pub(crate) mod successors;
-#[path = "value_correspondence/replay_value_correspondence.rs"]
 pub(crate) mod value_correspondence;
 pub(crate) use computation_calls::validate_computation_calls;
 pub(crate) use parameters::parameter_storage;
