@@ -2751,11 +2751,12 @@ Owners include
   (`structural_unit::boundary_buffers::inline_byte_identity`, six rows over
   ordinary and boundary calls, mutable and shared access, and nested carrier
   paths, with positive controls for every admitted bounded-owned
-  presentation). Remaining: the control-flow call path beyond standalone
-  entrances, and a codec-side regression of its own, since
-  `terminal-codec/src/.../module_foundation_validation.rs` is an independent
-  implementation of the same argument check that carried the identical hole
-  and is now closed by the representation without a test pinning it there.
+  presentation). The codec's independent copy of that argument check is
+  pinned too, so it cannot reopen while the verifier stays correct
+  (`terminal-codec/tests/canonical/structural_and_proposition_rows.rs`,
+  which asserts the path-custody refusal that the codec's own foundation
+  validation raises rather than a verifier rejection). Remaining: the
+  control-flow call path beyond standalone entrances.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing
