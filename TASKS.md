@@ -2295,6 +2295,23 @@ Owners include
   admitted-versus-derived boundary, a malformed congruence
   rejection, and the exact closure over the admitted interface.
 
+  Landed: the rest of the quotient derive list — the scheme is now
+  twenty checked declarations. `idSym` and `idCancel` extend the
+  `J`-derived identity infrastructure, `propIsSet` lifts
+  mere-proposition evidence to setness, `boxProp` shows a boxed
+  strict proposition is a mere proposition, `indProp` delivers
+  proposition-valued induction through set-valued elimination and
+  boxing, `coverage` squashes each element's projecting
+  representative, and `unique` collapses sections agreeing on
+  projections to pointwise identity. Each is an ordinary definition
+  `check_signature` re-decides; the admitted interface is unchanged
+  and the new items close over exactly `Q`, `project`, `sound` and
+  `elim`. Tests witness the strict-target route, rejection of a
+  `Type`-valued `indProp` motive, the unsquashable coverage witness
+  (`fst` on `Squash` is `NotAPair`), pointwise-but-not-functional
+  uniqueness, exact closures, and a certificate that independently
+  replays coverage after the canonical wire.
+
   Landed: the real theorem certificate the milestone above named.
   `theorems.rs`'s `identity_substitution` (`subst` built from `J`)
   and `indexed.rs`'s `indexed_correctness` (index soundness proved
