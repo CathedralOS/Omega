@@ -46,6 +46,7 @@ machine Main::main(&mut self) { }
         &report,
         &[AggregateFieldSchema::new("pair", 8).expect("compiler-derived pair extent")],
         &[AggregateFieldValue::new("pair", [1, 0, 0, 0, 5, 4, 3, 2]).expect("owned pair bytes")],
+        ByteOrder::LittleEndian,
         &mut bytes,
     )
     .expect("owned fixed record should materialize through its whole At extent");

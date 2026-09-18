@@ -408,7 +408,7 @@ pub(crate) fn derive_record_with_sum_bytes(
         schemas.push(schema);
         values.push(AggregateFieldValue::new(field.name, field.bytes)?);
     }
-    materialize_aggregate_layout_into(layout, &schemas, &values, &mut bytes)?;
+    materialize_aggregate_layout_into(layout, &schemas, &values, byte_order, &mut bytes)?;
 
     Ok(DerivedRecordWithSumMaterialization {
         schema_report_fingerprint,
@@ -793,7 +793,7 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
         schemas.push(schema);
         values.push(AggregateFieldValue::new(field.name, field.bytes)?);
     }
-    materialize_aggregate_layout_into(layout, &schemas, &values, &mut bytes)?;
+    materialize_aggregate_layout_into(layout, &schemas, &values, byte_order, &mut bytes)?;
 
     let mut arrays = Vec::new();
     arrays
