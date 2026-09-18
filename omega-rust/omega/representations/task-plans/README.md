@@ -17,7 +17,13 @@ the maximum aligned live chain. Sequential siblings share capacity. Opaque
 same-stack leaves require admitted contributions binding the exact strong
 provider-plan commitment, requirement, receipt, bytes/alignment, and contribution
 commitment; callers cannot construct them from byte totals. Provider-stack and
-new-activation transfers have no child edge in that stack domain.
+new-activation transfers have no child edge in that stack domain. A live call
+the producer cannot resolve to a checked callee or an admitted contribution —
+a requirement slot, a machine parameter, a dynamic descriptor, or a
+non-checked supply mode — is never dropped from the bound: it enters the
+frame's unresolved-call roster, the composed demand publishes as partial, and
+the roster rides the sealed projection so `establish_stack_lease` refuses a
+partial bound rather than minting authority for the covered subgraph alone.
 
 Static runtime binding and instance invocation are different evidence. The
 specialization SHA-256 commitment is authoritative; historical compact values

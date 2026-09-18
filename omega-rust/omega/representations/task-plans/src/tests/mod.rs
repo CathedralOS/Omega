@@ -20,10 +20,11 @@ use crate::{
     TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptCandidate, TaskRuntimeInvocationReceiptId,
     TaskSpecializationCommitment, TaskStackFrameId, TaskStackFrameSummary,
     TaskStackFrameValidationId, TaskStartOperation, TaskStorageLeaseId, TaskStorageOwnerId,
-    TaskStorageProvenance, ValidatedActivationPlan, ValidatedTaskRuntimeInvocationReceipt,
-    ValueLayoutId, WcsuStackPlanProjection, compose_task_stack_demand, establish_stack_lease,
-    project_wcsu_stack_plan, validate_task_runtime_invocation_receipt,
-    validate_task_stack_frame_summary, validate_wcsu_activation_plan,
+    TaskStorageProvenance, UnresolvedCallKind, UnresolvedCallSite, ValidatedActivationPlan,
+    ValidatedTaskRuntimeInvocationReceipt, ValueLayoutId, WcsuStackPlanProjection,
+    compose_task_stack_demand, establish_stack_lease, project_wcsu_stack_plan,
+    validate_task_runtime_invocation_receipt, validate_task_stack_frame_summary,
+    validate_wcsu_activation_plan,
 };
 
 fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
@@ -69,6 +70,7 @@ fn wcsu_projection(validation_identity: u64) -> WcsuStackPlanProjection {
             TaskStackFrameValidationId::from_normalized_identity,
         ),
         calls: Vec::new(),
+        unresolved_calls: Vec::new(),
     })
     .expect("validated WCSU frame");
     let demand = compose_task_stack_demand(root, [frame]).expect("composed WCSU demand");
@@ -94,6 +96,42 @@ fn wcsu_plan(validation_identity: u64) -> ValidatedActivationPlan {
     let mut candidate = candidate();
     candidate.stack_plan = projection.stack_plan();
     validate_wcsu_activation_plan(candidate, projection).expect("WCSU-backed activation plan")
+}
+
+/// An activation plan whose projection still names unresolved call sites:
+/// sealed but partial evidence whose bytes bound only the covered subgraph.
+/// It elaborates and reports fine; only `establish_stack_lease` must refuse
+/// it, since a partial bound is not the whole-call-graph WCSU.
+fn partial_wcsu_plan(validation_identity: u64) -> ValidatedActivationPlan {
+    let root = id(30, TaskStackFrameId::from_normalized_identity);
+    let frame = validate_task_stack_frame_summary(TaskStackFrameSummary {
+        frame: root,
+        local_bytes: 4096,
+        alignment: 16,
+        validation: id(
+            validation_identity,
+            TaskStackFrameValidationId::from_normalized_identity,
+        ),
+        calls: Vec::new(),
+        unresolved_calls: vec![UnresolvedCallSite {
+            frame: root,
+            state: "run".into(),
+            statement_index: 2,
+            call_ordinal: 0,
+            kind: UnresolvedCallKind::UnresolvedTarget,
+        }],
+    })
+    .expect("validated WCSU frame");
+    let demand = compose_task_stack_demand(root, [frame]).expect("composed WCSU demand");
+    let projection = project_wcsu_stack_plan(
+        &demand,
+        id(6, StackRepresentationId::from_normalized_identity),
+    );
+    assert!(!projection.is_exact());
+    let mut candidate = candidate();
+    candidate.stack_plan = projection.stack_plan();
+    validate_wcsu_activation_plan(candidate, projection)
+        .expect("partial-WCSU-backed activation plan")
 }
 
 /// A stack lease backed by exactly the plan's demanded shape.

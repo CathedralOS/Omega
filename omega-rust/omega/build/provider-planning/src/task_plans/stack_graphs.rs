@@ -6,9 +6,12 @@
 //! without adding a frame; an ordinary call to a checked-body machine places
 //! a child frame on this same stack. Calls whose targets resolve to
 //! requirement, boundary, admission-claim or external supply are
-//! provider-domain transfers: they place no checked frame on this stack, so
-//! they contribute no edge here. Their same-stack demand enters through
-//! `AdmittedSameStack` contributions once provider admission binds them.
+//! provider-domain transfers, and calls whose targets name no machine state
+//! at all — requirement slots, machine parameters, dynamic descriptors —
+//! carry no checked frame either. Neither kind is dropped: each enters the
+//! frame's `UnresolvedCallSite` roster, so the composed demand publishes as
+//! partial until provider admission covers the site with an
+//! `AdmittedSameStack` contribution or proves the transfer off this stack.
 //!
 //! A frame's local demand is its worst-case resident extent while any child
 //! runs: the resume-state word, the machine's own persistent storage layout,
@@ -32,7 +35,8 @@ use symbols::SymbolHandle;
 use target::NativeTarget;
 use task_plans::{
     StackCallContribution, TaskStackFrameId, TaskStackFrameSummary, TaskStackFrameValidationId,
-    ValidatedTaskStackFrameSummary, validate_task_stack_frame_summary,
+    UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary,
+    validate_task_stack_frame_summary,
 };
 
 /// The reachable checked call graph of one task activation, expressed as the
@@ -237,6 +241,7 @@ fn task_frame_summary<'program>(
     }
 
     let mut calls = Vec::new();
+    let mut unresolved_calls = Vec::new();
     for state in &states {
         let mut flow_states = program
             .facts
@@ -295,9 +300,32 @@ fn task_frame_summary<'program>(
             let Some((callee_machine, callee_entry)) =
                 checked_call_target(program, call.target_symbol)?
             else {
+                // Requirement slots, machine parameters and dynamic
+                // descriptor calls name no machine state. The bound cannot
+                // pretend their same-stack demand is zero; record the site so
+                // the composed demand publishes as partial until provider
+                // admission covers it.
+                unresolved_calls.push(UnresolvedCallSite {
+                    frame,
+                    state: state.name.as_str().into(),
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    kind: UnresolvedCallKind::UnresolvedTarget,
+                });
                 continue;
             };
             if callee_machine.supply_mode != MachineSupplyMode::CheckedBody {
+                // Requirement, boundary, admission-claim and external supply
+                // resolve to a machine state but not to a checked body this
+                // stack can bound. Same accountability: the site is
+                // unresolved until provider admission binds its demand.
+                unresolved_calls.push(UnresolvedCallSite {
+                    frame,
+                    state: state.name.as_str().into(),
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    kind: UnresolvedCallKind::NonCheckedSupply,
+                });
                 continue;
             }
             let callee = frame_identity(program, callee_machine, callee_entry)?;
@@ -312,8 +340,15 @@ fn task_frame_summary<'program>(
             .map_err(|_| vec![Diagnostic::error("task WCSU frame size exceeds u64")])?,
         alignment: u64::try_from(local_alignment)
             .map_err(|_| vec![Diagnostic::error("task WCSU frame alignment exceeds u64")])?,
-        validation: frame_validation_identity(frame, local_bytes, local_alignment, &calls),
+        validation: frame_validation_identity(
+            frame,
+            local_bytes,
+            local_alignment,
+            &calls,
+            &unresolved_calls,
+        ),
         calls,
+        unresolved_calls,
     })
 }
 
@@ -443,12 +478,14 @@ fn frame_identity(
 }
 
 /// Bind a frame's validated content: its identity, its exact local extent and
-/// alignment, and the ordered callee roster it can place beneath itself.
+/// alignment, the ordered callee roster it can place beneath itself, and the
+/// unresolved call sites the bound does not cover.
 fn frame_validation_identity(
     frame: TaskStackFrameId,
     local_bytes: usize,
     alignment: usize,
     calls: &[StackCallContribution],
+    unresolved_calls: &[UnresolvedCallSite],
 ) -> TaskStackFrameValidationId {
     let mut hash = super::StableHash::new();
     hash.byte(0x56);
@@ -467,6 +504,17 @@ fn frame_validation_identity(
                 hash.u64(contribution.report_identity().normalized_identity());
             }
         }
+    }
+    hash.usize(unresolved_calls.len());
+    for site in unresolved_calls {
+        hash.u64(site.frame.normalized_identity());
+        hash.string(&site.state);
+        hash.usize(site.statement_index);
+        hash.usize(site.call_ordinal);
+        hash.byte(match site.kind {
+            UnresolvedCallKind::UnresolvedTarget => 1,
+            UnresolvedCallKind::NonCheckedSupply => 2,
+        });
     }
     TaskStackFrameValidationId::from_normalized_identity(hash.finish())
         .expect("normalized frame validation identity is never zero")

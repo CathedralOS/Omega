@@ -1,10 +1,11 @@
 //! Whole-call-graph WCSU derivation over synthetic checked trees: cycle
-//! rejection, retired-call skipping, and provider-domain call targets that
-//! place no checked frame.
+//! rejection, retired-call skipping, and provider-domain or unresolved call
+//! targets that enter the frame's unresolved roster instead of silently
+//! contributing zero.
 
 use crate::task_plans::CheckedTrees;
 use crate::task_plans::stack_graphs::task_call_graph;
-use task_plans::compose_task_stack_demand;
+use task_plans::{UnresolvedCallKind, UnresolvedCallSite, compose_task_stack_demand};
 
 /// Two checked machines whose entry states call each other. `Alpha::run`
 /// calls `Beta::run`; `Beta::run` calls `Alpha::run` unless its call row is
@@ -156,11 +157,13 @@ fn task_call_graph_skips_calls_retired_by_selected_execution() {
 }
 
 #[test]
-fn task_call_graph_skips_provider_domain_call_targets() {
+fn task_call_graph_records_unresolved_targets_in_a_partial_bound() {
     let (mut program, alpha_machine, _, _, beta_state) = mutual_call_fixture();
     // A call whose target names no checked machine state -- a requirement
     // slot, machine parameter or dynamic coordinate -- contributes no checked
-    // edge, so `Alpha::run` remains the only frame in its own graph.
+    // edge, so `Alpha::run` remains the only frame in its own graph. But the
+    // call still enters the unresolved roster: the covered subgraph's demand
+    // publishes as partial, never as an exact whole-call-graph WCSU.
     program.facts.flow.control.calls.for_each_mut(|_, call| {
         if call.target_symbol == beta_state {
             call.target_symbol = symbols::SymbolHandle::from_arena_index(99);
@@ -178,11 +181,76 @@ fn task_call_graph_skips_provider_domain_call_targets() {
         machine,
         entry,
     )
-    .expect("provider-domain targets need no checked frame");
+    .expect("unresolved targets need no checked frame to elaborate");
     assert_eq!(graph.frames.len(), 1);
+    let site = UnresolvedCallSite {
+        frame: graph.root,
+        state: "run".into(),
+        statement_index: 0,
+        call_ordinal: 0,
+        kind: UnresolvedCallKind::UnresolvedTarget,
+    };
+    assert_eq!(
+        graph.frames[0].summary().unresolved_calls,
+        vec![site.clone()]
+    );
     let demand =
         compose_task_stack_demand(graph.root, graph.frames).expect("a lone frame composes");
     assert_eq!(demand.bytes(), 8);
+    assert!(!demand.is_exact());
+    assert_eq!(
+        demand.unresolved_calls(),
+        &std::collections::BTreeSet::from([site])
+    );
+}
+
+#[test]
+fn task_call_graph_records_non_checked_supply_targets_in_a_partial_bound() {
+    let (mut program, alpha_machine, _, beta_machine, _) = mutual_call_fixture();
+    // A call whose target resolves to a machine state supplied by non-checked
+    // means -- requirement, boundary, admission-claim or external realization
+    // -- places no checked frame on this stack, but the live call still
+    // enters the unresolved roster so the bound publishes as partial.
+    let beta = program
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == beta_machine)
+        .expect("fixture machine");
+    beta.supply_mode = language_semantics::MachineSupplyMode::Boundary;
+    let layouts = layout::build_layout_plan(&program, NativeTarget::macos_arm64(), &[])
+        .expect("synthetic machines lay out");
+    let (machine, entry) = frame_entry(&program, alpha_machine);
+
+    let graph = task_call_graph(
+        &program,
+        NativeTarget::macos_arm64(),
+        &[],
+        &layouts,
+        machine,
+        entry,
+    )
+    .expect("a boundary callee needs no checked frame to elaborate");
+    assert_eq!(graph.frames.len(), 1);
+    let site = UnresolvedCallSite {
+        frame: graph.root,
+        state: "run".into(),
+        statement_index: 0,
+        call_ordinal: 0,
+        kind: UnresolvedCallKind::NonCheckedSupply,
+    };
+    assert_eq!(
+        graph.frames[0].summary().unresolved_calls,
+        vec![site.clone()]
+    );
+    let demand =
+        compose_task_stack_demand(graph.root, graph.frames).expect("a lone frame composes");
+    assert_eq!(demand.bytes(), 8);
+    assert!(!demand.is_exact());
+    assert_eq!(
+        demand.unresolved_calls(),
+        &std::collections::BTreeSet::from([site])
+    );
 }
 
 use target::NativeTarget;

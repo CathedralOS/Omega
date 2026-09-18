@@ -1,6 +1,6 @@
 use super::{
-    candidate, canonical_crossing, id, invocation_receipt, moved_arguments, runtime, stack_lease,
-    wcsu_plan,
+    candidate, canonical_crossing, id, invocation_receipt, moved_arguments, partial_wcsu_plan,
+    runtime, stack_lease, wcsu_plan,
 };
 use crate::{
     ActivationInstanceId, MovedTaskArguments, StackLeaseBacking, StackPlan, StackRepresentationId,
@@ -114,6 +114,28 @@ fn stack_lease_requires_sealed_wcsu_evidence_and_satisfying_backing() {
     assert_eq!(lease.activation_plan(), plan.normalized_identity());
     assert_eq!(lease.satisfied_plan(), required);
     assert_eq!(lease.backing(), pool_backing);
+}
+
+#[test]
+fn stack_lease_rejects_a_partial_wcsu_bound() {
+    let plan = partial_wcsu_plan(61);
+    let required = plan.candidate().stack_plan;
+    let projection = plan
+        .wcsu_stack_projection()
+        .expect("the partial plan still carries sealed evidence");
+    assert!(!projection.is_exact());
+    assert_eq!(projection.unresolved_calls().len(), 1);
+
+    let error = establish_stack_lease(
+        &plan,
+        StackLeaseBacking {
+            provenance: provenance(200, 208),
+            backing: required,
+        },
+    )
+    .expect_err("a partial bound is not whole-call-graph WCSU evidence");
+    assert!(error.0.contains("partial"));
+    assert!(error.0.contains("unresolved call site"));
 }
 
 #[test]

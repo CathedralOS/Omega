@@ -173,6 +173,23 @@ fn nested_checked_call_composes_whole_graph_wcsu_and_roster() {
     assert_eq!(projection.frame_validations().len(), 2);
     assert_eq!(projection.stack_plan(), plan.stack_plan);
 
+    // The `Sleeper::park` boundary calls in `Worker::run` and `Helper::work`
+    // resolve to non-checked supply: they place no checked frame on this
+    // stack, so the sealed bound is partial and the roster names each exact
+    // call coordinate provider admission must still cover.
+    assert!(!projection.is_exact());
+    assert_eq!(
+        projection
+            .unresolved_calls()
+            .iter()
+            .map(|site| site.kind)
+            .collect::<Vec<_>>(),
+        vec![
+            task_plans::UnresolvedCallKind::NonCheckedSupply,
+            task_plans::UnresolvedCallKind::NonCheckedSupply
+        ]
+    );
+
     // The canonical roster covers both crossings in the root frame and the
     // parking call inside the nested checked frame.
     assert!(plan.may_suspend);
