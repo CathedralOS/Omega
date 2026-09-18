@@ -8,13 +8,15 @@ EPSILON-EVALUATOR obligation to name one explicit profile with exact and
 adjacent refusals; every refusal below publishes no Epsilon observation.
 
 The profile covers the *diagnostic* edge: the private tagged result produced
-by the bound execution driver. It is not the final evaluator request and
-observation envelope of
-[`LANGUAGE.md` section 11](LANGUAGE.md#11-evaluator-application-and-observation-boundary),
-which must additionally bind the evaluator artifact, the exact source
-closure, the sealed stdin, this profile, and the complete `RunEpsilon`
-observation without host parsing. Nothing here grants an Epsilon judgment,
-adds an Epsilon language bound, or restores an Epsilon Alpha backend.
+by the bound execution driver. The realized section-11 request and
+observation envelope is now
+[`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md): the same packed closure plus the
+bound canonical entry source compiles to the canonical receipt that consumes
+the EREQ envelope and publishes canonical observations or EEOUT refusal
+frames. This document remains the diagnostic edge's record; the entry
+document carries the canonical profile. Nothing in either grants an Epsilon
+judgment beyond the evaluator's checked coverage, adds an Epsilon language
+bound, or restores an Epsilon Alpha backend.
 
 ## Selected composition
 
@@ -186,8 +188,13 @@ Alpha VM's illegal-instruction refusal, never an Epsilon outcome.
 This profile discharges the derivation leg only: one explicit
 resource/request/observation profile, its counters, deterministic refusal
 witnesses, and the rule that every resource or transport refusal publishes
-no Epsilon observation. Still open under EPSILON-EVALUATOR: the final
-section-11 envelope and evaluator `main` (the private adapter is not that
-boundary), an evaluator-internal budget layer if the final profile wants
+no Epsilon observation. The evaluator-entry leg is now realized separately
+in [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md): a versioned EREQ request
+envelope, canonical observation grammar, and EEOUT refusal frame bound to a
+canonical receipt, still within the evaluator's current construct coverage.
+Still open under EPSILON-EVALUATOR: witnessed checking/runtime conformance
+gaps, an evaluator-internal budget layer if the final profile wants
 fail-closed `Incomplete` accounting inside the evaluator, complete D
-composition, and independent `RunEpsilon` refinement.
+composition, and independent `RunEpsilon` refinement — section 11's final
+acceptance still requires executing every Epsilon construct for the exact D
+source.

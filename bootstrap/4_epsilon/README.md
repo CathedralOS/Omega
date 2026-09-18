@@ -56,8 +56,14 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   staging execution path; there is no private `Unsupported` fallback. This is
   not complete conformance or checked evaluator refinement. Remaining work is
   contract-derived checking/runtime conformance, resource-contained storage
-  realization, the final evaluator boundary and `main`, complete D composition,
-  and independently checked refinement. It exposes no final evaluator artifact.
+  realization, complete D composition, and independently checked refinement.
+  The canonical evaluator boundary and `main` are realized by
+  [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md): the packed closure plus the bound
+  [`evaluator_entry.delta`](../../tests/epsilon/evaluator-entry/evaluator_entry.delta)
+  source compiles to the canonical receipt that consumes the EREQ envelope and
+  publishes canonical observations or EEOUT refusal frames within the
+  evaluator's current construct coverage. Final section-11 acceptance still
+  requires complete D and `RunEpsilon` refinement.
   The
   current fact pass does enforce contextual receiver/result relation and
   separate array-view extra-call rejection.
@@ -88,7 +94,8 @@ Active work is tracked in
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `LANGUAGE.md` and `FEATURE_LEDGER.md` | Normative contract and feature/change rationale. | Replace only with synchronized contracts and customer gates. |
-| `EVALUATOR_PROFILE.md` | Derived resource/request/observation profile of the composed diagnostic edge against the selected lower chain, with exact/adjacent refusal witnesses. | Replace only with the final section-11 envelope or a re-derived profile on a changed composition. |
+| `EVALUATOR_PROFILE.md` | Derived resource/request/observation profile of the composed diagnostic edge against the selected lower chain, with exact/adjacent refusal witnesses. | Replace only with a re-derived profile on a changed diagnostic composition. |
+| `EVALUATOR_ENTRY.md` | Realized section-11 request/observation envelope, canonical receipt composition, and its derived resource profile. | Replace only with a synchronized final-envelope revision on a changed canonical composition. |
 | `epsilon_compiler.delta` and `epsilon_compiler.delta.sources` | Evaluator entry and exact ordered Delta source closure. | Replace only atomically with an admitted immediate-predecessor evaluator edge. |
 | Concept-owned source files and folders below | Checking, execution, and shared representations within that closure. | Replace while preserving the exact compiler customer and required conformance evidence. |
 
@@ -100,8 +107,10 @@ retained as tests.
 Start at [`epsilon_compiler.delta`](epsilon_compiler.delta). Its
 `epsilon_evaluate_entry_slice` accepts source and sealed input, checks the source,
 distinguishes rejection from internal failure, and starts the checked entry
-invocation. This is a diagnostic
-execution entrance, not yet the final evaluator `main` or a closed compiler edge.
+invocation. This library entrance is the evaluator's semantic core, not the
+physical request boundary; the canonical `main` is
+[`evaluator_entry.delta`](../../tests/epsilon/evaluator-entry/evaluator_entry.delta)
+and this file still exposes no artifact on its own.
 The [private execution driver](../../tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
 preserves full `i32` exit codes, trap kinds and stdout prefixes, and rejection
 reasons and coordinates in distinct tagged results. Its transport is not a new
@@ -109,6 +118,11 @@ normative Epsilon request or observation envelope.
 [`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md) derives that edge's explicit
 resource, request, and observation profile against the selected lower chain,
 including the exact/adjacent refusal witnesses and the sparse-storage account.
+The canonical evaluator `main` and request/observation envelope are realized
+separately: [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) defines EREQ v1, the
+canonical observation grammar, the EEOUT refusal frame, and the bound
+canonical receipt, gated by
+[`tests/epsilon/evaluator-entry/`](../../tests/epsilon/evaluator-entry/README.md).
 
 ## Follow the program
 
