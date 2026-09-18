@@ -2833,71 +2833,73 @@ Owners include
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
-  `syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs`,
-  `build-time-evaluation/src/const_initializers.rs`, and the shared generic
-  evaluator. Remaining forms include aggregate-producing initializer expressions,
-  open-template indices, specialized module templates,
-  foreign/generic constant attachments, trait defaults, operator homes and
-  qualified case membership in declared-domain proof facts. Preserve exact lexical/package selection before
-  evaluation, per-use exposure under specialization and owner-local imports.
-  The [source pipeline map](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization)
-  owns the current probes.
-  Witnessed regression (2026-09-16, macOS ARM64, 34cc842d85):
-  `resolve_signature_free_requirement` in
-  `syntax-trees-to-symbol-resolved-trees/src/selection/signature_free_requirements.rs`
-  collects every same-named trait program-wide and filters only by
-  resolution stratum, so after 5d134569b6 seeded `core` into hosted
-  package-aware compilations a package's own `ExtentRootProvider` collides
-  with `core`'s as `TraitNotUnique`
-  (`package-evidence` `declared_hardware_service_reach_does_not_infer_physical_authority`).
-  Scope the candidates to the occurrence's module/dependency scope, as
-  `select_visible_trait_definition` already does for machines.
+  `syntax-trees-to-symbol-resolved-trees/src/preparation/`
+  (`module_normalization.rs`, `generic_data/`) and
+  `build-time-evaluation/src/const_evaluation/const_initializers.rs`. The
+  [source pipeline map](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization)
+  owns the landed probes. `module_normalization.rs` no longer fences any
+  module-owned form: constant attachments, specialized foreign templates,
+  open-template indices, trait defaults, operator homes and qualified case
+  membership in domain facts pass normalization and resolution
+  (`tests/module_namespace_residuals.rs` in that crate). Most of those tests
+  assert only that resolution succeeds; none follows the selected declaration
+  through typing, checking or Terminal.
 
-  Complete specialized generic/provider applications, aggregate-producing,
-  constrained/target-dependent and floating/NaN declaration evaluation, including
-  unused initializers.
-  Extend concrete failure discharge beyond the ordinary scalar invocation route
-  in `build-time-evaluation/src/const_initializers/invocations.rs`: builtin
-  comparison and logical actuals now transport through saved-entry provenance
-  (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`), so concrete
-  probes decide them from checked evidence rather than widening to Truth. Casts,
-  indexed reads, call-produced and other unprovable origins still widen
-  conservatively and need their own checked evidence, not successful
-  interpretation or provider-body inspection. Concrete
-  `requires` discharge remains fenced by `admission/closure_validation.rs`.
-  Floating identities need determined bits. Preserve the source-free
-  `machine_initializers::` module/index
-  and scalar-composition checks in `compiler --test module_machine_indices`.
-  `const_generic_expressions/value/match_dispatch.rs` still needs nonconstant
-  divisor integrality beyond singleton sign intervals, nonzero proofs beyond
-  retained lattice gaps, and exact fractional-warning evidence for
-  independent dispatch operands; extend rational bounds and correlations, not
-  Cartesian arm enumeration or evaluation of skipped subjects. Preserve exact
-  selected operators (**OPERATOR-MACHINE-SUPPLY**) and proof arguments.
+  Remaining work:
 
-  General array-value execution remains a dependency, not namespace fallback:
-  dynamic/nonliteral selectors, borrowed projections/slices, array-producing
-  cycles, structural block parameters, boundary results and indirect
-  arguments/results need real payload/storage and view evidence. Extend the
-  shared evaluation sequence in the
-  [Terminal production map](omega-rust/psi/compiler/terminal-production/README.md)
-  and `lowering/control_flow/aggregate_results.rs`; selected aggregate homes
-  cannot stand for unevaluated values. Empty values retain carrier/dimensions;
-  a known slice length cannot erase view formation or bounds. Share state/call
-  transport with **STATE-LOCAL-VALUE-FRONTIER**.
+  - Carry exact lexical/package selection for those forms through typed and
+    checked trees and Terminal artifacts, with per-use exposure under
+    specialization and owner-local imports, and add same-leaf, private and
+    transitive-exposure controls for each.
+  - Complete declaration evaluation, including unused initializers:
+    specialized provider applications, target-dependent declarations, and
+    floating/NaN identities, which need determined bits. Constrained constants
+    still fence aggregate values, non-integer index arguments,
+    carrier-polymorphic families, open applications, non-domain constraints
+    and unprovable facts (`generic_data/const_evaluation/facts.rs`).
+  - Extend concrete failure discharge in `const_initializers/invocations.rs`
+    beyond ordinary scalar invocations. Casts, indexed reads, call-produced
+    values and other origins the concrete probe cannot decide still widen
+    conservatively; they need checked evidence
+    (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`, shared
+    with **CRASH-CONTRACT**), not successful interpretation or provider-body
+    inspection. `machine_execution/admission/closure_validation.rs` fences
+    every authored `requires` except root parameter-domain premises.
+  - `const_generic_expressions/value/match_dispatch.rs` needs nonconstant
+    divisor integrality beyond singleton sign intervals, nonzero proofs beyond
+    retained lattice gaps, and exact fractional-warning evidence for
+    independent dispatch operands, through rational bounds and correlations,
+    not arm enumeration or evaluation of skipped subjects. Preserve exact
+    selected operators (**OPERATOR-MACHINE-SUPPLY**) and proof arguments.
 
-  Acceptance: `compiler --test module_machine_indices` (`nominal::` and
-  `value_dispatch`), `terminal-psi-to-abstract-operations --test scalar_array_construction`,
-  and native `scalar_array_results` exercise exact source selection through
-  independent artifacts and matching-host execution. Preserve qualified
-  declarations/constants, `match_constant_indices`, `nominal_constant_bodies`
-  and `module_array_constant_indices` customers. Foreign exposure follows
-  [file-local imports](wiki/spec/language/modules.md#import-scope-and-exposure):
-  broad imports expose directly declared public domains only; narrow imports
-  select exact declarations. Same-leaf competitors, private/transitive exposure,
-  invalid unused initializers and unproved indexing reject. Keep the
-  `runtime_aggregate_index`/`runtime_fixed_array_index` negative controls until
-  their actual materialization obligations are met.
+  General array-value execution (dynamic selectors, borrowed projections and
+  slices, array-producing cycles, boundary and indirect results) is a
+  dependency owned by **STATE-LOCAL-VALUE-FRONTIER** and Omega's
+  `abstract-operations-to-target-operations` aggregate-result lowering
+  (`lowering/control_flow/aggregate_results.rs`), not a namespace fallback. A
+  selected aggregate home cannot stand for an unevaluated value.
+
+  Acceptance: `compiler --test module_machine_indices` (`nominal::`,
+  `value_dispatch::`, source-free `machine_initializers::`),
+  `terminal-psi-to-abstract-operations --test scalar_array_construction` and
+  `omega-native-differential-test --test scalar_array_results` exercise exact
+  source selection through independent artifacts and matching-host execution.
+  Preserve the `qualified_declarations`, `qualified_constants`,
+  `match_constant_indices`, `nominal_constant_bodies` and
+  `module_array_constant_indices` customers. Under
+  [file-local imports](wiki/spec/language/modules.md#import-scope-and-exposure),
+  same-leaf competitors, private/transitive exposure, invalid unused
+  initializers and unproved indexing reject. Keep
+  `fail/modules/{runtime_aggregate_index,runtime_fixed_array_index}` until
+  their materialization obligations are met.
+
+  Flag: `signature_free_trait_candidates`
+  (`selection/signature_free_requirements.rs`) claims to mirror
+  `SymbolTable::select_namespace_candidate`, which ends at the unmoduled pool,
+  but adds a last tier returning every same-leaf trait that passes only the
+  resolution-stratum check. A bare `Trait::requirement` can pool a trait its
+  file never imported, and an unrelated package's same-leaf trait turns the
+  use into `TraitNotUnique`. Use the ordinary namespace selection.
 
 - **RUNTIME-VALUE-GENERICS.** Implement the settled
   [runtime-capable versus const binder contract](wiki/spec/language/generics.md#value-binders-and-const-requirements)
