@@ -160,8 +160,54 @@ fn a_range_shell_beside_other_child_owning_arguments_stays_contiguous() {
     );
 }
 
-// A nested application in argument position is not pinned here yet: the parser
-// appends each argument handle to one shared table as it parses, so a nested
-// application's own arguments interleave with the enclosing list and the two
-// authored spans overlap. That is a `tokens-to-syntax-trees` defect, recorded
-// on STRUCTURAL-GENERIC-MATCHING; lowering cannot repair a span it is handed.
+#[test]
+fn a_nested_application_argument_keeps_its_own_arguments() {
+    // An argument may itself be an application, and its arguments land in the
+    // same child table as the enclosing list. The parser used to append each
+    // argument handle as it parsed, so the nested application's arguments
+    // interleaved with the enclosing list and the two authored spans
+    // overlapped; lowering cannot repair a span it is handed.
+    let program = lower(
+        r#"
+        pub data Pair<Left, Right> {
+            left: Left;
+            right: Right;
+        }
+
+        pub data Bounds {
+            pair: Pair<u64[0..=3], Pair<u64[0..=7], u64[0..=15]>>;
+        }
+        "#,
+    );
+
+    let TypeReference::Generic(application) = field_type(&program, "Bounds") else {
+        panic!("the field is a generic application")
+    };
+    let arguments = program.child_type_references(application.arguments);
+    let [first, second] = arguments else {
+        panic!("the enclosing application keeps both authored arguments")
+    };
+    assert_eq!(range_constraints(&program, first), vec![true]);
+
+    let TypeReference::Generic(nested) = second else {
+        panic!("the second argument is the nested application, not {second:?}")
+    };
+    assert_eq!(nested.base_name.as_str(), "Pair");
+    let nested_arguments = program.child_type_references(nested.arguments);
+    assert_eq!(
+        nested_arguments.len(),
+        2,
+        "the nested application keeps both of its own arguments"
+    );
+    for argument in nested_arguments {
+        assert_eq!(range_constraints(&program, argument), vec![true]);
+    }
+
+    let enclosing_start = application.arguments.start().arena_index();
+    let nested_start = nested.arguments.start().arena_index();
+    assert!(
+        enclosing_start + application.arguments.count() <= nested_start
+            || nested_start + nested.arguments.count() <= enclosing_start,
+        "the two authored argument spans must not overlap"
+    );
+}
