@@ -21,7 +21,7 @@ use super::{
     place_id, unsupported,
 };
 use crate::unit::dynamic_composed_unit::applications::{
-    exact_empty_machine_service_ceiling, exact_machine_service_summary,
+    count_selected_family_rows, exact_empty_machine_service_ceiling, exact_machine_service_summary,
     lower_initial_rebound_application, validate_empty_contract, validate_empty_service_summary,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
@@ -124,7 +124,7 @@ fn lower_dynamic_unit_machine(
         return unsupported("dynamic Unit selected realization is absent or ambiguous");
     };
     if selected.result != ClosedConformanceCallableResult::Unit
-        || selected.callable_identity != plan.realization_identity
+        || selected.checked_identity != plan.realization_identity
     {
         return unsupported("dynamic Unit selected realization callable drifted");
     }
@@ -372,19 +372,27 @@ pub(super) fn validate_exact_unit_plan(
     {
         return unsupported("rebound dynamic Unit selection versions drifted from checking");
     }
-    let selected_rows = plan
-        .selection
-        .rows
-        .iter()
-        .filter(|row| {
-            row.declaring_trait == plan.declaring_trait
-                && row.requirement == plan.requirement
-                && row.realization_machine == plan.realization_machine
-                && row.realization_state == plan.realization_state
-                && row.requirement_identity == plan.requirement_identity
-                && row.realization_identity == plan.realization_identity
-        })
-        .count();
+    // The retained selection rows name the provider template; a finite-family
+    // plan names the tuple's bare specialization instance. The join expands
+    // each retained row's family roster and requires the plan's
+    // `(family_tuple, realization_machine, realization_state)` to land on
+    // exactly one expanded row; `realization_identity` must equal the bare
+    // normalized identity of the instance the plan names.
+    let realization_identity =
+        evidence_lowering::checked_dynamic_machine_identity(checked, plan.realization_machine)?;
+    if realization_identity != plan.realization_identity {
+        return unsupported("dynamic Unit realization identity drifted from checking");
+    }
+    let selected_rows = count_selected_family_rows(
+        checked,
+        &plan.selection.rows,
+        plan.declaring_trait,
+        plan.requirement,
+        &plan.requirement_identity,
+        &plan.family_tuple,
+        plan.realization_machine,
+        plan.realization_state,
+    )?;
     let selected_callables = plan
         .realization_callables
         .iter()
@@ -395,6 +403,7 @@ pub(super) fn validate_exact_unit_plan(
                 && callable.realization_state == plan.realization_state
                 && callable.requirement_identity == plan.requirement_identity
                 && callable.realization_identity == plan.realization_identity
+                && callable.family_tuple.as_ref() == plan.family_tuple.as_ref()
         })
         .count();
     if selected_rows != 1 || selected_callables != 1 {
@@ -539,17 +548,22 @@ pub(super) fn collect_unit_realizations(
             let ordinal = u64::try_from(ordinal).map_err(|_| {
                 LoweringError::Unsupported("dynamic Unit realization ordinal exceeds u64")
             })?;
-            let identity = evidence_lowering::checked_evidence_machine_identity(
+            let checked_identity = evidence_lowering::checked_dynamic_machine_identity(
                 checked,
                 callable.realization_machine,
             )?;
-            if identity != callable.realization_identity {
+            if checked_identity != callable.realization_identity {
                 return unsupported("dynamic Unit realization callable identity drifted");
             }
+            let callable_identity = evidence_lowering::checked_evidence_machine_identity(
+                checked,
+                callable.realization_machine,
+            )?;
             Ok(LoweredDynamicRealization {
                 source_machine: callable.realization_machine,
                 source_state: callable.realization_state,
-                callable_identity: identity,
+                checked_identity,
+                callable_identity,
                 machine: machine_id(ordinal.checked_add(2).ok_or(LoweringError::Unsupported(
                     "dynamic Unit realization machine identity overflowed",
                 ))?),
@@ -564,10 +578,17 @@ fn retain_unit_realizations(
     plan: &CheckedDynamicUnitCallPlan,
     lane: DynamicLoweringLane<'_>,
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
+    // Rebound descriptors and forwarded descriptor parameters both expose the
+    // complete table: every expanded family row must bind a callable, so the
+    // full roster is retained. A strictly local direct dispatch names its
+    // selected callable outright; its application keeps the unselected family
+    // rows as evidence without materializing their instances.
+    let retains_full_roster = matches!(lane, DynamicLoweringLane::Rebound(_))
+        || matches!(plan.origin, CheckedDynamicUnitCallOrigin::Forwarded { .. });
     let retained = all
         .iter()
         .filter(|candidate| {
-            matches!(lane, DynamicLoweringLane::Rebound(_))
+            retains_full_roster
                 || (candidate.source_machine == plan.realization_machine
                     && candidate.source_state == plan.realization_state)
         })
@@ -598,7 +619,7 @@ pub(super) fn materialize_unit_realizations(
                 .filter(|candidate| {
                     candidate.realization_machine == realization.source_machine
                         && candidate.realization_state == realization.source_state
-                        && candidate.realization_identity == realization.callable_identity
+                        && candidate.realization_identity == realization.checked_identity
                 })
                 .collect::<Vec<_>>();
             let [callable] = matching.as_slice() else {
@@ -1227,11 +1248,6 @@ pub(super) fn lower_exact_unit_application(
             checked,
             closed.realization_machine,
         )?;
-        let family_tuple = evidence_lowering::checked_requirement_family_tuple(
-            checked,
-            closed.declaring_trait,
-            closed.requirement,
-        )?;
         if closed.declaring_trait != retained.declaring_trait
             || closed.requirement != retained.requirement
             || closed.realization_machine != retained.realization_machine
@@ -1241,36 +1257,60 @@ pub(super) fn lower_exact_unit_application(
         {
             return unsupported("dynamic Unit row map drifted from checking");
         }
-        let selected = closed.declaring_trait == plan.declaring_trait
-            && closed.requirement == plan.requirement
-            && closed.realization_machine == plan.realization_machine
-            && closed.realization_state == plan.realization_state;
-        let matching = lowered_realizations
-            .iter()
-            .filter(|candidate| {
-                candidate.source_machine == closed.realization_machine
-                    && candidate.source_state == closed.realization_state
-                    && candidate.callable_identity == realization_identity
-            })
-            .collect::<Vec<_>>();
-        let matching = match matching.as_slice() {
-            [] if !selected => None,
-            [matching] => Some(*matching),
-            _ => return unsupported("dynamic Unit row callable is absent or ambiguous"),
-        };
-        let row = ClosedConformanceRow {
-            declaring_trait_identity: checked.symbols.display_path(closed.declaring_trait, "::"),
-            public_requirement_identity: requirement_identity,
-            family_tuple,
-            requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
-            realization_identity: checked.symbols.display_path(closed.realization_state, "::"),
-            realization_callable_identity: matching
-                .map(|matching| matching.callable_identity.clone()),
-        };
-        if selected && selected_row.replace(row.clone()).is_some() {
-            return unsupported("dynamic Unit selected row is duplicated");
+        // The retained row names the provider template. A finite generic
+        // requirement expands to one table row per declared roster tuple, each
+        // naming the tuple's bare specialization instance; the call's
+        // `family_tuple` selects exactly one of them.
+        for family_row in evidence_lowering::checked_requirement_family_rows(
+            checked,
+            closed.declaring_trait,
+            closed.requirement,
+            closed.realization_machine,
+            closed.realization_state,
+        )? {
+            let family_realization_identity = evidence_lowering::checked_evidence_machine_identity(
+                checked,
+                family_row.realization_machine,
+            )?;
+            let selected = closed.declaring_trait == plan.declaring_trait
+                && closed.requirement == plan.requirement
+                && family_row.family_tuple.as_slice() == plan.family_tuple.as_ref()
+                && family_row.realization_machine == plan.realization_machine
+                && family_row.realization_state == plan.realization_state;
+            let matching = lowered_realizations
+                .iter()
+                .filter(|candidate| {
+                    candidate.source_machine == family_row.realization_machine
+                        && candidate.source_state == family_row.realization_state
+                        && candidate.callable_identity == family_realization_identity
+                })
+                .collect::<Vec<_>>();
+            // A lane that retains only the selected realization still emits
+            // the complete row catalog; rows the lane did not materialize
+            // stay unbound evidence.
+            let matching = match matching.as_slice() {
+                [] if !selected => None,
+                [matching] => Some(*matching),
+                _ => return unsupported("dynamic Unit row callable is absent or ambiguous"),
+            };
+            let row = ClosedConformanceRow {
+                declaring_trait_identity: checked
+                    .symbols
+                    .display_path(closed.declaring_trait, "::"),
+                public_requirement_identity: requirement_identity.clone(),
+                family_tuple: family_row.family_tuple,
+                requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
+                realization_identity: checked
+                    .symbols
+                    .display_path(family_row.realization_state, "::"),
+                realization_callable_identity: matching
+                    .map(|matching| matching.callable_identity.clone()),
+            };
+            if selected && selected_row.replace(row.clone()).is_some() {
+                return unsupported("dynamic Unit selected row is duplicated");
+            }
+            rows.push(row);
         }
-        rows.push(row);
     }
     let selected_row = selected_row.ok_or(LoweringError::Unsupported(
         "dynamic Unit selected row is absent",

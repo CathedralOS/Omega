@@ -1,8 +1,10 @@
 //! Validation of the exact direct, rebound, stored and forwarded dynamic
 //! plans before lowering.
 
+use crate::proofs::evidence_lowering;
 use crate::unit::dynamic_composed_unit::applications::{
-    exact_machine_service_summary, validate_empty_contract, validate_empty_service_summary,
+    count_selected_family_rows, exact_machine_service_summary, validate_empty_contract,
+    validate_empty_service_summary,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::DynamicCallerShape;
 use crate::unit::{CheckedTrees, LoweringError, unsupported};
@@ -236,19 +238,27 @@ fn validate_exact_dynamic_plan(
     {
         return unsupported("direct dynamic dispatch plan no longer matches its checked selection");
     }
-    let selected_rows = plan
-        .selection
-        .rows
-        .iter()
-        .filter(|row| {
-            row.declaring_trait == plan.declaring_trait
-                && row.requirement == plan.requirement
-                && row.realization_machine == plan.realization_machine
-                && row.realization_state == plan.realization_state
-                && row.requirement_identity == plan.requirement_identity
-                && row.realization_identity == plan.realization_identity
-        })
-        .count();
+    // The retained selection rows name the provider template; a finite-family
+    // plan names the tuple's bare specialization instance instead. The join
+    // therefore expands each retained row's family roster and requires the
+    // plan's `(family_tuple, realization_machine, realization_state)` to land
+    // on exactly one expanded row, while `realization_identity` must equal the
+    // bare normalized identity of the instance the plan names.
+    let realization_identity =
+        evidence_lowering::checked_dynamic_machine_identity(checked, plan.realization_machine)?;
+    if realization_identity != plan.realization_identity {
+        return unsupported("direct dynamic realization identity drifted from checking");
+    }
+    let selected_rows = count_selected_family_rows(
+        checked,
+        &plan.selection.rows,
+        plan.declaring_trait,
+        plan.requirement,
+        &plan.requirement_identity,
+        &plan.family_tuple,
+        plan.realization_machine,
+        plan.realization_state,
+    )?;
     if selected_rows != 1 {
         return unsupported("direct dynamic dispatch lost its exact selected conformance row");
     }
@@ -262,6 +272,7 @@ fn validate_exact_dynamic_plan(
                 && callable.realization_state == plan.realization_state
                 && callable.requirement_identity == plan.requirement_identity
                 && callable.realization_identity == plan.realization_identity
+                && callable.family_tuple.as_ref() == plan.family_tuple.as_ref()
         })
         .collect::<Vec<_>>();
     let [selected_callable] = selected_callables.as_slice() else {

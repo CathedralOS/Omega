@@ -2,6 +2,7 @@
 
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod direct_dynamic_units;
+mod finite_family;
 mod mutating_realizations_and_effects;
 mod rebound_dynamic_custody;
 
@@ -734,6 +735,169 @@ const FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
 
     machine forward(erased: &dyn Touch) {
         erased.touch();
+    }
+"#;
+
+const FAMILY_DYNAMIC_INTEGER_SOURCE: &str = r#"
+    trait Shape {
+        machine Self::code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
+    }
+
+    data Item [copy] {
+        value: i32;
+    }
+
+    machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
+        transition { _ -> self.value }
+    }
+
+    Primary: Item satisfies Shape {
+        Shape::code = Item::code;
+    }
+
+    data Main [copy] {
+        item: Item;
+    }
+
+    machine Main::run(&self) {
+        let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+        let result: i32 = erased.code<16>();
+    }
+"#;
+
+const REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE: &str = r#"
+    trait Shape {
+        machine Self::code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
+        transition { _ -> self.value }
+    }
+
+    Primary: Item satisfies Shape {
+        Shape::code = Item::code;
+    }
+
+    data Main {
+        decoy: Item;
+        selected: Item;
+    }
+
+    machine Main::run(&mut self) {
+        let mut erased: &dyn Shape = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Primary;
+        let result: i32 = erased.code<32>();
+    }
+"#;
+
+const FORWARDED_FAMILY_DYNAMIC_INTEGER_SOURCE: &str = r#"
+    trait Shape {
+        machine Self::code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
+    }
+
+    data Item [copy] {
+        value: i32;
+    }
+
+    machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
+        transition { _ -> self.value }
+    }
+
+    Primary: Item satisfies Shape {
+        Shape::code = Item::code;
+    }
+
+    data Main [copy] {
+        selected: Item;
+    }
+
+    machine Main::run(&self) {
+        let erased: &dyn Shape = &self.selected as &dyn Item::Primary;
+        let result: i32 = forward(erased);
+    }
+
+    machine forward(erased: &dyn Shape) -> i32 {
+        let result: i32 = erased.code<16>();
+        transition { _ -> result }
+    }
+"#;
+
+const JOINED_FAMILY_DYNAMIC_BOOLEAN_SOURCE: &str = r#"
+    trait Shape {
+        machine Self::ready<Width: u32>(&self) -> bool where Width == 16 || Width == 32;
+    }
+
+    data Item [copy] {
+        marker: bool;
+    }
+
+    machine Item::ready<Width: u32>(&self) -> bool satisfies Shape::ready {
+        transition { _ -> self.marker }
+    }
+
+    Primary: Item satisfies Shape {
+        Shape::ready = Item::ready;
+    }
+
+    Secondary: Item satisfies Shape {
+        Shape::ready = Item::ready;
+    }
+
+    data Main [copy] {
+        first: Item;
+        second: Item;
+    }
+
+    machine Main::run(&self, choose_first: bool) {
+        transition choose_first {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Shape) -> bool {
+        let result: bool = erased.ready<32>();
+        transition { _ -> result }
+    }
+"#;
+
+const FAMILY_DYNAMIC_UNIT_SOURCE: &str = r#"
+    trait Touch {
+        machine Self::touch<Width: u32>(&self) where Width == 16 || Width == 32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    machine Item::touch<Width: u32>(&self) satisfies Touch::touch {
+    }
+
+    Primary: Item satisfies Touch {
+        Touch::touch = Item::touch;
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine Main::run(&self) {
+        let erased: &dyn Touch = &self.item as &dyn Item::Primary;
+        erased.touch<16>();
     }
 "#;
 

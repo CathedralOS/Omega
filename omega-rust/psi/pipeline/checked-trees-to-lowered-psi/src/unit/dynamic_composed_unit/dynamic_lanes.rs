@@ -48,6 +48,16 @@ pub(crate) struct DynamicCallerShape {
 pub(crate) struct LoweredDynamicRealization {
     pub(crate) source_machine: symbols::SymbolHandle,
     pub(crate) source_state: symbols::SymbolHandle,
+    /// The checked plan's identity for this callable: the bare normalized
+    /// overload identity `CheckedDynamic*CallPlan::realization_identity` and
+    /// the callable roster retain. For a finite-family tuple instance this is
+    /// the bare instance identity, not the commitment-wrapped Terminal one.
+    pub(crate) checked_identity: String,
+    /// The Terminal-side callable identity
+    /// (`checked_evidence_machine_identity`): the bare identity for a
+    /// nongeneric realization, or the specialization-application-wrapped
+    /// identity for a tuple's instance. Registry entries, row references and
+    /// dispatch rows all name this form.
     pub(crate) callable_identity: String,
     pub(crate) machine: semantic_vocabulary::MachineId,
     pub(crate) result: ClosedConformanceCallableResult,
@@ -135,7 +145,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
     let callable_result = selected_realization.result;
     let callable_identity = selected_realization.callable_identity.clone();
     if callable_result != terminal_callable_result(plan.result.primitive_type)?
-        || callable_identity != plan.realization_identity
+        || selected_realization.checked_identity != plan.realization_identity
     {
         return unsupported("direct dynamic selected realization callable drifted");
     }

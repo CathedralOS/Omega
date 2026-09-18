@@ -164,6 +164,7 @@ impl TerminalExecution {
             .callables
             .get(slot)
             .copied()
+            .flatten()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         self.begin_runtime_dynamic_scalar_call(callee, result, descriptor.source)?;
         Ok(OperationFlow::Redispatch)
@@ -225,6 +226,7 @@ impl TerminalExecution {
             .callables
             .get(slot)
             .copied()
+            .flatten()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         self.begin_runtime_dynamic_unit_call(callee, descriptor.source)?;
         Ok(OperationFlow::Redispatch)
