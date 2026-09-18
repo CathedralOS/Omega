@@ -1,12 +1,13 @@
 use std::cmp::Reverse;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use crate::{
-    CopyAffinity, FixedPrecoloredSegmentHomeError, FixedPrecoloredSourceSegmentHome,
-    FunctionFixedPrecoloredSegmentHomes, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange,
+    CopyAffinity, FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomeError,
+    FixedPrecoloredSourceSegmentHome, FunctionFixedPrecoloredSegmentHomes, FunctionLiveRanges,
+    LiveRangePoint, VirtualLiveRange,
 };
 
 use super::{conflicts::Conflicts, domains::Domain, work::Work};
@@ -22,9 +23,19 @@ pub(super) fn assign(
     let partners = affinity_edges(domains, ranges, work)?;
     let mut unassigned = (0..domains.len()).collect::<Vec<_>>();
     let mut assigned = BTreeMap::<usize, RegisterViewId>::new();
+    // Viable candidate sets move incrementally: a candidate leaves a domain's
+    // set exactly when a committed home conflicts with it, which the conflict
+    // adjacency reports once per pair rather than once per selection round.
+    let mut viables = BTreeMap::<usize, Vec<RegisterViewId>>::new();
+    let mut by_id = BTreeMap::<FixedPrecoloredHomeDomainId, usize>::new();
+    for (index, domain) in domains.iter().enumerate() {
+        viables.insert(index, domain.candidates.clone());
+        by_id.insert(domain.id, index);
+    }
     while !unassigned.is_empty() {
-        let (position, viable, viables) = select(&unassigned, &assigned, domains, conflicts, work)?;
-        let domain_index = unassigned.remove(position);
+        let (position, domain_index) = select(&unassigned, &viables, domains, conflicts);
+        unassigned.remove(position);
+        let viable = viables[&domain_index].clone();
         // Affinity and neighbor feasibility only reorder among already-legal
         // candidates: physical conflicts and liveness facts are untouched, and
         // domain selection order is unchanged.
@@ -48,6 +59,22 @@ pub(super) fn assign(
             }
         })?;
         assigned.insert(domain_index, view);
+        viables.remove(&domain_index);
+        for &(neighbor, conflicting_view) in conflicts.conflicting(domains[domain_index].id, view) {
+            work.viability_probe()?;
+            let Some(keeps) = by_id
+                .get(&neighbor)
+                .and_then(|index| viables.get_mut(index))
+            else {
+                continue;
+            };
+            if let Some(position) = keeps
+                .iter()
+                .position(|&candidate| candidate == conflicting_view)
+            {
+                keeps.remove(position);
+            }
+        }
     }
     let mut assignments = domains
         .iter()
@@ -73,33 +100,18 @@ pub(super) fn assign(
     })
 }
 
-type Selection = (
-    usize,
-    Vec<RegisterViewId>,
-    BTreeMap<usize, Vec<RegisterViewId>>,
-);
-
+/// Most-constrained-first domain selection over the maintained viable sets:
+/// smallest retained candidate list, then most still-unassigned constrained
+/// neighbors, then the canonical (first point, register, segment) order.
 fn select(
     unassigned: &[usize],
-    assigned: &BTreeMap<usize, RegisterViewId>,
+    viables: &BTreeMap<usize, Vec<RegisterViewId>>,
     domains: &[Domain],
     conflicts: &Conflicts,
-    work: &mut Work,
-) -> Result<Selection, FixedPrecoloredSegmentHomeError> {
+) -> (usize, usize) {
     let mut selected = None::<(usize, usize, usize)>;
-    let mut viables = BTreeMap::<usize, Vec<RegisterViewId>>::new();
     for (position, &domain_index) in unassigned.iter().enumerate() {
         let domain = &domains[domain_index];
-        let mut viable = Vec::new();
-        for &candidate in &domain.candidates {
-            work.viability_probe()?;
-            let blocked = assigned.iter().any(|(&other_index, &other_view)| {
-                conflicts.views(domain.id, candidate, domains[other_index].id, other_view)
-            });
-            if !blocked {
-                viable.push(candidate);
-            }
-        }
         let degree = unassigned
             .iter()
             .copied()
@@ -107,8 +119,7 @@ fn select(
                 other != domain_index && conflicts.domains(domain.id, domains[other].id)
             })
             .count();
-        let viable_len = viable.len();
-        viables.insert(domain_index, viable);
+        let viable_len = viables[&domain_index].len();
         let replace = match &selected {
             None => true,
             Some((_, best_index, best_degree)) => {
@@ -132,21 +143,22 @@ fn select(
             selected = Some((position, domain_index, degree));
         }
     }
-    let (position, domain_index, _) = selected.expect("nonempty unassigned domain roster");
-    let viable = viables[&domain_index].clone();
-    Ok((position, viable, viables))
+    selected
+        .map(|(position, domain_index, _)| (position, domain_index))
+        .expect("nonempty unassigned domain roster")
 }
 
-/// Copy-affinity edges between segment domains. Each recorded copy names one
-/// source use point and one destination definition point; each of those points
-/// lies inside exactly one domain of its register, so the affinity joins the
-/// two domains covering the copy's endpoints. Sharing the view is a placement
-/// preference only — legality stays with candidates and conflicts.
+/// Copy-affinity edges between segment domains, indexed by member. Each
+/// recorded copy names one source use point and one destination definition
+/// point; each of those points lies inside exactly one domain of its
+/// register, so the affinity joins the two domains covering the copy's
+/// endpoints. Sharing the view is a placement preference only — legality
+/// stays with candidates and conflicts.
 fn affinity_edges(
     domains: &[Domain],
     ranges: &FunctionLiveRanges,
     work: &mut Work,
-) -> Result<Vec<(usize, usize)>, FixedPrecoloredSegmentHomeError> {
+) -> Result<BTreeMap<usize, Vec<(usize, usize)>>, FixedPrecoloredSegmentHomeError> {
     let mut members = BTreeMap::<VirtualRegisterId, Vec<usize>>::new();
     for (index, domain) in domains.iter().enumerate() {
         members
@@ -191,7 +203,15 @@ fn affinity_edges(
         }
     }
     edges.sort_unstable();
-    Ok(edges)
+    // Every ranking scan only needs the edges touching the domains it asks
+    // about, so index them by member once rather than rescanning the full
+    // edge list for each question.
+    let mut incident = BTreeMap::<usize, Vec<(usize, usize)>>::new();
+    for &edge in &edges {
+        incident.entry(edge.0).or_default().push(edge);
+        incident.entry(edge.1).or_default().push(edge);
+    }
+    Ok(incident)
 }
 
 fn occurrence_point(
@@ -225,21 +245,25 @@ fn containing_domain(
 /// Choose a home among candidates that are already legal for this domain.
 ///
 /// Candidate order is canonical. Taking a view also removes every conflicting
-/// view from each still-unassigned constrained neighbor, so a view that would
-/// empty such a neighbor's viable set is considered only after every view
-/// that keeps all of them feasible: stranding a neighbor manufactures a
-/// `SegmentPressure` that the neighbor's own placement could still avoid, and
-/// no coalesce or lower view id outranks that feasibility. Among the
-/// feasible-keeping views the choice is lexicographic: the view satisfying
-/// the most copy edges whose partner domain is already assigned wins first —
-/// each such edge is a coalesce no later assignment can undo — then the view
-/// the most still-unassigned partners would themselves take once this
-/// domain's home is fixed. A still-unassigned partner can still decline any
-/// view it merely retains, so its vote counts only toward the view winning
-/// its own satisfied-edge ranking: the edges this pending assignment would
-/// add plus its copy edges to already-assigned homes, with the lowest
-/// still-viable view breaking ties. A partner constrained with this domain
-/// can never share its home, so its candidacy is not a vote.
+/// view from each still-unassigned constrained neighbor, so a view is
+/// considered only after every view that keeps the residual problem
+/// completable under its sound checks: a domain left with one retained view
+/// must take it and that forced home removes its conflicting views from every
+/// constrained still-unassigned domain in turn, and a pairwise-constrained
+/// clique retaining only subsets of a pool smaller than itself can never
+/// place. A view failing either check manufactures a `SegmentPressure` the
+/// neighbors' own placement could still avoid, and no coalesce or lower view
+/// id outranks that feasibility. Among the feasible-keeping views the choice is
+/// lexicographic: the view satisfying the most copy edges whose partner
+/// domain is already assigned wins first — each such edge is a coalesce no
+/// later assignment can undo — then the view the most still-unassigned
+/// partners would themselves take once this domain's home is fixed. A
+/// still-unassigned partner can still decline any view it merely retains, so
+/// its vote counts only toward the view winning its own satisfied-edge
+/// ranking: the edges this pending assignment would add plus its copy edges
+/// to already-assigned homes, with the lowest still-viable view breaking
+/// ties. A partner constrained with this domain can never share its home, so
+/// its candidacy is not a vote.
 /// A constrained neighbor can never share this domain's home, so stealing its
 /// already-guaranteed coalesce costs this domain nothing to avoid. The view
 /// stealing the fewest such edges wins third; the plain first candidate breaks
@@ -253,21 +277,25 @@ fn preferred_view(
     assigned: &BTreeMap<usize, RegisterViewId>,
     domains: &[Domain],
     conflicts: &Conflicts,
-    edges: &[(usize, usize)],
+    incident: &BTreeMap<usize, Vec<(usize, usize)>>,
     work: &mut Work,
 ) -> Result<Option<RegisterViewId>, FixedPrecoloredSegmentHomeError> {
+    // The feasibility gate only reorders among candidates, so a domain with
+    // one legal view never consults it. Otherwise the residual retained sets
+    // once already-certain homes propagate are shared by every candidate:
+    // when even that base residual cannot complete, no candidate is worse
+    // than another and the gate has nothing to add.
+    let residual = if viable.len() > 1 {
+        residual_base(domain_index, unassigned, viables, domains, conflicts, work)?
+    } else {
+        None
+    };
     let mut keeping = Vec::with_capacity(viable.len());
-    for &view in viable {
-        if !strands_neighbor(
-            domain_index,
-            view,
-            unassigned,
-            viables,
-            domains,
-            conflicts,
-            work,
-        )? {
-            keeping.push(view);
+    if let Some(residual) = &residual {
+        for &view in viable {
+            if !strands_neighbor(domain_index, view, residual, domains, conflicts, work)? {
+                keeping.push(view);
+            }
         }
     }
     let pool: &[RegisterViewId] = if keeping.is_empty() {
@@ -280,25 +308,27 @@ fn preferred_view(
         viables,
         unassigned,
         assigned,
-        edges,
+        incident,
         domains,
         conflicts,
         work,
     )?;
-    let partner_views = assigned_partner_views(domain_index, assigned, edges, work)?;
+    let partner_views = assigned_partner_views(
+        domain_index,
+        unassigned,
+        assigned,
+        incident,
+        domains,
+        conflicts,
+        work,
+    )?;
     let mut leading = None::<(usize, usize, Reverse<usize>, RegisterViewId)>;
     for &view in pool {
         let mut guaranteed = 0usize;
         let mut votes = 0usize;
-        for &(lower, upper) in edges {
+        for &(lower, upper) in incident.get(&domain_index).map_or(&[][..], Vec::as_slice) {
             work.pair()?;
-            let partner = if lower == domain_index {
-                upper
-            } else if upper == domain_index {
-                lower
-            } else {
-                continue;
-            };
+            let partner = if lower == domain_index { upper } else { lower };
             if assigned.get(&partner) == Some(&view) {
                 guaranteed += 1;
             } else if let Some(outlook) = outlooks.get(&partner)
@@ -341,22 +371,29 @@ fn preferred_view(
         .or_else(|| pool.first().copied()))
 }
 
-/// Each still-unassigned domain's copy edges landing on already-assigned
-/// homes, counted per view: a constrained neighbor's guaranteed coalesces that
-/// this domain could steal by taking that view itself.
+/// Each still-unassigned constrained neighbor's copy edges landing on
+/// already-assigned homes, counted per view: the guaranteed coalesces this
+/// domain could steal by taking that view itself. Only those neighbors are
+/// ever queried, so only their incident edges are scanned.
 fn assigned_partner_views(
     domain_index: usize,
+    unassigned: &[usize],
     assigned: &BTreeMap<usize, RegisterViewId>,
-    edges: &[(usize, usize)],
+    incident: &BTreeMap<usize, Vec<(usize, usize)>>,
+    domains: &[Domain],
+    conflicts: &Conflicts,
     work: &mut Work,
 ) -> Result<BTreeMap<usize, BTreeMap<RegisterViewId, usize>>, FixedPrecoloredSegmentHomeError> {
     let mut views = BTreeMap::<usize, BTreeMap<RegisterViewId, usize>>::new();
-    for &(lower, upper) in edges {
-        work.pair()?;
-        if lower == domain_index || upper == domain_index {
+    for &member in unassigned {
+        if member == domain_index
+            || !conflicts.domains(domains[member].id, domains[domain_index].id)
+        {
             continue;
         }
-        for (member, other) in [(lower, upper), (upper, lower)] {
+        for &(lower, upper) in incident.get(&member).map_or(&[][..], Vec::as_slice) {
+            work.pair()?;
+            let other = if lower == member { upper } else { lower };
             if let Some(&home) = assigned.get(&other) {
                 *views.entry(member).or_default().entry(home).or_default() += 1;
             }
@@ -424,21 +461,15 @@ fn partner_outlooks(
     viables: &BTreeMap<usize, Vec<RegisterViewId>>,
     unassigned: &[usize],
     assigned: &BTreeMap<usize, RegisterViewId>,
-    edges: &[(usize, usize)],
+    incident: &BTreeMap<usize, Vec<(usize, usize)>>,
     domains: &[Domain],
     conflicts: &Conflicts,
     work: &mut Work,
 ) -> Result<BTreeMap<usize, PartnerOutlook>, FixedPrecoloredSegmentHomeError> {
     let mut outlooks = BTreeMap::<usize, PartnerOutlook>::new();
-    for &(lower, upper) in edges {
+    for &(lower, upper) in incident.get(&domain_index).map_or(&[][..], Vec::as_slice) {
         work.pair()?;
-        let partner = if lower == domain_index {
-            upper
-        } else if upper == domain_index {
-            lower
-        } else {
-            continue;
-        };
+        let partner = if lower == domain_index { upper } else { lower };
         if partner != domain_index
             && unassigned.contains(&partner)
             && !conflicts.domains(domains[partner].id, domains[domain_index].id)
@@ -446,11 +477,11 @@ fn partner_outlooks(
             outlooks.entry(partner).or_default().pending += 1;
         }
     }
-    for &(lower, upper) in edges {
-        work.pair()?;
-        for (member, other) in [(lower, upper), (upper, lower)] {
-            if let (Some(outlook), Some(&home)) = (outlooks.get_mut(&member), assigned.get(&other))
-            {
+    for (&member, outlook) in &mut outlooks {
+        for &(lower, upper) in incident.get(&member).map_or(&[][..], Vec::as_slice) {
+            work.pair()?;
+            let other = if lower == member { upper } else { lower };
+            if let Some(&home) = assigned.get(&other) {
                 *outlook.assigned.entry(home).or_default() += 1;
             }
         }
@@ -470,49 +501,166 @@ fn partner_outlooks(
     Ok(outlooks)
 }
 
-/// Assigning `view` to this domain removes every conflicting view from each
-/// still-unassigned constrained neighbor's viable set. Return true when that
-/// removal would leave such a neighbor with nothing: the choice stays legal
-/// for this domain but loses to any candidate that keeps every neighbor
-/// feasible. A neighbor whose viable set is already empty is doomed either
-/// way and does not count against the view.
-fn strands_neighbor(
+/// Every still-unassigned domain's retained viable set once the homes that
+/// are already certain propagate: a domain left with a single retained view
+/// must take it, and that forced home removes its conflicting views from
+/// every still-unassigned domain constraining it in turn. The sets are keyed
+/// by domain id so the conflict adjacency resolves without an index
+/// translation, the domain being assigned drops out, and already-doomed sets
+/// lose nothing to the pending choice.
+///
+/// Returns `None` when the forced moves alone already leave a domain with no
+/// retained view, or when a pairwise-constrained clique retains only subsets
+/// of a pool smaller than the clique — the residual is doomed regardless of
+/// the pending choice, so no candidate is worse than another.
+fn residual_base(
     domain_index: usize,
-    view: RegisterViewId,
     unassigned: &[usize],
     viables: &BTreeMap<usize, Vec<RegisterViewId>>,
     domains: &[Domain],
     conflicts: &Conflicts,
     work: &mut Work,
-) -> Result<bool, FixedPrecoloredSegmentHomeError> {
+) -> Result<
+    Option<BTreeMap<FixedPrecoloredHomeDomainId, Vec<RegisterViewId>>>,
+    FixedPrecoloredSegmentHomeError,
+> {
+    let mut retained = BTreeMap::<FixedPrecoloredHomeDomainId, Vec<RegisterViewId>>::new();
     for &neighbor in unassigned {
+        if neighbor == domain_index {
+            continue;
+        }
         let Some(neighbor_viable) = viables.get(&neighbor) else {
             continue;
         };
-        if neighbor == domain_index
-            || neighbor_viable.is_empty()
-            || !conflicts.domains(domains[neighbor].id, domains[domain_index].id)
-        {
-            continue;
+        if !neighbor_viable.is_empty() {
+            retained.insert(domains[neighbor].id, neighbor_viable.clone());
         }
-        let mut retains = false;
-        for &candidate in neighbor_viable {
+    }
+    let mut forced = Vec::new();
+    let mut queued = BTreeSet::new();
+    for (&neighbor, keeps) in &retained {
+        if keeps.len() == 1 && queued.insert(neighbor) {
+            forced.push((neighbor, keeps[0]));
+        }
+    }
+    if propagate_forced(&mut retained, forced, queued, conflicts, work)?
+        || clique_bound_violated(&retained, conflicts)
+    {
+        return Ok(None);
+    }
+    Ok(Some(retained))
+}
+
+/// Assigning `view` to this domain removes every conflicting view from each
+/// still-unassigned constrained neighbor's retained set. Return true when the
+/// residual cannot complete: either a forced-move cascade leaves some domain
+/// with no retained view, or a pairwise-constrained clique of domains retains
+/// only subsets of a pool smaller than the clique, so its members can never
+/// take distinct homes. The choice stays legal for this domain but loses to
+/// any candidate after which every domain still admits a completion under
+/// those moves.
+///
+/// The residual check is propagation plus a pigeonhole bound, not a full
+/// placement search: singleton retained sets are certain homes, so removing
+/// their conflicts is sound, and a clique outnumbering its shared pool can
+/// never place. A residual needing arbitrary free choices to collapse stays
+/// the domain loop's own business. These cover the pressure this stage can
+/// still repair — a flexible view stolen from a neighbor that a pinned domain
+/// was always going to occupy, or a view a surviving constrained clique must
+/// fit into — without solving the arbitrary residual.
+fn strands_neighbor(
+    domain_index: usize,
+    view: RegisterViewId,
+    residual: &BTreeMap<FixedPrecoloredHomeDomainId, Vec<RegisterViewId>>,
+    domains: &[Domain],
+    conflicts: &Conflicts,
+    work: &mut Work,
+) -> Result<bool, FixedPrecoloredSegmentHomeError> {
+    let mut retained = residual.clone();
+    let home = (domains[domain_index].id, view);
+    if propagate_forced(
+        &mut retained,
+        vec![home],
+        BTreeSet::from([home.0]),
+        conflicts,
+        work,
+    )? {
+        return Ok(true);
+    }
+    Ok(clique_bound_violated(&retained, conflicts))
+}
+
+/// Forced-move propagation over `retained`: each queued member's certain home
+/// removes its conflicting views from every still-unassigned constrained
+/// domain, a domain reduced to nothing fails the residual, and a domain
+/// reduced to a single view propagates the same way. Returns true when a
+/// domain empties.
+fn propagate_forced(
+    retained: &mut BTreeMap<FixedPrecoloredHomeDomainId, Vec<RegisterViewId>>,
+    mut forced: Vec<(FixedPrecoloredHomeDomainId, RegisterViewId)>,
+    mut queued: BTreeSet<FixedPrecoloredHomeDomainId>,
+    conflicts: &Conflicts,
+    work: &mut Work,
+) -> Result<bool, FixedPrecoloredSegmentHomeError> {
+    let mut cursor = 0;
+    while cursor < forced.len() {
+        let (member, home) = forced[cursor];
+        cursor += 1;
+        work.pair()?;
+        for &(neighbor, conflicting_view) in conflicts.conflicting(member, home) {
             work.viability_probe()?;
-            if !conflicts.views(
-                domains[neighbor].id,
-                candidate,
-                domains[domain_index].id,
-                view,
-            ) {
-                retains = true;
-                break;
+            let Some(keeps) = retained.get_mut(&neighbor) else {
+                continue;
+            };
+            if let Some(position) = keeps
+                .iter()
+                .position(|&candidate| candidate == conflicting_view)
+            {
+                keeps.remove(position);
             }
-        }
-        if !retains {
-            return Ok(true);
+            match keeps.len() {
+                0 => return Ok(true),
+                1 if queued.insert(neighbor) => forced.push((neighbor, keeps[0])),
+                _ => {}
+            }
         }
     }
     Ok(false)
+}
+
+/// Clique bound over the residual: members whose retained sets nest inside
+/// one domain's pool compete for that pool's views one-for-one when they are
+/// pairwise constrained, so a clique outnumbering its pool can never place.
+/// Only the greedy clique grown in domain order is examined — a missed bound
+/// stays the domain loop's own business.
+fn clique_bound_violated(
+    retained: &BTreeMap<FixedPrecoloredHomeDomainId, Vec<RegisterViewId>>,
+    conflicts: &Conflicts,
+) -> bool {
+    for (&base, pool) in retained {
+        if pool.len() < 2 {
+            continue;
+        }
+        let mut clique = vec![base];
+        for (&neighbor, keeps) in retained {
+            if neighbor == base || keeps.len() > pool.len() {
+                continue;
+            }
+            if !keeps.iter().all(|candidate| pool.contains(candidate)) {
+                continue;
+            }
+            if clique
+                .iter()
+                .all(|&member| conflicts.domains(member, neighbor))
+            {
+                clique.push(neighbor);
+                if clique.len() > pool.len() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -665,6 +813,203 @@ mod tests {
         .unwrap();
         assert_eq!(homes.assignments[1].view, RegisterViewId(1));
         assert_eq!(homes.assignments[2].view, RegisterViewId(0));
+    }
+
+    #[test]
+    fn coalesce_loses_to_a_forced_move_cascade_through_constrained_neighbors() {
+        // Domain 1 would coalesce with its assigned partner on view 0, but
+        // taking it forces domain 2 onto view 2 — its only retained view —
+        // and that forced home conflicts with everything domain 3 retains.
+        // The stranding only surfaces once the forced singleton propagates:
+        // domain 1 must take view 1, which forces domain 2 onto view 0 and
+        // domain 3 onto view 3 in turn.
+        let domains = [
+            Domain {
+                candidates: vec![RegisterViewId(0)],
+                ..domain(0)
+            },
+            Domain {
+                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+                ..domain(1)
+            },
+            Domain {
+                candidates: vec![RegisterViewId(0), RegisterViewId(2)],
+                ..domain(2)
+            },
+            Domain {
+                candidates: vec![RegisterViewId(2), RegisterViewId(3)],
+                ..domain(3)
+            },
+        ];
+        let conflicts = Conflicts::from_rows(
+            &[
+                (
+                    FixedPrecoloredHomeDomainId(1),
+                    FixedPrecoloredHomeDomainId(2),
+                ),
+                (
+                    FixedPrecoloredHomeDomainId(1),
+                    FixedPrecoloredHomeDomainId(3),
+                ),
+                (
+                    FixedPrecoloredHomeDomainId(2),
+                    FixedPrecoloredHomeDomainId(3),
+                ),
+            ],
+            &[
+                (
+                    FixedPrecoloredHomeDomainId(1),
+                    RegisterViewId(0),
+                    FixedPrecoloredHomeDomainId(2),
+                    RegisterViewId(0),
+                ),
+                (
+                    FixedPrecoloredHomeDomainId(1),
+                    RegisterViewId(1),
+                    FixedPrecoloredHomeDomainId(2),
+                    RegisterViewId(2),
+                ),
+                (
+                    FixedPrecoloredHomeDomainId(2),
+                    RegisterViewId(2),
+                    FixedPrecoloredHomeDomainId(3),
+                    RegisterViewId(2),
+                ),
+                (
+                    FixedPrecoloredHomeDomainId(2),
+                    RegisterViewId(2),
+                    FixedPrecoloredHomeDomainId(3),
+                    RegisterViewId(3),
+                ),
+                (
+                    FixedPrecoloredHomeDomainId(2),
+                    RegisterViewId(0),
+                    FixedPrecoloredHomeDomainId(3),
+                    RegisterViewId(2),
+                ),
+            ],
+        );
+        let ranges = ranges(&[CopyAffinity {
+            block: SelectedBlockId(0),
+            instruction: SelectedInstructionId(0),
+            source: VirtualRegisterId(0),
+            destination: VirtualRegisterId(1),
+        }]);
+        let mut work = Work::new();
+        let homes = assign(
+            0,
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            &domains,
+            &conflicts,
+            &ranges,
+            &mut work,
+        )
+        .unwrap();
+        assert_eq!(homes.assignments[1].view, RegisterViewId(1));
+        assert_eq!(homes.assignments[2].view, RegisterViewId(0));
+        assert_eq!(homes.assignments[3].view, RegisterViewId(3));
+    }
+
+    #[test]
+    fn coalesce_loses_to_a_constrained_clique_outnumbering_its_pool() {
+        // Domain 1 would coalesce with its assigned partner on view 0, but
+        // taking it removes view 4 from domain 4, leaving domains 2, 3, and
+        // 4 — pairwise constrained, so each needs a distinct home — with only
+        // views 2 and 3 between them. No forced move exposes the shortage; the
+        // clique bound rejects view 0 because three domains cannot place into
+        // a two-view pool.
+        let domains = [
+            Domain {
+                candidates: vec![RegisterViewId(0)],
+                ..domain(0)
+            },
+            Domain {
+                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+                ..domain(1)
+            },
+            Domain {
+                candidates: vec![RegisterViewId(2), RegisterViewId(3)],
+                ..domain(2)
+            },
+            Domain {
+                candidates: vec![RegisterViewId(2), RegisterViewId(3)],
+                ..domain(3)
+            },
+            Domain {
+                candidates: vec![RegisterViewId(2), RegisterViewId(3), RegisterViewId(4)],
+                ..domain(4)
+            },
+        ];
+        let mut constrained = vec![
+            (
+                FixedPrecoloredHomeDomainId(2),
+                FixedPrecoloredHomeDomainId(3),
+            ),
+            (
+                FixedPrecoloredHomeDomainId(2),
+                FixedPrecoloredHomeDomainId(4),
+            ),
+            (
+                FixedPrecoloredHomeDomainId(3),
+                FixedPrecoloredHomeDomainId(4),
+            ),
+        ];
+        // Domain 1 constrains the whole clique so its degree selects it first
+        // after pinned domain 0, while only its view-0 conflict on domain 4
+        // does any removal.
+        constrained.extend([
+            (
+                FixedPrecoloredHomeDomainId(1),
+                FixedPrecoloredHomeDomainId(2),
+            ),
+            (
+                FixedPrecoloredHomeDomainId(1),
+                FixedPrecoloredHomeDomainId(3),
+            ),
+            (
+                FixedPrecoloredHomeDomainId(1),
+                FixedPrecoloredHomeDomainId(4),
+            ),
+        ]);
+        let mut views = vec![(
+            FixedPrecoloredHomeDomainId(1),
+            RegisterViewId(0),
+            FixedPrecoloredHomeDomainId(4),
+            RegisterViewId(4),
+        )];
+        for left in [2, 3] {
+            for right in [3, 4] {
+                for view in [2, 3] {
+                    views.push((
+                        FixedPrecoloredHomeDomainId(left),
+                        RegisterViewId(view),
+                        FixedPrecoloredHomeDomainId(right),
+                        RegisterViewId(view),
+                    ));
+                }
+            }
+        }
+        let conflicts = Conflicts::from_rows(&constrained, &views);
+        let ranges = ranges(&[CopyAffinity {
+            block: SelectedBlockId(0),
+            instruction: SelectedInstructionId(0),
+            source: VirtualRegisterId(0),
+            destination: VirtualRegisterId(1),
+        }]);
+        let mut work = Work::new();
+        let homes = assign(
+            0,
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            &domains,
+            &conflicts,
+            &ranges,
+            &mut work,
+        )
+        .unwrap();
+        assert_eq!(homes.assignments[1].view, RegisterViewId(1));
+        assert_eq!(homes.assignments[2].view, RegisterViewId(2));
+        assert_eq!(homes.assignments[3].view, RegisterViewId(3));
+        assert_eq!(homes.assignments[4].view, RegisterViewId(4));
     }
 
     #[test]
