@@ -49,6 +49,136 @@ fn output_predicates_survive_read_only_boundary_expression_arguments() {
         .expect("expression calls use the same selected readonly formal frame");
 }
 
+/// A writable boundary argument that names an indexed element lends exactly
+/// that element: the durable frame coarsens the write to its collection path,
+/// but the recorded borrow access retains `cells[1].out`, so the sibling
+/// element and same-element sibling fields keep their declared coverage.
+#[test]
+fn writable_indexed_boundary_argument_preserves_sibling_element_coverage() {
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        boundary trait Device { machine read(output: &mut [u8]); }
+        data Cell { out: [u8; 4] in Utf8; other: [u8; 4] in Utf8; }
+        data Record { cells: [Cell; 2]; }
+        machine Record::run(&mut self) reaches Device {
+            self.cells[0].out = "aa";
+            self.cells[0].other = "bb";
+            self.cells[1].out = "cc";
+            self.cells[1].other = "dd";
+            Device::read(&mut self.cells[1].out);
+            self.cells[1].out = "ee";
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the lent element is re-established and every sibling survives");
+}
+
+/// Without the re-establishing store the return fails, but only on the field
+/// the boundary call actually lent — the coarsened collection path must not
+/// retire `cells[0]` or `cells[1].other`.
+#[test]
+fn writable_indexed_boundary_argument_retires_only_the_lent_field() {
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        boundary trait Device { machine read(output: &mut [u8]); }
+        data Cell { out: [u8; 4] in Utf8; other: [u8; 4] in Utf8; }
+        data Record { cells: [Cell; 2]; }
+        machine Record::run(&mut self) reaches Device {
+            self.cells[0].out = "aa";
+            self.cells[0].other = "bb";
+            self.cells[1].out = "cc";
+            self.cells[1].other = "dd";
+            Device::read(&mut self.cells[1].out);
+        }
+    "#;
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+        panic!("the lent field's coverage was handed to a &mut [u8] writer");
+    };
+    let field_requirements = diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot prove default-domain field requirement")
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !field_requirements.is_empty()
+            && field_requirements.iter().all(|diagnostic| {
+                diagnostic.message.contains("self.cells[1].out")
+                    && !diagnostic.message.contains("cells[0]")
+                    && !diagnostic.message.contains("other")
+            }),
+        "expected only the lent `self.cells[1].out` to retire: {diagnostics:#?}"
+    );
+}
+
+/// A shared borrow of a sibling element contributes no write path: it records
+/// only a read access, so the exclusive argument's exact referent still refines
+/// the coarsened collection path and the read element keeps its coverage.
+#[test]
+fn readonly_sibling_argument_does_not_widen_the_boundary_write() {
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        boundary trait Device { machine mix(output: &mut [u8], source: &[u8; 4]); }
+        data Cell { out: [u8; 4] in Utf8; other: [u8; 4] in Utf8; }
+        data Record { cells: [Cell; 2]; }
+        machine Record::run(&mut self) reaches Device {
+            self.cells[0].out = "aa";
+            self.cells[0].other = "bb";
+            self.cells[1].out = "cc";
+            self.cells[1].other = "dd";
+            Device::mix(&mut self.cells[1].out, &self.cells[0].out);
+            self.cells[1].out = "ee";
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the shared read lends nothing and the lent field is restored");
+}
+
+/// A runtime index never names one element: `cells[pick()].out` may alias any
+/// element, so every element's `out` coverage retires while the sibling `other`
+/// fields keep theirs — unresolved indexes do not collapse to universal
+/// coverage, and they still overlap every fixed element.
+#[test]
+fn runtime_indexed_boundary_argument_retires_every_elements_field() {
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        boundary trait Device { machine read(output: &mut [u8]); }
+        data Cell { out: [u8; 4] in Utf8; other: [u8; 4] in Utf8; }
+        data Record { cells: [Cell; 2]; }
+        machine Record::run(&mut self, index: u64[0..2]) reaches Device {
+            self.cells[0].out = "aa";
+            self.cells[0].other = "bb";
+            self.cells[1].out = "cc";
+            self.cells[1].other = "dd";
+            Device::read(&mut self.cells[index].out);
+            self.cells[0].out = "ee";
+        }
+    "#;
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+        panic!("a runtime-indexed loan must retire every element's field coverage");
+    };
+    let field_requirements = diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot prove default-domain field requirement")
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !field_requirements.is_empty()
+            && field_requirements.iter().all(|diagnostic| {
+                diagnostic.message.contains("out") && !diagnostic.message.contains("other")
+            })
+            && field_requirements
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("self.cells[1].out")),
+        "expected only the `out` fields of both elements to retire: {diagnostics:#?}"
+    );
+}
+
 #[test]
 fn boundary_parameter_frames_require_exact_receiver_scope_and_signature() {
     use symbols::SymbolHandle;
