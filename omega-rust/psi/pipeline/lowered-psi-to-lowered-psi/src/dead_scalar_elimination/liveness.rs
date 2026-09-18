@@ -687,4 +687,246 @@ mod tests {
         ));
         assert!(!terminal_semantics::is_unconditionally_total_scalar(&read));
     }
+
+    /// One entry block with two candidate dead constants (v10, v12) and a
+    /// live constant (v11) returned to the machine result.
+    fn dead_constant_machine(
+        operations: Vec<terminal_psi::Operation>,
+        terminator: Terminator,
+    ) -> TerminalMachine {
+        use semantic_vocabulary::{BlockId, ContractId, MachineId, ScalarType};
+        use terminal_psi::{Block, MachineContract, TerminalMachineResult, ValueDeclaration};
+
+        let declaration = |ordinal: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(ordinal).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        };
+        TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(declaration(9)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: vec![Block {
+                structural_parameters: Vec::new(),
+                id: BlockId::new(1).unwrap(),
+                parameters: Vec::new(),
+                operations,
+                terminator,
+            }],
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn dead_constant_fixture() -> TerminalMachine {
+        use semantic_vocabulary::{EdgeId, OperationId, ScalarType};
+        use terminal_psi::{Operation, OperationResult, ValueDeclaration};
+
+        let declaration = |ordinal: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(ordinal).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        };
+        let constant = |ordinal: u64| Operation {
+            static_reach_binding: None,
+            id: OperationId::new(ordinal).unwrap(),
+            result: OperationResult::Scalar(declaration(ordinal)),
+            kind: O::BooleanConstant { value: true },
+        };
+        dead_constant_machine(
+            vec![constant(10), constant(11), constant(12)],
+            Terminator::Return {
+                edge: EdgeId::new(1).unwrap(),
+                value: ValueId::new(11).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        )
+    }
+
+    fn remaining_results(machine: &TerminalMachine) -> Vec<ValueId> {
+        machine.blocks[0]
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.scalar().map(|result| result.id))
+            .collect()
+    }
+
+    #[test]
+    fn retained_and_coverage_named_values_seed_liveness() {
+        // Positive: the retained-value seed (fed by float-meaning and
+        // suspension rows at the entrance) and a rank-row name each keep a
+        // dead-total producer alive while its unnamed sibling still dies.
+        let mut seeded = dead_constant_fixture();
+        eliminate(&mut seeded, &[], &[ValueId::new(10).unwrap()]);
+        assert_eq!(
+            remaining_results(&seeded),
+            vec![ValueId::new(10).unwrap(), ValueId::new(11).unwrap()],
+            "the seed keeps v10; the unnamed v12 dies"
+        );
+
+        // The value-seed path alone: the row names v10 as a successor rank
+        // while its endpoints sit in a covered sibling, leaving v10's own
+        // block uncovered — only the named value stays.
+        let mut covered = dead_constant_fixture();
+        use semantic_vocabulary::{BlockId, EdgeId, IntegerSign, IntegerType, ScalarType};
+        use terminal_psi::{
+            Block, TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
+            TerminalNaturalRankEdge, TerminalRankedScc, ValueDeclaration,
+        };
+        covered.blocks.push(Block {
+            structural_parameters: Vec::new(),
+            id: BlockId::new(2).unwrap(),
+            parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
+                id: ValueId::new(20).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: EdgeId::new(2).unwrap(),
+                value: ValueId::new(20).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        });
+        covered.ranked_scc = Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+            rank_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+            ranks: vec![TerminalBlockNaturalRank {
+                block: BlockId::new(2).unwrap(),
+                value: ValueId::new(20).unwrap(),
+            }],
+            edges: vec![TerminalNaturalRankEdge {
+                edge: EdgeId::new(9).unwrap(),
+                source: BlockId::new(2).unwrap(),
+                target: BlockId::new(2).unwrap(),
+                successor_rank: ValueId::new(10).unwrap(),
+                comparison: TerminalNaturalRankComparison::Strict,
+            }],
+        }]));
+        eliminate(&mut covered, &[], &[]);
+        assert_eq!(
+            remaining_results(&covered),
+            vec![ValueId::new(10).unwrap(), ValueId::new(11).unwrap()],
+            "the coverage-named v10 joins the returned v11; the unnamed v12 dies"
+        );
+    }
+
+    #[test]
+    fn call_continuations_and_crash_sites_decline_the_whole_machine() {
+        // Boundary pair: a call kind with empty continuations inventories
+        // normally, so the dead constant dies; the same call carrying a
+        // continuation declines the inventory, so nothing is removed. A crash
+        // terminator declines it the same way.
+        use semantic_vocabulary::{EdgeId, MachineId, OperationId, ScalarType};
+        use terminal_psi::{CrashCause, Operation, OperationResult, ValueDeclaration};
+
+        let call = |continuations: Vec<terminal_psi::CrashRouteBucket>| Operation {
+            static_reach_binding: None,
+            id: OperationId::new(20).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: ValueId::new(20).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            }),
+            kind: O::Call {
+                callee: MachineId::new(9).unwrap(),
+                arguments: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: continuations,
+            },
+        };
+
+        let mut inventoryable = dead_constant_fixture();
+        inventoryable.blocks[0].operations.push(call(Vec::new()));
+        eliminate(&mut inventoryable, &[], &[]);
+        assert_eq!(
+            remaining_results(&inventoryable),
+            vec![ValueId::new(11).unwrap(), ValueId::new(20).unwrap()],
+            "empty continuations inventory normally: both dead constants die"
+        );
+
+        let mut declined = dead_constant_fixture();
+        declined.blocks[0]
+            .operations
+            .push(call(vec![terminal_psi::CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+            }]));
+        eliminate(&mut declined, &[], &[]);
+        assert_eq!(
+            remaining_results(&declined).len(),
+            4,
+            "a carried continuation declines the inventory: nothing is removed"
+        );
+
+        let mut crashing = dead_constant_fixture();
+        crashing.blocks[0].terminator = Terminator::Crash {
+            edge: EdgeId::new(9).unwrap(),
+            cause: CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        };
+        eliminate(&mut crashing, &[], &[]);
+        assert_eq!(
+            remaining_results(&crashing).len(),
+            3,
+            "a crash site declines the inventory: nothing is removed"
+        );
+    }
+
+    #[test]
+    fn a_recorded_call_join_demands_its_captured_values() {
+        // Positive: a join naming a present operation keeps the producer of
+        // every captured environment value. Boundary: a join naming an absent
+        // operation demands nothing.
+        use lowered_psi::LoweredSourceCallOccurrence;
+        use semantic_vocabulary::{OperationId, ScalarType};
+        use terminal_psi::ValueDeclaration;
+
+        let occurrence = |operation: u64| LoweredSourceCallOccurrence {
+            source_site: None,
+            source_state: symbols::SymbolHandle::from_arena_index(1),
+            statement_index: 0,
+            call_ordinal: 0,
+            terminal_operation: OperationId::new(operation).unwrap(),
+            source_target: symbols::SymbolHandle::from_arena_index(2),
+            source_values_before_call: vec![ValueDeclaration {
+                qualifications: Default::default(),
+                id: ValueId::new(10).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            }],
+        };
+
+        let mut joined = dead_constant_fixture();
+        eliminate(&mut joined, &[occurrence(10)], &[]);
+        assert_eq!(
+            remaining_results(&joined),
+            vec![ValueId::new(10).unwrap(), ValueId::new(11).unwrap()],
+            "the joined capture keeps v10's producer; the unnamed v12 dies"
+        );
+
+        let mut absent = dead_constant_fixture();
+        eliminate(&mut absent, &[occurrence(99)], &[]);
+        assert_eq!(
+            remaining_results(&absent),
+            vec![ValueId::new(11).unwrap()],
+            "a join naming no operation in this machine retains nothing"
+        );
+    }
 }

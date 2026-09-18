@@ -4,14 +4,22 @@
 //! express: cycles, ranking evidence, positional case payloads, retained
 //! proof values, and declaration mismatches.
 use super::{BTreeSet, BlockId, TerminalMachine, Terminator, ValueId, propagate};
+use lowered_psi::LoweredSourceCallOccurrence;
 use semantic_vocabulary::{
-    ContractId, EdgeId, MachineId, PlaceId, Proposition, ScalarQualificationSetId, ScalarType,
-    StructuralCaseId, StructuralFieldId,
+    ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
+    ScalarQualificationSetId, ScalarTerm, ScalarType, StructuralCaseId, StructuralFieldId,
+    StructuralTypeId,
 };
 use terminal_psi::{
-    Block, MachineContract, StructuralCaseSuccessorEdge, TerminalMachineResult, TerminalRankedScc,
+    Block, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
+    MachineContract, Operation, OperationKind, OperationResult, OutcomeSpecificEnsure,
+    OutcomeSpecificGuard, StructuralCaseSuccessorEdge, TerminalMachineResult, TerminalRankedScc,
     ValueDeclaration,
 };
+
+fn value(ordinal: u64) -> ValueId {
+    ValueId::new(ordinal).unwrap()
+}
 
 fn declaration(ordinal: u64) -> ValueDeclaration {
     ValueDeclaration {
@@ -448,5 +456,180 @@ fn block_without_inventoried_incoming_edges_keeps_parameters() {
     assert_eq!(
         parameter_ids(&machine.blocks[1]),
         vec![ValueId::new(2).unwrap()]
+    );
+}
+
+fn equal_v2_true() -> Proposition {
+    Proposition::Equal(
+        ScalarTerm::Value {
+            id: value(2),
+            scalar_type: ScalarType::Boolean,
+        },
+        ScalarTerm::Boolean(true),
+    )
+}
+
+/// b1 jumps to b2 binding both of b2's parameters to machine parameter v1:
+/// v2 and v3 are copy-shaped siblings, so a carrier naming v2 leaves v3 to
+/// collapse as the observable contrast.
+fn two_copy_machine() -> TerminalMachine {
+    machine(vec![
+        block(1, vec![], jump(1, 2, vec![1, 1])),
+        block(
+            2,
+            vec![declaration(2), declaration(3)],
+            Terminator::Return {
+                edge: EdgeId::new(2).unwrap(),
+                value: ValueId::new(3).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        ),
+    ])
+}
+
+fn collapse_isolates_named_value(mut machine: TerminalMachine) {
+    // After propagation the named v2 stays a parameter of b2 while its
+    // unnamed sibling v3 collapses and its uses substitute v1.
+    propagate(&mut machine, &[], &mut BTreeSet::new());
+    assert_eq!(
+        parameter_ids(&machine.blocks[1]),
+        vec![value(2)],
+        "the carrier-named copy keeps its identity"
+    );
+    let Terminator::Return { value: result, .. } = &machine.blocks[1].terminator else {
+        panic!("the block still returns");
+    };
+    assert_eq!(*result, value(1), "the collapsed sibling substitutes v1");
+    let Terminator::Jump { arguments, .. } = &machine.blocks[0].terminator else {
+        panic!("the entry still jumps");
+    };
+    assert_eq!(*arguments, vec![value(1)], "the dropped position leaves");
+}
+
+#[test]
+fn ensures_and_outcome_propositions_retain_named_copies() {
+    // Positive: ensures clauses and outcome-specific guarantees are contract
+    // proof terms like requires — the copy-shaped parameter each names keeps
+    // its identity while an unnamed sibling still collapses.
+    let mut ensures_machine = two_copy_machine();
+    ensures_machine.contract.ensures.push(ContractClause {
+        obligation: ObligationId::new(1).unwrap(),
+        proposition: equal_v2_true(),
+    });
+    collapse_isolates_named_value(ensures_machine);
+
+    let mut outcome_machine = two_copy_machine();
+    outcome_machine
+        .contract
+        .outcome_specific_ensures
+        .push(OutcomeSpecificEnsure {
+            guard: OutcomeSpecificGuard {
+                result_type: StructuralTypeId::new(1).unwrap(),
+                result_case: StructuralCaseId::new(1).unwrap(),
+            },
+            position: 0,
+            obligation: ObligationId::new(2).unwrap(),
+            proposition: equal_v2_true(),
+            evidence: None,
+        });
+    collapse_isolates_named_value(outcome_machine);
+}
+
+#[test]
+fn crash_route_predicates_retain_named_copies_while_truth_does_not() {
+    // Positive: machine crash-route predicates are proof terms naming exact
+    // values. Boundary: the canonical `Truth` bucket carries no identity, so
+    // both copies collapse.
+    let mut route_machine = two_copy_machine();
+    route_machine.contract.crash_routes.push(CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+            equal_v2_true(),
+        ))],
+    });
+    collapse_isolates_named_value(route_machine);
+
+    let mut truth_machine = two_copy_machine();
+    truth_machine.contract.crash_routes.push(CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Truth],
+    });
+    propagate(&mut truth_machine, &[], &mut BTreeSet::new());
+    assert_eq!(
+        parameter_ids(&truth_machine.blocks[1]),
+        Vec::<ValueId>::new(),
+        "a Truth alternative retains nothing"
+    );
+}
+
+#[test]
+fn call_continuations_site_guards_and_call_joins_retain_named_copies() {
+    // Positive: the remaining proposition carriers — operation crash
+    // continuations and crash-terminator site guards — and the recorded
+    // source-call join each keep the copy-shaped parameter they name.
+    // Boundary: a join naming an absent operation demands nothing.
+    let mut continuation_machine = two_copy_machine();
+    continuation_machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        id: OperationId::new(10).unwrap(),
+        result: OperationResult::Scalar(declaration(50)),
+        kind: OperationKind::Call {
+            callee: MachineId::new(9).unwrap(),
+            arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: vec![CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                    equal_v2_true(),
+                ))],
+            }],
+        },
+    });
+    collapse_isolates_named_value(continuation_machine);
+
+    let mut guard_machine = two_copy_machine();
+    guard_machine.blocks.push(block(
+        3,
+        vec![],
+        Terminator::Crash {
+            edge: EdgeId::new(3).unwrap(),
+            cause: CrashCause::Trap,
+            site_guard: vec![CrashPredicateTerm::new(equal_v2_true())],
+            frontier_lower_bound: Vec::new(),
+        },
+    ));
+    collapse_isolates_named_value(guard_machine);
+
+    let mut join_machine = two_copy_machine();
+    let occurrence = |operation: u64| LoweredSourceCallOccurrence {
+        source_site: None,
+        source_state: symbols::SymbolHandle::from_arena_index(1),
+        statement_index: 0,
+        call_ordinal: 0,
+        terminal_operation: OperationId::new(operation).unwrap(),
+        source_target: symbols::SymbolHandle::from_arena_index(2),
+        source_values_before_call: vec![declaration(2)],
+    };
+    join_machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        id: OperationId::new(11).unwrap(),
+        result: OperationResult::Scalar(declaration(51)),
+        kind: OperationKind::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(0),
+        },
+    });
+    propagate(&mut join_machine, &[occurrence(11)], &mut BTreeSet::new());
+    assert_eq!(
+        parameter_ids(&join_machine.blocks[1]),
+        vec![value(2)],
+        "a join's captured environment keeps its copy-shaped parameters"
+    );
+
+    let mut absent_machine = two_copy_machine();
+    propagate(&mut absent_machine, &[occurrence(99)], &mut BTreeSet::new());
+    assert_eq!(
+        parameter_ids(&absent_machine.blocks[1]),
+        Vec::<ValueId>::new(),
+        "a join naming no operation in this machine retains nothing"
     );
 }

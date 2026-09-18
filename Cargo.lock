@@ -1076,6 +1076,7 @@ dependencies = [
  "lowered-psi",
  "optimization",
  "semantic-vocabulary",
+ "symbols",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
