@@ -8528,6 +8528,106 @@ const CARRIED_ARGUMENT_STRUCTURAL_RESULT_CALL_SOURCE: &str = r#"
     }
 "#;
 
+/// A `CallStructural` carrying a shared borrow of an invariant member
+/// structural parameter: `pick(b, s)` inside `step` borrows `b`, which every
+/// reaching edge resolves to the machine's `buf` parameter root, and returns
+/// the affine `picked` the same block dispatches — the cyclic-eligibility
+/// fence already confines that result, so the relocated call rebinds the
+/// borrowed root to `buf`, rebinds `s` to `scale`'s anchor, keeps its
+/// vacuous claim-transfer row byte-exact, and leaves the persistent result's
+/// re-expressed custody to the member-edge rewrite.
+const SHARED_BORROW_STRUCTURAL_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Step { case More(rest: u64); case Halt(tag: u64); }
+
+    machine pick(view: &[u8], seed: u64) -> Step { Step::More { rest: view.len } }
+
+    machine Root::scan(scale: u64, buf: &[u8], spare: &[u8], remaining: u64 [0..=5])
+    {
+        transition { _ -> step(scale, buf, remaining) }
+        state step(s: u64, b: &[u8], pending: u64 [0..=5]) {
+            let picked: Step = pick(b, s);
+            transition picked {
+                Step::More { rest } -> check(rest, s, b, pending)
+                Step::Halt { tag } -> check(tag, s, b, pending)
+            }
+        }
+        state check(v: u64, s: u64, b: &[u8], pending: u64 [0..=5]) {
+            transition pending > 0 {
+                true -> step(s, b, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u64) {}
+    }
+"#;
+
+/// Same `pick(b, s)` shape, but `b`'s reaching edges resolve to two different
+/// preheader-visible roots — `buf` on the entry edge, `fallback` through
+/// `alt`'s `spare` on the back edge — so the borrowed root is loop-carried
+/// and the call stays inside: the carried-view counterpart for a
+/// structural-result call.
+const CARRIED_BORROW_STRUCTURAL_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Step { case More(rest: u64); case Halt(tag: u64); }
+
+    machine pick(view: &[u8], seed: u64) -> Step { Step::More { rest: view.len } }
+
+    machine Root::scan(scale: u64, buf: &[u8], fallback: &[u8], remaining: u64 [0..=5])
+    {
+        transition { _ -> step(scale, buf, remaining, fallback) }
+        state step(s: u64, b: &[u8], pending: u64 [0..=5], spare: &[u8]) {
+            let picked: Step = pick(b, s);
+            transition picked {
+                Step::More { rest } -> check(rest, s, pending, spare)
+                Step::Halt { tag } -> check(tag, s, pending, spare)
+            }
+        }
+        state check(v: u64, s: u64, pending: u64 [0..=5], spare: &[u8]) {
+            transition pending > 0 {
+                true -> alt(pending - 1, s, spare)
+                _ -> finish(v)
+            }
+        }
+        state alt(pending: u64 [0..=5], s: u64, spare: &[u8]) {
+            transition { _ -> step(s, spare, pending, spare) }
+        }
+        state finish(r: u64) {}
+    }
+"#;
+
+/// Same `pick(b, s)` shape, but `check` stores through the machine's
+/// `&mut self` receiver: a member mutates a place every traversal, so the
+/// whole-component place-custody bound the borrow argument needs refuses —
+/// the relocated invocation could not reproduce the traversal's observed
+/// storage — and the call stays inside.
+const MUTATED_MEMBER_STRUCTURAL_CALL_SOURCE: &str = r#"
+    data Root { ticks: u32 in Wrapping }
+    data Step { case More(rest: u64); case Halt(tag: u64); }
+
+    machine pick(view: &[u8], seed: u64) -> Step { Step::More { rest: view.len } }
+
+    machine Root::scan(&mut self, scale: u64, buf: &[u8], remaining: u64 [0..=5])
+    {
+        transition { _ -> step(scale, buf, remaining) }
+        state step(&mut self, s: u64, b: &[u8], pending: u64 [0..=5]) {
+            let picked: Step = pick(b, s);
+            transition picked {
+                Step::More { rest } -> check(rest, s, b, pending)
+                Step::Halt { tag } -> check(tag, s, b, pending)
+            }
+        }
+        state check(&mut self, v: u64, s: u64, b: &[u8], pending: u64 [0..=5]) {
+            self.ticks = self.ticks + 1;
+            transition pending > 0 {
+                true -> step(s, b, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(&mut self, r: u64) {}
+    }
+"#;
+
 /// Every `CallStructural` node inside `component`'s member blocks — the
 /// call counterpart of [`member_scalar_case_establishments`].
 fn member_structural_calls<'function>(
@@ -8778,6 +8878,531 @@ fn carried_argument_structural_call_stays_inside() {
             .all(|relocation| relocation.node().psi_operation() != call_operation),
         "a structural call reading a carried argument stays inside"
     );
+}
+
+#[test]
+fn invariant_borrow_structural_call_relocates_rebinding_its_borrowed_root() {
+    let session = lowered_session_entry(
+        SHARED_BORROW_STRUCTURAL_CALL_SOURCE,
+        "shared borrow structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(call_block, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let (call_operation, picked, scalar_argument, borrowed_place) = match &call.operation {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            result,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            selected_evidence,
+            ..
+        } => {
+            assert!(
+                claim_transfers.is_empty()
+                    && returned_claim_transfers.is_empty()
+                    && requirement_obligations.is_empty()
+                    && crash_continuations.is_empty()
+                    && selected_evidence.is_empty(),
+                "the admitted call shape carries no evidence surface beyond its result and arguments"
+            );
+            assert_eq!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Affine,
+                "the result is the confined affine sum"
+            );
+            let [structural_argument] = structural_arguments.as_slice() else {
+                panic!("the call carries one structural argument")
+            };
+            assert_eq!(
+                structural_argument.access,
+                terminal_psi::StructuralAccess::SharedBorrow,
+                "the call borrows the member view"
+            );
+            assert!(
+                structural_argument.path.is_empty(),
+                "the borrow names the member parameter root"
+            );
+            let [scalar_argument] = arguments.as_slice() else {
+                panic!("the call carries one scalar argument")
+            };
+            (
+                *psi_operation,
+                result.place,
+                *scalar_argument,
+                structural_argument.place,
+            )
+        }
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    // The borrowed place is `step`'s `b` member parameter; every edge binding
+    // it resolves to the machine's `buf` root, so the representative is the
+    // preheader-visible `buf` place.
+    let [member_parameter] = call_block.structural_parameters.as_slice() else {
+        panic!("the call's member carries one view structural parameter")
+    };
+    assert_eq!(
+        member_parameter.place, borrowed_place,
+        "the borrowed argument names the member parameter"
+    );
+    let representative = crate::validation::invariant_member_place_parameters(
+        function,
+        component,
+        &std::collections::BTreeSet::new(),
+    )
+    .get(&borrowed_place)
+    .copied()
+    .expect("the member view parameter resolves to a preheader-visible root");
+    let buf_root = function
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .find(|place| *place == representative)
+        .expect("the representative is the machine's `buf` parameter root");
+    assert!(
+        function
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place != buf_root),
+        "the machine retains a second structural root for forging"
+    );
+    // The seed's dispatch discards the fresh affine place on every case
+    // edge — the custody the relocation re-expresses.
+    let dispatch = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.nodes.iter())
+        })
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::StructuralCase { source, .. } if *source == picked
+            )
+        })
+        .expect("the member block holds the dispatch on the fresh sum");
+    let AbstractOperation::StructuralCase { cases, .. } = &dispatch.operation else {
+        panic!("the dispatch is a structural case")
+    };
+    for case in cases {
+        assert!(
+            case.trivial_affine_discards.contains(&picked),
+            "the seed's dispatch edge discards the fresh affine sum"
+        );
+    }
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the borrow-carrying structural call is a planned relocation");
+    let LoopInvariantNodeResult::Structural(result) = relocation.node().result() else {
+        panic!("the structural call relocates its structural result")
+    };
+    assert_eq!(result.place, picked, "the declared place is byte-exact");
+    let rewrites = relocation.node().operand_rewrites();
+    let [(rewritten_argument, _)] = rewrites else {
+        panic!("the scalar argument carries one member-parameter rewrite")
+    };
+    assert_eq!(
+        *rewritten_argument, scalar_argument,
+        "the rewrite spells the call's scalar argument"
+    );
+    let anchor = function
+        .parameters
+        .iter()
+        .find(|parameter| parameter.value == rewrites[0].1)
+        .expect("the scalar representative is the machine's `scale` parameter")
+        .value;
+    assert_eq!(
+        relocation.node().argument_rewrites(),
+        &[(borrowed_place, buf_root)],
+        "the relocation records the borrowed root's rebind"
+    );
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::CallStructural {
+            result,
+            arguments,
+            structural_arguments,
+            ..
+        } => {
+            assert_eq!(result.place, picked, "the declared place is byte-exact");
+            for argument in arguments {
+                assert_eq!(
+                    *argument, anchor,
+                    "the moved call rebinds its scalar argument to the preheader anchor"
+                );
+            }
+            let [structural_argument] = structural_arguments.as_slice() else {
+                panic!("the moved call keeps one structural argument")
+            };
+            assert_eq!(
+                structural_argument.place, buf_root,
+                "the moved call borrows the preheader-visible root"
+            );
+            assert_eq!(
+                structural_argument.access,
+                terminal_psi::StructuralAccess::SharedBorrow,
+                "the borrow's access rides byte-exact"
+            );
+        }
+        operation => panic!("relocated node keeps its call operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    // The retained dispatch keeps the persistent result live on
+    // member-internal edges and disposes it on the component's exit.
+    let staying_dispatch = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::StructuralCase { source, .. } if *source == picked
+            )
+        })
+        .expect("the dispatch survives in the member block");
+    for edge in &staying_dispatch.successors {
+        assert!(
+            !edge.trivial_affine_discards.contains(&picked),
+            "a member-bound dispatch edge keeps the persistent result live"
+        );
+    }
+    let exit_discards: Vec<_> = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .filter(|block| member_targets.contains(&block.id))
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| !member_targets.contains(&edge.target))
+        .map(|edge| edge.trivial_affine_discards.contains(&picked))
+        .collect();
+    assert!(
+        !exit_discards.is_empty() && exit_discards.iter().all(|discard| *discard),
+        "every member exit edge disposes the persistent result exactly once"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn carried_borrow_structural_call_stays_inside() {
+    let session = lowered_session_entry(
+        CARRIED_BORROW_STRUCTURAL_CALL_SOURCE,
+        "carried borrow structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let call_operation = operation_of(call);
+    match &call.operation {
+        AbstractOperation::CallStructural {
+            structural_arguments,
+            ..
+        } => assert_eq!(
+            structural_arguments[0].access,
+            terminal_psi::StructuralAccess::SharedBorrow,
+            "the member call borrows its carried view"
+        ),
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    }
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "a structural call borrowing a carried root stays inside"
+    );
+}
+
+#[test]
+fn member_mutation_keeps_borrow_structural_call_inside() {
+    let session = lowered_session_entry(
+        MUTATED_MEMBER_STRUCTURAL_CALL_SOURCE,
+        "mutated member structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    assert!(
+        !crate::validation::component_preserves_place_observations(function, component),
+        "the member's `self.ticks` store ends the component's place custody"
+    );
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let call_operation = operation_of(call);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "a borrow call cannot be replayed once per traversal's observed storage"
+    );
+}
+
+#[test]
+fn forged_structural_call_borrow_root_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        SHARED_BORROW_STRUCTURAL_CALL_SOURCE,
+        "shared borrow structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let (call_operation, borrowed_place) = match &call.operation {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            structural_arguments,
+            ..
+        } => (*psi_operation, structural_arguments[0].place),
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    // `spare` is the machine's second structural parameter: a
+    // preheader-visible place that is not the derived representative, so a
+    // moved call spelling it is a well-formed place reference that fails
+    // admission replay.
+    let representative = crate::validation::invariant_member_place_parameters(
+        function,
+        component,
+        &std::collections::BTreeSet::new(),
+    )
+    .get(&borrowed_place)
+    .copied()
+    .expect("the member view parameter resolves to the `buf` root");
+    let stale_root = function
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .find(|place| *place != representative)
+        .expect("the machine retains a second structural root");
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the structural call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the moved borrow's root to the machine's other structural
+    // parameter leaves a legal place reference that skips the seed-derived
+    // substitution — the replayed admission derives `buf`, so the byte-exact
+    // operation comparison rejects the drifted spelling.
+    let forged = find_operation_mut(&mut unit, call_operation);
+    if let AbstractOperation::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut forged.operation
+    {
+        structural_arguments[0].place = stale_root;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn kept_internal_borrow_call_discard_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        SHARED_BORROW_STRUCTURAL_CALL_SOURCE,
+        "shared borrow structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let picked = match &call.operation {
+        AbstractOperation::CallStructural { result, .. } => result.place,
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    let dispatch_block = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+        })
+        .find(|block| {
+            block.nodes.iter().any(|node| {
+                matches!(
+                    &node.operation,
+                    AbstractOperation::StructuralCase { source, .. } if *source == picked
+                )
+            })
+        })
+        .expect("the dispatch's member block")
+        .id;
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Restoring the seed's per-traversal discard on the dispatch's
+    // member-internal edges ends the one preheader place the next traversal
+    // dispatches — the freeze replay's normalized custody keeps it live, so
+    // the kept discard rejects byte-exact even though admission tolerated
+    // the call's own result while the borrow ran.
+    let forged = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .flat_map(|block| &mut block.nodes)
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::StructuralCase { source, .. } if *source == picked
+            )
+        })
+        .expect("the dispatch survives in the member block");
+    if let AbstractOperation::StructuralCase { cases, .. } = &mut forged.operation {
+        for case in cases {
+            if member_targets.contains(&case.target)
+                && !case.trivial_affine_discards.contains(&picked)
+            {
+                case.trivial_affine_discards.push(picked);
+            }
+        }
+    }
+    for edge in &mut forged.successors {
+        if member_targets.contains(&edge.target) && !edge.trivial_affine_discards.contains(&picked)
+        {
+            edge.trivial_affine_discards.push(picked);
+        }
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == dispatch_block
+    ));
 }
 
 #[test]

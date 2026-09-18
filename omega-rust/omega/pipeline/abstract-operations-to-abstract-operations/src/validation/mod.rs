@@ -1082,6 +1082,29 @@ pub(crate) fn component_preserves_place_observations(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
 ) -> bool {
+    component_preserves_place_observations_tolerating(function, component, &BTreeSet::new())
+}
+
+/// [`component_preserves_place_observations`] plus `tolerated`: a
+/// member-departing edge — internal or exit — may discard a place in
+/// `tolerated`, the run's already-relocated confined affine results (and the
+/// admitting call's own), whose per-traversal disposal custody the
+/// relocation re-expresses through [`rewrite_scalar_case_custody`] rather
+/// than preserves. Every tolerated place's producer relocated under
+/// `scalar_case_result_contained`, so the fresh member place's discards are
+/// exactly the custody the persistent preheader result's frontier
+/// reconstructs — internal edges keep it live, exits and member returns
+/// dispose it. A tolerated place that is not an affine confined result can
+/// never appear in `trivial_affine_discards`, so the set is inert for the
+/// unrestricted roots `relocating_roots` also carries. Entry edges still
+/// refuse every discard — a member-produced place cannot appear there in a
+/// verified seed — and residual discards refuse absolutely: a relocated
+/// confined result is trivial-affine custody, never nominal cleanup.
+fn component_preserves_place_observations_tolerating(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    tolerated: &BTreeSet<PlaceId>,
+) -> bool {
     for member in &component.members {
         let Some(block) = function.blocks.iter().find(|block| block.id == *member) else {
             return false;
@@ -1106,9 +1129,13 @@ pub(crate) fn component_preserves_place_observations(
         }
     }
     // Any discard adjacent to the component — on an internal edge, an entry
-    // edge, or an exit — refuses the family. An entry-edge discard runs
-    // once before the first iteration, but a place it ends could not be read
-    // inside the loop at all, so the refusal is only conservative.
+    // edge, or an exit — refuses the family, except a member-departing edge
+    // may discard a tolerated place: the per-traversal disposal of a
+    // confined result whose producer the run relocates. An entry-edge
+    // discard runs once before the first iteration, but a place it ends
+    // could not be read inside the loop at all, so the refusal is only
+    // conservative.
+    let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
     let adjacent: BTreeSet<EdgeId> = component
         .id
         .internal_edges
@@ -1120,10 +1147,21 @@ pub(crate) fn component_preserves_place_observations(
     function
         .blocks
         .iter()
-        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
-        .filter(|edge| adjacent.contains(&edge.psi_edge))
-        .all(|edge| {
-            edge.trivial_affine_discards.is_empty() && edge.residual_affine_discards.is_empty()
+        .flat_map(|block| {
+            let member_departing = members.contains(&block.id);
+            block.nodes.iter().flat_map(move |node| {
+                node.successors
+                    .iter()
+                    .map(move |edge| (member_departing, edge))
+            })
+        })
+        .filter(|(_, edge)| adjacent.contains(&edge.psi_edge))
+        .all(|(member_departing, edge)| {
+            edge.residual_affine_discards.is_empty()
+                && edge
+                    .trivial_affine_discards
+                    .iter()
+                    .all(|place| member_departing && tolerated.contains(place))
         })
 }
 
@@ -1144,11 +1182,11 @@ pub(crate) fn component_preserves_place_observations(
 /// representative only when its producer relocates in the same run; control
 /// nodes carry their custody on their successor edges, which the edge scan
 /// checks; a port write touches a service port rather than a place; a plain
-/// scalar `Call` has no place or claim surface at all; and a unit or scalar
-/// call that moves no claims and passes only shared-borrow structural
-/// arguments cannot mutate any place it could observe. Every other variant —
+/// scalar `Call` has no place or claim surface at all; and a unit, scalar,
+/// or structural call that moves no claims and passes only shared-borrow
+/// structural arguments cannot mutate any place it could observe. Every
+/// other variant —
 /// stores, affine-local establishments, dynamic-dispatch
-/// and structural
 /// calls, boundary calls, atomic events, descriptor stores — fails closed.
 fn node_preserves_place_observations(operation: &O) -> bool {
     match operation {
@@ -1221,13 +1259,30 @@ fn node_preserves_place_observations(operation: &O) -> bool {
                     .iter()
                     .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow)
         }
+        // A structural-result call carries `returned_claim_transfers` beside
+        // the outgoing roster: a pure callee returning claims would spell a
+        // second ownership row, which `custody_quiet` already refuses — the
+        // field check keeps the same refusal local to the operation.
+        O::CallStructural {
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            ..
+        } => {
+            claim_transfers.is_empty()
+                && returned_claim_transfers.is_empty()
+                && structural_arguments
+                    .iter()
+                    .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow)
+        }
         _ => false,
     }
 }
 
 /// The second-tier member tolerance [`component_preserves_place_observations`]
-/// applies to a call node the strict whitelist refuses: a `CallUnit` or
-/// `CallStructuralScalar` that moves no claims, whose borrow arguments —
+/// applies to a call node the strict whitelist refuses: a `CallUnit`,
+/// `CallStructuralScalar`, or `CallStructural` that moves no claims, whose
+/// borrow arguments —
 /// `SharedBorrow`, `MutableBorrow`, or `WriteOnlyBorrow` — are confined as
 /// below, and whose `Owned` arguments each name a member-produced
 /// unrestricted scalar-array root. An owned whole-root argument over an
@@ -1257,6 +1312,16 @@ fn exclusive_borrow_call_preserves_place_observations(
             claim_transfers,
             ..
         } => (structural_arguments, claim_transfers),
+        // A structural-result call must also move no claims back: a
+        // non-empty `returned_claim_transfers` would spell a second
+        // ownership row the caller-side `custody_quiet` check refuses
+        // anyway, so refusing here keeps the roster reasoning local.
+        O::CallStructural {
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            ..
+        } if returned_claim_transfers.is_empty() => (structural_arguments, claim_transfers),
         _ => return false,
     };
     if !claim_transfers.is_empty() {
@@ -2639,15 +2704,20 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
 /// operand order, carry no successors, and keep no crash-route custody.
 /// `claim_transfers` and `returned_claim_transfers` must both be empty — the
 /// node then carries exactly one vacuous `ClaimTransfer` ownership row, which
-/// relocates byte-exact inside the moved operation — and `structural_arguments`
-/// must be empty too: a borrow argument would let the callee observe a caller
-/// place whose member contents the affine result's containment bound does not
-/// freeze, so borrow-carrying calls stay inside until that bound is spelled
-/// out. `requirement_obligations`, `crash_continuations`, and
-/// `selected_evidence` must likewise be empty: the admitted contract carries
+/// relocates byte-exact inside the moved operation. `structural_arguments`
+/// obeys the borrow whitelist the unit and scalar-result calls share: a
+/// borrow argument lets the callee observe — and for a mutating borrow,
+/// write — a caller place, so
+/// [`invariant_structural_call_admission`] replays the whole-component
+/// place-custody bound and each argument root's landing rule, while `Owned`
+/// access would move the caller's place into the callee outright — custody
+/// movement this boundary cannot re-express — and stays refused.
+/// `requirement_obligations`, `crash_continuations`, and
+/// `selected_evidence` must be empty: the admitted contract carries
 /// none of them, and a call that does stays inside rather than re-expressing
 /// evidence this family has not reconstructed. Callee purity, member
-/// observability, and the result's member-roster containment are decided
+/// observability, the place-custody bound, argument-root invariance, and the
+/// result's member-roster containment are decided
 /// separately by [`invariant_structural_call_admission`].
 pub(crate) fn admissible_invariant_structural_call(
     node: &OptimizationNode,
@@ -2680,7 +2750,9 @@ pub(crate) fn admissible_invariant_structural_call(
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
-        && structural_arguments.is_empty()
+        && structural_arguments
+            .iter()
+            .all(|argument| argument.access != terminal_psi::StructuralAccess::Owned)
         && claim_transfers.is_empty()
         && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
@@ -2756,6 +2828,7 @@ pub(crate) fn invariant_unit_call_admission(
         structural_arguments,
         relocating,
         relocating_roots,
+        &BTreeSet::new(),
         effects,
     )
 }
@@ -2798,6 +2871,7 @@ pub(crate) fn invariant_structural_scalar_call_admission(
         structural_arguments,
         relocating,
         relocating_roots,
+        &BTreeSet::new(),
         effects,
     )
 }
@@ -2805,39 +2879,61 @@ pub(crate) fn invariant_structural_scalar_call_admission(
 /// The complete structural-result call admission shared by the proposal and
 /// the relocation freeze replay: `node` must carry the source-owned call
 /// shape ([`admissible_invariant_structural_call`]) — which yields the exact
-/// internal callee and its affine claim-free result — the callee's transitive
-/// effect summary must prove no observable effect, no crash, and no
-/// suspension, and every node inside the component's member roster must be
-/// unobservable, so hoisting the call's possible divergence reorders nothing
-/// anyone could see. The admitted shape carries no structural arguments, so
-/// the callee cannot observe a caller place at all — the whole-component
-/// place-custody bound the borrow calls need is vacuous here — while the
-/// affine result place must stay inside the member roster spelled only
-/// through positions the relocation's custody rewrite re-expresses
+/// internal callee and its affine claim-free result — then the affine result
+/// place must stay inside the member roster spelled only through positions
+/// the relocation's custody rewrite re-expresses
 /// ([`scalar_case_result_contained`]): the producing call itself, the
 /// member-block dispatch or structural return consuming it, and the edges
-/// whose discard rosters the rewrite adjusts. Each scalar `arguments`
-/// operand then obeys the shared use-site invariance rule
-/// ([`member_scalar_operand_substitution`]). Returns the scalar substitution
-/// the relocated call performs.
+/// whose discard rosters the rewrite adjusts. Every remaining evidence half
+/// is the borrow calls' shared surface
+/// ([`borrow_call_admission`]): the pure transitive callee, the unobservable
+/// member roster, the shared scalar-operand substitution, the non-owned
+/// borrow whitelist, and each argument root's landing — already
+/// preheader-visible, resolved through an invariant member structural
+/// parameter, or produced by a node this component's run already relocated,
+/// with a mutable or write-only borrow additionally requiring that root's
+/// unique member producer among the relocated set.
+///
+/// The place-custody bound runs with the run's relocating roots plus this
+/// call's own result tolerated: a borrow argument lets the callee observe a
+/// caller place the containment bound alone does not freeze, so the bound
+/// must prove no member-visible place mutates or moves across traversals —
+/// while the tolerated discards are exactly the confined results'
+/// per-traversal disposal the relocation re-expresses rather than preserves.
+/// Returns the scalar substitution plus the structural-argument root
+/// rewrites the relocated call performs.
 pub(crate) fn invariant_structural_call_admission(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     node: &OptimizationNode,
     relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
     effects: &crate::EffectSummaryAnalysis,
-) -> Option<BTreeMap<ValueId, ValueId>> {
+) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
     let (callee, result) = admissible_invariant_structural_call(node)?;
-    if !scalar_call_callee_pure(effects, callee) {
-        return None;
-    }
-    if !component_members_unobservable(function, component, effects) {
-        return None;
-    }
     if !scalar_case_result_contained(function, component, result.place) {
         return None;
     }
-    member_scalar_operand_substitution(function, component, node, relocating)
+    let O::CallStructural {
+        structural_arguments,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    let mut tolerated = relocating_roots.clone();
+    tolerated.insert(result.place);
+    borrow_call_admission(
+        function,
+        component,
+        node,
+        callee,
+        structural_arguments,
+        relocating,
+        relocating_roots,
+        &tolerated,
+        effects,
+    )
 }
 
 /// The shared evidence every admitted structural-signature call replays once
@@ -2849,7 +2945,11 @@ pub(crate) fn invariant_structural_call_admission(
 /// accounted), every node inside the component's member roster
 /// must be unobservable under the same summaries, and the component must
 /// preserve member-visible place contents and custody
-/// ([`component_preserves_place_observations`]) — only then does the
+/// ([`component_preserves_place_observations`], run with `tolerated` member
+/// discards — empty for the unit and scalar-result callers, the run's
+/// relocating roots plus the call's own confined result for a
+/// structural-result call, whose dispatch edges discard the fresh place the
+/// relocation makes persistent) — only then does the
 /// relocated call observe and return on every traversal exactly what the
 /// in-loop invocation did. That bound is also what confines a mutating
 /// borrow's authority: the call is tolerated inside the roster only when
@@ -2874,6 +2974,7 @@ fn borrow_call_admission(
     structural_arguments: &[terminal_psi::StructuralArgument],
     relocating: &BTreeSet<ValueId>,
     relocating_roots: &BTreeSet<PlaceId>,
+    tolerated: &BTreeSet<PlaceId>,
     effects: &crate::EffectSummaryAnalysis,
 ) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
     if !scalar_call_callee_pure(effects, callee) {
@@ -2882,7 +2983,7 @@ fn borrow_call_admission(
     if !component_members_unobservable(function, component, effects) {
         return None;
     }
-    if !component_preserves_place_observations(function, component) {
+    if !component_preserves_place_observations_tolerating(function, component, tolerated) {
         return None;
     }
     let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;

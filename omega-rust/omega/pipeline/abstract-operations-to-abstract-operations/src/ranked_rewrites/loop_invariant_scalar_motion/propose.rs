@@ -99,7 +99,8 @@ fn component_candidate(
 /// invariant scalar-signature call whose callee's transitive effect summary
 /// proves no observable effect, crash, or suspension and whose member roster
 /// is unobservable throughout, an invariant unit-result call —
-/// `CallUnit` — or scalar-result structural call — `CallStructuralScalar` —
+/// `CallUnit` — scalar-result structural call — `CallStructuralScalar` — or
+/// affine structural-result call — `CallStructural` —
 /// whose callee passes the same effect bar, whose member roster
 /// is unobservable, whose component performs no member-visible place
 /// mutation or custody movement, and whose every shared-borrow structural
@@ -476,32 +477,39 @@ fn admit_member_node(
         argument_rewrites = rewrites;
         substitution.into_iter().collect()
     } else if crate::validation::admissible_invariant_structural_call(node).is_some() {
-        // A structural-result call keeps the call family's effect and
-        // observability evidence — the non-speculative gate, the pure
-        // transitive callee, and the unobservable member roster — and then
-        // adds the custody-rewriting half the scalar-case establishment
-        // introduced: the cyclic eligibility fence already confines its
-        // affine claim-free result to the member block that dispatches or
-        // returns it, so hoisting the call keeps the one persistent result
-        // live through the whole component while member-internal edges stop
+        // A structural-result call keeps the borrow call family's whole
+        // evidence surface — the non-speculative gate, the pure transitive
+        // callee, the unobservable member roster, the whole-component
+        // place-custody bound run with the run's relocating roots plus the
+        // call's own confined result tolerated, and every borrow argument
+        // root landing where the run can see it — and then adds the
+        // custody-rewriting half the scalar-case establishment introduced:
+        // the cyclic eligibility fence already confines its affine
+        // claim-free result to the member block that dispatches or returns
+        // it, so hoisting the call keeps the one persistent result live
+        // through the whole component while member-internal edges stop
         // discarding it and every exit edge and member return disposes it
-        // instead. The admitted shape carries no structural arguments —
-        // the callee cannot observe a caller place — and no claim,
-        // obligation, crash, or evidence rows, so the moved operation keeps
-        // every non-operand field byte-exact while each scalar argument
-        // obeys the shared member-parameter substitution. Its declared
-        // place joins `relocating_roots`, so a member node anchored on the
-        // persistent result relocates behind it in the same run.
+        // instead. Each scalar argument obeys the shared member-parameter
+        // substitution and each borrowed root rebinds like a
+        // `CallStructuralScalar`'s. Its declared place joins
+        // `relocating_roots`, so a member node anchored on the persistent
+        // result relocates behind it in the same run.
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
         let effects = evidence.effects();
-        let substitution = crate::validation::invariant_structural_call_admission(
-            function, component, node, relocating, &effects,
+        let (substitution, rewrites) = crate::validation::invariant_structural_call_admission(
+            function,
+            component,
+            node,
+            relocating,
+            relocating_roots,
+            &effects,
         )?;
         if !evidence.representable(&substitution, relocating) {
             return None;
         }
+        argument_rewrites = rewrites;
         substitution.into_iter().collect()
     } else {
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {

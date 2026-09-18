@@ -59,9 +59,12 @@
 //! structural-result call — `CallStructural` — whose affine claim-free
 //! result the cyclic eligibility fence already confined to the producing
 //! member block's dispatch or return (the same effect and observability
-//! bars, the scalar-case containment bound on the result place, the scalar
-//! argument substitution, and the same member-internal discard stripping
-//! and exit disposal the establishment's custody rewrite performs), or
+//! bars, the same place-custody bound — tolerating the run's confined-result
+//! discards, which the relocation re-expresses — the same borrowed-root
+//! landing rule, the scalar-case containment bound on the result place, the
+//! scalar argument substitution, and the same member-internal discard
+//! stripping and exit disposal the establishment's custody rewrite
+//! performs), or
 //! an admissible scalar
 //! computation (an obligated variant keeps its verifier-discharged
 //! obligation byte-exact inside the moved operation) whose uses are all
@@ -461,16 +464,16 @@ pub(super) fn validate(
         } else if crate::validation::admissible_invariant_structural_call(relocation.expected)
             .is_some()
         {
-            // A structural-result call replays the scalar-result call's
-            // effect and observability evidence from the seed — the pure
-            // transitive callee and the unobservable member roster — plus
-            // the affine result's containment: the result place must stay
-            // inside the member roster spelled only through positions the
-            // custody rewrite re-expresses. The admitted shape carries no
-            // structural arguments and no claim, obligation, crash, or
-            // evidence rows, so the only re-derived rewrite is the scalar
-            // argument substitution; a forged result, argument, or claim
-            // spelling rejects in `same_relocated_node`'s operation
+            // A structural-result call replays the borrow calls' whole
+            // admission from the seed — the pure transitive callee, the
+            // unobservable member roster, the place-custody bound run with
+            // this component's relocated roots plus the call's own result
+            // tolerated, the non-owned borrow whitelist, and each argument
+            // root's landing — plus the affine result's containment: the
+            // result place must stay inside the member roster spelled only
+            // through positions the custody rewrite re-expresses. A forged
+            // result, scalar argument, borrowed-root rebind, or claim
+            // spelling rejects here or in `same_relocated_node`'s operation
             // comparison, and a kept internal discard or missing exit
             // disposal rejects in the retained-member normalization.
             let effects = call_effects
@@ -482,9 +485,14 @@ pub(super) fn validate(
                 relocated_results
                     .get(&component.id)
                     .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
                 effects,
             ) {
-                Some(substitution) => (substitution, None, BTreeMap::new()),
+                Some((substitution, rewrites)) => {
+                    (substitution, None, rewrites.into_iter().collect())
+                }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else if crate::validation::admissible_invariant_primitive_local(relocation.expected)

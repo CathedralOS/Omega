@@ -106,9 +106,10 @@ impl LoopInvariantNodeResult {
 /// admitted `CallStructural` records its affine result as
 /// [`LoopInvariantNodeResult::Structural`] — the declared place stays
 /// byte-exact while the realization re-spells its dispatch custody — and
-/// rebinds its scalar `arguments` through `operand_rewrites`; the admitted
-/// shape carries no structural arguments, so `argument_rewrites` stays
-/// empty.
+/// carries the same operand and argument-root rewrites a
+/// `CallStructuralScalar` does: scalar `arguments` through
+/// `operand_rewrites` and each structural argument whose root is an
+/// invariant member structural parameter through `argument_rewrites`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,
