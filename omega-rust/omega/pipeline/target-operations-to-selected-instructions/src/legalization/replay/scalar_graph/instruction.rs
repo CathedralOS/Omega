@@ -15,6 +15,7 @@ mod aggregate_results;
 mod call_instructions;
 mod scalar_instructions;
 mod storage_instructions;
+#[allow(clippy::too_many_arguments)]
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
@@ -23,6 +24,7 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     proposed_plan: &LegalizedOperationPlan,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     if let Some((operation, origin)) =
         scalar_graph_input::call_origin::installed_operation(node, optimized, native, plan)?
@@ -50,6 +52,7 @@ pub(super) fn validate(
             plan,
             unit,
             proposed_plan,
+            custody,
         );
     }
     let invalid = Error::NonCanonicalLegalizedPlan;
@@ -204,6 +207,27 @@ pub(super) fn validate(
             && left == expected_left
             && right == expected_right => {}
         (
+            LegalizedScalarInstructionKind::EstablishReference {
+                result,
+                source,
+                shape,
+            },
+            AbstractOperation::EstablishReference {
+                result: expected,
+                source: expected_source,
+                ..
+            },
+        ) if result == expected
+            && source == expected_source
+            && *shape
+                == scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape() => {}
+        (
+            LegalizedScalarInstructionKind::ReleaseReference { source },
+            AbstractOperation::ReleaseReference {
+                source: expected, ..
+            },
+        ) if source == expected => {}
+        (
             _,
             AbstractOperation::CallStructural { .. }
             | AbstractOperation::EstablishRecord { .. }
@@ -211,7 +235,7 @@ pub(super) fn validate(
             | AbstractOperation::EstablishScalarCase { .. }
             | AbstractOperation::StructuralCaseMembership { .. },
         ) => {
-            aggregate_results::validate(actual, node, optimized, native, plan, unit)?;
+            aggregate_results::validate(actual, node, optimized, native, plan, unit, custody)?;
         }
         (
             LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
@@ -331,6 +355,7 @@ pub(super) fn validate(
             unit,
             proposed_plan,
             operation,
+            custody,
         )?,
         (
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { .. },

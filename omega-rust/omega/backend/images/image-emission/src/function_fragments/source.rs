@@ -242,6 +242,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::EstablishRecord { .. }
+                | AbstractOperation::EstablishReference { .. }
+                | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::CallStructural { .. }
                 | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),

@@ -10,6 +10,7 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use semantic_vocabulary::OperationId;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn validate_call(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
@@ -19,6 +20,7 @@ pub(super) fn validate_call(
     unit: &PsiOptimizationUnit,
     proposed_plan: &LegalizedOperationPlan,
     operation: OperationId,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::Call(call),
@@ -68,7 +70,7 @@ pub(super) fn validate_call(
             return Err(invalid);
         }
         if scalar_graph_input::structural_call::argument_at(
-            argument, position, operation, optimized, called, &expected, native, plan,
+            argument, position, operation, optimized, called, &expected, native, plan, custody,
         )? != *target
         {
             return Err(invalid);

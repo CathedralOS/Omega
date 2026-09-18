@@ -366,7 +366,7 @@ fn installed_stack_fact_shape_rejects_nonlocal_or_forged_call_inputs() {
 }
 
 #[test]
-fn native_reference_shapes_and_projections_reject_without_layout_authority() {
+fn native_reference_shapes_and_projections_carry_metadata_not_storage() {
     let primitive = StructuralTypeId::new(1).unwrap();
     let reference = StructuralTypeId::new(2).unwrap();
     let declarations = vec![
@@ -386,18 +386,26 @@ fn native_reference_shapes_and_projections_reject_without_layout_authority() {
             },
         },
     ];
+    let mut bytes = Vec::new();
+    encode_structural_types(&mut bytes, &declarations).expect("encode reference type");
+    let mut reader = Reader::new(&bytes);
     assert_eq!(
-        encode_structural_types(&mut Vec::new(), &declarations),
-        Err(InstallationError::UnsupportedStructuralReturnShape)
+        decode_structural_types(&mut reader).expect("decode reference type"),
+        declarations
     );
+    assert_eq!(reader.remaining(), 0);
+    // A carrier's value shape is the canonical empty aggregate slot; the loan
+    // is metadata and never pointer-sized storage.
     assert_eq!(
         crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(
             reference,
             &declarations,
         ),
-        None
+        Some(calling_conventions::ValueShape::integer(0, 1))
     );
     let path = vec![terminal_psi::StructuralPathSegment::Referent];
+    // A referent crossing is custody metadata, never a physical byte
+    // projection or a partial-cleanup subtree.
     assert_eq!(
         crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
             reference,
@@ -407,17 +415,21 @@ fn native_reference_shapes_and_projections_reject_without_layout_authority() {
         None
     );
     assert!(!is_partial_cleanup_path(&path));
+    let argument = terminal_psi::StructuralArgument {
+        place: PlaceId::new(1).unwrap(),
+        path,
+        access: terminal_psi::StructuralAccess::MutableBorrow,
+    };
+    let mut argument_bytes = Vec::new();
+    structural_argument_codec::encode_structural_argument(&mut argument_bytes, &argument)
+        .expect("encode referent argument");
+    let mut reader = Reader::new(&argument_bytes);
     assert_eq!(
-        structural_argument_codec::encode_structural_argument(
-            &mut Vec::new(),
-            &terminal_psi::StructuralArgument {
-                place: PlaceId::new(1).unwrap(),
-                path,
-                access: terminal_psi::StructuralAccess::MutableBorrow,
-            },
-        ),
-        Err(InstallationError::UnsupportedStructuralReturnShape)
+        structural_argument_codec::decode_structural_argument(&mut reader)
+            .expect("decode referent argument"),
+        argument
     );
+    assert_eq!(reader.remaining(), 0);
 }
 
 #[test]

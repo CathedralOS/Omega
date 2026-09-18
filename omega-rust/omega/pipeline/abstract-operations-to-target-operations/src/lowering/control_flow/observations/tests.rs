@@ -40,6 +40,7 @@ fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
         block_views: BTreeSet::new(),
         owned_arrivals: BTreeSet::new(),
         lengths: BTreeMap::new(),
+        references: BTreeMap::new(),
     };
     let plan = evaluate_call_plan(
         CallingPolicy::native_for_target(NativeTarget::linux_x64()),

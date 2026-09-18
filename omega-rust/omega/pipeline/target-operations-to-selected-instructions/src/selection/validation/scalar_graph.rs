@@ -743,6 +743,8 @@ pub(in crate::selection) fn validate_with_environment(
                     LegalizedScalarInstructionKind::EstablishRecord { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+                    | LegalizedScalarInstructionKind::EstablishReference { .. }
+                    | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }

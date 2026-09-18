@@ -161,11 +161,12 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
-    // Format 97 extends the image-section header with the complete-custody
-    // fields: both final extents and both placed-inventory digests. The marker
-    // is checked before the body, so a relabeled payload cannot masquerade as
-    // a predecessor format. Reconstruct framing independently of the
-    // production helper and pin both identities.
+    // Format 98 carries referent path segments, reference structural type
+    // shapes, and result source rosters on top of format 97's
+    // complete-custody image-section header. The marker is checked before the
+    // body, so a relabeled payload cannot masquerade as a predecessor format.
+    // Reconstruct framing independently of the production helper and pin both
+    // identities.
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -186,13 +187,13 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "993625e0a3ed61ccffe36655e2c0f4b09ca52c28b1dabab60da93a4f55a0bf58"
+        "26e3caf5ea009da1310dc476ab3fdd68917d8f29414ae0a96fa8d64217b417ee"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "993625e0a3ed61ccffe36655e2c0f4b09ca52c28b1dabab60da93a4f55a0bf58"
+        "26e3caf5ea009da1310dc476ab3fdd68917d8f29414ae0a96fa8d64217b417ee"
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a

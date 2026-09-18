@@ -19,7 +19,9 @@ pub(crate) fn encode_shape(
         {
             3
         }
-        _ => return Err(InstallationError::UnsupportedStructuralReturnShape),
+        _ => {
+            return Err(InstallationError::UnsupportedStructuralReturnShape);
+        }
     });
     bytes.push(0);
     push_u16(bytes, shape.byte_size);
@@ -147,7 +149,9 @@ pub(crate) fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, Instal
         1 => ValueClass::Integer,
         2 => ValueClass::BorrowedReference,
         3 => ValueClass::Float,
-        _ => return Err(InstallationError::UnsupportedStructuralReturnShape),
+        _ => {
+            return Err(InstallationError::UnsupportedStructuralReturnShape);
+        }
     };
     if reader.u8()? != 0 {
         return Err(InstallationError::NonzeroReservedField);

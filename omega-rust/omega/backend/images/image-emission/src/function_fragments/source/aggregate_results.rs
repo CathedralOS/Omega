@@ -89,6 +89,21 @@ pub(super) fn operation(
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_case == result_case && retained_fields == fields
             )).count() == 1
         }
+        // Reference carriers are custody metadata: the retained row's canonical
+        // zero-byte result home binds the exact operation result and source,
+        // and mandatory source/selection replay validates the loan itself.
+        AbstractOperation::EstablishReference { psi_operation, result, source } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source }
+                if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source
+            )).count() == 1
+        }
+        AbstractOperation::ReleaseReference { psi_operation, source } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::ReleaseReference { psi_operation: retained, source: retained_source }
+                if retained == psi_operation && retained_source == source
+            )).count() == 1
+        }
         AbstractOperation::CallStructural { psi_operation, callee, result, .. } => {
             selected.calls.iter().filter(|row| row.operation == *psi_operation && row.call.callee == *callee
                 && row.call.structural_result.as_ref() == Some(result)

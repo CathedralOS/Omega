@@ -303,7 +303,6 @@ fn encode_structural_result(
         && result.caller_result_placement == result.callee_result_placement;
     if (!claim_bearing_linear && !claim_free_affine)
         || (result.result_home.is_some() && !claim_free_affine)
-        || !result.function_result.reference_sources.is_empty()
     {
         return Err(InstallationError::InvalidInternalUnitCall(machine));
     }
@@ -315,6 +314,18 @@ fn encode_structural_result(
         push_u64(bytes, result.function_result.structural_type.get());
         encode_direct_placement(bytes, &result.caller_result_placement)?;
         encode_direct_placement(bytes, &result.callee_result_placement)?;
+        // Reference-bearing results preserve their declared source roster:
+        // each row binds a result-carrier path to the exact callee argument
+        // whose referent the caller inherits.
+        push_u32(
+            bytes,
+            u32::try_from(result.function_result.reference_sources.len())
+                .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?,
+        );
+        for source in &result.function_result.reference_sources {
+            super::structural_argument_codec::encode_path(bytes, &source.path)?;
+            encode_structural_argument(bytes, &source.source)?;
+        }
         if let Some(home) = &result.result_home {
             let target_operations::TargetStructuralHomeLayout::Aggregate(shape) =
                 home.requirement.layout
@@ -635,6 +646,18 @@ fn decode_structural_result(
             {
                 return Err(InstallationError::InvalidInternalUnitCall(machine));
             }
+            let reference_source_count = usize::try_from(reader.u32()?)
+                .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?;
+            if reference_source_count > reader.remaining() / 4 {
+                return Err(InstallationError::UnexpectedEnd);
+            }
+            let mut reference_sources = Vec::with_capacity(reference_source_count);
+            for _ in 0..reference_source_count {
+                let path = super::structural_argument_codec::decode_path(reader)?;
+                let source = decode_structural_argument(reader)?;
+                reference_sources
+                    .push(terminal_psi::StructuralReferenceResultSource { path, source });
+            }
             let operation_result = StructuralOperationResult {
                 place: operation_place,
                 structural_type,
@@ -677,7 +700,7 @@ fn decode_structural_result(
             return Ok(Some(InternalStructuralCallResult {
                 operation_result,
                 function_result: StructuralResultDeclaration {
-                    reference_sources: Vec::new(),
+                    reference_sources,
                     place: function_place,
                     structural_type: function_type,
                     multiplicity: StructuralMultiplicity::Affine,
@@ -889,25 +912,33 @@ mod tests {
     }
 
     #[test]
-    fn native_internal_call_rejects_reference_source_correspondence() {
+    fn native_internal_call_preserves_reference_source_correspondence() {
         let machine = MachineId::new(1).unwrap();
         let mut result = affine_result();
         result.function_result.reference_sources.push(
             terminal_psi::StructuralReferenceResultSource {
-                path: Vec::new(),
+                path: vec![terminal_psi::StructuralPathSegment::Field("held".into())],
                 source: StructuralArgument {
                     place: PlaceId::new(1).unwrap(),
-                    path: Vec::new(),
+                    path: vec![
+                        terminal_psi::StructuralPathSegment::Field("body".into()),
+                        terminal_psi::StructuralPathSegment::Referent,
+                    ],
                     access: terminal_psi::StructuralAccess::MutableBorrow,
                 },
             },
         );
         let mut bytes = Vec::new();
+        encode_structural_result(&mut bytes, machine, Some(&result)).unwrap();
+        let mut reader = Reader::new(&bytes);
         assert_eq!(
-            encode_structural_result(&mut bytes, machine, Some(&result)),
-            Err(InstallationError::InvalidInternalUnitCall(machine))
+            decode_structural_result(&mut reader, machine).unwrap(),
+            Some(result.clone())
         );
-        assert!(bytes.is_empty());
+        assert_eq!(reader.remaining(), 0);
+        let mut reencoded = Vec::new();
+        encode_structural_result(&mut reencoded, machine, Some(&result)).unwrap();
+        assert_eq!(bytes, reencoded);
     }
 
     #[test]
@@ -922,6 +953,7 @@ mod tests {
         }
         encode_direct_placement(&mut expected, &result.caller_result_placement).unwrap();
         encode_direct_placement(&mut expected, &result.callee_result_placement).unwrap();
+        expected.extend_from_slice(&[0; 4]);
         assert_eq!(legacy, expected);
         assert_eq!(
             decode_structural_result(&mut Reader::new(&legacy), machine).unwrap(),

@@ -29,6 +29,7 @@ mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_realization;
 mod literals;
 mod primitive_locals;
+pub(super) mod reference_custody;
 pub(super) mod structural_call;
 pub(super) mod structural_fields;
 fn structural_parameters(
@@ -347,6 +348,14 @@ pub(super) fn match_input(
                 return Err(invalid);
             }
             for (position, argument) in structural_arguments.iter().enumerate() {
+                // `.., Referent` spellings resolve through reference custody,
+                // which the ordered target replay below re-derives per node.
+                if matches!(
+                    argument.path.last(),
+                    Some(terminal_psi::StructuralPathSegment::Referent)
+                ) {
+                    continue;
+                }
                 structural_call::argument_at(
                     argument,
                     position,
@@ -356,6 +365,7 @@ pub(super) fn match_input(
                     &call,
                     native,
                     plan,
+                    &reference_custody::Custody::default(),
                 )?;
             }
         }

@@ -41,6 +41,8 @@ pub(in crate::legalization) fn admit(
 ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }
+    | AbstractOperation::EstablishReference { psi_operation, .. }
+    | AbstractOperation::ReleaseReference { psi_operation, .. }
     | AbstractOperation::EstablishScalarArray { psi_operation, .. }
     | AbstractOperation::EstablishScalarCase { psi_operation, .. }
     | AbstractOperation::CallStructural { psi_operation, .. }
@@ -445,6 +447,8 @@ pub(super) fn validate(
         if matches!(
             node.operation,
             AbstractOperation::EstablishRecord { .. }
+                | AbstractOperation::EstablishReference { .. }
+                | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::CallStructural { .. }

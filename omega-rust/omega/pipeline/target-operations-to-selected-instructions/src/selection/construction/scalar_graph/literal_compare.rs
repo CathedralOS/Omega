@@ -88,6 +88,8 @@ pub(super) fn folded_literal<'a>(
                     *index == definition.value || *length == definition.value
                 }
                 LegalizedScalarInstructionKind::Constant(_)
+                | LegalizedScalarInstructionKind::EstablishReference { .. }
+                | LegalizedScalarInstructionKind::ReleaseReference { .. }
                 | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
                 | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }

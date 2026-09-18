@@ -20,24 +20,40 @@ pub(super) fn argument_pointer(
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
+    // A `.., Referent` argument transports the referent root's pointer:
+    // `target.place` names that root while `semantic.place` is only the
+    // carrier, which owns loan permission and no storage address.
+    let referent = matches!(
+        semantic.path.last(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    );
+    let pointer_place = if referent {
+        target.place
+    } else {
+        semantic.place
+    };
     // A bounded inline byte field presents as a borrowed view: the descriptor's
     // length is the field's own live length word, never its declared capacity.
-    let byte_field = source.structural.as_ref().and_then(|signature| {
-        signature
-            .parameters
-            .iter()
-            .find(|parameter| parameter.semantic.place == semantic.place)
-            .and_then(|parameter| {
-                crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
-                    &parameter.semantic,
-                    semantic,
-                    target.structural_type,
-                    &signature.structural_types,
-                )
-            })
-    });
+    let byte_field = if referent {
+        None
+    } else {
+        source.structural.as_ref().and_then(|signature| {
+            signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == semantic.place)
+                .and_then(|parameter| {
+                    crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
+                        &parameter.semantic,
+                        semantic,
+                        target.structural_type,
+                        &signature.structural_types,
+                    )
+                })
+        })
+    };
     let pointer =
-        structural::call_pointer(replay, operation, semantic.place, target.source_byte_offset)?;
+        structural::call_pointer(replay, operation, pointer_place, target.source_byte_offset)?;
     let pointer = if let Some(length) = target.fixed_array_length {
         structural::fixed_array_argument(replay, operation, semantic.place, pointer, length)?
     } else if let Some((field_offset, _)) = byte_field {
@@ -83,7 +99,7 @@ pub(super) fn argument_pointer(
             origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
                 operation.operation,
             ),
-            place: semantic.place,
+            place: pointer_place,
             byte_offset: 0,
             byte_count: 8,
             role: selected_instructions::SelectedMemoryAccessRole::WriteOutgoing { slot },

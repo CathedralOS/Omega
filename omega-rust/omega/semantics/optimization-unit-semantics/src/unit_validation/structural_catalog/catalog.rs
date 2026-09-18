@@ -158,9 +158,10 @@ pub(super) fn index_structural_types(
             | terminal_psi::StructuralTypeShape::Reference { .. }
             | terminal_psi::StructuralTypeShape::Record { .. } => Vec::new(),
         };
-        if children.iter().any(|child| {
-            crate::unit_validation::references::contains_reference(&types, *child)
-        }) {
+        if children
+            .iter()
+            .any(|child| crate::unit_validation::references::contains_reference(&types, *child))
+        {
             return Err(
                 OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
             );

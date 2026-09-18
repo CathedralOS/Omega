@@ -20,6 +20,7 @@ pub(super) fn validate_operation(
     scalar_parameters: &[ScalarAbiValue],
     parameters: &[TargetStructuralParameter],
     sources: &mut Vec<(ValueId, Source)>,
+    custody: &super::super::reference_custody::Custody,
     optimized: &PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
@@ -52,6 +53,7 @@ pub(super) fn validate_operation(
                 scalar_parameters,
                 parameters,
                 sources,
+                custody,
                 optimized,
                 native,
                 plan,
@@ -115,6 +117,32 @@ pub(super) fn validate_operation(
             ieee_float::validate(target, abstracted, sources)?;
         }
         (
+            TargetUnitOperation::EstablishReference {
+                psi_operation,
+                result_home,
+                source,
+            },
+            AbstractOperation::EstablishReference {
+                psi_operation: expected_operation,
+                result,
+                source: expected_source,
+            },
+        ) if psi_operation == expected_operation
+            && source == expected_source
+            && *result_home
+                == super::super::aggregate_results::result_home(optimized, result.place, plan)? => {
+        }
+        (
+            TargetUnitOperation::ReleaseReference {
+                psi_operation,
+                source,
+            },
+            AbstractOperation::ReleaseReference {
+                psi_operation: expected_operation,
+                source: expected_source,
+            },
+        ) if psi_operation == expected_operation && source == expected_source => {}
+        (
             _,
             AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishRecord { .. }
@@ -122,7 +150,7 @@ pub(super) fn validate_operation(
             | AbstractOperation::CallStructural { .. },
         ) => {
             aggregate_results::validate(
-                target, abstracted, sources, optimized, native, plan, unit,
+                target, abstracted, sources, custody, optimized, native, plan, unit,
             )?;
         }
         (
@@ -607,6 +635,7 @@ pub(super) fn validate_operation(
                     &expected,
                     native,
                     plan,
+                    custody,
                 )? != *argument
                 {
                     return Err(invalid);

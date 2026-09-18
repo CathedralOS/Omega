@@ -43,18 +43,46 @@ pub(super) fn home_available(
                         | TargetUnitOperation::EstablishScalarArray {
                             result_home: home, ..
                         }
+                        | TargetUnitOperation::EstablishReference {
+                            result_home: home, ..
+                        }
                         | TargetUnitOperation::StructuralResultCall {
                             result_home: Some(home),
                             ..
-                        } if home.place() == expected_source => Some((candidate.block, home)),
+                        } if home.place() == expected_source => {
+                            Some((candidate.block, Some(home.clone())))
+                        }
+                        // A reference-only call result carries no physical
+                        // home; the custody metadata roster stands in for it.
+                        TargetUnitOperation::StructuralResultCall {
+                            result_home: None,
+                            result,
+                            reference_results,
+                            ..
+                        } if !reference_results.is_empty() && result.place == expected_source => {
+                            Some((candidate.block, None))
+                        }
                         _ => None,
                     })
             });
             let Some((producer_block, home)) = producers.next() else {
                 return false;
             };
+            let home_matches = match &home {
+                Some(home) => source == home,
+                None => {
+                    super::super::super::aggregate_results::result_home(
+                        optimized,
+                        expected_source,
+                        plan,
+                    )
+                    .ok()
+                    .as_ref()
+                        == Some(source)
+                }
+            };
             if producers.next().is_some()
-                || source != home
+                || !home_matches
                 || (producer_block != block
                     && !sources::dominates(optimized, producer_block, block))
             {

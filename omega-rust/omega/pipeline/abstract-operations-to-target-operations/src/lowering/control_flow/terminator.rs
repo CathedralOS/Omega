@@ -6,36 +6,53 @@ use target_operations::{TargetControlSuccessor, TargetControlTerminator};
 
 fn plain_home_cleanup(
     function: &AbstractFunction,
-    live: &LiveDefinitions,
+    live: &mut LiveDefinitions,
+    structural_types: &StructuralTypeLookup<'_>,
     actions: &[TerminalAffineCleanupAction],
-) -> bool {
+) -> Result<bool, LoweringError> {
     let mut discarded = BTreeSet::new();
-    actions.iter().all(|action| {
+    for action in actions {
         let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
-            return false;
+            return Ok(false);
         };
-        discarded.insert(*place)
-            && (live.structural_homes.get(place).is_some_and(|home| {
-                home.multiplicity() == StructuralMultiplicity::Affine
-                    && !home.has_claims()
-                    && home.qualifications().is_empty()
-                    && home.projected_qualifications().is_empty()
-            }) || function.structural_parameters.iter().any(|parameter| {
-                parameter.place == *place
-                    && parameter.access == StructuralAccess::Owned
-                    && parameter.multiplicity == StructuralMultiplicity::Affine
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
-                    && function.entry_claims.is_empty()
-            }))
-    })
+        if !discarded.insert(*place) {
+            return Ok(false);
+        }
+        let admitted = live.structural_homes.get(place).is_some_and(|home| {
+            home.multiplicity() == StructuralMultiplicity::Affine
+                && !home.has_claims()
+                && home.qualifications().is_empty()
+                && home.projected_qualifications().is_empty()
+        }) || function.structural_parameters.iter().any(|parameter| {
+            parameter.place == *place
+                && parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Affine
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && function.entry_claims.is_empty()
+        }) || live
+            .references
+            .get(&(*place, Vec::new()))
+            .is_some_and(|leaf| leaf.result.multiplicity == StructuralMultiplicity::Affine);
+        // A suspended referent root cannot be discarded while its loan lives.
+        if !admitted || super::references::is_suspended_root(live, *place) {
+            return Ok(false);
+        }
+    }
+    // Admission is staged before custody moves: a discarded owner also ends
+    // every reference leaf it carries, in the verified reverse-declaration
+    // order. This removes loan custody, never referent storage.
+    for place in discarded {
+        super::references::discard_owned(function, structural_types, live, place)?;
+    }
+    Ok(true)
 }
 
 pub(super) fn lower_terminator(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &LiveDefinitions,
+    live: &mut LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
@@ -53,24 +70,26 @@ pub(super) fn lower_terminator(
     // Owned parameters owe the same no-code disposition after observation;
     // current ownership validation, not their physical home kind, establishes
     // availability and exact disposal order.
-    let cleanup = |places: &[PlaceId]| {
+    let cleanup = |live: &mut LiveDefinitions, places: &[PlaceId]| {
         let actions = places
             .iter()
             .copied()
             .map(TerminalAffineCleanupAction::DiscardRoot)
             .collect::<Vec<_>>();
-        if !plain_home_cleanup(function, live, &actions) {
+        if !plain_home_cleanup(function, live, structural_types, &actions)? {
             return Err(invalid());
         }
         Ok(actions)
     };
-    let successor = |edge: &abstract_operations::AbstractSuccessor| -> Result<TargetControlSuccessor, LoweringError> {
+    let successor = |live: &mut LiveDefinitions,
+                     edge: &abstract_operations::AbstractSuccessor|
+     -> Result<TargetControlSuccessor, LoweringError> {
         Ok(TargetControlSuccessor {
             psi_edge: edge.psi_edge,
             target: edge.target,
             bindings: edge.bindings.clone(),
             structural_bindings: edge.structural_bindings.clone(),
-            cleanup_actions: cleanup(&edge.trivial_affine_discards)?,
+            cleanup_actions: cleanup(live, &edge.trivial_affine_discards)?,
         })
     };
     match operation {
@@ -82,7 +101,9 @@ pub(super) fn lower_terminator(
             trivial_affine_discards,
         } => {
             let result = function.result.structural().ok_or_else(invalid)?;
-            let cleanup_actions = cleanup(trivial_affine_discards)?;
+            let cleanup_actions = cleanup(live, trivial_affine_discards)?;
+            let reference_bearing =
+                super::references::contains_reference(structural_types, result.structural_type);
             if let Some(parameter) = function
                 .structural_parameters
                 .iter()
@@ -113,12 +134,47 @@ pub(super) fn lower_terminator(
                 // Returning the same value does not require identical input and
                 // result registers, nor a direct-register ABI on either side.
                 // Selection realizes the transfer from captured input storage.
+                if reference_bearing {
+                    super::references::return_custody(
+                        function,
+                        live,
+                        structural_types,
+                        *source,
+                        result,
+                    )?;
+                }
                 provenance.edges.push(*psi_edge);
                 return Ok(TargetControlTerminator::ReturnStructural {
                     psi_edge: *psi_edge,
                     source: target_operations::TargetStructuralReturnSource::Parameter(
                         actual.clone(),
                     ),
+                    cleanup_actions,
+                });
+            }
+            // A bare reference carrier returns through its canonical zero-byte
+            // custody home; the referent is never read or transported.
+            if reference_bearing && let Some(leaf) = live.references.get(&(*source, Vec::new())) {
+                if !returned_claims.is_empty()
+                    || !trivial_affine_locals.is_empty()
+                    || result.multiplicity != leaf.result.multiplicity
+                {
+                    return Err(invalid());
+                }
+                super::references::return_custody(
+                    function,
+                    live,
+                    structural_types,
+                    *source,
+                    result,
+                )?;
+                let operation = leaf.operation.ok_or_else(invalid)?;
+                let home =
+                    super::aggregate_results::home(operation, &leaf.result, structural_types)?;
+                provenance.edges.push(*psi_edge);
+                return Ok(TargetControlTerminator::ReturnStructural {
+                    psi_edge: *psi_edge,
+                    source: target_operations::TargetStructuralReturnSource::Home(home),
                     cleanup_actions,
                 });
             }
@@ -131,6 +187,15 @@ pub(super) fn lower_terminator(
                 || !trivial_affine_locals.is_empty()
             {
                 return Err(invalid());
+            }
+            if reference_bearing {
+                super::references::return_custody(
+                    function,
+                    live,
+                    structural_types,
+                    *source,
+                    result,
+                )?;
             }
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::ReturnStructural {
@@ -150,7 +215,7 @@ pub(super) fn lower_terminator(
             if *result != expected.value
                 || *scalar_type != expected.scalar_type
                 || (!cleanup_actions.is_empty()
-                    && !plain_home_cleanup(function, live, cleanup_actions)
+                    && !plain_home_cleanup(function, live, structural_types, cleanup_actions)?
                     && !(super::super::unobserved_owned::accepts(function, structural_types)
                         && super::super::unobserved_owned::cleanup(function, cleanup_actions)))
             {
@@ -190,7 +255,7 @@ pub(super) fn lower_terminator(
             // Current ownership validation owns the exact live frontier and
             // discard order. Native admission only proves each retained action
             // is a no-code discard of an available boundary result home.
-            if !plain_home_cleanup(function, live, cleanup_actions)
+            if !plain_home_cleanup(function, live, structural_types, cleanup_actions)?
                 && !(super::super::unobserved_owned::accepts(function, structural_types)
                     && super::super::unobserved_owned::cleanup(function, cleanup_actions))
             {
@@ -220,7 +285,7 @@ pub(super) fn lower_terminator(
                     target: *target,
                     bindings: bindings.clone(),
                     structural_bindings: structural_bindings.clone(),
-                    cleanup_actions: cleanup(trivial_affine_discards)?,
+                    cleanup_actions: cleanup(live, trivial_affine_discards)?,
                 },
             })
         }
@@ -269,8 +334,8 @@ pub(super) fn lower_terminator(
             Ok(TargetControlTerminator::Conditional {
                 condition_source: *condition,
                 condition: expression,
-                when_true: successor(when_true)?,
-                when_false: successor(when_false)?,
+                when_true: successor(live, when_true)?,
+                when_false: successor(live, when_false)?,
             })
         }
         _ => Err(invalid()),

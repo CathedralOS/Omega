@@ -66,6 +66,7 @@ pub enum InstallationError {
     TooManyStructuralReturnParameters,
     TooManyStructuralReturnClaims,
     TooManyStructuralReturnCleanups,
+    TooManyStructuralReturnReferenceSources,
     TooManyStructuralTypes,
     TooManyStructuralFields,
     TooManyStructuralCases,

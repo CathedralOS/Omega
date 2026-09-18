@@ -39,6 +39,8 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::BooleanStructuralField { .. }
                         | AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishRecord { .. }
+                        | AbstractOperation::EstablishReference { .. }
+                        | AbstractOperation::ReleaseReference { .. }
                         | AbstractOperation::EstablishScalarCase { .. }
                         | AbstractOperation::CallStructural { .. }
                         | AbstractOperation::BoundaryCall { result: abstract_operations::AbstractBoundaryResult::Structural(_), .. }
@@ -472,12 +474,39 @@ pub(in crate::legalization) fn call_argument(
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
+    custody: &super::reference_custody::Custody,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     let destination = callee
         .structural_parameters
         .get(position)
         .ok_or(invalid.clone())?;
+    // `.., Referent` spellings resolve through replayed reference custody;
+    // the transported value names the referent root, never the carrier.
+    if matches!(
+        argument.path.last(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        let target_caller = native
+            .functions
+            .iter()
+            .find(|function| function.machine == caller.machine)
+            .ok_or(invalid.clone())?;
+        let ordinal = callee
+            .parameters
+            .len()
+            .checked_add(position)
+            .ok_or(invalid.clone())?;
+        return super::reference_custody::referent_argument(
+            argument,
+            destination,
+            call.parameters.get(ordinal).ok_or(invalid)?,
+            caller,
+            target_caller,
+            custody,
+            &plan.structural_types,
+        );
+    }
     if plan.structural_types.iter().any(|declaration| {
         declaration.id == destination.structural_type
             && matches!(
@@ -546,6 +575,7 @@ pub(in crate::legalization) fn call_argument(
             call,
             native,
             plan,
+            custody,
         );
     }
     let caller_target = native
@@ -661,7 +691,9 @@ pub(in crate::legalization) fn home_layout(
         declaration.id == result.structural_type
             && matches!(
                 declaration.shape,
-                StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+                StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::Reference { .. }
             )
     }) {
         if result.multiplicity == StructuralMultiplicity::Linear

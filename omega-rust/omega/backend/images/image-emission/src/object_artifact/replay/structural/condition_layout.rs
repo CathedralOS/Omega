@@ -13,6 +13,16 @@ fn checked_align_up(value: u32, alignment: u32) -> Option<u32> {
         .map(|value| value / alignment * alignment)
 }
 
+/// Layout-visible record fields: authored relevance and physical carrier
+/// erasure are independent, matching the lowering layout walk.
+fn layout_field(field: &terminal_psi::StructuralFieldDeclaration) -> bool {
+    !field.relevance.is_erased()
+        && !matches!(
+            field.field_type,
+            terminal_psi::StructuralFieldType::Erased { .. }
+        )
+}
+
 fn replay_structural_shape(
     structural_type: StructuralTypeId,
     declarations: &std::collections::BTreeMap<
@@ -30,7 +40,10 @@ fn replay_structural_shape(
     }
     let declaration = declarations.get(&structural_type)?;
     let shape = match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Reference { .. } => return None,
+        // A reference carrier transports no referent storage: custody is
+        // compile-time metadata, so its value shape is the empty aggregate
+        // slot the lowering layout assigns.
+        terminal_psi::StructuralTypeShape::Reference { .. } => ValueShape::integer(0, 1),
         terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
             ValueShape::integer(1, 1)
         }
@@ -50,7 +63,7 @@ fn replay_structural_shape(
         terminal_psi::StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;
-            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            for field in fields.iter().filter(|field| layout_field(field)) {
                 let field_shape =
                     replay_structural_field_shape(&field.field_type, declarations, cache, active)?;
                 alignment = alignment.max(field_shape.alignment);
@@ -58,9 +71,8 @@ fn replay_structural_shape(
                     .checked_add(u32::from(field_shape.byte_size))?;
             }
             byte_size = checked_align_up(byte_size, u32::from(alignment))?;
-            if byte_size == 0 && !fields.is_empty() {
-                return None;
-            }
+            // A record whose layout-visible children are all reference
+            // carriers has the canonical empty aggregate shape.
             ValueShape::integer(u16::try_from(byte_size).ok()?, alignment)
         }
         terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
@@ -130,7 +142,7 @@ pub(crate) fn replay_structural_projection(
                 };
                 let mut field_offset = 0_u32;
                 let mut selected = None;
-                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                for field in fields.iter().filter(|field| layout_field(field)) {
                     let shape = replay_structural_field_shape(
                         &field.field_type,
                         &declarations,
@@ -212,7 +224,7 @@ pub(crate) fn replay_bounded_byte_field(
             ) => {
                 let mut field_offset = 0_u32;
                 let mut selected = None;
-                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                for field in fields.iter().filter(|field| layout_field(field)) {
                     let shape = replay_structural_field_shape(
                         &field.field_type,
                         &declarations,
@@ -256,7 +268,7 @@ pub(crate) fn replay_bounded_byte_field(
         return None;
     };
     let mut field_offset = 0_u32;
-    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+    for field in fields.iter().filter(|field| layout_field(field)) {
         let shape = replay_structural_field_shape(
             &field.field_type,
             &declarations,
@@ -345,7 +357,7 @@ pub(crate) fn replay_boolean_field_offset(
     let mut cache = std::collections::BTreeMap::new();
     let mut active = std::collections::BTreeSet::new();
     let mut offset = 0_u32;
-    for candidate in fields.iter().filter(|field| !field.relevance.is_erased()) {
+    for candidate in fields.iter().filter(|field| layout_field(field)) {
         let shape = replay_structural_field_shape(
             &candidate.field_type,
             declarations,

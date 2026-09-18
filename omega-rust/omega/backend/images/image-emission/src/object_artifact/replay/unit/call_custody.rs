@@ -233,8 +233,7 @@ pub(crate) fn structural_result_matches_return(
 ) -> bool {
     let common = (result.result_home.is_none()
         || result.function_result.place == returned.result.place)
-        && result.function_result.reference_sources.is_empty()
-        && returned.result.reference_sources.is_empty()
+        && result.function_result.reference_sources == returned.result.reference_sources
         && result.operation_result.structural_type == returned.result.structural_type
         && result.operation_result.multiplicity == returned.result.multiplicity
         && result.operation_result.qualifications == returned.result.qualifications

@@ -87,6 +87,8 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
+                    | LegalizedScalarInstructionKind::EstablishReference { .. }
+                    | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
                     | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
@@ -143,6 +145,19 @@ pub enum LegalizedScalarInstructionKind {
         result_case: semantic_vocabulary::StructuralCaseId,
         fields: Vec<terminal_psi::ScalarCaseField>,
         layout: calling_conventions::ConventionalSumLayout,
+    },
+    /// One verified reference carrier. `shape` is the carrier's zero-byte
+    /// custody slot; the referent is named only through `source`, never
+    /// through pointer bits. No executable pointer operation exists.
+    EstablishReference {
+        result: terminal_psi::StructuralOperationResult,
+        source: terminal_psi::StructuralArgument,
+        shape: calling_conventions::ValueShape,
+    },
+    /// Close the loan on the carrier at `source`. Custody metadata only;
+    /// referent storage is unaffected.
+    ReleaseReference {
+        source: semantic_vocabulary::PlaceId,
     },
     EstablishPrimitiveLocal {
         result: terminal_psi::StructuralOperationResult,

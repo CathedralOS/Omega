@@ -71,8 +71,9 @@ pub(crate) fn structural_arguments_match(
             let admitted = !matches!(
                 projection,
                 StructuralProjectionPolicy::Boundary | StructuralProjectionPolicy::EmptyOnly
-            ) && crate::unit_validation::reference_source_type(caller, types, argument)
-                == Some(parameter.structural_type)
+            ) && crate::unit_validation::reference_source_type(
+                caller, types, argument,
+            ) == Some(parameter.structural_type)
                 && argument.access == parameter.access
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()

@@ -495,6 +495,10 @@ fn shape_inner(
                     .shape,
             )
         }
+        // A reference carrier transports no referent storage: custody is
+        // compile-time metadata, so its shape is an empty aggregate slot
+        // rather than a pointer-sized payload.
+        StructuralTypeShape::Reference { .. } => Some(ValueShape::integer(0, 1)),
         StructuralTypeShape::Record { fields } => {
             let mut bytes = 0;
             let mut alignment = 1;

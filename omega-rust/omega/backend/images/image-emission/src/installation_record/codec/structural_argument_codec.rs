@@ -16,15 +16,26 @@ pub(crate) fn encode_structural_argument(
     push_u64(bytes, argument.place.get());
     bytes.push(access_tag(argument.access));
     bytes.extend_from_slice(&[0; 3]);
+    encode_path(bytes, &argument.path)
+}
+
+/// One exact structural path: segment count, then each segment's canonical
+/// tag and payload. `Referent` carries no bytes — the segment records only
+/// that the path crosses a reference carrier into its referent.
+pub(crate) fn encode_path(
+    bytes: &mut Vec<u8>,
+    path: &[StructuralPathSegment],
+) -> Result<(), InstallationError> {
     push_u32(
         bytes,
-        u32::try_from(argument.path.len())
+        u32::try_from(path.len())
             .map_err(|_| InstallationError::TooManySettlementArgumentPathSegments)?,
     );
-    for segment in &argument.path {
+    for segment in path {
         match segment {
             StructuralPathSegment::Referent => {
-                return Err(InstallationError::UnsupportedStructuralReturnShape);
+                bytes.push(3);
+                bytes.extend_from_slice(&[0; 3]);
             }
             StructuralPathSegment::Field(identity) => {
                 if identity.is_empty() {
@@ -49,18 +60,12 @@ pub(crate) fn encode_structural_argument(
     Ok(())
 }
 
-pub(crate) fn decode_structural_argument(
+pub(crate) fn decode_path(
     reader: &mut Reader<'_>,
-) -> Result<StructuralArgument, InstallationError> {
-    let place =
-        PlaceId::new(reader.u64()?).ok_or(InstallationError::ZeroSettlementIdentity("PlaceId"))?;
-    let access = decode_access(reader.u8()?)?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+) -> Result<Vec<StructuralPathSegment>, InstallationError> {
     let path_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManySettlementArgumentPathSegments)?;
-    if path_count > reader.remaining() / 8 {
+    if path_count > reader.remaining() / 4 {
         return Err(InstallationError::UnexpectedEnd);
     }
     let mut path = Vec::with_capacity(path_count);
@@ -82,11 +87,25 @@ pub(crate) fn decode_structural_argument(
                 StructuralPathSegment::Field(identity)
             }
             2 => StructuralPathSegment::FixedIndex(reader.u64()?),
+            3 => StructuralPathSegment::Referent,
             _ => {
                 return Err(InstallationError::InvalidSettlementArgumentPathTag(tag));
             }
         });
     }
+    Ok(path)
+}
+
+pub(crate) fn decode_structural_argument(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralArgument, InstallationError> {
+    let place =
+        PlaceId::new(reader.u64()?).ok_or(InstallationError::ZeroSettlementIdentity("PlaceId"))?;
+    let access = decode_access(reader.u8()?)?;
+    if reader.take(3)? != [0; 3] {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    let path = decode_path(reader)?;
     Ok(StructuralArgument {
         place,
         access,

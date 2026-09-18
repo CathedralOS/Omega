@@ -306,7 +306,26 @@ pub(super) fn validate(
     let count = call.arguments.len();
     let register_count = register_argument_count(call);
     let result = call.call_plan.result.as_ref();
-    let aggregate = if call.structural_result.is_some() {
+    // A bare reference result is custody only: the empty aggregate placement
+    // establishes no physical result home and no Def operand.
+    let reference_only = call.structural_result.as_ref().is_some_and(|result| {
+        source
+            .structural
+            .as_ref()
+            .and_then(|signature| {
+                signature
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == result.structural_type)
+            })
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::Reference { .. }
+                )
+            })
+    });
+    let aggregate = if call.structural_result.is_some() && !reference_only {
         Some(
             crate::selection::aggregate_result_input::call_result(source, call)
                 .ok_or_else(invalid)?
@@ -320,10 +339,7 @@ pub(super) fn validate(
         || row.key != key
         || call.call_plan.parameters.len() != count
         || row.operands.len()
-            != register_count
-                + aggregate.map_or(usize::from(result.is_some()), |placement| {
-                    placement.locations.len()
-                })
+            != register_count + result.map_or(0, |placement| placement.locations.len())
     {
         return Err(invalid());
     }
@@ -332,6 +348,10 @@ pub(super) fn validate(
     }
     let order = register_argument_order(call);
     for (index, placement) in call.call_plan.parameters.iter().chain(result).enumerate() {
+        if index == count && placement.locations.is_empty() {
+            // Custody-only results declare no physical result operand.
+            continue;
+        }
         if matches!(call.arguments.get(index), Some(LegalizedScalarArgument::Structural { semantic, .. }) if semantic.access == StructuralAccess::Owned)
         {
             let start = order

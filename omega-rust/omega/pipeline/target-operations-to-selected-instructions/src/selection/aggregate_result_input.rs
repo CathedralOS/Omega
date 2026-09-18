@@ -445,6 +445,11 @@ pub(super) fn returned<'a>(
                 LegalizedScalarInstructionKind::EstablishScalarCase { result, layout, .. } => {
                     (result, layout.shape)
                 }
+                // A returned reference carrier names its custody slot only;
+                // the zero-byte shape keeps the empty-aggregate return ABI.
+                LegalizedScalarInstructionKind::EstablishReference { result, shape, .. } => {
+                    (result, *shape)
+                }
                 LegalizedScalarInstructionKind::Call(call) => (
                     call.structural_result.as_ref()?,
                     call.result_placement.as_ref()?.shape,
