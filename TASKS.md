@@ -2921,9 +2921,25 @@ Owners include
   in `target-operations-to-selected-instructions/src/tests/legalization/unit_view_graph.rs`,
   which pins the retained block-parameter source and mutable access through
   legalization and its independent replay and keeps the shared-root rejection,
-  so the physical view alone never authorizes the access. Remaining: a projected
-  path from a block-parameter root, which the shared and exclusive routes both
-  still require to be empty.
+  so the physical view alone never authorizes the access. Remaining: an exclusive borrow rooted in a
+  block parameter on the aggregate route. A projected path from a
+  block-parameter root already works, so the earlier note here naming an
+  empty-path requirement was wrong about the reason: `aggregate_borrows::argument`
+  (`abstract-operations-to-target-operations/src/lowering/control_flow/`) and the
+  legalization aggregate route
+  (`scalar_graph_input/aggregate_results/borrowed_arguments.rs`) each reconstruct
+  the root and then project `argument.path`, and each rejects only when the
+  argument access is not `SharedBorrow`. The empty-path requirement in the
+  byte-view routes is real but unreachable, because
+  `validate_structural_block_bindings` admits a borrowed block structural
+  parameter solely as `ByteSequence(BorrowedView)`, which has no interior to
+  project. Lifting the two access checks must follow the rule the legalization
+  route already states -- an owned or mutable root may lend a write-only or
+  shared view, and a shared root can never be widened back -- so the root's own
+  declared access authorizes the argument, exactly as the byte-view slice above
+  does. The shape is already exercised: block-parameter structural homes appear
+  in `native_boundaries/unit_graph/structural_cases.rs` and block-parameter case
+  sources in legalization's `structural_case.rs`.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing
