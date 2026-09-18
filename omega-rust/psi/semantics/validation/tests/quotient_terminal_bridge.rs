@@ -612,7 +612,9 @@ const CORPUS_FIXTURES: &[CorpusFixture] = &[
     },
     CorpusFixture {
         name: "quotient_theorem_boundary_rejected",
-        source: include_str!("../../../../../tests/omega/fail/proofs/quotient_theorem_boundary_rejected/main.omg"),
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_boundary_rejected/main.omg"
+        ),
         expected: include_str!(
             "../../../../../tests/omega/fail/proofs/quotient_theorem_boundary_rejected/expected.txt"
         ),

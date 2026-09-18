@@ -375,24 +375,23 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 } else {
                     call.target_symbol
                 };
-                let machine_arguments = if private_layout_operation.is_some()
-                    || quotient_operation.is_some()
-                {
-                    // `Slot` is a sealed proof-static selector, not an
-                    // ordinary generic parameter of the identity operation.
-                    // `Quotient` statics are the same shape: representative
-                    // and theorem selections are retained inside the sealed
-                    // request, and no resolvable generic callee exists to
-                    // bind them, so MP2b must not read them as generic
-                    // machine arguments.
-                    Box::default()
-                } else {
-                    call.machine_arguments
-                        .iter()
-                        .map(crate::expressions::expression::lower_static_machine_argument)
-                        .collect::<Vec<_>>()
-                        .into_boxed_slice()
-                };
+                let machine_arguments =
+                    if private_layout_operation.is_some() || quotient_operation.is_some() {
+                        // `Slot` is a sealed proof-static selector, not an
+                        // ordinary generic parameter of the identity operation.
+                        // `Quotient` statics are the same shape: representative
+                        // and theorem selections are retained inside the sealed
+                        // request, and no resolvable generic callee exists to
+                        // bind them, so MP2b must not read them as generic
+                        // machine arguments.
+                        Box::default()
+                    } else {
+                        call.machine_arguments
+                            .iter()
+                            .map(crate::expressions::expression::lower_static_machine_argument)
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice()
+                    };
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(
