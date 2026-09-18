@@ -549,6 +549,11 @@ pub struct CompletedInterruptEntry {
     pub invocation: InterruptInvocationId,
     /// The admitted arrival context the completed invocation fired under.
     pub arrival_context: ArrivalContextId,
+    /// The epoch stage the invocation settled at: the terminal stage its
+    /// admitted arrival context realizes. `finish_interrupt_entry` admits
+    /// settle only once the retained live stage rejoins that terminal stage,
+    /// so the completed record proves no epoch was left unrealized.
+    pub settled_stage: EntryStackStage,
     pub acknowledgement_receipt: Option<InterruptAcknowledgementReceiptId>,
 }
 
@@ -1004,7 +1009,9 @@ impl InstalledRootLedger {
     }
 
     /// Admit the deriver-owned interrupt exit only after every source-visible
-    /// obligation has returned to its exact provider state.
+    /// obligation has returned to its exact provider state and the retained
+    /// epoch stage has reached the terminal stage the invocation's admitted
+    /// arrival context realizes.
     pub fn finish_interrupt_entry(
         &mut self,
         pending: PendingInterruptExit,
@@ -1067,12 +1074,52 @@ impl InstalledRootLedger {
                 ),
             }));
         }
+        let active_entry = self
+            .active_interrupts
+            .get(&active_key)
+            .copied()
+            .expect("the settle edge above requires the invocation to be live");
+        // Settle rejoins the retained runtime context independently of the
+        // obligation custody above: an invocation completes only at the
+        // terminal epoch stage its admitted arrival context realizes. A
+        // retained Enter or Body stage while the context realizes a later
+        // stage leaves epochs unrealized — an unresolved disposition, not a
+        // completed entry. The retained context, never a fresh provider
+        // description, selects the epoch sequence, so the settle cannot
+        // complete across a context boundary.
+        let terminal_stage = self
+            .roots
+            .get(&pending.root)
+            .and_then(|record| record.stack.realization.input(record.root))
+            .and_then(|input| {
+                input
+                    .realization_evidence()
+                    .realization()
+                    .realization()
+                    .contexts
+                    .iter()
+                    .find(|context| context.context == active_entry.arrival_context)
+                    .and_then(|context| context.epochs.last())
+            })
+            .map(|epoch| epoch.stage);
+        if terminal_stage != Some(active_entry.stage) {
+            return Err(Box::new(InterruptEntryFinishError {
+                pending,
+                control,
+                acknowledgement,
+                diagnostic: ExternalRootDiagnostic(format!(
+                    "interrupt exit retains epoch stage {:?} while the admitted arrival context realizes its terminal stage at {:?}",
+                    active_entry.stage, terminal_stage,
+                )),
+            }));
+        }
         self.active_interrupts.remove(&active_key);
         Ok(CompletedInterruptEntry {
             entry_receipt: pending.entry_receipt,
             root: pending.root,
             invocation: pending.invocation,
             arrival_context: pending.arrival_context,
+            settled_stage: active_entry.stage,
             acknowledgement_receipt: acknowledgement.map(|completed| completed.receipt),
         })
     }
