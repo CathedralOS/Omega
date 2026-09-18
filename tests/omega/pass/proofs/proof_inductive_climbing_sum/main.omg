@@ -8,10 +8,30 @@
 // same strict-decrease + non-negativity polynomial gate the plain
 // descending-naturals measure uses. The instantiated hypothesis for
 // (limit, index + 1, acc + 1) is exactly the goal; the base arm closes
-// because the negated guard makes the remaining distance non-positive. The
-// contract embeds its runtime carriers into proof `Int`, so this is unbounded
-// mathematical arithmetic rather than unproved Exact `u64` arithmetic. (The
-// inequality form holds without a `requires index <= limit` precondition.)
+// because the negated guard makes the remaining distance non-positive. (The
+// inequality form holds without a `requires index <= limit` precondition:
+// the arm's own guard supplies that side.)
+//
+// The `requires` clause supplies the carrier bound, and none of its three
+// conjuncts can be dropped. `embed` lifts a runtime carrier's value into
+// proof `Int`; it does not re-domain the argument that produced it, so the
+// `index + 1` and `acc + 1` stay Exact `u64` operations owing their own
+// representability -- "Every Exact operation owes its own representability
+// proof in its actual carrier ... A safe final result, mathematical
+// substitution, or unknown analysis endpoint cannot excuse an unsafe
+// intermediate" (wiki/spec/language/numeric_values.md). `index + 1` narrows
+// from the arm's guard; `acc + 1` narrows from `acc <= 1000`, and the
+// accumulator invariant `acc <= index` with `limit <= 1000` is what
+// re-establishes that bound at the recursive arrival
+// (`acc <= index`, `index < limit`, `limit <= 1000`, so `acc + 1 <= 1000`).
+// Drop `acc <= 1000` and the transition argument is rejected as unprovable;
+// drop `acc <= index` or `limit <= 1000` and the arrival cannot re-establish
+// it. The unbounded spelling is the fail canary
+// fail/proofs/proof_inductive_climbing_sum_bounded. Neither Wrapping nor
+// Saturating substitutes for the bound here: the `ensures` is an inequality
+// that a modular reduction or a clamp at `u64::MAX` would falsify rather than
+// preserve, which is why the Gauss-sum sibling can be modular and this one
+// cannot.
 
 data Main {
 }
@@ -21,6 +41,10 @@ machine Main::main(&mut self) {
 }
 
 machine Main::climb(&mut self, limit: u64, index: u64, acc: u64) -> u64
+requires
+    limit <= 1000,
+    acc <= index,
+    acc <= 1000
 terminates by (index, limit) -> Nat::BoundedDistance;
 ensures
     embed(result) >= embed(acc) + embed(limit) - embed(index)
