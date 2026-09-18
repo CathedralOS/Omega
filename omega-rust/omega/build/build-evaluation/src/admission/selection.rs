@@ -776,6 +776,9 @@ pub fn program_entry_semantic_binding_role(
         target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
             package_compilation::AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
         }
+        target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
+            package_compilation::AcceptedSemanticBindingRole::WindowsX64ProgramEntry
+        }
     }
 }
 
@@ -795,6 +798,9 @@ fn exact_bundled_physical_contract_package_source_digest(
         }
         target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
             program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest()
+        }
+        target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
+            program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest()
         }
     }
 }

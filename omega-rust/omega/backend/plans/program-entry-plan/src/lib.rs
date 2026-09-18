@@ -47,7 +47,8 @@ pub use program_entry_physical::{
     MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY, ProgramEntryPhysicalContractPackageSourceDigest,
     ProgramEntryPhysicalContractPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
     UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
-    UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, exact_linux_arm64_physical_boundary_entry_plan,
+    UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+    WINDOWS_X86_64_U32_TYPE_IDENTITY, exact_linux_arm64_physical_boundary_entry_plan,
     exact_linux_arm64_physical_contract_package_source_digest,
     exact_linux_x86_64_physical_boundary_entry_plan,
     exact_linux_x86_64_physical_contract_package_source_digest,
@@ -55,6 +56,8 @@ pub use program_entry_physical::{
     exact_macos_arm64_physical_contract_package_source_digest,
     exact_uefi_x64_physical_boundary_entry_plan,
     exact_uefi_x64_physical_contract_package_source_digest,
+    exact_windows_x86_64_physical_boundary_entry_plan,
+    exact_windows_x86_64_physical_contract_package_source_digest,
 };
 pub use selected_entry::SelectedProgramStorageEntryPlan;
 pub use selected_entry::boundary_entry_storage::{

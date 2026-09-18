@@ -2,4 +2,5 @@
 // `std/targets/<target>.omg` = the target def; checked per-subsystem target
 // implementations live beneath `std/targets/windows_x86_64/`). Target filtering
 // keeps non-selected implementations inert.
+use targets::windows_x86_64::entry;
 use targets::windows_x86_64::filesystem_impl;

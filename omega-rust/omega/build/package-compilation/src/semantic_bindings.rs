@@ -41,6 +41,12 @@ pub enum AcceptedSemanticBindingRole {
     /// nominal that realizes that schema without granting toolchain
     /// provenance.
     LinuxArm64ProgramEntry,
+    /// Exact package-owned Windows x86-64 application schema selected by the
+    /// target's physical-entry consumer. The loader process-arrival ABI
+    /// remains target-fixed; this binding chooses the ordinary package
+    /// nominal that realizes that schema without granting toolchain
+    /// provenance.
+    WindowsX64ProgramEntry,
 }
 
 /// Consumer-policy acceptance of one exact package-owned semantic surface.
@@ -105,6 +111,7 @@ impl AcceptedSemanticBinding {
                 | AcceptedSemanticBindingRole::MacosArm64ProgramEntry
                 | AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
                 | AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
+                | AcceptedSemanticBindingRole::WindowsX64ProgramEntry
         ) {
             return Err("accepted semantic role requires a selected provider plan");
         }
@@ -206,6 +213,7 @@ pub fn accepted_service_schema_digest(
             | AcceptedSemanticBindingRole::MacosArm64ProgramEntry
             | AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
             | AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
+            | AcceptedSemanticBindingRole::WindowsX64ProgramEntry
     ) {
         return schema.identity_digest();
     }

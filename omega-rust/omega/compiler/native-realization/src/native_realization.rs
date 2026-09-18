@@ -245,7 +245,8 @@ fn validate_executable_entry_receiver(
     }
     let supported_receiver_bridge = request.target == target::NativeTarget::macos_arm64()
         || request.target == target::NativeTarget::linux_x64()
-        || request.target == target::NativeTarget::linux_arm64();
+        || request.target == target::NativeTarget::linux_arm64()
+        || request.target == target::NativeTarget::windows_x64();
     if has_receiver && !supported_receiver_bridge {
         return Err(realization_error(
             "ProgramEntry receiver provisioning",

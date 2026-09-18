@@ -11,6 +11,8 @@ mod macos_entry;
 mod opaque_boundaries;
 #[path = "calling_policy_plans/policy_evaluation.rs"]
 mod policy_evaluation;
+#[path = "calling_policy_plans/windows_entry.rs"]
+mod windows_entry;
 
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};

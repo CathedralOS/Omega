@@ -3274,6 +3274,9 @@ mod macos_entry_acceptance;
 #[path = "support/linux_entry_acceptance.rs"]
 mod linux_entry_acceptance;
 
+#[path = "support/windows_entry_acceptance.rs"]
+mod windows_entry_acceptance;
+
 #[path = "support/uefi_entry_acceptance.rs"]
 mod uefi_entry_acceptance;
 
@@ -3304,6 +3307,14 @@ fn reviewed_repository_fixture_package_inputs(
             &repo_root().join("source/library/std"),
             fixture_package_identity(2),
         )?);
+    }
+    if target_name == Some("windows_x86_64") {
+        bindings.push(
+            windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
+                &repo_root().join("source/library/std"),
+                fixture_package_identity(2),
+            )?,
+        );
     }
     if target_name == Some("uefi_x86_64") {
         bindings.push(uefi_entry_acceptance::candidate_uefi_entry_binding(

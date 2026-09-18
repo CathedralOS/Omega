@@ -138,6 +138,7 @@ pub enum ProgramEntryPhysicalContractPackage {
     MacosArm64,
     LinuxX86_64,
     LinuxArm64,
+    WindowsX64,
 }
 
 impl ProgramEntryPhysicalContractPackage {
@@ -147,6 +148,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::MacosArm64 => "omega::language::std::targets::macos_arm64::entry",
             Self::LinuxX86_64 => "omega::language::std::targets::linux_x86_64::entry",
             Self::LinuxArm64 => "omega::language::std::targets::linux_arm64::entry",
+            Self::WindowsX64 => "omega::language::std::targets::windows_x86_64::entry",
         }
     }
 
@@ -156,6 +158,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::MacosArm64 => "targets/macos_arm64/entry.omg",
             Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
             Self::LinuxArm64 => "targets/linux_arm64/entry.omg",
+            Self::WindowsX64 => "targets/windows_x86_64/entry.omg",
         }
     }
 
@@ -167,6 +170,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::MacosArm64 => "macOS ARM64",
             Self::LinuxX86_64 => "Linux x86-64",
             Self::LinuxArm64 => "Linux ARM64",
+            Self::WindowsX64 => "Windows x86-64",
         }
     }
 }
@@ -469,6 +473,24 @@ impl TargetProfile {
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
             ),
+            // The Windows x86-64 hosted bridge retains the same two authored
+            // surfaces: `WindowsProcessEntry::enter` is the loader process
+            // arrival (no contractual register inputs, 32-byte shadow space,
+            // completion status returned in eax as the process exit code) and
+            // `ProgramStorageEntry::enter` is the semantic continuation it
+            // adapter-maps into. The source-visible application stays
+            // `HostedApplication` with no authored storage parameters; the two
+            // internal roots are provisioned by the bridge, never hosted
+            // arguments.
+            Self::WindowsX64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("WindowsX86_64Application"),
+                Some("WindowsProcessEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::WindowsX64),
+                Some(ProgramEntryCallingConvention::MicrosoftX64),
+                Some(ProgramEntryCallingConvention::MicrosoftX64),
+            ),
             _ => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
@@ -632,10 +654,35 @@ mod tests {
             slot.semantic_arrival_requirement,
             "ProgramStorageEntry::enter"
         );
-        assert_eq!(slot.boundary_schema, None);
-        assert_eq!(slot.physical_calling_convention, None);
-        assert_eq!(slot.physical_contract_package, None);
-        assert_eq!(slot.semantic_calling_convention, None);
+        assert_eq!(slot.boundary_schema, Some("WindowsX86_64Application"));
+        assert_eq!(
+            slot.physical_arrival_requirement,
+            Some("WindowsProcessEntry::enter")
+        );
+        assert_eq!(
+            slot.physical_contract_package,
+            Some(ProgramEntryPhysicalContractPackage::WindowsX64)
+        );
+        let physical_package = slot
+            .physical_contract_package
+            .expect("Windows x86-64 must select its closed physical-contract package");
+        assert_eq!(
+            physical_package.manifest_identity(),
+            "omega::language::std::targets::windows_x86_64::entry"
+        );
+        assert_eq!(
+            physical_package.package_relative_source(),
+            "targets/windows_x86_64/entry.omg"
+        );
+        assert_eq!(physical_package.contract_name(), "Windows x86-64");
+        assert_eq!(
+            slot.physical_calling_convention,
+            Some(super::ProgramEntryCallingConvention::MicrosoftX64)
+        );
+        assert_eq!(
+            slot.semantic_calling_convention,
+            Some(super::ProgramEntryCallingConvention::MicrosoftX64)
+        );
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
     }
 
