@@ -1246,6 +1246,276 @@ fn disjoint_windows_share_the_declared_spill_slot() {
     );
 }
 
+/// The other half of a destructive interleave: an incumbent reload sitting
+/// after the victim's store would read the victim's bytes where it expects the
+/// incumbent's, so the candidate stays private even though every proposed
+/// reload sees only the new writer.
+#[test]
+fn an_incumbent_load_after_the_new_store_keeps_the_victim_private() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let address = environment.constraint(keys.frame_address.unwrap()).unwrap();
+    let load = environment.constraint(keys.load64.unwrap()).unwrap();
+    let incumbent = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(50),
+    };
+    let frame_slot = FrameStorageSlotId::Local(incumbent);
+    let mut source = fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        let scalar_type = function.virtual_registers[0].scalar_type;
+        let class = function.virtual_registers[0].class;
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: incumbent,
+            byte_size: 8,
+            alignment: 8,
+        });
+        function.virtual_registers.push(VirtualRegister {
+            id: VirtualRegisterId(51),
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::SpillAddress {
+                instruction: SelectedInstructionId(90),
+                register: VirtualRegisterId(50),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+        function.virtual_registers.push(VirtualRegister {
+            id: VirtualRegisterId(52),
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(91),
+                source_value: ValueId::new(9).unwrap(),
+            },
+            definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+            entry_fixed_view: None,
+        });
+        // The incumbent's reload pair sits between the victim's definition and
+        // its first use — inside the window where the reused slot would hold
+        // the victim's bytes, not the incumbent's.
+        let instructions = &mut function.blocks[0].instructions;
+        instructions.insert(
+            1,
+            admission::instruction(
+                SelectedInstructionId(90),
+                SelectedInstructionKind::FrameAddress {
+                    slot: frame_slot,
+                    byte_offset: 0,
+                },
+                address,
+                &[VirtualRegisterId(51)],
+            ),
+        );
+        instructions.insert(
+            2,
+            admission::instruction(
+                SelectedInstructionId(91),
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                load,
+                &[VirtualRegisterId(51), VirtualRegisterId(52)],
+            ),
+        );
+    }
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    let result =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let function = &result.transformed().functions[0];
+    assert_eq!(
+        function.local_storage_slots.as_slice(),
+        [
+            SelectedLocalStorageSlot {
+                id: incumbent,
+                byte_size: 8,
+                alignment: 8,
+            },
+            SelectedLocalStorageSlot {
+                id: LocalStorageSlotId::Spill {
+                    register: VirtualRegisterId(1),
+                },
+                byte_size: 8,
+                alignment: 8,
+            },
+        ]
+    );
+    validate_runtime_spill(
+        &source,
+        0,
+        VirtualRegisterId(1),
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// A slot stays private to its first victim while any part of its access
+/// stream falls outside the idiom this rewrite itself emits: a nonzero-offset
+/// store or address, a byte-oriented hosted access, or an address register
+/// read by anything but a zero-offset `Load64`. The last-writer replay cannot
+/// classify those accesses, so the candidate is skipped and the victim appends
+/// its own slot.
+#[test]
+fn unclassifiable_slot_accesses_keep_the_victim_private() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let store = environment.constraint(keys.store64.unwrap()).unwrap();
+    let address = environment.constraint(keys.frame_address.unwrap()).unwrap();
+    let load = environment.constraint(keys.load64.unwrap()).unwrap();
+    let copy = environment.constraint(keys.copy_i64).unwrap();
+    let host_write = environment
+        .constraint(keys.hosted_write_byte_i32.unwrap())
+        .unwrap();
+    let incumbent = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(50),
+    };
+    let frame_slot = FrameStorageSlotId::Local(incumbent);
+    for mutation in 0..5 {
+        let mut source = fixture(target);
+        {
+            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+            let scalar_type = function.virtual_registers[0].scalar_type;
+            let class = function.virtual_registers[0].class;
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: incumbent,
+                byte_size: 8,
+                alignment: 8,
+            });
+            function.virtual_registers.push(VirtualRegister {
+                id: VirtualRegisterId(51),
+                scalar_type,
+                class,
+                origin: VirtualRegisterOrigin::SpillAddress {
+                    instruction: SelectedInstructionId(90),
+                    register: VirtualRegisterId(50),
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            });
+            function.virtual_registers.push(VirtualRegister {
+                id: VirtualRegisterId(52),
+                scalar_type,
+                class,
+                origin: VirtualRegisterOrigin::InstructionResult {
+                    instruction: SelectedInstructionId(91),
+                    source_value: ValueId::new(9).unwrap(),
+                },
+                definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+                entry_fixed_view: None,
+            });
+            let instructions = &mut function.blocks[0].instructions;
+            match mutation {
+                // A nonzero-offset store writes bytes the zero-offset idiom
+                // cannot account for.
+                0 => instructions.push(admission::instruction(
+                    SelectedInstructionId(90),
+                    SelectedInstructionKind::Store64 {
+                        slot: frame_slot,
+                        byte_offset: 4,
+                    },
+                    store,
+                    &[VirtualRegisterId(0)],
+                )),
+                // A nonzero-offset address escapes the same idiom.
+                1 => instructions.push(admission::instruction(
+                    SelectedInstructionId(90),
+                    SelectedInstructionKind::FrameAddress {
+                        slot: frame_slot,
+                        byte_offset: 4,
+                    },
+                    address,
+                    &[VirtualRegisterId(51)],
+                )),
+                // A byte-oriented hosted access names the slot directly.
+                2 => instructions.push(admission::instruction(
+                    SelectedInstructionId(90),
+                    SelectedInstructionKind::HostedWriteByteI32 { slot: incumbent },
+                    host_write,
+                    &[VirtualRegisterId(0)],
+                )),
+                // The slot's address register feeding anything but a
+                // zero-offset load leaves reads the scan cannot classify.
+                3 => {
+                    instructions.push(admission::instruction(
+                        SelectedInstructionId(90),
+                        SelectedInstructionKind::FrameAddress {
+                            slot: frame_slot,
+                            byte_offset: 0,
+                        },
+                        address,
+                        &[VirtualRegisterId(51)],
+                    ));
+                    instructions.push(admission::instruction(
+                        SelectedInstructionId(91),
+                        SelectedInstructionKind::CopyI64,
+                        copy,
+                        &[VirtualRegisterId(51), VirtualRegisterId(52)],
+                    ));
+                }
+                // A partial load through the slot's own address still reads
+                // bytes outside the classified stream.
+                _ => {
+                    instructions.push(admission::instruction(
+                        SelectedInstructionId(90),
+                        SelectedInstructionKind::FrameAddress {
+                            slot: frame_slot,
+                            byte_offset: 0,
+                        },
+                        address,
+                        &[VirtualRegisterId(51)],
+                    ));
+                    instructions.push(admission::instruction(
+                        SelectedInstructionId(91),
+                        SelectedInstructionKind::Load64 { byte_offset: 8 },
+                        load,
+                        &[VirtualRegisterId(51), VirtualRegisterId(52)],
+                    ));
+                }
+            }
+        }
+        let identity = selected_instruction_plan_identity(source.transformed());
+        source.receipt.source_selected = identity;
+        source.receipt.transformed_selected = identity;
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+                .unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.local_storage_slots.as_slice(),
+            [
+                SelectedLocalStorageSlot {
+                    id: incumbent,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+                SelectedLocalStorageSlot {
+                    id: LocalStorageSlotId::Spill {
+                        register: VirtualRegisterId(1),
+                    },
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            ],
+            "mutation {mutation}"
+        );
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
 /// The destructive interleave the last-writer replay refuses: an incumbent
 /// store between the new victim's own store and a reload could leave the
 /// incumbent's bytes where the reload expects the victim's, so admission keeps
