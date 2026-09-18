@@ -22,13 +22,13 @@ use selected_instructions::{
 };
 
 use super::TerminatorPairError;
-use super::condition_flow;
 use super::pair::{
     TERMINATOR_PAIR_RULES, TerminatorPairRule, declared_consumer, declared_producers,
     terminator_pair_for,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::machine_semantic_kind;
+use crate::peepholes::condition_flow;
 
 /// One admitted terminator pair: everything `rewrite` needs to rebuild the
 /// terminator and everything `validate` needs to re-check it.

@@ -26,9 +26,30 @@
 //!   `UnconditionalRelativeBranchV1`) and unit roles beyond retired implicit
 //!   definitions: retired condition-state *uses*, the preserved control-unit
 //!   use, and republished implicit definitions.
+//! - `condition_materialization` declares the decided condition-state
+//!   materialization family: a `MaterializeBoolean*` instruction — the
+//!   flag-consuming form no operand-carrying descriptor could name, whose
+//!   whole input arrives through implicit physical units — whose flag uses
+//!   resolve to one constant-operand producer becomes the `MaterializeI64`
+//!   publishing the decided zero or one. Its consumer is the first
+//!   instruction-position flag consumer: the uses retire exactly as the
+//!   terminator family's do, at a body read position rather than a
+//!   terminator one.
+//!
+//! `condition_flow` owns the machinery both families share: the
+//! least-fixpoint flag-reaching walk parameterized on the read position,
+//! the producer operand-resolution grammars, and the unique-materialization
+//! lookup the decisions rest on.
 
+mod condition_flow;
+mod condition_materialization;
 mod terminator_pair;
 
+pub use condition_materialization::{
+    ConditionMaterializationError, ConditionMaterializationReceipt,
+    ValidatedConditionMaterialization, fold_selected_condition_materialization,
+    validate_condition_materialization_fold,
+};
 pub use terminator_pair::{
     TerminatorPairError, TerminatorPairReceipt, ValidatedTerminatorPair,
     fold_selected_terminator_pair, validate_terminator_pair_fold,
