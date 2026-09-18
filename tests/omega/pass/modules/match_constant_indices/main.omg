@@ -35,3 +35,7 @@ machine spaced_divisor(value: Flag<(1 / ((match true { true -> 1, false -> 3 }) 
 machine lattice_divisors(value: SignedIndex<((match true { true -> 24, false -> 48 }) / (match false { true -> 2, false -> 4 }))>) -> SignedIndex<6> {
     value
 }
+
+machine hull_gap_divisor(value: SignedIndex<(840 / ((match true { true -> (match true { true -> -5, false -> -1 }), false -> 2 }) + (match true { true -> 4, false -> -3 })))>) -> SignedIndex<-840> {
+    value
+}

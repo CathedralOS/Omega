@@ -47,6 +47,13 @@ fn anonymous_match_integer_quotients_preserve_canonical_indices() {
             "(match true { true -> 7, false -> ((match (1u8 / 0 == 0) { true -> 14, false -> 28 }) / (match (1u8 / 0 == 0) { true -> -2, false -> 2 })) })",
             "7",
         ),
+        // The zero-spanning pair (-5+4Z)+{4} keeps its own -1+4Z lattice gap
+        // even though the whole sum's joined lattice is 1Z: the nonzero
+        // divisor proof survives on the result hull's own evidence.
+        (
+            "(840 / ((match true { true -> (match true { true -> -5, false -> -1 }), false -> 2 }) + (match true { true -> 4, false -> -3 })))",
+            "-840",
+        ),
     ] {
         Sources::write(
             root.join("main.omg"),
