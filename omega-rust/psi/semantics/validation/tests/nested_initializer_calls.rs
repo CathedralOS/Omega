@@ -78,6 +78,40 @@ fn free_scalar_local_assignments_admit_nested_call_evaluation() {
 }
 
 #[test]
+fn unit_scalar_store_assignments_admit_nested_call_evaluation() {
+    // The unit statement sequence owns these assignments: the nested operand is
+    // a checked `AssignmentValue` computation argument evaluated exactly once
+    // before the outer call and the store.
+    for source in [
+        "machine identity(input: bool) -> bool { input }
+         machine value(input: bool) {
+             let mut saved: bool = input;
+             saved = identity(identity(input));
+         }",
+        "machine identity(input: bool) -> bool { input }
+         machine value(saved: &mut bool, input: bool) {
+             saved = identity(identity(input));
+         }",
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine Container::value(&mut self, input: bool) {
+             let mut saved: bool = input;
+             saved = identity(identity(input));
+             self.flag = saved;
+         }",
+        "machine identity(input: bool) -> bool { input }
+         machine choose(left: bool, right: bool) -> bool { left }
+         machine value(input: bool) {
+             let mut saved: bool = input;
+             saved = choose(identity(input), identity(input));
+         }",
+    ] {
+        let diagnostics = diagnostics(source);
+        assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
+    }
+}
+
+#[test]
 fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
     for source in [
         "data Container { flag: bool; }
@@ -85,11 +119,6 @@ fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
          machine Container::value(&mut self, input: bool) -> bool {
              self.flag = identity(identity(input));
              self.flag
-         }",
-        "machine identity(input: bool) -> bool { input }
-         machine value(input: bool) {
-             let mut saved: bool = input;
-             saved = identity(identity(input));
          }",
         "machine identity(input: bool) -> bool { input }
          machine value(input: bool) -> bool {
@@ -104,11 +133,60 @@ fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
              saved.flag = identity(identity(input));
              input
          }",
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine value(param: &mut Container, input: bool) {
+             param.flag = identity(identity(input));
+         }",
+        "machine identity(input: i32) -> i32 { input }
+         machine value(input: i32) {
+             let mut saved: i32 in Wrapping = 0;
+             saved = identity(identity(input));
+         }",
         "machine identity(input: bool) -> bool { input }
          machine value(input: bool) -> bool {
              let saved: bool = input;
              saved = identity(identity(input));
              saved
+         }",
+    ] {
+        let diagnostics = diagnostics(source);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|message| message
+                    .contains("value-call argument cannot itself be a machine call")),
+            "{source}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn nested_call_assignments_with_unrealized_calls_keep_the_fence() {
+    for source in [
+        // A boundary requirement call has no checked-body callee for the
+        // assignment's scalar computation.
+        "boundary trait Host { machine read(input: bool) -> bool reaches Host; }
+         machine identity(input: bool) -> bool { input }
+         machine value(input: bool) reaches Host {
+             let mut saved: bool = input;
+             saved = Host::read(identity(input));
+         }",
+        // A receiver call keeps the initializer-only receiver admission.
+        "data Scalar {}
+         machine identity(input: bool) -> bool { input }
+         machine Scalar::read(input: bool) -> bool { input }
+         machine value(scalar: Scalar, input: bool) {
+             let mut saved: bool = input;
+             saved = scalar.read(identity(input));
+         }",
+        // A callee whose result is structural has no primitive store value.
+        "data Container { flag: bool; }
+         machine rebuild(flag: bool) -> Container { Container { flag: flag } }
+         machine identity(input: bool) -> bool { input }
+         machine value(input: bool) {
+             let mut saved: Container = Container { flag: input };
+             saved = rebuild(identity(input));
          }",
     ] {
         let diagnostics = diagnostics(source);
