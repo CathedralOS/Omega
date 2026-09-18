@@ -28,7 +28,12 @@ and cross-instance settlement, and requires fresh storage lease eras on reuse.
 Its start boundary is the contract's ownership transaction: moved-argument
 custody and the supplied nonmoving `StackLease` enter `accept_invocation`
 together, every rejection returns them whole, the ledger retains the lease
-while the claim lives, and settlement releases the spent authority.
+while the claim lives, and settlement releases the spent authority. A
+cancellation request is a recorded provider-side transition on the exact
+live claim — never a disposal — and settlement reports a `Cancelled`
+outcome only when that transition was recorded, so the cooperative
+outcome cannot be fabricated and an inline completion can never settle
+cancelled.
 
 [provider_admission.rs](src/provider_admission.rs) is the provider-side
 gate consuming those carriers: one admitted runtime instance owns its
@@ -41,9 +46,10 @@ through `TaskStartRejection`. Settlement returns provisioned backing to
 the free set while the spent era stays burned.
 
 These carriers still do not establish a source `Task<T>`, marshal actual
-argument bytes, execute park/resume, or run cancellation. Routed source
-establishment, cancellation conformance, and real runtime execution remain
-separate consumers. The bounded
+argument bytes, execute park/resume, or observe cancellation at a checked
+safe point. Routed source establishment, safe-point cancellation
+conformance, and real runtime execution remain separate consumers. The
+bounded
 scalar suspension carrier likewise does not license receiver/structural/claim
 frontiers without their exact joins; see the
 [Terminal producer](../../../psi/compiler/terminal-production/README.md#structural-results-and-suspension).

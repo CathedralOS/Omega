@@ -9,8 +9,8 @@ use super::{
 use crate::{
     ActivationInstanceId, ActivationPlanId, MovedTaskArguments, StackPlan, TaskActivationPlanSet,
     TaskArgumentCustodyId, TaskRuntimeAdmission, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskStartOperation, TaskStartStorage, TaskStorageBinding, TaskStorageOwnerId,
-    TaskStorageProvenance,
+    TaskSettlementOutcome, TaskStartOperation, TaskStartStorage, TaskStorageBinding,
+    TaskStorageOwnerId, TaskStorageProvenance,
 };
 
 fn instance(identity: u64) -> TaskRuntimeInstanceId {
@@ -70,12 +70,16 @@ fn pending_admission_establishes_a_fresh_provider_lease() {
         "the provider mints the first fresh lease era"
     );
     assert_eq!(record.operation, TaskStartOperation::Start);
-    gate.validate_cancellation_request(&claim)
+    gate.request_cancellation(&claim)
         .expect("a live claim accepts a cancellation request");
+    assert!(gate.cancellation_requested(claim.identity()));
 
     let close = gate.close().expect_err("a live claim blocks close");
     let mut gate = close.into_admission();
-    let settled = gate.settle(claim).expect("terminal settlement");
+    let settled = gate
+        .settle(claim, TaskSettlementOutcome::Cancelled)
+        .expect("terminal settlement");
+    assert_eq!(settled.outcome(), TaskSettlementOutcome::Cancelled);
     assert_eq!(
         settled.released_storage(),
         TaskStorageBinding::Persistent(provenance),
@@ -119,7 +123,8 @@ fn exhausted_provisioning_rejects_and_settlement_releases_backing_under_a_fresh_
 
     // Settlement returns the backing, and its next admission mints a fresh
     // lease era rather than replaying the released one.
-    gate.settle(first).expect("settle first");
+    gate.settle(first, TaskSettlementOutcome::Completed)
+        .expect("settle first");
     let second = gate
         .admit_pending(
             &activations,
@@ -134,7 +139,8 @@ fn exhausted_provisioning_rejects_and_settlement_releases_backing_under_a_fresh_
         2,
         "reused storage mints a fresh lease era"
     );
-    gate.settle(second).expect("settle second");
+    gate.settle(second, TaskSettlementOutcome::Completed)
+        .expect("settle second");
     gate.close().expect("empty gate closes");
 }
 
@@ -176,7 +182,8 @@ fn unsatisfying_backing_rejects_without_spending_capacity() {
             TaskStartStorage::Persistent(stack_lease(&plan, 339, 340)),
         )
         .expect("caller-supplied lease admits without touching the pool");
-    gate.settle(claim).expect("settle caller-supplied storage");
+    gate.settle(claim, TaskSettlementOutcome::Completed)
+        .expect("settle caller-supplied storage");
 }
 
 #[test]
@@ -233,7 +240,9 @@ fn inline_completion_admits_without_provisioning() {
     let record = gate.records().next().expect("one live dependency");
     assert_eq!(record.storage, TaskStorageBinding::InlineCompletion);
 
-    let settled = gate.settle(claim).expect("settle inline completion");
+    let settled = gate
+        .settle(claim, TaskSettlementOutcome::Completed)
+        .expect("settle inline completion");
     assert_eq!(
         settled.released_storage(),
         TaskStorageBinding::InlineCompletion
@@ -367,6 +376,50 @@ fn caller_storage_rejection_returns_the_supplied_lease() {
             lease: id(401, crate::TaskStorageLeaseId::from_normalized_identity),
         }
     );
+}
+
+#[test]
+fn cancelled_settlement_through_the_gate_requires_the_recorded_request() {
+    let plan = wcsu_plan(59);
+    let activations = activation_set(&plan);
+    let mut gate = gate(&[plan.candidate().stack_plan], 420);
+
+    let claim = gate
+        .admit_pending(
+            &activations,
+            receipt_candidate(&plan, instance(420), 421, 422, TaskStartOperation::Start),
+            activation(423),
+            moved_arguments(&plan, 424),
+        )
+        .expect("pending admission");
+
+    // A fabricated cancelled outcome rejects and returns the claim; the
+    // leased slot must not leak back into the free set.
+    let claim = gate
+        .settle(claim, TaskSettlementOutcome::Cancelled)
+        .expect_err("cancelled without a request rejects")
+        .into_claim();
+    gate.admit_pending(
+        &activations,
+        receipt_candidate(&plan, instance(420), 425, 426, TaskStartOperation::Start),
+        activation(427),
+        moved_arguments(&plan, 428),
+    )
+    .expect_err("the rejected settlement did not release the leased slot");
+
+    gate.request_cancellation(&claim)
+        .expect("the provider records the request");
+    gate.settle(claim, TaskSettlementOutcome::Cancelled)
+        .expect("the recorded request authorizes the cancelled settlement");
+
+    // Settlement returned the backing to the pool under a fresh era.
+    gate.admit_pending(
+        &activations,
+        receipt_candidate(&plan, instance(420), 429, 430, TaskStartOperation::Start),
+        activation(431),
+        moved_arguments(&plan, 432),
+    )
+    .expect("the released slot admits again");
 }
 
 #[test]

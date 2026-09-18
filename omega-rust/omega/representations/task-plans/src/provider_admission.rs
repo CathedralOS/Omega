@@ -25,11 +25,12 @@
 use crate::stack_leases::{StackLeaseBacking, TaskStorageProvenance, establish_stack_lease};
 use crate::{
     ActivationInstanceId, ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, StackPlan,
-    TaskActivationPlanSet, TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleLedger,
-    TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskRuntimeInvocationReceiptCandidate, TaskSettlementError, TaskStartRejection,
-    TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId, TaskStorageOwnerId,
-    ValidatedTaskRuntimeInvocationReceipt, validate_task_runtime_invocation_receipt,
+    TaskActivationPlanSet, TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleClaimId,
+    TaskLifecycleLedger, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
+    TaskRuntimeInvocationReceiptCandidate, TaskSettlementError, TaskSettlementOutcome,
+    TaskStartRejection, TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId,
+    TaskStorageOwnerId, ValidatedTaskRuntimeInvocationReceipt,
+    validate_task_runtime_invocation_receipt,
 };
 use std::collections::BTreeMap;
 
@@ -287,13 +288,20 @@ impl TaskRuntimeAdmission {
             .accept_invocation(&receipt, activation, arguments, storage)
     }
 
-    /// Cancellation requests preserve the lifecycle obligation. Read-only:
-    /// only terminal settlement removes the record.
-    pub fn validate_cancellation_request(
-        &self,
+    /// Record a cancellation request against the exact live claim. The
+    /// request is a retained provider-side transition — it disposes no
+    /// parked continuation and never removes the record — and it is the
+    /// only route by which a later `Cancelled` settlement can succeed.
+    pub fn request_cancellation(
+        &mut self,
         claim: &TaskLifecycleClaim,
     ) -> Result<(), TaskPlanDiagnostic> {
-        self.ledger.validate_cancellation_request(claim)
+        self.ledger.request_cancellation(claim)
+    }
+
+    /// Whether a cancellation request was recorded against a live claim.
+    pub fn cancellation_requested(&self, claim: TaskLifecycleClaimId) -> bool {
+        self.ledger.cancellation_requested(claim)
     }
 
     /// The provider's storage-reclaim precondition for an external storage
@@ -305,15 +313,18 @@ impl TaskRuntimeAdmission {
         self.ledger.validate_storage_reclaim(storage)
     }
 
-    /// Terminal settlement. Released pool backing returns to the free set;
-    /// its era stays burned in the ledger, so reusing the slot still mints
-    /// a fresh lease era. Caller-supplied storage is not pool backing and
-    /// passes back to its owner through the settlement carrier.
+    /// Terminal settlement reporting the observed lifecycle outcome.
+    /// Released pool backing returns to the free set; its era stays burned
+    /// in the ledger, so reusing the slot still mints a fresh lease era.
+    /// Caller-supplied storage is not pool backing and passes back to its
+    /// owner through the settlement carrier. A `Cancelled` outcome settles
+    /// only when a cancellation request was recorded on the claim.
     pub fn settle(
         &mut self,
         claim: TaskLifecycleClaim,
+        outcome: TaskSettlementOutcome,
     ) -> Result<SettledTaskLifecycle, TaskSettlementError> {
-        let settled = self.ledger.settle(claim)?;
+        let settled = self.ledger.settle(claim, outcome)?;
         if let TaskStorageBinding::Persistent(provenance) = settled.released_storage()
             && let Some(backing) = self.leased_backing.remove(&provenance)
         {

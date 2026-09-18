@@ -11,7 +11,8 @@
 //! `executor_selection` binds an executor to a plan's preservation axes,
 //! `runtime_invocation` receipts one activation, `stack_leases` issues the
 //! nonmoving stack authority, `lifecycle_ledger` runs the transactional
-//! start and accounts for claims until settlement, `provider_admission`
+//! start, records cancellation requests, and accounts for claims until
+//! outcome-bound settlement, `provider_admission`
 //! is the provider-side gate consuming those carriers for one admitted
 //! runtime instance, `stack_composition` projects WCSU stack plans,
 //! `identities` holds every coordinate, `report_fingerprints` the compact
@@ -54,7 +55,7 @@ pub use identities::{
 pub use lifecycle_ledger::{
     ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, TaskDependencyRecord,
     TaskLifecycleClaim, TaskLifecycleLedger, TaskRuntimeCloseError, TaskSettlementError,
-    TaskStartRejection, TaskStartStorage, TaskStorageBinding,
+    TaskSettlementOutcome, TaskStartRejection, TaskStartStorage, TaskStorageBinding,
 };
 pub use provider_admission::{
     TaskAdmissionCloseError, TaskAdmissionRejection, TaskRuntimeAdmission,

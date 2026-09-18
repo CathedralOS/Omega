@@ -5,8 +5,9 @@
 //! arguments and the supplied nonmoving stack lease enter `accept_invocation`
 //! together, every rejection returns them whole, and the ledger retains the
 //! lease authority while the claim lives. `mod.rs` owns the accounting
-//! itself: the live dependency map, the single-use identity sets, settlement,
-//! reclaim validation, and close.
+//! itself: the live dependency map, the single-use identity sets, the
+//! recorded cancellation-request transition, settlement, reclaim validation,
+//! and close.
 
 mod start;
 
@@ -92,6 +93,12 @@ struct LiveTaskDependency {
     /// Provider-held stack-lease authority while the claim lives. `None` for
     /// an inline completion, which retains no persistent activation storage.
     storage_authority: Option<StackLease>,
+    /// Provider-side record of the `request_cancel` transition. It stays out
+    /// of `TaskDependencyRecord` — and therefore out of claim matching —
+    /// because `request_cancel(&self)` retains the source `Task<T>` claim
+    /// unchanged; requesting cancellation must not invalidate the claim's
+    /// issuance-time binding.
+    cancellation_requested: bool,
 }
 
 impl LiveTaskDependency {
@@ -102,15 +109,44 @@ impl LiveTaskDependency {
     }
 }
 
+/// The lifecycle outcome a terminal settlement reports.
+///
+/// Source `finish` returns `TaskOutcome<T>` whose `Returned`/`Failed`
+/// payloads live in the provider's domain; the ledger only distinguishes
+/// whether settlement claims the cooperative-cancellation transition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskSettlementOutcome {
+    /// The activation reached an ordinary terminal outcome —
+    /// `TaskOutcome::Returned` or `::Failed`. Always permitted: a recorded
+    /// cancellation request does not force observation, so a task may
+    /// settle completed while its request was never observed.
+    Completed,
+    /// `TaskOutcome::Cancelled`: the activation observed a recorded
+    /// cancellation request at a checked safe point. Settlement rejects
+    /// this outcome unless `request_cancellation` was recorded on the
+    /// exact claim, so a provider cannot fabricate a cancelled outcome,
+    /// and an inline completion — which finished before any claim existed
+    /// to request against — can never settle cancelled.
+    Cancelled,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct SettledTaskLifecycle {
     record: TaskDependencyRecord,
     storage_authority: Option<StackLease>,
+    outcome: TaskSettlementOutcome,
 }
 
 impl SettledTaskLifecycle {
     pub const fn identity(&self) -> TaskLifecycleClaimId {
         self.record.claim
+    }
+
+    /// The lifecycle outcome the settlement reported. `Cancelled` is
+    /// reachable only through a `request_cancellation` transition recorded
+    /// on the same claim while it was live.
+    pub const fn outcome(&self) -> TaskSettlementOutcome {
+        self.outcome
     }
 
     /// Returns the exact storage relationship released by terminal task
@@ -266,6 +302,7 @@ impl TaskLifecycleLedger {
             record,
             invocation: Box::new(invocation.clone()),
             storage_authority,
+            cancellation_requested: false,
         };
         self.live.insert(claim, dependency);
         Ok(TaskLifecycleClaim {
@@ -360,34 +397,55 @@ impl TaskLifecycleLedger {
         Ok((claim, storage_binding))
     }
 
-    /// Cancellation requests preserve the lifecycle obligation. This check is
-    /// intentionally read-only: only terminal settlement removes the record.
-    pub fn validate_cancellation_request(
-        &self,
+    /// Record a cancellation request against the exact live claim.
+    ///
+    /// This is the `request_cancel(&self)` transition: the request is
+    /// recorded on the claim's dependency and the claim is retained
+    /// unchanged — a request is not proof that execution stopped, disposes
+    /// no parked continuation, and never removes the record. Repeated
+    /// requests on the same live claim record the same fact. Only terminal
+    /// settlement removes the record, and a `Cancelled` settlement is
+    /// reachable only through this recorded transition.
+    pub fn request_cancellation(
+        &mut self,
         claim: &TaskLifecycleClaim,
     ) -> Result<(), TaskPlanDiagnostic> {
-        if self
-            .live
-            .get(&claim.record.claim)
-            .is_some_and(|dependency| dependency.matches(claim))
-        {
-            Ok(())
-        } else {
-            Err(TaskPlanDiagnostic(
+        match self.live.get_mut(&claim.record.claim) {
+            Some(dependency) if dependency.matches(claim) => {
+                dependency.cancellation_requested = true;
+                Ok(())
+            }
+            _ => Err(TaskPlanDiagnostic(
                 "cancellation requires the exact live task lifecycle claim".into(),
-            ))
+            )),
         }
     }
 
+    /// Whether a cancellation request was recorded against a live claim.
+    /// `false` for an unknown or already settled claim identity.
+    pub fn cancellation_requested(&self, claim: TaskLifecycleClaimId) -> bool {
+        self.live
+            .get(&claim)
+            .is_some_and(|dependency| dependency.cancellation_requested)
+    }
+
+    /// Terminal settlement: removes the exact live claim and its storage
+    /// relationship and reports the lifecycle outcome the provider observed.
+    ///
+    /// `Cancelled` requires a cancellation request recorded on the same
+    /// claim — the cooperative-cancellation outcome cannot be fabricated —
+    /// and can never apply to an inline completion, whose activation
+    /// finished before a claim existed to request against. `Completed`
+    /// covers the ordinary `Returned`/`Failed` outcomes and is always
+    /// permitted, including after a request the activation never observed.
+    /// Every failure returns the claim so custody survives the rejection.
     pub fn settle(
         &mut self,
         claim: TaskLifecycleClaim,
+        outcome: TaskSettlementOutcome,
     ) -> Result<SettledTaskLifecycle, TaskSettlementError> {
-        let matches = self
-            .live
-            .get(&claim.record.claim)
-            .is_some_and(|dependency| dependency.matches(&claim));
-        if !matches {
+        let dependency = self.live.get(&claim.record.claim);
+        if !dependency.is_some_and(|dependency| dependency.matches(&claim)) {
             return Err(TaskSettlementError {
                 claim,
                 diagnostic: TaskPlanDiagnostic(
@@ -396,6 +454,29 @@ impl TaskLifecycleLedger {
                 ),
             });
         }
+        let dependency = dependency.expect("matched live claim");
+        if outcome == TaskSettlementOutcome::Cancelled {
+            if !dependency.cancellation_requested {
+                return Err(TaskSettlementError {
+                    claim,
+                    diagnostic: TaskPlanDiagnostic(
+                        "task settlement reports a cancelled outcome without a recorded \
+                         cancellation request on the claim"
+                            .into(),
+                    ),
+                });
+            }
+            if dependency.record.storage == TaskStorageBinding::InlineCompletion {
+                return Err(TaskSettlementError {
+                    claim,
+                    diagnostic: TaskPlanDiagnostic(
+                        "task settlement reports a cancelled outcome for an inline completion \
+                         whose activation finished before its claim existed"
+                            .into(),
+                    ),
+                });
+            }
+        }
         let dependency = self
             .live
             .remove(&claim.record.claim)
@@ -403,6 +484,7 @@ impl TaskLifecycleLedger {
         Ok(SettledTaskLifecycle {
             record: dependency.record,
             storage_authority: dependency.storage_authority,
+            outcome,
         })
     }
 
