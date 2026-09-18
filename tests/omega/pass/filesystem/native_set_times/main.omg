@@ -42,14 +42,21 @@ machine Main::main(&mut self) reaches FilesystemHost {
         transition self.rc == 0 { true -> decode() _ -> fail() }
     }
     state decode(&mut self) {
-        self.got = widen_u8_to_i64(self.statbuf[48])
-            | (widen_u8_to_i64(self.statbuf[49]) << 8)
-            | (widen_u8_to_i64(self.statbuf[50]) << 16)
-            | (widen_u8_to_i64(self.statbuf[51]) << 24)
-            | (widen_u8_to_i64(self.statbuf[52]) << 32)
-            | (widen_u8_to_i64(self.statbuf[53]) << 40)
-            | (widen_u8_to_i64(self.statbuf[54]) << 48)
-            | (widen_u8_to_i64(self.statbuf[55]) << 56);
+        // carrier note: the little-endian field is assembled in `u64` and
+        // reinterpreted once at the end, so every shifted byte is
+        // Exact-representable: 255 << 56 is 18374686479671623680 against a u64
+        // ceiling of 18446744073709551615. Shifting in `i64` reaches the same
+        // 18374686479671623680 against a ceiling of 9223372036854775807, which
+        // is a decision-17 obligation no return range can discharge.
+        self.got = narrow_u64_to_i64_wrapping(
+            widen_u8_to_u64(self.statbuf[48])
+                | (widen_u8_to_u64(self.statbuf[49]) << 8)
+                | (widen_u8_to_u64(self.statbuf[50]) << 16)
+                | (widen_u8_to_u64(self.statbuf[51]) << 24)
+                | (widen_u8_to_u64(self.statbuf[52]) << 32)
+                | (widen_u8_to_u64(self.statbuf[53]) << 40)
+                | (widen_u8_to_u64(self.statbuf[54]) << 48)
+                | (widen_u8_to_u64(self.statbuf[55]) << 56));
         transition self.got == 1500000000 { true -> good() _ -> fail() }
     }
     state good(&mut self) { self.n = self.fs.write(1, "PASS: set_times set mtime to 1500000000, fstat confirms\n"); }

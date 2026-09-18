@@ -31,30 +31,39 @@ machine Main::main(&mut self) reaches FilesystemHost {
     self.n = self.fs.remove("/tmp/omega_times.txt");
     transition self.rc == 0 { true -> decode() _ -> fail() }
     state decode(&mut self) {
-        self.atime = widen_u8_to_i64(self.buffer[32])
-            | (widen_u8_to_i64(self.buffer[33]) << 8)
-            | (widen_u8_to_i64(self.buffer[34]) << 16)
-            | (widen_u8_to_i64(self.buffer[35]) << 24)
-            | (widen_u8_to_i64(self.buffer[36]) << 32)
-            | (widen_u8_to_i64(self.buffer[37]) << 40)
-            | (widen_u8_to_i64(self.buffer[38]) << 48)
-            | (widen_u8_to_i64(self.buffer[39]) << 56);
-        self.mtime = widen_u8_to_i64(self.buffer[48])
-            | (widen_u8_to_i64(self.buffer[49]) << 8)
-            | (widen_u8_to_i64(self.buffer[50]) << 16)
-            | (widen_u8_to_i64(self.buffer[51]) << 24)
-            | (widen_u8_to_i64(self.buffer[52]) << 32)
-            | (widen_u8_to_i64(self.buffer[53]) << 40)
-            | (widen_u8_to_i64(self.buffer[54]) << 48)
-            | (widen_u8_to_i64(self.buffer[55]) << 56);
-        self.btime = widen_u8_to_i64(self.buffer[80])
-            | (widen_u8_to_i64(self.buffer[81]) << 8)
-            | (widen_u8_to_i64(self.buffer[82]) << 16)
-            | (widen_u8_to_i64(self.buffer[83]) << 24)
-            | (widen_u8_to_i64(self.buffer[84]) << 32)
-            | (widen_u8_to_i64(self.buffer[85]) << 40)
-            | (widen_u8_to_i64(self.buffer[86]) << 48)
-            | (widen_u8_to_i64(self.buffer[87]) << 56);
+        // carrier note: the little-endian field is assembled in `u64` and
+        // reinterpreted once at the end, so every shifted byte is
+        // Exact-representable: 255 << 56 is 18374686479671623680 against a u64
+        // ceiling of 18446744073709551615. Shifting in `i64` reaches the same
+        // 18374686479671623680 against a ceiling of 9223372036854775807, which
+        // is a decision-17 obligation no return range can discharge.
+        self.atime = narrow_u64_to_i64_wrapping(
+            widen_u8_to_u64(self.buffer[32])
+                | (widen_u8_to_u64(self.buffer[33]) << 8)
+                | (widen_u8_to_u64(self.buffer[34]) << 16)
+                | (widen_u8_to_u64(self.buffer[35]) << 24)
+                | (widen_u8_to_u64(self.buffer[36]) << 32)
+                | (widen_u8_to_u64(self.buffer[37]) << 40)
+                | (widen_u8_to_u64(self.buffer[38]) << 48)
+                | (widen_u8_to_u64(self.buffer[39]) << 56));
+        self.mtime = narrow_u64_to_i64_wrapping(
+            widen_u8_to_u64(self.buffer[48])
+                | (widen_u8_to_u64(self.buffer[49]) << 8)
+                | (widen_u8_to_u64(self.buffer[50]) << 16)
+                | (widen_u8_to_u64(self.buffer[51]) << 24)
+                | (widen_u8_to_u64(self.buffer[52]) << 32)
+                | (widen_u8_to_u64(self.buffer[53]) << 40)
+                | (widen_u8_to_u64(self.buffer[54]) << 48)
+                | (widen_u8_to_u64(self.buffer[55]) << 56));
+        self.btime = narrow_u64_to_i64_wrapping(
+            widen_u8_to_u64(self.buffer[80])
+                | (widen_u8_to_u64(self.buffer[81]) << 8)
+                | (widen_u8_to_u64(self.buffer[82]) << 16)
+                | (widen_u8_to_u64(self.buffer[83]) << 24)
+                | (widen_u8_to_u64(self.buffer[84]) << 32)
+                | (widen_u8_to_u64(self.buffer[85]) << 40)
+                | (widen_u8_to_u64(self.buffer[86]) << 48)
+                | (widen_u8_to_u64(self.buffer[87]) << 56));
         transition self.atime > self.floor { true -> checkm() _ -> fail() }
     }
     state checkm(&mut self) {
