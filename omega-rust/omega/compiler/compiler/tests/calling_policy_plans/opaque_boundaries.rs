@@ -1121,3 +1121,51 @@ machine Main::main(&mut self) { }
         "unexpected diagnostic: {error}"
     );
 }
+
+/// `BOUNDED-INSTALLATION-REACH-ROWS` keeps one rejection load-bearing: a
+/// selected realization that itself reaches through an unresolved
+/// installation-bound requirement must not publish a resolved row, because
+/// its checked reach is that requirement's conservative bound and provider
+/// selection has no nested substitution step. Provider planning owns the
+/// check; this pins it from authored source through a compiled project, so
+/// the fence cannot be lost when the shipped completion route migrates to
+/// `reaches <= MachineControl + PortIo`.
+#[test]
+fn selected_realization_with_an_unresolved_installation_bound_row_rejects() {
+    let source = r#"
+boundary trait MachineControl { }
+boundary trait PortIo { }
+boundary trait Storage { }
+
+pub data Endpoint { }
+pub boundary requirement Endpoint::step() reaches <= Storage;
+
+boundary trait InterruptCompletion {
+    machine complete() -> u64
+    reaches <= MachineControl + PortIo + Storage;
+}
+
+data Pic { }
+PicInterruptCompletion: Pic satisfies InterruptCompletion;
+
+machine Pic::complete() -> u64
+    satisfies InterruptCompletion::complete
+    reaches PortIo + Storage
+{
+    Endpoint::step();
+    0
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+    let rendered = compile_project_negative(
+        "unresolved-installation-reach",
+        source,
+        "machine build(builder: &mut Build) { builder.application(\"unresolved-reach\"); }",
+    );
+    assert!(
+        rendered.contains("retains 1 unresolved installation-bound requirement"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
