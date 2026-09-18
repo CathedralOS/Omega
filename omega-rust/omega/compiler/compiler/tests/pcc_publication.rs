@@ -25,10 +25,9 @@ const MAIN: &str = "data Main { }\nmachine Main::main(&mut self) { }\n";
 // sidecar — carries a real omitted-dependency inventory rather than a fixture
 // injected after compilation.
 const DEPENDENCY_MAIN: &str = "pub boundary trait Console {}\n\
-     pub data Endpoint {}\n\
-     pub boundary requirement Endpoint::step() invokes Console; reaches <= Console;\n\
+     pub boundary trait Installer { machine install() reaches <= Console; }\n\
      data Main { }\n\
-     machine Main::main(&mut self) invokes Console; { Endpoint::step(); }\n";
+     machine Main::main(&mut self) reaches Installer + Console invokes Installer; { Installer::install(); }\n";
 
 // Reproduce the obsolete custody protocol without trusting its producer API.
 // Every native digest is attacker-chosen; a valid unrelated Psi artifact is
@@ -884,7 +883,7 @@ fn omitted_dependencies_require_exact_receiver_possession() {
         panic!("the published pair must enumerate its omitted dependency")
     };
     assert!(
-        dependency.identity.contains("Endpoint::step"),
+        dependency.identity.contains("Installer::install"),
         "unexpected dependency identity {}",
         dependency.identity
     );
