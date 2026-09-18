@@ -29,6 +29,42 @@ plan. Drift in entry, reach, provider, resource realization, installed occurrenc
 or boundary commitment rejects. Compact fingerprints are report coordinates;
 the exact facts and strong identities remain available for replay.
 
+## Secondary-processor startup
+
+Cathedral or another consumer package owns processor discovery and startup
+sequencing, including requests, acknowledgements, retries, and cancellation.
+Ordinary machines and explicitly selected boundary providers express that
+protocol; no AP-specific language form or compiler-owned boot driver is needed.
+The compiler compiles entry code and checks its calling, installation, stack,
+state, and lifetime contracts. Hardware behavior that code cannot establish
+remains an explicit admitted boundary assumption.
+
+The selected provider's startup contract specifies its arrival regime, entry
+representation, placement constraints, and completion guarantees. Bind that
+contract to the exact installed entry, processor, resources, and invocation.
+Caller-supplied profile numbers establish no hardware facts. A low-memory
+trampoline and address-derived startup vector are requirements of particular
+protocols, not a universal shape for firmware or other startup providers.
+
+| Established outcome | Custody consequence |
+| --- | --- |
+| Definitely not dispatched | Return the attempt to a withdrawable state; no later arrival may remain possible. |
+| Possibly dispatched, arrival unconfirmed | Retain entry/code, stack, and state custody. Timeout or lost acknowledgement does not release it. |
+| Confirmed arrival at the agreed entry | Retain the processor's accounted resources until safe retirement. |
+
+Confirmation binds the exact invocation and installed entry. A checked
+consumer-authored handshake or an explicitly admitted provider guarantee may
+establish it; the compiler does not mandate a separate acknowledgement protocol.
+Sending a request or constructing an ordinary success record is not confirmation.
+
+Settlement of an unconfirmed attempt must establish both no current use of its
+resources and no possible later arrival through that attempt before returning
+custody. It cannot require a fabricated successful-start record to reach
+cancellation. Retirement of a confirmed processor likewise needs unreachability
+and quiescence. An unresolved attempt cannot become a fresh independent attempt
+by forgetting its identity. Delayed or replayed acknowledgements cannot settle
+another invocation or release its resources.
+
 ## Resource columns
 
 | Resource | Ceiling | Realization evidence |

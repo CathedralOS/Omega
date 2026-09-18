@@ -42,9 +42,14 @@ replaceable dispatch binding. Requirement binding is separate and later.
 Every route to execute permission follows this rule. Translation providers need
 admitted-artifact provenance; checked assembly retains the same installation
 authority and reach obligations. Device firmware/GPU/NIC uploads belong to
-device providers, not host executable artifacts. AP startup installs a
-compiler-produced low-memory trampoline and invokes a target boot protocol;
-it does not generate runtime host code.
+device providers, not host executable artifacts. Secondary-processor startup
+uses an explicitly selected, consumer-owned boot-protocol provider. Any required
+trampoline is compiler-produced admitted executable content, not runtime-generated
+host code. Low-memory placement and vector geometry belong to that provider's
+exact startup contract, not every startup mechanism. The compiler checks entry,
+installation, and custody; it does not own processor discovery or the boot
+protocol. [Startup and completion](external_roots.md#secondary-processor-startup)
+keep dispatch, confirmed arrival, and safe resource release distinct.
 
 ## Visibility and retirement
 

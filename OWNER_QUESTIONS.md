@@ -89,33 +89,7 @@ must be surfaced before relying on them.
      entrypoints. Keep the item; decide whether that split is spec (add the
      clause) or an owner architecture decision recorded here.
 
-2. **Which boot protocol issues the AP startup vector, and who owns it?**
-   (named decision: `ap-startup-protocol-ownership`). The [executable
-   installation contract](wiki/spec/build/executable_installation.md) says AP
-   startup "installs a compiler-produced low-memory trampoline and invokes a
-   target boot protocol" but names no protocol; no spec, board, or source text
-   mentions INIT/SIPI, a startup IPI, the local APIC ICR, or
-   `EFI_MP_SERVICES_PROTOCOL`, and the xAPIC/x2APIC register facts are recorded
-   as Cathedral's `local_apic` package (15221af38f), which the firewall keeps
-   package-owned. `external-roots` already owns the trampoline placement
-   ledger, the start edge and the quiescence edge (344063c651), whose 4 KiB
-   vector geometry and real-mode arrival regime are INIT/SIPI-shaped but only
-   by inference. Decision needed for x86-64: (a) the vector is issued by an
-   INIT/SIPI sequence through the local APIC ICR, which makes those register
-   facts a compiler-owned `target`/`program-entry-plan` leg like the UEFI Boot
-   Services rows; (b) it is issued through firmware
-   `EFI_MP_SERVICES_PROTOCOL.StartupThisAP` while Boot Services are live, which
-   needs a located-protocol row the entry plan does not carry; or (c) a
-   Cathedral-owned provider consumes the ledger's
-   `SecondaryProcessorStartupInvocation` carrier and mints
-   `SecondaryProcessorStartupReceipt`, the compiler owns no protocol edge, and
-   the remaining compiler work is sealing that receipt's issuance (today
-   `SecondaryProcessorStartupReceipt::from_provider` is public). Motivating
-   customer: Cathedral's multiprocessor boot, whose secondary processors cannot
-   start until one of these edges exists; AP-BRINGUP owns the implementation
-   either way.
-
-3. **Is `alpha_bootstrap` an ordinary target profile of the differential
+2. **Is `alpha_bootstrap` an ordinary target profile of the differential
    compiler, and what happens to a root row owned by a profile the comparator
    does not catalogue?** (named decision: `alpha-bootstrap-target-profile`).
    The [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain)
@@ -161,7 +135,7 @@ must be surfaced before relying on them.
    Until answered, the product check stops on this row once the calling-policy
    admission bug is fixed; everything before that stop is engineering.
 
-4. **Which route admits the complete Beta-encoding certificate, or does the
+3. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:
     `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
     acceptance requires the produced
@@ -213,7 +187,7 @@ must be surfaced before relying on them.
     certificate measured but inadmissible, and the chain retains its
     explicit assumption that the selected evaluator implements Gamma.
 
-5. **Does a transported contract instantiate its `FloatMeaning` projections
+4. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,
@@ -271,7 +245,7 @@ must be surfaced before relying on them.
     open with the Terminal identities, codec tags and verifier rejoins landed
     and unreachable from any producer.
 
-6. **May the compiler-owned build vocabulary offer a constrained
+5. **May the compiler-owned build vocabulary offer a constrained
    filesystem open/query/close chain?** The two-axis review's remaining
    acceptance is a witness that an ordinary compile earns the evidence-bound
    explicit-empty release row. No authored source can produce the retained

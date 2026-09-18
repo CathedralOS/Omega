@@ -6,6 +6,32 @@ explicit firmware, storage, device, scheduling, entry, and exit contracts;
 `build.omg` binds the [semantic program entry](entry_roots.md) and selects
 provider slots. Cathedral owns its OS policies and lifecycle, not the compiler.
 
+## Authored firmware definitions and adapters
+
+UEFI is not an exception to source-owned platform code. The selected target
+package authors firmware data declarations, layout policies, calling policies,
+constants, integrity checks, and bootstrap/handoff machines in ordinary Omega.
+System Table, Boot Services, and Loaded Image geometry comes from checked
+[layout plans](../layouts/plans.md), not a second firmware-field catalog built
+into the compiler. Source packages may keep those representations private;
+opacity to application code does not require compiler-owned definitions.
+
+The compiler supplies generic checking, evaluation, lowering, and independent
+evidence replay, plus the necessary target entry shell and instruction/ABI
+primitives. It binds exact selected source contracts and admitted environment
+premises to their generated realization. Independent replay must check the
+source/plan/realization correspondence; a source digest alone does not establish
+it. Firmware policies have one source definition; independent replay must not
+depend on a separately authored Rust copy of that policy.
+
+Firmware invocation leaves retain explicit validity, provenance, lifecycle,
+and service-behavior assumptions. Authored table validation alone cannot prove
+a pointer is valid or manufacture firmware authority. Conversely, admitting those
+assumptions does not make ordinary parsing, allocation sequencing, retry logic,
+or status handling compiler primitives. If a source implementation is blocked,
+name the missing general capability on the execution board rather than expanding
+a firmware-specific intrinsic.
+
 ## Physical arrival and semantic roots
 
 The UEFI x64 profile's physical `UefiPhysicalEntry::enter` accepts the platform's
@@ -15,8 +41,8 @@ semantic `ProgramStorageEntry::enter`
 introduces exactly two `Extent in Granted` occurrences: image and initial
 storage. Neither requirement replaces or refines the other.
 
-A generated physical shell invokes the exact target-authored bootstrap adapter.
-The adapter validates arrival, installs lifecycle-scoped providers, obtains
+A generated physical shell invokes the exact source-authored target bootstrap
+adapter. The adapter validates arrival, installs lifecycle-scoped providers, obtains
 root geometry and correspondence evidence, then crosses the semantic
 installation edge. The source continuation receives only the semantic schema's
 visible arguments, with its optional provisioned receiver. It does not receive
@@ -68,7 +94,8 @@ handoff is non-returning and has a different lifecycle, despite sharing the
 physical calling convention. One cannot be inferred from the other's Unit
 source signature.
 
-The handoff uses a target-bounded linear `GetMemoryMap`/`ExitBootServices` cycle:
+An ordinary source-authored adapter implements the bounded linear
+`GetMemoryMap`/`ExitBootServices` cycle under the selected target/provider contract:
 
 1. Acquire explicit map-buffer storage and retain allocations, Boot Services,
    surviving-stack evidence, physical invocation, and remaining attempts.
@@ -86,6 +113,11 @@ passes to the program. New physical-memory claims require final-map, successful
 exit, and target-policy evidence. Reserved, runtime, ACPI, device, active
 bootstrap, and otherwise excluded ranges are not implicitly claimable. Runtime
 Services survive only under their separate post-exit contract.
+
+A bodyless handoff declaration backed by a compiler-specific retry-loop
+realization is not the completed source implementation. Generated entry and
+stack-transition mechanics remain compiler responsibilities; the protocol
+body uses ordinary machine calls, control flow, and custody checking.
 
 The incoming firmware stack is not assumed to survive exit. Switch to an
 accounted handoff stack before the final attempt or establish the incoming

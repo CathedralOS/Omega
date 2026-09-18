@@ -578,6 +578,12 @@ bootstrap obtains admitted image correspondence, establishes separate storage,
 accounts for stack and receiver storage, crosses the semantic entry once, and
 calls the source continuation with only its declared values.
 
+That bootstrap is target-package Omega code. Firmware structures, layouts,
+calling policies, validation, and protocol sequencing should be authored there;
+the compiler provides generic checking and the necessary entry/instruction
+mechanics. UEFI does not make firmware protocols compiler primitives.
+See [authored firmware adapters](../spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
+
 A returning firmware application and an OS-loader handoff have different
 lifecycles. Handoff must account for retry, live Boot Services, final exit, and
 surviving storage explicitly; it cannot reinterpret failure as success or loop
@@ -587,6 +593,13 @@ without a bound. [Entry roots](../spec/build/entry_roots.md) and
 Callbacks and interrupts are external roots even without an ordinary Omega
 caller. Installation includes their service, trust, state, stack, and custody
 demands so they cannot hide behavior outside the ordinary call graph.
+
+Starting another processor follows the same division. Cathedral implements the
+boot protocol through selected providers; Omega checks entry and resource
+contracts. A request sent is not an arrival confirmed, and a timeout does not
+permit reclaiming a stack a delayed processor may still use. The
+[startup contract](../spec/build/external_roots.md#secondary-processor-startup)
+requires exact completion or safe cancellation before resources are released.
 
 ### Admitted executable installation
 

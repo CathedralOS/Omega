@@ -2,8 +2,13 @@
 
 Contract: [UEFI entry and handoff](../../../../../wiki/spec/build/uefi_entry.md).
 
-`src/uefi_bootstrap.rs` owns invocation-private returning-application ledger
-authority and phase leases. `provider_projection.rs` and
+The required end state is source-authored target-package layouts and adapter
+bodies with generic compiler validation and minimal native entry primitives.
+The Rust firmware catalogs and protocol driver below are current implementation
+debt, not an exception to that ownership rule.
+
+`src/platform_bringup/uefi_bootstrap.rs` owns the invocation-private returning
+application's ledger authority and phase leases. `provider_projection.rs` and
 `handle_protocol_provider/` under that module join exact input provenance to
 selected native operands and execution receipts. Equal public report IDs cannot
 mint another ledger's authority. The separate `os_handoff.rs` models the bounded
@@ -20,21 +25,28 @@ sealed row against that leg, preparation and every later custody transition
 replay the retained leg against a freshly derived plan and the provider's row,
 status classification reads the leg's roles, and the ledger admits an
 exhaustion status only through the plan's error predicate. That state model
-alone does not qualify final-map physical memory, and the generated
-custody-transfer adapter that `source/library/std/targets/uefi_x86_64/handoff.omg`
-names as its realization is not built: the authored surface stays planned and
-non-invoked.
+alone does not qualify final-map physical memory. The bodyless surface in
+`source/library/std/targets/uefi_x86_64/handoff.omg` has no complete emitted
+realization. Completion must author the protocol as ordinary Omega machines,
+not add a special intrinsic that generates this Rust loop.
 
 ## Target evidence and execution
 
 The [target representation](../../../representations/target/src/uefi_system_table/mod.rs)
-owns the known 120-byte x64 system-table prefix: eighteen ordered rows,
-24-byte header, explicit revision padding, `ConOut` at 64, and Boot Services
+currently hard-codes the known 120-byte x64 system-table prefix: eighteen
+ordered rows, 24-byte header, explicit revision padding, `ConOut` at 64, and Boot Services
 at 96. Occurrence integrity validates signature, covered prefix, zero Reserved,
 and CRC over the complete declared header with its CRC field zeroed. Covered
 forward-compatible suffixes remain valid. Revision is retained for later
 capability policy. Neither layout nor integrity projects a service pointer;
 phase and occurrence provenance are separate prerequisites.
+
+Boot Services and Loaded Image have analogous Rust field catalogs. These are
+not evaluated Omega layout policies: `EfiSystemTable` is still an opaque source
+declaration. The physical calling policy is authored in `entry.omg`, but
+`program_entry_physical/exact_uefi.rs` also reconstructs its fixed plan in Rust.
+Replace firmware definitions and duplicate policy recipes with checked
+source-derived plans, preserving independent source/plan/realization checking.
 
 The bounded HandleProtocol executor consumes a retained service/handle/GUID/
 output-slot carrier under the UEFI ABI. Its non-clone receipt seals actual status
@@ -50,5 +62,9 @@ the receiver-free two-root Unit slice and returns all inputs on rejection.
 Readiness is neither generated-shell execution nor source invocation, complete
 WCSU producer evidence, provider installation, or a returned `EfiStatus`.
 
-The [execution board](../../../../../TASKS.md) tracks these missing consumers;
-passing layout, ledger, or state-transition tests does not close them.
+The [execution board](../../../../../TASKS.md) assigns layouts and bootstrap
+source ownership to `UEFI-PHYSICAL-SEMANTIC-ENTRY`, and the authored retry/exit
+protocol to `UEFI-OS-HANDOFF`. Reuse the current failure/custody tests as migration
+controls and remove superseded production catalogs and protocol paths. Passing
+Rust layout, ledger, or state-transition tests does not establish an emitted
+source bridge or firmware execution.

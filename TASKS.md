@@ -1444,143 +1444,119 @@ Owners include
   targets), subject to its separate descriptor-call dependency. Preserve exact
   symbol/text, source contract, runtime storage and continuation replay.
 
-- **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Finish the two-surface UEFI bridge: the
-  target-package physical firmware entry remains distinct from the semantic
-  program continuation. Emit and validate the adapter, exact calling plan,
-  stack/custody transfer, and return behavior. Application lookalikes and
-  cross-target substitutions must reject.
+- **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Finish the two-surface UEFI bridge under
+  [source-owned firmware adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
+  The target-package physical firmware entry remains distinct from the semantic
+  program continuation. Author the bootstrap body in Omega; emit only the
+  necessary physical shell and target primitives around ordinary compiled code.
 
-  Resume with checked source through Terminal, child emission, and the entrance
-  in `native-realization/src/optimized_semantic_wrapper_object/mod.rs`.
-  That wrapper-publication entrance currently has no callers;
-  its object tests use constructed contracts, so further isolated binder work
-  is paused pending this exercising path. Native declaration preflight is not
-  executable bridge acceptance. In `program-entry-plan/src/optimized_semantic_entry/validation.rs`,
+  Replace the Rust System Table, Boot Services, and Loaded Image field catalogs
+  in `omega-rust/omega/representations/target/src/uefi_{system_table,boot_services,loaded_image}/`
+  with target-package data declarations and evaluated layout policies. Author
+  firmware constants and integrity checks in that package too. Migrate the
+  consumers in `program-entry-plan/src/uefi/` and
+  `external-roots/src/platform_bringup/uefi_bootstrap/` to those checked plans.
+  Remove the superseded production catalogs rather than keeping a second source
+  of field offsets. Replace the duplicated physical-policy recipe in
+  `program_entry_physical/exact_uefi.rs` with source-derived plan/evidence replay;
+  preserve independent checking, exact accepted package/contract identity, and
+  arrival assumptions. A source digest alone is not a plan correctness check.
+
+  Resume the executable route through Terminal, child emission, and
+  `native-realization/src/optimized_semantic_wrapper_object/mod.rs`.
+  That wrapper-publication entrance has no callers; further isolated binder work
+  is paused pending this exercising path. In
+  `program-entry-plan/src/optimized_semantic_entry/validation.rs`,
   `validate_method` still compares schema application identity with raw ABI-plan
-  identity; retain exact source-application custody through the native binder
-  instead of dropping this check or adding an upward backend dependency.
-  `1e3258134b` landed the checked transitive Unit machine plan join:
-  `Boot::launch` retains both `Extent in Granted` entry claims across its
-  `retain` self-loop, the composed-control claim resolver replays each edge's
-  checked Transfer event onto one machine-entry place, and lowering emits the
-  claim-aliased two-state graph. The witness
-  `canary_suite::entry_and_abi::program_entries_and_image_validation::
-  uefi_entry_machine_plan_reaches_terminal_claim_cycle_fence` pins the new
-  boundary: a native-artifact probe of
-  `build/uefi_program_entry_storage_roots` now stops at
-  `terminal_verifier::ModuleError::ControlCycle`, the verifier's unranked-cycle
-  claim-custody fence — cyclic machines carrying claims are not yet admitted.
-  Resume at that fence (ranked-cycle claim custody in `terminal-verifier`);
-  only after it opens does the route reach child emission and the
-  `optimized_semantic_wrapper_object` entrance. Its checked-source/preflight
-  regression is not complete Terminal or firmware execution acceptance. Close
-  these joins before claiming an executable bridge.
+  identity; retain exact source-application custody instead of removing the
+  check or adding an upward backend dependency.
 
-- **UEFI-OS-HANDOFF.** Implement the nonreturning custody transfer from Boot
-  Services to the selected OS entry. The bounded memory-map/key retry loop must
-  return all custody on stale-key failure and consume boot-scoped services only
-  on success. Acceptance includes stale-key, exhaustion, lost-custody,
-  post-exit provider-use, and successful handoff canaries.
+  Current customer stop: the native-artifact probe of
+  `build/uefi_program_entry_storage_roots` reaches
+  `terminal_verifier::ModuleError::ControlCycle`, the unranked-cycle claim-custody
+  fence. The checked transitive Unit plan and claim-aliased graph exist;
+  `canary_suite::entry_and_abi::program_entries_and_image_validation::uefi_entry_machine_plan_reaches_terminal_claim_cycle_fence`
+  witnesses the stop. Resume ranked-cycle claim custody in `terminal-verifier`
+  before child emission and wrapper integration; do not restore the stale
+  missing-Unit-plan diagnosis.
 
-  Resume evidence: `6be7b64923` landed the lifecycle-scoped `GetMemoryMap`
-  acquisition edge in
-  `omega-rust/omega/backend/runtime/external-roots/src/uefi_bootstrap/get_memory_map.rs`,
-  the sole issuance boundary for `UefiMemoryMapAcquisition`, over the earlier
-  `aabbe797d1` `ExitBootServices` provider edge. Acquisition borrows the pending
-  exit invocation's live custody: `EFI_BUFFER_TOO_SMALL` returns provider and
-  buffer custody with the required extent for grow-and-retry without spending a
-  handoff attempt, `EFI_SUCCESS` seals the exact map key and descriptor
-  geometry into evidence the handoff ledger requires before forming
-  `UefiOsHandoffMapAcquired`, so the key reaching the exit binding always names
-  the most recent firmware map; every other status retains executed custody for
-  release. Witnessed on macOS arm64 by external-roots tests (159/159) driving
-  real `efiapi` service pointers through fabricated UEFI tables: size probe then
-  grow-and-rebind to success, bound exit operand and applied completion
-  carrying the acquired key and snapshot, stale-key retry reacquiring a fresh
-  map, foreign session/invocation and cross-ledger rejection, and
-  contract-violating success cells retaining executed custody.
-  `os_handoff_cycle.rs` now lands the caller-side sequencing:
-  `drive_uefi_os_handoff_cycle` composes the bounded cycle in the only legal
-  order — acquire under the pending exit's custody (grow-and-retry spends no
-  attempt), register the sealed acquisition, bind the pending exit to that
-  exact key, execute and admit, then apply — and returns terminal resolution
-  or stage-exact live custody on every rejection. Witnessed on macOS arm64 by
-  external-roots tests (167/167): freshest-key ordering across a
-  grow-then-stale-key retry, exhaustion returning releasable provider custody,
-  and acquisition/admission/binding rejections re-driving or releasing intact.
-  Both runtime legs consume the `program-entry-plan` OS-handoff invocation
-  plan: service row, call shape, and status roles come from the retained leg,
-  and the exhaustion status is admitted through the plan's error predicate.
-  Remaining: the generated custody-transfer adapter and physical shell that
-  realize `UefiOsHandoffNativeProvider::handoff` in
-  `source/library/std/targets/uefi_x86_64/handoff.omg`; that authored surface
-  stays planned and non-invoked, so no Omega program reaches this edge yet.
-  Surveyed at a9c92ec31e: the checked-level canary
-  `tests/omega/pass/build/uefi_os_handoff_invocation` retains the edge binding
-  and stops at `compile_to_checked`; the only via-less boundary-machine
-  realization pattern is the compiler-intrinsic catalog (`selected-
-  dispatch/src/compiler_intrinsic.rs` through provider planning, native
-  realization, target-operation lowering, image emission and artifact
-  hashing), whose rows are single syscall stubs, while the handoff is a
-  bounded two-call retry loop with a map buffer and a pre-final-attempt stack
-  switch that needs the system-table pointer only the physical shell owns.
-  That shell does not exist (`optimized_semantic_wrapper_object` has no
-  callers; **UEFI-PHYSICAL-SEMANTIC-ENTRY**), and a `ProgramEntry`-bound entry
-  has no checked transitive Unit plan, so this edge cannot advance past
-  checked until that item lands an emitted shell; it is an implementation
-  dependency, not a language decision.
+  Acceptance: source-authored firmware layouts feed actual table projections and
+  calls; malformed geometry, header integrity, foreign occurrence, and wrong
+  package/target controls still reject. The authored bootstrap runs through
+  emitted entry code with checked stack/custody transfer and return behavior.
+  Preserve scoped firmware authority and disjoint image/storage roots. A layout
+  helper pass, source preflight, or constructed Rust contract is not completion.
+  Name any missing general layout, call, or custody capability rather than
+  replacing the source body with a firmware-specific intrinsic.
 
-- **AP-BRINGUP.** Complete one secondary-processor entry through the executable
-  installation and external-root owners. Acceptance covers low-memory and
-  alignment constraints, CPU-regime transitions, placed-byte visibility,
-  installed AP entry, and separately accounted per-CPU stack/state. An emitted
-  trampoline alone does not satisfy the entry and custody contract.
+- **UEFI-OS-HANDOFF.** Author the nonreturning Boot Services-to-OS protocol in
+  ordinary Omega under the [handoff contract](wiki/spec/build/uefi_entry.md#returning-application-versus-os-handoff).
+  Replace the bodyless `UefiOsHandoffNativeProvider::handoff` implementation
+  promise in `source/library/std/targets/uefi_x86_64/handoff.omg` with checked
+  adapter machines and narrowly contracted firmware leaves. The compiler emits
+  the physical entry/stack-transition mechanics, not a special implementation
+  of the whole retry protocol.
 
-  Resume evidence: `7ca30f8411` landed the secondary-processor startup ledger
-  in `omega-rust/omega/backend/runtime/external-roots/src/secondary_processor.rs`
-  over the new `InstalledCode::placement_constraints` and
-  `binds_placement_geometry` projections. `bind_secondary_processor_trampoline`
-  replays retained installation evidence — admitted startup entry,
-  regime/architecture consistency, exact realized extent, startup-vector
-  granularity, and the low-memory bound on both extent and declared range —
-  before deriving the vector, and the borrow keeps the installed code
-  unretirable. `admit_secondary_processor` mints the arrival-to-installed
-  regime transition only when the boundary begins in the installed regime on
-  the account's own dedicated stack class; shared stack classes and
-  overlapping state backing reject. The issued carrier binds installed-code
-  identity, context, and artifact; completion accepts only the receipt naming
-  that exact carrier, refusals return pending custody for retry, and a started
-  processor's account stays held for a later quiescence edge. Witnessed on
-  macOS arm64 by `mbx nextest run -p external-roots --lib` (152/152, including
-  22 secondary-processor tests over real installed-code custody). The
-  quiescence edge landed as
-  `SecondaryProcessorStartupLedger::retire_secondary_processor` in
-  `omega-rust/omega/backend/runtime/external-roots/src/platform_bringup/secondary_processor.rs`
-  (the module moved under `platform_bringup/`): it consumes the
-  `SecondaryProcessorStarted` evidence — which now binds installed-code
-  identity, context, and artifact — with a provider
-  `SecondaryProcessorQuiescenceReceipt` naming it exactly, and returns the
-  complete account (boundary, stack class, WCSU, state extent, transition)
-  as `SecondaryProcessorRetirement` only when the receipt attests
-  quiescence. Foreign, drifted, stale (an earlier startup of a re-admitted
-  processor), replayed, unadmitted, pending, and invoked inputs all reject
-  transactionally with both inputs returned; a non-quiescent receipt keeps
-  the account held and hands the started evidence back. The ledger's
-  trampoline borrow is untouched by retirement. Witnessed on macOS arm64 by
-  `cargo nextest run -p external-roots --no-fail-fast` (224/224, including
-  27 secondary-processor tests:
-  `retirement_returns_the_exact_started_account_and_frees_its_resources`,
-  `quiescence_refusal_keeps_the_started_account_held_for_retry`,
-  `retirement_rejects_never_started_accounts`,
-  `retirement_rejects_stale_foreign_or_replayed_started_evidence`, and
-  `retirement_rejects_receipts_off_the_exact_started_evidence`). Remaining: a
-  provider edge issuing the vector to the target boot protocol and an authored
-  Omega surface invoking the entry. The provider edge is design-blocked on
-  [AP startup protocol ownership](OWNER_QUESTIONS.md) (`ap-startup-protocol-ownership`):
-  the spec names no boot protocol for x86-64 and the APIC facts are Cathedral-
-  owned, so whether the compiler issues INIT/SIPI, calls firmware MP services,
-  or only seals a Cathedral-minted startup receipt is an owner decision;
-  surveyed at a6cdb2fbd9.
+  Reuse the behavior and regression controls of
+  `external-roots/src/platform_bringup/uefi_bootstrap/os_handoff_cycle.rs`,
+  `get_memory_map/`, and `exit_boot_services/`: acquire map-buffer storage,
+  grow on insufficient space, retain the freshest snapshot/key, retry stale keys
+  under a decreasing attempt bound, and transfer custody only on successful
+  exit. Keep attempt and exhaustion choices explicit; retain firmware lifetime,
+  surviving stack, allocation lineage, and final-map obligations. Remove
+  superseded Rust sequencing after source execution covers it; do not retain
+  a second production protocol or add a multi-call handoff intrinsic.
+
+  Depends on UEFI-PHYSICAL-SEMANTIC-ENTRY's source-derived layouts, emitted
+  shell, and scoped providers. The checked canary
+  `tests/omega/pass/build/uefi_os_handoff_invocation` only retains a binding;
+  it does not execute a handoff. Acceptance must drive the authored machines
+  through native emission and a firmware or controlled provider harness.
+  Cover grow-then-stale-key retry, bounded exhaustion, malformed map geometry,
+  cross-invocation/stale evidence, lost custody, use of Boot Services after exit,
+  and successful nonreturning transfer to the selected OS entry. Rust ledger
+  tests remain useful controls, not substitutes for that end-to-end witness.
+
+- **AP-BRINGUP.** Complete Cathedral's secondary-processor startup through
+  ordinary checked machines and a selected hardware boundary provider under
+  [the startup contract](wiki/spec/build/external_roots.md#secondary-processor-startup).
+  Cathedral owns discovery, boot-protocol sequencing, acknowledgement, retry,
+  and cancellation. The compiler owns entry, placement, resource and evidence
+  checking, not an APIC/firmware startup driver. No owner decision remains.
+
+  Start from
+  `omega-rust/omega/backend/runtime/external-roots/src/platform_bringup/secondary_processor.rs`.
+  Reuse its installed-code, per-processor stack/state, invocation and retirement
+  joins, but replace the ambiguous `started: bool` completion:
+  definitely-not-dispatched may become withdrawable; possibly-dispatched without
+  confirmation must retain all custody; confirmed arrival names the exact
+  invocation and installed entry. Establish arrival by a checked consumer
+  handshake or an explicitly admitted provider contract, not a sender's claim
+  that it issued the request. Source construction of a success record alone
+  must not supply authority.
+
+  Add settlement for unconfirmed attempts: the current retirement API requires
+  `SecondaryProcessorStarted`, so it cannot release them safely. Release only
+  after establishing no current resource use and no possible later arrival from
+  the outstanding attempt. Do not turn timeout into refusal or retry under a new
+  identity while forgetting the old attempt. An arrival/cancellation race must
+  never both release the account and admit execution on it.
+
+  Bind the provider-declared profile to its exact selected contract and admitted
+  resources. Low-memory/vector geometry applies only to mechanisms requiring
+  it; do not claim that all firmware or other wake mechanisms already fit the
+  current trampoline carrier. A new provider is not a new compiler boot driver.
+  General receipt-issuance review stays in BOUNDARY-ISSUANCE; this task must still
+  enforce the concrete AP issuance and completion contract.
+
+  Acceptance: an authored Cathedral startup route reaches the installed entry
+  with dedicated, nonoverlapping stack/state and placed-byte visibility.
+  Exercise definite nondispatch, timeout followed by late arrival, safe
+  cancellation without a prior success record, acknowledgement/cancellation
+  races, stale/foreign/replayed confirmation, conflicting resources, and
+  retirement. Code and resources stay held while any admitted attempt can
+  reach them. An emitted trampoline or fabricated Rust receipt alone is not
+  the customer witness.
 
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Carry one real
   content-bearing program through checked source, Terminal Psi, provider
@@ -1594,6 +1570,14 @@ Owners include
   geometry from exact invocation parameters, entry places, and results. Keep
   ownership, aliasing, issuance, custody, and partition succession distinct;
   providers may attest custody but not computable interval arithmetic.
+
+  Review receipt ingress separately from the AP protocol implementation:
+  installation, retirement, startup, interrupt, and callback evidence must
+  originate in checked execution or an explicitly admitted provider contract
+  for the exact occurrence. A public Rust constructor alone neither proves
+  source forgeability nor establishes a sound source issuance route. Acceptance
+  rejects unjustified source construction, foreign occurrence and replay as ways
+  to acquire authority, while preserving legitimate selected-provider issuance.
 
 ## P2 - Materialization and placed access
 
