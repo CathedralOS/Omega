@@ -2853,7 +2853,7 @@ fn retained_native_product_enters_only_terminal_realization() {
     for required in [
         "produce_program_entry_terminal_artifact(",
         "validate_native_program_entry_settlement(",
-        "realize_native_artifact(",
+        "realize_native_artifact_with_release_contracts(",
         "checked_scope: Some(&checked_boundary_operator_scope)",
         "prepared_input: Some(prepared_input)",
         "from_retained_native_artifact(",
@@ -5350,7 +5350,7 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
     let replay_root = root.join(
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction",
     );
-    for relative in ["replay.rs", "replay/region.rs"] {
+    for relative in ["replay.rs", "region.rs"] {
         let path = replay_root.join(relative);
         let source = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
@@ -5368,7 +5368,7 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
         }
     }
 
-    let region = std::fs::read_to_string(replay_root.join("replay/region.rs"))
+    let region = std::fs::read_to_string(replay_root.join("region.rs"))
         .expect("read countdown region replay leaf");
     for required in [
         "fn current_edges",

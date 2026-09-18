@@ -4414,34 +4414,55 @@ Owners include
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish explicit public boundary
   requirement declarations, external satisfiers, provider selection, and
   installed execution/era replay. Remove transitional undifferentiated
-  bodyless-machine modes once their source migrations close.
-  At c30b2b5ed7/fe13696481/158f7989ef/9b12861ea1 a public, nongeneric,
+  bodyless-machine modes once their source migrations close. At
+  c30b2b5ed7/fe13696481/158f7989ef/9b12861ea1 a public, nongeneric,
   receiver-free `boundary requirement Owner::name(...);` with a checked
-  `satisfies` adapter executes in both engines: selected-dispatch settles
-  an owner-keyed direct-call row for the requirement entry
-  (`boundary_dispatch/adapter_rows.rs`), execution settlement journals
-  and redirects the direct value-position call (typed call, flow
-  occurrence, argument facts) to the adapter entry and rebuilds Unit
-  plans (`selected_dispatch/requirement_adapter.rs`), validation admits
-  the direct call, and fail controls reject an unselected direct call at
-  settlement and keep the fence on private requirements
+  `satisfies` adapter executes in both engines: selected-dispatch settles an
+  owner-keyed direct-call row for the requirement entry
+  (`boundary_dispatch/adapter_rows.rs`), execution settlement journals and
+  redirects the direct value-position call (typed call, flow occurrence,
+  argument facts) to the adapter entry and rebuilds Unit plans
+  (`selected_dispatch/requirement_adapter.rs`), validation admits the direct
+  call, and fail controls reject an unselected direct call at settlement and
+  keep the fence on private requirements
   (`providers/checked_boundary_requirement_{dispatch,terminal}_exit`,
   `fail/providers/{boundary_requirement_direct_call_unselected,
   private_boundary_requirement_direct_call}`). At 2f7cbe7a12/b0b34b2883
-  ordinary scalar-machine contracts carry exact `+`/`-`/`*` integer
-  arithmetic over subjects and contextual literals as closed predicates
-  (`values/scalar/result_contract.rs` `ContractPredicates::integer_term`
-  onto Terminal's exact integer-math terms; wrapping carriers, bitwise
-  or shift operators, division, and literal-only arithmetic stay
-  unsupported), repairing the Terminal/native legs that 21fc627a6e's
-  erasure-mode removal had broken for the contracted customer and the
-  operator sibling `checked_boundary_operator_dispatch_exit`; both
-  requirement fixtures are ACTIVE+ROOTED with the Terminal leg asserted
-  through one helper, and the full-corpus pass leg drops from 222 to
-  221 failing fixtures with no other change. Remaining: statement-position direct calls,
-  receiver-bearing requirements such as `Task::finish(self)` beyond
-  installation-bound reach, and the tokenless boundary-operator
-  respelling onto this route.
+  ordinary scalar-machine contracts carry exact `+`/`-`/`*` integer arithmetic
+  over subjects and contextual literals as closed predicates
+  (`values/scalar/result_contract.rs` `ContractPredicates::integer_term` onto
+  Terminal's exact integer-math terms; wrapping carriers, bitwise or shift
+  operators, division, and literal-only arithmetic stay unsupported),
+  repairing the Terminal/native legs that 21fc627a6e's erasure-mode removal
+  had broken for the contracted customer and the operator sibling
+  `checked_boundary_operator_dispatch_exit`; both requirement fixtures are
+  ACTIVE+ROOTED with the Terminal leg asserted through one helper, and the
+  full-corpus pass leg drops from 222 to 221 failing fixtures with no other
+  change. Remaining: statement-position direct calls, receiver-bearing
+  requirements such as `Task::finish(self)` beyond installation-bound reach,
+  and the tokenless boundary-operator respelling onto this route. Blocking
+  note (macOS ARM64, origin/main ee634231e6): the architecture suite is red on
+  main, so any landing that gates on the full suite aborts until it is green
+  (the shared landing queue itself is unaffected). Three failures were stale
+  pins after the countdown-region move and the release-contracts rename,
+  repointed here. Two are genuine violations in this item's in-flight
+  intrinsic-bridge work and are left for its owner:
+  `stable_evidence_and_encoding_exclude_compiler_representations` rejects
+  `packages/review/evidence/src/record/contracts/expressions/operator_policy.rs`
+  for retaining the compiler representation `typed_trees::` in a stable record
+  (added by 5641d2ca1e), and
+  `checked_operator_provider_reports_retain_strong_plan_authority` rejects
+  `build/selected-dispatch/src/selected_dispatch/float_intrinsic.rs` for not
+  joining the strong plan commitment (added by bfbdce31b6, extended by
+  2817c60bcc). Both need the owner's fix in their own sources; relaxing the
+  architecture rules would be the wrong repair. A third failure,
+  `countdown_region_replay_is_independent_of_loop_and_component_producers`,
+  belongs to the countdown-induction work instead: a8df0d5139 deleted the
+  162-line independent-reconstruction leaf
+  `countdown_induction/replay/region.rs` (which carried `fn current_edges`,
+  `fn reachable` and the boundary comparisons), replaced it with a 42-line
+  custody-derived `region.rs`, and never updated the guardrail; it is being
+  resolved on that item.
 
 - **BUILD-ADMISSION-CHECKPOINT.** Execute an admitted build machine against one
   coherent frontend/source/authority snapshot and append generated source in a
