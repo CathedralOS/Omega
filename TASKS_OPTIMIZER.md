@@ -1389,16 +1389,39 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   landing index in the join would observe a changed
   executed prefix, under the same replayed
   restore-by-content validation (crate `nextest`: 865
+  pass). Also landed without a board record:
+  `rewrites/predecessor_relocation` hoists one named
+  body instruction into its block's sole predecessor,
+  `rewrites/confluence_relocation` sinks one named body
+  instruction through its block's lone `Jump` into a
+  multi-inflow join under a forward dead-path proof on
+  the shared continuations, and
+  `rewrites/triangle_relocation` hoists one named body
+  instruction out of a converging join back through the
+  bypassed triangle onto the fork head — and
+  `rewrites/run_interchange` interchanges two disjoint
+  runs of body instructions in one selected block — each
+  the contiguous span its named first and last members
+  bound, of at least two members — while the interior
+  between them keeps its relative order shifted by the
+  length difference: every member meets the schedulable
+  bar and trades order only with positions outside its
+  own run inside the window, so a roster-carrying run
+  crosses only row-less positions while roster-carrying
+  members inside one run keep their recorded order, no
+  call, hosted effect, barrier kind, or call-roster
+  entry sits anywhere in the window, and no boundary
+  settlement inside the window's span observes a changed
+  executed prefix, under the same replayed
+  restore-by-content validation (crate `nextest`: 999
   pass).
   Remaining: scheduling past the proven bounded window
-  interchange, single-member relocation, multi-member run
-  relocation, the single-edge move, the branch-diamond
-  move, the diverging fork move, the converging join
-  move, the conditional-arm hoist, and the bypassed-arm
-  triangle move — relocation through other converging or
-  branching control flow — and compare/test selection
-  past the landed literal folds and the constant-flag
-  boolean materialization and conditional-branch folds.
+  interchange and the bounded run interchange — a
+  member-against-run trade stays unproven — relocation
+  through further converging or branching control flow,
+  and compare/test selection past the landed literal
+  folds and the constant-flag boolean materialization
+  and conditional-branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
