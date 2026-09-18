@@ -286,6 +286,37 @@ pub(super) fn has_statement_shape(
         })
 }
 
+/// The statement position a prebuilt assignment store belongs to.
+fn store_statement_index(store: &CheckedUnitEffectOperationPlan) -> Option<u32> {
+    match store {
+        CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => Some(store.statement_index),
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index, ..
+        } => Some(*statement_index),
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+            Some(store.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+            Some(store.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+            Some(store.statement_index)
+        }
+        _ => None,
+    }
+}
+
+/// The machine an assignment's right-hand side calls, when it is a direct call.
+fn statement_call_target(
+    program: &TypedTrees,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
+        return None;
+    };
+    Some(call.target_symbol)
+}
+
 pub(in crate::execution::terminal_unit) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -349,7 +380,8 @@ pub(in crate::execution::terminal_unit) fn build(
             call_frames,
             trace,
         )?
-        .into_iter();
+        .into_iter()
+        .peekable();
     for (index, statement) in program
         .statement_table
         .statements(state.statement_nodes)
@@ -374,33 +406,67 @@ pub(in crate::execution::terminal_unit) fn build(
         let completes_machine = matches!(statement, StatementNode::Expression(_))
             && !is_unit(program, state.return_type);
         let mut structural_result = None;
+        // A store whose source is this statement's own call is appended after
+        // that call operation, in ordinary evaluation order.
+        let mut call_result_store = None;
         let result = match statement {
-            StatementNode::Assignment(_) => {
-                let store = stores.next()?;
-                let ordinal = match &store {
-                    CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => {
-                        store.statement_index
-                    }
-                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-                        statement_index,
-                        ..
-                    } => *statement_index,
-                    CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-                        store.statement_index
-                    }
-                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
-                        store.statement_index
-                    }
-                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                        store.statement_index
-                    }
-                    _ => return None,
+            StatementNode::Assignment(assignment) => {
+                if let Some(store) = stores
+                    .next_if(|store| store_statement_index(store) == Some(statement_index))
+                {
+                    operations.push(store);
+                    continue;
+                }
+                // The store sequence deliberately left this assignment to the
+                // ordinary call route: its right-hand side is the call this
+                // statement performs, not an authored scalar value. Guard-group
+                // markers beneath the statement phase keep the statement
+                // position that `phase` resets.
+                let assignment_phase = |phase: &'static str| {
+                    trace.phase(phase);
+                    trace.statement(Some(statement_index));
                 };
-                if ordinal != statement_index {
+                assignment_phase("statement sequence: assignment: pending store order");
+                if match stores.peek() {
+                    None => false,
+                    Some(pending) => match store_statement_index(pending) {
+                        None => true,
+                        Some(ordinal) => ordinal <= statement_index,
+                    },
+                } {
                     return None;
                 }
-                operations.push(store);
-                continue;
+                assignment_phase("statement sequence: assignment: call source result type");
+                let result_type = crate::flow::call_target_return_type(
+                    program,
+                    statement_call_target(program, assignment)?,
+                )?;
+                let primitive_type = program.primitive_type_reference(result_type)?;
+                let binding_ordinal = u32::try_from(scalar_count).ok()?;
+                let position = u32::try_from(scalar_parameters.len())
+                    .ok()?
+                    .checked_add(binding_ordinal)?;
+                assignment_phase("statement sequence: assignment: call result field store");
+                call_result_store = Some(
+                    super::super::structural_scalar_store::build_structural_call_result_field_store(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        structural_parameters,
+                        scalar_parameters,
+                        statement_index,
+                        assignment,
+                        (position, primitive_type),
+                        trace,
+                    )?,
+                );
+                scalar_count = scalar_count.checked_add(1)?;
+                Some(CheckedUnitScalarResultBindingPlan {
+                    statement_index,
+                    binding_ordinal,
+                    primitive_type,
+                })
             }
             StatementNode::LocalData(local) => {
                 // Guard-group markers beneath the local-data phase keep the
@@ -650,6 +716,7 @@ pub(in crate::execution::terminal_unit) fn build(
         let authored_expression = match statement {
             StatementNode::LocalData(local) => Some(local.initial_value),
             StatementNode::Expression(expression) => Some(*expression),
+            StatementNode::Assignment(assignment) => Some(assignment.value),
             _ => None,
         };
         if let Some(expression) = authored_expression {
@@ -845,6 +912,12 @@ pub(in crate::execution::terminal_unit) fn build(
             Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
             None => operation,
         });
+        // The store consuming this call's scalar result is its immediate
+        // continuation: the result is live, and no cleanup separates the call
+        // from the field it was called to fill.
+        if let Some(store) = call_result_store {
+            operations.push(store);
+        }
         if let Some((result, root)) = partial_temporary {
             super::super::cleanup::anonymous::append_continuation(
                 program,

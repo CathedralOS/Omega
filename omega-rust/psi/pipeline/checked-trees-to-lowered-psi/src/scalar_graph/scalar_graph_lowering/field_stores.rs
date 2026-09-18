@@ -98,6 +98,12 @@ pub(super) fn prepare(
             )?)
         }
         checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => None,
+        // A call result is established by the ordered call operation of the
+        // attached-Unit statement sequence. This scalar-graph store route has
+        // no such operation beside it and cannot substitute a local read.
+        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. } => {
+            return unsupported("record store has no call operation supplying its result");
+        }
     };
     if expression
         .as_ref()

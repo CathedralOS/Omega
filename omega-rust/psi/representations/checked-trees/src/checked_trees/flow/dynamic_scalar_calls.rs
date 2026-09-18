@@ -506,13 +506,24 @@ pub struct CheckedDynamicUnitContinuationPlan {
 pub enum CheckedStructuralScalarFieldStoreValue {
     Pure(CheckedScalarExpression),
     Computation(crate::CheckedScalarComputationHandle),
+    /// The already-defined SSA result of the scalar call this same statement
+    /// performs, named by its dense position in the consuming plan's scalar
+    /// namespace -- the namespace `CheckedScalarExpression::Local` indexes,
+    /// scalar parameters first and then each established scalar result in
+    /// order. The authored source has no local binding to name, so no
+    /// `AssignmentValue` scalar-expression row exists for it; the receiving
+    /// lowerer reconstructs the value from the call operation it already
+    /// emitted for this statement instead of from an authored expression.
+    ScalarResult {
+        position: u32,
+    },
 }
 
 impl CheckedStructuralScalarFieldStoreValue {
     pub fn as_pure(&self) -> Option<&CheckedScalarExpression> {
         match self {
             Self::Pure(expression) => Some(expression),
-            Self::Computation(_) => None,
+            Self::Computation(_) | Self::ScalarResult { .. } => None,
         }
     }
 }

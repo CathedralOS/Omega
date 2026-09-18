@@ -778,6 +778,28 @@ impl Evaluation {
         crate::emission::structural_scalar_store_source::computation_root(
             checked, machine, state, store,
         )?;
+        // The store may consume the SSA result of the scalar call this same
+        // statement performed. That value has no authored local binding and so
+        // no `AssignmentValue` expression row; it is reconstructed from the
+        // call operation already lowered for this statement, which must be the
+        // most recently established scalar value in this namespace.
+        if let checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { position } =
+            store.value
+        {
+            let position = usize::try_from(position).map_err(|_| {
+                LoweringError::Unsupported("field store call-result position exceeds usize")
+            })?;
+            if position.checked_add(1) != Some(values.len()) {
+                return unsupported(
+                    "field store call result is not this statement's established scalar result",
+                );
+            }
+            let value = values[position];
+            if value.scalar_type != scalar_type {
+                return unsupported("field store call result differs from its field type");
+            }
+            return Ok(value);
+        }
         if store.value.as_pure().is_some() {
             let expression = bindings.expression_at(
                 checked,
