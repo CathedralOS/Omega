@@ -148,7 +148,7 @@ pub(crate) fn prove_ranking_range_call_entry(
                     &ceiling
                 };
                 if !fields::endpoint_lands_under(
-                    &engine,
+                    &mut engine,
                     program,
                     member.machine,
                     state,
@@ -465,7 +465,7 @@ pub(crate) fn prove_ranking_range_call(
                 ceiling
             };
             if !fields::endpoint_lands_under(
-                &engine,
+                &mut engine,
                 program,
                 caller.machine,
                 entry,
@@ -608,7 +608,7 @@ pub(crate) fn prove_ranking_range_call(
                 ceiling
             };
             if !fields::endpoint_lands_under(
-                &engine,
+                &mut engine,
                 program,
                 callee.machine,
                 destination,
