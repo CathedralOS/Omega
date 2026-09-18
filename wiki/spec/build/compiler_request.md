@@ -24,7 +24,10 @@ Neither implementation may claim a complete interoperable V1 boundary yet.
 | `OmegaInvocation` | Explicit requested product, canonical target profile, canonical external admissions, and exact subject commitment. |
 
 Bootstrap Alpha tape is an ordinary explicit product, never inferred from a
-filename, host, or first discovered entry. Package instances, locks, and source
+filename, host, or first discovered entry. Its product tag does not require the
+Rust reference compiler to implement Alpha compilation; the
+[bootstrap contract](../../../bootstrap/CONTRACT.md#selected-execution-chain)
+places that obligation on D and C. Package instances, locks, and source
 resolution do not certify compiler artifacts. V1 accepts resolved source, not
 preaccepted compiled dependency instances; adding the latter requires a new
 request version, not a zero or omitted row interpreted as acceptance.

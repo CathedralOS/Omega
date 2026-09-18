@@ -405,6 +405,9 @@ prerequisite to every lower-rung milestone.
   Acceptance: interpreted D compiles the exact Omega C closure for its ordinary
   `alpha_bootstrap` target and produces `omega0_compiler_bytecode.tape`.
   Depends on P3 and the product-source work in `TASKS.md`.
+  Rust Alpha emission is not a dependency: the reference compiler may report
+  that selected operation as not implemented, per the
+  [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain).
 
 - **OMEGA-C.** Once the product source and D are ready, compile the exact
   Omega-written closure rooted at `source/omega/{build.omg,main.omg}` with D,

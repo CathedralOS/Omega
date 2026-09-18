@@ -24,10 +24,14 @@ not the trait's current requirement count. An exact-requirement consumer may
 use that requirement's contract, not conformance identity or unrelated trait laws.
 
 Every required build-bound slot must have exactly one selection. Only rows owned
-by the selected profile enter the durable child projection. A row misattributing
-its slot to another profile, duplicate active bindings, or a missing required
-slot rejects with the exact slot identity. Package/library products bind no
-roots. An explicitly artifact-only application also binds no executable roots;
+by the selected profile enter the durable child projection. Inactive rows must
+resolve their profile and slot ownership, but do not require checking or emission
+support for that profile. Target-specific entry and calling-plan validation
+belongs to the selected child; [implementation availability](configuration.md#target-recognition-and-implementation-availability)
+is distinct from recognizing a binding. Unknown profiles or slots, a row
+misattributing its slot to another profile, duplicate active bindings, or a
+missing required slot reject with the relevant identity. Package/library products
+bind no roots. An explicitly artifact-only application also binds no executable roots;
 it must instead satisfy [required artifact completion](scoped_execution.md#staged-products-and-failure).
 Runtime-installed slots may remain open until installation validates the
 same shape, portable demands, target supply, authority, and lifecycle.

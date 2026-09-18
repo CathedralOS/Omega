@@ -5526,9 +5526,18 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   alpha_bootstrap::ProgramEntry belongs to unknown target profile
   alpha_bootstrap` from `source/omega/build.omg:11` (601.8 s wall at
   dd8bb81386, 704.0 s at a3b3ecd8c4 beside a concurrent gate check);
-  that row is the `alpha-bootstrap-target-profile` decision in
-  [owner questions](OWNER_QUESTIONS.md), and no product-source edit is pending
-  behind it. The stops before it are retired: the parser borrows the
+  this is an implementation gap under settled
+  [target recognition and availability](wiki/spec/build/configuration.md#target-recognition-and-implementation-availability),
+  not an owner blocker. In target-profile recognition and Build root selection,
+  recognize the Alpha profile/slot through the ordinary target-package route
+  without requiring an Alpha backend for the native child. Keep the binding in
+  `source/omega/build.omg`; do not inject it through bootstrap tooling. Acceptance
+  for this repair: the native product check advances past this diagnostic,
+  inactive recognized Alpha rows do not demand Alpha realization, unknown
+  profile/slot names still reject, and explicitly selecting an unimplemented
+  Alpha operation reports not implemented without claiming a checked result or
+  emitting an artifact. Rust Alpha emission is not part of this task.
+  The stops before it are retired: the parser borrows the
   lexer's stream (b30c5ae693; the borrowed-storage restoration gap in
   `pass/ownership/move_keyword_field_assignment` is tracked by
   BORROWED-STORAGE-RESTORATION) and build-time member selections confine on their
@@ -5566,7 +5575,7 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   length, length)`, an attached call through the nested receiver whose
   first argument is a copy-enum case literal beside two ranged scalars;
   the product `Main::main` has no such call, so its own next stop after
-  the `alpha-bootstrap-target-profile` decision is unmeasured. Gate check
+  the target-recognition repair is unmeasured. Gate check
   timing moved with main, not with these commits: 1538.3 s wall / 1402.2 s
   user at d0371277e3 became
   6463.8 s / 4370.1 s at 4bfa009246 and 6458.5 s / 4367.7 s with the
