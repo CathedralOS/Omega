@@ -107,7 +107,11 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider body lacks unique exact provider custody".into(),
             );
         }
-        if facts
+        // A provider body retains exactly one current use: either a spelled
+        // occurrence or a uniquely resolved named call at this expression and
+        // owning machine. The two arenas are disjoint by node kind, so their
+        // counts sum rather than compete.
+        let spelled_occurrences = facts
             .uses
             .iter()
             .filter(|(_, fact)| {
@@ -115,14 +119,21 @@ pub fn validate_selected_provider_bodies(
                     && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
                     && fact.origin.machine_symbol() == row.origin.machine_symbol()
             })
-            .count()
-            != 1
-        {
+            .count();
+        let named_occurrences = facts
+            .named_uses
+            .iter()
+            .filter(|(_, fact)| {
+                fact.expression == row.expression
+                    && fact.origin.machine_symbol() == row.origin.machine_symbol()
+            })
+            .count();
+        if spelled_occurrences + named_occurrences != 1 {
             return Err(
                 "selected build-time expression is shared by distinct current origins".into(),
             );
         }
-        let matching: Vec<_> = facts
+        let resolved_spelled: Vec<_> = facts
             .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
             .filter(|fact| {
                 fact.expression == row.expression
@@ -130,10 +141,24 @@ pub fn validate_selected_provider_bodies(
                     && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
             })
             .collect();
-        let [fact] = matching.as_slice() else {
-            return Err("selected build-time provider body has no unique current use".into());
-        };
-        if fact.selected_operator_symbol != row.requirement {
+        let resolved_named: Vec<_> = facts
+            .named_uses()
+            .filter(|fact| fact.expression == row.expression && fact.origin == row.origin)
+            .collect();
+        // The spelled use additionally binds the authored token spelling; a
+        // named call selected its requirement by exact path and arity, so it
+        // carries no spelling to rejoin.
+        let (selected_symbol, spelled_spelling) =
+            match (resolved_spelled.as_slice(), resolved_named.as_slice()) {
+                ([fact], []) => (fact.selected_operator_symbol, Some(fact.spelling)),
+                ([], [fact]) => (fact.selected_operator_symbol, None),
+                _ => {
+                    return Err(
+                        "selected build-time provider body has no unique current use".into(),
+                    );
+                }
+            };
+        if selected_symbol != row.requirement {
             return Err(
                 "selected build-time provider body differs from current requirement".into(),
             );
@@ -151,6 +176,12 @@ pub fn validate_selected_provider_bodies(
                     _ => vec![indexed.collection, indexed.index],
                 }
             }
+            // A named operator use is an ordinary call expression; its
+            // argument list is the authored operand tuple.
+            ExpressionNode::Call(call) => program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec(),
             _ => return Err("selected build-time provider expression disappeared".into()),
         };
         if operands != row.operands {
@@ -167,7 +198,9 @@ pub fn validate_selected_provider_bodies(
         let [operator] = matching.as_slice() else {
             return Err("selected build-time requirement is not unique".into());
         };
-        if !operator.is_boundary || operator.spelling != Some(fact.spelling) {
+        if !operator.is_boundary
+            || spelled_spelling.is_some_and(|spelling| operator.spelling != Some(spelling))
+        {
             return Err(
                 "selected build-time provider requirement lost its boundary spelling".into(),
             );

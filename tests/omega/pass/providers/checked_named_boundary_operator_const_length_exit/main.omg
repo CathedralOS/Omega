@@ -1,0 +1,34 @@
+// A fixed array length whose const machine invokes a selected boundary
+// operator by NAME must execute the provider's ordinary checked body during
+// semantic const evaluation -- never a builtin spelling. `Provider::remainder`
+// computes `left | right` = 7 where builtin `%` would fold 1, so the byte-6
+// write below only type-checks when the selected provider body actually ran.
+use omega_language_std::console;
+
+data Math {}
+
+boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+
+data Provider {}
+
+machine Provider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder
+{
+    transition { _ -> (left | right) }
+}
+
+machine length() -> u64 {
+    let left: u64 = 7;
+    let right: u64 = 2;
+    transition { _ -> (Math::remainder(left, right)) }
+}
+
+data Main {
+    console: Console;
+    bytes: [u8; length()];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.bytes[6] = 70;
+    self.console.exit_process(70);
+}

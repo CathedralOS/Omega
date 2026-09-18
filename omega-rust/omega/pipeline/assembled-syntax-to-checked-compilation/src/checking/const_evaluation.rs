@@ -123,8 +123,41 @@ pub(super) fn selected_provider_bodies(
         let [plan] = matching.as_slice() else {
             continue;
         };
-        let Some(row) = selected_provider_body_row(typed, plan, operator, fact)
-            .map_err(|diagnostic| vec![diagnostic])?
+        let Some(row) =
+            selected_provider_body_row(typed, plan, operator, SelectedOperatorUse::Spelled(fact))
+                .map_err(|diagnostic| vec![diagnostic])?
+        else {
+            continue;
+        };
+        selected.push(row);
+    }
+    // A uniquely resolved named call to a boundary operator carries the same
+    // execution obligation as its spelled twin: the name already selected the
+    // requirement, so the settled plan's checked adapter owns the body.
+    for fact in facts.named_uses() {
+        let Some(operator) = typed
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == fact.selected_operator_symbol)
+        else {
+            continue;
+        };
+        if !operator.is_boundary {
+            continue;
+        }
+        let identity =
+            typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+        let matching: Vec<_> = plans
+            .plans()
+            .iter()
+            .filter(|plan| plan.schema.trait_name == identity)
+            .collect();
+        let [plan] = matching.as_slice() else {
+            continue;
+        };
+        let Some(row) =
+            selected_provider_body_row(typed, plan, operator, SelectedOperatorUse::Named(fact))
+                .map_err(|diagnostic| vec![diagnostic])?
         else {
             continue;
         };
@@ -133,6 +166,15 @@ pub(super) fn selected_provider_bodies(
     build_time_evaluation::validate_selected_provider_bodies(typed, &selected)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     Ok(selected)
+}
+
+/// One retained boundary-operator use whose settled plan may execute at build
+/// time. A spelled use selects through its token spelling; a named use
+/// already carries the exact requirement its call path resolved, so it has no
+/// spelling to rejoin.
+enum SelectedOperatorUse<'a> {
+    Spelled(&'a checked_trees::CheckedOperatorUseFact),
+    Named(&'a checked_trees::CheckedNamedOperatorUseFact),
 }
 
 /// Resolve one settled ProviderPlan row to its exact checked adapter body.
@@ -146,14 +188,18 @@ fn selected_provider_body_row(
     typed: &TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
     operator: &typed_trees::operator::OperatorDefinition,
-    fact: &checked_trees::CheckedOperatorUseFact,
+    selected_use: SelectedOperatorUse<'_>,
 ) -> Result<Option<SelectedBuildTimeProviderBody>, Diagnostic> {
+    let (expression, origin) = match selected_use {
+        SelectedOperatorUse::Spelled(fact) => (fact.expression, fact.origin),
+        SelectedOperatorUse::Named(fact) => (fact.expression, fact.origin),
+    };
     let overload_identity =
         typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
     if overload_identity.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected build-time operator at expression {:?} has an empty canonical overload identity",
-            fact.expression,
+            expression,
         )));
     }
     let [method] = plan.schema.methods.as_slice() else {
@@ -209,36 +255,55 @@ fn selected_provider_body_row(
         return Err(Diagnostic::error(format!(
             "selected build-time operator `{}` at expression {:?} requires a specialized realization; symbolic application coverage is not part of this execution",
             operator_name(typed, operator),
-            fact.expression,
+            expression,
         )));
     }
-    if operator.spelling != Some(fact.spelling) {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator at expression {:?} no longer owns its exact spelling",
-            fact.expression,
-        )));
-    }
-    let Some(operands) = fact.operands(typed) else {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator expression {:?} lost its exact operand shape",
-            fact.expression,
-        )));
+    let operands = match selected_use {
+        SelectedOperatorUse::Spelled(fact) => {
+            if operator.spelling != Some(fact.spelling) {
+                return Err(Diagnostic::error(format!(
+                    "selected build-time operator at expression {:?} no longer owns its exact spelling",
+                    expression,
+                )));
+            }
+            let Some(operands) = fact.operands(typed) else {
+                return Err(Diagnostic::error(format!(
+                    "selected build-time operator expression {:?} lost its exact operand shape",
+                    expression,
+                )));
+            };
+            if let ExpressionNode::Indexed(indexed) = typed.expression_table.expression(expression)
+                && matches!(
+                    typed.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                )
+            {
+                return Err(Diagnostic::error(format!(
+                    "selected range operator at expression {:?} has no fixed-token checked-adapter dispatch",
+                    expression,
+                )));
+            }
+            operands
+        }
+        // A named call's argument list is its authored operand tuple; the
+        // requirement's exact path already selected it.
+        SelectedOperatorUse::Named(_) => {
+            let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
+                return Err(Diagnostic::error(format!(
+                    "selected build-time named operator expression {:?} lost its exact operand shape",
+                    expression,
+                )));
+            };
+            typed
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec()
+        }
     };
-    if let ExpressionNode::Indexed(indexed) = typed.expression_table.expression(fact.expression)
-        && matches!(
-            typed.expression_table.expression(indexed.index),
-            ExpressionNode::Range(_)
-        )
-    {
-        return Err(Diagnostic::error(format!(
-            "selected range operator at expression {:?} has no fixed-token checked-adapter dispatch",
-            fact.expression,
-        )));
-    }
     if typed.operator_parameters(operator).len() != operands.len() {
         return Err(Diagnostic::error(format!(
             "selected build-time operator at expression {:?} has {} requirement parameter(s), but its expression retains {} operand(s)",
-            fact.expression,
+            expression,
             typed.operator_parameters(operator).len(),
             operands.len(),
         )));
@@ -250,8 +315,8 @@ fn selected_provider_body_row(
         )));
     };
     Ok(Some(SelectedBuildTimeProviderBody {
-        expression: fact.expression,
-        origin: fact.origin,
+        expression,
+        origin,
         requirement: operator.symbol,
         operands,
         provider_machine: provider.symbol,
@@ -373,7 +438,10 @@ impl SelectedConstEvaluation {
                     "folded provider body differs from current selected provider execution",
                 )]);
             }
-            let matching: Vec<_> = checked
+            // The fold's checked occurrence is whichever of the two use
+            // arenas retains this expression and origin: a spelled use or a
+            // uniquely resolved named call. Exactly one must exist.
+            let spelled: Vec<_> = checked
                 .facts
                 .operators
                 .uses_with_status(CheckedOperatorResolutionStatus::Resolved)
@@ -383,14 +451,22 @@ impl SelectedConstEvaluation {
                         && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
                 })
                 .collect();
-            let [fact] = matching.as_slice() else {
-                return Err(vec![Diagnostic::error(
-                    "folded provider body has no unique final checked occurrence",
-                )]);
+            let named: Vec<_> = checked
+                .facts
+                .operators
+                .named_uses()
+                .filter(|fact| fact.expression == body.expression && fact.origin == body.origin)
+                .collect();
+            let (requirement, commitment) = match (spelled.as_slice(), named.as_slice()) {
+                ([fact], []) => (fact.selected_operator_symbol, fact.provider_plan_commitment),
+                ([], [fact]) => (fact.selected_operator_symbol, fact.provider_plan_commitment),
+                _ => {
+                    return Err(vec![Diagnostic::error(
+                        "folded provider body has no unique final checked occurrence",
+                    )]);
+                }
             };
-            if fact.selected_operator_symbol != body.requirement
-                || fact.provider_plan_commitment != body.provider
-            {
+            if requirement != body.requirement || commitment != body.provider {
                 return Err(vec![Diagnostic::error(
                     "folded provider body lost its exact final provider custody",
                 )]);
