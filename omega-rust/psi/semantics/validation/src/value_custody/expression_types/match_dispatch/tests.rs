@@ -220,3 +220,64 @@ fn whole_affine_root_with_linear_children_rejects_while_its_projected_child_join
         );
     }
 }
+
+/// The two borrowed shapes this gate rejects for a carrier reason rather than
+/// a custody reason, pinned so the rejection stays exact until the carrier can
+/// actually be built. Neither is blocked here by anything about ownership: a
+/// shared borrow of a primitive leaf and of a literal array element both move
+/// nothing, exactly like the record projections already admitted above.
+///
+/// They reject because the admitted carrier is still a named record reached by
+/// a field-only path. `&u64` has no data declaration for the referent rule to
+/// resolve, and `&x.items[0]` is not a direct place path at all, so the
+/// authored target never becomes a canonical root and path.
+///
+/// Lifting only this gate does not deliver either join, and that was measured
+/// rather than assumed: with `selected_shared_borrow_place` forced true, both
+/// sources check, but the checked stage builds *zero* `SharedBorrow` argument
+/// plans for them -- against two for an admitted record projection -- and
+/// lowering then reports "machine has no source-independent checked scalar
+/// control plan". That is the same misleading-downstream-rejection trap the
+/// whole-affine-root case above documents. The carrier has to be built in the
+/// checked arm planner first; this gate is the wrong end of the pipe.
+#[test]
+fn shared_borrow_arms_reject_referents_the_checked_arm_planner_cannot_carry() {
+    for (label, source) in [
+        (
+            "primitive referent has no record declaration to resolve",
+            "data Payload { left: u64; right: u64; }
+             machine choose(other: bool) -> u64 {
+                 let a: Payload = Payload { left: 1, right: 2 };
+                 let b: Payload = Payload { left: 3, right: 4 };
+                 let view: &u64 = match other { true -> &a.left, false -> &b.right };
+                 0
+             }",
+        ),
+        (
+            "fixed-index projection is not a direct place path",
+            "data Payload { left: u64; right: u64; }
+             data Holder { items: [Payload; 2]; }
+             machine choose(other: bool) -> u64 {
+                 let x: Holder = Holder {
+                     items: [Payload { left: 1, right: 2 }, Payload { left: 3, right: 4 }]
+                 };
+                 let y: Holder = Holder {
+                     items: [Payload { left: 5, right: 6 }, Payload { left: 7, right: 8 }]
+                 };
+                 let view: &Payload = match other {
+                     true -> &x.items[0],
+                     false -> &y.items[1]
+                 };
+                 view.left ^ view.right
+             }",
+        ),
+    ] {
+        let messages = choose_dispatch_diagnostics(source);
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.contains(CUSTODY_JOIN_REJECTION)),
+            "{label}: must reject by naming the missing join: {messages:?}",
+        );
+    }
+}
