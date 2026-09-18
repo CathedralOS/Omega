@@ -20,9 +20,10 @@ fn pressure(function: usize, register: u32) -> RegisterHomeError {
 
 /// The finite roster covers every register the representation's own
 /// entry-liveness replay recognizes — scalar and structural parameters plus
-/// the hidden aggregate-result destination — alongside instruction results
-/// and block parameters. Instruction-made transport addresses and generated
-/// spill origins never join it.
+/// the hidden aggregate-result destination — alongside instruction results,
+/// block parameters, and instruction-defined structural registers: field
+/// observations and transport registers join by origin so a pressured
+/// structural plan can spill them, while generated spill origins never do.
 #[test]
 fn roster_covers_every_entry_live_in_origin() {
     let target = NativeTarget::linux_x64();
@@ -131,7 +132,8 @@ fn roster_covers_every_entry_live_in_origin() {
                 None,
                 true,
             ),
-            // An instruction-made transport address is no entry live-in.
+            // An instruction-made transport register is no entry live-in, but
+            // joins the roster as an ordinary structural victim.
             register(
                 3,
                 VirtualRegisterOrigin::AbiTransport {
@@ -203,8 +205,10 @@ fn roster_covers_every_entry_live_in_origin() {
             (0, VirtualRegisterId(0)),
             (0, VirtualRegisterId(1)),
             (0, VirtualRegisterId(2)),
+            (0, VirtualRegisterId(3)),
             (0, VirtualRegisterId(4)),
             (0, VirtualRegisterId(5)),
+            (0, VirtualRegisterId(7)),
         ]
     );
 }

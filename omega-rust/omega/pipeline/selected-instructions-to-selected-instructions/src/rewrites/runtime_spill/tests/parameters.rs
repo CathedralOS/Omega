@@ -2030,6 +2030,191 @@ fn structural_live_in_requires_its_contract_provenance() {
     );
 }
 
+/// An instruction-defined field observation is a structural victim: its
+/// definition is its own load, so the store lands right after it, and the
+/// case edge's payload argument moves to a reload register carrying the same
+/// place and field offset — the exact coordinate the transport demands.
+/// Replay independently reconstructs the same observation origin.
+#[test]
+fn field_observation_payload_argument_spills_at_its_case_edge() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = case_parameter_fixture(target);
+        // Register 3 is the first bridge's `StructuralObservation`: the
+        // `Load64` at instruction 202 defines it and the continuation's
+        // payload argument is its only use.
+        let result =
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(3), &environment, budget())
+                .unwrap();
+        let transformed = &result.transformed().functions[0];
+        // The case slot is the fixture's own declaration; the private spill
+        // slot is appended after it.
+        assert_eq!(
+            transformed.local_storage_slots.as_slice()[1..],
+            [SelectedLocalStorageSlot {
+                id: LocalStorageSlotId::Spill {
+                    register: VirtualRegisterId(3)
+                },
+                byte_size: 8,
+                alignment: 8,
+            }]
+        );
+        // [FrameAddress, Load64, Store64, FrameAddress, Load64]: the store
+        // lands right after the observing load and the payload argument's
+        // reload pair closes the block.
+        let instructions = &transformed.blocks[1].instructions;
+        assert_eq!(instructions.len(), 5);
+        assert_eq!(instructions[0].id, SelectedInstructionId(201));
+        assert_eq!(instructions[1].id, SelectedInstructionId(202));
+        assert!(matches!(
+            instructions[2].kind,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill { register }),
+                byte_offset: 0,
+            } if register == VirtualRegisterId(3)
+        ));
+        assert_eq!(
+            instructions[2].operands[0].virtual_register,
+            VirtualRegisterId(3)
+        );
+        assert!(matches!(
+            instructions[3].kind,
+            SelectedInstructionKind::FrameAddress { .. }
+        ));
+        assert!(matches!(
+            instructions[4].kind,
+            SelectedInstructionKind::Load64 { byte_offset: 0 }
+        ));
+        let reloaded = instructions[4].operands[1].virtual_register;
+        // The payload argument now names the reload, whose observation origin
+        // restates the victim's declared place at the payload's field offset.
+        let reload_register = transformed
+            .virtual_registers
+            .iter()
+            .find(|register| register.id == reloaded)
+            .unwrap();
+        assert_eq!(
+            reload_register.origin,
+            VirtualRegisterOrigin::StructuralObservation {
+                instruction: instructions[4].id,
+                place: PlaceId::new(1).unwrap(),
+                byte_offset: 0,
+            }
+        );
+        let SelectedTerminator::Jump { successor, .. } = &transformed.blocks[1].terminator else {
+            unreachable!()
+        };
+        let case = successor.structural_case.as_ref().unwrap();
+        assert_eq!(
+            case.payloads[0].transport,
+            SelectedCasePayloadTransport::Registers {
+                argument: reloaded,
+                parameter: VirtualRegisterId(1),
+            }
+        );
+        // The other bridge's observation is untouched.
+        let SelectedTerminator::Jump { successor, .. } = &transformed.blocks[3].terminator else {
+            unreachable!()
+        };
+        assert_eq!(
+            successor.structural_case.as_ref().unwrap().payloads[0].transport,
+            SelectedCasePayloadTransport::Registers {
+                argument: VirtualRegisterId(5),
+                parameter: VirtualRegisterId(1),
+            }
+        );
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(3),
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A payload still naming the victim is not what replay builds.
+        let mut proposed = result.transformed().clone();
+        let SelectedTerminator::Jump { successor, .. } =
+            &mut proposed.functions[0].blocks[1].terminator
+        else {
+            unreachable!()
+        };
+        successor.structural_case.as_mut().unwrap().payloads[0].transport =
+            SelectedCasePayloadTransport::Registers {
+                argument: VirtualRegisterId(3),
+                parameter: VirtualRegisterId(1),
+            };
+        assert_eq!(
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(3),
+                &environment,
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
+            RuntimeSpillError::ReplayMismatch
+        );
+    }
+}
+
+/// A structural victim serving a case-payload argument must restate the exact
+/// coordinate the payload declares: another place or another field offset
+/// would make the rewritten argument an observation the transport never
+/// asked for, so the naming stays rejected. An address-producing definition
+/// — the bridge's own `FrameAddress` pointer — stays rejected too: it is the
+/// slot's coordinate, not a stored value.
+#[test]
+fn instruction_defined_structural_victims_keep_their_coordinates() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    for mutation in 0..2 {
+        let mut source = case_parameter_fixture(target);
+        {
+            let victim =
+                &mut Arc::make_mut(&mut source.transformed).functions[0].virtual_registers[3];
+            victim.origin = match mutation {
+                // A different place's field is not this payload's argument.
+                0 => VirtualRegisterOrigin::StructuralObservation {
+                    instruction: SelectedInstructionId(202),
+                    place: PlaceId::new(9).unwrap(),
+                    byte_offset: 0,
+                },
+                // A nonzero offset observes a different field of the case's
+                // place than the payload's declared `field_byte_offset`.
+                _ => VirtualRegisterOrigin::StructuralObservation {
+                    instruction: SelectedInstructionId(202),
+                    place: PlaceId::new(1).unwrap(),
+                    byte_offset: 4,
+                },
+            };
+            let identity = selected_instruction_plan_identity(source.transformed());
+            source.receipt.source_selected = identity;
+            source.receipt.transformed_selected = identity;
+        }
+        assert_eq!(
+            spill_selected_runtime_value(&source, 0, VirtualRegisterId(3), &environment, budget())
+                .unwrap_err(),
+            RuntimeSpillError::UnsupportedUse,
+            "mutation {mutation}"
+        );
+    }
+    // The bridge pointer defined by `FrameAddress` names storage coordinates,
+    // not a restatable value — the definition-kind bound still applies.
+    let source = case_parameter_fixture(target);
+    assert_eq!(
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(2), &environment, budget())
+            .unwrap_err(),
+        RuntimeSpillError::UnsupportedValue
+    );
+}
+
 /// A structural live-in restates no source value, so a `Registers` binding
 /// naming it can never satisfy the semantic link a value transport needs.
 /// And like every boundary definition, re-entry into the entry block stays

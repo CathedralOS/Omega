@@ -591,6 +591,83 @@ fn structural_argument_uses_reject_unverifiable_or_ambiguous_plans() {
     }
 }
 
+/// An instruction-defined transport register — the `CopyI64` pointer idiom a
+/// retained place address uses — spills and replays like a scalar result,
+/// but its reload registers carry the declared place and byte offset in an
+/// observation origin rather than a source `ValueId`. A nonzero offset rides
+/// along: the reload restates the victim's own coordinate.
+#[test]
+fn instruction_defined_transport_register_spills_through_its_uses() {
+    for target in targets() {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for byte_offset in [0u32, 8] {
+            let mut source = descriptor_fixture(target);
+            {
+                let victim =
+                    &mut Arc::make_mut(&mut source.transformed).functions[0].virtual_registers[1];
+                victim.origin = VirtualRegisterOrigin::AbiTransport {
+                    instruction: SelectedInstructionId(1),
+                    place: argument_place(),
+                    byte_offset,
+                };
+                victim.definition_site = None;
+            }
+            seal(&mut source);
+            let result = spill_selected_runtime_value(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+            )
+            .unwrap();
+            let transformed = &result.transformed().functions[0];
+            // The snapshot's chunk loads read the block's shared reload —
+            // the same register the earlier flexible uses name — and the
+            // binding's `argument` follows it.
+            let first = bridge_instruction(transformed, 10).operands[0].virtual_register;
+            assert_eq!(
+                first,
+                bridge_instruction(transformed, 11).operands[0].virtual_register
+            );
+            assert_ne!(first, VirtualRegisterId(1));
+            assert_eq!(
+                bridge_instruction(transformed, 2).operands[0].virtual_register,
+                first
+            );
+            let SelectedStructuralTransport::Descriptor { argument, .. } =
+                bridge_terminator_binding(transformed)
+            else {
+                unreachable!()
+            };
+            assert_eq!(argument, first);
+            // Every reload register re-observes the victim's own place and
+            // byte offset — there is no source `ValueId` to restate.
+            let reload_register = transformed
+                .virtual_registers
+                .iter()
+                .find(|register| register.id == first)
+                .unwrap();
+            assert!(matches!(
+                reload_register.origin,
+                VirtualRegisterOrigin::StructuralObservation { place, byte_offset: offset, .. }
+                    if place == argument_place() && offset == byte_offset
+            ));
+            assert!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    result.transformed().clone()
+                )
+                .is_ok()
+            );
+        }
+    }
+}
+
 #[test]
 fn structural_argument_on_the_victims_own_incoming_edge_stays_rejected() {
     for target in targets() {

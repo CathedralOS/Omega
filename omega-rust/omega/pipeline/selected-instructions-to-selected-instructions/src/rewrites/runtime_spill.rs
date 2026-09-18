@@ -32,6 +32,15 @@
 //! boundary store stays admitted only while no edge targets the entry block —
 //! re-entry would re-read a register whose interval already ended at the
 //! first store.
+//! Instruction-defined structural registers follow the result definition
+//! rule: a field observation's load result, a retained transport pointer
+//! copy, or a snapshot chunk word carries a declared place and byte offset
+//! rather than a `ValueId`, so its store lands after the defining instruction
+//! and its reload registers carry that same coordinate in their observation
+//! origin — exact enough that a reload can still serve a case-payload
+//! argument whose transport demands the declared field. The definition's own
+//! instruction still cannot be an address producer, and the coordinate stays
+//! rejected where a transport names a different place or field offset.
 //!
 //! Terminator instruction operands are ordinary uses at one more position:
 //! each reloads at the end of its block, after the last body instruction and

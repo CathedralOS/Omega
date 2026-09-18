@@ -27,9 +27,11 @@ pub(super) struct Admission<'source> {
     pub shared_reload: Vec<bool>,
     pub victim: &'source VirtualRegister,
     /// What the spill restates. A scalar victim keeps its source `ValueId`;
-    /// a structural ABI live-in is the incoming pointer to a declared place
-    /// and names no source value at all, so value bindings cannot transport
-    /// it and its reload registers carry an observation origin, not a result
+    /// a structural victim — an ABI live-in's incoming pointer, a field
+    /// observation load's result, or an instruction-made transport register —
+    /// is identified by the declared place and byte offset it restates and
+    /// names no source value at all, so value bindings cannot transport it
+    /// and its reload registers carry an observation origin, not a result
     /// one.
     pub lineage: VictimLineage,
     pub address_scalar_type: ScalarType,
@@ -68,13 +70,18 @@ pub(super) struct StorageDefinition {
 }
 
 /// The identity a spilled register's reloads restate. A scalar victim keeps
-/// its source `ValueId`; a structural ABI live-in is the incoming pointer to
-/// a declared place and names no source value at all — value bindings can
-/// transport only the former, and the reload's register origin follows suit.
+/// its source `ValueId`; a structural victim is identified by the declared
+/// place and byte offset it restates and names no source value at all —
+/// value bindings can transport only the former, and the reload's register
+/// origin follows suit. A boundary live-in keeps offset zero: the structural
+/// parameter or hidden result destination names the whole place. An
+/// instruction-defined structural register keeps its own coordinate, so a
+/// reload replacing it as a case-payload argument still satisfies the exact
+/// place and field offset that transport requires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum VictimLineage {
     Scalar(ValueId),
-    Structural(PlaceId),
+    Structural { place: PlaceId, byte_offset: u32 },
 }
 
 /// Where the definition's store lands inside `block_index`.
@@ -242,7 +249,14 @@ pub(super) fn admit<'source>(
             {
                 return Err(RuntimeSpillError::UnsupportedValue);
             }
-            (VictimLineage::Structural(place), None, block_index)
+            (
+                VictimLineage::Structural {
+                    place,
+                    byte_offset: 0,
+                },
+                None,
+                block_index,
+            )
         }
         VirtualRegisterOrigin::AbiTransport { place, .. } if entry_boundary => {
             // The hidden aggregate-result destination is the only transport
@@ -255,7 +269,46 @@ pub(super) fn admit<'source>(
                 .iter()
                 .position(|block| block.id == function.entry_block)
                 .ok_or(RuntimeSpillError::SourceMismatch)?;
-            (VictimLineage::Structural(place), None, block_index)
+            (
+                VictimLineage::Structural {
+                    place,
+                    byte_offset: 0,
+                },
+                None,
+                block_index,
+            )
+        }
+        VirtualRegisterOrigin::StructuralObservation {
+            instruction,
+            place,
+            byte_offset,
+        }
+        | VirtualRegisterOrigin::AbiTransport {
+            instruction,
+            place,
+            byte_offset,
+        } => {
+            // An instruction-defined structural register — a field
+            // observation's load result, a retained transport pointer, or a
+            // snapshot chunk word — is defined by its producing instruction
+            // exactly like a scalar result, but restates no `ValueId`: its
+            // provenance is the place and byte offset the origin declares,
+            // which the reload's observation origin carries on.
+            let block_index = function
+                .blocks
+                .iter()
+                .position(|block| {
+                    block
+                        .instructions
+                        .iter()
+                        .any(|candidate| candidate.id == instruction)
+                })
+                .ok_or(RuntimeSpillError::UnsupportedValue)?;
+            (
+                VictimLineage::Structural { place, byte_offset },
+                Some(instruction),
+                block_index,
+            )
         }
         _ => return Err(RuntimeSpillError::UnsupportedValue),
     };
@@ -272,9 +325,10 @@ pub(super) fn admit<'source>(
     };
     // Semantic lineage alone does not locate physical storage definitions.
     // Instruction results and incoming parameters establish those separately.
-    // Structural ABI live-ins carry no source definition site at all — the
-    // boundary itself is their definition — while every other admitted origin
-    // must keep its declared site.
+    // Structural registers carry no source definition site at all — the
+    // boundary is a live-in's definition and an observation or transport
+    // register's own instruction is its definition — while every other
+    // admitted origin must keep its declared site.
     if !scalar_payload
         || (victim.entry_fixed_view.is_some() && !entry_boundary)
         || !(matches!(
@@ -287,6 +341,7 @@ pub(super) fn admit<'source>(
                 victim.origin,
                 VirtualRegisterOrigin::StructuralParameter { .. }
                     | VirtualRegisterOrigin::AbiTransport { .. }
+                    | VirtualRegisterOrigin::StructuralObservation { .. }
             )))
     {
         return Err(RuntimeSpillError::UnsupportedValue);
@@ -481,6 +536,19 @@ pub(super) fn admit<'source>(
                             // victim's exact type; a mismatched plan is not a
                             // use this rewrite can serve.
                             if payload.semantic.parameter.scalar_type != victim.scalar_type {
+                                return Err(RuntimeSpillError::UnsupportedUse);
+                            }
+                            // A structural victim may serve the argument only
+                            // while its restated coordinate is exactly the
+                            // case's declared place at this payload's field
+                            // offset: the rewritten argument's observation
+                            // origin carries those same coordinates, so any
+                            // mismatch would break the transport's invariant
+                            // rather than restore it.
+                            if let VictimLineage::Structural { place, byte_offset } = lineage
+                                && (Some(place) != case.slot.structural_place()
+                                    || byte_offset != payload.semantic.field_byte_offset)
+                            {
                                 return Err(RuntimeSpillError::UnsupportedUse);
                             }
                             flexible_uses[current_block_index] = true;
@@ -1165,14 +1233,19 @@ pub(super) fn reload(
                     instruction: load_instruction,
                     source_value,
                 },
-                // A structural live-in restates no source value; the reload
-                // re-observes the place's ABI pointer bits from private
-                // storage.
-                VictimLineage::Structural(place) => VirtualRegisterOrigin::StructuralObservation {
-                    instruction: load_instruction,
-                    place,
-                    byte_offset: 0,
-                },
+                // A structural victim restates no source value; the reload
+                // re-observes the victim's own place and byte offset from
+                // private storage — offset zero for a boundary live-in's
+                // whole-place pointer, or the instruction-defined register's
+                // declared coordinate, so a reload serving a case-payload
+                // argument still names the exact field the transport asks for.
+                VictimLineage::Structural { place, byte_offset } => {
+                    VirtualRegisterOrigin::StructuralObservation {
+                        instruction: load_instruction,
+                        place,
+                        byte_offset,
+                    }
+                }
             },
             definition_site: admitted.victim.definition_site,
             entry_fixed_view: None,
