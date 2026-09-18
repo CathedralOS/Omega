@@ -1,6 +1,8 @@
 //! Fixtures shared by the artifact codec tests: canonical artifacts,
 //! recursive components and primitive types.
 
+#[path = "artifact/artifact_envelope_custody.rs"]
+mod artifact_envelope_custody;
 #[path = "artifact/content_and_component_proof_formats.rs"]
 mod content_and_component_proof_formats;
 #[path = "artifact/control_cycles.rs"]
