@@ -1282,6 +1282,153 @@ fn unrewritten_statement_call_to_a_crash_contracted_operator_fails_closed() {
     }
 }
 
+/// A spelled `collection[index]` selects the `[]` meaning exactly as a
+/// binary use selects `+`: the use must carry an operand-time capture row or
+/// its crash contract has no invocation custody to check. Before the flow
+/// pass recorded indexed invocations, this source failed with missing
+/// capture instead of producing the site the named spelling already had.
+#[test]
+fn spelled_index_use_discharges_a_route_its_captured_operands_prove_false() {
+    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+         requires index < items.len
+         crashes Trap !(index >= 1);
+         data Main {}
+         machine Main::main(&mut self, items: &[i32], index: u64) -> i32
+         requires index < items.len && index >= 1 {
+             items[index]
+         }";
+    check(source).expect("the operand-time capture discharges the index use's route");
+    let checked = inspect(source);
+    let sites: Vec<_> = checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| machine.crash.checked_operators())
+        .filter(|site| site.operator_use.is_valid())
+        .collect();
+    let [site] = sites.as_slice() else {
+        panic!("one spelled operator crash site")
+    };
+    assert!(
+        checked
+            .facts
+            .flow
+            .control
+            .operator_invocations
+            .iter()
+            .any(|(handle, invocation)| site.invocation == handle
+                && invocation.operator_use == site.operator_use),
+        "the spelled index use owns an operand-time capture row"
+    );
+    assert!(site.surviving.is_empty());
+}
+
+/// The named call spelling of the same `[]` operator exercises the same
+/// discharge path through its `named_use` capture row — identical published
+/// and surviving buckets prove the two spellings see the same route.
+#[test]
+fn named_index_call_matches_the_spelled_index_discharge() {
+    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+         requires index < items.len
+         crashes Trap !(index >= 1);
+         data Main {}
+         machine Main::main(&mut self, items: &[i32], index: u64) -> i32
+         requires index < items.len && index >= 1 {
+             Index::at(items, index)
+         }";
+    check(source).expect("the named call keeps the discharged route");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+/// A range index `collection[start..end]` selects the `[..]` meaning whose
+/// operands are the bounds: the capture row must expand to
+/// [collection, start, end] — the same operand list `operands()` reports —
+/// so each bound is captured where it finishes evaluating.
+#[test]
+fn spelled_range_use_discharges_a_route_its_captured_bounds_prove_false() {
+    let source = "boundary machine [..] Range::of(items: &[i32], start: u64, end: u64) -> &[i32]
+         requires start <= end && end <= items.len
+         crashes Trap !(start <= end);
+         data Main {}
+         machine Main::main(&mut self, items: &[i32], start: u64, end: u64) -> &[i32]
+         requires start <= end && end <= items.len {
+             items[start..end]
+         }";
+    check(source).expect("the bound captures discharge the range use's route");
+    let checked = inspect(source);
+    let sites: Vec<_> = checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| machine.crash.checked_operators())
+        .filter(|site| site.operator_use.is_valid())
+        .collect();
+    let [site] = sites.as_slice() else {
+        panic!("one spelled operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+    let invocation = checked
+        .facts
+        .flow
+        .control
+        .operator_invocations
+        .get(site.invocation);
+    let operands = checked
+        .facts
+        .flow
+        .control
+        .operator_operands
+        .span_or_empty(invocation.operands);
+    assert_eq!(
+        operands.len(),
+        3,
+        "[collection, start, end] captured in order"
+    );
+}
+
+/// Without a premise proving the guard false the spelled index use retains
+/// its route and rejects — fail-closed, exactly as the named call does —
+/// rather than passing with no capture row at all.
+#[test]
+fn spelled_index_use_keeps_a_route_its_operands_cannot_disprove() {
+    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+         requires index < items.len
+         crashes Trap !(index >= 1);
+         pub data Main {}
+         pub machine Main::main(&mut self, items: &[i32], index: u64) -> i32
+         requires index < items.len {
+             items[index]
+         }";
+    let diagnostics =
+        check(source).expect_err("an unprovable route at a spelled index use rejects");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites: Vec<_> = checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| machine.crash.checked_operators())
+        .filter(|site| site.operator_use.is_valid())
+        .collect();
+    let [site] = sites.as_slice() else {
+        panic!("one spelled operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
 #[test]
 fn named_call_capture_rows_fail_closed_when_duplicated() {
     // Two rows claiming the same named use are ambiguous custody: neither may
