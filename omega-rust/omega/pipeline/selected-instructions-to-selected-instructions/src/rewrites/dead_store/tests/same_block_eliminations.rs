@@ -1,7 +1,7 @@
 use super::{
-    BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
-    eliminate, fixture, instruction, make_packed_dead, mutated, packed_dead, place, sequence_store,
-    settlement,
+    BETWEEN, KILLER, MATERIALIZE_COUNT, PACKED_SCRATCH, POINTER, SCRATCH, SPAN_COUNT, STORE, VALUE,
+    access, budget, chained, define_count, eliminate, fixture, instruction, make_packed_dead,
+    mutated, packed_dead, place, sequence_store, settlement, span_copy, span_length,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::dead_store::{
@@ -12,9 +12,11 @@ use register_environment::baseline_target_register_environment;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, PackedByteWidth, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, VirtualRegisterId,
+    SelectedMemoryAccessRole, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    BlockId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType, ValueId,
+};
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -1327,6 +1329,447 @@ fn byte_sequence_dead_store_dies_under_the_matching_sequence_write() {
         assert_eq!(
             eliminate(&shifted, &environment).unwrap_err(),
             DeadStoreEliminationError::UnsupportedPair
+        );
+    }
+}
+
+/// A `CopyBytes` into the dead place is the one covering write whose roster
+/// spans several rows: the destination `WriteByteSpan` is a dynamic extent
+/// that can still cover an exact dead range when the count register's sole
+/// definition is a clean `MaterializeI64` — the span then writes a constant
+/// `count` bytes at its fixed `byte_offset`, and containment decides on
+/// constants. The copy's source `ReadByteSpan` rides on a disjoint place
+/// and stays quiet on the dead bytes.
+#[test]
+fn byte_span_copy_with_a_constant_count_covers() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Dead range [0, 8); the copy writes sixteen bytes at offset 0.
+        let covered = mutated(target, |function, environment| {
+            span_copy(
+                function,
+                environment,
+                KILLER,
+                1,
+                0,
+                SPAN_COUNT,
+                span_length(),
+            );
+            define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+        });
+        let result = eliminate(&covered, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN, MATERIALIZE_COUNT, KILLER]
+        );
+        assert_eq!(
+            function.blocks[0].instructions[3].kind,
+            SelectedInstructionKind::CopyBytes
+        );
+        // The dead write row drops with the store; the covering span and the
+        // source read survive untouched.
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.byte_offset, access.role))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    KILLER,
+                    0,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: span_length(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    }
+                ),
+                (
+                    KILLER,
+                    0,
+                    SelectedMemoryAccessRole::ReadByteSpan {
+                        length: span_length(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    }
+                ),
+            ]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A detached, separately allocated proposal replays by content.
+        let mut detached = result.transformed().clone();
+        detached.functions = detached.functions.iter().cloned().collect();
+        validate_dead_store_elimination(&covered, 0, STORE, &environment, budget(), detached)
+            .unwrap();
+        // A count equal to the dead range's size covers exactly.
+        let exact = mutated(target, |function, environment| {
+            span_copy(
+                function,
+                environment,
+                KILLER,
+                1,
+                0,
+                SPAN_COUNT,
+                span_length(),
+            );
+            define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 8);
+        });
+        eliminate(&exact, &environment).unwrap();
+        // The span may also begin below the dead range and reach past it.
+        let wider = mutated(target, |function, environment| {
+            function.memory_accesses[0] = SelectedMemoryAccess {
+                byte_offset: 4,
+                byte_count: 8,
+                ..access(STORE, 1, place(), 4, SelectedMemoryAccessRole::WritePlace)
+            };
+            function.blocks[0].instructions[1].kind = SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 8,
+            };
+            span_copy(
+                function,
+                environment,
+                KILLER,
+                1,
+                0,
+                SPAN_COUNT,
+                span_length(),
+            );
+            define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 32);
+        });
+        let result = eliminate(&wider, &environment).unwrap();
+        validate_dead_store_elimination(
+            &wider,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
+/// The span covers only while its extent is proven exact: a count that never
+/// resolves to a clean `MaterializeI64`, a count short of the dead end, a
+/// span beginning inside the dead range, a quiet-violating source read, a
+/// second reaching row, or disagreement between the roster's `length` and
+/// the count register all leave the dead bytes observable.
+#[test]
+fn byte_span_covering_requires_the_proven_constant_extent() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A count defined by a copy rather than a `MaterializeI64` resolves no
+    // constant — the span's reach stays dynamic and cannot cover.
+    let copied = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.virtual_registers.push(VirtualRegister {
+            id: SPAN_COUNT,
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            class: copy.operands[0].class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: MATERIALIZE_COUNT,
+                source_value: span_length(),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+        function.blocks[0].instructions.insert(
+            3,
+            instruction(
+                MATERIALIZE_COUNT,
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[POINTER, SPAN_COUNT],
+            ),
+        );
+    });
+    assert_eq!(
+        eliminate(&copied, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A second definition anywhere in the function breaks the sole clean
+    // definition the constant claim rests on.
+    let redefined = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[0].instructions.insert(
+            4,
+            instruction(
+                SelectedInstructionId(8),
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[POINTER, SPAN_COUNT],
+            ),
+        );
+    });
+    assert_eq!(
+        eliminate(&redefined, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A materialized count short of the dead end leaves the tail bytes live.
+    let short = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 4);
+    });
+    assert_eq!(
+        eliminate(&short, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A span beginning inside the dead range can never contain its head.
+    let inside = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            4,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+    });
+    assert_eq!(
+        eliminate(&inside, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A span starting past the dead range is provably disjoint — it walks
+    // past, and with no real cover the dead bytes escape at the boundary.
+    let disjoint = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            8,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+    });
+    assert_eq!(
+        eliminate(&disjoint, &environment).unwrap_err(),
+        DeadStoreEliminationError::UnsupportedPair
+    );
+    // The copy's source read on the dead place itself observes the dead
+    // bytes before the write rewrites them — a second reaching row the
+    // single covering claim cannot describe.
+    let observed = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+        function.memory_accesses[2].place = place();
+    });
+    assert_eq!(
+        eliminate(&observed, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A count register naming a different source value is not the span's
+    // recorded `length` — the resolved constant would not be the claimed
+    // extent.
+    let mismatched = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(
+            function,
+            environment,
+            0,
+            3,
+            SPAN_COUNT,
+            ValueId::new(12).unwrap(),
+            16,
+        );
+    });
+    assert_eq!(
+        eliminate(&mismatched, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // A nonzero recorded byte count is not the dynamic span the row claims.
+    let miscounted = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+        function.memory_accesses[1].byte_count = 16;
+    });
+    assert_eq!(
+        eliminate(&miscounted, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+    // The kind without the target's `copy_bytes` row is not the covering
+    // route — the count operand is not pinned.
+    let foreign = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+        function.blocks[0].instructions[4].constraint = environment.selected_keys().store.unwrap();
+    });
+    assert_eq!(
+        eliminate(&foreign, &environment).unwrap_err(),
+        DeadStoreEliminationError::ConstraintMismatch
+    );
+    // A byte-sequence dead store's byte sits at `offset + index` — a fixed
+    // span can never contain a runtime-placed position.
+    let sequence_dead = mutated(target, |function, environment| {
+        sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+    });
+    assert_eq!(
+        eliminate(&sequence_dead, &environment).unwrap_err(),
+        DeadStoreEliminationError::InterveningAccess
+    );
+}
+
+/// Replay accepts only the exact span-covering elimination: the dead store
+/// and its write row drop, and the copy's destination span, source read,
+/// materialize, and instruction kind all survive untouched.
+#[test]
+fn byte_span_covering_replay_rejects_mutated_proposals() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        span_copy(
+            function,
+            environment,
+            KILLER,
+            1,
+            0,
+            SPAN_COUNT,
+            span_length(),
+        );
+        define_count(function, environment, 0, 3, SPAN_COUNT, span_length(), 16);
+    });
+    let result = eliminate(&source, &environment).unwrap();
+    for mutation in 0..6 {
+        let mut proposed = result.transformed().clone();
+        let function = &mut proposed.functions[0];
+        match mutation {
+            // The dead store must be gone, not retained.
+            0 => {
+                function.blocks[0].instructions.insert(
+                    1,
+                    source.transformed().functions[0].blocks[0].instructions[1].clone(),
+                );
+            }
+            // Kept the dead write row instead of dropping it.
+            1 => {
+                function.memory_accesses.push(access(
+                    STORE,
+                    1,
+                    place(),
+                    0,
+                    SelectedMemoryAccessRole::WritePlace,
+                ));
+            }
+            // The covering span's identity must survive intact.
+            2 => function.memory_accesses[0].byte_count = 16,
+            // Dropped the copy's source read row.
+            3 => {
+                function.memory_accesses.pop();
+            }
+            // The surviving killer must remain the `CopyBytes`.
+            4 => {
+                function.blocks[0].instructions[3].kind = SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                };
+            }
+            // The count's materialize must stay with the copy.
+            5 => {
+                function.blocks[0].instructions.remove(2);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), proposed)
+                .is_err(),
+            "mutation {mutation}"
         );
     }
 }

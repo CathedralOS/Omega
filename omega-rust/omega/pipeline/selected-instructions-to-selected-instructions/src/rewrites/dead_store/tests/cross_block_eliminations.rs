@@ -1,7 +1,8 @@
 use super::{
-    BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
-    crossed_edge, eliminate, fixture, instruction, make_packed_dead, mutated_chained,
-    packed_dead_chained, place, sequence_store, settlement, settlement_at, successor,
+    BETWEEN, KILLER, MATERIALIZE_COUNT, PACKED_SCRATCH, POINTER, SCRATCH, SPAN_COUNT, STORE, VALUE,
+    access, budget, chained, crossed_edge, define_count, eliminate, fixture, instruction,
+    make_packed_dead, mutated_chained, packed_dead_chained, place, sequence_store, settlement,
+    settlement_at, span_copy, span_length, successor,
 };
 use crate::rewrites::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
@@ -1070,6 +1071,94 @@ fn cross_block_byte_sequence_dead_store_eliminates_across_the_edge() {
         assert_eq!(
             eliminate(&uncovered, &environment).unwrap_err(),
             DeadStoreEliminationError::UnsupportedPair
+        );
+    }
+}
+
+/// The `CopyBytes` covering route crosses edges like any other covering
+/// write: the copy opens the successor block and its constant-count
+/// destination span rewrites the dead bytes on every path forward. But a
+/// count that an edge transport also defines escapes the instruction audit
+/// — the materialized constant no longer pins the span's extent.
+#[test]
+fn cross_block_byte_span_copy_covers_across_the_edge() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let covered = mutated_chained(target, |function, environment| {
+            span_copy(
+                function,
+                environment,
+                KILLER,
+                1,
+                0,
+                SPAN_COUNT,
+                span_length(),
+            );
+            define_count(function, environment, 1, 0, SPAN_COUNT, span_length(), 16);
+        });
+        let result = eliminate(&covered, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN]
+        );
+        assert_eq!(
+            function.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![MATERIALIZE_COUNT, KILLER]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // An edge binding that defines the count register alongside the
+        // materialize is a second definition the operand audit cannot see —
+        // the constant no longer bounds the span.
+        let transported = mutated_chained(target, |function, environment| {
+            span_copy(
+                function,
+                environment,
+                KILLER,
+                1,
+                0,
+                SPAN_COUNT,
+                span_length(),
+            );
+            define_count(function, environment, 1, 0, SPAN_COUNT, span_length(), 16);
+            crossed_edge(function).bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(5).unwrap(),
+                    argument: ValueId::new(1).unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: SCRATCH,
+                    parameter: SPAN_COUNT,
+                },
+            });
+        });
+        assert_eq!(
+            eliminate(&transported, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
         );
     }
 }

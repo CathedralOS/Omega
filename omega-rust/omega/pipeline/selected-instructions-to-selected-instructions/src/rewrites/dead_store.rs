@@ -45,17 +45,24 @@
 //! dead byte once its own extent ends past the row's fixed offset, and a
 //! dynamic-extent row on the dead place always meets it.
 //! The covering write must be the first access on the dead place after the
-//! removed store, carrying exactly one row on the dead place whose encoded
-//! byte range contains the dead range entirely — the row need only cover,
-//! not equal, the removed write. Two routes to the place's storage qualify:
-//! a `Store` or `StorePacked` carrying `WritePlace`, and a write into the
-//! place's own local storage carrying `WriteLocal` — its
-//! `StructuralParameter`/`StructuralBlockParameter` slot, or the
-//! `Structural` slot of the operation the place's declaration names as its
-//! producer — either a `Store64` naming that slot or a place store through
-//! its materialized address. Any other `Structural` operation slot only
-//! stages bytes that merely name the place — a call's staged view
-//! descriptor — so its writes and addresses are not the dead bytes at all.
+//! removed store, and the only row reaching the dead range must contain it
+//! entirely — the row need only cover, not equal, the removed write. Two
+//! routes to the place's storage qualify: a `Store` or `StorePacked`
+//! carrying `WritePlace`, and a write into the place's own local storage
+//! carrying `WriteLocal` — its `StructuralParameter`/`StructuralBlockParameter`
+//! slot, or the `Structural` slot of the operation the place's declaration
+//! names as its producer — either a `Store64` naming that slot or a place
+//! store through its materialized address. Any other `Structural`
+//! operation slot only stages bytes that merely name the place — a call's
+//! staged view descriptor — so its writes and addresses are not the dead
+//! bytes at all.
+//! A `CopyBytes` into the place covers too — the only covering write with
+//! several roster rows — when its destination `WriteByteSpan` is the sole
+//! row reaching the dead range and its count register resolves to a clean
+//! `MaterializeI64`: the span then writes a compile-time `count` bytes at
+//! its fixed offset, and coverage is containment on constants. The copy's
+//! other rows — its source read among them — must stay quiet on the dead
+//! range, since a read reaching it would observe the bytes first.
 //! A byte-sequence dead store is covered only by another byte-sequence
 //! store whose `WriteByteSequence` row names the same payload base and the
 //! same `index` value — both then spell the byte at `byte_offset + index`

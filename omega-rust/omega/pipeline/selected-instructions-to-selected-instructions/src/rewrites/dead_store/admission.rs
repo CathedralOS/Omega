@@ -59,9 +59,10 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
-    SelectedStructuralTransport, SelectedSuccessor,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
+    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
@@ -69,6 +70,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::place_storage::{local_slot_is_place_storage, structural_place_declarations};
 
 pub(super) struct Admission<'source> {
@@ -611,6 +613,17 @@ fn interferes(
 ///   storage slot, through that slot's materialized address;
 /// - `Store64` into `Local(slot)` carrying `WriteLocal` on that same slot —
 ///   directly into the place's own storage;
+/// - `CopyBytes` carrying the destination `WriteByteSpan` — the only
+///   dynamic-extent row that can cover an exact dead range, and only when
+///   the span's reach is itself exact: the count register's sole definition
+///   must be a clean `MaterializeI64`, so the span writes a compile-time
+///   `count` bytes at its fixed `byte_offset`. Containment then decides on
+///   constants — `byte_offset` at or before the dead start and
+///   `byte_offset + count` reaching the dead end. A `CopyBytes` carries a
+///   source read span beside the destination write, so its roster holds
+///   several rows: the span is the single row that may reach the dead
+///   range, and every other row must stay quiet on it — a read reaching
+///   the dead bytes observes them before the write rewrites them;
 /// - for a byte-sequence dead store, another `Store { 0, 1 }` carrying
 ///   `WriteByteSequence` — the only write that can provably land on the
 ///   dead byte: same payload base and same runtime `index` spell the same
@@ -633,6 +646,14 @@ fn covering_source(
 ) -> Result<(), DeadStoreEliminationError> {
     let reject = || DeadStoreEliminationError::InterveningAccess;
     let structural_places = structural_place_declarations(function);
+    // A `CopyBytes` writes `count` bytes into the dead place through the
+    // destination span its `WriteByteSpan` row records, and carries the
+    // copy's source read beside it — the only covering write with several
+    // roster rows, and the only dynamic-extent row that can cover an exact
+    // dead range at all.
+    if matches!(instruction.kind, SelectedInstructionKind::CopyBytes) {
+        return byte_span_covering(instruction, dead, function, environment, structural_places);
+    }
     let mut rows = function
         .memory_accesses
         .iter()
@@ -734,6 +755,131 @@ fn covering_source(
         return Err(reject());
     }
     Ok(())
+}
+
+/// The `CopyBytes` covering route: a `WriteByteSpan` row claims `length`
+/// bytes at its fixed `byte_offset`, but the instruction really writes the
+/// `count` its third operand carries — so the span covers an exact dead
+/// range only when `count` is itself a compile-time constant. The count
+/// register must carry the row's own `length` value, hold its function's
+/// sole definition in a clean `MaterializeI64`, and never be redefined by
+/// an edge transport or case payload the instruction audit cannot see —
+/// only then does `byte_offset + count` bound the written span exactly.
+/// Coverage is containment on the resolved constants: the span starts at or
+/// before the dead range and its constant extent reaches the dead end.
+/// A byte-sequence dead store still cannot be covered here — its dead byte
+/// sits at `byte_offset + index`, a position no fixed span can contain.
+///
+/// The roster's other rows on the copy — its source read span among them —
+/// must stay quiet on the dead range: exactly one row may reach it, the
+/// covering span itself. A second reaching row either reads the dead bytes
+/// before the write rewrites them or writes a second span that the single
+/// covering claim cannot describe.
+fn byte_span_covering(
+    instruction: &SelectedInstruction,
+    dead: &Dead,
+    function: &SelectedFunction,
+    environment: &ValidatedTargetRegisterEnvironment,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> Result<(), DeadStoreEliminationError> {
+    let reject = || DeadStoreEliminationError::InterveningAccess;
+    if dead.sequence_index.is_some() {
+        return Err(reject());
+    }
+    let mut covering = None;
+    for access in function
+        .memory_accesses
+        .iter()
+        .filter(|access| access.instruction == instruction.id)
+    {
+        if !interferes(dead, access, structural_places) {
+            continue;
+        }
+        if covering.is_some() {
+            return Err(reject());
+        }
+        covering = Some(access);
+    }
+    let Some(row) = covering else {
+        return Err(reject());
+    };
+    // The span row names the dynamic extent the copy writes; its byte count
+    // is contractual zero — the runtime `length` is the authoritative reach.
+    let SelectedMemoryAccessRole::WriteByteSpan { length, .. } = row.role else {
+        return Err(reject());
+    };
+    if row.byte_count != 0 {
+        return Err(reject());
+    }
+    // The target's declared `copy_bytes` row pins operand 2 as the count
+    // use, so the register named there is the extent the instruction writes.
+    if environment.selected_keys().copy_bytes != Some(instruction.constraint) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let count = instruction
+        .operands
+        .iter()
+        .find(|operand| operand.operand == 2 && operand.access == RegisterOperandAccess::Use)
+        .ok_or_else(reject)?
+        .virtual_register;
+    // Row-instruction agreement for a dynamic extent: the count register
+    // must carry the `length` value the row claims, so the constant the
+    // audit resolves really is the span's reach.
+    let register = function
+        .virtual_registers
+        .iter()
+        .find(|register| register.id == count)
+        .ok_or_else(reject)?;
+    if !matches!(
+        register.origin,
+        VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == length
+    ) {
+        return Err(reject());
+    }
+    let written = materialized_bits(function, count).map_err(|_| reject())?;
+    if transport_defines(function, count) {
+        return Err(reject());
+    }
+    if row.byte_offset > dead.byte_offset {
+        return Err(reject());
+    }
+    let needed =
+        u64::from(dead.byte_offset) + u64::from(dead.byte_count) - u64::from(row.byte_offset);
+    if written < needed {
+        return Err(reject());
+    }
+    Ok(())
+}
+
+/// Whether an edge transport or case payload defines `register` — a
+/// definition the instruction-operand audit in `materialized_bits` cannot
+/// see, which would falsify the constant it reports for the count.
+fn transport_defines(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
+    for block in &function.blocks {
+        for successor in terminator_successors(&block.terminator) {
+            if successor.bindings.iter().any(|binding| {
+                matches!(
+                    binding.transport,
+                    SelectedValueTransport::Registers { parameter, .. } if parameter == register
+                )
+            }) {
+                return true;
+            }
+            if let Some(case) = &successor.structural_case
+                && case.payloads.iter().any(|payload| {
+                    matches!(
+                        payload.transport,
+                        SelectedCasePayloadTransport::Unmaterialized { parameter }
+                            | SelectedCasePayloadTransport::Registers { parameter, .. }
+                            if parameter == register
+                    )
+                })
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Calls, hosted effects, and terminator kinds are always barriers: they can
