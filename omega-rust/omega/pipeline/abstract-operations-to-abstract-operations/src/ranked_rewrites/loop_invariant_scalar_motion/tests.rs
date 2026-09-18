@@ -7025,3 +7025,481 @@ fn member_parameter_rebinds_to_a_run_covered_member_produced_root() {
             .is_empty()
     );
 }
+
+/// A two-state cycle whose member state establishes a record from invariant
+/// scalars, copies it through the next member block's structural parameter,
+/// and nests that copy inside a second record: `Pair { a: s, b: s }` reads
+/// only the `s` member parameter that resolves transitively to `scale`,
+/// `pair`'s place flows `Owned` into the copy block's member structural
+/// parameter, and `Holder { inner: copy }` copies the parameter's root — so
+/// the `pair` establishment relocates rebinding both scalar fields to the
+/// preheader anchor, and the `holder` establishment relocates behind it
+/// rebinding its copied field root from the member parameter to `pair`'s
+/// preserved place.
+const MEMBER_RECORD_SOURCE: &str = r#"
+    data Pair [copy] { a: u32 in Wrapping; b: u32 in Wrapping; }
+    data Holder [copy] { inner: Pair; }
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let pair: Pair = Pair { a: s, b: s };
+            let copy: Pair = pair;
+            let holder: Holder = Holder { inner: copy };
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(s)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+/// Same component shape, but `step` advances `s` on the back edge: the `pair`
+/// establishment's scalar fields read a genuinely loop-carried member
+/// parameter so it stays inside, and with `pair`'s root uncovered the
+/// `holder` copy's member parameter resolves loop-carried — it stays inside
+/// too.
+const CARRIED_FIELD_RECORD_SOURCE: &str = r#"
+    data Pair [copy] { a: u32 in Wrapping; b: u32 in Wrapping; }
+    data Holder [copy] { inner: Pair; }
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let pair: Pair = Pair { a: s, b: s };
+            let copy: Pair = pair;
+            let holder: Holder = Holder { inner: copy };
+            transition pending > 0 {
+                true -> scan(s + 1, pending - 1)
+                _ -> finish(s)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+/// Same cycle shape as `BYPASSED_MEMBER_SOURCE`, but `step` establishes the
+/// record: the entry state's `done` arm can leave the component before `step`
+/// ever runs, so the establishment is speculation and stays inside while the
+/// entry state's own invariant leaves still relocate.
+const BYPASSED_RECORD_SOURCE: &str = r#"
+    data Pair [copy] { a: u32 in Wrapping; b: u32 in Wrapping; }
+    data Root {}
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition remaining > 0 {
+            true -> step(scale, remaining - 1)
+            _ -> done()
+        }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let pair: Pair = Pair { a: s, b: s };
+            transition pending > 0 {
+                true -> scan(s, pending - 1)
+                _ -> finish(s)
+            }
+        }
+        state done() {}
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+/// Every `EstablishRecord` node inside `component`'s member blocks — the
+/// record counterpart of [`member_primitive_local`].
+fn member_record_establishments<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> Vec<(
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+)> {
+    let mut records = Vec::new();
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::EstablishRecord { .. } = &node.operation {
+                records.push((block, node));
+            }
+        }
+    }
+    records
+}
+
+#[test]
+fn invariant_record_establishments_relocate_preserving_their_places() {
+    let session = lowered_session(MEMBER_RECORD_SOURCE, "member record loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let records = member_record_establishments(function, component);
+    let [(_, pair), (_, holder)] = records.as_slice() else {
+        panic!("two member record establishments")
+    };
+    let (pair_operation, pair_place, pair_fields) = match &pair.operation {
+        AbstractOperation::EstablishRecord {
+            psi_operation,
+            result,
+            fields,
+        } => (*psi_operation, result.place, fields),
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    let (holder_operation, holder_place, copied_root) = match &holder.operation {
+        AbstractOperation::EstablishRecord {
+            psi_operation,
+            result,
+            fields,
+        } => {
+            let [field] = fields.as_slice() else {
+                panic!("holder declares one field")
+            };
+            let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+                panic!("holder's field copies a place root")
+            };
+            (*psi_operation, result.place, argument.place)
+        }
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    assert_ne!(
+        copied_root, pair_place,
+        "the holder copies the copy block's member structural parameter"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let pair_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == pair_operation)
+        .expect("the pair establishment is a planned relocation");
+    let LoopInvariantNodeResult::Structural(result) = pair_relocation.node().result() else {
+        panic!("the record establishment relocates its structural result")
+    };
+    assert_eq!(result.place, pair_place, "the declared place is byte-exact");
+    // Both scalar fields resolve to the same `scale` representative — the
+    // substitution rewrites every spelled field value to the preheader anchor.
+    let rewrites = pair_relocation.node().operand_rewrites();
+    assert_eq!(
+        rewrites.len(),
+        pair_fields.len(),
+        "every scalar field value carries one member-parameter rewrite"
+    );
+    let representative = rewrites[0].1;
+    for (rewritten, field) in rewrites.iter().zip(pair_fields.iter()) {
+        let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value else {
+            panic!("pair's fields are scalar")
+        };
+        assert_eq!(rewritten.0, *value, "the rewrite spells the field value");
+        assert_eq!(
+            rewritten.1, representative,
+            "every field rewrites to the same preheader anchor"
+        );
+    }
+    let anchor = function
+        .parameters
+        .iter()
+        .find(|parameter| parameter.value == representative)
+        .expect("the field representative is the machine's `scale` parameter")
+        .value;
+
+    let holder_relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == holder_operation)
+        .expect("the holder establishment is a planned relocation");
+    assert_eq!(
+        holder_relocation.node().argument_rewrites(),
+        &[(copied_root, pair_place)],
+        "the moved copy rebinds its member parameter root to the run-covered record place"
+    );
+    assert_eq!(pair_relocation.destination().block, entry.source);
+    assert_eq!(holder_relocation.destination().block, entry.source);
+    assert!(
+        pair_relocation.destination().node < holder_relocation.destination().node,
+        "the relocated pair lands ahead of the holder copying its root"
+    );
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == pair_relocation.destination().block)
+        .expect("destination block exists");
+    let moved_pair =
+        &destination.nodes[usize::try_from(pair_relocation.destination().node).unwrap()];
+    match &moved_pair.operation {
+        AbstractOperation::EstablishRecord { result, fields, .. } => {
+            assert_eq!(result.place, pair_place, "the declared place is byte-exact");
+            for field in fields {
+                let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value else {
+                    panic!("pair's fields are scalar")
+                };
+                assert_eq!(
+                    *value, anchor,
+                    "the moved initializer rebinds to the preheader anchor"
+                );
+            }
+        }
+        operation => panic!("relocated node keeps its record operation: {operation:?}"),
+    }
+    let moved_holder =
+        &destination.nodes[usize::try_from(holder_relocation.destination().node).unwrap()];
+    match &moved_holder.operation {
+        AbstractOperation::EstablishRecord { result, fields, .. } => {
+            assert_eq!(
+                result.place, holder_place,
+                "the declared place is byte-exact"
+            );
+            let [field] = fields.as_slice() else {
+                panic!("holder declares one field")
+            };
+            let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+                panic!("holder's field copies a place root")
+            };
+            assert_eq!(
+                argument.place, pair_place,
+                "the moved copy spells the relocated pair's preserved place"
+            );
+        }
+        operation => panic!("relocated node keeps its record operation: {operation:?}"),
+    }
+    assert_eq!(moved_pair.provenance, pair_relocation.node().provenance());
+    assert_eq!(moved_pair.fuel, pair_relocation.node().fuel());
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn carried_field_record_establishments_stay_inside() {
+    let session = lowered_session(CARRIED_FIELD_RECORD_SOURCE, "carried field record loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let records = member_record_establishments(function, component);
+    assert_eq!(records.len(), 2, "two member record establishments");
+    let record_operations = records
+        .iter()
+        .map(|(_, node)| operation_of(node))
+        .collect::<Vec<_>>();
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    for operation in record_operations {
+        assert!(
+            candidate
+                .relocations()
+                .iter()
+                .all(|relocation| relocation.node().psi_operation() != operation),
+            "a record reading a carried field — or copying a root the run never covers — stays inside"
+        );
+    }
+}
+
+#[test]
+fn bypassed_member_record_establishment_stays_inside() {
+    let session = lowered_session(BYPASSED_RECORD_SOURCE, "bypassed record loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let records = member_record_establishments(function, component);
+    assert_eq!(records.len(), 1, "one member record establishment");
+    let record_operation = operation_of(records[0].1);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != record_operation),
+        "a record establishment in a member the exit can bypass is speculation"
+    );
+    assert!(
+        !candidate.relocations().is_empty(),
+        "the entry state's invariant leaves still relocate"
+    );
+}
+
+#[test]
+fn forged_record_field_initializer_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_RECORD_SOURCE, "member record loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let records = member_record_establishments(function, component);
+    let [(_, pair), _] = records.as_slice() else {
+        panic!("two member record establishments")
+    };
+    let (pair_operation, member_field_value) = match &pair.operation {
+        AbstractOperation::EstablishRecord {
+            psi_operation,
+            fields,
+            ..
+        } => {
+            let terminal_psi::RecordFieldValue::Scalar { value, .. } = fields[0].value else {
+                panic!("pair's fields are scalar")
+            };
+            (*psi_operation, value)
+        }
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == pair_operation)
+        .expect("the pair establishment is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the moved field initializer back to the member parameter skips
+    // the seed-derived substitution — the establishment's field values rebind
+    // to the preheader anchor, so the replayed operation comparison rejects
+    // the drifted spelling.
+    let forged = find_operation_mut(&mut unit, pair_operation);
+    if let AbstractOperation::EstablishRecord { fields, .. } = &mut forged.operation {
+        for field in fields {
+            if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &mut field.value {
+                *value = member_field_value;
+            }
+        }
+    }
+    for value_use in &mut forged.uses {
+        value_use.value = member_field_value;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn forged_record_field_copy_root_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session(MEMBER_RECORD_SOURCE, "member record loop");
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let records = member_record_establishments(function, component);
+    let [(_, pair), (_, holder)] = records.as_slice() else {
+        panic!("two member record establishments")
+    };
+    let holder_place = match &holder.operation {
+        AbstractOperation::EstablishRecord { result, .. } => result.place,
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    let pair_place = match &pair.operation {
+        AbstractOperation::EstablishRecord { result, .. } => result.place,
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    let holder_operation = operation_of(holder);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == holder_operation)
+        .expect("the holder establishment is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Swapping the copied root to the holder's own declared place is not a
+    // planned rewrite — the seed-derived admission rebinds the member
+    // parameter to the run-covered pair place, so the replayed operation
+    // comparison rejects the forged spelling.
+    let forged = find_operation_mut(&mut unit, holder_operation);
+    if let AbstractOperation::EstablishRecord { fields, .. } = &mut forged.operation {
+        let terminal_psi::RecordFieldValue::Structural(argument) = &mut fields[0].value else {
+            panic!("holder's field copies a place root")
+        };
+        assert_eq!(argument.place, pair_place);
+        argument.place = holder_place;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}

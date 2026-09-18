@@ -495,7 +495,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   or run-covered member-produced root — a mutating borrow's root must be
   uniquely member-produced and covered by the same run, and a producing
   establishment relocates only when every member mutable borrower of its
-  root relocates too. Invariant discovery resolves
+  root relocates too, and unrestricted `EstablishRecord`
+  establishments — the boundary's first operand-carrying structural
+  establishment — whose declared place, structural type, claim-free and
+  qualification-free result custody, declaration-ordered field
+  initializers, and range obligations move byte-exact inside the moved
+  operation, while every scalar field initializer substitutes under the
+  member-parameter rule and every structural field initializer copies a
+  whole unrestricted root the run resolves to a preheader-visible,
+  member-parameter-resolved, or uniquely member-produced run-covered
+  place the moved record keeps spelling, under the same whole-component
+  custody bound that no member stores to the declared place. Invariant
+  discovery resolves
   member scalar and structural
   parameters transitively across component-internal edges to the
   representative every reaching edge agrees on — a member parameter
@@ -513,21 +524,25 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   authenticated topology. Remaining: other
   non-scalar families, profitability, and motion beyond the shared-source
   preheader. Operand-carrying structural establishments
-  (`EstablishScalarArray`, `EstablishRecord`, `EstablishScalarCase`,
+  (`EstablishScalarArray`, `EstablishScalarCase`,
   `EstablishTrivialAffineLocal`) and place-result structural calls
   (`CallStructural`) currently have no admitted relocation evidence; the
   remaining establishments still need an admitted cyclic source shape —
   scalar-graph arrays only emit as call arguments — before admission
   work can begin. Cycle-admission evidence (linw2): the verifier's
-  cyclic-operation whitelist `unranked_cycles::eligible` admits none of
-  the remaining establishments — `EstablishScalarArray` is also fenced
+  cyclic-operation whitelist `unranked_cycles::eligible` now admits
+  unrestricted `EstablishRecord` establishments — `record::fields`
+  validation proves the fresh result place, declaration-paired field
+  initializers, and claim-free result, and the unrestricted result never
+  carries a per-iteration disposal obligation — but admits none of the
+  other remaining establishments: `EstablishScalarArray` is also fenced
   by `block_graph`'s once-per-activation array rule, while
-  `EstablishRecord` and `EstablishTrivialAffineLocal` fall to the
-  scalar-result fallthrough — and admits `EstablishScalarCase` and
-  place-result `CallStructural` only bound to the same block's
-  `StructuralCase`/`ReturnStructural` terminator, whose edges trivially
-  discard the result place, so a hoisted establishment leaves later
-  traversals dispatching a disposed place. Synthetic fixtures cannot
+  `EstablishTrivialAffineLocal` falls to the scalar-result fallthrough —
+  and admits `EstablishScalarCase` and place-result `CallStructural`
+  only bound to the same block's `StructuralCase`/`ReturnStructural`
+  terminator, whose edges trivially discard the result place, so a
+  hoisted establishment leaves later traversals dispatching a disposed
+  place. Synthetic fixtures cannot
   bypass the fence: optimizer admission replays
   `verify_module_for_optimization`. Profitability likewise has no
   bounded leg — every operation and terminator costs one fuel unit, so

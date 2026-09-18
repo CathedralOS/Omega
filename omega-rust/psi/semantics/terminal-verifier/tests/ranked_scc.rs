@@ -1011,3 +1011,6 @@ mod natural_topology;
 
 #[path = "ranked_scc/scalar_array_availability.rs"]
 mod scalar_array_availability;
+
+#[path = "ranked_scc/unranked_records.rs"]
+mod unranked_records;
