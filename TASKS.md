@@ -2433,7 +2433,16 @@ Owners include
   - Completion route. `InterruptAcknowledgement::complete` in
     `source/library/core/interrupt.omg` still declares `reaches PortIo`, and
     `compiler/tests/calling_policy_plans/opaque_boundaries.rs` pins it as not
-    installation-bound.
+    installation-bound. Migrating the declaration is a verified one-line
+    change that turns that suite red, because every realization of the
+    installation-bound entry settles the linear acknowledgement and retains
+    the nested bounded row, and no satisfier for `complete` can be authored
+    while a checked body cannot discharge the linear receiver, so the route
+    now waits on [owner question 10](OWNER_QUESTIONS.md). The rejection is
+    driven from authored source by
+    `opaque_boundaries.rs::selected_realization_with_an_unresolved_installation_bound_row_rejects`,
+    so losing the fence is a red test whichever route is chosen. The
+    component-contract bullet below is independent of this and claimable.
     [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
     requires a bounded row beneath `MachineControl + PortIo`, and
     `InstalledInterruptCompletionRoute` in `external-roots` rejects a completion
