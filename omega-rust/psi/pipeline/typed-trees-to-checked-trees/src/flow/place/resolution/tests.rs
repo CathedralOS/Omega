@@ -3,7 +3,10 @@ use super::effective_member_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::name::Identifier;
 use symbols::SymbolHandle;
-use typed_trees::expression::TableMemberExpression;
+use typed_trees::expression::{
+    MatchPattern, TableCastExpression, TableIndexedExpression, TableMatchArm, TableMatchExpression,
+    TableMemberExpression,
+};
 use typed_trees::statement::StatementNode;
 
 fn fixture() -> (typed_trees::TypedTrees, TableMemberExpression) {
@@ -1056,4 +1059,342 @@ fn atomic_expression_position_is_its_operand_position() {
         super::expression_type_symbol(&program, atomic),
         Some(declared_data_symbol(&program, "Context"))
     );
+}
+
+/// `hold(context: Context)` supplies the `context` name, the
+/// `context.scheduler` member's handle, and the parameter's stored `Context`
+/// reference — the leaf material the self-typed and collection leaves resume
+/// at. `Context` is `[copy]` so a synthesized `[context, context]` literal or
+/// a two-arm `match` needs no move custody to lower.
+fn stored_type_leaf_fixture() -> (
+    typed_trees::TypedTrees,
+    ExpressionHandle,
+    ExpressionHandle,
+    typed_trees::types::TypeReferenceHandle,
+) {
+    let source = r#"
+        data Main {}
+        machine Main::run(&mut self) {}
+        pub data SchedulerHandle [copy] {}
+        pub data Context [copy] { scheduler: SchedulerHandle; }
+        machine hold(context: Context) {
+            let s: SchedulerHandle = context.scheduler;
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let context = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Name(_) = node else {
+                return None;
+            };
+            (program.expression_table.display_name(handle) == "context").then_some(handle)
+        })
+        .expect("the context name expression");
+    let scheduler_member = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            (member.member.as_str() == "scheduler").then_some(handle)
+        })
+        .expect("the context.scheduler member expression");
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "hold")
+        .expect("hold machine");
+    let context_type = program
+        .state_parameters(&program.machine_states(machine)[0])
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "context")
+        .expect("context parameter")
+        .type_reference;
+    (program, context, scheduler_member, context_type)
+}
+
+/// A cast stores its complete normalized result type on the node, so the
+/// leaf's position is that reference outright: a member hop on the cast
+/// resolves the field the result type declares instead of stopping at an
+/// opaque leaf. An unresolved stored result keeps no position.
+#[test]
+fn cast_expression_position_is_its_stored_result_type() {
+    let (mut program, context, _, context_type) = stored_type_leaf_fixture();
+    let cast = program
+        .expression_table
+        .insert(ExpressionNode::Cast(TableCastExpression {
+            value: context,
+            target_type: context_type,
+            result_type: context_type,
+            target_label: arena::HandleSpan::empty(),
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            semantic_domain: arena::HandleSpan::empty(),
+            semantic_domain_arguments: arena::HandleSpan::empty(),
+            semantic_domain_symbol: SymbolHandle::invalid(),
+            semantic_domain_id: language_semantics::SemanticDomainId::NULL,
+            form: language_core::cast_form::CastForm::Value,
+        }));
+    assert_eq!(
+        super::expression_type_symbol(&program, cast),
+        Some(declared_data_symbol(&program, "Context"))
+    );
+    let member = TableMemberExpression {
+        receiver: cast,
+        member: Identifier::generated("scheduler"),
+        member_symbol: SymbolHandle::invalid(),
+        case_variant: None,
+    };
+    assert_eq!(
+        effective_member_symbol(&program, cast, &member),
+        declared_field(&program, "Context", "scheduler")
+    );
+
+    let unresolved = {
+        let ExpressionNode::Cast(cast) = program.expression_table.expression(cast) else {
+            unreachable!()
+        };
+        let mut cast = *cast;
+        cast.result_type = typed_trees::types::TypeReferenceHandle::invalid();
+        program.expression_table.insert(ExpressionNode::Cast(cast))
+    };
+    assert!(super::expression_type_symbol(&program, unresolved).is_none());
+}
+
+/// The proof-only zero value of `T` is a `T`: the node stores the exact
+/// reference, so its position is that reference outright and a member hop
+/// resolves the field `T` declares. An invalid stored reference keeps no
+/// position.
+#[test]
+fn zero_value_position_is_its_stored_type() {
+    let (mut program, _, _, context_type) = stored_type_leaf_fixture();
+    let zero = program
+        .expression_table
+        .insert(ExpressionNode::ZeroValue(context_type));
+    assert_eq!(
+        super::expression_type_symbol(&program, zero),
+        Some(declared_data_symbol(&program, "Context"))
+    );
+    let member = TableMemberExpression {
+        receiver: zero,
+        member: Identifier::generated("scheduler"),
+        member_symbol: SymbolHandle::invalid(),
+        case_variant: None,
+    };
+    assert_eq!(
+        effective_member_symbol(&program, zero, &member),
+        declared_field(&program, "Context", "scheduler")
+    );
+
+    let invalid = program.expression_table.insert(ExpressionNode::ZeroValue(
+        typed_trees::types::TypeReferenceHandle::invalid(),
+    ));
+    assert!(super::expression_type_symbol(&program, invalid).is_none());
+}
+
+/// An array literal is a fixed collection over one element type: an index
+/// hop resumes at the element, so `[context, context][0].scheduler` lands on
+/// `Context::scheduler` — the same window contract a ranged leaf already
+/// carries, since the literal declares no fields of its own.
+#[test]
+fn array_literal_position_is_a_window_over_its_agreed_element() {
+    let (mut program, context, _, _) = stored_type_leaf_fixture();
+    let elements = program
+        .expression_table
+        .insert_expression_handles([context, context]);
+    let literal = program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(elements));
+    let index = program.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::zero(),
+    ));
+    let indexed =
+        program
+            .expression_table
+            .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection: literal,
+                index,
+            }));
+    assert_eq!(
+        super::expression_type_symbol(&program, indexed),
+        Some(declared_data_symbol(&program, "Context"))
+    );
+    let member = TableMemberExpression {
+        receiver: indexed,
+        member: Identifier::generated("scheduler"),
+        member_symbol: SymbolHandle::invalid(),
+        case_variant: None,
+    };
+    assert_eq!(
+        effective_member_symbol(&program, indexed, &member),
+        declared_field(&program, "Context", "scheduler")
+    );
+}
+
+/// A member demanded on the literal itself names a field of the array, which
+/// declares none: the window position must not lend the element's members to
+/// the collection, exactly as a ranged window refuses them.
+#[test]
+fn array_literal_members_resolve_nothing_on_the_literal_itself() {
+    let (mut program, context, _, _) = stored_type_leaf_fixture();
+    let elements = program
+        .expression_table
+        .insert_expression_handles([context, context]);
+    let literal = program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(elements));
+    let member = TableMemberExpression {
+        receiver: literal,
+        member: Identifier::generated("scheduler"),
+        member_symbol: SymbolHandle::invalid(),
+        case_variant: None,
+    };
+    assert!(!effective_member_symbol(&program, literal, &member).is_valid());
+}
+
+/// Every element must agree on one exact stored position: `[context,
+/// context.scheduler]` mixes a `Context` leaf with a `SchedulerHandle` leaf,
+/// so the literal keeps no position rather than naming one element's type
+/// for the whole collection.
+#[test]
+fn array_literal_positions_require_every_element_to_agree() {
+    let (mut program, context, scheduler_member, _) = stored_type_leaf_fixture();
+    let elements = program
+        .expression_table
+        .insert_expression_handles([context, scheduler_member]);
+    let literal = program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(elements));
+    assert!(super::expression_type_symbol(&program, literal).is_none());
+    let index = program.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::zero(),
+    ));
+    let indexed =
+        program
+            .expression_table
+            .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection: literal,
+                index,
+            }));
+    let member = TableMemberExpression {
+        receiver: indexed,
+        member: Identifier::generated("scheduler"),
+        member_symbol: SymbolHandle::invalid(),
+        case_variant: None,
+    };
+    assert!(!effective_member_symbol(&program, indexed, &member).is_valid());
+}
+
+/// A match's value is whichever arm produces it: every arm must agree on one
+/// exact position — the same stored reference — or the dispatch keeps no
+/// position rather than letting one arm's leaf stand in for the others.
+#[test]
+fn match_expression_position_is_the_arms_common_position() {
+    let source = r#"
+        data Main {}
+        machine Main::run(&mut self) {}
+        pub data SchedulerHandle [copy] {}
+        pub data Context [copy] { scheduler: SchedulerHandle; }
+        machine pick(flag: bool, context: Context) -> Context {
+            match flag { true -> context _ -> context }
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let dispatch = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| matches!(node, ExpressionNode::Match(_)).then_some(handle))
+        .expect("the match expression");
+    assert_eq!(
+        super::expression_type_symbol(&program, dispatch),
+        Some(declared_data_symbol(&program, "Context"))
+    );
+    let member = TableMemberExpression {
+        receiver: dispatch,
+        member: Identifier::generated("scheduler"),
+        member_symbol: SymbolHandle::invalid(),
+        case_variant: None,
+    };
+    assert_eq!(
+        effective_member_symbol(&program, dispatch, &member),
+        declared_field(&program, "Context", "scheduler")
+    );
+}
+
+#[test]
+fn match_expression_position_requires_every_arm_to_agree() {
+    let (mut program, context, scheduler_member, _) = stored_type_leaf_fixture();
+    // A `SchedulerHandle` arm beside a `Context` arm names no common type:
+    // the dispatch keeps no position rather than borrowing one arm's leaf.
+    let divergent = program.expression_table.insert_match_arms([
+        TableMatchArm {
+            pattern: MatchPattern::Wildcard,
+            value: context,
+            source_span: source::SourceSpan::default(),
+        },
+        TableMatchArm {
+            pattern: MatchPattern::Wildcard,
+            value: scheduler_member,
+            source_span: source::SourceSpan::default(),
+        },
+    ]);
+    let divergent = program
+        .expression_table
+        .insert(ExpressionNode::Match(TableMatchExpression {
+            subject: context,
+            arms: divergent,
+        }));
+    assert!(super::expression_type_symbol(&program, divergent).is_none());
+
+    // An opaque arm — a scalar literal with no position — fails closed the
+    // same way, as does a dispatch with no arms at all.
+    let literal = program.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::zero(),
+    ));
+    let opaque = program.expression_table.insert_match_arms([
+        TableMatchArm {
+            pattern: MatchPattern::Wildcard,
+            value: context,
+            source_span: source::SourceSpan::default(),
+        },
+        TableMatchArm {
+            pattern: MatchPattern::Wildcard,
+            value: literal,
+            source_span: source::SourceSpan::default(),
+        },
+    ]);
+    let opaque = program
+        .expression_table
+        .insert(ExpressionNode::Match(TableMatchExpression {
+            subject: context,
+            arms: opaque,
+        }));
+    assert!(super::expression_type_symbol(&program, opaque).is_none());
+    let empty = program
+        .expression_table
+        .insert(ExpressionNode::Match(TableMatchExpression {
+            subject: context,
+            arms: arena::HandleSpan::empty(),
+        }));
+    assert!(super::expression_type_symbol(&program, empty).is_none());
 }
