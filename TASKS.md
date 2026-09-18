@@ -602,76 +602,45 @@ Package policy and orchestration stay in ordinary Omega libraries, with native
 details in providers. A topology-specific IR or new trusted graph axiom is not
 an implementation shortcut.
 
-- **TOPOLOGY-PLAN-VERIFICATION.** Deliver an ordinary build-only package and
-  composition project over prebuilt component artifacts. Depends on the scoped
-  build output route and independently verified complete descriptions; missing
-  evidence must not be replaced with hand-authored inventories. Implement fixed
-  `no_route`/`only_via`, bounded deterministic graph normalization and diagnostics,
-  correctness evidence, exact owner-supplied `TopologyRequest`, and versioned
-  codec tables/fixtures. Acceptance: the payment graph succeeds and direct/indirect
-  bypasses reject with checked witnesses; cover cycles, disconnected sources,
-  duplicates, stale subjects, forged completeness, missing owner policies and
-  unselected policy executables without loading them. An independent source-free
-  consumer reconstructs the same graph, rejects corrupt plans, and replays the
-  selected predicates. Typechecking a graph algorithm alone is not correctness
-  evidence, and successful publication is not an installation claim.
+- **TOPOLOGY-PLAN-VERIFICATION.** Deliver the ordinary Omega build-only topology
+  package and payment composition project under the
+  [reference contract](wiki/spec/packages/topology.md). Reuse the Rust reference in
+  `omega-rust/omega/packages/topology/`: `plan_composition.rs`,
+  `plan_verification.rs`, and `deployment_plan/` already implement bounded graph
+  normalization, fixed policies, certificates and the versioned codec. Do not
+  restart those algorithms or introduce a compiler-owned graph stage.
 
-  Resume evidence: the Rust reference slice landed as `topology-plan`
-  (`omega-rust/omega/packages/topology`): canonical model, bounded
-  normalization, `no_route`/`only_via` with structural certificates and
-  checked violation witnesses, versioned codec with golden
-  `tests/fixtures/payment.{request,plan}`, producer `compose_plan`, and
-  source-free `verify_plan` covering the acceptance rejection matrix
-  (`mbx nextest run -p topology-plan`: 76/76 at 960a736352, macOS x86_64).
-  Remaining: the build-only Omega package and composition project itself,
-  consuming verified component descriptions over the scoped build output
-  route — the crate deliberately does not accept hand-authored endpoint
-  inventories as verified evidence.
+  Remaining work:
 
-  Seam map re-probed at 5f74f97ab9 (macOS x86_64; `omega audit packages
-  --project <dir> --target linux_x86_64 --offline` against composition
-  projects): build-scope nameability landed at 874b31f2a0, retiring the
-  first blocker. `use topology::policies` now resolves through a
-  `build_depend_as` edge in the root build.omg and in a root-local helper
-  source transitively imported by it (fixture
-  `tests/fixtures/packages/build-scope-topology`, regression tests in
-  `omega/tests/package_commands/inspection.rs`): the imported machine runs
-  at build time, the edge records as `[build dependency 0]`, and the same
-  spelling under product scope rejects "names build dependency
-  `topology`". A scratch composition project combining the import with
-  `builder.application` + `builder.artifact_only` +
-  `builder.output.require`/`resolve`/`create`/`write`/`close`/`complete`
-  on `payments.plan` finishes audit, and leaving the obligation pending
-  still rejects "required output `payments.plan` of `build` was declared
-  but never completed". `builder.source` reads files inside the
-  requester's own package root but rejects `../dependency/...` escapes
-  ("build-root path must use canonical relative components"): its
-  `read_roots` bind only the requesting root, so evaluated code cannot
-  reach descriptions staged beside a dependency package.
-  `BuildSnapshotRequest` is now bound on both compile routes (see
-  BUILD-SNAPSHOT-OUTPUTS), so the manager's review observation carries the
-  captured inventory and settled required outputs.
-  `verify_component`/`VerifiedComponent` and the schema-V1
-  `ComponentDescription` codec exist in
-  `omega-rust/omega/backend/artifacts/component-candidate` (with
-  `component-deployment` on the native install side), but
-  `describe_component`/`describe_component_facts`/`verify_component` have
-  zero callers outside that crate: nothing produces a description in the
-  compile path, and no evaluated-build admission surface exists — the
-  build prelude exposes `source`/`output`/`log`/`product` facets and no
-  component facet, so evaluated Omega cannot name or verify a
-  `ComponentDescription` at all (a hand-authored `.desc` the root could
-  read through `builder.source` is exactly the hand-authored inventory
-  this item forbids) — COMPONENT-SUBSTRATE. `CompositionMode::Independent`
-  still rejects at provider-planning's component-closure fence
-  (`selection_provenance.rs`), though an `artifact_only` composition
-  selects no providers, so that fence is not on the next acceptance's
-  path. No Omega-authored topology package exists yet (`source/library/`
-  holds only alloc/core/std; `omega-rust/omega/packages/topology` is the
-  Rust reference). Next acceptance when the seams land: the composition
-  project compiles `use topology::...` under the build scope, admits
-  three verified component descriptions, and publishes the checked plan
-  as a required artifact of an `artifact_only` build.
+  - Connect admitted component facts to the package producer and independent plan
+    consumer. The reference codec decodes a caller-supplied `VerifiedComplete`
+    tag/closure digest; `verify_plan` checks that model, not the component artifact
+    establishing its inventory. A valid tag is not proof of completeness.
+    Reconstruct and bind endpoints, entries, authority, profile and assumptions
+    from the actual verified descriptions; reject forged or substituted records.
+  - Reuse `compiler/src/compiler/package.rs`'s description producer and
+    `build-evaluation/src/provider_settlement/independent_components.rs`'s
+    consumer. The shared representation/verifier now lives in
+    `backend/artifacts/component-description/`. `COMPONENT-SUBSTRATE` owns
+    missing complete-description and evaluated-consumption support, not a parallel
+    topology census. Existing `Independent` provider selections have a verified
+    component join; they are not unconditionally unsupported.
+  - Author the Omega package over admitted input bytes and generic required
+    outputs. `tests/fixtures/packages/build-scope-topology` exercises imports and
+    output settlement, not payment-plan verification. `BUILD-SNAPSHOT-OUTPUTS`
+    owns captured-input and artifact-only publication gaps. Do not bypass input
+    confinement to read dependency-adjacent artifacts or accept handwritten
+    inventories as a substitute.
+
+  Acceptance: the composition build admits three real component descriptions and
+  publishes `payments.plan`; a source-free consumer verifies it against separately
+  supplied current `TopologyRequest`. Preserve the
+  [policy controls](wiki/spec/packages/topology.md#diagnostics-and-implementation-acceptance):
+  direct/indirect bypass witnesses, cycles, instance distinction, disconnected
+  selectors, duplicate bindings, stale subjects, forged completeness, missing
+  policies and corrupt plans. Unselected policy executables are never loaded.
+  Graph typechecking and published bytes establish neither complete component
+  facts nor runtime installation; the latter belongs to the next task.
 
 - **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Build the package-owned installer and
   Windows/macOS pipe adapters for three checked local payment processes. Depends
