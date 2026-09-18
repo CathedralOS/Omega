@@ -1,13 +1,55 @@
-//! Native proof-carrying product admission.
+//! Native proof-carrying product admission and the bounded producer sidecar.
 //!
-//! Native semantics and correspondence evidence are not yet available in a
-//! standalone profile. Producer custody digests, even when self-consistent,
-//! do not prove anything about the behavior of the identified native bytes.
+//! A native `.proof` sidecar carries the placed-image evidence section
+//! (`native_evidence`): the declared executable-text extent inside the
+//! published container plus the complete placed executable-region inventory
+//! over those bytes. Checking replays that leg against the exact artifact
+//! bytes — region and gap digests, addresses, fingerprints and the inventory
+//! seal — so the section's claims about coverage are verified, not trusted.
+//! Producer custody digests, even when self-consistent, still prove nothing
+//! about the behavior of the identified native bytes, so the behavioral legs
+//! (instruction rows against the closed target semantics, entries, incoming
+//! edges, indirect targets, premise availability and lowering correspondence)
+//! keep the verdict at `Incomplete` until their standalone checking exists.
+
+mod native_evidence;
+
+pub use native_evidence::{NativeEvidenceError, NativePlacedImageEvidence};
 
 use terminal_codec::{
-    PccIncompleteness, PccProductKind, PccProofSidecar, PccReceiverPolicy, PccRejection,
-    PccVerificationOutcome, verify_pcc_claim_fields,
+    PccDependency, PccGuarantee, PccIncompleteness, PccProductKind, PccProofSidecar,
+    PccReceiverPolicy, PccRejection, PccVerificationOutcome, admission_profile_identity,
+    pcc_artifact_commitment, terminal_assumption_closure, verify_pcc_claim_fields,
 };
+
+/// The guarantee a bounded native sidecar offers: the published bytes carry
+/// an executable text that is exactly and completely covered by a sealed
+/// placed-region inventory at declared addresses for the declared target.
+/// This is the certificate's byte-coverage leg, which the evidence honestly
+/// establishes — it is deliberately not the behavioral guarantee
+/// (`omega.native-verified-executable`), which a sidecar may not claim until
+/// standalone native semantics and correspondence checking exists. A receiver
+/// policy requiring a guarantee beyond this one rejects at the claim fields,
+/// exactly as the contract prescribes.
+pub const NATIVE_PLACED_IMAGE_COVERAGE_GUARANTEE: &str = "omega.native-placed-image-coverage.v1";
+
+/// The semantic-profile identity a native sidecar is checked under: the fixed
+/// executable semantics of the declared target.
+fn native_semantic_profile_identity(target: target::NativeTarget) -> String {
+    let architecture = match target.architecture {
+        target::Architecture::Aarch64 => "aarch64",
+        target::Architecture::X86_64 => "x86_64",
+    };
+    let format = match target.object_format {
+        target::ObjectFormat::Elf => "elf",
+        target::ObjectFormat::MachO => "macho",
+        target::ObjectFormat::Coff => "coff",
+    };
+    format!(
+        "native-executable.v1:{architecture}-{format}-{}",
+        target.pointer_size
+    )
+}
 
 /// One published artifact/`.proof` companion pair with the exact separate
 /// byte sizes the contract requires producer and receiver to report.
@@ -37,12 +79,60 @@ impl std::fmt::Display for PccPublicationReceipt {
     }
 }
 
-/// Check the envelope of a native artifact/proof pair, without granting
-/// native assurance until standalone semantics/preservation checking exists.
+/// Build the bounded native `.proof` sidecar for one retained artifact and
+/// the exact bytes about to be published. The bytes are the post-finalization
+/// output; any later byte change invalidates the sidecar's artifact
+/// commitment and the evidence's declared text extent alike. The offered
+/// guarantee names only what the placed-image evidence establishes — verified
+/// byte coverage and placement — so the sidecar never asserts the behavioral
+/// claim it cannot yet discharge; checking still reports that remainder
+/// `Incomplete`.
+pub fn build_native_proof_sidecar(
+    artifact: &crate::RetainedNativeArtifact,
+    profile: &proof_admission::AdmissionProfile,
+    executable_bytes: &[u8],
+) -> Result<PccProofSidecar, String> {
+    let evidence = NativePlacedImageEvidence::from_artifact(artifact, executable_bytes)?;
+    // The omitted-dependency inventory is the retained module's own
+    // installation-reach enumeration, exactly identified — a receiver must
+    // independently possess the same material under either product.
+    let module = terminal_codec::decode_module(artifact.psi_artifact().semantic_bytes())
+        .map_err(|error| format!("cannot decode the retained terminal module: {error}"))?;
+    let dependencies = module
+        .root_service_reach
+        .installation_dependencies
+        .iter()
+        .map(|dependency| PccDependency::from_installation_reach(dependency, &module.services))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("cannot enumerate the omitted dependencies: {error}"))?;
+    PccProofSidecar::new(
+        PccProductKind::Native,
+        pcc_artifact_commitment(executable_bytes),
+        native_semantic_profile_identity(artifact.target()),
+        admission_profile_identity(profile),
+        vec![PccGuarantee {
+            identity: NATIVE_PLACED_IMAGE_COVERAGE_GUARANTEE.to_owned(),
+            premises: Vec::new(),
+        }],
+        evidence.to_bytes(),
+        terminal_assumption_closure(),
+        dependencies,
+    )
+    .map_err(|error| format!("cannot encode the native proof sidecar: {error}"))
+}
+
+/// Check the envelope and evidence of a native artifact/proof pair without
+/// granting native assurance beyond what the evidence establishes.
 ///
 /// Claim-field validation still rejects invalid bindings or receiver-policy
-/// violations. A valid envelope cannot establish native behavior, regardless
-/// of the offered profile or its embedded Psi evidence.
+/// violations. A recognized placed-image section is then replayed against the
+/// exact artifact bytes — a section that lies about those bytes rejects by
+/// name — while an absent or unrecognized section stays `Incomplete`. Even a
+/// fully replayed section only establishes exact byte coverage of the
+/// declared executable text: behavior (instructions, entries, incoming edges,
+/// indirect targets, premise availability, lowering correspondence) remains
+/// `Incomplete` until standalone native semantics and preservation checking
+/// exists.
 pub fn verify_native_proof_sidecar(
     executable_bytes: &[u8],
     sidecar_bytes: &[u8],
@@ -58,6 +148,32 @@ pub fn verify_native_proof_sidecar(
             "sidecar does not certify a native product",
         ));
     }
+    let evidence = match NativePlacedImageEvidence::from_bytes(sidecar.evidence()) {
+        Ok(evidence) => evidence,
+        Err(NativeEvidenceError::Unsupported) => {
+            return PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+                product: PccProductKind::Native,
+            });
+        }
+        Err(NativeEvidenceError::Malformed(reason)) => {
+            return PccVerificationOutcome::Reject(PccRejection::new("native evidence", reason));
+        }
+    };
+    // The offered semantic profile must be the one the evidence's declared
+    // target realizes: a sidecar cannot present aarch64-ELF semantics over
+    // x86-64 bytes by relabeling the envelope.
+    if native_semantic_profile_identity(evidence.target()) != sidecar.semantic_profile() {
+        return PccVerificationOutcome::Reject(PccRejection::new(
+            "semantic profile",
+            "the evidence's declared target does not realize the offered semantic profile",
+        ));
+    }
+    if let Err(reason) = evidence.replay_against(executable_bytes) {
+        return PccVerificationOutcome::Reject(PccRejection::new(
+            "native executable inventory",
+            reason,
+        ));
+    }
     PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
         product: PccProductKind::Native,
     })
@@ -69,11 +185,11 @@ pub fn verify_native_proof_sidecar(
 /// pinned policy — never the source, producer memory, or producer hints about
 /// which product the pair certifies. The envelope's declared product kind is
 /// the only routing input: a Psi companion replays the bounded terminal
-/// verification, while a native companion stays fail-closed `Incomplete`
-/// until standalone semantics/preservation checking exists. A filename or the
-/// artifact's own shape never selects the leg, so a Psi sidecar beside native
-/// bytes still rejects inside the Psi leg and a relabeled envelope gains
-/// nothing.
+/// verification, while a native companion replays the checkable placed-image
+/// leg and stays fail-closed `Incomplete` on the behavioral remainder. A
+/// filename or the artifact's own shape never selects the leg, so a Psi
+/// sidecar beside native bytes still rejects inside the Psi leg and a
+/// relabeled envelope gains nothing.
 ///
 /// This decode exists only to read the declared kind. Each product leg
 /// re-decodes the envelope and re-checks every claim field itself, so the
@@ -106,7 +222,10 @@ pub fn verify_published_proof_pair(
 
 #[cfg(test)]
 mod tests {
-    use super::{verify_native_proof_sidecar, verify_published_proof_pair};
+    use super::{
+        NativePlacedImageEvidence, native_semantic_profile_identity, verify_native_proof_sidecar,
+        verify_published_proof_pair,
+    };
     use proof_admission::AdmissionProfile;
     use terminal_codec::{
         PccGuarantee, PccIncompleteness, PccProductKind, PccProofSidecar, PccReceiverPolicy,
@@ -116,10 +235,19 @@ mod tests {
     const EXECUTABLE: &[u8] = b"the published executable bytes";
 
     fn sidecar(product: PccProductKind, artifact: &[u8], evidence: Vec<u8>) -> PccProofSidecar {
+        sidecar_with_profile(product, artifact, "semantic-profile".to_owned(), evidence)
+    }
+
+    fn sidecar_with_profile(
+        product: PccProductKind,
+        artifact: &[u8],
+        semantic_profile: String,
+        evidence: Vec<u8>,
+    ) -> PccProofSidecar {
         PccProofSidecar::new(
             product,
             pcc_artifact_commitment(artifact),
-            "semantic-profile".to_owned(),
+            semantic_profile,
             "checker-profile".to_owned(),
             vec![PccGuarantee {
                 identity: "guarantee".to_owned(),
@@ -150,7 +278,8 @@ mod tests {
     #[test]
     fn pair_checking_routes_on_the_declared_product_kind() {
         // A Psi companion beside non-artifact bytes rejects inside the Psi
-        // leg; a Native companion reaches the fail-closed native leg.
+        // leg; a Native companion carrying no recognizable evidence reaches
+        // the fail-closed native leg.
         let artifact = b"not a canonical artifact";
         let psi = sidecar(PccProductKind::Psi, artifact, Vec::new());
         let psi_policy = offered_policy(&psi);
@@ -196,6 +325,109 @@ mod tests {
                 product: PccProductKind::Native,
             })
         );
+    }
+
+    /// A small real inventory over known text, built through the production
+    /// placement path so the evidence rows carry honest digests.
+    fn placed_inventory(text: &[u8]) -> image::PlacedExecutableRegionInventory {
+        let mut image = image::FinalImage::with_capacity(
+            target::NativeTarget::host(),
+            image::FinalImageMemory {
+                text: text.to_vec(),
+                ..image::FinalImageMemory::default()
+            },
+            Default::default(),
+            0,
+            0,
+            0,
+        );
+        image.executable_regions.push(image::FinalExecutableRegion {
+            origin: image::FinalExecutableRegionOrigin::CompilerFunction,
+            section_offset: 0,
+            byte_count: text.len(),
+            symbol: "entry".into(),
+            footprint: None,
+        });
+        image::place_executable_regions(&image, image::FinalImageLayout::default())
+            .expect("the fixture region places")
+    }
+
+    #[test]
+    fn native_checking_replays_recognized_evidence_before_staying_incomplete() {
+        let text = [0xabu8; 16];
+        let mut executable = b"container header ".to_vec();
+        let text_file_offset = executable.len() as u64;
+        executable.extend_from_slice(&text);
+        executable.extend_from_slice(b" trailer");
+
+        let evidence = NativePlacedImageEvidence::from_parts(
+            target::NativeTarget::host(),
+            text_file_offset,
+            placed_inventory(&text),
+        );
+        let native = sidecar_with_profile(
+            PccProductKind::Native,
+            &executable,
+            native_semantic_profile_identity(target::NativeTarget::host()),
+            evidence.to_bytes(),
+        );
+        let policy = offered_policy(&native);
+        // The honest section replays its coverage leg and still reports the
+        // behavioral legs unsupported — coverage is not certification.
+        assert_eq!(
+            verify_native_proof_sidecar(&executable, &native.to_bytes(), &policy),
+            PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
+                product: PccProductKind::Native,
+            })
+        );
+
+        // A section whose declared extent misses the committed bytes rejects
+        // instead of reaching the unsupported-evidence outcome.
+        let shifted = NativePlacedImageEvidence::from_parts(
+            target::NativeTarget::host(),
+            text_file_offset - 1,
+            placed_inventory(&text),
+        );
+        let forged = sidecar_with_profile(
+            PccProductKind::Native,
+            &executable,
+            native_semantic_profile_identity(target::NativeTarget::host()),
+            shifted.to_bytes(),
+        );
+        let forged_policy = offered_policy(&forged);
+        assert!(matches!(
+            verify_native_proof_sidecar(&executable, &forged.to_bytes(), &forged_policy),
+            PccVerificationOutcome::Reject(ref rejection)
+                if rejection.subject == "native executable inventory"
+        ));
+
+        // An envelope offering a different target's profile over this
+        // evidence rejects: the claim must be the one the evidence realizes.
+        let relabeled = sidecar_with_profile(
+            PccProductKind::Native,
+            &executable,
+            "native-executable.v1:aarch64-elf-8".to_owned(),
+            evidence.to_bytes(),
+        );
+        let relabeled_policy = offered_policy(&relabeled);
+        assert!(matches!(
+            verify_native_proof_sidecar(&executable, &relabeled.to_bytes(), &relabeled_policy),
+            PccVerificationOutcome::Reject(ref rejection)
+                if rejection.subject == "semantic profile"
+        ));
+
+        // A recognized-but-malformed section rejects as invalid evidence.
+        let malformed = sidecar(
+            PccProductKind::Native,
+            &executable,
+            b"NPLCIMG1\x01\x00garbage".to_vec(),
+        );
+        let malformed_policy = offered_policy(&malformed);
+        assert!(matches!(
+            verify_native_proof_sidecar(&executable, &malformed.to_bytes(), &malformed_policy),
+            PccVerificationOutcome::Reject(ref rejection)
+                if rejection.subject == "native evidence"
+        ));
     }
 
     #[test]

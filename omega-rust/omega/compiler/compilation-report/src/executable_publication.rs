@@ -251,6 +251,34 @@ pub(crate) fn validate_psi_pair(
     }
 }
 
+/// Producer-side pair validation for one native executable/companion: replay
+/// the exact checks a receiver performs under a self-consistent policy so a
+/// malformed or byte-inconsistent pair can never be reported as published.
+/// The bounded placed-image evidence must decode and replay against the
+/// published bytes. `Incomplete(UnsupportedEvidence)` is the honest ceiling —
+/// the coverage leg validates while the behavioral legs have no standalone
+/// checking yet — but `Reject` or a named resource limit means the emitted
+/// evidence cannot carry even its bounded claim, and refuses publication.
+pub(crate) fn validate_native_pair(
+    executable_bytes: &[u8],
+    sidecar: &terminal_codec::PccProofSidecar,
+    admission_profile: &proof_admission::AdmissionProfile,
+) -> Result<(), String> {
+    let policy =
+        terminal_codec::PccReceiverPolicy::for_offered_claim(sidecar, admission_profile.clone());
+    match crate::pcc::verify_native_proof_sidecar(executable_bytes, &sidecar.to_bytes(), &policy) {
+        terminal_codec::PccVerificationOutcome::Complete(_)
+        | terminal_codec::PccVerificationOutcome::Incomplete(
+            terminal_codec::PccIncompleteness::UnsupportedEvidence {
+                product: terminal_codec::PccProductKind::Native,
+            },
+        ) => Ok(()),
+        outcome => Err(format!(
+            "native proof sidecar failed producer validation: {outcome:?}"
+        )),
+    }
+}
+
 /// Immutable custody for one compiler-published executable container.
 ///
 /// This records the exact final-footprint certificate, publication seal, and

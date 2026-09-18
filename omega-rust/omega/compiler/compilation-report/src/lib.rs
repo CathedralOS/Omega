@@ -108,7 +108,11 @@ pub use executable_publication::{
 };
 pub use optimization_rollback::OptimizationRollbackReceipt;
 pub use package::{NativePackagePublicationReceipt, PackagePublicationComponent};
-pub use pcc::{PccPublicationReceipt, verify_native_proof_sidecar, verify_published_proof_pair};
+pub use pcc::{
+    NATIVE_PLACED_IMAGE_COVERAGE_GUARANTEE, NativeEvidenceError, NativePlacedImageEvidence,
+    PccPublicationReceipt, build_native_proof_sidecar, verify_native_proof_sidecar,
+    verify_published_proof_pair,
+};
 pub use production_manifest::{
     FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject,
