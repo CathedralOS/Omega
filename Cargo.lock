@@ -517,6 +517,7 @@ dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
  "compilation-report",
+ "component-description",
  "diagnostics",
  "effects",
  "executable-installation",
