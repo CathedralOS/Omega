@@ -433,45 +433,39 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   `checking/execution_profile_tests.rs`; include physical and generated files.
   Existing dual-edge tests do not establish dual-context target checking.
 
-- **BUILD-PRODUCT-REFERENCES.** In Psi source selection and the existing Build
-  root/provider owners, implement designated product operands and qualified
-  non-callable entry/provider/schema descriptions. Depends on purpose-aware
-  resolution above and the retained authored checkpoint. Define exact source
-  signatures under the accepted roles without inventing a general compiler-query
-  world. Acceptance: a multi-file helper receives an owner's restricted private
-  entry reference and binds it without executing target code. Wrong scope/target,
-  lookalike operations, helper enumeration of caller-private declarations,
-  description-to-callable forgery and same-build generated/layout cycles reject.
-  `build-evaluation/src/selection/root_bindings.rs` now admits executed
-  `roots.bind` requests lexically against the occurrence's own package and
-  carries the exact machine symbol into `ProgramEntry` selection, so a foreign
-  helper binds its own package's entry through the borrowed root Build while
-  caller-private names reject; `compiler/tests/build_target_activation.rs`
-  pins both. Terminal production and native entry settlement now rejoin the
-  selected machine by exact `SymbolHandle`, so the same-name-across-packages
-  fence in `selection.rs` is removed. The compiler-owned `Build.product`
-  facet and `BuildProduct::entry(path, slot)` logical query now issue an
-  opaque non-callable `ProductEntryRef` description under the query
-  occurrence's lexical package without executing product code; `roots.bind`
-  accepts a delegated single-name implementation operand only as a retained
-  `ProductEntryRef` place, and final admission rejoins the exact selected
-  symbol after generation. `BuildProduct::schema(path)` now issues an opaque
-  non-callable `ProductTypeSchema` description of the exact product data
-  declaration under the same lexical-package rule, with `schema.path()` as
-  the single sanctioned inspection; wrong-package queries, authored
-  `BuildProduct` lookalikes, authored `ProductTypeSchema` forgeries,
-  non-data names, ambiguity, and use as a `roots.bind` operand all reject in
-  `compiler/tests/build_target_activation.rs`. `BuildProduct::provider(path)`
-  now issues an opaque non-callable `ProductProviderRef` description of the
-  exact authored provider declaration (a nominal data type owning at least
-  one `satisfies` machine) under the same lexical-package rule, with
-  `provider.path()` as the single sanctioned inspection; wrong-package
-  queries, authored `BuildProduct` lookalikes, authored `ProductProviderRef`
-  forgeries, non-provider names, ambiguity, `roots.bind` operand confusion,
-  and static `select_provider` substitution all reject in
-  `compiler/tests/build_target_activation.rs`. Remaining: the
-  computed-receiver implementation fence once ordinary call-result
-  authority and effect/loan traversal can carry that use.
+- **BUILD-PRODUCT-REFERENCES.** Finish
+  [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
+  Entry/provider/schema queries, opaque descriptions, delegated entry binding,
+  and exact-symbol final admission exist. Remaining:
+
+  - Resolve qualified product paths through the query author's authorized
+    product dependencies and exact expected slot/requirement/application,
+    not the caller's host imports or a same-package name scan. Current
+    `checked-interpreter/src/interpreter/evaluator/product_{entries,providers,schemas}.rs`
+    implements the narrower same-package route. Preserve the frozen authored
+    frontier, purpose/target identity, and visibility across description use
+    and final admission; source names and evaluator table indices are not
+    durable selection authority.
+  - Admit computed description operands and Build receivers through ordinary
+    checked call-result authority, effect traversal, and loan accounting.
+    `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
+    currently requires retained symbol-rooted places. Do not bypass those
+    checks with a Build-specific call-result recognizer or grant authority
+    from the declared result type alone.
+  - Extend `build-evaluation/src/admission/selection/root_bindings.rs` and
+    the existing provider/description owners, with BUILD-DEPENDENCY-PURPOSES
+    for separate contexts and BUILD-ADMISSION-CHECKPOINT for source custody.
+    Do not add a general compiler-query interface or allow target execution.
+
+  Acceptance: a multi-file foreign helper binds an owner's restricted private
+  entry description, including one returned by an ordinary checked helper;
+  a qualified query selects a public declaration in an authorized product
+  dependency. Wrong scope/target/slot, stale activation, lookalike operations,
+  sibling-private enumeration, forged descriptions, description-to-callable
+  conversion, and same-build generated/layout cycles reject. Preserve
+  `compiler/tests/build_target_activation/foreign_helper_product_queries.rs`.
+  Its computed-result negative returns a forged `ProductEntryRef {}`: it must
+  still reject after an independently compiler-issued result becomes supported.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** In build evaluation, its host custody adapters and
   compiler publication, implement coherent captured inventories, narrowed inputs,
