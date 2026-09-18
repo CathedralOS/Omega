@@ -11,15 +11,16 @@ use crate::execution::terminal_unit::statement_sequence;
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedStructuralAccess, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralTypeShape, ExpectedCallValueResult,
-    ExpressionNode, Multiplicity, ShapeCollector, StatementNode, TypeReferenceNode, TypedTrees,
-    build_affine_array_construction_prefix, build_call_operation, build_selected_ieee_float_fma,
-    build_selected_operator_scalar_call, build_selected_operator_structural_call,
-    build_selected_operator_structural_scalar_call, build_structural_scalar_field_store,
-    build_unit_trivial_affine_locals, build_write_only_primitive_store,
-    checked_provider_attachment_requirements, checked_state_contracts_supported, entry_claims,
-    free_fused_service_scalar_signature, free_selected_operator_structural_signature,
-    free_structural_scalar_signature, fused_service_scalar_signature, is_reference, is_unit,
-    machine_binders, receiver_aliases, return_unit_affine_discards, scalar_expression_local_suffix,
+    ExpressionNode, Multiplicity, ShapeCollector, StatementNode, SymbolHandle, TypeReferenceNode,
+    TypedTrees, build_affine_array_construction_prefix, build_call_operation,
+    build_selected_ieee_float_fma, build_selected_operator_scalar_call,
+    build_selected_operator_structural_call, build_selected_operator_structural_scalar_call,
+    build_structural_scalar_field_store, build_unit_trivial_affine_locals,
+    build_write_only_primitive_store, checked_provider_attachment_requirements,
+    checked_state_contracts_supported, entry_claims, free_fused_service_scalar_signature,
+    free_selected_operator_structural_signature, free_structural_scalar_signature,
+    fused_service_scalar_signature, is_reference, is_unit, machine_binders, receiver_aliases,
+    return_unit_affine_discards, scalar_expression_local_suffix,
     selected_ieee_float_fma_result_locals, selected_operator_scalar_result_local,
     selected_operator_structural_result_local, state_flow, structural_scalar_signature,
     structural_signature,
@@ -607,6 +608,37 @@ fn build_checked_machine_with_trace(
             && source_parameters
                 .iter()
                 .all(|parameter| !parameter.is_self && !parameter.is_const);
+        // Primitive carriers are also consumed by reads of their exact storage
+        // and by shared onward loans, including a loan retained as a scheduled
+        // computation's call argument rather than as an operation field.
+        let primitive_positions = structural_parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| {
+                shapes
+                    .types
+                    .get(&parameter.type_identity)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                        )
+                    })
+            })
+            .filter_map(|(index, _)| u32::try_from(index).ok())
+            .collect::<BTreeSet<_>>();
+        let primitive_symbols = structural_parameters
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| {
+                u32::try_from(*index).is_ok_and(|index| primitive_positions.contains(&index))
+            })
+            .filter_map(|(_, parameter)| {
+                source_parameters
+                    .get(usize::try_from(parameter.position).ok()?)
+                    .map(|source| source.symbol)
+            })
+            .collect::<Vec<_>>();
         trace.phase("call statement shape: primitive carrier without a store or call closure");
         if carries_primitive
             && source_calls
@@ -622,6 +654,11 @@ fn build_checked_machine_with_trace(
                             operation,
                             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                        ) || operation_observes_primitive_carrier(
+                            facts,
+                            operation,
+                            &primitive_positions,
+                            &primitive_symbols,
                         )
                     })
             })
@@ -1236,4 +1273,399 @@ fn reborrow_restored_call_alias_prefix(
         })
         .count();
     (candidates == 1).then_some(child_count + 1)
+}
+
+/// One operation observes a primitive structural parameter's place when a
+/// retained scalar value reads its storage or a structural argument loans its
+/// exact `Parameter` position onward, including inside a scheduled
+/// computation's call arguments. Reads and forwarding are the same storage
+/// the callee sees; nothing here constructs a copied or projected referent.
+fn operation_observes_primitive_carrier(
+    facts: &CheckFacts,
+    operation: &CheckedUnitEffectOperationPlan,
+    positions: &BTreeSet<u32>,
+    symbols: &[SymbolHandle],
+) -> bool {
+    let scalar_argument = |argument: &checked_trees::CheckedCallScalarArgument| match argument {
+        checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+            scalar_expression_reads_carrier(expression, symbols)
+        }
+        checked_trees::CheckedCallScalarArgument::Computation(root) => {
+            computation_observes_primitive_carrier(
+                facts,
+                *root,
+                positions,
+                symbols,
+                &mut Vec::new(),
+            )
+        }
+    };
+    let structural_argument = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
+        argument
+            .source_parameter_index()
+            .is_some_and(|index| positions.contains(&index))
+    };
+    match operation {
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { value, .. }
+        | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } => {
+            scalar_argument(value)
+        }
+        CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { value, .. } => {
+            scalar_expression_reads_carrier(value, symbols)
+        }
+        CheckedUnitEffectOperationPlan::EstablishScalarArray { elements, .. } => {
+            elements.iter().any(scalar_argument)
+        }
+        CheckedUnitEffectOperationPlan::EstablishReference { source, .. } => {
+            structural_argument(source)
+        }
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } => {
+            structural_value_observes_primitive_carrier(
+                facts,
+                *value,
+                positions,
+                symbols,
+                &mut Vec::new(),
+                &mut Vec::new(),
+            )
+        }
+        CheckedUnitEffectOperationPlan::CallUnit {
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::StructuralCall {
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryCall {
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            scalar_arguments,
+            structural_arguments,
+            ..
+        } => {
+            scalar_arguments.iter().any(&scalar_argument)
+                || structural_arguments.iter().any(&structural_argument)
+        }
+        CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+            scalar_arguments, ..
+        } => scalar_arguments
+            .iter()
+            .any(|expression| scalar_expression_reads_carrier(expression, symbols)),
+        CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+            scalar_arguments,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+            scalar_arguments,
+            structural_arguments,
+            ..
+        } => {
+            scalar_arguments
+                .iter()
+                .any(|expression| scalar_expression_reads_carrier(expression, symbols))
+                || structural_arguments.iter().any(&structural_argument)
+        }
+        CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+        | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+        | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+        | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
+        | CheckedUnitEffectOperationPlan::PortWrite { .. }
+        | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+        | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+        | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+        | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+        | CheckedUnitEffectOperationPlan::Complete { .. } => false,
+    }
+}
+
+/// A computation node reads a carrier's `StorageRead` or loans the exact
+/// parameter place to a nested call or structural operand.
+fn computation_observes_primitive_carrier(
+    facts: &CheckFacts,
+    handle: checked_trees::CheckedScalarComputationHandle,
+    positions: &BTreeSet<u32>,
+    symbols: &[SymbolHandle],
+    visited: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+) -> bool {
+    let computations = &facts.values.scalar_computations;
+    if !computations.nodes.is_valid(handle) || visited.contains(&handle) {
+        return false;
+    }
+    visited.push(handle);
+    let computation_structural_argument =
+        |argument: &checked_trees::CheckedScalarComputationStructuralArgument,
+         visited: &mut Vec<checked_trees::CheckedScalarComputationHandle>| match argument {
+            checked_trees::CheckedScalarComputationStructuralArgument::Place(plan) => plan
+                .source_parameter_index()
+                .is_some_and(|index| positions.contains(&index)),
+            checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                elements, ..
+            } => computations
+                .operands
+                .span_or_empty(*elements)
+                .iter()
+                .any(|element| {
+                    computation_observes_primitive_carrier(
+                        facts, *element, positions, symbols, visited,
+                    )
+                }),
+            checked_trees::CheckedScalarComputationStructuralArgument::Case(_) => false,
+        };
+    match &computations.nodes.get(handle).kind {
+        checked_trees::CheckedScalarComputationKind::Value(expression) => {
+            scalar_expression_reads_carrier(expression, symbols)
+        }
+        checked_trees::CheckedScalarComputationKind::Call {
+            arguments,
+            structural_arguments,
+            ..
+        } => {
+            computations
+                .operands
+                .span_or_empty(*arguments)
+                .iter()
+                .any(|operand| {
+                    computation_observes_primitive_carrier(
+                        facts, *operand, positions, symbols, visited,
+                    )
+                })
+                || computations
+                    .structural_arguments
+                    .span_or_empty(*structural_arguments)
+                    .iter()
+                    .any(|argument| computation_structural_argument(argument, visited))
+        }
+        checked_trees::CheckedScalarComputationKind::Select {
+            condition,
+            when_true,
+            when_false,
+            ..
+        } => [*condition, *when_true, *when_false].iter().any(|operand| {
+            computation_observes_primitive_carrier(facts, *operand, positions, symbols, visited)
+        }),
+        checked_trees::CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+            computation_observes_primitive_carrier(facts, *subject, positions, symbols, visited)
+                || computations
+                    .dispatch_arms
+                    .span_or_empty(*arms)
+                    .iter()
+                    .any(|arm| {
+                        computation_observes_primitive_carrier(
+                            facts, arm.value, positions, symbols, visited,
+                        ) || match arm.pattern {
+                            checked_trees::CheckedScalarDispatchPattern::Value(pattern) => {
+                                computation_observes_primitive_carrier(
+                                    facts, pattern, positions, symbols, visited,
+                                )
+                            }
+                            checked_trees::CheckedScalarDispatchPattern::Wildcard => false,
+                        }
+                    })
+        }
+        checked_trees::CheckedScalarComputationKind::Apply {
+            expression,
+            operands,
+            ..
+        } => {
+            scalar_expression_reads_carrier(expression, symbols)
+                || computations
+                    .operands
+                    .span_or_empty(*operands)
+                    .iter()
+                    .any(|operand| {
+                        computation_observes_primitive_carrier(
+                            facts, *operand, positions, symbols, visited,
+                        )
+                    })
+        }
+        checked_trees::CheckedScalarComputationKind::Qualification { operand, .. } => {
+            computation_observes_primitive_carrier(facts, *operand, positions, symbols, visited)
+        }
+        checked_trees::CheckedScalarComputationKind::StructuralField { subject, .. } => subject
+            .source_parameter_index()
+            .is_some_and(|index| positions.contains(&index)),
+        checked_trees::CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+            [*left, *right].iter().any(|operand| {
+                computation_observes_primitive_carrier(facts, *operand, positions, symbols, visited)
+            })
+        }
+        checked_trees::CheckedScalarComputationKind::CaseMembership { subject, .. } => {
+            computation_structural_argument(subject, visited)
+        }
+    }
+}
+
+/// A structural value observes a carrier when its `Place`/`Reference` source
+/// loans the parameter position, or a nested projection, record field,
+/// dispatch subject, or scheduled call operand does.
+fn structural_value_observes_primitive_carrier(
+    facts: &CheckFacts,
+    handle: checked_trees::CheckedStructuralValueHandle,
+    positions: &BTreeSet<u32>,
+    symbols: &[SymbolHandle],
+    visited: &mut Vec<checked_trees::CheckedStructuralValueHandle>,
+    visited_computations: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+) -> bool {
+    let plans = &facts.values.structural_values;
+    if !plans.nodes.is_valid(handle) || visited.contains(&handle) {
+        return false;
+    }
+    visited.push(handle);
+    match &plans.nodes.get(handle).kind {
+        checked_trees::CheckedStructuralValueKind::Reference { source }
+        | checked_trees::CheckedStructuralValueKind::Place(source) => source
+            .source_parameter_index()
+            .is_some_and(|index| positions.contains(&index)),
+        checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+            structural_value_observes_primitive_carrier(
+                facts,
+                *source,
+                positions,
+                symbols,
+                visited,
+                visited_computations,
+            )
+        }
+        checked_trees::CheckedStructuralValueKind::Record { fields, .. } => plans
+            .record_fields
+            .span_or_empty(*fields)
+            .iter()
+            .any(|field| match field.value {
+                checked_trees::CheckedStructuralRecordFieldValue::Scalar(operand) => {
+                    computation_observes_primitive_carrier(
+                        facts,
+                        operand,
+                        positions,
+                        symbols,
+                        visited_computations,
+                    )
+                }
+                checked_trees::CheckedStructuralRecordFieldValue::Structural(child) => {
+                    structural_value_observes_primitive_carrier(
+                        facts,
+                        child,
+                        positions,
+                        symbols,
+                        visited,
+                        visited_computations,
+                    )
+                }
+            }),
+        checked_trees::CheckedStructuralValueKind::Dispatch { subject, arms } => {
+            computation_observes_primitive_carrier(
+                facts,
+                *subject,
+                positions,
+                symbols,
+                visited_computations,
+            ) || plans.dispatch_arms.span_or_empty(*arms).iter().any(|arm| {
+                structural_value_observes_primitive_carrier(
+                    facts,
+                    arm.value,
+                    positions,
+                    symbols,
+                    visited,
+                    visited_computations,
+                ) || match arm.pattern {
+                    checked_trees::CheckedScalarDispatchPattern::Value(pattern) => {
+                        computation_observes_primitive_carrier(
+                            facts,
+                            pattern,
+                            positions,
+                            symbols,
+                            visited_computations,
+                        )
+                    }
+                    checked_trees::CheckedScalarDispatchPattern::Wildcard => false,
+                }
+            })
+        }
+        checked_trees::CheckedStructuralValueKind::Case(_)
+        | checked_trees::CheckedStructuralValueKind::Call { .. } => false,
+    }
+}
+
+/// A scalar expression reads a primitive carrier only through `StorageRead`
+/// of its authored parameter symbol; every other leaf is an independent
+/// position or constant.
+fn scalar_expression_reads_carrier(
+    expression: &checked_trees::CheckedScalarExpression,
+    symbols: &[SymbolHandle],
+) -> bool {
+    match expression {
+        checked_trees::CheckedScalarExpression::StorageRead { symbol, .. } => {
+            symbols.contains(symbol)
+        }
+        checked_trees::CheckedScalarExpression::Boolean(operand) => {
+            boolean_expression_reads_carrier(operand, symbols)
+        }
+        checked_trees::CheckedScalarExpression::IntegerBinary { left, right, .. } => {
+            scalar_expression_reads_carrier(left, symbols)
+                || scalar_expression_reads_carrier(right, symbols)
+        }
+        checked_trees::CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
+        | checked_trees::CheckedScalarExpression::IntegerWiden { operand, .. }
+        | checked_trees::CheckedScalarExpression::IntegerExactCast { operand, .. }
+        | checked_trees::CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | checked_trees::CheckedScalarExpression::IntegerTrappingCast { operand, .. }
+        | checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+            index: operand,
+            ..
+        } => scalar_expression_reads_carrier(operand, symbols),
+        checked_trees::CheckedScalarExpression::StructuralParameterByteLength { .. }
+        | checked_trees::CheckedScalarExpression::Parameter { .. }
+        | checked_trees::CheckedScalarExpression::Local { .. }
+        | checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
+        | checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+        | checked_trees::CheckedScalarExpression::IeeeFloatLiteral { .. } => false,
+    }
+}
+
+fn boolean_expression_reads_carrier(
+    expression: &checked_trees::CheckedBooleanExpression,
+    symbols: &[SymbolHandle],
+) -> bool {
+    match expression {
+        checked_trees::CheckedBooleanExpression::StorageRead { symbol, .. } => {
+            symbols.contains(symbol)
+        }
+        checked_trees::CheckedBooleanExpression::Not(operand) => {
+            boolean_expression_reads_carrier(operand, symbols)
+        }
+        checked_trees::CheckedBooleanExpression::Equal { left, right }
+        | checked_trees::CheckedBooleanExpression::And { left, right }
+        | checked_trees::CheckedBooleanExpression::Or { left, right } => {
+            boolean_expression_reads_carrier(left, symbols)
+                || boolean_expression_reads_carrier(right, symbols)
+        }
+        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            scalar_expression_reads_carrier(left, symbols)
+                || scalar_expression_reads_carrier(right, symbols)
+        }
+        checked_trees::CheckedBooleanExpression::Constant(_)
+        | checked_trees::CheckedBooleanExpression::Parameter { .. }
+        | checked_trees::CheckedBooleanExpression::Local { .. }
+        | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
+        | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
+    }
 }

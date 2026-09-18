@@ -294,6 +294,24 @@ impl ScalarBindings {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
                 primitive_storage_place(&self.primitive_storage, symbol, scalar_type)?
             }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                // A `&T` local is itself a shared-borrow join result: the call
+                // loans the referent's exact established place onward under
+                // the same custody rather than copying the scalar out of it.
+                let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
+                let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
+                    "computed primitive borrow lost its established local",
+                ))?;
+                if !symbol.is_valid()
+                    || locals.next().is_some()
+                    || source.access != StructuralAccess::SharedBorrow
+                    || !source.path.is_empty()
+                    || access != StructuralAccess::SharedBorrow
+                {
+                    return unsupported("computed primitive borrow changes its local custody");
+                }
+                source.place
+            }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
             } => {

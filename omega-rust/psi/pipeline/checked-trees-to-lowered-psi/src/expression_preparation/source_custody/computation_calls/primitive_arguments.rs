@@ -133,6 +133,53 @@ pub(crate) fn validate(
             plain_primitive(checked, local.type_reference)?;
             local.type_reference
         }
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            // An immutable `&T` local is itself the borrowed carrier: the call
+            // loans the referent's exact established place onward, the same
+            // custody a shared-borrow parameter presents. Nothing here
+            // materializes an owned copy of the primitive referent.
+            if symbol != name.symbol
+                || parameters
+                    .iter()
+                    .any(|parameter| parameter.symbol == symbol)
+            {
+                return unsupported("computed primitive argument substituted its local carrier");
+            }
+            let mut locals = checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, statement)| match statement {
+                    StatementNode::LocalData(local) if local.symbol == symbol => {
+                        Some((ordinal, local))
+                    }
+                    _ => None,
+                });
+            let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
+                "computed primitive argument has no authored local carrier",
+            ))?;
+            if locals.next().is_some()
+                || ordinal >= statement as usize
+                || !table.expression_is_valid(local.initial_value)
+            {
+                return unsupported(
+                    "computed primitive argument has no preceding established carrier",
+                );
+            }
+            let (referent, declared_access) = primitive_reference(checked, local.type_reference)?;
+            // The declared carrier's access bounds the forwarded loan exactly
+            // as it does for a source parameter; the target cannot widen it.
+            if borrow_kind(declared_access)?
+                .direct_reborrow_effect(&borrow_kind(target_access)?)
+                .is_none()
+            {
+                return unsupported(
+                    "computed primitive argument widens its declared carrier access",
+                );
+            }
+            referent
+        }
         _ => return unsupported("computed primitive argument has unsupported source custody"),
     };
     let source_identity = checked.typed.normalized_type_identity(source_referent);

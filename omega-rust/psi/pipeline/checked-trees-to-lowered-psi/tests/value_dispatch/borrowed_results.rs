@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalExecutionResult, TerminalScalarValue,
-    TerminalStructuralScalarFieldValue, TerminalStructuralValue,
+    TerminalStructuralPrimitiveValue, TerminalStructuralScalarFieldValue, TerminalStructuralValue,
 };
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralFieldType, StructuralPathSegment,
@@ -188,9 +188,13 @@ const RECORD_UNREAD_SOURCE: &str = "data Payload { left: u64; right: u64; }
 
 /// Passing the join result to a call is the only consumer a borrowed primitive
 /// local could ever have, so the record referent is asked the same question.
-/// The primitive lane remains closed: its callee has no checked body plan and
-/// `&u64` is outside the shared nominal argument rule, so the same forwarding
-/// spelling keeps rejecting there while the record referent executes.
+/// The primitive call lane is now admitted end to end: `read`'s `&u64` body
+/// plans a source-independent `PrimitiveScalarRead` and `read(view)` rejoins
+/// `view` as a whole `PrimitiveScalar` shared argument. What still stops the
+/// program is the same boundary an unread `&u64` view hits — the selection's
+/// join would be a `PrimitiveScalar` block structural parameter, a shape the
+/// Terminal verifier does not admit — so forwarding is proven by the checked
+/// plan while the established primitive view remains unpublished.
 const PRIMITIVE_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
     machine read(value: &u64) -> u64 { value }
     machine choose(other: bool) -> u64 {
@@ -199,6 +203,12 @@ const PRIMITIVE_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
         let view: &u64 = match other { true -> &a.left, false -> &b.right };
         read(view)
     }";
+
+/// The same consumer without a selection or a local carrier: `choose`'s own
+/// `&u64` formal is the borrowed place `read` observes. This lane publishes
+/// end to end because a signature parameter needs no block-parameter join.
+const PRIMITIVE_FORWARD_SOURCE: &str = "machine read(value: &u64) -> u64 { value }
+    machine choose(view: &u64) -> u64 { read(view) }";
 
 const RECORD_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
     machine read(value: &Payload) -> u64 { value.left ^ value.right }
@@ -296,9 +306,13 @@ fn borrowed_selection_plans_a_primitive_referent_carrier() {
 
 /// A `&Payload` local forwards the referent it already loans to a shared
 /// formal: the callee observes the exact joined place rather than a copied
-/// record. The primitive referent still has no admitted lane — `read`'s `&u64`
-/// body is outside the checked callee shapes and `&u64` is not a nominal
-/// referent — so the same spelling keeps its rejection there.
+/// record. The primitive referent now plans the identical call: `read`'s
+/// `&u64` body is an admitted source-independent `PrimitiveScalarRead` plan
+/// and `read(view)` retains `view` as a whole `PrimitiveScalar`
+/// `StructuralLocal` `SharedBorrow` argument. Only the established `&u64`
+/// carrier's own join remains closed — a `PrimitiveScalar` block structural
+/// parameter is not a representable Terminal shape — so the checked call plan
+/// is what this side asserts.
 #[test]
 fn borrowed_selection_call_consumer_forwards_the_established_view() {
     let (record_arms, record_lowering) = planned_borrow_arms(RECORD_CALL_SOURCE);
@@ -360,14 +374,175 @@ fn borrowed_selection_call_consumer_forwards_the_established_view() {
         );
     }
 
-    // The primitive referent is not on this lane: `&u64` has no nominal
-    // referent and its observer callee has no admitted body plan.
-    let (primitive_arms, primitive_lowering) = planned_borrow_arms(PRIMITIVE_CALL_SOURCE);
-    assert_eq!(primitive_arms.len(), 2);
+    // The primitive referent now plans the same call: `read(view)` retains a
+    // `StructuralLocal` `SharedBorrow` argument for `view`, and `read` itself
+    // is an admitted source-independent `PrimitiveScalarRead` callee. The
+    // remaining rejection is the established `&u64` join's own representable
+    // boundary — a `PrimitiveScalar` block structural parameter — not the
+    // call consumer.
+    let checked = check_source(PRIMITIVE_CALL_SOURCE).expect("primitive borrowed call checks");
+    let (_, view_symbol) = local(&checked, "view");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| checked.typed.symbols.name(machine.symbol) == "choose")
+        .expect("choose machine");
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .next()
+        .expect("single state");
+    let call_arguments: Vec<_> = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .filter_map(|(_, root)| {
+            let node = checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(root.root);
+            match &node.kind {
+                checked_trees::CheckedScalarComputationKind::Call {
+                    structural_arguments,
+                    ..
+                } if root.state == state.symbol => Some(
+                    checked
+                        .facts
+                        .values
+                        .scalar_computations
+                        .structural_arguments
+                        .span(*structural_arguments),
+                ),
+                _ => None,
+            }
+        })
+        .collect();
+    let [Some(arguments)] = call_arguments.as_slice() else {
+        panic!("choose plans exactly one structural call: {call_arguments:?}");
+    };
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = *arguments
+    else {
+        panic!("read's argument is one place: {arguments:?}");
+    };
     assert_eq!(
-        primitive_lowering.as_deref(),
-        Some(r#"Unsupported("machine has no source-independent checked scalar control plan")"#),
-        "the `&u64` view still has no admitted call consumer"
+        argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: view_symbol
+        },
+        "the call observes `view` itself"
+    );
+    assert_eq!(
+        argument.access,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+    );
+    assert!(argument.path.is_empty());
+    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect_err("the `&u64` join itself is still not a representable parameter");
+    assert!(
+        format!("{error:?}").starts_with("InvalidTerminalModule(InvalidBlockStructuralParameter"),
+        "the primitive referent stops at the block parameter boundary: {error:?}"
+    );
+}
+
+/// A `&u64` formal is itself the borrowed carrier, so the call consumer works
+/// end to end with no local establishment in between: `choose` forwards its
+/// exact entry place to `read`, whose `value` body is a `PrimitiveScalarRead`
+/// of that same place. Neither side materializes an owned scalar copy of the
+/// referent, and the decoded module verifies and replays independently.
+#[test]
+fn borrowed_primitive_parameter_call_forwards_the_view() {
+    let (module, execution) =
+        execute_machine_with_structural_inputs(PRIMITIVE_FORWARD_SOURCE, "choose", &[], |module| {
+            let choose = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == module.entry)
+                .expect("entry choose");
+            let [parameter] = choose.structural_parameters.as_slice() else {
+                panic!("choose takes exactly the `&u64` view");
+            };
+            assert_eq!(parameter.access, StructuralAccess::SharedBorrow);
+            (
+                vec![TerminalStructuralValue {
+                    opaque_identity: 71,
+                    structural_type: parameter.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                Vec::new(),
+                vec![TerminalStructuralPrimitiveValue {
+                    argument_index: 0,
+                    value: unsigned(41),
+                }],
+            )
+        });
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(unsigned(41)),
+        "read observes the forwarded referent's storage"
+    );
+
+    let choose = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry choose");
+    let entry_place = choose.structural_parameters[0].place;
+    let calls: Vec<_> = choose
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::CallStructuralScalar {
+                callee,
+                structural_arguments,
+                ..
+            } => Some((*callee, structural_arguments)),
+            _ => None,
+        })
+        .collect();
+    let [(callee, call_arguments)] = calls.as_slice() else {
+        panic!("choose invokes read exactly once: {calls:?}");
+    };
+    let [argument] = call_arguments.as_slice() else {
+        panic!("read takes one structural argument: {call_arguments:?}");
+    };
+    assert_eq!(argument.access, StructuralAccess::SharedBorrow);
+    assert!(argument.path.is_empty());
+    assert_eq!(
+        argument.place, entry_place,
+        "the callee observes the caller's exact shared entry place"
+    );
+
+    let read = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == *callee)
+        .expect("the forwarded callee is retained");
+    let [parameter] = read.structural_parameters.as_slice() else {
+        panic!("read takes exactly the `&u64` formal");
+    };
+    assert_eq!(parameter.access, StructuralAccess::SharedBorrow);
+    let reads: Vec<_> = read
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::PrimitiveScalarRead { source, ref path }
+                    if source == parameter.place && path.is_empty()
+            )
+        })
+        .collect();
+    assert_eq!(
+        reads.len(),
+        1,
+        "read's body is one PrimitiveScalarRead of its own parameter place"
     );
 }
 
@@ -887,7 +1062,7 @@ fn execute_indexed_parameters(selected: bool) -> (TerminalModule, MeasuredTermin
                     }
                 }
             }
-            (arguments, fields)
+            (arguments, fields, Vec::new())
         },
     )
 }
