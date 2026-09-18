@@ -824,9 +824,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   no runtime-sized stack-allocation representation exists (every
   selected local/outgoing slot resolves to a static byte extent), so
   this leg waits on a language/Terminal-Psi alloca-style contract
-  rather than on frame-layout work itself. Coverage remainder, not a
-  design leg: the register_arity and general_cfg_fixed_frame rosters
-  still replay below all five admitted targets.
+  rather than on frame-layout work itself. The coverage remainder is
+  landed: the register_arity and general_cfg_fixed_frame rosters
+  replay on all five admitted targets, and the realization stage's
+  remaining frame-policy rosters — ordinary-callable ABI replay,
+  fixed-frame custody/substitution and foreign-machine rejection, and
+  the exit-contract mutation replay — now run on every admitted
+  target as well
+  (`callable_entry`, `fixed_frame_callable_entry`, `exit_replay`).
 
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
