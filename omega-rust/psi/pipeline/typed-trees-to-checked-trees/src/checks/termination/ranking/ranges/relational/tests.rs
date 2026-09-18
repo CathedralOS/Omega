@@ -90,9 +90,12 @@ fn named_state_prefix_may_store_into_a_slot_carrying_no_premise_role() {
 
 #[test]
 fn named_state_prefix_store_into_a_slot_carrying_a_premise_role_rejects() {
-    // `count` now carries the ranked entry `remaining`, so its copy must stay
-    // equal to `pending` at every arrival; a store breaks that evidence.
-    reject(&SCRATCH_ARRIVAL.replace("iterate(remaining, seen)", "iterate(remaining, remaining)"));
+    // Duplicating `remaining` into `count` then stepping `pending` names
+    // `pending` the moved copy: `count` demotes to a stale snapshot and the
+    // store into it carries no premise role.
+    prove(&SCRATCH_ARRIVAL.replace("iterate(remaining, seen)", "iterate(remaining, remaining)"));
+    // `pending` is the stepped carrier the rank reads, so a prefix store into
+    // it still invalidates the copied premise.
     reject(&SCRATCH_ARRIVAL.replace("count = pending;", "pending = 4;"));
 }
 

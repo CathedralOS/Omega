@@ -1,0 +1,33 @@
+// FAIL CANARY. `remaining - 1` names `right` the moved copy of `remaining`,
+// demoting `left` to a stale snapshot. `step(left)` then passes the slot that
+// no longer carries the rank: `n` claims no `remaining` role, so the call has
+// no evidence the callee receives the descended continuation.
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.count(5) }
+}
+
+machine Main::count(&mut self, remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition remaining > 0 {
+        true -> pair(remaining, remaining - 1)
+        false -> remaining
+    }
+    state pair(left: u32 [0..=9], right: u32 [0..=9]) {
+        transition left > 0 {
+            true -> self.step(left)
+            false -> right
+        }
+    }
+}
+
+machine Main::step(&mut self, n: u32 [0..=9])
+terminates by n in 0..=9;
+-> u32 {
+    transition n > 0 {
+        true -> self.count(n - 1)
+        false -> n
+    }
+}
