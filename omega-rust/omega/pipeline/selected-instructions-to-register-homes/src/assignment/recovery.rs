@@ -53,10 +53,44 @@ fn fixed_view_homes(
 /// recovery's source, so a pressured program that also needed fixed-view
 /// copies composes the two recoveries under one retained allocation. Any
 /// other assignment failure keeps the direct post-copy error surface.
+///
+/// The declared shared-entry route gets one earlier arm: its segment-home
+/// front-end is probed on the borrowed legality before the sequence commits,
+/// and a capacity decline — placement pressure or front-end work-budget
+/// exhaustion — hands the still-owned legality to runtime spill with the
+/// declined policy and verdict recorded for replay-bound selection
+/// evidence. Probing is confined to that declared policy: the leaf-local
+/// default path is entered only because unresolved entry transitions still
+/// need the copies this sequence materializes, so a decline there could
+/// never reach spill recovery and keeps the staged `FixedSegments` surface.
+/// Every other probe outcome falls through to the staged sequence, which
+/// reproduces any non-decline failure unchanged.
 fn fixed_view_allocation(
     legality: StagedOptimizedAllocationLegality,
     policy: FixedViewCopyPolicy,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
+    if policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 {
+        let budget = legality
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .optimized_target()
+            .optimized()
+            .budget_per_pass();
+        if let Some(decline) =
+            crate::probe_optimized_fixed_precolored_segment_homes(&legality, budget)
+                .err()
+                .and_then(|error| error.capacity_decline())
+        {
+            return RetainedAllocation::try_from(
+                crate::assignment::runtime_spill::recover_after_declined_fixed_view_probe(
+                    legality, policy, decline,
+                )
+                .map_err(RegisterAllocationError::RuntimeSpill)?,
+            )
+            .map_err(RegisterAllocationError::Replay);
+        }
+    }
     let reanalysis = fixed_view_reanalysis(legality, policy)?;
     match crate::assignment::baseline::assign_optimized_register_homes_after_fixed_view_copies(
         &reanalysis,

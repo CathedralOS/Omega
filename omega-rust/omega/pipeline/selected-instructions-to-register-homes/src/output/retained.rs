@@ -207,10 +207,12 @@ fn validate_recovery_selection(
             }
         }
         AllocationEvidence::RuntimeSpill(_) => match runtime_spill_prefix_policy {
-            // A fixed-view sequence that still faced pressure hands custody to
-            // runtime spill; the recorded copy policy comes from the validated
-            // reanalysis custody, so a shared-entry prefix binds the declared
-            // selection while the leaf-local default path binds none.
+            // A fixed-view sequence that faced pressure hands custody to
+            // runtime spill — whether the segment-home probe declined it
+            // before custody was consumed or copies materialized first. The
+            // recorded policy comes from replayed custody evidence, so a
+            // shared-entry prefix binds the declared selection while the
+            // leaf-local default path binds none.
             Some(crate::FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1) => {
                 &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
             }

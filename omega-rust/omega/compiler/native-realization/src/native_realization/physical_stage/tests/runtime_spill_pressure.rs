@@ -524,14 +524,17 @@ fn acyclic_u64_pressure_recovers_through_runtime_spill_on_the_default_route() {
 
 // The declared shared-entry fixed-view route is entered before ordinary
 // assignment even when no authenticated boundary materializes copies, and its
-// fixed/precolored front-end is stricter than direct assignment: pressure this
-// program survives on the default route currently fails the declared route
-// inside segment-home placement before any copy or spill step runs. Residual
-// pressure on a declared fixed-view route is a distinct failure class from
-// unassigned entry transitions: runtime-spill recovery must still be
-// reachable, whether the sequence is skipped before custody is consumed or
-// the spill extends the reanalyzed post-copy program. When copies did
-// materialize they must stay ahead of the spill steps in one manifest.
+// fixed/precolored front-end is stricter than direct assignment: this
+// program's simultaneous liveness exceeds what segment-home placement can
+// assign on some targets and exceeds the front-end's per-pass work budget on
+// the wider aarch64 files, so the route probes the front-end on the borrowed
+// legality and declines the sequence to runtime-spill recovery on either
+// capacity verdict before custody is consumed. Residual pressure on a
+// declared fixed-view route is a distinct failure class from unassigned
+// entry transitions: runtime-spill recovery stays reachable, whether the
+// sequence is skipped up front or the spill extends the reanalyzed post-copy
+// program. When copies did materialize they stay ahead of the spill steps in
+// one manifest.
 #[test]
 fn loop_carried_u64_pressure_after_declared_fixed_view_sequence_recovers_through_runtime_spill() {
     use selected_instructions_to_register_homes::{

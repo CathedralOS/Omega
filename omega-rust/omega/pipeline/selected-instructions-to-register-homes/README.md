@@ -101,7 +101,15 @@ alone grant neither moves nor homes; all post-rewrite analyses bind the
 transformed identity and are independently reconstructed.
 
 Without an optional recovery selection, genuine `NoCompatibleHome` pressure
-can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). It
+can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). A
+declared fixed-view selection reaches the same recovery through two more
+arms: the segment-home front-end is probed on the borrowed legality before
+the sequence commits, so a capacity decline — `SegmentPressure` from
+placement or `BudgetExceeded` from a front-end derivation — hands the
+still-owned legality to spill recovery with the declined policy and verdict
+recorded and re-proved on every replay; and residual `NoCompatibleHome`
+after materialized copies enters through the complete post-copy reanalysis,
+keeping the copy transformation ahead of every spill step in one manifest. It
 visits a finite roster of original instruction-result and block-parameter values,
 restricted to the failing function and values interfering with the failed
 domain. A failure names the domain leader, but ties and edge transfers split

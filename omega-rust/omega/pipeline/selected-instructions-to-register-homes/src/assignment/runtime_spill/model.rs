@@ -27,19 +27,31 @@ impl RuntimeSpillAllocation {
 /// The staged custody a spill recovery began from. The direct route enters
 /// with raw legality; a fixed-view sequence that still faces pressure enters
 /// with its complete post-copy reanalysis, and the copy transformation stays
-/// recorded in the manifest prefix both producer and replay reconstruct.
+/// recorded in the manifest prefix both producer and replay reconstruct. A
+/// declared sequence whose segment-home probe reported a capacity decline
+/// before custody was consumed enters with the same legality plus the
+/// declined policy and verdict — the probe outcome is re-derived on every
+/// replay so the recorded selection binding is custody evidence, not a
+/// producer assertion.
 #[derive(Debug)]
 pub(crate) enum RuntimeSpillSource {
     Legality(StagedOptimizedAllocationLegality),
+    DeclinedFixedView {
+        legality: StagedOptimizedAllocationLegality,
+        policy: crate::FixedViewCopyPolicy,
+        decline: crate::FixedPrecoloredSegmentHomeDecline,
+    },
     FixedViewCopies(StagedOptimizedSelectedReanalysis),
 }
 
 impl RuntimeSpillSource {
-    /// Every arm shares one underlying legality stage: the fixed-view entry
-    /// reaches it through the copy transformation's source custody.
+    /// Every arm shares one underlying legality stage: the fixed-view entries
+    /// reach it through the copy transformation's source custody or carry it
+    /// directly when the sequence was declined before committing.
     fn legality_stage(&self) -> &StagedOptimizedAllocationLegality {
         match self {
             Self::Legality(source) => source,
+            Self::DeclinedFixedView { legality, .. } => legality,
             Self::FixedViewCopies(reanalysis) => {
                 reanalysis.transformation_stage().source_legality_stage()
             }
@@ -83,22 +95,33 @@ impl RuntimeSpillSource {
         self.legality_stage().allocator_availability()
     }
 
-    /// The fixed-view policy the recorded prefix ran under when recovery
-    /// entered through a post-copy reanalysis; replayed custody evidence, not
-    /// a producer assertion. `None` on the direct legality path.
+    /// The fixed-view policy this recovery's recorded prefix ran under:
+    /// replayed custody evidence, not a producer assertion. The post-copy
+    /// arm reads it from the validated reanalysis custody; the declined arm
+    /// carries it from the probe the route re-proves on every replay.
+    /// `None` on the direct legality path.
     pub(crate) fn fixed_view_copy_policy(&self) -> Option<crate::FixedViewCopyPolicy> {
         match self {
             Self::Legality(_) => None,
+            Self::DeclinedFixedView { policy, .. } => Some(*policy),
             Self::FixedViewCopies(reanalysis) => Some(reanalysis.custody().source().policy()),
         }
     }
 
     /// The program the first recovery step consumes: the selected program on
-    /// the direct path, or the fixed-view transformation's copy output.
+    /// the direct and pre-copy declined paths, or the fixed-view
+    /// transformation's copy output.
     pub(crate) fn base(&self) -> crate::SelectedProgramRef<'_> {
         match self {
             Self::Legality(source) => crate::SelectedProgramRef::new(
                 source
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .selected(),
+            ),
+            Self::DeclinedFixedView { legality, .. } => crate::SelectedProgramRef::new(
+                legality
                     .live_range_stage()
                     .liveness_stage()
                     .selected_stage()
@@ -111,11 +134,15 @@ impl RuntimeSpillSource {
     }
 
     /// Facts valid when recovery begins: the original legality facts on the
-    /// direct path, or the completely reanalyzed facts after fixed-view
-    /// copies. No analysis result is carried across the rewrite boundary.
+    /// direct and pre-copy declined paths, or the completely reanalyzed facts
+    /// after fixed-view copies. No analysis result is carried across the
+    /// rewrite boundary.
     pub(crate) fn liveness(&self) -> &ValidatedLiveness {
         match self {
             Self::Legality(source) => source.live_range_stage().liveness_stage().liveness(),
+            Self::DeclinedFixedView { legality, .. } => {
+                legality.live_range_stage().liveness_stage().liveness()
+            }
             Self::FixedViewCopies(reanalysis) => reanalysis.liveness(),
         }
     }
@@ -123,6 +150,7 @@ impl RuntimeSpillSource {
     pub(crate) fn ranges(&self) -> &ValidatedLiveRanges {
         match self {
             Self::Legality(source) => source.live_range_stage().ranges(),
+            Self::DeclinedFixedView { legality, .. } => legality.live_range_stage().ranges(),
             Self::FixedViewCopies(reanalysis) => reanalysis.ranges(),
         }
     }
@@ -130,6 +158,7 @@ impl RuntimeSpillSource {
     pub(crate) fn legality(&self) -> &ValidatedAllocationLegality {
         match self {
             Self::Legality(source) => source.legality(),
+            Self::DeclinedFixedView { legality, .. } => legality.legality(),
             Self::FixedViewCopies(reanalysis) => reanalysis.legality(),
         }
     }
@@ -138,7 +167,9 @@ impl RuntimeSpillSource {
     /// pre-physical manifest base plus the transformation prefix every
     /// manifest this recovery produces must carry. The fixed-view arm keeps
     /// its copy transformation first so the recorded ledger replays the
-    /// actual rewrite order.
+    /// actual rewrite order; the declined arm re-runs the segment-home probe
+    /// and requires the same capacity verdict, so a recorded policy was
+    /// earned by the front-end's own rejection.
     pub(crate) fn upstream_manifest(
         &self,
     ) -> Result<
@@ -157,6 +188,29 @@ impl RuntimeSpillSource {
                 )
                 .map_err(RuntimeSpillAllocationError::Upstream)?;
                 Ok((upstream.manifest(), Vec::new()))
+            }
+            Self::DeclinedFixedView {
+                legality, decline, ..
+            } => {
+                let upstream = crate::validate_optimized_allocation_legality_custody(
+                    legality.live_range_stage(),
+                    legality.allocator_availability(),
+                    legality.legality(),
+                )
+                .map_err(RuntimeSpillAllocationError::Upstream)?;
+                let budget = legality
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .optimized_target()
+                    .optimized()
+                    .budget_per_pass();
+                match crate::probe_optimized_fixed_precolored_segment_homes(legality, budget) {
+                    Err(error) if error.capacity_decline() == Some(*decline) => {
+                        Ok((upstream.manifest(), Vec::new()))
+                    }
+                    _ => Err(RuntimeSpillAllocationError::ProbeMismatch),
+                }
             }
             Self::FixedViewCopies(reanalysis) => {
                 let upstream = crate::validate_optimized_selected_reanalysis_custody(
@@ -228,6 +282,11 @@ pub enum RuntimeSpillAllocationError {
     Homes(crate::RegisterHomeError),
     Manifest(crate::PostAllocationOptimizationManifestError),
     RecoveryNotRequired,
+    /// A declined fixed-view source could not re-prove the capacity verdict
+    /// its recorded policy claims — the probe succeeded, declined on a
+    /// different verdict, or reported a non-decline failure, so the
+    /// selection binding was never earned.
+    ProbeMismatch,
     CandidateMismatch,
     ReceiptMismatch,
 }
