@@ -361,6 +361,38 @@ fn assert_custody_diagnostic(
     );
 }
 
+/// One program holds exactly one calling vocabulary. The build declaration
+/// binds `windows_x86_64::ProgramEntry`, which pulls the authored
+/// `targets/windows_x86_64/entry.omg` contract and its `std::calling` module
+/// into the program; a package that also copies `calling.omg` into its own
+/// root and imports it locally declares the same vocabulary a second time.
+/// The registrar materializations above bind one `CallbackBinderIdentity`, so
+/// this shape must keep rejecting rather than silently selecting a copy.
+#[test]
+fn a_package_local_calling_copy_rejects_beside_the_standard_library_entry() {
+    let fixture = Fixture::new();
+    fs::copy(
+        standard_library_root().join("calling.omg"),
+        fixture.root.join("calling.omg"),
+    )
+    .expect("copy a second package-local calling vocabulary");
+    let source = fs::read_to_string(&fixture.main)
+        .expect("read callback fixture")
+        .replacen("use omega_language_std::calling;", "use calling;", 1);
+    fs::write(&fixture.main, source).expect("write package-local calling import");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(fixture.package_inputs()),
+        ..CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"))
+    })
+    .expect_err("one program cannot declare the calling vocabulary twice");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "duplicate data `CallbackBinderIdentity`"),
+        "unexpected diagnostics: {diagnostics:#?}",
+    );
+}
+
 #[test]
 fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
     let fixture = Fixture::new();
