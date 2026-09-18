@@ -211,6 +211,24 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Old observations below are resume evidence, not a fresh
   baseline after the native planner cuts.
 
+  Native progress at `d575c7e8e0` (macOS arm64): lowered machine contracts now
+  publish the inferred crash ceiling the checked contract plan proves
+  (`unit::effective_crash_routes` in checked-trees-to-lowered-psi), call-site
+  continuations derive from the same source, and the
+  `UnsupportedBoundaryCrashContract` fence in
+  terminal-psi-to-abstract-operations is removed — a verified boundary crash
+  contract rides into Omega and the realized settlement commits the trap.
+  `cli_mvp_preserves_both_lines_with_eof_and_enter` and the `cli_mvp` leg of
+  `samples_with_documented_exit_run_correctly` compile, publish, and execute
+  with the documented output and exit. `print_squares` still stops at
+  `Selection(Legalization(UnsupportedScalarOperation WrappingIntegerMultiply
+  u32))` inside target-operations-to-selected-instructions — wrapping
+  multiply/divide/remainder legalization is the next recorded fence — and the
+  behavior-exclusions native probe now pins `UnsupportedControlFlow` one stage
+  later. The `scalar_graph_lowering` lane still reads `CrashPlan::published()`
+  alone for contracts and call continuations — the same under-coverage shape
+  for machines lowered through it, coordinate with its active claim.
+
   Checked-compilation staleness: the service-reach evidence tightening
   (`22dc642ab8`, `7d444a9319`) left 135/140 samples failing
   "publishes service reach `<none>` but its checked body reaches undeclared
