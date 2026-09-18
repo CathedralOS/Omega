@@ -54,9 +54,12 @@ three, with the production site each needs:
 
 ## terminal-verifier
 
-`cargo nextest run -p terminal-verifier --no-fail-fast` at e62b4ae06f
-(2026-09-17, macOS arm64, dependency crates rebuilt from the same tree):
-713 run, 706 passed, 7 failed.
+`cargo nextest run -p terminal-verifier --no-fail-fast` at a66852a558
+(2026-09-18, macOS arm64, dependency crates rebuilt from the same tree):
+726 run, 719 passed, 7 failed; 721 passed, 5 failed after the repair below.
+The earlier reading at e62b4ae06f was 713 run, 706 passed, 7 failed. Only
+two of the six non-ledger failures were `InvalidPartialAffineCleanup`; each
+of the other four has its own cause, recorded separately here.
 
 - `trusted_surface::recorded_digests_match_the_working_tree` (and its
   `source_coverage_fires_on_a_changed_implementation` sibling): the ledger
@@ -64,14 +67,59 @@ three, with the production site each needs:
   (`semantic-vocabulary/src/content.rs` and `proposition`, terminal-psi
   proof-bundle admission and nodes, proof-admission `integer_rules/*`,
   `kernel.rs`, `lib.rs`, `evidence.rs`) that have since changed; the ledger
-  needs re-recording by the lane that changed them, after review.
-- `unranked_bindings::cyclic_scalar_targets_and_reachability_are_checked_before_dominance`,
-  `unranked_views::every_cyclic_view_jump_checks_exact_arity`,
-  `owned_reads::block_parameters::owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`,
-  and three `structural_unit::boundary_buffers::*` tests now see
-  `InvalidPartialAffineCleanup` before the error they expect (for example
-  `UnknownTargetBlock(99)`): a check-ordering change in the verifier lane,
-  not bisected.
+  needs re-recording by the lane that changed them, after review. It also
+  reports `proof-admission/src/mathematical_core/tests/strict_layer.rs` as
+  an unregistered source file under a trusted root.
+- Repaired: `unranked_bindings::cyclic_scalar_targets_and_reachability_are_checked_before_dominance`
+  and `unranked_views::every_cyclic_view_jump_checks_exact_arity` saw
+  `InvalidPartialAffineCleanup` in place of `UnknownTargetBlock(BlockId(99))`
+  and `StructuralJumpArityMismatch { edge: EdgeId(1), expected: 1, actual: 0 }`.
+  The Jump-edge lane of `validation/affine_cleanup/continuation.rs`, added by
+  517e86d465, resolved the terminator's target block and compared successor
+  argument and parameter counts itself, in a pass that runs before
+  `control_flow::validate_control_flow` and the structural frontier own
+  those two checks. That lane now defers both shapes.
+- `structural_unit::boundary_buffers::ordinary_unit_byte_subloan_rejects_wrong_leaf_type_access_and_path`
+  (mutation 1) and
+  `structural_unit::boundary_buffers::boundary_buffer_rejects_wrong_leaf_erasure_access_and_type`
+  are a lost rejection, not an ordering change: a record field retyped to
+  `StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView)` and
+  passed as a whole argument now validates, where it was rejected with
+  `InvalidStructuralArgumentPath`. 2fc3f6ad67 taught
+  `terminal-psi`'s `StructuralFieldType::canonical_leaf_shape` to resolve a
+  path ending at a leaf field, describing the intent as "scalar and IEEE
+  leafs at the path end while bounded or erased leafs stay unresolved", but
+  the implementation also answers `Some` for `ByteSequence(carrier)`. A
+  `BorrowedView` field then resolves to the module's `BorrowedView` type
+  declaration and matches the callee parameter exactly in
+  `structural_operations/structural_arguments/argument_checks.rs`, bypassing
+  the inline presentation route (`terminal_semantics::boundary_buffer_capacity`,
+  which admits only a `BoundedOwned` field). A `BoundedOwned` field is
+  unaffected, because `structural_types.rs` rejects a type declaration with
+  that shape, so no declaration can match it. The repair belongs to the
+  lane that owns `terminal-psi` byte carriers and its seven leaf-shape
+  consumers (codec, interpreter custody, optimization-unit catalog, scalar
+  graph input, reference input, layout, translation replay).
+- `structural_unit::boundary_buffers::fixed_array_views::fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence`
+  expects `InvalidStructuralArrayLength(StructuralTypeId(3))` for a
+  zero-length fixed byte array and now sees
+  `StructuralArgumentTypeMismatch { operation: OperationId(1), argument_index: 0, expected: StructuralTypeId(1), actual: StructuralTypeId(3) }`.
+  The type-table fence in `validation/foundation/structural_types.rs` fires
+  only when `terminal_semantics::scalar_array_leaf_shape` is `None`, which a
+  byte array's primitive-scalar element is not, so the rejection moved to the
+  presentation check: `mutable_fixed_byte_array_extent` answers `None` for a
+  zero extent, no presentation applies, and the exact-type comparison fails.
+  The module is still rejected. Whether a zero-length byte array should be
+  refused by the type table or by presentation is a decision for the fixed
+  array lane; the fixture pins the former.
+- `structural_scalar_fields::owned_reads::block_parameters::owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
+  expects `InvalidStructuralSuccessorArgument { edge: EdgeId(3), place: PlaceId(2) }`
+  and now sees `EdgeAffineDiscardsInvalid { edge: EdgeId(3) }`. Both reject
+  the same module. `frontier/block_parameters.rs` documents the intended
+  order — "phase one consumes each owned source before the residual and
+  trivial cleanup for the same edge runs" — and the edge's trivial-discard
+  roster is now checked first, so the reported error names the cleanup
+  roster rather than the transfer of a disposed place.
 
 ## compiler canary suite (pass canaries)
 
