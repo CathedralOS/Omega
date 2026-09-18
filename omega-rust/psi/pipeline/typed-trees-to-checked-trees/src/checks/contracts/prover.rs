@@ -2,7 +2,9 @@ use checked_trees::{FlowCallFact, FlowStateFact};
 use facts::{FactPayload, FactPlace};
 
 mod assigned_values;
-pub(super) use assigned_values::{prove_domain_at_place, scalar_value_at_place};
+pub(super) use assigned_values::{
+    prove_domain_at_place, scalar_value_at_place, segments_cover_subject,
+};
 mod scalars;
 pub(super) use crate::values::evaluate_checked_scalar;
 pub(super) use scalars::{
@@ -165,7 +167,8 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                             program,
                             candidate_domain,
                             domain_symbol,
-                        ) && semantic.places_match(program, candidate_place, place)
+                        ) && (semantic.places_match(program, candidate_place, place)
+                            || place_covers_subject(program, semantic, candidate_place, place))
                     })
             }) || assigned_values::prove_domain(
                 program,
@@ -255,6 +258,27 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         | FactPayload::ProofObligation { .. }
         | FactPayload::Contract { .. } => false,
     }
+}
+
+/// Whether a live fact at `candidate` covers the required `subject`
+/// elementwise: same place root, and at every position either equal segments
+/// or a containing `FixedRange` (the whole-extent `0..usize::MAX` row covers
+/// a runtime `Index`; a finite range covers contained indices -- see
+/// `assigned_values::segments_cover_subject`).
+fn place_covers_subject(
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    candidate: facts::PlaceHandle,
+    subject: facts::PlaceHandle,
+) -> bool {
+    let candidate = semantic.places.get(candidate);
+    let subject = semantic.places.get(subject);
+    candidate.root == subject.root
+        && assigned_values::segments_cover_subject(
+            program,
+            semantic.place_segments.span_or_empty(candidate.segments),
+            semantic.place_segments.span_or_empty(subject.segments),
+        )
 }
 
 pub(super) fn indexed_membership(program: &typed_trees::TypedTrees, payload: FactPayload) -> bool {

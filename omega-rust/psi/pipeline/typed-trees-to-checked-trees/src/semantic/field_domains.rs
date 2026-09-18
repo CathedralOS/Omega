@@ -7,6 +7,19 @@
 //! Nominal input storage instead relies on the checked incoming argument.
 //! Write-only input views supply no readable entry facts. Independent fields
 //! use separate contexts so invalidation does not erase unrelated evidence.
+//!
+//! Collection elements carry their declared fields at TWO coordinates: every
+//! literal element at its exact `FixedIndex`, and one whole-extent row at the
+//! `0..usize::MAX` window that any element index narrows from. The window row
+//! is the only elementwise spelling a slice can have (no static extent exists
+//! to enumerate); it is still exact evidence -- a write to any element
+//! overlaps the containing window and retires it, so an unresolved index is
+//! never itself a fact place and never universal coverage. Where per-element
+//! rows exist (fixed arrays, machine storage) the window row is seeded under
+//! `StatementTransfer` as evidence only -- the element rows already spell the
+//! complete call-boundary obligation. For a slice the window row is the ONLY
+//! elementwise claim, so it rides the obligation origin and every caller owes
+//! the whole extent.
 
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
@@ -21,6 +34,22 @@ use typed_trees::types::TypeReferenceHandle;
 
 use crate::facts::field_domain::{
     readable_fixed_array_elements, readable_nominal_definition, readable_type_reference,
+};
+
+/// The `FixedRange` spelling of "every element of this collection": the
+/// half-open extent `0..usize::MAX` covers any element index a place can
+/// select -- a literal `x[i]` because `i < usize::MAX` always, and a runtime
+/// `x[index]` because whichever element the index names sits inside the
+/// extent. An elementwise fact at this segment is one row of evidence for
+/// every element; a narrower or unresolved index never mints one, and a write
+/// to any element retires it through the usual overlap machinery
+/// (`flow/place/comparison.rs` already overlaps `Index`/`FixedIndex` with a
+/// containing `FixedRange`). The same sentinel is re-derived locally at every
+/// consumer (`flow/transfers/projected.rs`, `checks/contracts/prover.rs`) so
+/// no private module boundary is crossed.
+const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
+    start: 0,
+    end: usize::MAX,
 };
 
 pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
@@ -43,8 +72,17 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
         append_data_field_domain_facts(
             program,
             facts,
-            machine,
             self_symbol,
+            ProgramPoint::Machine {
+                machine_symbol: machine.symbol,
+            },
+            FactOrigin::MachineFieldDomain {
+                machine_symbol: machine.symbol,
+            },
+            QualificationEvidence::from_origin(
+                language_semantics::QualificationEvidenceOrigin::CheckedValidation,
+                machine.symbol,
+            ),
             data,
             &[],
             &[data.name.as_str()],
@@ -75,15 +113,25 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
 ///
 /// Fixed-array fields additionally enumerate every element at its exact
 /// `FixedIndex` place: `self.rows[i].label` is live evidence for the single
-/// element `i`, invalidated only by writes overlapping that index. Coverage is
-/// never encoded at an unresolved `Index` -- a runtime selector cannot borrow
-/// an element's fact.
+/// element `i`, invalidated only by writes overlapping that index. Collection
+/// fields (fixed array or slice) also carry the whole-extent `0..usize::MAX`
+/// row `self.rows[*].label`, the only elementwise spelling that survives a
+/// runtime selector or a slice view. Coverage is never encoded at an
+/// unresolved `Index` -- a runtime selector cannot be a fact place.
+///
+/// `point`, `origin`, and `evidence` describe WHO is seeding: machine entry
+/// invariants use `ProgramPoint::Machine`/`MachineFieldDomain`, while
+/// zero-initialized locals reuse the same walker under
+/// `ProgramPoint::State`/`StatementTransfer` (their binding statement's
+/// zeroed storage is the evidence -- see `append_local_zii_field_domain_facts`).
 #[allow(clippy::too_many_arguments)]
 fn append_data_field_domain_facts(
     program: &TypedTrees,
     facts: &mut FactPlan,
-    machine: &typed_trees::machine::Machine,
-    self_symbol: symbols::SymbolHandle,
+    root_symbol: symbols::SymbolHandle,
+    point: ProgramPoint,
+    origin: FactOrigin,
+    evidence: QualificationEvidence,
     data: &typed_trees::data::DataDefinition,
     prefix: &[PlaceSegment],
     visited: &[&str],
@@ -108,26 +156,20 @@ fn append_data_field_domain_facts(
                 crate::facts::field_domain::domain_admits_empty_byte_sequence(program, *symbol)
             })
         {
-            // Place `self.<prefix…>.<field>`: root the machine receiver symbol
-            // (`self`) + the segment chain, so the canonical label matches
-            // a `self.a.b` read exactly where the nested write established it.
-            let place = facts.append_symbol_place(self_symbol);
+            // Place `<root>.<prefix…>.<field>`: root the owning symbol (`self`
+            // for machine storage, the local for ZII locals) + the segment
+            // chain, so the canonical label matches a `root.a.b` read exactly
+            // where the nested write established it.
+            let place = facts.append_symbol_place(root_symbol);
             for segment in &field_path {
                 facts.push_place_segment(place, *segment);
             }
 
             let fact = facts.append_fact(Fact {
                 place: FactPlace::Place(place),
-                point: ProgramPoint::Machine {
-                    machine_symbol: machine.symbol,
-                },
-                origin: FactOrigin::MachineFieldDomain {
-                    machine_symbol: machine.symbol,
-                },
-                evidence: QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
-                    machine.symbol,
-                ),
+                point,
+                origin,
+                evidence,
                 payload: FactPayload::DomainMembership {
                     value: typed_trees::expression::ExpressionHandle::invalid(),
                     domain: arena::HandleSpan::empty(),
@@ -150,8 +192,10 @@ fn append_data_field_domain_facts(
             append_data_field_domain_facts(
                 program,
                 facts,
-                machine,
-                self_symbol,
+                root_symbol,
+                point,
+                origin,
+                evidence,
                 nested,
                 &field_path,
                 &next_visited,
@@ -159,8 +203,37 @@ fn append_data_field_domain_facts(
             );
         }
 
+        // A slice-typed field's elements carry their declared fields through
+        // the whole-extent row alone: no static extent exists to enumerate.
+        if let Some(element_type) = readable_slice_element(program, field.type_reference)
+            && let Some(nested) = readable_nominal_definition(program, element_type)
+            && !visited.contains(&nested.name.as_str())
+        {
+            let mut next_visited = visited.to_vec();
+            next_visited.push(nested.name.as_str());
+            let mut element_path = field_path.clone();
+            element_path.push(WHOLE_ELEMENT_EXTENT);
+            append_data_field_domain_facts(
+                program,
+                facts,
+                root_symbol,
+                point,
+                origin,
+                evidence,
+                nested,
+                &element_path,
+                &next_visited,
+                refs,
+            );
+        }
+
         // A fixed array of nominal elements carries each element's declared
         // fields at `field[i]`; the same ZII gate applies to the leaf domains.
+        // The whole-extent `field[0..usize::MAX]` row is seeded alongside so a
+        // runtime selector or a slice view can narrow coverage from it. It is
+        // EVIDENCE ONLY (`StatementTransfer`): the per-element rows already
+        // spell the complete obligation, so collecting the rollup row as a
+        // requirement would only double-report every corrupted element.
         let Some((element_type, length)) =
             readable_fixed_array_elements(program, field.type_reference)
         else {
@@ -180,14 +253,30 @@ fn append_data_field_domain_facts(
             append_data_field_domain_facts(
                 program,
                 facts,
-                machine,
-                self_symbol,
+                root_symbol,
+                point,
+                origin,
+                evidence,
                 nested,
                 &element_path,
                 &next_visited,
                 refs,
             );
         }
+        let mut element_path = field_path.clone();
+        element_path.push(WHOLE_ELEMENT_EXTENT);
+        append_data_field_domain_facts(
+            program,
+            facts,
+            root_symbol,
+            point,
+            FactOrigin::StatementTransfer,
+            evidence,
+            nested,
+            &element_path,
+            &next_visited,
+            refs,
+        );
     }
 }
 
@@ -215,6 +304,10 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 if parameter.is_self {
                     continue;
                 }
+                let obligation_origin = FactOrigin::StateParameterDomain {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                };
                 if let Some(data) = readable_nominal_definition(program, parameter.type_reference) {
                     append_state_parameter_data_field_domain_facts(
                         program,
@@ -222,6 +315,7 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         machine.symbol,
                         state.symbol,
                         parameter.symbol,
+                        obligation_origin,
                         data,
                         &[],
                         &[data.symbol],
@@ -231,6 +325,11 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 // Fixed-array collection parameters carry each element's declared
                 // fields at the exact `FixedIndex` place. Every index is seeded
                 // explicitly; coverage is never encoded as an unresolved `Index`.
+                // The whole-extent `0..usize::MAX` row is seeded alongside so a
+                // runtime `x[index]` subject or an `as_slice()` view can narrow
+                // coverage from it; it is EVIDENCE ONLY (`StatementTransfer`)
+                // because the per-element rows already spell the complete
+                // call-boundary obligation.
                 if let Some((element_type, length)) =
                     readable_fixed_array_elements(program, parameter.type_reference)
                     && let Some(data) = readable_nominal_definition(program, element_type)
@@ -243,12 +342,47 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                             machine.symbol,
                             state.symbol,
                             parameter.symbol,
+                            obligation_origin,
                             data,
                             &prefix,
                             &[data.symbol],
                             &mut refs,
                         );
                     }
+                    append_state_parameter_data_field_domain_facts(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        FactOrigin::StatementTransfer,
+                        data,
+                        &[WHOLE_ELEMENT_EXTENT],
+                        &[data.symbol],
+                        &mut refs,
+                    );
+                }
+                // Slice parameters have no static extent to enumerate; the
+                // whole-extent row is the ONLY elementwise spelling, so it must
+                // stay an obligation: the caller owes every element's declared
+                // fields, which is exactly what `rooms[index]` subjects narrow
+                // coverage from inside the callee.
+                if let Some(element_type) =
+                    readable_slice_element(program, parameter.type_reference)
+                    && let Some(data) = readable_nominal_definition(program, element_type)
+                {
+                    append_state_parameter_data_field_domain_facts(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        obligation_origin,
+                        data,
+                        &[WHOLE_ELEMENT_EXTENT],
+                        &[data.symbol],
+                        &mut refs,
+                    );
                 }
                 // Keep the existing root qualification/resource permission
                 // rule separate from default-domain fields of nominal values.
@@ -270,6 +404,7 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         machine.symbol,
                         state.symbol,
                         parameter.symbol,
+                        obligation_origin,
                         &[],
                         domain_symbol,
                         &mut refs,
@@ -451,6 +586,7 @@ fn append_state_parameter_data_field_domain_facts(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
+    origin: FactOrigin,
     data: &typed_trees::data::DataDefinition,
     prefix: &[PlaceSegment],
     visited: &[SymbolHandle],
@@ -471,6 +607,7 @@ fn append_state_parameter_data_field_domain_facts(
                 machine_symbol,
                 state_symbol,
                 parameter_symbol,
+                origin,
                 &field_path,
                 domain_symbol,
                 refs,
@@ -487,15 +624,44 @@ fn append_state_parameter_data_field_domain_facts(
                 machine_symbol,
                 state_symbol,
                 parameter_symbol,
+                origin,
                 nested,
                 &field_path,
                 &next_visited,
                 refs,
             );
         }
+        // A slice-typed field's elements carry their declared fields through
+        // the whole-extent row alone: no static extent exists to enumerate, so
+        // it stays under `origin` -- for a slice the rollup IS the obligation.
+        if let Some(element_type) = readable_slice_element(program, field.type_reference)
+            && let Some(nested) = readable_nominal_definition(program, element_type)
+            && !visited.contains(&nested.symbol)
+        {
+            let mut next_visited = visited.to_vec();
+            next_visited.push(nested.symbol);
+            let mut element_path = field_path.clone();
+            element_path.push(WHOLE_ELEMENT_EXTENT);
+            append_state_parameter_data_field_domain_facts(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                parameter_symbol,
+                origin,
+                nested,
+                &element_path,
+                &next_visited,
+                refs,
+            );
+        }
         // A fixed array field enumerates each nominal element's declared fields
         // at `field[i]` -- element coverage rides the same entry facts and the
-        // same call-boundary obligations as one-level fields.
+        // same call-boundary obligations as one-level fields. The whole-extent
+        // `field[0..usize::MAX]` row is seeded alongside so a runtime selector
+        // or a slice view can narrow coverage from it; it is EVIDENCE ONLY
+        // (`StatementTransfer`) because the per-element rows already spell the
+        // complete obligation.
         if let Some((element_type, length)) =
             readable_fixed_array_elements(program, field.type_reference)
             && let Some(nested) = readable_nominal_definition(program, element_type)
@@ -512,21 +678,38 @@ fn append_state_parameter_data_field_domain_facts(
                     machine_symbol,
                     state_symbol,
                     parameter_symbol,
+                    origin,
                     nested,
                     &element_path,
                     &next_visited,
                     refs,
                 );
             }
+            let mut element_path = field_path.clone();
+            element_path.push(WHOLE_ELEMENT_EXTENT);
+            append_state_parameter_data_field_domain_facts(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                parameter_symbol,
+                FactOrigin::StatementTransfer,
+                nested,
+                &element_path,
+                &next_visited,
+                refs,
+            );
         }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_state_parameter_domain_fact(
     facts: &mut FactPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
+    origin: FactOrigin,
     path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
     refs: &mut arena::HandleSpan<facts::FactRef>,
@@ -541,10 +724,7 @@ fn append_state_parameter_domain_fact(
             machine_symbol,
             state_symbol,
         },
-        origin: FactOrigin::StateParameterDomain {
-            machine_symbol,
-            state_symbol,
-        },
+        origin,
         evidence: QualificationEvidence::from_origin(
             language_semantics::QualificationEvidenceOrigin::Propagated,
             state_symbol,
@@ -677,6 +857,109 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
     }
 }
 
+/// `let value: T;` binds zero-initialized storage (dependent_values.md:
+/// zero-initializability is a storage representation guarantee). When `T`'s
+/// declared field domains admit the zero/empty byte sequence, that zero value
+/// already satisfies each such field, so `value.<field> in D` is live evidence
+/// from the binding onward -- the same gate machine storage uses for its
+/// entry invariants. Seeded at `ProgramPoint::State` with the
+/// `StatementTransfer` origin: the binding statement is the formation point,
+/// and the symbol cannot resolve before its declaration, so folding the rows
+/// into state entry is exact. Ordinary mutation invalidation retires every
+/// row, and domains the zero value violates stay gated -- a read of a gated
+/// field still requires an establishing write first.
+///
+/// An initializer (`let value: T = expr;`) gets its domain evidence from the
+/// assignment transfer instead; seeding the zero here too would be wrong
+/// because the initializer replaces the zero before any observation.
+pub(super) fn append_local_zii_field_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut refs = arena::HandleSpan::empty();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::LocalData(local_data) = statement else {
+                    continue;
+                };
+                if local_data.initial_value.is_valid() {
+                    continue;
+                }
+                let point = ProgramPoint::State {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                };
+                let origin = FactOrigin::StatementTransfer;
+                let evidence = QualificationEvidence::from_origin(
+                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
+                    state.symbol,
+                );
+
+                // Whole-value `let x: T in D;` rows: zero satisfies `D` only
+                // when the domain admits the empty byte sequence -- the same
+                // ZII gate the per-field rows below use.
+                for (domain_symbol, semantic_domain) in
+                    crate::facts::field_domain::domain_constraint_identities(
+                        program,
+                        local_data.type_reference,
+                    )
+                    .into_iter()
+                    .filter(|(domain_symbol, _)| {
+                        crate::facts::field_domain::domain_admits_empty_byte_sequence(
+                            program,
+                            *domain_symbol,
+                        )
+                    })
+                {
+                    let place = facts.append_symbol_place(local_data.symbol);
+                    let fact = facts.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        point,
+                        origin,
+                        evidence,
+                        payload: FactPayload::DomainMembership {
+                            value: typed_trees::expression::ExpressionHandle::invalid(),
+                            domain: arena::HandleSpan::empty(),
+                            domain_symbol,
+                            semantic_domain,
+                        },
+                    });
+                    facts.append_ref(&mut refs, fact);
+                }
+
+                let Some(data) = crate::facts::field_domain::owned_nominal_data_definition(
+                    program,
+                    local_data.type_reference,
+                ) else {
+                    continue;
+                };
+                append_data_field_domain_facts(
+                    program,
+                    facts,
+                    local_data.symbol,
+                    point,
+                    origin,
+                    evidence,
+                    data,
+                    &[],
+                    &[data.name.as_str()],
+                    &mut refs,
+                );
+            }
+
+            if refs.is_empty() {
+                continue;
+            }
+            append_independent_place_contexts(
+                facts,
+                ProgramPoint::State {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                },
+                refs,
+            );
+        }
+    }
+}
+
 /// A symbol named `self` for the machine's receiver -- the `is_self` parameter
 /// of any of its states (all spelled `self`, so the canonical label is identical
 /// regardless of which state's receiver symbol is used).
@@ -701,4 +984,20 @@ fn field_domain_symbols(
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
     crate::facts::field_domain::predicate_domain_constraint_symbols(program, type_reference)
+}
+
+/// The element type of a slice (`[T]`, `&[T]`, `&mut [T]`), looking through a
+/// leading reference exactly as `readable_fixed_array_elements` does for fixed
+/// arrays. `None` for non-slice or write-only types.
+fn readable_slice_element(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    match program
+        .type_reference_table
+        .type_reference(readable_type_reference(program, type_reference)?)
+    {
+        typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+        _ => None,
+    }
 }
