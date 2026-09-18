@@ -1505,7 +1505,7 @@ Owners include
   `retirement_rejects_receipts_off_the_exact_started_evidence`). Remaining: a
   provider edge issuing the vector to the target boot protocol and an authored
   Omega surface invoking the entry. The provider edge is design-blocked on
-  [owner question 7](OWNER_QUESTIONS.md) (`ap-startup-protocol-ownership`):
+  [AP startup protocol ownership](OWNER_QUESTIONS.md) (`ap-startup-protocol-ownership`):
   the spec names no boot protocol for x86-64 and the APIC facts are Cathedral-
   owned, so whether the compiler issues INIT/SIPI, calls firmware MP services,
   or only seals a Cathedral-minted startup receipt is an owner decision;
@@ -3495,6 +3495,22 @@ Owners include
   exact semantic identities or reject stale schema artifacts explicitly; do
   not match a compiler primitive by leaf name or legacy declaration kind.
 
+  Indexing uses [ordinary receiver borrowing](wiki/spec/language/expressions.md#indexing-and-ranges),
+  not a new automatic borrow of every first operand. Wire attached `[]`/`[..]`
+  receiver selection through the same loan formation as named method calls;
+  preserve ordinary explicit-parameter and core collection adaptations. Revise
+  `indexed_operand_access_preserves_shared_collection_and_owned_index` to express
+  receiver ergonomics with an attached receiver and retain a separate ordinary
+  parameter control. Do not restore wildcard operand re-seeding to hide the join.
+  Acceptance: `buffer[index]` and its named attached call agree for a custom
+  record, with once-only collection/index evaluation, a shared collection loan,
+  and an owned index transferred once. Include computed by-value results and
+  borrowed views; cover mutable receiver authority, returned-loan lifetimes,
+  bounds rejection, conflicting borrows, and ambiguous adapted candidates.
+  Ordinary non-receiver parameters must not acquire receiver-only adaptation.
+  Carry the exact call/loan identity through independent Terminal replay and
+  interpreter/native execution; this settlement is not evidence of implementation.
+
   Enforce closed-family semantic-home ownership and owner-local duplicate checks.
   At c797755f12 `tests/omega/pass/expressions/declared_operator_match_result/main.omg`
   authors the test-owned `Wrapped` type with
@@ -5000,7 +5016,8 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   alpha_bootstrap::ProgramEntry belongs to unknown target profile
   alpha_bootstrap` from `source/omega/build.omg:11` (601.8 s wall at
   dd8bb81386, 704.0 s at a3b3ecd8c4 beside a concurrent gate check);
-  that row is OWNER_QUESTIONS 8 and no product-source edit is pending
+  that row is the `alpha-bootstrap-target-profile` decision in
+  [owner questions](OWNER_QUESTIONS.md), and no product-source edit is pending
   behind it. The stops before it are retired: the parser borrows the
   lexer's stream (b30c5ae693; the borrowed-storage restoration gap in
   `pass/ownership/move_keyword_field_assignment` is tracked by
@@ -5039,8 +5056,9 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   length, length)`, an attached call through the nested receiver whose
   first argument is a copy-enum case literal beside two ranged scalars;
   the product `Main::main` has no such call, so its own next stop after
-  OWNER_QUESTIONS 8 is unmeasured. Gate check timing moved with main, not
-  with these commits: 1538.3 s wall / 1402.2 s user at d0371277e3 became
+  the `alpha-bootstrap-target-profile` decision is unmeasured. Gate check
+  timing moved with main, not with these commits: 1538.3 s wall / 1402.2 s
+  user at d0371277e3 became
   6463.8 s / 4370.1 s at 4bfa009246 and 6458.5 s / 4367.7 s with the
   validation change reverted on the same base; a `sample` of the run sits
   in `typed-trees-to-checked-trees` `flow::builder::build_flow_facts ->

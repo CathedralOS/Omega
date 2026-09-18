@@ -63,8 +63,11 @@ target is instead an internal transfer.
 
 Temporary storage must outlive every derived borrow and receive cleanup on
 every cleanup-bearing exit. Shared lending may be implicit at a shared-reference
-parameter. Mutable and write-only lending require explicit `&mut` and `&write`
-expressions. Checked identity and published consumers retain the access kind and
+parameter under ordinary argument-admission rules. For non-receiver arguments,
+mutable and write-only lending require explicit `&mut` and `&write` expressions.
+Attached calls instead form the receiver loan required by the declared receiver
+access, including when spelled through [indexing](#indexing-and-ranges).
+Checked identity and published consumers retain the access kind and
 rejoin the explicit argument with its declared parameter type; source spelling
 cannot substitute for that identity.
 
@@ -127,6 +130,14 @@ ownership/access mode; otherwise the first ordinary parameter occupies zero.
 Both forms use the complete operand telescope. Being an operator grants no
 mutation: mutation requires an admitted mutable operand shape. Checked consumers
 retain the authored selection occurrence, not a guess from the leaf name.
+
+Attached token-bearing machines use the same receiver adaptation as their named
+method calls. Merely occupying operand position zero does not turn an ordinary
+parameter into a receiver. Explicit operands retain ordinary argument-admission
+rules and the specified collection-view adaptations; operator syntax adds no
+general search for borrowed variants of operands. An owned receiver remains
+owned. If permitted adaptations leave competing candidates, ordinary ambiguity
+rejection applies, not an implicit preference for an owned or borrowed overload.
 
 Trait requirements may bind tokens. Their conformances supply implementations,
 never new token bindings. A trait-backed token use requires one exact conformance
@@ -237,6 +248,30 @@ contracts; neither is raw pointer syntax. Fixed arrays, vectors, and borrowed
 slices may share the syntax without sharing their bounds evidence. Mutable
 forms additionally require the appropriate loans and write authority. Descriptor
 construction implements the selected contract but cannot establish its proofs.
+
+For an attached index machine such as `machine [] Buffer::at(&self, index: u64)`,
+`buffer[index]` supplies the collection as the receiver, with the same shared
+receiver borrowing as `buffer.at(index)`. An admitted mutable-receiver index
+machine similarly requires and forms an exclusive receiver loan. Authors do not
+need `(&buffer)[index]` or a distinct `&[]` operator to request ordinary receiver
+borrowing. A first ordinary parameter spelled `items: &Buffer` is not an attached
+receiver; its admission still follows ordinary argument rules.
+
+Receiver borrowing does not copy or move the collection, weaken bounds or loan
+checks, or permit mutable access through shared authority. Collection and index
+expressions are each evaluated once, collection first, and the resulting loan
+retains its exact captured place and lifetime. The index argument keeps its own
+declared access and multiplicity; borrowing the receiver does not borrow an owned
+index argument. Explicit conformance selection and provider requirements are
+unchanged.
+
+Index results follow ordinary machine result rules: they may be computed values
+or borrowed views. There is no universal reference-return requirement or
+implicit dereference of every user-defined index result. Writing through an index
+requires the selected operation to supply writable storage under its declared
+contract; returning a value does not make it an assignable place. This adds no
+result-type-directed operator selection. The same receiver rule applies to an
+attached range-slicing machine; existing core collection adaptations remain valid.
 
 `a..b` is exclusive; `a..=b` is inclusive. Open forms are `a..`, `..b`, and `..`.
 Omitted endpoints use zero and collection length. Inclusive ranges normalize

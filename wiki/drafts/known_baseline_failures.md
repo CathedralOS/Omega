@@ -30,9 +30,13 @@ three, with the production site each needs:
   declared `items: &Buffer` operand because
   `typed-trees/src/typed_trees/declarations/operator/indexing.rs::shared_collection_elements`
   adapts only slice shells (a `buffer: &Buffer` parameter operand passes; a
-  `Buffer` place fails in every spelling). Whether a fixed-token operand
-  auto-borrows a record place into a `&Record` parameter is
-  OWNER_QUESTIONS.md question 2; the fixture stays until it is answered.
+  `Buffer` place fails in every spelling). The settled
+  [indexing receiver rule](../spec/language/expressions.md#indexing-and-ranges)
+  uses ordinary attached-receiver borrowing, not a new auto-borrow rule for
+  ordinary first parameters. OPERATOR-MACHINE-SUPPLY owns expressing this
+  fixture with an attached receiver, retaining a separate explicit-parameter
+  control, and checking the real loan/custody route. This recorded failure is
+  not closed by the documentation settlement or by restoring wildcard matching.
 - `tests::multiplicity::obligations_and_state_call_results::consuming_call_that_returns_an_obligation_transfers_its_origin`:
   since 2dc27270bc
   `validation/src/value_custody/permission_provenance.rs::static_namespace_receiver`

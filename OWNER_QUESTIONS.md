@@ -63,32 +63,7 @@ must be surfaced before relying on them.
    the `cli/basics` cohort; ENTRY-CONTENT-ROOTS owns the implementation
    either way.
 
-2. **Do fixed-token operator operands auto-borrow a place into a reference
-   parameter?** [Expressions](wiki/spec/language/expressions.md#operators)
-   makes operator selection operand-directed over normalized operand shapes,
-   gives an attached receiver position zero "with its exact
-   ownership/access mode", and otherwise puts the first ordinary parameter
-   there; [indexing](wiki/spec/language/expressions.md#indexing-and-ranges)
-   says `[]` selects an ordinary operator. Neither says whether a record
-   place operand (`self.buffer: Buffer`) matches an ordinary
-   `items: &Buffer` parameter, the way a `&self` receiver is taken on a
-   place. Today only collection shells adapt (`[T; N]`, `&[T; N]`,
-   `&mut [T]` into `&[T]`, per
-   `typed-trees/src/typed_trees/declarations/operator/indexing.rs`); a
-   `Buffer` place never matches `&Buffer`, and the checking test
-   `indexed_operand_access_preserves_shared_collection_and_owned_index`
-   (wiki/drafts/known_baseline_failures.md) fails only because f1f9f898e2
-   stopped a wildcard re-seed that had hidden the mismatch. Decision
-   needed: (a) operand position zero of a fixed-token use takes a shared
-   loan of a place when the declared parameter is `&T` and the place is
-   `T` (an implicit `&` limited to that position, matching attached
-   receivers), or (b) operand shapes are exact and the author spells
-   `(&self.buffer)[index]`, in which case the fixture is respelled and no
-   typing change is needed. Recommendation: (b), since every other operand
-   position and ordinary call already requires the explicit borrow and the
-   spec names no implicit loan outside attached receivers.
-
-3. **Board hygiene: items the spec does not ask for, or that duplicate
+2. **Board hygiene: items the spec does not ask for, or that duplicate
    another item.** A read-only pass on 2026-09-17 traced every TASKS.md
    item to `wiki/spec`; 64 of 75 rest on a normative clause and twelve are
    named by the spec itself. The remainder need an owner decision because
@@ -137,7 +112,7 @@ must be surfaced before relying on them.
      entrypoints. Keep the item; decide whether that split is spec (add the
      clause) or an owner architecture decision recorded here.
 
-4. **Receiving-policy selection surface** (named decision:
+3. **Receiving-policy selection surface** (named decision:
    `receiving-policy-selection`). The
    [two-axis containment contract](wiki/spec/build/permissions.md#two-axis-containment)
    and [receiver-owned requirements](wiki/spec/proofs/publication.md#receiver-owned-requirements)
@@ -179,7 +154,7 @@ must be surfaced before relying on them.
    and the `cli_mvp` CLI acceptance are design-blocked; the package axis
    (proposing and accepting the permission row) is not.
 
-5. **Is a token-bound proof-machine `requires` a formation obligation at
+4. **Is a token-bound proof-machine `requires` a formation obligation at
    the selecting use?** (named decision: `proof-operator-requires-formation`).
    `core/nat.omg` states that subtraction is partial at formation with its
    premise carried by the operator contract, and
@@ -223,7 +198,7 @@ must be surfaced before relying on them.
    Until answered, the `core/nat.omg` satisfier pairs stay on `operator`
    and OPERATOR-MACHINE-SUPPLY's map marks them design-blocked.
 
-6. **Which explicit binder selects an indexed domain's index operation
+5. **Which explicit binder selects an indexed domain's index operation
    contract?** (named decision: `open-index-operation-selection`). The
    [executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
    retires bodyless root `operator` slots and states that "any required
@@ -262,10 +237,10 @@ must be surfaced before relying on them.
 
    Until answered, the four `IndexAlgebra::plus` fixtures stay on
    `operator` and OPERATOR-MACHINE-SUPPLY's map marks them design-blocked;
-   this is distinct from question 5, which concerns formation-time
-   `requires` rather than the selection binder.
+   this is distinct from the proof-machine `requires` question, which concerns
+   formation-time `requires` rather than the selection binder.
 
-7. **Which boot protocol issues the AP startup vector, and who owns it?**
+6. **Which boot protocol issues the AP startup vector, and who owns it?**
    (named decision: `ap-startup-protocol-ownership`). The [executable
    installation contract](wiki/spec/build/executable_installation.md) says AP
    startup "installs a compiler-produced low-memory trampoline and invokes a
@@ -291,7 +266,7 @@ must be surfaced before relying on them.
    start until one of these edges exists; AP-BRINGUP owns the implementation
    either way.
 
-8. **Is `alpha_bootstrap` an ordinary target profile of the differential
+7. **Is `alpha_bootstrap` an ordinary target profile of the differential
    compiler, and what happens to a root row owned by a profile the comparator
    does not catalogue?** (named decision: `alpha-bootstrap-target-profile`).
    The [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain)
@@ -337,7 +312,7 @@ must be surfaced before relying on them.
    Until answered, the product check stops on this row once the calling-policy
    admission bug is fixed; everything before that stop is engineering.
 
-9. **Which route admits the complete Beta-encoding certificate, or does the
+8. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:
     `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
     acceptance requires the produced
@@ -389,7 +364,7 @@ must be surfaced before relying on them.
     certificate measured but inadmissible, and the chain retains its
     explicit assumption that the selected evaluator implements Gamma.
 
-10. **Does a transported contract instantiate its `FloatMeaning` projections
+9. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,
