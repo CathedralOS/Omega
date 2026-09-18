@@ -623,8 +623,70 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 self.expression(range.end, contexts, constraints);
             }
             ExpressionNode::Indexed(indexed) => {
+                // A spelled `collection[index]` selects an operator meaning
+                // exactly as `left + right` does: its operands need the same
+                // operand-time custody, captured where each finishes
+                // evaluating, or a selected crash contract finds no
+                // invocation evidence while the named call spelling keeps
+                // its own capture row. A range index selects the `[..]`
+                // meaning whose operands are the bounds — `operands()`
+                // expands it to [collection, start, end] — so each bound is
+                // evaluated and captured at its own completion.
+                let collection_writes = self.operand_writes.len();
                 self.expression(indexed.collection, contexts, constraints);
-                self.expression(indexed.index, contexts, constraints);
+                let collection_operand = self.capture_operator_operand(
+                    indexed.collection,
+                    collection_writes,
+                    *contexts,
+                    *constraints,
+                );
+                if indexed.index.is_valid()
+                    && let ExpressionNode::Range(range) =
+                        self.program.expression_table.expression(indexed.index)
+                {
+                    let start_writes = self.operand_writes.len();
+                    self.expression(range.start, contexts, constraints);
+                    let start_operand = self.capture_operator_operand(
+                        range.start,
+                        start_writes,
+                        *contexts,
+                        *constraints,
+                    );
+                    let end_writes = self.operand_writes.len();
+                    self.expression(range.end, contexts, constraints);
+                    let end_operand = self.capture_operator_operand(
+                        range.end,
+                        end_writes,
+                        *contexts,
+                        *constraints,
+                    );
+                    // `self.expression(indexed.index)` would publish the
+                    // range node's own result tags after evaluating both
+                    // bounds; keep that publication now that the bounds were
+                    // evaluated separately above.
+                    self.append_result_domains(indexed.index, contexts, constraints);
+                    self.record_operator_invocation(
+                        expression,
+                        checked_trees::CheckedOperatorOccurrence::Expression,
+                        &[collection_operand, start_operand, end_operand],
+                        *constraints,
+                    );
+                } else {
+                    let index_writes = self.operand_writes.len();
+                    self.expression(indexed.index, contexts, constraints);
+                    let index_operand = self.capture_operator_operand(
+                        indexed.index,
+                        index_writes,
+                        *contexts,
+                        *constraints,
+                    );
+                    self.record_operator_invocation(
+                        expression,
+                        checked_trees::CheckedOperatorOccurrence::Expression,
+                        &[collection_operand, index_operand],
+                        *constraints,
+                    );
+                }
             }
             ExpressionNode::Atomic(atomic) => {
                 self.expression(atomic.value, contexts, constraints);
