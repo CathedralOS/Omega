@@ -10,7 +10,10 @@
 //! the ordinary requires checker; they do not need all premises at one time.
 
 use arena::Handle;
-use checked_trees::{CheckFacts, CheckedOperatorUseFact, FlowFacts, FlowOperatorInvocationFact};
+use checked_trees::{
+    CheckFacts, CheckedNamedOperatorUseFact, CheckedOperatorUseFact, FlowFacts,
+    FlowOperatorInvocationFact,
+};
 use facts::FactContextHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -44,19 +47,38 @@ impl<'facts> InvocationContexts<'facts> {
                     (invocation.operator_use == operator_use).then_some(invocation)
                 });
         let invocation = match (matching.next(), matching.next()) {
-            (Some(invocation), None)
-                if flow
-                    .control
-                    .operator_operands
-                    .span_or_empty(invocation.operands)
-                    .iter()
-                    .map(|operand| operand.expression)
-                    .eq(operands.iter().copied()) =>
-            {
+            (Some(invocation), None) if operand_expressions_match(flow, invocation, operands) => {
                 Some(invocation)
             }
             // Missing, duplicate, or substituted operand custody cannot fall
             // back to statement-entry facts. Only context-free truths remain.
+            _ => None,
+        };
+        Self { flow, invocation }
+    }
+
+    /// The operand-time capture of one named `Namespace::requirement(...)`
+    /// call. Named uses produce no `uses` row, so their capture rows key on
+    /// the `named_use` handle instead. The caller distinguishes "no capture
+    /// was emitted" (entry-context fallback may apply) from present-but-bad
+    /// custody: a mismatched or duplicated row selects no contexts, leaving
+    /// only context-free truths.
+    pub(super) fn from_named_use(
+        flow: &'facts FlowFacts,
+        named_use: Handle<CheckedNamedOperatorUseFact>,
+        operands: &[ExpressionHandle],
+    ) -> Self {
+        let mut matching =
+            flow.control
+                .operator_invocations
+                .iter()
+                .filter_map(|(_, invocation)| {
+                    (invocation.named_use == named_use).then_some(invocation)
+                });
+        let invocation = match (matching.next(), matching.next()) {
+            (Some(invocation), None) if operand_expressions_match(flow, invocation, operands) => {
+                Some(invocation)
+            }
             _ => None,
         };
         Self { flow, invocation }
@@ -118,6 +140,21 @@ impl<'facts> InvocationContexts<'facts> {
                 .collect()
         })
     }
+}
+
+/// The capture row names its exact operand expressions in evaluation order;
+/// a row whose operands differ is substituted custody, not this invocation's.
+fn operand_expressions_match(
+    flow: &FlowFacts,
+    invocation: &FlowOperatorInvocationFact,
+    operands: &[ExpressionHandle],
+) -> bool {
+    flow.control
+        .operator_operands
+        .span_or_empty(invocation.operands)
+        .iter()
+        .map(|operand| operand.expression)
+        .eq(operands.iter().copied())
 }
 
 fn is_copied_scalar(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {

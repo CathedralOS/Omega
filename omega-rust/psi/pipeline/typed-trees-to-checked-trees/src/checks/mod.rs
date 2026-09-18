@@ -9,7 +9,7 @@ mod ranges;
 pub(crate) mod termination;
 
 use diagnostics::Diagnostic;
-pub(crate) use operators::operator_route_is_false;
+pub(crate) use operators::{named_operator_route_is_false, operator_route_is_false};
 
 pub(crate) use multiplicity::{
     nominal_drop_machine_symbol, type_carries_linear_obligation, type_multiplicity,

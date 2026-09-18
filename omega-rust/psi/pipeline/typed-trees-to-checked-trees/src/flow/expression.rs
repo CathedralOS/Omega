@@ -341,11 +341,98 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 self.context.control.operator_invocations.append(
                     checked_trees::FlowOperatorInvocationFact {
                         operator_use,
+                        named_use: arena::Handle::invalid(),
                         operands: operand_span,
                         requires_constraints: constraints,
                     },
                 );
             }
+        }
+    }
+
+    /// Named `Namespace::requirement(...)` calls select the same operand
+    /// custody as spelled uses but have no `uses` row to key on, so each
+    /// matching `named_uses` row gets its own capture naming that row. Only
+    /// parameter-bound operands are captured: a static namespace receiver is
+    /// a path, not an operand, mirroring `named_call_operands`.
+    fn record_named_operator_invocations(
+        &mut self,
+        expression: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+        operands: &[(ExpressionHandle, usize)],
+        contexts: HandleSpan<FlowSemanticContextRef>,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) {
+        let named_uses: Vec<_> = self
+            .context
+            .operators
+            .named_uses
+            .iter()
+            .filter(|(_, named_use)| {
+                named_use.expression == expression
+                    && matches!(named_use.origin, checked_trees::CheckedValueOrigin::StateStatement {
+                        machine_symbol, state_symbol, statement_index, ..
+                    } if machine_symbol == self.machine.symbol
+                        && state_symbol == self.state.symbol
+                        && statement_index == self.statement_index)
+            })
+            .map(|(handle, _)| handle)
+            .collect();
+        for named_use in named_uses {
+            let Some(operator) = typed_trees::operator::declaration_by_symbol(
+                self.program,
+                self.context
+                    .operators
+                    .named_uses
+                    .get(named_use)
+                    .selected_operator_symbol,
+            ) else {
+                continue;
+            };
+            let parameters = self.program.operator_parameters(operator);
+            let Some(named_operands) =
+                crate::facts::operator_crashes::named_call_operands(self.program, call, parameters)
+            else {
+                continue;
+            };
+            // The parameter-bound list is a subsequence of the evaluated
+            // [receiver, arguments...] operand windows; a static receiver is
+            // simply skipped. Match positionally so a repeated expression
+            // keeps its own evaluation window.
+            let mut cursor = 0;
+            let mut windows = Vec::with_capacity(named_operands.len());
+            for operand in &named_operands {
+                let Some(offset) = operands[cursor..]
+                    .iter()
+                    .position(|(expression, _)| expression == operand)
+                else {
+                    break;
+                };
+                windows.push((*operand, operands[cursor + offset].1));
+                cursor += offset + 1;
+            }
+            if windows.len() != named_operands.len() {
+                continue;
+            }
+            let captured: Vec<_> = windows
+                .iter()
+                .map(|(expression, first_write)| {
+                    self.capture_operator_operand(*expression, *first_write, contexts, constraints)
+                })
+                .collect();
+            let operand_span = self
+                .context
+                .control
+                .operator_operands
+                .insert_many(captured.iter().copied());
+            self.context.control.operator_invocations.append(
+                checked_trees::FlowOperatorInvocationFact {
+                    operator_use: arena::Handle::invalid(),
+                    named_use,
+                    operands: operand_span,
+                    requires_constraints: constraints,
+                },
+            );
         }
     }
 
@@ -447,6 +534,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     operands.push((*argument, self.operand_writes.len()));
                     self.expression(*argument, contexts, constraints);
                 }
+                // Named operator calls produce no ordinary call row, so `invoke`
+                // cannot supply their operand-time evidence; capture it here.
+                self.record_named_operator_invocations(
+                    expression,
+                    call,
+                    &operands,
+                    *contexts,
+                    *constraints,
+                );
                 self.invoke(
                     InvocationSite::Expression(expression),
                     &operands,
