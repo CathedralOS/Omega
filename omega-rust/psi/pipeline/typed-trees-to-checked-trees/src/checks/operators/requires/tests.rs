@@ -82,6 +82,38 @@ fn named_call_requires_cannot_use_facts_invalidated_by_an_earlier_operand() {
 }
 
 #[test]
+fn named_call_requires_keep_a_copied_left_value_after_a_right_operand_write() {
+    check(
+        "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         requires left >= 0;
+         machine reset(value: &mut i32) -> i32 { value = -1; 0 }
+         machine compare(mut value: i32) -> bool requires value >= 0 {
+             Comparison::equal(value, reset(&mut value))
+         }",
+    )
+    .expect("a later write cannot revoke facts about the already-copied left value");
+}
+
+#[test]
+fn named_call_requires_cannot_give_an_earlier_copy_a_later_storage_guarantee() {
+    let diagnostics = check(
+        "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         requires left >= 0;
+         machine prepare(value: &mut i32) -> i32 ensures value >= 0 { value = 1; 0 }
+         machine compare(mut value: i32) -> bool {
+             Comparison::equal(value, prepare(&mut value))
+         }",
+    )
+    .expect_err("prepare's guarantee describes current storage, not the earlier left copy");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn named_call_requires_read_the_referent_under_a_reference_formal() {
     // `left: &i32` used as a predicate value reads its referent, so the
     // instantiated clause names `value`, not `&value`. Without referent
