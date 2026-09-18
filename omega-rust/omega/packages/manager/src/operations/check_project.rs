@@ -46,6 +46,12 @@ impl PreparedLocalProjectCheckRequest {
 pub enum CheckPreparedLocalProjectError {
     Review(CompileResolvedPackageReviewsError),
     TrustAdmission(Vec<Diagnostic>),
+    /// The retained checked root carries an optional proof-product request a
+    /// check-only stop cannot publish, so the request rejects rather than
+    /// reporting a success that silently dropped it. The standalone
+    /// compiler's `RequestedCompileProduct::Check` arm applies the same
+    /// admission fence.
+    ProofProduct(Vec<Diagnostic>),
     Report(&'static str),
 }
 
@@ -55,6 +61,12 @@ impl fmt::Display for CheckPreparedLocalProjectError {
             Self::Review(error) => write!(formatter, "cannot check prepared project: {error}"),
             Self::TrustAdmission(diagnostics) => {
                 write!(formatter, "cannot admit package trust: {diagnostics:?}")
+            }
+            Self::ProofProduct(diagnostics) => {
+                write!(
+                    formatter,
+                    "cannot satisfy the requested proof product: {diagnostics:?}"
+                )
             }
             Self::Report(message) => formatter.write_str(message),
         }
@@ -91,6 +103,15 @@ pub fn check_prepared_local_project(
     let admission = compiler::admit_checked_compilation(&checked, &accepted_trust_admissions)
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     let settlement = admission.into_settlement();
+    // A check-only stop publishes no artifact pair, so a checked root whose
+    // build requested an optional proof product can never be satisfied here.
+    // The standalone compiler's `RequestedCompileProduct::Check` arm applies
+    // the same admission fence.
+    if checked.pcc_requests().any() {
+        return Err(CheckPreparedLocalProjectError::ProofProduct(vec![
+            Diagnostic::error("a check-only stop cannot satisfy an optional proof-product request"),
+        ]));
+    }
     CompileReport::checked(
         options.root_path,
         checked.source_file_count(),
