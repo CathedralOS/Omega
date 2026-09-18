@@ -37,7 +37,8 @@ pub use model::{
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, invariant place observations, byte observations, pure-callee
 /// scalar-signature, borrow unit, and borrow scalar-result
-/// structural calls, and
+/// structural calls, byte-sequence-literal, primitive-local, record, and
+/// scalar-array establishments, and
 /// side-effect-free scalar
 /// computations — including exact, saturating, and
 /// wrapping variants carrying a verifier-discharged obligation, which moves
@@ -129,6 +130,19 @@ pub use model::{
 /// operation. The same whole-component custody bound makes the hoist sound:
 /// only when no member stores to the declared place does a record
 /// established once still read its initializers on every traversal.
+/// An `EstablishScalarArray` adds the family's fourth establishment
+/// relocation — the record's flat sibling: it declares a fresh claim-free
+/// unrestricted scalar-array place whose row-major scalar leaves each obey
+/// the same use-site substitution, and the declared place, structural type,
+/// and result custody move byte-exact inside the moved operation. The
+/// custody bound carries the array's own wrinkle: a member call may spell
+/// the fresh root as an `Owned` argument — copying an unrestricted payload
+/// into the callee is an observation, not custody movement — so the staying
+/// call keeps reading the persistent place each traversal while the
+/// establishment it consumes relocates once into the preheader. The same
+/// bound makes the hoist sound: only when no member stores to the declared
+/// place does a payload established once still read its elements on every
+/// traversal.
 /// Computation,
 /// observation, and establishment
 /// relocation is non-speculative: every successor of the unique preheader's

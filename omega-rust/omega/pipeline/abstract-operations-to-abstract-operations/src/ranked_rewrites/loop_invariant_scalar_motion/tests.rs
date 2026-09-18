@@ -7503,3 +7503,332 @@ fn forged_record_field_copy_root_is_rejected_by_the_freeze_fence() {
         ) if rejected_machine == machine && block == member
     ));
 }
+
+/// A ranked scalar-machine cycle whose one member block establishes an
+/// unrestricted scalar array from invariant elements and hands the fresh
+/// root to `first` as an `Owned` argument: the `scale` member parameter
+/// resolves transitively to the machine's `scale` anchor, so the
+/// establishment relocates rebinding every element to that representative
+/// while its declared place stays byte-exact. The owned-argument call is a
+/// copy of the persistent member-produced root — custody-preserving under
+/// the whole-component bound — and stays inside the loop spelling the same
+/// place.
+const MEMBER_SCALAR_ARRAY_SOURCE: &str = r#"
+    machine first(row: [u64; 2]) -> u64 { 0 }
+    machine scan(remaining: u64 [0..=5], scale: u64 [0..=10]) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let v: u64 = first([scale, scale]);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> v
+        }
+    }
+"#;
+
+/// Same component shape, but the establishment reads the loop-carried
+/// `remaining` countdown: the member parameter never resolves to a preheader
+/// representative, so the establishment stays inside even though its member
+/// block is guaranteed to execute.
+const CARRIED_ELEMENT_SCALAR_ARRAY_SOURCE: &str = r#"
+    machine first(row: [u64; 2]) -> u64 { 0 }
+    machine scan(remaining: u64 [0..=5], scale: u64 [0..=10]) -> u64
+    terminates by remaining -> Nat::Descending in 0..6;
+    {
+        let v: u64 = first([remaining, scale]);
+        transition remaining > 0 {
+            true -> scan(remaining - 1, scale)
+            _ -> v
+        }
+    }
+"#;
+
+/// Every `EstablishScalarArray` node inside `component`'s member blocks —
+/// the array counterpart of [`member_record_establishments`].
+fn member_scalar_array_establishments<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> Vec<(
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+)> {
+    let mut arrays = Vec::new();
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::EstablishScalarArray { .. } = &node.operation {
+                arrays.push((block, node));
+            }
+        }
+    }
+    arrays
+}
+
+#[test]
+fn invariant_scalar_array_establishment_relocates_preserving_its_place() {
+    let session = lowered_session_entry(
+        MEMBER_SCALAR_ARRAY_SOURCE,
+        "member scalar-array loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let arrays = member_scalar_array_establishments(function, component);
+    let [(_, array)] = arrays.as_slice() else {
+        panic!("one member scalar-array establishment")
+    };
+    let (array_operation, array_place, elements) = match &array.operation {
+        AbstractOperation::EstablishScalarArray {
+            psi_operation,
+            result,
+            elements,
+        } => (*psi_operation, result.place, elements),
+        operation => panic!("the member node is an array establishment: {operation:?}"),
+    };
+    assert_eq!(elements.len(), 2, "the array declares two scalar elements");
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == array_operation)
+        .expect("the array establishment is a planned relocation");
+    let LoopInvariantNodeResult::Structural(result) = relocation.node().result() else {
+        panic!("the array establishment relocates its structural result")
+    };
+    assert_eq!(
+        result.place, array_place,
+        "the declared place is byte-exact"
+    );
+    // Both elements resolve to the same `scale` representative — the
+    // substitution rewrites every spelled element to the preheader anchor.
+    let rewrites = relocation.node().operand_rewrites();
+    assert_eq!(
+        rewrites.len(),
+        elements.len(),
+        "every element carries one member-parameter rewrite"
+    );
+    let representative = rewrites[0].1;
+    for (rewritten, element) in rewrites.iter().zip(elements.iter()) {
+        assert_eq!(
+            rewritten.0, *element,
+            "the rewrite spells the element value"
+        );
+        assert_eq!(
+            rewritten.1, representative,
+            "every element rewrites to the same preheader anchor"
+        );
+    }
+    let anchor = function
+        .parameters
+        .iter()
+        .find(|parameter| parameter.value == representative)
+        .expect("the element representative is the machine's `scale` parameter")
+        .value;
+    // The owned-argument call stays inside: it copies the persistent
+    // member-produced root each traversal and keeps spelling its preserved
+    // place.
+    let call_operation = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.nodes.iter())
+        })
+        .find_map(|node| match &node.operation {
+            AbstractOperation::CallStructuralScalar { psi_operation, .. } => Some(*psi_operation),
+            _ => None,
+        })
+        .expect("the member block holds the owned-argument scalar call");
+    assert!(
+        candidate
+            .relocations()
+            .iter()
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the owned-argument call stays inside spelling the preserved place"
+    );
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::EstablishScalarArray {
+            result, elements, ..
+        } => {
+            assert_eq!(
+                result.place, array_place,
+                "the declared place is byte-exact"
+            );
+            for element in elements {
+                assert_eq!(
+                    *element, anchor,
+                    "the moved element rebinds to the preheader anchor"
+                );
+            }
+        }
+        operation => panic!("relocated node keeps its array operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    // The staying call still spells the relocated array's preserved place.
+    let staying_call = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .find(|node| node.provenance.first() == Some(&PsiProvenance::Operation(call_operation)))
+        .expect("the owned-argument call survives in the member block");
+    let AbstractOperation::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &staying_call.operation
+    else {
+        panic!("the staying node keeps its call operation")
+    };
+    assert_eq!(
+        structural_arguments[0].place, array_place,
+        "the staying call copies the relocated array's preserved place"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn carried_element_scalar_array_establishment_stays_inside() {
+    let session = lowered_session_entry(
+        CARRIED_ELEMENT_SCALAR_ARRAY_SOURCE,
+        "carried element scalar-array loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let arrays = member_scalar_array_establishments(function, component);
+    let [(_, array)] = arrays.as_slice() else {
+        panic!("one member scalar-array establishment")
+    };
+    let array_operation = operation_of(array);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != array_operation),
+        "an array establishment reading a carried element stays inside"
+    );
+}
+
+#[test]
+fn forged_scalar_array_element_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_SCALAR_ARRAY_SOURCE,
+        "member scalar-array loop",
+        "scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let arrays = member_scalar_array_establishments(function, component);
+    let [(_, array)] = arrays.as_slice() else {
+        panic!("one member scalar-array establishment")
+    };
+    let (array_operation, member_element) = match &array.operation {
+        AbstractOperation::EstablishScalarArray {
+            psi_operation,
+            elements,
+            ..
+        } => (*psi_operation, elements[0]),
+        operation => panic!("the member node is an array establishment: {operation:?}"),
+    };
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == array_operation)
+        .expect("the array establishment is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the moved elements back to the member parameter skips the
+    // seed-derived substitution — the establishment's elements rebind to the
+    // preheader anchor, so the replayed operation comparison rejects the
+    // drifted spelling.
+    let forged = find_operation_mut(&mut unit, array_operation);
+    if let AbstractOperation::EstablishScalarArray { elements, .. } = &mut forged.operation {
+        for element in elements {
+            *element = member_element;
+        }
+    }
+    for value_use in &mut forged.uses {
+        value_use.value = member_element;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
