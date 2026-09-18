@@ -13,7 +13,7 @@ pub fn validate_optimized_live_range_custody(
         validate_optimized_liveness_custody(liveness.selected_stage(), liveness.liveness())
             .map_err(OptimizedLiveRangeCustodyError::UpstreamLiveness)?;
     let replayed = validate_live_ranges(
-        liveness.selected_stage().selected(),
+        liveness.selected(),
         liveness.liveness(),
         ranges.plan().clone(),
     )

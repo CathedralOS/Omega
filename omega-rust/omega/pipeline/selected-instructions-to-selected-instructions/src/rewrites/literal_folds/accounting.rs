@@ -83,20 +83,9 @@ pub(super) fn selected_lowering_custody_receipt(
             step.legality.receipt().identity(),
         ),
         None => (
-            source
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .receipt()
-                .identity(),
-            source
-                .live_range_stage()
-                .liveness_stage()
-                .liveness()
-                .receipt()
-                .identity(),
-            source.live_range_stage().ranges().receipt().identity(),
+            source.selected().receipt().identity(),
+            source.liveness().receipt().identity(),
+            source.ranges().receipt().identity(),
             source.legality().receipt().identity(),
         ),
     };

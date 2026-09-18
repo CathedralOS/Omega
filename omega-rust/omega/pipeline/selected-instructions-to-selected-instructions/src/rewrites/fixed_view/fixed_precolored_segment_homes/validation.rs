@@ -24,7 +24,7 @@ pub fn validate_optimized_fixed_precolored_segment_home_custody(
     OptimizedFixedPrecoloredSegmentHomeCustodyError,
 > {
     let upstream = validate_source(source)?;
-    let ranges = source.live_range_stage().ranges();
+    let ranges = source.ranges();
     let replayed_fixed =
         validate_fixed_precolored_intervals(ranges, source.legality(), fixed.plan().clone())
             .map_err(OptimizedFixedPrecoloredSegmentHomeCustodyError::FixedIntervals)?;
@@ -35,11 +35,7 @@ pub fn validate_optimized_fixed_precolored_segment_home_custody(
         requirements.plan().clone(),
     )
     .map_err(OptimizedFixedPrecoloredSegmentHomeCustodyError::SplitRequirements)?;
-    let environment = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = source.register_environment();
     let replayed_homes = validate_fixed_precolored_segment_homes(
         ranges,
         source.legality(),

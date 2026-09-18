@@ -52,17 +52,14 @@ impl SelectedInstructionOptimizationEvidence {
             Self::Identity(ranges) => {
                 validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
                     .map_err(SelectedInstructionOptimizationError::LiveRanges)?;
-                let selected = ranges.liveness_stage().selected_stage();
-                if !selected
-                    .optimized_target()
-                    .optimized()
+                if !ranges
                     .selections()
                     .for_phase(optimization_core::OptimizationExecutionPhase::SelectedLowering)
                     .is_empty()
                 {
                     return Err(SelectedInstructionOptimizationError::MissingExecution);
                 }
-                Ok(OwnedSelectedProgram::retain(selected.selected()))
+                Ok(OwnedSelectedProgram::retain(ranges.selected()))
             }
             Self::LiteralFolds(run) => {
                 validate_selected_lowering_optimization_custody(run)

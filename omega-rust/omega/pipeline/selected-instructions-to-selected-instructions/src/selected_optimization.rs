@@ -26,12 +26,7 @@ pub fn optimize_selected_instructions(
 pub fn optimize_analyzed_selected_instructions(
     ranges: StagedOptimizedLiveRanges,
 ) -> Result<SelectedInstructionOptimizationOutput, SelectedInstructionOptimizationError> {
-    let selections = ranges
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .selections();
+    let selections = ranges.selections();
     let evidence = if selections
         .for_phase(OptimizationExecutionPhase::SelectedLowering)
         .is_empty()

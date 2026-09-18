@@ -46,14 +46,7 @@ impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCusto
 pub fn run_selected_lowering_optimizations(
     source: StagedOptimizedAllocationLegality,
 ) -> Result<StagedSelectedLoweringOptimizationRun, OptimizedLiteralFoldCustodyError> {
-    let selections = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .selections()
-        .clone();
+    let selections = source.selections().clone();
     let selected_lowering =
         selections.project_phase(optimization_core::OptimizationExecutionPhase::SelectedLowering);
     let (selected, fold_policy) = resolve_selected_lowering_rules(&selected_lowering)?;

@@ -1,14 +1,17 @@
 use crate::{LivenessError, LivenessIdentity, ValidatedLiveness};
 use optimization_core::{
-    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
-    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
+    OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
+    PrePhysicalOptimizationManifestIdentity,
 };
+use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
 use target_operations_to_selected_instructions::{
     OptimizedSelectionCustodyError, StagedOptimizedSelectedInstructions,
+    ValidatedSelectedInstructions,
 };
 
 /// Opt-in liveness staging over the complete selected-instruction custody
@@ -22,8 +25,30 @@ pub struct StagedOptimizedLiveness {
 }
 
 impl StagedOptimizedLiveness {
+    /// The retained producer stage. Replay and custody validation inspect it;
+    /// ordinary consumers read the current program through `selected` below.
     pub const fn selected_stage(&self) -> &StagedOptimizedSelectedInstructions {
         &self.selected
+    }
+
+    /// The current selected program this analysis describes.
+    pub const fn selected(&self) -> &ValidatedSelectedInstructions {
+        self.selected.selected()
+    }
+
+    /// The target register environment admitted with the current program.
+    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+        self.selected.register_environment()
+    }
+
+    /// The governing optimizer selections for this admission.
+    pub fn selections(&self) -> &OptimizationSelections {
+        self.selected.selections()
+    }
+
+    /// The per-pass work budget admitted beside the same evidence.
+    pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
+        self.selected.budget_per_pass()
     }
 
     pub const fn liveness(&self) -> &ValidatedLiveness {

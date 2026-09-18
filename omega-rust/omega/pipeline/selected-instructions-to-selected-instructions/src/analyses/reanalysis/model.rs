@@ -1,12 +1,14 @@
 use crate::{
     AllocationLegalityError, LiveRangeError, LivenessError, ValidatedAllocationLegality,
-    ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
 };
 
 use crate::{
     OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt,
 };
+use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
+use register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Complete mandatory reanalysis of one independently validated transformed
 /// selected CFG. No source analysis fact is reused after the rewrite.
@@ -20,9 +22,32 @@ pub struct StagedOptimizedSelectedReanalysis {
 }
 
 impl StagedOptimizedSelectedReanalysis {
+    /// The retained producer stage. Replay and custody validation inspect it;
+    /// ordinary consumers read the transformed program facts directly.
     pub const fn transformation_stage(&self) -> &StagedOptimizedFixedViewCopies {
         &self.transformation
     }
+
+    /// The target register environment governing the transformed program.
+    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+        self.transformation.register_environment()
+    }
+
+    /// The environment-derived allocator availability governing the program.
+    pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
+        self.transformation.allocator_availability()
+    }
+
+    /// The governing optimizer selections for this admission.
+    pub fn selections(&self) -> &OptimizationSelections {
+        self.transformation.selections()
+    }
+
+    /// The per-pass work budget admitted beside the same evidence.
+    pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
+        self.transformation.budget_per_pass()
+    }
+
     pub const fn liveness(&self) -> &ValidatedLiveness {
         &self.liveness
     }

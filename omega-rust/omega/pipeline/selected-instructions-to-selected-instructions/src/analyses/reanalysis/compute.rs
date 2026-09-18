@@ -22,15 +22,8 @@ pub(super) fn compute_selected_reanalysis(
     let liveness = analyze_liveness(copies).map_err(OptimizedSelectedReanalysisError::Liveness)?;
     let ranges = analyze_live_ranges(copies, &liveness)
         .map_err(OptimizedSelectedReanalysisError::LiveRanges)?;
-    let environment = transformation
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
-    let availability = transformation
-        .source_legality_stage()
-        .allocator_availability();
+    let environment = transformation.register_environment();
+    let availability = transformation.allocator_availability();
     let legality = analyze_allocation_legality(
         &ranges,
         availability,

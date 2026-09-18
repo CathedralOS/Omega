@@ -1,7 +1,8 @@
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use optimization_core::{
-    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
-    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
+    OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
+    PrePhysicalOptimizationManifestIdentity,
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
@@ -20,6 +21,8 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 pub struct StagedOptimizedSelectedInstructions {
     pub(super) optimized_target: std::sync::Arc<ValidatedOptimizedTargetOperations>,
     pub(super) register_environment: ValidatedTargetRegisterEnvironment,
+    pub(super) selections: OptimizationSelections,
+    pub(super) budget_per_pass: OptimizationWorkBudget,
     pub(super) legalized: ValidatedLegalizedOperations,
     pub(super) selected: ValidatedSelectedInstructions,
     pub(super) custody: StagedOptimizedSelectionCustodyReceipt,
@@ -45,6 +48,18 @@ impl StagedOptimizedSelectedInstructions {
 
     pub const fn selected(&self) -> &ValidatedSelectedInstructions {
         &self.selected
+    }
+
+    /// The governing optimizer selections admitted with this stage. They are
+    /// stage-owned admission data copied out of the optimized-target product
+    /// at construction; the retained producer remains replay evidence only.
+    pub const fn selections(&self) -> &OptimizationSelections {
+        &self.selections
+    }
+
+    /// The per-pass work budget admitted beside the same evidence.
+    pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
+        self.budget_per_pass
     }
 
     pub const fn custody(&self) -> StagedOptimizedSelectionCustodyReceipt {
