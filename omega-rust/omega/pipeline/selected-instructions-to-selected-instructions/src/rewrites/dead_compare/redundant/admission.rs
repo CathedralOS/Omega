@@ -26,9 +26,10 @@ use selected_instructions::{
 };
 
 use super::super::DeadCompareError;
-use super::super::admission::{compare_operand_arity, shifted_boundary_settlements, successors};
+use super::super::admission::{compare_operand_arity, shifted_boundary_settlements};
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::terminator_successors;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -79,7 +80,7 @@ fn canonical_compare_operands(instruction: &SelectedInstruction) -> Option<Vec<V
 fn on_cycle(function: &SelectedFunction, block_index: usize) -> bool {
     let mut visited = BTreeSet::new();
     let mut frontier = Vec::new();
-    for successor in successors(&function.blocks[block_index]) {
+    for successor in terminator_successors(&function.blocks[block_index].terminator) {
         if let Some(target) = function
             .blocks
             .iter()
@@ -95,7 +96,7 @@ fn on_cycle(function: &SelectedFunction, block_index: usize) -> bool {
         if !visited.insert(current) {
             continue;
         }
-        for successor in successors(&function.blocks[current]) {
+        for successor in terminator_successors(&function.blocks[current].terminator) {
             if let Some(target) = function
                 .blocks
                 .iter()
@@ -281,7 +282,7 @@ pub(super) fn admit<'source>(
     let edge_count = function
         .blocks
         .iter()
-        .map(|block| successors(block).count())
+        .map(|block| terminator_successors(&block.terminator).len())
         .sum::<usize>();
     let steps = plan
         .functions

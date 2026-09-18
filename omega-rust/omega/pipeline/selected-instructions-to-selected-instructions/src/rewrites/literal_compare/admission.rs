@@ -7,13 +7,14 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
-    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedTerminator, VirtualRegisterId,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, VirtualRegisterId,
 };
 use semantic_vocabulary::IntegerValue;
 
 use super::LiteralCompareError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::block_instructions;
 
 /// The unsigned bound both target encoders enforce for
 /// `CompareI64Immediate`: each `u12` gate admits `Unsigned(v)` only for
@@ -34,20 +35,6 @@ pub(super) struct Admission<'source> {
     pub kind: SelectedInstructionKind,
     /// The selected form's own constraint row.
     pub row: &'source RegisterInstructionConstraint,
-}
-
-/// Every instruction of `block`, including the one its terminator carries: a
-/// register definition there still counts toward the unique-producer rule.
-fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
-    let terminator = match &block.terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    };
-    block.instructions.iter().chain(std::iter::once(terminator))
 }
 
 /// The bit pattern a `MaterializeI64` publishes, admitted only when it fits

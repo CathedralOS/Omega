@@ -12,10 +12,13 @@
 //! the relocation rewrites.
 use std::collections::{BTreeSet, VecDeque};
 
+use crate::rewrites::block_edges::{
+    block_instructions, terminator_instruction, terminator_successors,
+};
 use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
-    SelectedSuccessor, SelectedTerminator, VirtualRegisterId,
+    SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
+    VirtualRegisterId,
 };
 use semantic_vocabulary::IntegerValue;
 
@@ -33,27 +36,6 @@ pub(super) enum ConditionStateError {
     Producer,
     /// A materialized literal does not fit the width the form publishes.
     Literal,
-}
-
-/// Every instruction of `block`, including the one its terminator carries:
-/// a register definition there still counts toward the unique-producer
-/// rule, and a flag event there still ends a unit's live range.
-fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(terminator_instruction(&block.terminator)))
-}
-
-pub(super) fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
 }
 
 /// The sixty-four-bit pattern a `MaterializeI64` publishes. The literal
@@ -212,38 +194,6 @@ pub(super) fn instruction_at(function: &SelectedFunction, site: EventSite) -> &S
     }
 }
 
-/// Every successor edge of `terminator`, whatever its role: condition
-/// state is physical, so a flag unit flows across semantic, edge-transfer,
-/// and case-dispatch continuations alike. Crossing an edge is transparent
-/// to it — a successor record's `bindings` move registers, its
-/// `structural_bindings` move storage slots, its `structural_case`
-/// payloads move registers or storage, and its `fuel` carries charge
-/// counts — no successor field can name a `RegisterUnitId`, so no edge
-/// transport or roster can add, drop, or alter a flag event.
-fn successor_edges(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
-    match terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
-            Vec::new()
-        }
-    }
-}
-
 /// The block-indexed predecessor and successor adjacency of `function`.
 /// An edge naming a block the function does not contain participates in
 /// neither: it cannot carry a path into any block the walk visits.
@@ -253,7 +203,7 @@ pub(super) fn adjacency(function: &SelectedFunction) -> (Vec<Vec<usize>>, Vec<Ve
         .blocks
         .iter()
         .map(|block| {
-            successor_edges(&block.terminator)
+            terminator_successors(&block.terminator)
                 .iter()
                 .filter_map(|successor| block_index(successor.block))
                 .collect()

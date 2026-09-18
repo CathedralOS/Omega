@@ -54,13 +54,15 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
-    SelectedStructuralTransport, SelectedSuccessor, SelectedTerminator,
+    SelectedStructuralTransport, SelectedSuccessor,
 };
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::place_storage::{local_slot_is_place_storage, structural_place_declarations};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -266,7 +268,7 @@ pub(super) fn admit<'source>(
         // boundary. Each crossed edge's transports stay quiet, then each
         // distinct successor joins the frontier exactly once — two edges
         // naming one block still arrive on separate transports.
-        let edges = successors(&current.terminator);
+        let edges = terminator_successors(&current.terminator);
         if edges.is_empty() {
             return Err(DeadStoreEliminationError::UnsupportedPair);
         }
@@ -463,7 +465,7 @@ fn scratch_definition_is_dead(
                 .filter(|operand| operand.virtual_register == register)
                 .count();
         }
-        for successor in successors(&block.terminator) {
+        for successor in terminator_successors(&block.terminator) {
             occurrences += successor
                 .structural_bindings
                 .iter()
@@ -506,56 +508,6 @@ fn scratch_definition_is_dead(
         }
     }
     occurrences == 1
-}
-
-/// The function's declared structural places — the producer evidence the
-/// `Structural` slot check below needs. A function without a structural
-/// contract declares none, leaving every `Structural` slot a staging slot.
-fn structural_place_declarations(function: &SelectedFunction) -> &[StructuralPlaceDeclaration] {
-    function
-        .structural
-        .as_ref()
-        .map_or(&[], |contract| contract.structural_places.as_slice())
-}
-
-/// Whether `slot` is `place`'s own storage, so a write into it moves the
-/// place's bytes in the place's byte coordinates and can cover a dead write:
-/// a parameter home, a block parameter, or the producing operation's
-/// `Structural` home. For `Structural { operation, place }` the place's
-/// declaration settles which: the slot is the result's storage exactly when
-/// the place is declared as that operation's result — record, case, array,
-/// scalar-local, subslice-descriptor, and call-result homes all publish the
-/// slot's materialized address as the place's storage pointer, so slot and
-/// place share byte coordinates. Any other `Structural` slot only stages
-/// bytes that name the place — a call's staged view descriptor — under its
-/// own slot coordinates; a staging operation can never be its own
-/// argument's producer, so the declaration check never confuses the two.
-fn local_slot_is_place_storage(
-    slot: LocalStorageSlotId,
-    place: PlaceId,
-    structural_places: &[StructuralPlaceDeclaration],
-) -> bool {
-    match slot {
-        LocalStorageSlotId::StructuralParameter { place: slot_place }
-        | LocalStorageSlotId::StructuralBlockParameter {
-            place: slot_place, ..
-        } => slot_place == place,
-        LocalStorageSlotId::Structural {
-            operation,
-            place: slot_place,
-        } => {
-            slot_place == place
-                && structural_places.iter().any(|declaration| {
-                    declaration.id == place
-                        && matches!(
-                            declaration.kind,
-                            StructuralPlaceKind::OperationResult { producer, .. }
-                                if producer == operation
-                        )
-                })
-        }
-        LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. } => false,
-    }
 }
 
 /// Whether one roster row can observe the dead bytes or leave them
@@ -777,45 +729,6 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), DeadStore
             Err(DeadStoreEliminationError::InterveningAccess)
         }
         _ => Err(DeadStoreEliminationError::UnsupportedInstruction),
-    }
-}
-
-/// The successor edges a terminator can take: a jump's single edge or a
-/// conditional's two legs. Returns and hosted exits have none.
-fn successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
-    match terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
-            Vec::new()
-        }
-    }
-}
-
-/// The instruction a terminator positions at the end of its block. Its roster
-/// rows sit between the block's body and any crossed edge.
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }
 

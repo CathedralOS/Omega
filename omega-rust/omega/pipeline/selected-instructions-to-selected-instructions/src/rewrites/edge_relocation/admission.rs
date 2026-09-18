@@ -10,13 +10,13 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
-    SelectedValueTransport,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedSuccessorRole,
+    SelectedTerminator, SelectedValueTransport,
 };
 
 use super::EdgeRelocationError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::rewrites::window_hazards::{
     coupled, has_call_contract, has_memory_rows, register_reads, register_writes, schedulable,
     surface,
@@ -35,46 +35,6 @@ pub(super) struct Admission<'source> {
     /// instruction lands the member at the body end, index
     /// `target.instructions.len()`.
     pub landing_index: usize,
-}
-
-/// Every successor edge a terminator names; `HostedExitProcess` and
-/// `Return` name none.
-fn terminator_successors(block: &SelectedBlock) -> Vec<&SelectedSuccessor> {
-    match &block.terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
-            Vec::new()
-        }
-    }
-}
-
-/// The instruction a terminator carries — the `Jump`'s own row is a
-/// position the move crosses; conditional and return forms are refused
-/// before this is reached.
-fn terminator_instruction(block: &SelectedBlock) -> &SelectedInstruction {
-    match &block.terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
 }
 
 pub(super) fn admit<'source>(
@@ -153,7 +113,7 @@ pub(super) fn admit<'source>(
     if function
         .blocks
         .iter()
-        .flat_map(terminator_successors)
+        .flat_map(|block| terminator_successors(&block.terminator))
         .filter(|edge| edge.block == target.id)
         .count()
         != 1
@@ -168,7 +128,8 @@ pub(super) fn admit<'source>(
         .iter()
         .position(|instruction| instruction.id == destination)
         .or_else(|| {
-            (terminator_instruction(target).id == destination).then_some(target.instructions.len())
+            (terminator_instruction(&target.terminator).id == destination)
+                .then_some(target.instructions.len())
         })
         .ok_or(EdgeRelocationError::UnsupportedPair)?;
     let member_accounted = schedulable(function, member_instruction)
@@ -253,7 +214,9 @@ pub(super) fn admit<'source>(
                 candidate
                     .instructions
                     .iter()
-                    .chain(std::iter::once(terminator_instruction(candidate)))
+                    .chain(std::iter::once(terminator_instruction(
+                        &candidate.terminator,
+                    )))
                     .try_fold(total, |total, _| total.checked_add(1))
             })
         })
