@@ -177,7 +177,7 @@ machine leaf() { crash Trap; }
 
 #[test]
 fn published_crash_guards_remain_structural_and_distinguish_absent_from_false() {
-    let source = "pub machine run(flag: bool) crashes Trap flag; {}\n";
+    let source = "pub machine run(flag: bool) crashes Trap flag {}\n";
     let original = project(&Fixture::local(source));
     let changed = project(&Fixture::local(&source.replace("Trap flag", "Trap !flag")));
     let explicit_false = project(&Fixture::local(&source.replace("Trap flag", "Trap false")));
@@ -211,7 +211,7 @@ fn published_crash_guards_remain_structural_and_distinguish_absent_from_false() 
 #[test]
 fn same_spelled_foreign_crash_predicate_retains_exact_package_owner() {
     let root =
-        "use dependency::helpers;\npub machine run(flag: bool) crashes Trap permitted(flag); {}\n";
+        "use dependency::helpers;\npub machine run(flag: bool) crashes Trap permitted(flag) {}\n";
     let dependency = "pub machine permitted(flag: bool) -> bool terminates; { flag }\n";
     let first = Fixture::foreign(
         root,
@@ -247,7 +247,7 @@ fn same_spelled_foreign_crash_predicate_retains_exact_package_owner() {
 fn nested_static_crash_guard_retains_foreign_callable_owner() {
     let root = r#"use dependency::helpers;
 pub machine accepts<machine Work>()
-where machine Work(flag: bool) crashes Trap permitted(flag);
+where machine Work(flag: bool) crashes Trap permitted(flag)
 {}
 "#;
     let helper = "pub machine permitted(flag: bool) -> bool terminates; { flag }\n";
