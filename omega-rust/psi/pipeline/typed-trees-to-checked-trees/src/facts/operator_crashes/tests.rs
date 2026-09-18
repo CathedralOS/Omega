@@ -1032,6 +1032,30 @@ fn named_call_keeps_a_route_whose_premise_an_earlier_operand_overwrote() {
 }
 
 #[test]
+fn named_call_crash_discharge_uses_captured_values_not_later_storage() {
+    // The left operand's copied `value` is captured where it finishes
+    // evaluating: `reset`'s later write cannot revoke the snapshot that
+    // falsifies the guard, and `prepare`'s later guarantee cannot
+    // manufacture one for the already-copied value.
+    for (premise, right, accepted) in [
+        ("requires value >= 0", "reset(&mut value)", true),
+        ("", "prepare(&mut value)", false),
+    ] {
+        let source = format!(
+            "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+             crashes Trap !(left >= 0);
+             machine reset(value: &mut i32) -> i32 {{ value = -1; 0 }}
+             machine prepare(value: &mut i32) -> i32 ensures value >= 0 {{ value = 1; 0 }}
+             pub machine compare(mut value: i32) -> bool {premise} {{
+                 Comparison::equal(value, {right})
+             }}"
+        );
+        let checked = check(&source);
+        assert_eq!(checked.is_ok(), accepted, "{source}\n{:?}", checked.err());
+    }
+}
+
+#[test]
 fn named_call_discharge_intersects_shared_borrow_operands_at_invocation() {
     // A relation leaf reads both reference operands: the proving fact must be
     // live in each operand's captured constraints at invocation — the same
