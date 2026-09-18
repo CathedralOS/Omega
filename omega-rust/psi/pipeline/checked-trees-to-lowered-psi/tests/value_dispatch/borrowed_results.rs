@@ -16,8 +16,8 @@ use terminal_interpreter::{
     TerminalStructuralScalarFieldValue, TerminalStructuralValue,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
-    TerminalModule,
+    OperationKind, StructuralAccess, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeShape, TerminalModule,
 };
 
 use super::{check_source, execute, execute_machine_with_structural_inputs, unsigned};
@@ -188,6 +188,9 @@ const RECORD_UNREAD_SOURCE: &str = "data Payload { left: u64; right: u64; }
 
 /// Passing the join result to a call is the only consumer a borrowed primitive
 /// local could ever have, so the record referent is asked the same question.
+/// The primitive lane remains closed: its callee has no checked body plan and
+/// `&u64` is outside the shared nominal argument rule, so the same forwarding
+/// spelling keeps rejecting there while the record referent executes.
 const PRIMITIVE_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
     machine read(value: &u64) -> u64 { value }
     machine choose(other: bool) -> u64 {
@@ -203,6 +206,18 @@ const RECORD_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
         let a: Payload = Payload { left: 1, right: 2 };
         let b: Payload = Payload { left: 3, right: 4 };
         let view: &Payload = match other { true -> &a, false -> &b };
+        read(view)
+    }";
+
+/// The same forwarding without a selection is a different gap, not this
+/// lane: a bare `&a` initializer is admitted by neither the structural-value
+/// planner nor the checked statement shape, so the unit never reaches a call
+/// consumer plan at all. The fixture keeps that boundary visible.
+const DIRECT_FORWARD_SOURCE: &str = "data Payload { left: u64; right: u64; }
+    machine read(value: &Payload) -> u64 { value.left ^ value.right }
+    machine choose() -> u64 {
+        let a: Payload = Payload { left: 1, right: 2 };
+        let view: &Payload = &a;
         read(view)
     }";
 
@@ -248,10 +263,12 @@ fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) 
 /// record. Both arms now keep their authored root and field, which is what the
 /// lowering replay and the terminal verifier each re-derive independently.
 ///
-/// Lowering still stops, and not at the carrier: the record referent with the
-/// same unread view stops at the identical diagnostic. That parity is the
-/// point of this assertion — the remaining gap belongs to the consumer shape,
-/// not to the primitive.
+/// The record control now lowers end to end — an established join needs no
+/// reader to be valid. The `&u64` view still cannot publish: its join would
+/// be a `PrimitiveScalar` block structural parameter, a shape Terminal has no
+/// representable parameter for, so the module's own validity check stops it
+/// before any artifact exists. That — not the carrier plan — is the remaining
+/// primitive boundary.
 #[test]
 fn borrowed_selection_plans_a_primitive_referent_carrier() {
     let (arms, lowering) = planned_borrow_arms(PRIMITIVE_REFERENT_SOURCE);
@@ -266,35 +283,109 @@ fn borrowed_selection_plans_a_primitive_referent_carrier() {
     let (record_arms, record_lowering) = planned_borrow_arms(RECORD_UNREAD_SOURCE);
     assert_eq!(record_arms.len(), 2, "the record control plans both arms");
     assert_eq!(
-        lowering, record_lowering,
-        "a primitive referent stops exactly where an admitted record referent does"
+        record_lowering, None,
+        "an established `&Payload` join lowers even unread"
     );
-    assert_eq!(
-        lowering.as_deref(),
-        Some(r#"Unsupported("structural local carried a borrow event with no recorded loan")"#),
-        "an unread view has no loan to replay, for either referent"
+    let Some(lowering) = lowering else {
+        panic!("a `&u64` join has no representable shared-borrow parameter");
+    };
+    assert!(
+        lowering.starts_with("InvalidTerminalModule(InvalidBlockStructuralParameter"),
+        "the primitive referent stops at the block parameter boundary: {lowering}"
     );
 }
 
-/// The one record shape that lowers end to end reads its view with a member
-/// access, and a borrowed primitive local has no such spelling:
-/// `primitive_reference_read` admits only state parameters. A call is
-/// therefore the only consumer `&u64` could have, and it is not supported for
-/// the admitted record referent either. Closing it serves both referents; this
-/// pins that it is one gap rather than two.
+/// A `&Payload` local forwards the referent it already loans to a shared
+/// formal: the callee observes the exact joined place rather than a copied
+/// record. The primitive referent still has no admitted lane — `read`'s `&u64`
+/// body is outside the checked callee shapes and `&u64` is not a nominal
+/// referent — so the same spelling keeps its rejection there.
 #[test]
-fn borrowed_selection_call_consumers_reject_for_every_referent() {
-    let (primitive_arms, primitive_lowering) = planned_borrow_arms(PRIMITIVE_CALL_SOURCE);
+fn borrowed_selection_call_consumer_forwards_the_established_view() {
     let (record_arms, record_lowering) = planned_borrow_arms(RECORD_CALL_SOURCE);
-    assert_eq!(primitive_arms.len(), 2);
-    assert_eq!(record_arms.len(), 2);
     assert_eq!(
-        primitive_lowering, record_lowering,
-        "a call consumer rejects identically for both referents"
+        record_arms,
+        vec![
+            ("a".to_owned(), String::new()),
+            ("b".to_owned(), String::new())
+        ],
+        "each whole-record arm keeps its authored root"
     );
+    assert_eq!(record_lowering, None, "the forwarded record view lowers");
+
+    for (other, expected) in [(true, 3), (false, 7)] {
+        let (module, execution) =
+            execute(RECORD_CALL_SOURCE, &[TerminalScalarValue::Boolean(other)]);
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected)),
+            "other={other}"
+        );
+        let choose = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .expect("entry choose");
+        // The join is still one shared-borrow block parameter, and the call
+        // observes that exact place — no owned copy of the record.
+        let join = choose
+            .blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+            .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+            .collect::<Vec<_>>();
+        assert_eq!(join.len(), 1, "one shared-borrow join parameter");
+        let calls = choose
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match &operation.kind {
+                OperationKind::CallStructuralScalar {
+                    structural_arguments,
+                    ..
+                } => Some(structural_arguments),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [call_arguments] = calls.as_slice() else {
+            panic!("choose invokes read exactly once: {calls:?}");
+        };
+        let [argument] = call_arguments.as_slice() else {
+            panic!("read takes one structural argument: {call_arguments:?}");
+        };
+        assert_eq!(argument.access, StructuralAccess::SharedBorrow);
+        assert!(argument.path.is_empty());
+        assert_eq!(
+            argument.place, join[0].place,
+            "the callee observes the join's exact shared place"
+        );
+    }
+
+    // The primitive referent is not on this lane: `&u64` has no nominal
+    // referent and its observer callee has no admitted body plan.
+    let (primitive_arms, primitive_lowering) = planned_borrow_arms(PRIMITIVE_CALL_SOURCE);
+    assert_eq!(primitive_arms.len(), 2);
     assert_eq!(
         primitive_lowering.as_deref(),
         Some(r#"Unsupported("machine has no source-independent checked scalar control plan")"#),
+        "the `&u64` view still has no admitted call consumer"
+    );
+}
+
+/// A non-selection `let view: &Payload = &a` establishment is still outside
+/// the checked unit shape: it produces no structural-value root or
+/// construction-local custody, so the call statement never plans a control
+/// lane. That is a checker-side admission boundary, not a lowered-consumer
+/// gap -- this pins it so the selection join above is not read as silently
+/// admitting every borrowed local into calls.
+#[test]
+fn established_reference_local_call_rejection_pins_the_checker_gap() {
+    let checked = check_source(DIRECT_FORWARD_SOURCE).expect("direct borrowed local checks");
+    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
+        .expect_err("a bare `&a` establishment has no checked unit plan yet");
+    assert_eq!(
+        format!("{error:?}"),
+        r#"Unsupported("machine has no source-independent checked scalar control plan")"#
     );
 }
 

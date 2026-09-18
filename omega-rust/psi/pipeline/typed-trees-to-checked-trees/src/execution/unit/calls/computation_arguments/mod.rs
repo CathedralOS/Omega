@@ -340,8 +340,27 @@ fn shared_nominal_argument(
         if locals.next().is_some() || !local.initial_value.is_valid() {
             return None;
         }
+        // An established shared-borrow local already loans the referent it was
+        // bound to; forwarding it hands that referent carrier to the callee,
+        // exactly as a shared-borrow parameter would. The retained symbol and
+        // recorded access stay the local's own — nothing unwraps or copies the
+        // referent into a fabricated place.
+        let reference = match program
+            .type_reference_table
+            .type_reference(local.type_reference)
+        {
+            TypeReferenceNode::Reference {
+                access:
+                    language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable,
+                referee,
+                ..
+            } => *referee,
+            TypeReferenceNode::Named { .. } => local.type_reference,
+            _ => return None,
+        };
         (
-            local.type_reference,
+            reference,
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         )
     };

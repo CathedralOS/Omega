@@ -5,8 +5,46 @@ use super::{
 };
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitCallCoordinate, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralParameterPlan, types::TypeReferenceNode,
 };
+
+/// An established shared-borrow local: a unique immutable declaration whose
+/// carrier is a `&T` type. Its storage is the referent's established place
+/// joined through its own result binding, never an owned record home -- so
+/// `declaration` above intentionally does not admit it. A mutable binding
+/// could reseat the referent and is not this carrier.
+pub(super) fn shared_borrow<'a>(
+    checked: &'a CheckedTrees,
+    state: &checked_trees::state::State,
+    statement: usize,
+    symbol: SymbolHandle,
+) -> Option<&'a checked_trees::statement::TableLocalData> {
+    let mut declarations = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement)
+        .filter_map(|statement| match statement {
+            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
+                Some(local)
+            }
+            _ => None,
+        });
+    let local = declarations.next()?;
+    (declarations.next().is_none()
+        && !local.is_mutable
+        && local.initial_value.is_valid()
+        && matches!(
+            checked
+                .type_reference_table
+                .type_reference(local.type_reference),
+            TypeReferenceNode::Reference {
+                access: language_semantics::ReferenceAccess::Shared,
+                ..
+            }
+        ))
+    .then_some(local)
+}
 
 pub(super) fn declaration<'a>(
     checked: &'a CheckedTrees,

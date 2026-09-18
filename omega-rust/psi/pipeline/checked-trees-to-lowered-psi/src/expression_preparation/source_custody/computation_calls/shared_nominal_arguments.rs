@@ -109,8 +109,22 @@ pub(super) fn validate(
                 return unsupported("record operand has no exact prior establishment");
             }
             // The loan rejoins the current original backing, not an immutable
-            // snapshot of the initializer's scalar fields.
-            local.type_reference
+            // snapshot of the initializer's scalar fields. An established
+            // shared-borrow local carries that loan itself, so the carrier the
+            // callee observes is the referent it dereferences to — the same
+            // rule a shared-borrow parameter follows.
+            match checked
+                .type_reference_table
+                .type_reference(local.type_reference)
+            {
+                TypeReferenceNode::Reference {
+                    access: ReferenceAccess::Shared | ReferenceAccess::Mutable,
+                    referee,
+                    ..
+                } => *referee,
+                TypeReferenceNode::Named { .. } => local.type_reference,
+                _ => return unsupported("record operand widens source access"),
+            }
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let source = parameters
