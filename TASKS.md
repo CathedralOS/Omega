@@ -1580,23 +1580,40 @@ Owners include
   traversal and proof search with a small total canonical-ledger generator plus
   an untrusted certificate producer. The verifier reconstructs goals and only
   checks the supplied route, under the
-  [verification contract](wiki/spec/terminal-psi/verification.md).
-  Inventory the existing trusted surface in this ledger, not another manifest:
-  primitive judgments, checker rules, reconstructed fact kinds, normalization,
-  scope, write invalidation and call/cycle composition. Each entry binds exact
-  premises/conclusion, dependencies, implementation identity and soundness status
-  (`Proved`, `ExplicitlyTrusted`, `Unfinished`). Mechanically fail uncovered
-  accepted dispatch/fact kinds; revalidate changes to existing arms too. Coverage
-  is not soundness, and unfinished rows cannot establish independent claims.
-  Application interpretation uses the common kernel and the selected
-  [inductive profile](wiki/spec/proofs/inductive_profile.md). Its unfinished
-  soundness/encoding proofs are dependencies, not permission to trust success.
-  Bootstrap discharge belongs to `BETA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`,
-  not a prerequisite that forces general mathematics into the Gamma checker.
-  End-to-end acceptance uses a theorem-dependent program obligation after
-  deleting producer/source state, under accepting and rejecting assumption
-  policies. Wrong goals, profile identities and omitted transitive assumptions
-  reject. A mathematical theorem alone does not establish native refinement.
+  [canonical semantic ledger](wiki/spec/terminal-psi/verification.md#canonical-semantic-ledger).
+  The [trusted-surface inventory](wiki/spec/terminal-psi/verification.md#trusted-surface-inventory)
+  exists in `terminal-verifier/src/trusted_surface.rs` with mechanical
+  dispatch and source coverage (`tests/trusted_surface.rs`). It establishes
+  coverage, not soundness: two rows are `Proved` by generation-time
+  certificates (`fact:boolean-polarity-implications`,
+  `fact:branch-condition-transport`), every other row is `ExplicitlyTrusted`,
+  and the codec's trust-graph descriptor still names the Rust decoder and
+  verifier as trusted judgments.
+
+  Remaining work:
+
+  - Move proof search out of verification. The verifier still searches, for
+    example 4096 steps in
+    `terminal-verifier/src/validation/crash/entry_requirements.rs`; the
+    producer must supply that certificate and the verifier only check it.
+  - Convert the `ExplicitlyTrusted` reconstruction, normalization, scope, write
+    invalidation and call/cycle composition rows to `Proved`, each with checked
+    evidence and explicit dependencies. A proved row cannot hide an unproved
+    composition row, and an `Unfinished` row establishes no independent claim.
+  - Define the generator as a total definition over canonical Terminal bytes,
+    not over an AST decoded by a separately trusted producer. Application
+    interpretation uses the common kernel and the selected
+    [inductive profile](wiki/spec/proofs/inductive_profile.md); its unfinished
+    soundness and encoding proofs are dependencies, not permission to trust
+    success.
+
+  Acceptance: a theorem-dependent program obligation verifies after producer
+  and source state are deleted, under one accepting and one rejecting
+  assumption policy. Wrong goals, wrong profile identities and omitted
+  transitive assumptions reject. A mathematical theorem alone does not
+  establish native refinement. Bootstrap discharge belongs to
+  `GAMMA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`; it is not a prerequisite
+  and must not force general mathematics into the Gamma checker.
 
 - **PROOF-RELEVANCE-MIGRATION.** Finish `[erased]` noninterference and
   erased-stripped layout under
