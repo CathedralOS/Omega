@@ -859,13 +859,37 @@ Owners include
   Resources remain held while any admitted attempt can reach them. An emitted
   trampoline or a Rust test constructing receipts is not the customer witness.
 
-- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Carry one real
-  content-bearing program through checked source, Terminal Psi, provider
-  selection, and native realization. Introductions and exits must bind exact
-  subject, geometry, lineage, route, and installed occurrence; reshuffles may
-  preserve identity, while partitions require authored proof. Acceptance:
-  every surviving content claim traces to a reconstructed introduction or
-  admitted provider issuance and every residual is accounted for.
+- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Execute a content-bearing
+  program through checked source, Terminal Psi, provider selection and native
+  realization under [content conservation](wiki/spec/resources/content_custody.md).
+  Reuse `checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`,
+  Terminal claim/frontier verification and Omega's
+  `terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`.
+  Normalized equations, identity reshuffles and partition-composition lowering
+  exist; do not restart those mechanisms.
+
+  Replace declaration-only coverage with an invoked route: an established owned
+  input is forwarded/partitioned under an authored theorem, and a selected
+  boundary accepts the exact residual while the caller retains or returns the
+  rest. `core/content_conservation_contract` and
+  `core/content_retained_custody_round_trip` currently have empty entry bodies;
+  neither proves this integration. Use canonical core content identities, not
+  lookalike test-local algebra declarations.
+
+  Preserve exact subject/revision, projection/algebra, geometry, lineage, route
+  and installed occurrence through source-free replay. The caller may use the
+  callee's partition theorem only after its exact successful invocation.
+  Provider acceptance of custody does not establish the residual arithmetic.
+  `BOUNDARY-ISSUANCE` owns fresh supply and receipt ingress; existing-input
+  conservation can proceed without waiting for every fresh-issuance route.
+
+  Acceptance: actual source/native execution carries nonempty content claims;
+  every surviving claim has a reconstructed introduction or admitted issuance
+  and every exit/residual is accounted for. Reject overlap, gaps, wrong
+  projection/unit/lineage, stale invocation, substituted theorem/arguments,
+  and authority inferred solely from equal scalar totals or compact fingerprints.
+  Keep unrepresented runtime-indexed owned extraction rejected, not approximated
+  by an arbitrary element or a helper-only proof.
 
 - **BOUNDARY-ISSUANCE.** After conservation closes, derive provider issuance
   geometry from exact invocation parameters, entry places, and results. Keep
