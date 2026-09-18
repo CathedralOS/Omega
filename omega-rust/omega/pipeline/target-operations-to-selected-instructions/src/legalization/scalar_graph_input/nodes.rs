@@ -458,9 +458,11 @@ pub(super) fn validate(
             }
             continue;
         }
+        // Requirement obligations are discharged proof metadata carried on the
+        // call for correspondence, matching the admitted scalar `Call` lane;
+        // claim transfers and crash continuations still reject here.
         if let AbstractOperation::CallUnit {
             claim_transfers,
-            requirement_obligations,
             crash_continuations,
             ..
         } = &node.operation
@@ -468,7 +470,6 @@ pub(super) fn validate(
             if result.is_some()
                 || !node.definitions.is_empty()
                 || !claim_transfers.is_empty()
-                || !requirement_obligations.is_empty()
                 || !crash_continuations.is_empty()
             {
                 return Err(invalid);
