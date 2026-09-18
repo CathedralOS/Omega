@@ -10,14 +10,14 @@ pub trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
 pub data Message { case Empty; case Data(value: u8); }
 MessageEquatable: Message satisfies Equatable;
 pub machine inspect(left: Message, right: Message)
-crashes Abort left == right;
+crashes Abort left == right
 {}
 "#;
 
 const MEMBERSHIP_SOURCE: &str = r#"
 pub data Message { case Empty; case Data(value: u8); }
 pub machine inspect(left: Message, right: Message)
-crashes Abort left in Message::Data;
+crashes Abort left in Message::Data
 {}
 "#;
 
@@ -253,7 +253,7 @@ fn nested_membership_rejects_another_signatures_same_spelled_parameter() {
 pub data Message { case Empty; case Data(value: u8); }
 pub machine accepts<machine Work, machine Other>()
 where machine Work(value: Message) crashes Abort value in Message::Data;
-where machine Other(value: Message) crashes Abort value in Message::Empty;
+where machine Other(value: Message) crashes Abort value in Message::Empty
 {}
 "#,
     );
@@ -381,7 +381,7 @@ fn guard(policy: &PackagePolicyCallables) -> &PackageReviewContractExpression {
 
 #[test]
 fn membership_distinguishes_case_and_foreign_package_owner() {
-    let root = "use dependency::helpers;\npub machine inspect(left: Message) crashes Abort left in Message::Data; {}";
+    let root = "use dependency::helpers;\npub machine inspect(left: Message) crashes Abort left in Message::Data {}";
     let dependency = "pub data Message { case Empty; case Data(value: u8); }";
     let mut policies = Vec::new();
     for owner in [42, 43] {
