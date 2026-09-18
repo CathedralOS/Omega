@@ -10,20 +10,26 @@
 //! load round-trips the stored register's low bits through the target's own
 //! byte order, so the rewrite needs no endianness assumption. The writer's
 //! route to the place's storage can be the referent-pointer `Store`
-//! carrying `WritePlace`, or a write into the place's own local storage —
-//! its `StructuralParameter` or `StructuralBlockParameter` slot — carrying
-//! `WriteLocal`: a `Store` through the slot's materialized address, or a
-//! `Store64` into the slot directly, which is always eight bytes and so
-//! pairs only with `Load64`. A wider or shifted writer covering only part
+//! carrying `WritePlace`, or a write into the place's own local storage
+//! carrying `WriteLocal` — its `StructuralParameter`/`StructuralBlockParameter`
+//! slot, or the `Structural` slot of the operation the place's declaration
+//! names as its producer: a `Store` through the slot's materialized
+//! address, or a `Store64` into the slot directly, which is always eight
+//! bytes and so pairs only with `Load64`. A wider or shifted writer covering only part
 //! of the read rejects — no selected extract can slice a register's middle
 //! bytes.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! forwarded place blocks on any overlapping or dynamic-extent write and on
-//! any materialized local address for that place; a `WriteLocal` row names
-//! an exact range, so a disjoint local write — place storage or staging —
-//! walks past the same way a disjoint `WritePlace` does. Rows for other
-//! places and every read role are safe under place exclusivity.
+//! any materialized local address for the place's own storage. A `WriteLocal`
+//! row names an exact range on a slot: when the slot is the place's own
+//! storage — its parameter or block-parameter home, or the producing
+//! operation's `Structural` home — an intersecting row still has to be the
+//! exact writer while a disjoint one walks past like a disjoint `WritePlace`;
+//! a slot that only stages bytes naming the place — a call's staged view
+//! descriptor — holds none of the place's bytes at any offset, so its writes
+//! and materialized address never block at all. Rows for other places and
+//! every read role are safe under place exclusivity.
 //! Instructions without a row are admitted only when their kind cannot
 //! write semantic storage: loads, address formation, private-slot frame
 //! accesses, and pure register work. Calls, hosted effects, and unaccounted
@@ -56,7 +62,8 @@ use selected_instructions::{
     SelectedStructuralTransport, SelectedSuccessor, SelectedTerminator, SelectedValueTransport,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
@@ -121,24 +128,24 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
             accepted_fact,
         },
     };
-    assert!(interferes(&forwarded, &access));
+    assert!(interferes(&forwarded, &access, &[]));
     access.role = SelectedMemoryAccessRole::ReadByteSpan {
         length,
         obligation,
         accepted_fact,
     };
-    assert!(!interferes(&forwarded, &access));
+    assert!(!interferes(&forwarded, &access, &[]));
     access.role = SelectedMemoryAccessRole::WriteByteSpan {
         length,
         obligation,
         accepted_fact,
     };
     access.place = PlaceId::new(2).unwrap();
-    assert!(!interferes(&forwarded, &access));
+    assert!(!interferes(&forwarded, &access, &[]));
     access.place = place;
     access.role = SelectedMemoryAccessRole::WritePlace;
     assert!(
-        !interferes(&forwarded, &access),
+        !interferes(&forwarded, &access, &[]),
         "fixed zero-byte rows are not dynamic spans"
     );
 }
@@ -249,6 +256,7 @@ pub(super) fn admit<'source>(
     // unproven. The carried `value` and the load's `output` are validated
     // against every crossed edge, terminator, and walked span once the
     // common register is known.
+    let structural_places = structural_place_declarations(function);
     let mut visited = vec![false; function.blocks.len()];
     let mut resolved = vec![None; function.blocks.len()];
     let mut deferred = Vec::new();
@@ -275,7 +283,7 @@ pub(super) fn admit<'source>(
                 .filter(|access| access.instruction == candidate.id)
             {
                 has_row = true;
-                interfered |= interferes(&forwarded, access);
+                interfered |= interferes(&forwarded, access, structural_places);
             }
             if interfered {
                 found = Some(forwarding_source(
@@ -316,11 +324,10 @@ pub(super) fn admit<'source>(
             // first. It never has a place-storage writer kind, so it rejects
             // the pair.
             let terminator = terminator_instruction(&predecessor.terminator);
-            if function
-                .memory_accesses
-                .iter()
-                .any(|access| access.instruction == terminator.id && interferes(&forwarded, access))
-            {
+            if function.memory_accesses.iter().any(|access| {
+                access.instruction == terminator.id
+                    && interferes(&forwarded, access, structural_places)
+            }) {
                 return Err(StoredLoadForwardingError::AliasingWrite);
             }
             crossed.extend(edges.iter().copied());
@@ -474,7 +481,7 @@ pub(super) fn admit<'source>(
                 .filter(|access| access.instruction == candidate.id)
             {
                 has_row = true;
-                interfered |= interferes(&forwarded, access);
+                interfered |= interferes(&forwarded, access, structural_places);
             }
             if interfered {
                 // The interfering instruction is the last writer on the
@@ -617,13 +624,20 @@ fn single_def(
 
 /// Whether one roster row can disturb the forwarded bytes. Writes must target
 /// the same place root to overlap; dynamic extents and escaped place-backed
-/// addresses always block. A `WriteLocal` row names an exact range: whether
-/// its slot is the forwarded place's storage or only stages bytes naming the
-/// place, a disjoint row cannot touch the forwarded bytes — so range
-/// intersection decides, and an intersecting row still has to be the exact
-/// writer. Local-slot storage for a different place and outgoing-area storage
-/// never alias a referent place.
-fn interferes(forwarded: &Forwarded, access: &SelectedMemoryAccess) -> bool {
+/// addresses always block. A `WriteLocal` row names an exact range on a slot:
+/// when the slot is the forwarded place's own storage, range intersection
+/// decides and an intersecting row still has to be the exact writer; when the
+/// slot only stages bytes naming the place, its bytes are not the place's at
+/// any offset, so the row never blocks. A materialized local address could
+/// reach the same storage by a route the roster does not bound, so it blocks
+/// when its slot is the place's storage; a staged slot's address reaches only
+/// the staged bytes. Local-slot storage for a different place and
+/// outgoing-area storage never alias a referent place.
+fn interferes(
+    forwarded: &Forwarded,
+    access: &SelectedMemoryAccess,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> bool {
     match access.role {
         SelectedMemoryAccessRole::WritePlace => {
             access.place == forwarded.place && forwarded.intersects(access)
@@ -631,10 +645,11 @@ fn interferes(forwarded: &Forwarded, access: &SelectedMemoryAccess) -> bool {
         SelectedMemoryAccessRole::WriteByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. } => access.place == forwarded.place,
         SelectedMemoryAccessRole::WriteLocal { slot } => {
-            slot.structural_place() == Some(forwarded.place) && forwarded.intersects(access)
+            local_slot_is_place_storage(slot, forwarded.place, structural_places)
+                && forwarded.intersects(access)
         }
         SelectedMemoryAccessRole::AddressLocal { slot } => {
-            slot.structural_place() == Some(forwarded.place)
+            local_slot_is_place_storage(slot, forwarded.place, structural_places)
         }
         SelectedMemoryAccessRole::ReadPlace
         | SelectedMemoryAccessRole::ReadByteSpan { .. }
@@ -644,20 +659,53 @@ fn interferes(forwarded: &Forwarded, access: &SelectedMemoryAccess) -> bool {
     }
 }
 
+/// The function's declared structural places — the producer evidence the
+/// `Structural` slot check below needs. A function without a structural
+/// contract declares none, leaving every `Structural` slot a staging slot.
+fn structural_place_declarations(function: &SelectedFunction) -> &[StructuralPlaceDeclaration] {
+    function
+        .structural
+        .as_ref()
+        .map_or(&[], |contract| contract.structural_places.as_slice())
+}
+
 /// Whether `slot` is `place`'s own storage, so a write into it moves the
 /// place's bytes in the place's byte coordinates and can source a forward:
-/// a parameter home or a block parameter. An operation-owned `Structural`
-/// slot can instead stage bytes that merely name the place — a call's
-/// staged view descriptor — so it is not the place's storage here.
-fn local_slot_is_place_storage(slot: LocalStorageSlotId, place: PlaceId) -> bool {
+/// a parameter home, a block parameter, or the producing operation's
+/// `Structural` home. For `Structural { operation, place }` the place's
+/// declaration settles which: the slot is the result's storage exactly when
+/// the place is declared as that operation's result — record, case, array,
+/// scalar-local, subslice-descriptor, and call-result homes all publish the
+/// slot's materialized address as the place's storage pointer, so slot and
+/// place share byte coordinates. Any other `Structural` slot only stages
+/// bytes that name the place — a call's staged view descriptor — under its
+/// own slot coordinates; a staging operation can never be its own
+/// argument's producer, so the declaration check never confuses the two.
+fn local_slot_is_place_storage(
+    slot: LocalStorageSlotId,
+    place: PlaceId,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> bool {
     match slot {
         LocalStorageSlotId::StructuralParameter { place: slot_place }
         | LocalStorageSlotId::StructuralBlockParameter {
             place: slot_place, ..
         } => slot_place == place,
-        LocalStorageSlotId::Spill { .. }
-        | LocalStorageSlotId::Structural { .. }
-        | LocalStorageSlotId::Boundary { .. } => false,
+        LocalStorageSlotId::Structural {
+            operation,
+            place: slot_place,
+        } => {
+            slot_place == place
+                && structural_places.iter().any(|declaration| {
+                    declaration.id == place
+                        && matches!(
+                            declaration.kind,
+                            StructuralPlaceKind::OperationResult { producer, .. }
+                                if producer == operation
+                        )
+                })
+        }
+        LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. } => false,
     }
 }
 
@@ -674,9 +722,10 @@ fn local_slot_is_place_storage(slot: LocalStorageSlotId, place: PlaceId) -> bool
 ///
 /// A wider, narrower, or shifted writer cannot produce the read's bytes from
 /// one register without an extract the selected vocabulary does not carry. A
-/// `WriteLocal` on an operation-owned `Structural` slot never sources: the
-/// slot can stage bytes that merely name the place without being its
-/// storage.
+/// `WriteLocal` on an operation-owned `Structural` slot sources only when the
+/// place's declaration names that operation as the slot's producer —
+/// otherwise the slot stages bytes that merely name the place, and a staging
+/// row never reaches this check because it does not block.
 fn forwarding_source(
     instruction: &SelectedInstruction,
     forwarded: &Forwarded,
@@ -684,6 +733,7 @@ fn forwarding_source(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<VirtualRegisterId, StoredLoadForwardingError> {
     let reject = || StoredLoadForwardingError::AliasingWrite;
+    let structural_places = structural_place_declarations(function);
     // The writer's semantic identity: exactly one roster row on the
     // forwarded place naming the read's exact byte range.
     let mut rows = function
@@ -709,11 +759,15 @@ fn forwarding_source(
             {
                 return Err(reject());
             }
-            match row.role {
-                SelectedMemoryAccessRole::WritePlace => {}
-                SelectedMemoryAccessRole::WriteLocal { slot }
-                    if local_slot_is_place_storage(slot, forwarded.place) => {}
-                _ => return Err(reject()),
+            let place_route = match row.role {
+                SelectedMemoryAccessRole::WritePlace => true,
+                SelectedMemoryAccessRole::WriteLocal { slot } => {
+                    local_slot_is_place_storage(slot, forwarded.place, structural_places)
+                }
+                _ => false,
+            };
+            if !place_route {
+                return Err(reject());
             }
             let row_constraint = environment
                 .constraint(instruction.constraint)
@@ -747,7 +801,7 @@ fn forwarding_source(
             // The roster row must name the same slot the instruction writes,
             // and that slot must be the forwarded place's own storage.
             if row.role != (SelectedMemoryAccessRole::WriteLocal { slot })
-                || !local_slot_is_place_storage(slot, forwarded.place)
+                || !local_slot_is_place_storage(slot, forwarded.place, structural_places)
             {
                 return Err(reject());
             }

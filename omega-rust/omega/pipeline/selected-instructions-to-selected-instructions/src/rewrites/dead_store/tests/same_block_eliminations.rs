@@ -9,8 +9,8 @@ use crate::rewrites::dead_store::{
 use optimization_core::OptimizationWorkBudget;
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, PackedByteWidth, SelectedInstructionId,
-    SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
+    FrameStorageSlotId, LocalStorageSlotId, PackedByteWidth, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessRole, VirtualRegisterId,
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, ScalarType, ValueId};
@@ -197,11 +197,281 @@ fn place_storage_local_writes_cover() {
     }
 }
 
-/// A `WriteLocal` row decides by range intersection like a `WritePlace` row:
-/// a disjoint local write walks past, and an intersecting one still has to
-/// cover. Operation-owned `Structural` slots never cover — they can stage
-/// bytes that merely name the place — and a slot or role that disagrees
-/// with the covering instruction rejects.
+/// An operation-owned `Structural` slot is the place's storage exactly when
+/// the place's declaration names that operation as the result's producer —
+/// record, case, array, scalar-local, subslice-descriptor, and call-result
+/// homes all publish the slot's materialized address as the place's storage
+/// pointer, so slot and place share byte coordinates. A write into the
+/// producer home interferes and covers like any place-storage write, and a
+/// dead store carrying its `WriteLocal` row dies the same way. A slot any
+/// other operation writes under the same name only stages bytes that name
+/// the place — a call's staged view descriptor — so its writes and
+/// materialized address never touch the dead bytes.
+#[test]
+fn producer_owned_structural_slots_are_place_storage() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let producer = OperationId::new(9).unwrap();
+        let slot = LocalStorageSlotId::Structural {
+            operation: producer,
+            place: place(),
+        };
+        // The contract declaring `place()` as `producer`'s operation result.
+        let declare = |function: &mut SelectedFunction, operation| {
+            function.structural = Some(legalized_operations::LegalizedStructuralContract {
+                result: None,
+                structural_types: Vec::new().into(),
+                parameters: Vec::new(),
+                structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
+                    id: place(),
+                    kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                    },
+                }],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            });
+        };
+        // A covering `Store64` into the producer's home covers the dead
+        // range: the slot is the place's storage under the same coordinates.
+        let covered = mutated(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            declare(function, producer);
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.blocks[0].instructions[3] = instruction(
+                KILLER,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[SCRATCH],
+            );
+            function.memory_accesses[1].role = SelectedMemoryAccessRole::WriteLocal { slot };
+        });
+        let result = eliminate(&covered, &environment).unwrap();
+        assert_eq!(
+            result.transformed().functions[0]
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![(KILLER, SelectedMemoryAccessRole::WriteLocal { slot })]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A dead `Store64` into the producer's home dies the same way: the
+        // slot is the place's storage, so its `WriteLocal` row is the dead
+        // write the covering place store replaces.
+        let dead_local = mutated(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            declare(function, producer);
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.blocks[0].instructions[1] = instruction(
+                STORE,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[VALUE],
+            );
+            function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+        });
+        let result = eliminate(&dead_local, &environment).unwrap();
+        assert_eq!(
+            result.transformed().functions[0].blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN, KILLER]
+        );
+        validate_dead_store_elimination(
+            &dead_local,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // The identical slot under a declaration naming a different producer
+        // is a staging slot: the write into it walks past, and with no real
+        // cover the dead bytes escape at the boundary.
+        let other_producer = mutated(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            declare(function, OperationId::new(10).unwrap());
+            function.local_storage_slots.push(SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+            function.blocks[0].instructions[3] = instruction(
+                KILLER,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[SCRATCH],
+            );
+            function.memory_accesses[1].role = SelectedMemoryAccessRole::WriteLocal { slot };
+        });
+        assert_eq!(
+            eliminate(&other_producer, &environment).unwrap_err(),
+            DeadStoreEliminationError::UnsupportedPair
+        );
+        // A partial-range write into the producer's home still leaves the
+        // head bytes live.
+        let partial = mutated(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            declare(function, producer);
+            function.blocks[0].instructions[3] = instruction(
+                KILLER,
+                SelectedInstructionKind::Store64 {
+                    slot: FrameStorageSlotId::Local(slot),
+                    byte_offset: 4,
+                },
+                store64,
+                &[SCRATCH],
+            );
+            function.memory_accesses[1] = SelectedMemoryAccess {
+                byte_offset: 4,
+                byte_count: 4,
+                ..access(
+                    KILLER,
+                    2,
+                    place(),
+                    4,
+                    SelectedMemoryAccessRole::WriteLocal { slot },
+                )
+            };
+        });
+        assert_eq!(
+            eliminate(&partial, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // Materializing the producer home's address exposes the place's
+        // storage by a route the roster does not bound — it interferes.
+        let address = mutated(target, |function, _| {
+            declare(function, producer);
+            function.memory_accesses.insert(
+                1,
+                access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    0,
+                    SelectedMemoryAccessRole::AddressLocal { slot },
+                ),
+            );
+        });
+        assert_eq!(
+            eliminate(&address, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // The full staged-descriptor idiom between the dead store and its
+        // cover — the staged `WriteLocal` and the materialized staged
+        // address — never touches the dead bytes, so both walk past.
+        let staged = mutated(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            let frame_address = environment
+                .constraint(environment.selected_keys().frame_address.unwrap())
+                .unwrap();
+            function.blocks[0].instructions.insert(
+                3,
+                instruction(
+                    SelectedInstructionId(6),
+                    SelectedInstructionKind::Store64 {
+                        slot: FrameStorageSlotId::Local(slot),
+                        byte_offset: 0,
+                    },
+                    store64,
+                    &[VALUE],
+                ),
+            );
+            function.blocks[0].instructions.insert(
+                4,
+                instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::FrameAddress {
+                        slot: FrameStorageSlotId::Local(slot),
+                        byte_offset: 0,
+                    },
+                    frame_address,
+                    &[VALUE],
+                ),
+            );
+            function.memory_accesses.push(access(
+                SelectedInstructionId(6),
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WriteLocal { slot },
+            ));
+            function.memory_accesses.push(SelectedMemoryAccess {
+                byte_count: 16,
+                ..access(
+                    SelectedInstructionId(7),
+                    3,
+                    place(),
+                    0,
+                    SelectedMemoryAccessRole::AddressLocal { slot },
+                )
+            });
+        });
+        let result = eliminate(&staged, &environment).unwrap();
+        validate_dead_store_elimination(
+            &staged,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
+/// A `WriteLocal` row on the place's own storage decides by range
+/// intersection like a `WritePlace` row: a disjoint local write walks past,
+/// and an intersecting one still has to cover. A `Structural` operation slot
+/// covers only when the place's declaration names that operation as the
+/// slot's producer; any other `Structural` slot stages bytes that merely
+/// name the place, so its write walks past without covering — and a slot or
+/// role that disagrees with the covering instruction rejects.
 #[test]
 fn local_slot_covering_writes_stay_exact() {
     let target = NativeTarget::linux_x64();
@@ -392,8 +662,10 @@ fn local_slot_covering_writes_stay_exact() {
         eliminate(&wrong_constraint, &environment).unwrap_err(),
         DeadStoreEliminationError::ConstraintMismatch
     );
-    // An operation-owned `Structural` slot can stage bytes that merely name
-    // the place, so even a covering-range write into it cannot cover.
+    // An operation-owned `Structural` slot the contract does not charge to
+    // the place's producer stages bytes that merely name the place: the
+    // covering-range write into it walks past instead of covering, and with
+    // no real cover the dead bytes escape at the boundary.
     let staging = mutated(target, |function, environment| {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
@@ -415,7 +687,7 @@ fn local_slot_covering_writes_stay_exact() {
     });
     assert_eq!(
         eliminate(&staging, &environment).unwrap_err(),
-        DeadStoreEliminationError::InterveningAccess
+        DeadStoreEliminationError::UnsupportedPair
     );
 }
 
@@ -661,7 +933,10 @@ fn observing_or_partial_accesses_between_reject() {
         eliminate(&dynamic_write, &environment).unwrap_err(),
         DeadStoreEliminationError::InterveningAccess
     );
-    // A place-backed local slot write targets the dead place's storage.
+    // An operation-owned `Structural` slot write the contract does not charge
+    // to the place's producer only stages bytes that name the place — a
+    // call's staged view descriptor — so it holds none of the dead bytes and
+    // walks past; the covering store still lands.
     let local = mutated(target, |function, environment| {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
@@ -690,10 +965,7 @@ fn observing_or_partial_accesses_between_reject() {
             ),
         );
     });
-    assert_eq!(
-        eliminate(&local, &environment).unwrap_err(),
-        DeadStoreEliminationError::InterveningAccess
-    );
+    eliminate(&local, &environment).unwrap();
     // Materializing the place-backed local address lets later accesses reach
     // it by a route the roster cannot prove disjoint.
     let address = mutated(target, |function, _| {

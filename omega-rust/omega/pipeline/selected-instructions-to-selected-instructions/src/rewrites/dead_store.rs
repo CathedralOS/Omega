@@ -6,13 +6,14 @@
 //! packed form only when its early-clobber scratch `Def` occurs nowhere
 //! else in the function — a surviving mention would lose its definition to
 //! the removal. Both place stores can also write the place's own local
-//! storage — its `StructuralParameter` or `StructuralBlockParameter` slot,
-//! which is the place's storage under the same byte coordinates — through
-//! the slot's materialized address, and a `Store64` writes that slot
-//! directly; a dead store carrying the `WriteLocal` row on such a slot is
-//! removed the same way, while a `WriteLocal` on an operation-owned
-//! `Structural` slot only stages bytes that name the place and stays
-//! inadmissible. A later write of the place's storage whose byte range
+//! storage — its `StructuralParameter`/`StructuralBlockParameter` slot, or
+//! the producing operation's `Structural` home, each the place's storage
+//! under the same byte coordinates — through the slot's materialized
+//! address, and a `Store64` writes that slot directly; a dead store
+//! carrying the `WriteLocal` row on such a slot is removed the same way.
+//! A `Structural` slot the place's declaration does not charge to that
+//! operation only stages bytes that name the place and stays inadmissible.
+//! A later write of the place's storage whose byte range
 //! covers the first store's range entirely replaces those bytes. When no
 //! intervening instruction can observe or partially overwrite the first
 //! store's bytes, the earlier store is dead: every observer of the place
@@ -35,12 +36,13 @@
 //! byte range contains the dead range entirely — the row need only cover,
 //! not equal, the removed write. Two routes to the place's storage qualify:
 //! a `Store` or `StorePacked` carrying `WritePlace`, and a write into the
-//! place's own local storage — its `StructuralParameter` or
-//! `StructuralBlockParameter` slot — carrying `WriteLocal`, either a
-//! `Store64` naming that slot or a place store through its materialized
-//! address. A `Structural` operation slot can instead stage bytes that
-//! merely name the place — a call's staged view descriptor — so a write to
-//! it stays interference rather than a route to the place's storage.
+//! place's own local storage carrying `WriteLocal` — its
+//! `StructuralParameter`/`StructuralBlockParameter` slot, or the
+//! `Structural` slot of the operation the place's declaration names as its
+//! producer — either a `Store64` naming that slot or a place store through
+//! its materialized address. Any other `Structural` operation slot only
+//! stages bytes that merely name the place — a call's staged view
+//! descriptor — so its writes and addresses are not the dead bytes at all.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they

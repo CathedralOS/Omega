@@ -3,8 +3,10 @@
 //! A `Store { byte_offset, byte_size }` writes the low exact-width bits of
 //! its value operand through the referent pointer — or, carrying a
 //! `WriteLocal` row, through the materialized address of the place's own
-//! `StructuralParameter`/`StructuralBlockParameter` slot, which is the
-//! place's storage under the same byte coordinates. A `Store64` into that
+//! storage slot, which is the place's storage under the same byte
+//! coordinates: its `StructuralParameter`/`StructuralBlockParameter` home,
+//! or the `Structural` slot of the operation the place's declaration names
+//! as its producer. A `Store64` into that
 //! slot writes the same bytes directly. A later `Load64`/`Load32`/
 //! `Load16`/`Load8` of the same width at the same byte offset observes
 //! exactly those bytes when no intervening instruction can write or expose
@@ -37,11 +39,13 @@
 //! overlapping exclusive custody before selection — so a write row or a
 //! place-backed local slot for a different `PlaceId` cannot disturb the
 //! forwarded bytes. Intervening reads of the same place cannot either, and
-//! a `WriteLocal` row names an exact range, so a local write disjoint from
-//! the read's range walks past whether its slot is the place's storage or
-//! only stages bytes naming the place; only a potentially overlapping
-//! write, a dynamic-extent access, an escaped place-backed address, or a
-//! call/host effect blocks the pair.
+//! a `WriteLocal` row names an exact range on a slot, so a local write on
+//! the place's own storage walks past when disjoint from the read's range
+//! and still has to be the exact writer when it intersects; a slot that
+//! only stages bytes naming the place holds none of its bytes at any
+//! offset, so its writes and materialized address never block. Only a
+//! potentially overlapping write, a dynamic-extent access, an escaped
+//! place-storage address, or a call/host effect blocks the pair.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they

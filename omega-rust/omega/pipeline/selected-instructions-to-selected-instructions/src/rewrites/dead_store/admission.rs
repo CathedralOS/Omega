@@ -9,12 +9,14 @@
 //! observable: any overlapping or dynamic-extent read, any write that is not
 //! the exact covering write, or a materialized local address. Rows for other
 //! places are safe under place exclusivity. A `WriteLocal` on the dead
-//! place's own storage — its `StructuralParameter` or
-//! `StructuralBlockParameter` slot — interferes exactly like a `WritePlace`
-//! on that place: an overlapping row decides coverage below, a disjoint row
-//! walks past. A `Structural` operation slot can instead stage bytes that
-//! merely name the place (a call's staged view descriptor), so any write to
-//! it stays a barrier rather than a route to the place's storage.
+//! place's own storage interferes exactly like a `WritePlace` on that place:
+//! an overlapping row decides coverage below, a disjoint row walks past. The
+//! place's own storage is its `StructuralParameter`/`StructuralBlockParameter`
+//! slot or the producing operation's `Structural` home — the place's
+//! declaration names that producer. Any other `Structural` slot only stages
+//! bytes that name the place (a call's staged view descriptor) under its own
+//! slot coordinates, so its writes and materialized address never touch the
+//! dead bytes at all.
 //! Instructions without a row are admitted only when their kind cannot reach
 //! semantic storage: private-slot frame accesses and pure register work.
 //! Calls, hosted effects, and unaccounted writers reject.
@@ -54,7 +56,8 @@ use selected_instructions::{
     SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
     SelectedStructuralTransport, SelectedSuccessor, SelectedTerminator,
 };
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use terminal_psi::StructuralPlaceDeclaration;
 
 use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
@@ -147,13 +150,14 @@ pub(super) fn admit<'source>(
     // and the same bytes the instruction encodes. The row's role must match
     // the route the instruction takes to the place's storage: `WritePlace`
     // for the referent-pointer place stores, or `WriteLocal` on the place's
-    // own `StructuralParameter`/`StructuralBlockParameter` slot for the
-    // local-storage routes — the direct `Store64`'s row naming the same slot
-    // the instruction encodes. An operation-owned `Structural` slot can
-    // stage bytes that merely name the place, so a write through it never
-    // moves the place's bytes and cannot be the dead store of them. Neither
-    // admitted role carries an obligation payload, so dropping the row loses
-    // no proof receipt.
+    // own storage slot for the local-storage routes — the direct `Store64`'s
+    // row naming the same slot the instruction encodes. An operation-owned
+    // `Structural` slot is that storage only when the place's declaration
+    // names the operation as its producer; a slot that merely stages bytes
+    // naming the place never moves the place's bytes and cannot be the dead
+    // store of them. Neither admitted role carries an obligation payload, so
+    // dropping the row loses no proof receipt.
+    let structural_places = structural_place_declarations(function);
     let mut rows = function
         .memory_accesses
         .iter()
@@ -165,10 +169,10 @@ pub(super) fn admit<'source>(
     let storage_route = match (write.role, direct_slot) {
         (SelectedMemoryAccessRole::WritePlace, None) => true,
         (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
-            local_slot_is_place_storage(slot, write.place)
+            local_slot_is_place_storage(slot, write.place, structural_places)
         }
         (SelectedMemoryAccessRole::WriteLocal { slot }, Some(encoded)) => {
-            slot == encoded && local_slot_is_place_storage(slot, write.place)
+            slot == encoded && local_slot_is_place_storage(slot, write.place, structural_places)
         }
         _ => false,
     };
@@ -228,7 +232,7 @@ pub(super) fn admit<'source>(
                 .filter(|access| access.instruction == candidate.id)
             {
                 has_row = true;
-                interfered |= interferes(&dead, access);
+                interfered |= interferes(&dead, access, structural_places);
             }
             if interfered {
                 covering_source(candidate, &dead, function, environment)?;
@@ -253,11 +257,9 @@ pub(super) fn admit<'source>(
         // edges, so its roster rows decide first; a terminator kind never
         // carries the covering store.
         let terminator = terminator_instruction(&current.terminator);
-        if function
-            .memory_accesses
-            .iter()
-            .any(|access| access.instruction == terminator.id && interferes(&dead, access))
-        {
+        if function.memory_accesses.iter().any(|access| {
+            access.instruction == terminator.id && interferes(&dead, access, structural_places)
+        }) {
             return Err(DeadStoreEliminationError::InterveningAccess);
         }
         // A terminator with no successors lets the bytes escape to the
@@ -506,20 +508,53 @@ fn scratch_definition_is_dead(
     occurrences == 1
 }
 
+/// The function's declared structural places — the producer evidence the
+/// `Structural` slot check below needs. A function without a structural
+/// contract declares none, leaving every `Structural` slot a staging slot.
+fn structural_place_declarations(function: &SelectedFunction) -> &[StructuralPlaceDeclaration] {
+    function
+        .structural
+        .as_ref()
+        .map_or(&[], |contract| contract.structural_places.as_slice())
+}
+
 /// Whether `slot` is `place`'s own storage, so a write into it moves the
 /// place's bytes in the place's byte coordinates and can cover a dead write:
-/// a parameter home or a block parameter. An operation-owned `Structural`
-/// slot can instead stage bytes that merely name the place — a call's
-/// staged view descriptor — so it is not the place's storage here.
-fn local_slot_is_place_storage(slot: LocalStorageSlotId, place: PlaceId) -> bool {
+/// a parameter home, a block parameter, or the producing operation's
+/// `Structural` home. For `Structural { operation, place }` the place's
+/// declaration settles which: the slot is the result's storage exactly when
+/// the place is declared as that operation's result — record, case, array,
+/// scalar-local, subslice-descriptor, and call-result homes all publish the
+/// slot's materialized address as the place's storage pointer, so slot and
+/// place share byte coordinates. Any other `Structural` slot only stages
+/// bytes that name the place — a call's staged view descriptor — under its
+/// own slot coordinates; a staging operation can never be its own
+/// argument's producer, so the declaration check never confuses the two.
+fn local_slot_is_place_storage(
+    slot: LocalStorageSlotId,
+    place: PlaceId,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> bool {
     match slot {
         LocalStorageSlotId::StructuralParameter { place: slot_place }
         | LocalStorageSlotId::StructuralBlockParameter {
             place: slot_place, ..
         } => slot_place == place,
-        LocalStorageSlotId::Spill { .. }
-        | LocalStorageSlotId::Structural { .. }
-        | LocalStorageSlotId::Boundary { .. } => false,
+        LocalStorageSlotId::Structural {
+            operation,
+            place: slot_place,
+        } => {
+            slot_place == place
+                && structural_places.iter().any(|declaration| {
+                    declaration.id == place
+                        && matches!(
+                            declaration.kind,
+                            StructuralPlaceKind::OperationResult { producer, .. }
+                                if producer == operation
+                        )
+                })
+        }
+        LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. } => false,
     }
 }
 
@@ -527,13 +562,19 @@ fn local_slot_is_place_storage(slot: LocalStorageSlotId, place: PlaceId) -> bool
 /// observable. Reads must intersect the dead range; dynamic extents always
 /// reach it. Writes must target the same place root to overlap; the covering
 /// write is checked by the caller after this returns true. A `WriteLocal`
-/// row names an exact range: whether its slot is the dead place's storage or
-/// only stages bytes naming the place, a disjoint row cannot touch the dead
-/// bytes — so range intersection decides, and an intersecting row still has
-/// to cover. A materialized local address could reach the same storage by a
-/// route the roster does not bound, so it always interferes. Outgoing-area
-/// storage never aliases a referent place.
-fn interferes(dead: &Dead, access: &SelectedMemoryAccess) -> bool {
+/// row names an exact range on a slot: when the slot is the dead place's
+/// own storage, range intersection decides and an intersecting row still has
+/// to cover; when the slot only stages bytes naming the place, its bytes
+/// are not the place's at any offset, so the row never interferes. A
+/// materialized local address could reach the same storage by a route the
+/// roster does not bound, so it interferes when its slot is the dead
+/// place's storage; a staged slot's address reaches only the staged bytes.
+/// Outgoing-area storage never aliases a referent place.
+fn interferes(
+    dead: &Dead,
+    access: &SelectedMemoryAccess,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> bool {
     match access.role {
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
             access.place == dead.place && dead.intersects(access)
@@ -543,10 +584,11 @@ fn interferes(dead: &Dead, access: &SelectedMemoryAccess) -> bool {
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. } => access.place == dead.place,
         SelectedMemoryAccessRole::WriteLocal { slot } => {
-            slot.structural_place() == Some(dead.place) && dead.intersects(access)
+            local_slot_is_place_storage(slot, dead.place, structural_places)
+                && dead.intersects(access)
         }
         SelectedMemoryAccessRole::AddressLocal { slot } => {
-            slot.structural_place() == Some(dead.place)
+            local_slot_is_place_storage(slot, dead.place, structural_places)
         }
         SelectedMemoryAccessRole::WriteOutgoing { .. }
         | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
@@ -558,15 +600,17 @@ fn interferes(dead: &Dead, access: &SelectedMemoryAccess) -> bool {
 /// instruction encodes:
 /// - `Store` of any exact width or packed `StorePacked` carrying `WritePlace`
 ///   — through a place pointer — or `WriteLocal` on the place's own
-///   parameter storage, through that slot's materialized address;
+///   storage slot, through that slot's materialized address;
 /// - `Store64` into `Local(slot)` carrying `WriteLocal` on that same slot —
-///   directly into the place's own parameter storage.
+///   directly into the place's own storage.
 ///
 /// A write that only partially overlaps the dead range leaves the remaining
 /// bytes observable. A `WriteLocal` on an operation-owned `Structural` slot
-/// never covers: the slot can stage bytes that merely name the place — a
-/// call's staged view descriptor — without being its storage. A
-/// materialized local address exposes storage rather than writing it.
+/// covers only when the place's declaration names that operation as the
+/// slot's producer — otherwise the slot stages bytes that merely name the
+/// place, and a staging row never reaches this check because it does not
+/// interfere. A materialized local address exposes storage rather than
+/// writing it.
 fn covering_source(
     instruction: &SelectedInstruction,
     dead: &Dead,
@@ -574,6 +618,7 @@ fn covering_source(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), DeadStoreEliminationError> {
     let reject = || DeadStoreEliminationError::InterveningAccess;
+    let structural_places = structural_place_declarations(function);
     let mut rows = function
         .memory_accesses
         .iter()
@@ -599,7 +644,7 @@ fn covering_source(
             match row.role {
                 SelectedMemoryAccessRole::WritePlace => {}
                 SelectedMemoryAccessRole::WriteLocal { slot }
-                    if local_slot_is_place_storage(slot, dead.place) => {}
+                    if local_slot_is_place_storage(slot, dead.place, structural_places) => {}
                 _ => return Err(reject()),
             }
             (byte_offset, u32::from(byte_size))
@@ -611,7 +656,7 @@ fn covering_source(
             match row.role {
                 SelectedMemoryAccessRole::WritePlace => {}
                 SelectedMemoryAccessRole::WriteLocal { slot }
-                    if local_slot_is_place_storage(slot, dead.place) => {}
+                    if local_slot_is_place_storage(slot, dead.place, structural_places) => {}
                 _ => return Err(reject()),
             }
             (byte_offset, u32::from(width.byte_size()))
@@ -626,7 +671,7 @@ fn covering_source(
             // The direct slot store covers only when the roster names the
             // same slot and that slot is the dead place's own storage.
             if row.role != (SelectedMemoryAccessRole::WriteLocal { slot })
-                || !local_slot_is_place_storage(slot, dead.place)
+                || !local_slot_is_place_storage(slot, dead.place, structural_places)
             {
                 return Err(reject());
             }
