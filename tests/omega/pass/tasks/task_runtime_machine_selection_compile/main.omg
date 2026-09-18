@@ -51,12 +51,12 @@ data Main {
     issuer: TokenIssuer;
 }
 
-machine Main::probe(&mut self) reaches TokenIssuer {
+machine Main::probe(&mut self) reaches TokenIssuer + TaskRuntime {
     let token: Token = self.issuer.issue(7);
     let task: Task<Token> = self.runtime.start<Worker::run>(token);
     Task::settle(task);
 
-    let retry: Token = self.issuer.issue(9);
+    let retry: Token in Carry::AcrossSuspend = self.issuer.issue(9);
     let outcome: StartOutcome<Token, Token> =
         self.runtime.try_start<Worker::run>(retry);
     let retry_task: Task<Token> = outcome.task;
