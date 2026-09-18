@@ -761,6 +761,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   (`copy_partner_home_pulls_the_copy_domain_across_the_split_point`,
   `coalesce_loses_to_keeping_a_constrained_neighbor_feasible`,
   `affinity_binds_to_the_domain_covering_the_copy_point`).
+  Landed: that coalescing is gated on residual feasibility — a candidate
+  propagates the forced homes it creates (a domain reduced to one
+  retained view must take it, removing its conflicting views from
+  constrained still-unassigned domains in turn) and a
+  pairwise-constrained clique retaining only subsets of a pool smaller
+  than itself can never place, so a candidate failing either check loses
+  to one after which the residual still completes; viable sets and
+  copy-affinity edge scans move incrementally through a forward conflict
+  adjacency and a member-indexed edge map, mirrored in independent
+  replay
+  (`coalesce_loses_to_a_forced_move_cascade_through_constrained_neighbors`,
+  `coalesce_loses_to_a_constrained_clique_outnumbering_its_pool`,
+  `runtime_spill_composition::fixed_view_copies_compose_into_runtime_spill_when_post_copy_pressure_remains`).
   Remaining: live-range splitting.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
