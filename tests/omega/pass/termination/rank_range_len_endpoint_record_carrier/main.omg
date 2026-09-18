@@ -1,0 +1,40 @@
+// PASS CANARY. The `.len` endpoint reads a member chain: `hold.bag.len` is
+// the projected produced-length coordinate of the record formal's unique
+// slice leaf. Forwarding `hold`/`wrap` between members transports that
+// coordinate exactly -- the destination's `wrap.bag.len` names the same
+// produced value the caller's `hold.bag.len` pinned.
+data Holder {
+    bag: &[u64];
+}
+
+data Main {
+    entries: [u64; 8];
+}
+
+machine Main::main(&mut self, hold: Holder, cap: u64 [4..=8]) -> u64
+requires hold.bag.len >= cap;
+{
+    transition {
+        _ -> self.outer(3, cap, hold)
+    }
+}
+
+machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], hold: Holder)
+requires hold.bag.len >= cap;
+terminates by remaining in 0..=hold.bag.len;
+-> u64 {
+    transition remaining > 0 {
+        true -> self.inner(remaining, cap, hold)
+        false -> remaining
+    }
+}
+
+machine Main::inner(&mut self, n: u64 [0..=4], cap: u64 [4..=8], wrap: Holder)
+requires wrap.bag.len >= cap;
+terminates by n in 0..=wrap.bag.len;
+-> u64 {
+    transition n > 0 {
+        true -> self.outer(n - 1, cap, wrap)
+        false -> n
+    }
+}

@@ -105,43 +105,44 @@ pub(crate) fn prove_ranking_range_call_entry(
             Some(coordinates)
         };
         // A slice over projected storage produces its length from the member
-        // chain's exact leaf coordinate, as at a named-state edge.
-        let slice_rank = if let RankingRangeMeasure::SliceLength(subject) = measure {
-            match lengths::SliceCoordinate::resolve(program, state, subject) {
-                Some(coordinate) => {
-                    let mut coordinates = lengths::SliceCoordinates::new(coordinate);
-                    let mut expressions = vec![range.start, range.end, subject];
-                    expressions.extend(projections::entry_expressions(
-                        program,
-                        member.machine,
-                        state,
-                    ));
-                    coordinates.install(
-                        program,
-                        member.machine,
-                        state,
-                        state,
-                        None,
-                        &mut engine,
-                        &expressions,
-                    )?;
-                    Some(coordinates)
-                }
-                None => None,
-            }
+        // chain's exact leaf coordinate, as at a named-state edge. Every other
+        // measure still owes authored `.len` spellings inside endpoints,
+        // requires facts, or view bounds the same auxiliary coordinates: a
+        // produced length is a non-polynomial input, not an operand polynomial.
+        let mut slice_rank = if let RankingRangeMeasure::SliceLength(subject) = measure {
+            lengths::SliceCoordinate::resolve(program, state, subject)
+                .map(lengths::SliceCoordinates::new)
         } else {
-            None
+            Some(lengths::SliceCoordinates::empty())
         };
-        let length_bindings = if matches!(measure, RankingRangeMeasure::SliceLength(_)) {
-            lengths::bindings(program, member.machine, state, None)
-        } else {
-            Vec::new()
-        };
-        if !length_bindings.is_empty() {
+        if let Some(coordinates) = &mut slice_rank {
             let mut expressions = vec![range.start, range.end];
             if let RankingRangeMeasure::SliceLength(subject) = measure {
                 expressions.push(subject);
+            } else {
+                expressions.extend(scalar_subjects(&member, measure));
             }
+            expressions.extend(projections::entry_expressions(
+                program,
+                member.machine,
+                state,
+            ));
+            coordinates.install(
+                program,
+                member.machine,
+                state,
+                state,
+                None,
+                &mut engine,
+                &expressions,
+            )?;
+        }
+        // A bare slice formal's `.len` names the produced length atom its
+        // formal binds here, whatever measure the member ranks by.
+        let length_bindings = lengths::bindings(program, member.machine, state, None);
+        if !length_bindings.is_empty() {
+            let mut expressions = vec![range.start, range.end];
+            expressions.extend(scalar_subjects(&member, measure));
             expressions.extend(projections::entry_expressions(
                 program,
                 member.machine,
@@ -333,13 +334,10 @@ pub(crate) fn prove_ranking_range_call(
     }
     // A slice-length member's rank is its collection's length coordinate:
     // distinct atoms, never the scalar value of the slice parameter itself.
-    // Install the same projections the named-state judgment uses so a `.len`
-    // inside a guard, actual, endpoint, or requires fact names the same atom.
-    let mut length_bindings = if matches!(source_measure, RankingRangeMeasure::SliceLength(_)) {
-        lengths::bindings(program, caller.machine, source, None)
-    } else {
-        Vec::new()
-    };
+    // Every other measure still owes a `.len` inside a guard, actual,
+    // endpoint, or requires fact the same produced-length binding: the leaf
+    // is a non-polynomial input, not an operand polynomial.
+    let mut length_bindings = lengths::bindings(program, caller.machine, source, None);
     if !at_entry {
         // The ranked slice subject stays entry-spelled: alias its entry
         // parameter to the site carrier's length atom.
@@ -357,10 +355,7 @@ pub(crate) fn prove_ranking_range_call(
         }
     }
     if !length_bindings.is_empty() {
-        let mut expressions = Vec::new();
-        if let RankingRangeMeasure::SliceLength(subject) = source_measure {
-            expressions.push(subject);
-        }
+        let mut expressions = scalar_subjects(&caller, source_measure);
         if caller.range.is_valid()
             && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
         {
@@ -377,7 +372,7 @@ pub(crate) fn prove_ranking_range_call(
             program,
             caller.machine,
             source,
-            source,
+            entry,
             &length_bindings,
             &mut engine,
             &expressions,
@@ -533,7 +528,33 @@ pub(crate) fn prove_ranking_range_call(
             None => None,
         }
     } else {
-        None
+        // `.len` spellings inside endpoints, guards, or actuals on another
+        // measure name the same projected slice coordinates a SliceLength
+        // subject does; install them over the caller's whole read surface.
+        let mut coordinates = lengths::SliceCoordinates::empty();
+        let mut expressions = scalar_subjects(&caller, source_measure);
+        if caller.range.is_valid()
+            && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
+        {
+            expressions.extend([range.start, range.end]);
+        }
+        expressions.extend(arguments.iter().copied());
+        expressions.extend(guards.iter().map(|(guard, _)| *guard));
+        expressions.extend(projections::entry_expressions(
+            program,
+            caller.machine,
+            source,
+        ));
+        coordinates.install(
+            program,
+            caller.machine,
+            source,
+            entry,
+            (!at_entry).then_some(caller_site.entry_parameters),
+            &mut engine,
+            &expressions,
+        )?;
+        Some(coordinates)
     };
     let mut comparisons = if at_entry {
         entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?
@@ -1082,25 +1103,53 @@ fn bind_destination_lengths(
                         Some(destination),
                         expression,
                     )
-                    && let Some(coordinate) =
-                        lengths::SliceCoordinate::resolve(program, destination, receiver)
-                    && let Some(position) = program
-                        .state_parameters(destination)
-                        .iter()
-                        .filter(|parameter| !parameter.is_self)
-                        .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
-                    && let Some(actual) = coordinate.arrived(
-                        program,
-                        machine,
-                        source,
-                        engine,
-                        arguments[position],
-                        coordinate.borrowed,
-                        bindings,
-                    )
-                    && !engine.bind_strict_projection(expression, actual)
                 {
-                    return None;
+                    let actual = if let Some(coordinate) =
+                        lengths::SliceCoordinate::resolve(program, destination, receiver)
+                    {
+                        program
+                            .state_parameters(destination)
+                            .iter()
+                            .filter(|parameter| !parameter.is_self)
+                            .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
+                            .and_then(|position| {
+                                coordinate.arrived(
+                                    program,
+                                    machine,
+                                    source,
+                                    engine,
+                                    arguments[position],
+                                    coordinate.borrowed,
+                                    bindings,
+                                )
+                            })
+                    } else {
+                        // A bare slice formal's `.len` names the produced
+                        // length its call actual installs, subslice geometry
+                        // included.
+                        lengths::parameter(program, destination, receiver).and_then(|formal| {
+                            program
+                                .state_parameters(destination)
+                                .iter()
+                                .filter(|parameter| !parameter.is_self)
+                                .position(|parameter| parameter.symbol == formal.symbol)
+                                .and_then(|position| {
+                                    lengths::actual(
+                                        program,
+                                        machine,
+                                        source,
+                                        arguments[position],
+                                        bindings,
+                                        engine,
+                                    )
+                                })
+                        })
+                    };
+                    if let Some(actual) = actual
+                        && !engine.bind_strict_projection(expression, actual)
+                    {
+                        return None;
+                    }
                 }
                 pending.push((member.receiver, depth + 1));
             }

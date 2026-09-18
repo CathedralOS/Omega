@@ -1,0 +1,45 @@
+// FAIL CANARY. `inner` pins its ceiling to `wrap.bag.len`, the projected
+// produced length of the record's unique slice leaf. Rebuilding `Outer`
+// duplicates `wrap` into both `left` and `right`: the destination formal
+// admits two carriage readings for that leaf, so the endpoint input keeps
+// no coordinate rather than guessing which copy claims the role.
+data Holder {
+    bag: &[u64];
+}
+
+data Outer {
+    left: Holder;
+    right: Holder;
+}
+
+data Main {
+    entries: [u64; 8];
+}
+
+machine Main::main(&mut self, nest: Outer, cap: u64 [4..=8]) -> u64
+requires nest.left.bag.len >= cap;
+{
+    transition {
+        _ -> self.outer(3, cap, nest)
+    }
+}
+
+machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], nest: Outer)
+requires nest.left.bag.len >= cap;
+terminates by remaining in 0..=cap;
+-> u64 {
+    transition remaining > 0 {
+        true -> self.inner(remaining, cap, nest.left)
+        false -> remaining
+    }
+}
+
+machine Main::inner(&mut self, n: u64 [0..=4], cap: u64 [4..=8], wrap: Holder)
+requires wrap.bag.len >= cap;
+terminates by n in 0..=wrap.bag.len;
+-> u64 {
+    transition n > 0 {
+        true -> self.outer(n - 1, cap, Outer { left: wrap, right: wrap })
+        false -> n
+    }
+}

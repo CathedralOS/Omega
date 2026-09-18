@@ -425,8 +425,23 @@ impl<'program> SliceCoordinate<'program> {
         if parameters.next().is_some() {
             return None;
         }
+        self.for_carrier(program, parameter)
+    }
+
+    /// The coordinate this chain names on `carrier`'s own record: the chain
+    /// resolved directly against the carrier's declaration, else the unique
+    /// nested path that declaration admits for the chain's boundary records.
+    /// These are the same two readings `at_arrival` keeps once a telescope has
+    /// located the role's carrier. A caller that already holds the formal asks
+    /// this directly; two admissible readings keep no coordinate rather than
+    /// guess which record the carriage meant.
+    pub(super) fn for_carrier(
+        &self,
+        program: &'program TypedTrees,
+        carrier: &'program StateParameter,
+    ) -> Option<Self> {
         let chain = self.chain();
-        if let Some(coordinate) = Self::for_parameter(program, parameter, &chain)
+        if let Some(coordinate) = Self::for_parameter(program, carrier, &chain)
             && coordinate.root == self.root
         {
             return Some(coordinate);
@@ -436,8 +451,8 @@ impl<'program> SliceCoordinate<'program> {
         // record this chain descends partway. The formal's declaration must
         // admit exactly one such reading; two readings leave the carriage
         // ambiguous and keep no coordinate, exactly as the field owner does.
-        let chain = nested_arrival_chain(program, parameter, self.root, &self.steps, &chain)?;
-        Self::for_parameter(program, parameter, &chain)
+        let chain = nested_arrival_chain(program, carrier, self.root, &self.steps, &chain)?;
+        Self::for_parameter(program, carrier, &chain)
     }
 
     pub(super) fn value(&self) -> Polynomial {
@@ -595,6 +610,16 @@ impl<'program> SliceCoordinates<'program> {
     pub(super) fn new(rank: SliceCoordinate<'program>) -> Self {
         Self {
             rank: Some(rank),
+            auxiliary: Vec::new(),
+        }
+    }
+
+    /// No produced rank coordinate: the measure is not `Slice::Length`, but
+    /// authored `.len` spellings inside endpoints, requires facts, guards, or
+    /// actuals still name auxiliary coordinates the same install discovers.
+    pub(super) fn empty() -> Self {
+        Self {
+            rank: None,
             auxiliary: Vec::new(),
         }
     }

@@ -354,6 +354,179 @@ fn projected_slice_member_component_admits_exact_tail_arrival() {
     assert_eq!(admitted(&program).len(), 1);
 }
 
+/// A scalar-ranked member whose authored endpoint spells `slice.len`: the
+/// produced length is a non-polynomial input, pinned and conserved under the
+/// same exact discipline as an integer formal, never normalized through the
+/// collection's own value.
+const LEN_ENDPOINT: &str = "data Main {}
+machine Main::outer(&mut self, remaining: u64, items: &[u64])
+requires items.len >= remaining;
+terminates by remaining in 0..=items.len;
+-> u64 {
+    transition remaining > 0 && items.len > 0 {
+        true -> self.inner(remaining - 1, items)
+        false -> remaining
+    }
+}
+machine Main::inner(&mut self, n: u64, bag: &[u64])
+requires bag.len >= n;
+terminates by n in 0..=bag.len;
+-> u64 {
+    transition n > 0 { true -> self.outer(n, bag) false -> n }
+}";
+
+#[test]
+fn scalar_members_pin_a_produced_len_endpoint() {
+    let program = typed_source(LEN_ENDPOINT);
+    assert_eq!(
+        progress(&program, 0),
+        Some(RankingRangeCallProgress::Strict)
+    );
+    assert_eq!(
+        progress(&program, 1),
+        Some(RankingRangeCallProgress::NonIncreasing)
+    );
+    assert_eq!(admitted(&program).len(), 1);
+    // A subslice actual shortens the produced length: `items[1..].len` is
+    // `items.len - 1`, a changed endpoint, not a transported pin.
+    for changed in [
+        LEN_ENDPOINT.replace(
+            "self.inner(remaining - 1, items)",
+            "self.inner(remaining - 1, items[1..])",
+        ),
+        LEN_ENDPOINT.replace("self.outer(n, bag)", "self.outer(n, bag[1..])"),
+    ] {
+        assert!(admitted(&typed_source(&changed)).is_empty(), "{changed}");
+    }
+    // A foreign slice actual cannot pin the endpoint even though it shares
+    // the authored type; only the conserved carrier may arrive.
+    let foreign = LEN_ENDPOINT
+        .replace(
+            "machine Main::outer(&mut self, remaining: u64, items: &[u64])",
+            "machine Main::outer(&mut self, remaining: u64, items: &[u64], spare: &[u64])",
+        )
+        .replace(
+            "machine Main::inner(&mut self, n: u64, bag: &[u64])",
+            "machine Main::inner(&mut self, n: u64, bag: &[u64], spare: &[u64])",
+        )
+        .replace(
+            "self.inner(remaining - 1, items)",
+            "self.inner(remaining - 1, spare, items)",
+        )
+        .replace("self.outer(n, bag)", "self.outer(n, bag, spare)");
+    assert!(admitted(&typed_source(&foreign)).is_empty());
+    // An intervening write to the endpoint-bearing formal invalidates the
+    // premise before the call.
+    let written = LEN_ENDPOINT
+        .replace(
+            "machine Main::outer(&mut self, remaining: u64, items: &[u64])",
+            "machine Main::outer(&mut self, remaining: u64, mut items: &[u64])",
+        )
+        .replace(
+            "    transition remaining > 0 && items.len > 0 {",
+            "    items = items[1..]; transition remaining > 0 && items.len > 0 {",
+        );
+    assert_ne!(written, LEN_ENDPOINT);
+    assert!(admitted(&typed_source(&written)).is_empty());
+}
+
+#[test]
+fn an_unranged_member_conserves_a_produced_len_endpoint() {
+    let mixed = "data Main {}
+machine Main::outer(&mut self, remaining: u64, items: &[u64])
+requires items.len >= remaining;
+terminates by remaining in 0..=items.len;
+-> u64 {
+    transition remaining > 0 { true -> self.inner(remaining - 1, items) false -> remaining }
+}
+machine Main::inner(&mut self, n: u64, bag: &[u64])
+requires bag.len >= n;
+terminates by n;
+-> u64 {
+    transition n > 0 { true -> self.outer(n, bag) false -> n }
+}";
+    assert_eq!(admitted(&typed_source(mixed)).len(), 1);
+    // The unranged member rewindowing the collection is a changed endpoint:
+    // `bag[1..].len` equals no caller-carried `items.len`.
+    let diverged = mixed.replace("self.outer(n, bag)", "self.outer(n, bag[1..])");
+    assert!(admitted(&typed_source(&diverged)).is_empty());
+}
+
+/// A member-chain `.len` endpoint (`hold.bag.len`) resolves the projected
+/// slice coordinate of the record formal's unique leaf and transports that
+/// coordinate through the component exactly like a field projection does.
+const PROJECTED_LEN_ENDPOINT: &str = "data Holder { bag: &[u64]; }
+data Main {}
+machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], hold: Holder)
+requires hold.bag.len >= cap;
+terminates by remaining in 0..=hold.bag.len;
+-> u64 {
+    transition remaining > 0 { true -> self.inner(remaining, cap, hold) false -> remaining }
+}
+machine Main::inner(&mut self, n: u64 [0..=4], cap: u64 [4..=8], wrap: Holder)
+requires wrap.bag.len >= cap;
+terminates by n in 0..=wrap.bag.len;
+-> u64 {
+    transition n > 0 { true -> self.outer(n - 1, cap, wrap) false -> n }
+}";
+
+#[test]
+fn a_member_chain_len_endpoint_transports_through_record_carriers() {
+    assert_eq!(admitted(&typed_source(PROJECTED_LEN_ENDPOINT)).len(), 1);
+    // Rebuilding the carrier with a rewindowed leaf transports a different
+    // produced length, so the destination's pinned endpoint is unproven.
+    let rewindowed = PROJECTED_LEN_ENDPOINT.replace(
+        "self.outer(n - 1, cap, wrap)",
+        "self.outer(n - 1, cap, Holder { bag: wrap.bag[1..] })",
+    );
+    assert!(admitted(&typed_source(&rewindowed)).is_empty());
+    // A foreign record of the same declaration carries no equality to the
+    // endpoint's coordinate: `rest.bag.len` is not `wrap.bag.len`.
+    let foreign = PROJECTED_LEN_ENDPOINT
+        .replace(
+            "machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], hold: Holder)",
+            "machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], hold: Holder, spare: Holder)",
+        )
+        .replace(
+            "machine Main::inner(&mut self, n: u64 [0..=4], cap: u64 [4..=8], wrap: Holder)",
+            "machine Main::inner(&mut self, n: u64 [0..=4], cap: u64 [4..=8], wrap: Holder, rest: Holder)",
+        )
+        .replace(
+            "self.inner(remaining, cap, hold)",
+            "self.inner(remaining, cap, hold, spare)",
+        )
+        .replace(
+            "self.outer(n - 1, cap, wrap)",
+            "self.outer(n - 1, cap, rest, wrap)",
+        );
+    assert!(admitted(&typed_source(&foreign)).is_empty());
+    // Two admissible carriage readings keep no coordinate: the rebuilt
+    // `Outer` duplicates the leaf into `left` and `right`, so `wrap.bag.len`
+    // has no unique transported value at the destination.
+    let ambiguous = PROJECTED_LEN_ENDPOINT
+        .replace(
+            "data Holder { bag: &[u64]; }",
+            "data Holder { bag: &[u64]; }\ndata Outer { left: Holder; right: Holder; }",
+        )
+        .replace(
+            "machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], hold: Holder)",
+            "machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], nest: Outer)",
+        )
+        .replace(
+            "requires hold.bag.len >= cap;\nterminates by remaining in 0..=hold.bag.len;",
+            "requires nest.left.bag.len >= cap;\nterminates by remaining in 0..=cap;",
+        )
+        .replace(
+            "self.inner(remaining, cap, hold)",
+            "self.inner(remaining, cap, nest.left)",
+        )
+        .replace(
+            "self.outer(n - 1, cap, wrap)",
+            "self.outer(n - 1, cap, Outer { left: wrap, right: wrap })",
+        );
+    assert!(admitted(&typed_source(&ambiguous)).is_empty());
+}
+
 #[test]
 fn a_member_ranked_by_another_view_cannot_join_the_slice_order() {
     let mismatched = "data Main {}

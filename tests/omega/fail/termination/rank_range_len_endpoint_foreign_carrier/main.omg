@@ -1,0 +1,39 @@
+// FAIL CANARY. `rest` is a record of the same declaration as `wrap`, but it
+// is a foreign carrier: `rest.bag.len` names a different produced length
+// than the pinned `wrap.bag.len`, so the destination's endpoint input is not
+// conserved by the call.
+data Holder {
+    bag: &[u64];
+}
+
+data Main {
+    entries: [u64; 8];
+}
+
+machine Main::main(&mut self, hold: Holder, spare: Holder, cap: u64 [4..=8]) -> u64
+requires hold.bag.len >= cap;
+{
+    transition {
+        _ -> self.outer(3, cap, hold, spare)
+    }
+}
+
+machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], hold: Holder, spare: Holder)
+requires hold.bag.len >= cap;
+terminates by remaining in 0..=hold.bag.len;
+-> u64 {
+    transition remaining > 0 {
+        true -> self.inner(remaining, cap, hold, spare)
+        false -> remaining
+    }
+}
+
+machine Main::inner(&mut self, n: u64 [0..=4], cap: u64 [4..=8], wrap: Holder, rest: Holder)
+requires wrap.bag.len >= cap;
+terminates by n in 0..=wrap.bag.len;
+-> u64 {
+    transition n > 0 {
+        true -> self.outer(n - 1, cap, rest, wrap)
+        false -> n
+    }
+}
