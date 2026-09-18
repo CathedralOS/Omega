@@ -242,92 +242,75 @@ prerequisite to every lower-rung milestone.
 
 - **DELTA-COMPILER.** Finish the Gamma closure rooted at
   `bootstrap/3_delta/delta_compiler.gamma` against the
-  [Delta contract](bootstrap/3_delta/LANGUAGE.md), especially remaining canonical
-  DCOUT resource and internal failures. Preserve full ordinary source semantics,
-  checked arithmetic, exhaustive matching, proper-tail lowering, and canonical
-  Gamma emission. The current Epsilon source plus a diagnostic entry already
-  compiles; further optimization needs measured customer or conformance pressure,
-  not a standing mandate to improve general transformation costs.
-  Resume evidence on macOS arm64, canonical Delta closure SHA-256
-  `7b39266be43a7459a717f6624cc6e128579869398eae3e3ecef5a08006183df5`
-  and the evaluator identity pinned in
-  [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
-  `sh tests/epsilon/checking/run.sh` reconstructs the unchanged
-  [checking receipt](tests/epsilon/checking/receipt.tsv) and passes its complete
-  [judgment inventory](tests/epsilon/checking/fixtures.tsv).
-  `sh tests/delta/normalization/run.sh` passes source depth 1,024 and width 2,048;
-  `sh tests/delta/resource-boundary/run.sh --generated-environment` preserves
-  the exact wide-parameter receipt and execution.
-  The [full-width reconstruction](bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
-  now reaches exact DCOUT resource-12 refusal under the unchanged profile:
-  status 2, requested 477,932,916 bytes, and no other output.
-  Its canonical DCREQ fixture run took 4,855.704 seconds; this is one stress
-  control, not a bootstrap-chain timing. The reproducible gate selection is
-  `sh tests/delta/resource-boundary/run.sh --reconstructed-wide`; that new shell
-  selection was syntax-checked, not separately rerun after the direct fixture run.
-  A second measured family — one 65,000-field constructor, seven functions
-  whose matches each bind all fields, and a 10,000-parameter function, a 3,837,573-byte
-  admitted request (SHA-256
-  `acbf6908b5cac63c7dc6ba2852f125a7cbd2f8c3aba6eb4a3b8094ed4cb0c7e4`) — ended
-  status 2 in 650.7 seconds under packed closure
-  `fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929` and the
-  unchanged evaluator tape: canonical DCOUT `Incomplete` resource 7 at
-  Delta-source coordinate 76,595 (the 19,147th field-type atom), limit
-  114,294,752, requested 114,294,760, empty stderr. The refusal fires in the
-  retained-syntax ledger before census, typing, lowering, normalization, or
-  emission, so it is a second measured path to an already-modeled row and does
-  not exercise the open pair-arena allocation question; recorded under
-  [wide-constructor allocation probe](bootstrap/3_delta/implementation/boundary/README.md#wide-constructor-allocation-probe).
+  [Delta contract](bootstrap/3_delta/LANGUAGE.md). Preserve full ordinary
+  source semantics, checked arithmetic, exhaustive matching, proper-tail
+  lowering, and canonical Gamma emission. The customer is the Epsilon
+  evaluator closure, which already compiles with a diagnostic entry; further
+  optimization needs measured customer or conformance pressure, not a
+  standing mandate to improve general transformation costs.
 
-  Next acceptance: close remaining compiler-execution allocation containment
-  against the selected profile, not another isolated capture fast path.
-  [Capture's source-level accounting](bootstrap/3_delta/implementation/normalization/README.md#capture-allocation-ownership)
-  and the passing full-width case do not constitute a whole-producer bound or
-  checked refinement certificate. Serialization's publication traversal pairs
-  are now charged to distinct emitted bytes and bounded below the selected
-  pair arena (`8a49b3e011`), and the normalizer machine's frames and rebuilds
-  are charged per plan-node occurrence (`ffd4560e82`). Checking and
-  lowering pairs are now charged per source occurrence — census metadata,
-  resolution rows, typing/lowering continuations, plan construction, and the
-  shared name-trie/cursor rebuilds — bounding the produced plan
-  `G <= 40*S + 15` that the normalizer bounds consume (`acbcbbd808`).
-  Name-trie branch replacement now prepends the fresh row at five pairs per
-  rebuilt level instead of copying up to 63 sibling rows, so the name audit's
-  dominant product is reduced to `34*N` and its recursion weight is removed
-  from the call-context bound. Capture merging now unions adjacent sorted
-  batches pairwise in tail passes, so each collection's merge pairs are
-  bounded by `(2*T + 2)*ceil(log2(k + 1)) + 2*(k + 1) + 1` instead of the
-  fold's `k*d` product of accumulated size times batch count. Whether every
-  admitted shape keeps the per-occurrence products — now dominated by the
-  capture `sum(T)` aggregate over nested helper captures and the residual
-  name-event envelope — below the selected pair arena remains the
-  open part of that allocation argument.
-  The [canonical compiler execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md)
-  bounds its call contexts, lexical rows, and temporary values separately;
-  generated-application runtime exhaustion is not compiler-execution exhaustion.
-  Retain original binding atoms, immutable scopes, and matched parameter/argument
-  order. No renaming maps, additional lookup subsystem, allocator, or provision
-  increase is justified by this one case.
+  The open part is compiler-execution resource containment. The contract
+  leaves full generated-profile admission and the other compiler-owned
+  resource/internal DCOUT outcomes open, and says evaluator failures do not
+  substitute for them. The
+  [execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
+  bounds the compiler's call contexts, lexical rows, and temporary values, and
+  every producer phase now has a closed per-occurrence pair charge. That does
+  not bound cumulative pair allocation: the closed envelope exceeds the
+  40,265,318-pair arena from `N = 26`, so it cannot show that an admitted
+  source never ends in a raw Gamma heap failure.
 
-  Follow the [selected producer's resource ownership](bootstrap/3_delta/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
-  Alpha local-slot/label/fixup resources have zero use here, and match coverage
-  is bounded by admitted constructors. The
-  [emission occurrence argument](bootstrap/3_delta/implementation/emission/README.md#reachable-byte-count-bound)
-  bounds byte counts below `2^62`; corrupt private metadata is not an
-  admitted-source refusal case. The
-  [arithmetic allocation inventory](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
-  and [name-storage regression](tests/delta/resource-boundary/README.md#long-identifier-storage)
-  bound particular paths, not the whole producer. Preserve those controls rather
-  than rediscovering them or arbitrarily scaling source.
-  For an evaluator exhaustion, trace its allocation owner and observation
-  contract; a Gamma-owned failure is not DCOUT. Distinguish cumulative compiler
-  allocation from receipt size and from application runtime exhaustion. These
-  engineering obligations do not block independent bootstrap work.
+  Remaining work:
+
+  - Establish whole-producer pair containment under the selected profile, by a
+    sharper structural argument or by measurement, not by another isolated
+    capture or name-path fast path. Keep cumulative compiler allocation
+    distinct from receipt size and from generated-application runtime
+    exhaustion, which is not a compiler outcome.
+  - For a witnessed evaluator exhaustion during compilation, trace its
+    allocation owner and observation contract first. A Gamma-owned failure is
+    not DCOUT, and the
+    [arithmetic probe](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
+    rules out inventing a general DCOUT heap code.
+  - Follow the
+    [selected producer's resource ownership](bootstrap/3_delta/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
+    local-slot, label, and fixup resources have zero use here and acquire no
+    invented refusals, match coverage is bounded by admitted constructors, and
+    corrupt private metadata is not an admitted-source refusal case.
+  - Keep the existing controls instead of rediscovering them or scaling source
+    arbitrarily: `sh tests/delta/normalization/run.sh`, the
+    `tests/delta/resource-boundary/run.sh` selections, and the Epsilon
+    checking receipt under `sh tests/epsilon/checking/run.sh`. Both measured
+    stress families refuse in existing rows before post-frontend allocation
+    is stressed: the
+    [full-width reconstruction](bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
+    at resource 12 after 4,856 seconds and the
+    [wide constructor](bootstrap/3_delta/implementation/boundary/README.md#wide-constructor-allocation-probe)
+    at resource 7 after 651 seconds. Neither exercises the open question.
+
+  Retain original binding atoms, immutable scopes, and matched
+  parameter/argument order. No renaming maps, additional lookup subsystem,
+  allocator, or provision increase is justified so far.
+
   Acceptance: Delta conformance and malformed-source gates pass, the exact
   Epsilon evaluator closure compiles through the selected route, and its
   available entries execute with measured resources and unchanged semantics.
   Complete D execution belongs to P3/P4; its absence does not justify extra
-  Delta mechanisms after these obligations close.
+  Delta mechanisms after these obligations close. These obligations do not
+  block independent bootstrap work.
+
+  Flag: starting at `8a49b3e011`, the containment work is seven consecutive
+  accounting slices with no change in the customer's result. Two of them
+  changed compiler algorithms to lower a bound coefficient (name-trie prepend
+  `0ed76ef37c`, pairwise capture merge `116758c61f`) while every receipt
+  stayed byte-identical. The cost review records the Epsilon subject's
+  cumulative allocation at 2,242,373 pairs, 5.6% of the arena, while the
+  resulting envelope is vacuous against the arena from `N = 26`, so per-phase
+  sharpening has no demonstrated end. Apply the
+  [scope checkpoint](AGENTS.md#scope-checkpoints): either one measured
+  worst-shape study per admitted extent settles containment, or the gap is
+  the [owner-escalation](bootstrap/MINIMIZATION.md#owner-escalation) finding
+  that a private bound cannot receive an explicit fail-closed profile.
 
 ## P3 - Delta to Epsilon
 
