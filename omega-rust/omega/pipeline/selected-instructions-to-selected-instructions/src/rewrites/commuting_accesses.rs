@@ -2,9 +2,11 @@
 //! access independence: which two recorded accesses may trade order
 //! without either observing the other's effect, and the row permutation
 //! that keeps the roster in execution order when they do. The commuting
-//! interchange families — `commuting_interchange` at pair granularity and
-//! `commuting_run_interchange` at run granularity — share this one audit;
-//! the families that keep recorded accesses in place never consult it.
+//! interchange families — `commuting_interchange` at pair granularity,
+//! `commuting_member_run_interchange` at member-against-run granularity,
+//! and `commuting_run_interchange` at run granularity — share this one
+//! audit; the families that keep recorded accesses in place never consult
+//! it.
 //!
 //! The overlap reading is the roster's own: the dead-store and store-motion
 //! walks ask `local_slot_is_place_storage` whether a local-slot row reaches a
