@@ -1,0 +1,432 @@
+//! Borrowed-storage invariant windows (ch11/ownership spec): a consuming move
+//! out of `&mut`-reachable storage opens a repair obligation on the exact
+//! absent place; an ordinary store of a same-typed owned value discharges it;
+//! every exit edge, stale observation, ancestor use, and repeated extraction
+//! while the place is absent rejects.
+
+use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::lower_typed_trees;
+
+fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    lower_typed_trees(typed)
+}
+
+#[test]
+fn move_out_and_exact_restore_compiles() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            self.inventory = move replacement;
+        }
+        "#,
+    )
+    .expect("extract-then-restore on the exact place must compile");
+}
+
+#[test]
+fn disjoint_sibling_work_between_move_and_repair() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; count: i32; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            let n: i32 = self.count;
+            self.count = n;
+            self.inventory = move replacement;
+        }
+        "#,
+    )
+    .expect("disjoint sibling work is allowed while the window is open");
+}
+
+#[test]
+fn fresh_replacement_value_discharges_the_window() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            self.inventory = Inventory { slots: 9 };
+        }
+        "#,
+    )
+    .expect("the replacement need not be the removed value");
+}
+
+#[test]
+fn nested_field_window_repairs_on_the_exact_place() {
+    check_source(
+        r#"
+        data Inner { tag: i32; }
+        data Inventory { inner: Inner; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let inner: Inner = self.inventory.inner;
+            self.inventory.inner = move inner;
+        }
+        "#,
+    )
+    .expect("a nested absent subtree repairs at its exact place");
+}
+
+#[test]
+fn mutable_local_route_rebases_to_the_same_storage() {
+    check_source(
+        r#"
+        data Inner { tag: i32; }
+        data Inventory { inner: Inner; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let r: &mut Inventory = &mut self.inventory;
+            let inner: Inner = r.inner;
+            self.inventory.inner = move inner;
+        }
+        "#,
+    )
+    .expect("a hole opened through a `&mut` local repairs through the owner path");
+}
+
+#[test]
+fn call_result_value_can_repair_the_window() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        machine bump(inventory: Inventory) -> Inventory { inventory }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            let bumped: Inventory = bump(replacement);
+            self.inventory = move bumped;
+        }
+        "#,
+    )
+    .expect("the detached value may travel through a call before repair");
+}
+
+#[test]
+fn repair_before_transition_serves_every_arm() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; flag: bool; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            self.inventory = move replacement;
+            transition self.flag {
+                true -> done()
+                _ -> done()
+            }
+
+            state done(&mut self) {
+            }
+        }
+        "#,
+    )
+    .expect("a discharged window is closed on every exit edge");
+}
+
+#[test]
+fn missing_repair_rejects_at_exit() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("an unrestored window must not reach the return edge"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot transfer a non-copy value out of borrowed storage")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn early_return_leaving_the_window_open_rejects() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::take(&mut self) -> Inventory {
+            let replacement: Inventory = self.inventory;
+            replacement
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("the return edge must see a discharged window"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("without replacing its owner")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn transition_edge_rejects_a_window_left_open() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; flag: bool; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            transition self.flag {
+                true -> done()
+                _ -> repair(replacement)
+            }
+
+            state repair(&mut self, replacement: Inventory) {
+                self.inventory = move replacement;
+                transition { _ -> done() }
+            }
+
+            state done(&mut self) {
+            }
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("a window cannot cross a transition edge"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("without replacing its owner")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn wrong_place_replacement_leaves_the_debt_open() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; other: Inventory; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            self.other = move replacement;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("storing a sibling place must not discharge the hole"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("without replacing its owner")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn repeated_extraction_while_absent_rejects() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            let stolen: Inventory = self.inventory;
+            self.inventory = move replacement;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("the absent place cannot be moved again"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("is absent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn stale_read_while_absent_rejects() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            let view: &Inventory = &self.inventory;
+            self.inventory = move replacement;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("the absent place cannot be observed or re-borrowed"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("is absent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn enclosing_owner_move_rejects_while_a_subtree_is_absent() {
+    let diagnostics = match check_source(
+        r#"
+        data Inner { tag: i32; }
+        data Inventory { inner: Inner; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let inner: Inner = self.inventory.inner;
+            let whole: Inventory = self.inventory;
+            self.inventory = move whole;
+            self.inventory.inner = move inner;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("an ancestor carrying an absent subtree cannot move"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("is absent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn call_on_the_incomplete_owner_rejects() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::observe(&self) -> i32 { self.inventory.slots }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            let n: i32 = self.observe();
+            self.inventory = move replacement;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("a call may not observe an incomplete owner"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("is absent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn store_into_the_absent_subtree_rejects() {
+    let diagnostics = match check_source(
+        r#"
+        data Inner { tag: i32; }
+        data Inventory { inner: Inner; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let inner: Inner = self.inventory.inner;
+            self.inventory.inner.tag = 9;
+            self.inventory.inner = move inner;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("absent storage cannot take a deeper partial store"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("is absent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn shared_borrow_extraction_still_rejects() {
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&self) {
+            let replacement: Inventory = self.inventory;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("a shared borrow cannot open a restoration window"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot transfer a non-copy value out of borrowed storage")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn shared_route_local_cannot_extract() {
+    let diagnostics = match check_source(
+        r#"
+        data Inner { tag: i32; }
+        data Inventory { inner: Inner; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let x: &Inventory = &self.inventory;
+            let inner: Inner = x.inner;
+            self.inventory.inner = move inner;
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("a shared route local cannot open a restoration window"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot transfer a non-copy value out of borrowed storage")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn crash_exit_abandons_the_window() {
+    check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Main { inventory: Inventory; flag: bool; }
+        machine Main::main(&mut self)
+        crashes Trap
+        {
+            transition self.flag {
+                true -> busted()
+                _ -> busted()
+            }
+
+            state busted(&mut self) {
+                let abandoned: Inventory = self.inventory;
+                crash Trap;
+            }
+        }
+        "#,
+    )
+    .expect("a crash edge abandons the window under the survivor contract");
+}

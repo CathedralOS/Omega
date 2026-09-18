@@ -4,6 +4,7 @@
 
 mod borrowed_case_payloads;
 mod borrowed_observations;
+mod borrowed_restoration;
 mod obligations_and_state_call_results;
 mod owned_selection;
 mod permission_events_and_case_guards;

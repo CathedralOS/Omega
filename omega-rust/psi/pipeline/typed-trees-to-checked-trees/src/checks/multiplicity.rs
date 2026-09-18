@@ -7,6 +7,7 @@
 //! were, with the nested-ownership and generic-substitution tests beside
 //! them.
 
+mod borrowed_windows;
 mod claim_outcomes;
 #[cfg(test)]
 mod generic_substitution_tests;

@@ -1216,7 +1216,7 @@ fn terminal_arm_values(program: &typed_trees::TypedTrees, expression: Expression
 /// Ordered first-match reachability. The source type checker still visits all
 /// authored arms. Only literal equality and complete Boolean/wildcard coverage
 /// remove ownership alternatives here; no predicate theorem is invented.
-fn reachable_arms(
+pub(super) fn reachable_arms(
     program: &typed_trees::TypedTrees,
     arms: HandleSpan<TableMatchArm>,
 ) -> Vec<(Handle<TableMatchArm>, &TableMatchArm)> {
