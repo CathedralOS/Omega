@@ -416,7 +416,8 @@ fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority(
     }
     assert!(!grants.contains("pub selected_plan_identity: u64"));
 
-    let admissions_path = root.join("omega-rust/omega/build/trust-model/src/trust_admission/mod.rs");
+    let admissions_path =
+        root.join("omega-rust/omega/build/trust-model/src/trust_admission/mod.rs");
     let admissions = fs::read_to_string(&admissions_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", admissions_path.display()));
     assert!(
