@@ -340,9 +340,10 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
 
 #[test]
 fn provider_derivation_consumes_typed_external_binding_identity() {
-    // The authored `Binding::DllImport("module", "symbol")` spelling is retired,
-    // so `ExternalBindingIdentity::Import` no longer has a source producer. The
-    // remaining bootstrap spellings still exercise the typed id/table join.
+    // The authored `Binding::DllImport("module", "symbol")` spelling and the
+    // typed `ExternalBindingIdentity::Import` it produced are both retired, so
+    // no import identity can be interned. The remaining bootstrap spellings
+    // still exercise the typed id/table join.
     let source = |number: i64| {
         format!(
             r#"
@@ -383,27 +384,6 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
         plan.rows[0].binding,
         ProviderBinding::Syscall { number: 60 }
     );
-
-    // A typed program that still interns the retired string-backed import
-    // identity is rejected where typed identities enter provider planning,
-    // with the diagnostic that names the typed replacement.
-    let mut retired = typed;
-    retired
-        .external_bindings
-        .intern(language_semantics::ExternalBindingIdentity::Import {
-            library: "kernel32.dll".to_owned(),
-            symbol: "ExitProcess".to_owned(),
-        });
-    let evaluated_bindings =
-        crate::evaluated_via_bindings::evaluate_via_bindings(&retired, None, None)
-            .expect("no ordinary via leaf to evaluate");
-    let diagnostics = ProviderPlanDerivation::evaluated(&retired, None, &evaluated_bindings, &[])
-        .err()
-        .expect("retired string-backed import identity must reject");
-    assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].message.contains(
-        "string-backed import bootstrap `kernel32.dll`/`ExitProcess` is retired; declare a typed locator"
-    ));
 }
 
 #[test]
@@ -619,7 +599,7 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
         .expect("external leaf")
         .supply_mode = language_semantics::MachineSupplyMode::ExternalRealization {
         binding: Some(binding),
-        mechanism: Some(language_semantics::ExternalBindingMechanism::Import),
+        mechanism: Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
     };
     assert!(
         derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))

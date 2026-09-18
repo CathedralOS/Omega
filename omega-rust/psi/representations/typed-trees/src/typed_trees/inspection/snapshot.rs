@@ -176,12 +176,6 @@ impl TypedTreesSnapshot {
                 .map(|(identity, binding)| ExternalBindingSnapshot {
                     identity: identity.0,
                     binding: match binding {
-                        language_semantics::ExternalBindingIdentity::Import { library, symbol } => {
-                            ExternalBindingValueSnapshot::Import {
-                                library: library.clone(),
-                                symbol: symbol.clone(),
-                            }
-                        }
                         language_semantics::ExternalBindingIdentity::Syscall { number } => {
                             ExternalBindingValueSnapshot::Syscall { number: *number }
                         }
@@ -263,7 +257,6 @@ pub struct ExternalBindingSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ExternalBindingValueSnapshot {
-    Import { library: String, symbol: String },
     Syscall { number: i64 },
     CompilerIntrinsic,
     VtableSlot { index: i64 },

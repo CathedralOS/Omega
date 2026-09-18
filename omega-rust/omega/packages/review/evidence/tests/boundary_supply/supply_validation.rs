@@ -457,7 +457,7 @@ pub machine invoke_leaf()
     };
     leaf.supply_mode = language_semantics::MachineSupplyMode::ExternalRealization {
         binding,
-        mechanism: Some(language_semantics::ExternalBindingMechanism::Import),
+        mechanism: Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
     };
     let diagnostics = project_checked_package_review(&mechanism_mismatch)
         .expect_err("mechanism mismatch must fail closed");
@@ -655,13 +655,6 @@ pub machine invoke_leaf()
     }));
 
     let malformed = [
-        (
-            language_semantics::ExternalBindingIdentity::Import {
-                library: "omega".to_owned(),
-                symbol: "entry".to_owned(),
-            },
-            "uses the retired string-backed import bootstrap; declare a typed locator",
-        ),
         (
             language_semantics::ExternalBindingIdentity::Syscall { number: -1 },
             "has a syscall number outside 0..=u32::MAX",

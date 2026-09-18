@@ -152,10 +152,9 @@ fn project_evaluated_syscall(
 }
 
 /// Project one retained typed external-binding identity to its review row,
-/// validating the payload first. The string-backed `Import` identity has no
-/// review row any more: two authored strings are not a physical locator, so
-/// capture fails closed with the diagnostic that names the evaluated
-/// replacement instead of projecting anything.
+/// validating the payload first. There is no string-backed import arm to
+/// reject any more: two authored strings are not a physical locator, and the
+/// typed identity that spelled them no longer exists.
 pub(super) fn project_external_binding(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
@@ -170,9 +169,6 @@ pub(super) fn project_external_binding(
         ))])
     };
     match identity {
-        ExternalBindingIdentity::Import { .. } => rejected(
-            "uses the retired string-backed import bootstrap; declare a typed locator through an evaluated `via` binding producer",
-        ),
         ExternalBindingIdentity::Syscall { number } if u32::try_from(*number).is_err() => {
             rejected("has a syscall number outside 0..=u32::MAX")
         }
