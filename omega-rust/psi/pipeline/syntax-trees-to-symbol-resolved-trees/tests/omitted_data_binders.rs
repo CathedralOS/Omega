@@ -432,6 +432,255 @@ fn malformed_and_underdetermined_equations_reject_distinctly() {
     }
 }
 
+/// `Bytes` states the same equation as `TinyBytes` with the binders ordered so
+/// that supplying the capacity omits the *type* binder.
+const BYTES: &str = r#"
+    data Bytes<const Capacity: u64, Length>
+    where
+        Length == u64[0..=Capacity]
+    {
+        storage: [u8; Capacity];
+        length: Length;
+    }
+"#;
+
+/// Every instance name, sorted, so an assertion does not depend on the order
+/// the fixpoint happened to synthesize them in.
+fn instance_names(syntax: &SyntaxTrees) -> Vec<String> {
+    let mut names = instances(syntax)
+        .iter()
+        .map(|definition| definition.name.as_str().to_owned())
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+
+#[test]
+fn an_omitted_type_binder_is_built_from_its_range_shell_equation() {
+    let syntax = normalized(&format!(
+        "{BYTES}
+        data Main {{
+            omitted: Bytes<256>;
+            explicit: Bytes<256, u64[0..=256]>;
+            exclusive: Bytes<256, u64[0..257]>;
+        }}"
+    ));
+
+    // The constructed shell is the authored shell: one canonical interval,
+    // one instance, whatever the spelling.
+    let found = instances(&syntax);
+    let [instance] = found.as_slice() else {
+        panic!(
+            "exactly one Bytes instance, found {:?}",
+            instance_names(&syntax)
+        );
+    };
+    assert_eq!(instance.name.as_str(), "Bytes<256, u64 in [0..=256]>");
+
+    let [DataMember::Field(storage), DataMember::Field(length)] =
+        syntax.tables.items.data_members(instance.members)
+    else {
+        panic!("storage and length fields");
+    };
+    assert!(matches!(
+        syntax
+            .type_references
+            .type_reference(storage.type_reference),
+        TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(256),
+            ..
+        }
+    ));
+    // The recovered binder reaches the field as a real constrained type, not
+    // a name standing in for one.
+    let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = *syntax.type_references.type_reference(length.type_reference)
+    else {
+        panic!("the constructed length is a constrained type reference");
+    };
+    assert!(matches!(
+        syntax.type_references.type_reference(base_type),
+        TypeReferenceNode::Named(carrier) if carrier.as_str() == "u64"
+    ));
+    let [TypeConstraintNode::Range { end_inclusive, .. }] =
+        syntax.type_references.constraints(constraints)
+    else {
+        panic!("one authored-shape range constraint");
+    };
+    assert!(*end_inclusive, "the equation's own boundary kind is kept");
+    // Identity comes from the retained canonical interval, nothing else.
+    assert_eq!(
+        syntax
+            .type_references
+            .integer_range_normalization(length.type_reference, 0),
+        Some(&IntegerRangeNormalization {
+            minimum: BigInt::from_u64(0),
+            maximum: BigInt::from_u64(256),
+        })
+    );
+
+    // The decided equation is a discharged instantiation obligation.
+    assert!(
+        syntax
+            .tables
+            .items
+            .proof_facts(instance.where_facts)
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_constructed_shell_normalizes_an_exclusive_equation_end() {
+    // `0..Capacity` with Capacity = 257 and the authored `0..=256` are the
+    // same canonical interval, so they share one instance.
+    let syntax = normalized(
+        "
+        data Bytes<const Capacity: u64, Length>
+        where
+            Length == u64[0..Capacity]
+        {
+            storage: [u8; Capacity];
+            length: Length;
+        }
+        data Main {
+            omitted: Bytes<257>;
+            explicit: Bytes<257, u64[0..=256]>;
+        }
+        ",
+    );
+    assert_eq!(
+        instance_names(&syntax),
+        vec!["Bytes<257, u64 in [0..=256]>".to_owned()]
+    );
+}
+
+#[test]
+fn a_constructed_shell_evaluates_a_closed_endpoint_expression() {
+    // Verification already evaluates `Capacity * 2` against a supplied shell;
+    // construction evaluates the same expression to land the endpoint.
+    let syntax = normalized(
+        "
+        data Bytes<const Capacity: u64, Length>
+        where
+            Length == u64[0..=Capacity * 2]
+        {
+            storage: [u8; Capacity];
+            length: Length;
+        }
+        data Main { bytes: Bytes<128>; }
+        ",
+    );
+    assert_eq!(
+        instance_names(&syntax),
+        vec!["Bytes<128, u64 in [0..=256]>".to_owned()]
+    );
+}
+
+#[test]
+fn constructing_a_type_binder_keeps_every_rejection() {
+    let cases = [
+        // An endpoint naming an undetermined binder constructs nothing.
+        (
+            "data Bytes<const Capacity: u64, Length, const Other: u64>
+             where Length == u64[0..=Other]",
+            "Bytes<256>",
+            "cannot construct type binder `Length` from its range-shell equation",
+        ),
+        // The occurs check fires before any construction is attempted.
+        (
+            "data Bytes<const Capacity: u64, Length>
+             where Length == Length[0..=Capacity]",
+            "Bytes<256>",
+            "where equations define `Length` through itself",
+        ),
+        // Nothing converts a value to a type in either direction.
+        (
+            "data Bytes<const Capacity: u64, Length>
+             where Length == Capacity",
+            "Bytes<256>",
+            "mixes type and value kinds: type binder `Length` cannot equal value binder `Capacity`",
+        ),
+        (
+            "data Bytes<const Capacity: u64, Length>
+             where Length == Capacity[0..=Capacity]",
+            "Bytes<256>",
+            "value binder `Capacity` cannot carry a range shell",
+        ),
+        // An explicitly supplied argument is fixed: construction never
+        // overwrites it, and a containing interval is not the endpoint.
+        (
+            "data Bytes<const Capacity: u64, Length>
+             where Length == u64[0..=Capacity]",
+            "Bytes<256, u64[0..=512]>",
+            "where equation binds `Capacity` to 512 but its explicit argument is 256",
+        ),
+        // Repeated occurrences must agree: the constructed inclusive shell
+        // derives 257 from the exclusive equation.
+        (
+            "data Bytes<const Capacity: u64, Length>
+             where Length == u64[0..=Capacity], Length == u64[0..Capacity]",
+            "Bytes<256>",
+            "where equation binds `Capacity` to 257 but its explicit argument is 256",
+        ),
+    ];
+    for (template, application, fragment) in cases {
+        let message = rejection(&format!(
+            "
+            {template}
+            {{
+                storage: [u8; Capacity];
+                length: Length;
+            }}
+            data Main {{ bytes: {application}; }}
+            "
+        ));
+        assert!(
+            message.contains(fragment),
+            "{template} applied as {application}: {message}"
+        );
+    }
+}
+
+#[test]
+fn an_omitted_binder_application_nested_in_another_application_recovers() {
+    // The enclosing application's argument is itself an application with an
+    // omitted binder. Its own arguments stay whole through the parser, so the
+    // nested recovery runs and the enclosing tuple sees the recovered instance.
+    let syntax = normalized(&format!(
+        "{TINY_BYTES}
+        data Pair<Left, Right> {{ left: Left; right: Right; }}
+        data Main {{ pair: Pair<TinyBytes<u64[0..=256]>, u64>; }}"
+    ));
+    assert_eq!(
+        instance_names(&syntax),
+        vec![
+            "Pair<TinyBytes<u64 in [0..=256], 256>, u64>".to_owned(),
+            "TinyBytes<u64 in [0..=256], 256>".to_owned(),
+        ]
+    );
+}
+
+#[test]
+fn an_omitted_binder_application_inside_a_template_body_recovers() {
+    // The omitted-binder spelling sits in another template's field. Template
+    // bodies are not monomorphized in place, so the recovery happens on the
+    // enclosing template's synthesized instance in the following round.
+    let syntax = normalized(&format!(
+        "{TINY_BYTES}
+        data Wrapper<T> {{ bytes: TinyBytes<u64[0..=256]>; other: T; }}
+        data Main {{ wrapper: Wrapper<u64>; }}"
+    ));
+    assert_eq!(
+        instance_names(&syntax),
+        vec![
+            "TinyBytes<u64 in [0..=256], 256>".to_owned(),
+            "Wrapper<u64>".to_owned(),
+        ]
+    );
+}
+
 #[test]
 fn a_closed_endpoint_expression_over_a_bound_binder_verifies() {
     // Verification of a supplied tuple evaluates the endpoint expression

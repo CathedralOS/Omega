@@ -4017,10 +4017,31 @@ Owners include
   `IntegerRangeNormalization` (`preparation/generic_data/equations.rs`;
   exclusive ends bind the proof-integer successor; verified equations are
   discharged from the instance; `generics/omitted_data_binder_*` canaries
-  pin the selection and each distinct rejection). Still open there:
-  recovering a type binder from a range-shell equation (rejects asking for
-  an explicit argument), omitted-binder applications nested inside other
-  templates, and runtime `Value` binders. Several child-owning arguments to one
+  pin the selection and each distinct rejection). An omitted *type* binder is
+  now built from its own range-shell equation once that equation's endpoints
+  are closed integers, so `Bytes<const Capacity: u64, Length> where Length ==
+  u64[0..=Capacity]` applied as `Bytes<256>` binds Length to `u64[0..=256]`
+  (`equations.rs`, `construct_range_shell`). The constructed node is an
+  ordinary constrained type reference carrying the same canonical
+  `IntegerRangeNormalization` the authored spelling carries, so the omitted,
+  explicit and exclusive spellings share one instance and every later
+  equation, repeat occurrence and closed identity compares one shape; the
+  endpoint evaluation shared with verification lives in
+  `expression_endpoint_value`. Pinned by `omitted_data_binders::{an_omitted_type_binder_is_built_from_its_range_shell_equation,
+  a_constructed_shell_normalizes_an_exclusive_equation_end,
+  a_constructed_shell_evaluates_a_closed_endpoint_expression,
+  constructing_a_type_binder_keeps_every_rejection}` (macOS ARM64), the last
+  holding the undetermined-endpoint, occurs-cycle, both kind-mismatch,
+  explicit-conflict and repeat-conflict rejections in the constructed
+  direction. Omitted-binder applications nested inside another application and
+  inside another template's body need no rule of their own now that the parser
+  hands each application its own arguments; pinned by
+  `omitted_data_binders::{an_omitted_binder_application_nested_in_another_application_recovers,
+  an_omitted_binder_application_inside_a_template_body_recovers}` (macOS
+  ARM64). Still open there: runtime `Value` binders, a shell whose carrier or
+  endpoints never close (those binders still reject asking for an explicit
+  argument), and `tests/omega` canaries for the constructed direction, whose
+  roster was another owner's live claim. Several child-owning arguments to one
   generic no longer panic ("arena span append must be contiguous"):
   `lowering/type_reference.rs` and `lowering/domain.rs` lower every argument or
   constraint before placing it, so each span reaches the arena as one
