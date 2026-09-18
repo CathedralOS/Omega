@@ -45,6 +45,7 @@ use target::NativeTarget;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 mod manifest_mutation_matrix;
+mod object_mutation_matrix;
 
 const EXTENT_SHAPE: ValueShape = ValueShape::integer(16, 8);
 const WORD_SHAPE: ValueShape = ValueShape::integer(8, 8);
