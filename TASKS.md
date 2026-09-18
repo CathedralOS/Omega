@@ -1010,39 +1010,51 @@ Owners include
 ## P3 - Terminal Psi, PCC, and observation
 
 - **PCC-PRODUCT-PUBLICATION.** Deliver native evidence for the
-  [optional proof product contract](wiki/spec/proofs/publication.md). The Psi
-  product is delivered and pinned in `compiler/tests/pcc_publication.rs`: both
-  off-by-default requests in every combination, adjacent `.psi`/`.psi.proof`
-  files with separate sizes and no embedded route, the macOS inner placement,
-  exact omitted-dependency possession, the wrong-bytes, premise, policy,
-  assumption and stale-sidecar rejections, exhaustion as `Incomplete`,
-  receiver-owned policy package and configuration rather than producer hints,
-  and explicit pair framing.
+  [optional proof product contract](wiki/spec/proofs/publication.md). Both
+  products publish and check today. `build_native_proof_sidecar`
+  (`omega-rust/omega/compiler/compilation-report/src/pcc.rs`) emits a native
+  `.proof` beside the flat executable and inside `Contents/MacOS/`, carrying
+  the placed-image evidence section — the declared executable-text extent plus
+  the complete placed executable-region inventory over those bytes, with
+  region and gap digests, addresses, fingerprints and an inventory seal
+  (`pcc/native_evidence.rs`) — and `verify_native_proof_sidecar` replays that
+  section against the exact artifact bytes, rejecting a section that lies about
+  them and an envelope that relabels the semantic profile. That establishes
+  byte coverage and placement only, which is why the sidecar offers
+  `omega.native-placed-image-coverage.v1` rather than a behavioral guarantee,
+  and why every native pair still ends
+  `Incomplete(UnsupportedEvidence { product: Native })`. The contract fixes
+  three outcomes with no partial success, so a coverage-only pair can never be
+  `Complete`.
 
-  Implement standalone native evidence and checking in `compilation-report` and
-  the native semantic and certification owners: reconstruct executable behavior
-  against the exact published bytes, covering instructions and entries,
-  incoming edges, indirect targets, premise availability and lowering
-  correspondence, or supply a direct native proof. Hashes of producer
-  validation reports and an unrelated valid Psi artifact cannot establish that
-  argument. The blockers are that one missing evidence:
-  `compilation-report/src/pcc.rs`'s `verify_native_proof_sidecar` returns
-  `Incomplete(UnsupportedEvidence { product: Native })` unconditionally after
-  claim-field checking, and `compile_report.rs` refuses every `pcc.native`
-  request before publication, so no native sidecar is ever written. Until that
-  evidence exists, native-only and both-product publication keep reporting
-  `Incomplete` rather than a custody-only success, and ordinary native and
-  Psi-only publication keep working.
+  Remaining work: standalone native semantic and correspondence checking,
+  owned by the native semantic and certification owners rather than
+  `compilation-report`, which owns the envelope and the sidecar.
 
-  Acceptance: a native `.proof` sidecar beside the flat executable and inside
-  `Contents/MacOS/`, each with its own reported size; native-only standalone
-  checking returning a real verdict from bytes, companion and pinned policy
-  after the source and Psi artifacts are deleted; and arbitrary native bytes
-  paired with valid Psi and recomputed producer hashes still refused. Claims
-  beyond the bounded `omega.terminal-verified-module.v1` guarantee depend on
+  - Instruction rows decoded from the published text and checked against the
+    closed semantics of the declared target.
+  - Entries, incoming edges and indirect targets over those same bytes.
+  - Premise availability and lowering correspondence: either transform the
+    Terminal obligations the Psi product carries into native rows, or prove the
+    native obligations directly. Hashes of producer validation reports and an
+    unrelated valid Psi artifact establish neither.
+  - The verdict and the guarantee it licenses. `verify_native_proof_sidecar`
+    returns `Incomplete` at its tail even after a fully replayed section; a
+    completed leg returns `Complete` under a guarantee naming what the
+    behavioral evidence establishes, and a target whose leg is unbuilt keeps
+    reporting `Incomplete` rather than a custody-only success.
+
+  Acceptance: native-only standalone checking returns a real verdict from the
+  artifact bytes, the companion and a pinned policy after the source and Psi
+  artifacts are deleted. The existing refusals survive unchanged: arbitrary
+  native bytes paired with valid Psi and recomputed producer hashes, a tampered
+  pair, a relabeled semantic profile and a stale sidecar all reject, and the
+  receiver never inherits the producer's admission profile. Claims beyond the
+  bounded `omega.terminal-verified-module.v1` guarantee depend on
   **PROOF-KERNEL-CORE**, **PROOF-CERTIFICATION-BRIDGE** and completed profile
-  rules, not a new policy DSL. Bundle execution acceptance belongs to the GUI
-  cohort.
+  rules, not a new policy DSL.
+
+  **MACOS-APPLICATION-PUBLICATION** owns bundle execution acceptance.
 
 - **PSIIR.** Extend Terminal Psi only in complete vertical slices through
   canonical encoding, independent reconstruction, verification,
