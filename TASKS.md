@@ -2353,9 +2353,13 @@ Owners include
   machines witness the route from source through the canonical wire to
   a kernel judgment
   (`pass/proofs/kernel_theorem_equality_certificates` and its false
-  twin), checked-only because native target lowering refuses a
-  bodyless theorem machine (`UnsupportedControlFlow`). Next: an
-  executed kernel canary once the producer lowers a theorem machine.
+  twin). Native target lowering then admitted obligation-carrying unit
+  calls and authored call validation replays the call-site obligation
+  roster exactly, so the fixture's theorem machine executes: the
+  standalone `proof_kernel_canaries` target drives it through the
+  checked interpreter and the native host artifact to exit code 70,
+  plus a `linux_arm64` cross leg, with the false twin rejected before
+  any kernel judgment.
 
   Landed: the set-quotient scheme in
   `proof-admission/src/mathematical_core/quotient.rs` — the
@@ -2462,6 +2466,27 @@ Owners include
   ceiling's bounded-incompleteness stated, the encoding
   correspondence discharged per obligation, and the trust boundary
   and non-claims named.
+
+  Landed: the nonconstructive-existence kernel legs — squashed
+  existence composes through a logical hypothesis with no axiom,
+  reaching a relevant witness requires an admitted `choice`
+  assumption with an exact statement, and the admission lands in the
+  judgment's assumption closure for a refusing receiver
+  (`proof-admission/tests/nonconstructive_existence.rs`).
+
+  Landed: the squashed-relation and receiver-policy legs of the
+  quotient interface (`schemes_and_quotients/quotient_receiver_policies.rs`)
+  — a `Box (Squash (Id Two a b))` relation instance where `sound`
+  consumes only the explicit squashed projection, `effective` returns
+  it, `unbox` reaches `Squash (Id Two a b)` and extracting the
+  relevant witness refuses `SquashTargetNotStrict`; and the exact
+  assumption closure as the receiver's policy input, where a
+  quotient-refusing policy accepts a representative-level theorem
+  (empty closure through the checked `idSym` definition) and rejects
+  the assumption-bearing quotient proof while an admitting policy
+  accepts both — the same verified certificate distinguished by
+  policy, with a forged expected type refused by verification before
+  any policy runs.
 
   The connect milestone is discharged: real theorem and bounded certificates
   travel the canonical wire and are independently re-decided with exact
