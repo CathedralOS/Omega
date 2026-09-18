@@ -1641,13 +1641,21 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `Structural` slot still interferes on intersection and never
   sources, a row disagreeing with its instruction's slot or
   encoded range rejects, and a `Store64` under a sub-word read
-  rejects (crate `nextest`: 535 pass).
-  Remaining: staging `Structural` slots and dynamic-extent writes
-  still cannot die, cover, source, or move — a `Structural` slot the
-  place's declaration does not charge to its producer only stages
-  bytes that name the place, and a dynamic extent proves no fixed
-  containment — and legs whose paths resolve to different writers or
-  never resolve stay unproven.
+  rejects (crate `nextest`: 535 pass). All three rules now treat a
+  dynamic-extent row's reach as unbounded only upward from its fixed
+  byte offset — a span covers `length` bytes there and a sequence row
+  touches `offset + index` — so a dynamic read or write on the
+  contested place whose offset starts at or past the contested
+  range's end is provably disjoint and walks past like any disjoint
+  row, while one starting below that end still interferes however far
+  its reach extends (crate `nextest`: 1154 pass on macOS x86-64).
+  Remaining: staging `Structural` slots still cannot die, cover,
+  source, or move — a `Structural` slot the place's declaration does
+  not charge to its producer only stages bytes that name the place —
+  dynamic-extent rows still cannot serve as the removed dead store,
+  the covering write, the forwarding source, or the moved store, and
+  legs whose paths resolve to different writers or never resolve stay
+  unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
