@@ -2294,68 +2294,66 @@ Owners include
   evaluation of `P` over `T`, Stable-supply admission).
 
 - **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,
-  backing, policy, installation, and teardown in Omega source. Existing numeric
-  page-walk validation grants no mapping authority. Acceptance: QEMU installs
-  and tears down Cathedral-owned mappings with explicit Extent and TLB custody.
-  Checked-semantics slice landed at 61d2b4664c:
-  `tests/omega/pass/memory/address_translation_canary` drives a
-  `TranslationAuthority` boundary contract through owned fixed placement
-  (`map` -> `Pending`, `activate` -> `Installed`, `unmap` -> reusable
-  `Granted` custody plus a linear `Shootdown` debt discharged only through
-  `Shootdown::discharge`), with fail canaries pinning source-custody
-  consumption, `Installed`-before-`unmap`, shootdown scope loss, and the
-  carrier's opaque construction (macOS arm64,
-  `OMEGA_PASS_CANARY_FILTER=address_translation_canary` /
-  `OMEGA_FAIL_CANARY_FILTER=translation_` under
-  `mbx nextest run -p compiler --test canary_suite`). Provider-visible
-  obligation sets landed at 55d2790d01: `MappingGrant`, `PendingMap`,
-  `MappedExtent`, `PendingUnmap`, and `MappingReceiptContext` in
-  `psi/foundation/extents` each expose the exact install/release fact sets
-  a provider's receipt must establish (Linux x86_64,
-  `cargo test -p extents`). Borrowed-source custody landed at
-  6fd003a9bb (Linux x86_64): a linear `BorrowedMapping` carrier plus
-  three new fail canaries. The source-spelled obligation surface
-  landed at e02ab0990f: authored install/release obligation sets now
-  ride on the translation carriers. That surface landed at 61ace15fe1:
-  `cathedral/` in the same fixture carries a fully backed four-level
-  hierarchy (`tables.omg`: `Table` over `Extent in Granted`, raw `TableEntry`
-  encode routes, and `level_index`'s 9-bit per-level walk), the install and
-  remove routes (`installer.omg`), and the three irreducible hardware
-  crossings as boundary requirements (`hardware.omg`: entry store, root
-  activation, leaf invalidation), driven end to end by
-  `cathedral_install_and_teardown` against the pending carrier's recorded
-  geometry.
+  backing, policy, installation and teardown in Omega source under
+  [mapping and reclamation](wiki/spec/resources/extents.md#mapping-and-reclamation).
+  Cathedral owns table formats, walk policy and lifecycle; Omega owns mapping
+  authority, custody checking and the provider crossings. Cathedral's existing
+  numeric page-walk validation grants no mapping authority.
 
-  Next edges, named by the package's own sources rather than inferred.
-  (1) Multi-page installation is blocked by checked
-  termination ranking, not by spelling -- the earlier note here claiming it
-  "needs no new vocabulary" was wrong and is corrected by measurement.
-  `install` writes one entry per level for a single virtual base and
-  activates the root, and `remove` clears exactly that one leaf slot, so both
-  cover only the mapping's first page. Iterating needs a ranked loop whose
-  body performs one boundary store per page, and that is exactly what the
-  ranking refuses: "a write, call, or alias invalidates the entry-relative
-  ranking; runtime calls must be tail, and every complete cycle must decrease
-  the shared `terminates by ...` ranking". Measured 2026-09-18 with eight
-  probes against `pass_canaries_compile`, each paired with a control that
-  moved one variable. A ranked cycle with no call in its body compiles, in
-  both the named-state form and the two-machine call-component form, and so
-  does one carrying a disjoint scratch write (mirroring
-  `pass/termination/rank_range_call_scratch_input_write`). It fails the
-  moment any runtime call appears in the cycle: an ordinary pure call
-  (`level_index`), a boundary crossing before the component call, and the
-  crossing moved into tail position all reject identically. So the blocker is
-  any intervening call, not boundary crossings specifically and not the
-  `invokes` clause, which parses and ranks fine when the body makes no call.
-  Do not re-attempt by respelling the loop; the shapes above are already
-  exhausted. This is the same ranking surface
-  **TERMINATION-RANKING-CHECKS** owns. (2) Demand-grown
-  intermediate tables: minting a level when a walk meets an empty slot needs
-  the same split/conservation surface the bump allocator's package uses, so
-  it inherits that item's open questions. Reading an entry back is
-  deliberately absent and stays so -- interpreting stored table memory is the
-  undeclared placed-access surface -- which is why the hardware edges remain
-  boundary requirements.
+  `tests/omega/pass/memory/address_translation_canary` checks an owned and a
+  borrowed-source `TranslationAuthority` contract (`Pending` -> `Installed` ->
+  reusable `Granted` custody plus a linear `Shootdown` debt) carrying authored
+  obligation sets, beside a stand-in `cathedral/` package: a fully backed
+  four-level hierarchy, entry encoding, the 9-bit level walk and three
+  `TranslationHardware` boundary crossings. Seven `fail/core/translation_*`
+  controls pin custody misuse, and `psi/foundation/extents/src/mapping/` is the
+  Rust conservation model a provider reads. This is source checking only: the
+  fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster, `Main::main` is empty,
+  and no conformer or provider is selected. The driver calls the bodyless
+  authority crossings and `CathedralPageTables::install`/`remove` side by side,
+  passing geometry as inert `addr` values, so no stored entry backs the
+  `Installed` qualification and nothing joins the authored obligation sets to
+  the Rust model's receipts.
+
+  Remaining work:
+
+  - Make the package the realization the authority's receipts stand behind. Its
+    install and remove routes must establish `Installed` and release custody
+    for the exact consumed extents through provider selection and the
+    `extents::mapping` receipt join, not through a parallel call.
+  - Multi-page installation. `install`/`remove` cover the mapping's first page.
+    The per-page loop is a ranked cycle whose body computes `level_index` and
+    crosses `TranslationHardware::store_entry`. `preserves_rank` in
+    `validation/src/machine_calls/call_cycles/runtime_ranking/prefix.rs` admits
+    inert statements, disjoint stores, and statement-position calls to
+    checked-body callees with inert arguments and complete disjoint write
+    frames. A `let` whose initializer calls a machine and any call to a bodyless
+    boundary or requirement callee reject with "a write, call, or alias
+    invalidates the entry-relative ranking"; probes on 2026-09-18 rejected in
+    both named-state and call-component form.
+    [Termination](wiki/spec/language/termination.md#ranking) applies ordinary
+    contracts to calls outside the component, and
+    `TERMINATION-RANKING-CHECKS` owns the repair. Do not respell the loop.
+  - Demand-grown intermediate tables need the split/conservation surface
+    `BUMP-ALLOCATOR-CANARY` uses and inherit its open edges.
+  - Reading an entry back is placed access. Until `PLAN-LAID-VIEWS` supplies a
+    source establishment route, the hardware edges stay boundary requirements
+    and the package never consumes its own entries.
+  - Execution needs selected providers for the authority, hardware and
+    `Shootdown::discharge` crossings on a freestanding image, which depends on
+    `UEFI-PHYSICAL-SEMANTIC-ENTRY` and `UEFI-OS-HANDOFF`. The repository has no
+    QEMU harness.
+
+  Acceptance: QEMU installs and tears down Cathedral-owned multi-page mappings
+  with explicit `Extent` and TLB custody, and mapped access exists only between
+  activation and unmap. Source use after map, unmap before activation, a lost
+  shootdown, carrier construction, borrowed-source reclaim, and a receipt for
+  another mapping or a stale era reject. A checked-only fixture or a Rust
+  receipt test is not the witness.
+
+  The `cathedral/` directory is a stand-in inside the compiler corpus;
+  Cathedral's repository owns the real package. Do not add page-table or TLB
+  types to the compiler.
 
 - **EXCEPTION-ROOTS-AND-TIMER.** Materialize all fatal exception entries,
   dedicated critical stacks, IDT installation, and a minimal timer root whose
