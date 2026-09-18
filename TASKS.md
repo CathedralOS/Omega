@@ -3906,22 +3906,65 @@ Owners include
   an ambient closure, and unregisters before its code lease is released. Other
   hosts report the leg unavailable.
 
-- **WIRE-RUNTIME-AND-INSTALLATION.** Complete reusable artifact validation,
-  consumed placement authority, W^X/coherence, physical invocation, and
-  uninstall/replacement joins. Keep arbitrary runtime bytes-to-code, JIT, and
-  raw executable addresses unsupported.
+- **WIRE-RUNTIME-AND-INSTALLATION.** Complete the
+  [admitted executable installation contract](wiki/spec/build/executable_installation.md):
+  reusable artifact validation, consumed placement authority, W^X and
+  instruction-fetch coherence, physical invocation, and the uninstall and
+  replacement joins. Keep arbitrary runtime bytes-to-code, JIT, and raw
+  executable addresses unsupported. The linear state model exists in
+  `omega-rust/omega/backend/runtime/executable-installation/` — admit,
+  materialize, freeze, validate, install, retire, quarantine, each failed
+  transition returning its inputs — and the final image carries the placed
+  executable and initialized-data inventories that
+  `image-emission/src/installed_artifact.rs` binds to an `InstalledCode`
+  occurrence, rejecting unclassified gaps, a truncated compiler prefix and a
+  resolver-claimed uninstalled thunk address. That is custody bookkeeping, not
+  installation: `install_validated` and `retire_installed` have no caller
+  outside tests and `test_support.rs`, no Omega source names any of these
+  states, and loader and provider lifetimes still bind through installation
+  records rather than a live installed occurrence.
 
-  Imported-image placement closed at `2a89f2e039` and `84b9582b78`: the final
-  image carries placed executable and initialized-data inventories from every
-  writer, Mach-O import lowering records each thunk and binding slot with a
-  pairing replay, and `image-emission/src/installed_artifact.rs` rejects
-  unclassified gaps, a truncated compiler prefix, and a resolver-claimed
-  uninstalled thunk address (`source_evaluated_native_realization/macho_and_terminal_imports.rs`
-  and `image-emission/tests/artifacts/installed_artifact.rs`, macOS ARM64).
-  Remaining: consumed placement authority, W^X/coherence, physical invocation,
-  and the uninstall/replacement joins over that custody; loader/provider
-  lifetimes still bind only through installation records, not a live
-  installed occurrence.
+  Remaining work:
+
+  - The contracted provider operation the placement lifecycle names. Nothing
+    performs the write-to-execute transition, the target cache and ordering
+    work, or instruction-fetch visibility; `InstallationReceipt` only records
+    what a provider would have reported.
+  - Physical invocation, and the entry references it hands out. `InstalledCode`
+    exposes identity, geometry and `selected_entry_target` reporting; the
+    [control-flow integrity](wiki/spec/build/executable_installation.md#control-flow-integrity)
+    gate that turns a selection into a sealed requirement-compatible entry
+    reference is unbuilt, so nothing calls installed code.
+  - The uninstall and replacement joins over that custody, per
+    [visibility and retirement](wiki/spec/build/executable_installation.md#visibility-and-retirement):
+    visibility before entry, quiescence before retirement, and live-site
+    patching through admitted fragments. `replacement_quarantine.rs` models the
+    fail-closed outcome but no route reaches it.
+  - A route from Omega source: no `.omg` file names an admitted artifact, a
+    placement or installed code, so no canary reaches any of this.
+
+  Acceptance: an authored program admits a reusable artifact, materializes and
+  freezes a placement, validates the exact final bytes and footprint, installs
+  through one provider operation and calls into the installed code on a
+  matching host; retirement then proves quiescence, execute removal and
+  restored write authority before returning the placement, and an incomplete
+  drain quarantines the mapping instead. Substituted bytes, a placement spent
+  twice, a transplanted validation and an `Unsupported` W^X provider reject.
+
+  **COMPONENT-SUBSTRATE** owns the verified component closure above this; this
+  item owns generic executable custody.
+
+  Flag: installation accepts caller assertions where retirement demands facts.
+  `retire_installed` requires `authority.required_facts` to be a subset of the
+  receipt's `established_facts` — provider-canonical `RetirementFactDigest`
+  values the authority names in advance — while `install_validated` admits the
+  receipt on two booleans the caller sets, `visibility_complete` and `wx`, with
+  no required-facts set at all. The spec has installation validate W^X, cache
+  order and instruction-fetch visibility through one contracted provider
+  operation, so those claims are currently producer assertions the model
+  records rather than checks. The general mechanism is already on the
+  retirement side: an authority naming the required provider-canonical facts
+  and a receipt that must establish them.
 
 ## Omega-written compiler (after Rust completion)
 
