@@ -1,6 +1,7 @@
 use super::{
     BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
-    eliminate, fixture, instruction, make_packed_dead, mutated, packed_dead, place, settlement,
+    eliminate, fixture, instruction, make_packed_dead, mutated, packed_dead, place, sequence_store,
+    settlement,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::dead_store::{
@@ -1131,6 +1132,203 @@ fn dynamic_extent_rows_past_the_dead_range_walk_past() {
         eliminate(&inside, &environment).unwrap_err(),
         DeadStoreEliminationError::InterveningAccess
     );
+}
+
+/// The byte-sequence store can itself be the dead store: a `Store { 0, 1 }`
+/// through a fully computed view address writes exactly one byte at
+/// `offset + index`, and a later byte-sequence store naming the same payload
+/// base and the same runtime `index` rewrites that byte unobserved. Any
+/// other write shape leaves the dead byte observable — an exact or local
+/// range cannot contain a byte whose position is decided at runtime, and a
+/// sequence write at another offset or index may land on a different byte
+/// entirely.
+#[test]
+fn byte_sequence_dead_store_dies_under_the_matching_sequence_write() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Dead byte at `8 + index`; the covering sequence write spells the
+        // same byte through the same payload base and index value.
+        let covered = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+        });
+        let result = eliminate(&covered, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), BETWEEN, KILLER]
+        );
+        // The dead store's `WriteByteSequence` row drops with it; the
+        // covering row survives untouched.
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.byte_offset, access.role))
+                .collect::<Vec<_>>(),
+            vec![(
+                KILLER,
+                8,
+                SelectedMemoryAccessRole::WriteByteSequence {
+                    index: ValueId::new(5).unwrap(),
+                    value: ValueId::new(6).unwrap(),
+                    length: ValueId::new(7).unwrap(),
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32]
+                    ),
+                }
+            )]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A different runtime index may land the covering write on a
+        // different byte.
+        let other_index = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 9, SCRATCH);
+        });
+        assert_eq!(
+            eliminate(&other_index, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // A different payload base places the covering write on another byte
+        // the same way.
+        let other_offset = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 9, 5, SCRATCH);
+        });
+        assert_eq!(
+            eliminate(&other_offset, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // An exact eight-byte store cannot contain the runtime-placed dead
+        // byte however wide its fixed range looks.
+        let exact_cover = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 0, 5, VALUE);
+        });
+        assert_eq!(
+            eliminate(&exact_cover, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // A byte-sequence read on the dead place can observe the written
+        // byte, so it ends the walk before the covering store.
+        let observed = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            function.memory_accesses.insert(
+                1,
+                SelectedMemoryAccess {
+                    byte_count: 1,
+                    ..access(
+                        BETWEEN,
+                        3,
+                        place(),
+                        16,
+                        SelectedMemoryAccessRole::ReadByteSequence {
+                            index: ValueId::new(9).unwrap(),
+                            length: ValueId::new(7).unwrap(),
+                            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                            accepted_fact:
+                                optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                                    [3; 32],
+                                ),
+                        },
+                    )
+                },
+            );
+        });
+        assert_eq!(
+            eliminate(&observed, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // A covering instruction carrying a second row is not the single
+        // sequence write the route admits.
+        let two_rows = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            function.memory_accesses.push(access(
+                KILLER,
+                9,
+                place(),
+                0,
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+        });
+        assert_eq!(
+            eliminate(&two_rows, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // A boundary settlement inside the dead interval could still observe
+        // the dead byte before the covering write lands.
+        let settled = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            function.boundary_settlements.push(settlement(3));
+        });
+        assert_eq!(
+            eliminate(&settled, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // A second roster row on the dead store is not the route's single
+        // sequence row.
+        let dead_two_rows = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            function.memory_accesses.push(access(
+                STORE,
+                9,
+                place(),
+                0,
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+        });
+        assert_eq!(
+            eliminate(&dead_two_rows, &environment).unwrap_err(),
+            DeadStoreEliminationError::UnsupportedPair
+        );
+        // A sequence row whose recorded count disagrees with the one-byte
+        // route is not the byte-sequence store.
+        let miscount = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            function.memory_accesses[0].byte_count = 8;
+        });
+        assert_eq!(
+            eliminate(&miscount, &environment).unwrap_err(),
+            DeadStoreEliminationError::UnsupportedPair
+        );
+        // A nonzero encoded offset disagrees with the computed-address route
+        // the sequence row implies.
+        let shifted = mutated(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            function.blocks[0].instructions[1].kind = SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 1,
+            };
+        });
+        assert_eq!(
+            eliminate(&shifted, &environment).unwrap_err(),
+            DeadStoreEliminationError::UnsupportedPair
+        );
+    }
 }
 
 #[test]

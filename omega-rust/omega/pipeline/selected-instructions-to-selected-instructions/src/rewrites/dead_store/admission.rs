@@ -1,8 +1,8 @@
 //! Shared admission for dead-store elimination: locate the named `Store`,
-//! `StorePacked`, or own-storage `Store64`, prove its single exact write row,
-//! then walk forward to the first access on the dead place and require it to
-//! be a write of the dead place's storage whose own row covers the dead range
-//! entirely.
+//! `StorePacked`, own-storage `Store64`, or byte-sequence `Store { 0, 1 }`,
+//! prove its single write row, then walk forward to the first access on the
+//! dead place and require it to be a write of the dead place's storage whose
+//! own row covers the dead range entirely.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! dead place interferes when it can observe the stored bytes or leave them
@@ -10,7 +10,11 @@
 //! the exact covering write, or a materialized local address. A
 //! dynamic-extent row interferes the same way while its fixed offset starts
 //! below the dead range's end — its reach is unbounded upward, so only a row
-//! beginning at or past that end is provably disjoint. Rows for other
+//! beginning at or past that end is provably disjoint. When the dead extent
+//! is itself dynamic the directions mirror the store-motion walk: an exact
+//! or local row still reaches the dead byte once its own extent ends past
+//! the row's fixed offset, and a dynamic-extent row on the dead place
+//! always meets it. Rows for other
 //! places are safe under place exclusivity. A `WriteLocal` on the dead
 //! place's own storage interferes exactly like a `WritePlace` on that place:
 //! an overlapping row decides coverage below, a disjoint row walks past. The
@@ -77,17 +81,31 @@ pub(super) struct Admission<'source> {
     pub store_access: usize,
 }
 
-/// One exact byte range within one place root.
+/// The bytes the dead store wrote within one place root: an exact range, or
+/// a dynamic extent when the store is a byte-sequence write — its single
+/// written byte sits at `byte_offset + index` for the runtime `index`, so
+/// every byte it can touch lies at or after `byte_offset` with no static
+/// upper bound.
 struct Dead {
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
+    /// The byte-sequence dead store's runtime index, deciding the written
+    /// byte's position: `byte_offset + index`. `None` for an exact store.
+    sequence_index: Option<semantic_vocabulary::ValueId>,
 }
 
 impl Dead {
     /// Exact rows intersect when their half-open byte intervals share a byte;
-    /// widened to u64 so edge offsets cannot wrap.
+    /// widened to u64 so edge offsets cannot wrap. A dynamic dead extent is
+    /// unbounded upward from `byte_offset`, so the exact row still reaches
+    /// the written byte once its own extent ends past that offset — ending
+    /// at or below it is the only provable disjointness.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
+        if self.sequence_index.is_some() {
+            return u64::from(self.byte_offset)
+                < u64::from(access.byte_offset) + u64::from(access.byte_count);
+        }
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
             && u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count)
@@ -99,8 +117,13 @@ impl Dead {
     /// can touch lies at or after `byte_offset`. It still reaches this range
     /// exactly while its fixed offset starts below the range's end; an
     /// offset at or past the end is provably disjoint however far the reach
-    /// extends.
+    /// extends. When the dead extent is itself dynamic the row can always
+    /// meet it — two reaches unbounded upward on one place share a byte
+    /// whenever both extend far enough — so it always interferes.
     fn reached_by(&self, access: &SelectedMemoryAccess) -> bool {
+        if self.sequence_index.is_some() {
+            return true;
+        }
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
     }
 }
@@ -171,8 +194,14 @@ pub(super) fn admit<'source>(
     // `Structural` slot is that storage only when the place's declaration
     // names the operation as its producer; a slot that merely stages bytes
     // naming the place never moves the place's bytes and cannot be the dead
-    // store of them. Neither admitted role carries an obligation payload, so
-    // dropping the row loses no proof receipt.
+    // store of them. The byte-sequence route takes the dynamic extent: a
+    // `Store { 0, 1 }` writes one byte through a fully computed view
+    // address, and its `WriteByteSequence` row carries the payload base as
+    // `byte_offset` plus the runtime `index` — so the row's offset is a
+    // lower bound the index extends, not the encoded range, and the written
+    // byte's position is decided at runtime. Its bounds-obligation payload
+    // drops with the row: the write it guarded is gone, and the address
+    // computation's own provenance still names the obligation.
     let structural_places = structural_place_declarations(function);
     let mut rows = function
         .memory_accesses
@@ -182,6 +211,10 @@ pub(super) fn admit<'source>(
     let (store_access, write) = rows
         .next()
         .ok_or(DeadStoreEliminationError::UnsupportedInstruction)?;
+    let sequence_index = match write.role {
+        SelectedMemoryAccessRole::WriteByteSequence { index, .. } => Some(index),
+        _ => None,
+    };
     let storage_route = match (write.role, direct_slot) {
         (SelectedMemoryAccessRole::WritePlace, None) => true,
         (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
@@ -190,12 +223,15 @@ pub(super) fn admit<'source>(
         (SelectedMemoryAccessRole::WriteLocal { slot }, Some(encoded)) => {
             slot == encoded && local_slot_is_place_storage(slot, write.place, structural_places)
         }
+        (SelectedMemoryAccessRole::WriteByteSequence { .. }, None) => {
+            encoded_offset == 0 && encoded_size == 1 && write.byte_count == 1
+        }
         _ => false,
     };
     if rows.next().is_some()
         || !storage_route
-        || write.byte_offset != encoded_offset
-        || write.byte_count != encoded_size
+        || (sequence_index.is_none()
+            && (write.byte_offset != encoded_offset || write.byte_count != encoded_size))
     {
         return Err(DeadStoreEliminationError::UnsupportedPair);
     }
@@ -203,6 +239,7 @@ pub(super) fn admit<'source>(
         place: write.place,
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
+        sequence_index,
     };
     // The removed instruction must keep the operand surface its kind
     // declares: the plain two-use place store, the packed store's
@@ -573,7 +610,13 @@ fn interferes(
 ///   — through a place pointer — or `WriteLocal` on the place's own
 ///   storage slot, through that slot's materialized address;
 /// - `Store64` into `Local(slot)` carrying `WriteLocal` on that same slot —
-///   directly into the place's own storage.
+///   directly into the place's own storage;
+/// - for a byte-sequence dead store, another `Store { 0, 1 }` carrying
+///   `WriteByteSequence` — the only write that can provably land on the
+///   dead byte: same payload base and same runtime `index` spell the same
+///   position, while any exact or local row would have to contain a byte
+///   placed at runtime, and a sequence write at another offset or index
+///   may land on a different byte entirely.
 ///
 /// A write that only partially overlaps the dead range leaves the remaining
 /// bytes observable. A `WriteLocal` on an operation-owned `Structural` slot
@@ -599,6 +642,34 @@ fn covering_source(
     };
     if rows.next().is_some() || row.place != dead.place {
         return Err(reject());
+    }
+    // A byte-sequence dead store wrote exactly one byte at
+    // `byte_offset + index`; the covering write must spell that same byte.
+    // Equal row offset and equal index identity place it exactly — no other
+    // write route can, since an exact range cannot contain a byte whose
+    // position is only known at runtime.
+    if let Some(index) = dead.sequence_index {
+        if !matches!(
+            instruction.kind,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 1
+            }
+        ) {
+            return Err(reject());
+        }
+        place_store_shape(instruction, environment)?;
+        return match row.role {
+            SelectedMemoryAccessRole::WriteByteSequence {
+                index: covering, ..
+            } if row.byte_offset == dead.byte_offset
+                && row.byte_count == 1
+                && covering == index =>
+            {
+                Ok(())
+            }
+            _ => Err(reject()),
+        };
     }
     // The encoded byte range must equal the row's exact range, and the row's
     // role must match the route the instruction takes to the dead place's

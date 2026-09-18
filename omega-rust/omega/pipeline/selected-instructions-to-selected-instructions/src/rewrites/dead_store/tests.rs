@@ -390,6 +390,52 @@ fn packed_dead(target: NativeTarget) -> ValidatedDeadStoreElimination {
     })
 }
 
+/// Rewrite instruction `id` into a byte-sequence `Store { 0, 1 }` through a
+/// fully computed view address, and its roster row at `row` into the
+/// `WriteByteSequence` carrying the payload base `offset`: the written byte
+/// sits at `offset + index` for the runtime `index`, so the row's extent is
+/// unbounded upward from `offset`.
+fn sequence_store(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    id: SelectedInstructionId,
+    row: usize,
+    offset: u32,
+    index: u64,
+    value: VirtualRegisterId,
+) {
+    let store = environment
+        .constraint(environment.selected_keys().store.unwrap())
+        .unwrap();
+    for block in &mut function.blocks {
+        if let Some(position) = block
+            .instructions
+            .iter()
+            .position(|instruction| instruction.id == id)
+        {
+            block.instructions[position] = instruction(
+                id,
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 1,
+                },
+                store,
+                &[POINTER, value],
+            );
+        }
+    }
+    let access = &mut function.memory_accesses[row];
+    access.byte_offset = offset;
+    access.byte_count = 1;
+    access.role = SelectedMemoryAccessRole::WriteByteSequence {
+        index: ValueId::new(index).unwrap(),
+        value: ValueId::new(6).unwrap(),
+        length: ValueId::new(7).unwrap(),
+        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    };
+}
+
 /// The chained fixture with the packed dead store: the packed store sits in
 /// block 0 and the covering store opens block 1 across the edge.
 fn packed_dead_chained(target: NativeTarget) -> ValidatedDeadStoreElimination {
