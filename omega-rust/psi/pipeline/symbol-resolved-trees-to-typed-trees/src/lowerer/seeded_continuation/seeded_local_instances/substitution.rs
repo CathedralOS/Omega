@@ -290,12 +290,9 @@ fn decide_template_type_equality(
     if !other.is_valid() {
         return None;
     }
-    let Some((_, argument)) = substitutions
+    let (_, argument) = substitutions
         .iter()
-        .find(|(substituted, _)| *substituted == parameter)
-    else {
-        return None;
-    };
+        .find(|(substituted, _)| *substituted == parameter)?;
     let equal = matches!(
         *argument,
         TypeReference::Named { symbol, .. } if *symbol == other
