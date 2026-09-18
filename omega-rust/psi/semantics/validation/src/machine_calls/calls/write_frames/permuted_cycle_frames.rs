@@ -6,8 +6,8 @@ use crate::machine_calls::calls::write_frames::alias_bindings::{
     rebind_stable_local_mutable_alias_origin, stable_local_mutable_alias_rebinding_is_representable,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::{
-    stable_alias_initializer_origin, stable_assignment_target_path,
-    stable_local_reference_alias_origin,
+    stable_alias_initializer_origin, stable_alias_initializer_origins,
+    stable_assignment_target_path, stable_local_reference_alias_origin,
 };
 use crate::machine_calls::calls::write_frames::assignment_targets::expression_is_effectful_indexed_place;
 use crate::machine_calls::calls::write_frames::boundary_calls::known_boundary_call_written_paths_for_parts;
@@ -400,7 +400,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     let argument_origins = arguments
                         .iter()
                         .map(|argument| {
-                            stable_alias_initializer_origin(
+                            stable_alias_initializer_origins(
                                 program,
                                 machine,
                                 machine_symbols,

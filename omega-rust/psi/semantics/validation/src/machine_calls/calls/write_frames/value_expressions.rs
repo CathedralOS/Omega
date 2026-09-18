@@ -79,7 +79,7 @@ pub(super) fn value_expression_preserves_transparent_result(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
 ) -> bool {
     let mut pending = vec![(
         expression,

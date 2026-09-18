@@ -9,7 +9,10 @@ use super::type_instantiation::{bind_formal_type, substituted_head};
 use super::{FramePathPrecision, FramePlaceOrigin, frame_place_path};
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
-use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origin;
+use crate::machine_calls::calls::write_frames::place_paths::{
+    push_unique_origin, single_place_origin,
+};
+use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origins;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -44,24 +47,63 @@ pub(super) fn exclusive_reference_origin(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<FramePlaceOrigin> {
-    match program.expression_table.expression(argument) {
+    single_place_origin(exclusive_reference_origins(
+        program,
+        current_machine,
+        argument,
+        symbols,
+        inference,
+    )?)
+}
+
+/// Every proven caller-storage origin the argument may lend to a callee's
+/// exclusive parameter. Direct borrows and bindings supply one origin; a
+/// transparent helper result or a divergent match keeps the exact finite
+/// union of its routes. An unproven route fails the whole argument closed.
+pub(super) fn exclusive_reference_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    argument: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let origins = match program.expression_table.expression(argument) {
         ExpressionNode::Borrow(place) if place.access.is_exclusive() => {
             declared_origin_root(program, current_machine, place.target)?;
-            frame_place_path(program, place.target)
+            vec![frame_place_path(program, place.target)?]
         }
-        ExpressionNode::Name(_) => {
+        ExpressionNode::Name(_) => vec![
             exclusive_reference_binding_path(program, current_machine, argument)
                 .map(|path| FramePlaceOrigin {
                     path,
                     precision: FramePathPrecision::Exact,
                     source: super::FrameSourcePlace::from_expression(program, argument),
                 })
-                .or_else(|| carried_reference_origin(program, current_machine, argument))
-        }
+                .or_else(|| carried_reference_origin(program, current_machine, argument))?,
+        ],
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            carried_reference_origin(program, current_machine, argument)
+            vec![carried_reference_origin(
+                program,
+                current_machine,
+                argument,
+            )?]
         }
-        ExpressionNode::Call(call) => transparent_call_result_origin(
+        ExpressionNode::Match(dispatch) => {
+            let mut selected = Vec::new();
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                for origin in exclusive_reference_origins(
+                    program,
+                    current_machine,
+                    arm.value,
+                    symbols,
+                    inference,
+                )? {
+                    push_unique_origin(&mut selected, origin);
+                }
+            }
+            selected
+        }
+        ExpressionNode::Call(call) => transparent_call_result_origins(
             program,
             call,
             symbols,
@@ -77,7 +119,7 @@ pub(super) fn exclusive_reference_origin(
                         return None;
                     }
                     declared_origin_root(program, current_machine, actual)?;
-                    return frame_place_path(program, actual);
+                    return frame_place_path(program, actual).map(|origin| vec![origin]);
                 };
                 let owned = if parameter.is_self {
                     // The typed receiver uses nominal `Self`, whose concrete
@@ -137,16 +179,18 @@ pub(super) fn exclusive_reference_origin(
                                 actual,
                                 symbols,
                                 inference,
-                            );
+                            )
+                            .map(|origin| vec![origin]);
                         }
                         _ => {}
                     }
                 }
-                exclusive_reference_origin(program, current_machine, actual, symbols, inference)
+                exclusive_reference_origins(program, current_machine, actual, symbols, inference)
             },
-        ),
-        _ => None,
-    }
+        )?,
+        _ => return None,
+    };
+    (!origins.is_empty()).then_some(origins)
 }
 
 /// An owned carrier transports its declared reference leaf as a value. This

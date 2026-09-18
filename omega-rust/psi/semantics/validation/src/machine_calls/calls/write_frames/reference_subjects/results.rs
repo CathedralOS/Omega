@@ -58,6 +58,7 @@ pub(super) fn call_origin(
                 stored,
                 implicit_borrow,
             )
+            .map(|origin| vec![origin])
         },
         &|actual, reference, _| {
             stored_origins::reference_leaves_before_statement_for_query(

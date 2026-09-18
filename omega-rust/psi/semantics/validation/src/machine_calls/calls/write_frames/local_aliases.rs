@@ -15,6 +15,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
 
 pub(super) fn rebase_local_alias_path(
     relative: &str,
@@ -173,6 +174,96 @@ pub(super) fn expression_has_exclusive_borrow(
                 }
                 pending.push(inner.target);
             }
+            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
+            ExpressionNode::Call(call) => {
+                pending.push(call.receiver);
+                pending.extend(program.expression_table.expression_handles(call.arguments));
+            }
+            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
+            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
+            ExpressionNode::Member(member) => pending.push(member.receiver),
+            ExpressionNode::ArrayLiteral(elements) => {
+                pending.extend(program.expression_table.expression_handles(*elements))
+            }
+            ExpressionNode::StructLiteral(literal) => pending.extend(
+                program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value),
+            ),
+            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
+        }
+    }
+    false
+}
+
+/// Whether a statement touches one of the given place roots: a call receiver
+/// spelling or any place-shaped node inside its value expressions. The write
+/// transfer keeps a write-capable local it cannot name an origin for opaque;
+/// a later write through it, an exclusive reborrow, or a transport into
+/// another binding would each lose the referent set it denotes. The pure tail
+/// return is admitted separately by the caller.
+pub(super) fn statement_mentions_place_roots(
+    program: &TypedTrees,
+    statement: &StatementNode,
+    roots: &[String],
+) -> bool {
+    if let StatementNode::Call(call) = statement
+        && program
+            .statement_table
+            .name_path_members(call.receiver)
+            .first()
+            .is_some_and(|root| roots.iter().any(|name| name == root.as_str()))
+    {
+        return true;
+    }
+    super::statement_value_expression_roots(program, statement)
+        .into_iter()
+        .any(|expression| expression_mentions_place_roots(program, expression, roots))
+}
+
+fn expression_mentions_place_roots(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &[String],
+) -> bool {
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() {
+            continue;
+        }
+        if frame_place_path(program, expression).is_some_and(|place| {
+            roots
+                .iter()
+                .any(|root| *root == split_place_root(&place.path).0)
+        }) {
+            return true;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                for arm in program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .rev()
+                {
+                    pending.push(arm.value);
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                }
+                pending.push(dispatch.subject);
+            }
+            ExpressionNode::Borrow(inner) => pending.push(inner.target),
             ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
             ExpressionNode::Call(call) => {
                 pending.push(call.receiver);

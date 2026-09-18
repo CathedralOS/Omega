@@ -24,7 +24,7 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
     program: &TypedTrees,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
 ) -> bool {
     if !expression.is_valid() {
         return false;
@@ -106,7 +106,7 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
 pub(super) fn parameter_relative_alias_position(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
 ) -> Option<usize> {
     let place = frame_place_path(program, expression)?;
     let (_, suffix) = split_place_root(&place.path);

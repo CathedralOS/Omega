@@ -35,6 +35,42 @@ pub(super) fn same_place_origin(first: &FramePlaceOrigin, second: &FramePlaceOri
         && first.source == second.source
 }
 
+/// A proven candidate set keeps one entry per distinct storage route. Two
+/// candidates identical in path, precision, and structural source describe
+/// the same route; anything else remains a separate possible referent. The
+/// union is exact: consumers may treat the whole set as covering every proven
+/// route, and any route that fails to resolve fails the expression instead.
+pub(super) fn push_unique_origin(origins: &mut Vec<FramePlaceOrigin>, origin: FramePlaceOrigin) {
+    if !origins
+        .iter()
+        .any(|existing| same_place_origin(existing, &origin))
+    {
+        origins.push(origin);
+    }
+}
+
+/// Collapse a proven candidate set to the one storage place every route
+/// agrees on. Candidates naming the same place merge, coarsening when their
+/// referent position or structural source differs; candidates naming
+/// different storage have no single origin and stay with the set consumers.
+pub(super) fn single_place_origin(candidates: Vec<FramePlaceOrigin>) -> Option<FramePlaceOrigin> {
+    let mut merged: Option<FramePlaceOrigin> = None;
+    for origin in candidates {
+        match &mut merged {
+            None => merged = Some(origin),
+            Some(existing) if existing.path == origin.path => {
+                if origin.precision == FramePathPrecision::CollectionCoarse
+                    || origin.source != existing.source
+                {
+                    existing.precision = FramePathPrecision::CollectionCoarse;
+                }
+            }
+            Some(_) => return None,
+        }
+    }
+    merged
+}
+
 pub(super) fn split_place_root(path: &str) -> (&str, &str) {
     let boundary = path.find(['.', '[']).unwrap_or(path.len());
     path.split_at(boundary)

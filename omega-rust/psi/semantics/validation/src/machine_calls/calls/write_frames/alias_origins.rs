@@ -8,14 +8,15 @@ use crate::machine_calls::calls::write_frames::local_aliases::{
     rebase_local_alias_path, stable_alias_place_origin,
 };
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, coarse_place_path, frame_place_path, same_place_origin,
+    FramePathPrecision, FramePlaceOrigin, coarse_place_path, frame_place_path, push_unique_origin,
+    single_place_origin,
 };
 use crate::machine_calls::calls::write_frames::reference_subjects;
 use crate::machine_calls::calls::write_frames::stored_origins::StoredLocalOrigins;
 use crate::machine_calls::calls::write_frames::transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
 };
-use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origin;
+use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origins;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -88,6 +89,10 @@ pub(crate) fn stable_local_reference_alias_origin(
     )
 }
 
+/// The single proven origin a binding, target, or argument may name. Divergent
+/// conditional routes keep a finite candidate set internally; consumers holding
+/// one binding still collapse the set only when every route agrees on a storage
+/// place.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stable_alias_initializer_origin(
     program: &TypedTrees,
@@ -102,8 +107,42 @@ pub(crate) fn stable_alias_initializer_origin(
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
 ) -> Option<FramePlaceOrigin> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => stable_alias_initializer_origin(
+    single_place_origin(stable_alias_initializer_origins(
+        program,
+        current_machine,
+        machine_symbols,
+        inference,
+        expression,
+        parameters,
+        isolated_local_roots,
+        aliases,
+        symbols,
+        allow_isolated_local,
+        stored,
+    )?)
+}
+
+/// Every proven caller-visible origin the expression may name. Each producing
+/// match arm contributes its own candidates, and a transparent helper result
+/// routes each arm through its selected actual; divergent routes keep the
+/// exact finite union rather than selecting one side. A route that cannot be
+/// named fails the whole expression closed.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stable_alias_initializer_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    inference: &mut FrameInference,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    allow_isolated_local: bool,
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<FramePlaceOrigin>> {
+    let origins = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => stable_alias_initializer_origins(
             program,
             current_machine,
             machine_symbols,
@@ -115,10 +154,10 @@ pub(crate) fn stable_alias_initializer_origin(
             symbols,
             allow_isolated_local,
             stored,
-        ),
+        )?,
         ExpressionNode::Call(call) => {
             if call_is_transparent_mutable_slice_view(program, call) {
-                return stable_alias_initializer_origin(
+                return stable_alias_initializer_origins(
                     program,
                     current_machine,
                     machine_symbols,
@@ -132,13 +171,13 @@ pub(crate) fn stable_alias_initializer_origin(
                     stored,
                 );
             }
-            transparent_call_result_origin(
+            transparent_call_result_origins(
                 program,
                 call,
                 symbols,
                 inference,
                 |_, _, _, actual, inference| {
-                    stable_alias_initializer_origin(
+                    stable_alias_initializer_origins(
                         program,
                         current_machine,
                         machine_symbols,
@@ -153,12 +192,12 @@ pub(crate) fn stable_alias_initializer_origin(
                     )
                 },
             )
-            // A boundary call has no checked body, but a single-candidate
-            // exclusive result still supplies its proven referent origin. A
-            // resolved requirement call answers the same way through its
-            // retained signature identity.
+            // A boundary call has no checked body, but its admitted candidate
+            // routes still supply proven referent origins. A resolved
+            // requirement call answers the same way through its retained
+            // signature identity.
             .or_else(|| {
-                super::boundary_calls::single_boundary_result_origin(
+                super::boundary_calls::boundary_result_candidate_origins(
                     program,
                     current_machine,
                     machine_symbols,
@@ -174,7 +213,7 @@ pub(crate) fn stable_alias_initializer_origin(
                 )
             })
             .or_else(|| {
-                super::boundary_calls::single_requirement_result_origin(
+                super::boundary_calls::requirement_result_candidate_origins(
                     program,
                     current_machine,
                     machine_symbols,
@@ -188,7 +227,7 @@ pub(crate) fn stable_alias_initializer_origin(
                     allow_isolated_local,
                     stored,
                 )
-            })
+            })?
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index)
@@ -206,7 +245,7 @@ pub(crate) fn stable_alias_initializer_origin(
             {
                 return None;
             }
-            let mut collection = stable_alias_initializer_origin(
+            stable_alias_initializer_origins(
                 program,
                 current_machine,
                 machine_symbols,
@@ -218,47 +257,53 @@ pub(crate) fn stable_alias_initializer_origin(
                 symbols,
                 allow_isolated_local,
                 stored,
-            )?;
-            collection.source =
+            )?
+            .into_iter()
+            .map(|mut collection| {
+                collection.source =
+                    collection
+                        .source
+                        .projected(program, expression, indexed.collection);
+                collection.precision = FramePathPrecision::CollectionCoarse;
                 collection
-                    .source
-                    .projected(program, expression, indexed.collection);
-            collection.precision = FramePathPrecision::CollectionCoarse;
-            Some(collection)
+            })
+            .collect()
         }
-        ExpressionNode::Member(member) => {
-            let receiver = stable_alias_initializer_origin(
-                program,
-                current_machine,
-                machine_symbols,
-                inference,
-                member.receiver,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                symbols,
-                allow_isolated_local,
-                stored,
-            )?;
+        ExpressionNode::Member(member) => stable_alias_initializer_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            inference,
+            member.receiver,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            symbols,
+            allow_isolated_local,
+            stored,
+        )?
+        .into_iter()
+        .map(|receiver| {
             let source = receiver
                 .source
                 .projected(program, expression, member.receiver);
-            Some(match receiver.precision {
+            match receiver.precision {
                 FramePathPrecision::Exact => FramePlaceOrigin {
                     path: format!("{}.{}", receiver.path, member.member.as_str()),
                     precision: FramePathPrecision::Exact,
                     source,
                 },
                 FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..receiver },
-            })
-        }
+            }
+        })
+        .collect(),
         ExpressionNode::Match(dispatch) => {
-            // A conditional binding keeps a single origin only when every
-            // producing arm resolves to the same place; divergent routes
-            // stay opaque rather than selecting one arm.
-            let mut selected = None;
+            // Every producing arm contributes its own candidates; divergent
+            // routes keep the exact finite union rather than selecting one
+            // arm. An arm that cannot resolve leaves the expression opaque.
+            let mut selected = Vec::new();
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                let origin = stable_alias_initializer_origin(
+                for origin in stable_alias_initializer_origins(
                     program,
                     current_machine,
                     machine_symbols,
@@ -270,11 +315,8 @@ pub(crate) fn stable_alias_initializer_origin(
                     symbols,
                     allow_isolated_local,
                     stored,
-                )?;
-                match &selected {
-                    None => selected = Some(origin),
-                    Some(existing) if same_place_origin(existing, &origin) => {}
-                    Some(_) => return None,
+                )? {
+                    push_unique_origin(&mut selected, origin);
                 }
             }
             selected
@@ -283,7 +325,7 @@ pub(crate) fn stable_alias_initializer_origin(
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            stable_alias_initializer_origin(
+            stable_alias_initializer_origins(
                 program,
                 current_machine,
                 machine_symbols,
@@ -295,9 +337,9 @@ pub(crate) fn stable_alias_initializer_origin(
                 symbols,
                 allow_isolated_local,
                 stored,
-            )
+            )?
         }
-        _ => stable_alias_expression_origin(
+        _ => stable_alias_expression_origins(
             program,
             expression,
             parameters,
@@ -314,13 +356,14 @@ pub(crate) fn stable_alias_initializer_origin(
             stored
                 .iter()
                 .any(|local| local.local_symbol == origin.source.root)
-                .then_some(origin)
-        }),
-    }
+                .then_some(vec![origin])
+        })?,
+    };
+    (!origins.is_empty()).then_some(origins)
 }
 
 #[allow(clippy::too_many_arguments)]
-fn stable_alias_expression_origin(
+fn stable_alias_expression_origins(
     program: &TypedTrees,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -328,9 +371,9 @@ fn stable_alias_expression_origin(
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
     allow_isolated_local: bool,
-) -> Option<FramePlaceOrigin> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => stable_alias_expression_origin(
+) -> Option<Vec<FramePlaceOrigin>> {
+    let origins = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => stable_alias_expression_origins(
             program,
             inner.target,
             parameters,
@@ -338,10 +381,10 @@ fn stable_alias_expression_origin(
             aliases,
             symbols,
             allow_isolated_local,
-        ),
+        )?,
         ExpressionNode::Call(call) => {
             if call_is_transparent_mutable_slice_view(program, call) {
-                return stable_alias_expression_origin(
+                return stable_alias_expression_origins(
                     program,
                     call.receiver,
                     parameters,
@@ -351,13 +394,13 @@ fn stable_alias_expression_origin(
                     allow_isolated_local,
                 );
             }
-            transparent_call_result_origin(
+            transparent_call_result_origins(
                 program,
                 call,
                 symbols,
                 &mut FrameInference::default(),
                 |_, _, _, actual, _| {
-                    stable_alias_expression_origin(
+                    stable_alias_expression_origins(
                         program,
                         actual,
                         parameters,
@@ -367,13 +410,13 @@ fn stable_alias_expression_origin(
                         allow_isolated_local,
                     )
                 },
-            )
+            )?
         }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            stable_alias_expression_origin(
+            stable_alias_expression_origins(
                 program,
                 cast.value,
                 parameters,
@@ -381,13 +424,13 @@ fn stable_alias_expression_origin(
                 aliases,
                 symbols,
                 allow_isolated_local,
-            )
+            )?
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
                 return None;
             }
-            let mut collection = stable_alias_expression_origin(
+            stable_alias_expression_origins(
                 program,
                 indexed.collection,
                 parameters,
@@ -395,45 +438,69 @@ fn stable_alias_expression_origin(
                 aliases,
                 symbols,
                 allow_isolated_local,
-            )?;
-            collection.source =
+            )?
+            .into_iter()
+            .map(|mut collection| {
+                collection.source =
+                    collection
+                        .source
+                        .projected(program, expression, indexed.collection);
+                collection.precision = FramePathPrecision::CollectionCoarse;
                 collection
-                    .source
-                    .projected(program, expression, indexed.collection);
-            collection.precision = FramePathPrecision::CollectionCoarse;
-            Some(collection)
+            })
+            .collect()
         }
-        ExpressionNode::Member(member) => {
-            let receiver = stable_alias_expression_origin(
-                program,
-                member.receiver,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                symbols,
-                allow_isolated_local,
-            )?;
+        ExpressionNode::Member(member) => stable_alias_expression_origins(
+            program,
+            member.receiver,
+            parameters,
+            isolated_local_roots,
+            aliases,
+            symbols,
+            allow_isolated_local,
+        )?
+        .into_iter()
+        .map(|receiver| {
             let source = receiver
                 .source
                 .projected(program, expression, member.receiver);
-            Some(match receiver.precision {
+            match receiver.precision {
                 FramePathPrecision::Exact => FramePlaceOrigin {
                     path: format!("{}.{}", receiver.path, member.member.as_str()),
                     precision: FramePathPrecision::Exact,
                     source,
                 },
                 FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..receiver },
-            })
+            }
+        })
+        .collect(),
+        ExpressionNode::Match(dispatch) => {
+            let mut selected = Vec::new();
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                for origin in stable_alias_expression_origins(
+                    program,
+                    arm.value,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    symbols,
+                    allow_isolated_local,
+                )? {
+                    push_unique_origin(&mut selected, origin);
+                }
+            }
+            selected
         }
-        _ => stable_alias_place_origin(
+        _ => vec![stable_alias_place_origin(
             program,
             expression,
             parameters,
             isolated_local_roots,
             aliases,
             allow_isolated_local,
-        ),
-    }
+        )?],
+    };
+    (!origins.is_empty()).then_some(origins)
 }
 
 /// Resolve an assignment target using the established direct-place behavior,

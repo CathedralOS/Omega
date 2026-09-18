@@ -9,7 +9,7 @@ use crate::machine_calls::calls::write_frames::isolation::{
     concrete_nominal_type, struct_literal_matches_expected_type,
 };
 use crate::machine_calls::calls::write_frames::reference_origins::{
-    exclusive_reference_origin, referent_has_only_owned_storage,
+    exclusive_reference_origins, referent_has_only_owned_storage,
 };
 use crate::machine_calls::calls::write_frames::stored_origins::{
     demand_is_declared, place_suffix, symbolic_reference_leaves,
@@ -74,13 +74,16 @@ pub(in crate::machine_calls::calls::write_frames) struct AggregateMove {
     pub type_reference: TypeReferenceHandle,
 }
 
+/// One reference leaf position resolves to its proven candidate set: a
+/// divergent helper result or conditional actual may lend any of several
+/// caller storage origins, so the leaf keeps the exact finite union.
 pub(in crate::machine_calls::calls::write_frames) type ReferenceResolver<'resolver> =
     dyn Fn(
             ExpressionHandle,
             TypeReferenceHandle,
             bool,
             &mut FrameInference,
-        ) -> Option<FramePlaceOrigin>
+        ) -> Option<Vec<FramePlaceOrigin>>
         + 'resolver;
 
 pub(in crate::machine_calls::calls::write_frames) type AggregateResolver<'resolver> =
@@ -106,7 +109,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
         inference,
         false,
         &|expression, _, _, inference| {
-            exclusive_reference_origin(program, caller_machine, expression, symbols, inference)
+            exclusive_reference_origins(program, caller_machine, expression, symbols, inference)
         },
         &|expression, reference, inference| {
             symbolic_reference_leaves(program, caller_machine, expression, reference, inference)
@@ -249,20 +252,21 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                 if !include_shared && !referent_has_only_owned_storage(program, *referee) {
                     return None;
                 }
-                let origin = resolve_reference(expression, reference, false, inference)?;
-                let path = match origin.precision {
-                    FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
-                    FramePathPrecision::CollectionCoarse => origin.path,
-                };
-                leaves.references.push(ReferenceLeaf {
-                    local_suffix,
-                    local_segments,
-                    origin: FramePlaceOrigin {
-                        path,
-                        precision: origin.precision,
-                        source: origin.source,
-                    },
-                });
+                for origin in resolve_reference(expression, reference, false, inference)? {
+                    let path = match origin.precision {
+                        FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
+                        FramePathPrecision::CollectionCoarse => origin.path,
+                    };
+                    leaves.references.push(ReferenceLeaf {
+                        local_suffix: local_suffix.clone(),
+                        local_segments: local_segments.clone(),
+                        origin: FramePlaceOrigin {
+                            path,
+                            precision: origin.precision,
+                            source: origin.source,
+                        },
+                    });
+                }
             }
             TypeReferenceNode::FixedArray {
                 element_type,

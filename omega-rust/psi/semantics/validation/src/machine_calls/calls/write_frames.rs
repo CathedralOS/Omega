@@ -173,7 +173,7 @@ fn known_call_written_paths_for_parts_with_origins(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
     // A static machine parameter's selected target is a specialization input,
@@ -264,7 +264,7 @@ fn summarize_resolved_call(
     receiver_origin: Option<&FramePlaceOrigin>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
     let receiver_base = receiver_origin.cloned().or_else(|| {

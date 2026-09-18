@@ -8,10 +8,10 @@ use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::isolation::{aggregate_storage_types_match_in, type_is_caller_isolated_local_in};
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
-    split_place_root,
+    push_unique_origin, split_place_root,
 };
 use super::receiver_member_chain;
-use super::reference_origins::{exclusive_reference_origin, referent_has_only_owned_storage_in};
+use super::reference_origins::{exclusive_reference_origins, referent_has_only_owned_storage_in};
 use super::stored_origins::StoredLocalOrigins;
 use super::type_capabilities::type_may_carry_write_in;
 use super::type_instantiation::{
@@ -752,8 +752,7 @@ fn boundary_argument_origins(
             );
         }
     }
-    exclusive_reference_origin(program, current_machine, argument, symbols, inference)
-        .map(|origin| vec![origin])
+    exclusive_reference_origins(program, current_machine, argument, symbols, inference)
 }
 
 /// The candidate caller-storage origins a boundary call's exclusive result
@@ -883,14 +882,12 @@ fn boundary_result_origins(
     (!origins.is_empty()).then_some(origins)
 }
 
-/// The proven referent of a boundary call's exclusive result bound to a
-/// local. The alias relation holds one already-canonical origin per
-/// binding, so admission needs the signature's candidate routes to name
-/// exactly one caller storage place: the result must reach it. Routes that
-/// agree on the place but disagree on referent position or source collapse
-/// to a coarse origin; a multi-place or unresolved result stays opaque.
+/// The signature's admitted candidate routes canonicalized through the
+/// caller's current alias and stored-carrier evidence, kept as the exact
+/// finite union. Union consumers (nested-call arguments) keep every proven
+/// route; single-binding consumers collapse it through `single_place_origin`.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn single_boundary_result_origin(
+pub(super) fn boundary_result_candidate_origins(
     program: &TypedTrees,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -903,18 +900,17 @@ pub(super) fn single_boundary_result_origin(
     aliases: &[(String, FramePlaceOrigin)],
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
-) -> Option<FramePlaceOrigin> {
-    let origins = boundary_result_origins(
-        program,
-        current_machine,
-        machine_symbols,
-        symbols,
-        call,
-        expression,
-        inference,
-    )?;
-    single_result_origin_from_candidates(
-        origins,
+) -> Option<Vec<FramePlaceOrigin>> {
+    canonical_result_origins(
+        boundary_result_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            call,
+            expression,
+            inference,
+        )?,
         parameters,
         isolated_local_roots,
         aliases,
@@ -1060,12 +1056,11 @@ fn requirement_result_origins(
     (!origins.is_empty()).then_some(origins)
 }
 
-/// The proven referent of a resolved requirement call's exclusive result
-/// bound to a local, under the same single-candidate rule as the boundary
-/// rung: the signature's admitted routes must name exactly one caller storage
-/// place.
+/// The requirement signature's admitted candidate routes canonicalized into
+/// the caller's alias and stored-carrier namespace, kept as the exact finite
+/// union for the same shared consumers as `boundary_result_candidate_origins`.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn single_requirement_result_origin(
+pub(super) fn requirement_result_candidate_origins(
     program: &TypedTrees,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -1078,18 +1073,17 @@ pub(super) fn single_requirement_result_origin(
     aliases: &[(String, FramePlaceOrigin)],
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
-) -> Option<FramePlaceOrigin> {
-    let origins = requirement_result_origins(
-        program,
-        current_machine,
-        machine_symbols,
-        symbols,
-        call,
-        expression,
-        inference,
-    )?;
-    single_result_origin_from_candidates(
-        origins,
+) -> Option<Vec<FramePlaceOrigin>> {
+    canonical_result_origins(
+        requirement_result_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            call,
+            expression,
+            inference,
+        )?,
         parameters,
         isolated_local_roots,
         aliases,
@@ -1098,41 +1092,33 @@ pub(super) fn single_requirement_result_origin(
     )
 }
 
-/// Canonicalize admitted candidate origins and require them to agree on one
-/// caller storage place. Routes that agree on the place but disagree on
-/// referent position or source collapse to a coarse origin; a multi-place or
-/// unresolved result stays opaque.
-fn single_result_origin_from_candidates(
+/// Canonicalize admitted candidate origins through the caller's current
+/// alias and stored-carrier evidence. A candidate no caller storage,
+/// established alias, isolated local, or tracked stored carrier owns is not a
+/// proven route and fails the whole result.
+fn canonical_result_origins(
     origins: Vec<FramePlaceOrigin>,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
-) -> Option<FramePlaceOrigin> {
-    let mut merged: Option<FramePlaceOrigin> = None;
+) -> Option<Vec<FramePlaceOrigin>> {
+    let mut canonical = Vec::new();
     for candidate in origins {
-        let origin = caller_canonical_result_origin(
-            candidate,
-            parameters,
-            isolated_local_roots,
-            aliases,
-            allow_isolated_local,
-            stored,
-        )?;
-        match &mut merged {
-            None => merged = Some(origin),
-            Some(merged) if merged.path == origin.path => {
-                if origin.precision == FramePathPrecision::CollectionCoarse
-                    || origin.source != merged.source
-                {
-                    merged.precision = FramePathPrecision::CollectionCoarse;
-                }
-            }
-            _ => return None,
-        }
+        push_unique_origin(
+            &mut canonical,
+            caller_canonical_result_origin(
+                candidate,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                allow_isolated_local,
+                stored,
+            )?,
+        );
     }
-    merged
+    Some(canonical)
 }
 
 /// Canonicalize one admitted candidate path through the caller's current
@@ -1184,16 +1170,6 @@ fn caller_canonical_result_origin(
         .then_some(origin);
     }
     None
-}
-
-fn push_unique_origin(origins: &mut Vec<FramePlaceOrigin>, origin: FramePlaceOrigin) {
-    if !origins.iter().any(|existing| {
-        existing.path == origin.path
-            && existing.precision == origin.precision
-            && existing.source == origin.source
-    }) {
-        origins.push(origin);
-    }
 }
 
 /// May `container`'s own storage hold a `referent`-typed value? The walk
