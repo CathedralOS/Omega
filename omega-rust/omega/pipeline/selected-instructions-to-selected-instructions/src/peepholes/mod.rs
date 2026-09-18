@@ -46,6 +46,20 @@
 //!   where `FaultDischargedBy*` declares faults the literal or obligation
 //!   retires. Its `Store` consumer is also the first declared pair whose
 //!   consumer writes memory (`WritePointerV1`).
+//! - `copied_call_operand` declares the copied-call-operand reroute
+//!   family: a `CopyI64` producer whose defined register feeds `Use`
+//!   argument operands of a `CallUnit`, `CallScalar`, or `CallAggregate`
+//!   becomes the same call reading the copy's source register — the
+//!   substitution `copy_removal` performs everywhere except call
+//!   contracts, restated as a declared pair that keeps the producer
+//!   published. It is the first descriptor whose consumer carries a stack
+//!   effect: the rewritten call retains its complete activation surface —
+//!   `Call` barrier, `DirectInternalNormalReturnV1` call effect,
+//!   `DirectRelativeCallV1` control, retained `MayArchitecturalFaultV1`
+//!   trap, the row's implicit-unit and caller-saved clobber roster, the
+//!   ABI `fixed_view` pins, and the target's stack lifecycle
+//!   (`CallReturnAddressLifecycleV1` on stack-pushing targets,
+//!   `UnchangedV1` under a link register) — verbatim.
 //!
 //! `condition_flow` owns the machinery both flag-reading families share:
 //! the least-fixpoint flag-reaching walk parameterized on the read
@@ -54,6 +68,7 @@
 
 mod condition_flow;
 mod condition_materialization;
+mod copied_call_operand;
 mod projected_access;
 mod terminator_pair;
 
@@ -61,6 +76,10 @@ pub use condition_materialization::{
     ConditionMaterializationError, ConditionMaterializationReceipt,
     ValidatedConditionMaterialization, fold_selected_condition_materialization,
     validate_condition_materialization_fold,
+};
+pub use copied_call_operand::{
+    CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand,
+    fold_selected_copied_call_operand, validate_copied_call_operand_fold,
 };
 pub use projected_access::{
     ProjectedAccessError, ProjectedAccessReceipt, ValidatedProjectedAccess,
