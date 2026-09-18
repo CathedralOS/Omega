@@ -184,6 +184,7 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
             call_plan,
             scalar_parameters: vec![],
             parameters: vec![target_parameter],
+            dynamic_parameters: vec![],
             entry: block,
             blocks: vec![TargetControlBlock {
                 block,

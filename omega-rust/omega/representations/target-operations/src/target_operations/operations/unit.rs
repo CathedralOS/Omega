@@ -4,14 +4,14 @@ use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, ProviderExecutionBinding, TargetBoundaryResult,
-    TargetDynamicDescriptorArgument, TargetIeeeFloatFmaOperand, TargetStructuralArgument,
-    TargetStructuralHomeRequirement, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
-    TargetUnitScalarHomeRequirement, TargetUnitWriteOnlyPrimitiveStoreSource,
-    TargetX86ScalarFmaSettlement,
+    TargetDynamicDescriptorArgument, TargetDynamicDescriptorParameterAbi,
+    TargetIeeeFloatFmaOperand, TargetStructuralArgument, TargetStructuralHomeRequirement,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    TargetUnitWriteOnlyPrimitiveStoreSource, TargetX86ScalarFmaSettlement,
 };
 use abstract_operations::{
-    AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
-    AbstractStoredDynamicDispatch, CompletionClaimSource,
+    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
+    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use semantic_vocabulary::{
@@ -361,6 +361,40 @@ pub enum TargetUnitOperation {
         call_plan: CallPlan,
         initial_argument: TargetStructuralArgument,
         rebound_argument: TargetStructuralArgument,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// One indirect scalar call through a requirement slot of this function's
+    /// own borrowed descriptor parameter. `parameter_abi` binds the incoming
+    /// `{instance, table}` pair to the graph's call plan, `requirement` is the
+    /// closed interface row `dispatch_call_plan` invokes, and
+    /// `table_slot_byte_offset` is the byte offset of its entry in the
+    /// incoming table. `dispatch_call_plan` retains the erased one-pointer
+    /// adapter ABI — policy, clobbers, stack contract — while the semantic
+    /// dispatch row never names a concrete realization.
+    DynamicParameterScalarCall {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractParameterDynamicDispatch,
+        parameter_abi: TargetDynamicDescriptorParameterAbi,
+        requirement: terminal_psi::TerminalDynamicRequirement,
+        dispatch_call_plan: CallPlan,
+        table_slot_byte_offset: u32,
+        result_home: TargetUnitScalarHomeRequirement,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// One indirect Unit call through a requirement slot of this function's
+    /// own borrowed descriptor parameter. Descriptor and table custody are
+    /// identical to the scalar form, while the signature and operation carry
+    /// no result or result-home carrier.
+    DynamicParameterUnitCall {
+        psi_operation: OperationId,
+        dynamic_dispatch: AbstractParameterDynamicDispatch,
+        parameter_abi: TargetDynamicDescriptorParameterAbi,
+        requirement: terminal_psi::TerminalDynamicRequirement,
+        dispatch_call_plan: CallPlan,
+        table_slot_byte_offset: u32,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

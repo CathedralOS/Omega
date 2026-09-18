@@ -93,6 +93,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
             call_plan,
             scalar_parameters: vec![],
             parameters: vec![target_parameter.clone()],
+            dynamic_parameters: vec![],
             entry: block,
             blocks: vec![TargetControlBlock {
                 block,
