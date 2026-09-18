@@ -2458,90 +2458,77 @@ Owners include
   `items[low + 0u64..high]` cannot prove its start bound in
   `checks/ranges/indexes/validation.rs`; rerun it before relying on that.
 
-- **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
-  selected through exact conformances and validated layout paths under the
-  [private-callback contract](wiki/spec/build/private_callbacks.md). Authenticate
-  the complete plan application and replay the authored-use-to-Terminal-operation
-  join independently; retained producer digests alone are insufficient. Private
-  slots must be absent from source-visible schema and inaccessible as ordinary
-  fields or addresses. Acceptance: one outbound registrar closes without a raw
-  code pointer or duplicated placement authority.
+- **CALLBACK-PRIVATE-MATERIALIZATION.** Realize target-owned private callback
+  slots natively under the
+  [private-callback contract](wiki/spec/build/private_callbacks.md). Checked
+  compilation and the Terminal product already close for
+  `source/library/std/tests/callback_materialization_closure.omg`: two
+  `NativePlace::Field` placements selected through exact conformances, one
+  `BoundaryCall`, and one canonical thunk artifact per placement
+  (`compiler/tests/callback_terminal_custody.rs`,
+  `reachable_private_callback_registrar_binds_its_terminal_occurrence`). No
+  native product exists for any callback. `emit_realization_object`
+  (`native-realization/src/native_realization/object_emission.rs`) rejects
+  every request carrying a callback thunk or native callback, so the
+  direct-parameter witness
+  `direct_callback_relocation_resolves_to_its_private_function`, which expects
+  a realized image, cannot pass either.
 
-  Resume (swarm-w8, Linux x86-64): the outbound registrar already closes at
-  the checked level. `compile_to_checked` over
-  `tests/callback_materialization_closure.omg` plus a reachable
-  `WindowRegistrar::register<P::call, P::call>(&self.specification)` use binds
-  two `BoundNominalCallbackPlacement`s carrying `NativePlace::Field`
-  destinations, exact conformance applications, and an authenticated two-entry
-  catalog — no raw code pointer, no duplicated placement authority. At
-  `888fb154ff` the telescope admission is landed: `build_call_operation` and
-  `build_static_boundary_requirements`
-  (`execution/unit/calls/build_calls.rs`, `execution/unit/control/build_control.rs`) discharge each `Machine{Nominal}`
-  signature type parameter through a `nominal_machine_use` at the exact site
-  (ordinal plus satisfaction row), taking the binder's destination from an ABI
-  `native callback` entry where the ordinal declares one and otherwise
-  requiring the use's retained `callback_placement` — the evaluated boundary
-  calling plan the `PrivateCallbackSlot` conformance supplied. Witness:
-  `reachable_private_callback_registrar_binds_its_terminal_occurrence`
-  (`cargo nextest run -p compiler --test callback_terminal_custody`) — the call
-  emits its `BoundaryCall`, reaches Terminal, and replays the authored-use
-  join; failure no longer reads "0 Terminal registrar occurrences". At
-  `b1c7dbd56d` the void-body stop is cleared (verified macOS ARM64):
+  Remaining work:
+
+  - Lower each thunk's Terminal artifact to machine code inside the same
+    realization. `produce_callback_thunk_artifact`
+    (`checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs`)
+    stops at `finalize_terminal_artifact`; `NativeCallbackThunkSettlement`
+    carries an artifact, a lowering receipt and an entry plan, never bytes.
+  - Give retained realization a private-function channel.
+    `build_object_artifact_with_private_functions`
+    (`image-emission/src/object_artifact/construction.rs`) has no non-test
+    caller. `emit_optimized_fragments` builds its object through
+    `build_function_fragment_object_artifact`, which has no such channel, and
+    `validate_private_functions` admits at most one private function where
+    the fixture needs two.
+  - Retain the admitted registrar context in the target plan. Normalized
+    foreign call legalization
+    (`target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/normalized_foreign.rs`)
+    fails closed on a non-empty `callback_materializations` roster because it
+    cannot replay one.
+  - Add a layout-field address destination. `CallbackAddressDestination`
+    (`machine-code/src/machine_code/calls/callbacks.rs`) has only `Register`
+    and `OutgoingStack`; `validate_callback_address_bytes` and relocation
+    replay cover those two on x86-64 and aarch64.
+  - Authenticate the complete plan application and replay the
+    authored-use-to-Terminal-operation join in the native receiving stages.
+    The target-side application commitment and placement index are producer
+    provenance only; see
+    [callback custody boundaries](omega-rust/omega/compiler/native-realization/README.md#callback-custody-boundaries).
+  - Then delete the rejections instead of widening them:
+    `reject_unconsumed_callbacks` (`native_product/admission.rs`), the
+    one-direct-callback and field-cohort arms of `admitted_native_callbacks`
+    (`retained_native_product.rs`), and the optimization-selection arm of
+    `lower_realization_optimization_stage`.
+
+  Acceptance: the two-slot registrar fixture and the direct-parameter witness
+  each produce a native image in which object and final-image replay bind the
+  private symbol, relocation, executable region and patched address to the
+  same function and native destination. Source holds no raw code pointer and
+  no placement authority is duplicated. Missing, duplicate, reordered,
+  substituted and shape-incompatible materializations reject, and a private
+  slot has no source projection, read, write or address. Registration outcome
+  and lifetime belong to **REGISTERED-CALLBACK-LIFETIME**.
+
+  Flag: the callback body route is a fixed-shape cohort, not machine lowering.
   `lower_bounded_callback_identity_machine`
-  (`omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/machine_lowering.rs`)
-  no longer reports "bounded callback body has no checked scalar graph" —
-  `lower_bounded_callback_unit_body` admits the one-state `u64 -> Unit`
-  complete-only Unit plan beside the `u64 -> u64` identity scalar graph, and
-  `validate_direct_callback_thunk_shape` accepts the matching
-  `TerminalMachineResult::Unit` + `ReturnUnit` leaf; the witness closes the
-  Terminal product with both field-destination thunks decoded. Custody now
-  stops at native production, the field-cohort receiving stages: the
-  `NativeArtifact` product rejects in `reject_unconsumed_callbacks`
-  (`omega-rust/omega/compiler/native-realization/src/native_product/admission.rs`)
-  with "native-artifact production cannot discard 2 validated callback
-  placement(s) for `WindowProcedure::call`, `WindowProcedure::call`; canonical
-  Terminal callback-use custody is not implemented", and the retained route
-  `realize_retained_native_artifact` rejects in `admitted_native_callbacks`
-  (`retained_native_product.rs`) with "ordinary native realization currently
-  admits exactly one direct callback" and, for a single `NativePlace::Field`
-  placement, "field callback materialization is outside the direct-parameter
-  cohort". The direct-parameter witness
-  `direct_callback_relocation_resolves_to_its_private_function` is red at base
-  on every host: `emit_realization_object`
-  (`native-realization/src/native_realization/object_emission.rs`) rejects any
-  callback thunk with "callback ABI transport is not implemented in the common
-  instruction pipeline". Next, measured 2026-09-18 rather than
-  inferred: admitting either cohort needs two pieces that do not exist, so this
-  is not a fence-widening. (1) Nothing lowers a thunk to machine code.
-  `produce_callback_thunk_artifact`
-  (`checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs`) ends at
-  `finalize_terminal_artifact`, so `NativeCallbackThunkSettlement` carries a
-  `CanonicalTerminalArtifact`, a lowering receipt and a boundary entry plan --
-  never bytes -- while `target-operations-to-selected-instructions` and
-  `selected-instructions-to-register-homes` carry no callback reference in their
-  sources at all. A second Terminal artifact must therefore be lowered to
-  machine code within one realization. (2) The private-function emission that
-  exists is orphaned from production. `validate_private_functions` and
-  `emit_private_functions` (`image-emission/src/object_artifact/`) are already
-  purpose-built for exactly this -- at most one private function, whose identity
-  must carry a `callback_thunk_placement_index` -- but
-  `build_object_artifact_with_private_functions` has no non-test caller.
-  Retained realization instead reaches `emit_optimized_fragments` ->
-  `build_function_fragment_object_artifact`, which builds its `ObjectPlan` from
-  the fragment text section and has no private-function channel. Everything
-  downstream of the thunk is already built and target-aware:
-  `validate_callback_address_bytes`
-  (`image-emission/src/object_artifact/call_sites.rs`) encodes the x86-64 rel32
-  LEA and the aarch64 page-address pair for both register and outgoing-stack
-  destinations, physical derivation matches the callback relocation by origin,
-  offset, width, symbol and kind, and final image validation checks it;
-  `realize_native_artifact_with_callback_custody` is an opaque sidecar that
-  grants no thunk authority by construction. Both walls reject before any
-  lowering: `emit_realization_object` on any non-empty `callback_thunks` or
-  `native_callbacks`, and `lower_realization_optimization_stage` separately
-  whenever optimization selections are present ("retained callbacks require the
-  ordinary custody-preserving pipeline"), so the retained route is the intended
-  path. This is implementation scope, not a language-design question.
+  (`checked-trees-to-lowered-psi/src/machine_lowering.rs`) admits a
+  `u64 -> u64` identity return with no bindings, or a `u64 -> Unit` body whose
+  only operation is `Complete`; the second matches the fixture's empty `{ }`
+  provider. `validate_direct_callback_thunk_shape` lists the same two leaves,
+  and `validate_private_functions` rejects any body with a call, parameter
+  ABI, port effect or boundary settlement. A window procedure has several
+  parameters, calls and a result. Lower the selected machine through ordinary
+  machine lowering rooted at the callback entry, and validate the thunk
+  against the requirement's signature and inbound entry plan, not against a
+  list of admitted bodies.
 
 - **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
   external root and unregister as the operation that ends it before releasing
