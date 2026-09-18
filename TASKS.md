@@ -2811,109 +2811,76 @@ Owners include
 - **RUNTIME-VALUE-GENERICS.** Implement the settled
   [runtime-capable versus const binder contract](wiki/spec/language/generics.md#value-binders-and-const-requirements)
   for APIs whose result or stored qualification depends on an input value.
-  Begin with scalar value binders and fixed-representation data/machine uses,
-  not dynamic stack layouts or automatic SIMD specialization. Psi syntax,
-  resolution, generic substitution, checked facts and Terminal production own
-  the new path; calling/layout and artifact consumers retain the same exact
-  runtime subjects alongside static applications. Keep the existing constant
-  evaluator's runtime-input rejection for `const` binders. Module-owned forms
-  depend on exact lexical selection from MODULE-NAMESPACE-RESOLUTION, not a
-  source-spelling fallback or treating a runtime value as a static cache key.
+  `TypeParameterKind::Value` runs through syntax, symbol-resolved and typed
+  trees with its own template identity and review-evidence tags; machine
+  declarations and trait requirement signatures parse `<Count: u32>`. A
+  runtime argument becomes one trailing ordinary parameter of a single shared
+  specialization (`typed-trees-to-checked-trees/src/monomorphization/`),
+  `requires` contracts bind the realized subject, and `const` binders still
+  reject runtime inputs. `compiler/tests/runtime_value_generics.rs` replays
+  captured, forwarded, reassigned, guard-established and structural subjects
+  from Terminal artifacts, with five native scenarios on macOS ARM64. None of
+  this lets a type depend on a runtime subject:
+  `monomorphization/body_rewriting/type_parameter_substitution.rs` rejects a
+  runtime-bound binder in every type position, and data declarations parse no
+  value binder (`GenericParameterSyntax::TypeAndConst` in
+  `tokens-to-syntax-trees/src/parameters/parse_generic_parameters.rs`).
+
+  Remaining work:
+
+  - Admit a runtime-bound subject in parameter and result qualifications
+    (range bounds, domain indices). Carry the exact captured subject as the
+    type's index through substitution, checked facts and Terminal production,
+    so a `-> u64[0..=Bound]` result stays related to the caller's argument
+    after that variable is reassigned. Keep rejecting layout-determining uses
+    such as array extents and `const` positions. Retire
+    `fail/generics/value_generic_runtime_static_bound`, which pins the
+    result-range rejection as the rule.
+  - Parse and check value binders on data declarations:
+    `data Index<Limit: u32> { value: u32 [0..Limit]; }` owes the range at
+    construction, erases a proof-only index, and keeps an executable index as
+    ordinary data, an argument or an existing descriptor field.
+  - Module-owned forms, once **MODULE-NAMESPACE-RESOLUTION** supplies exact
+    lexical selection. No source-spelling fallback, and no runtime value used
+    as a static cache key.
+  - Native legs for three scenarios. Each stops identically without a value
+    binder, so repair the owning route, not this item: a receiver method whose
+    realized subject owes `requires` stops at the `entry_claims` gate in
+    `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
+    a `let mut` primitive local beside a Console receiver stops with
+    `SourceCustodyMismatch` in the selected-instruction
+    `legalization/source/scalar_graph/terminator.rs`; a structural subject
+    over a record local beside a provider receiver gets no checked Unit plan
+    (**STATE-LOCAL-VALUE-FRONTIER**). Native receivers spell
+    `console: Service<Console> in Bound`; a bare `Console` field stops in
+    `image-emission/src/hosted_receiver.rs` (**ENTRY-CONTENT-ROOTS**). Only a
+    macOS ARM64 host runs the native module; other hosts report a skip.
 
   Acceptance: `<Count: u32>` accepts static and runtime arguments when the
   caller establishes its obligations; `<const Count: u32>` still requires a
   static specialization. One dynamic machine body handles distinct runtime
-  counts without per-value code generation. Parameters/results and an indexed
-  scalar field preserve the same captured subject, including after reassignment
-  of its source variable. Equality-guarded uses retain their proof, and stale
-  relationships, invalid bounds, duplicate/lost linear custody, and unsupported
-  static-only uses reject. Reuse witnesses where valid; do not add heap boxing,
-  reserve a range's maximum on the stack, or interpret integer finiteness as a
-  specialization request. Check source diagnostics, representation, and
-  interpreter/native replay for the supported slice before widening it.
+  counts without per-value code generation. Parameter and result
+  qualifications and a value-indexed scalar field preserve the same captured
+  subject, including after reassignment of its source variable.
+  Equality-guarded uses retain their proof; stale relationships, invalid
+  bounds, duplicate or lost linear custody and unsupported static-only uses
+  reject. Add no heap boxing or stack reservation of a range's maximum, and do
+  not read integer finiteness as a specialization request. Check source
+  diagnostics, representation and interpreter/native replay for each
+  supported slice before widening it.
 
-  Squalr's 16/32/64-byte comparers and const-rotation bridges additionally motivate
-  FINITE-GENERIC-DISPATCH below. The initial runtime-binder slice does not depend
-  on completing that dynamic-interface work or general reflection.
+  Begin with scalar binders and fixed-representation uses, not dynamic stack
+  layouts or automatic SIMD specialization. **FINITE-GENERIC-DISPATCH** owns
+  finite families and dynamic interfaces; this item depends on neither it nor
+  general reflection.
 
-  Resume evidence (8c0d4dbb45, Linux x86-64, debug `omega --check` on a
-  std-free probe): `machine Main::prefix_count<Count: u32>(&self, base: u32)
-  -> u32 { Count }` rejects in the parser with "expected `satisfies`, found
-  punctuation `>`", because `tokens-to-syntax-trees/src/parameters/parse_generic_parameters.rs`
-  reads `<Name: X ...>` only as the `T: Subject satisfies Carrier`
-  conformance-binder form; the same program under `<const Count: u32>` with a
-  static `<3>` argument compiles. Every representation carries one value-binder
-  kind, `TypeParameterKind::Const { type_reference }` (syntax, symbol-resolved
-  and typed trees), and conformance, callable-shape and review-evidence
-  signature comparisons key on that variant, so a parser-only spelling that
-  reuses `Const` would silently strengthen the public binder to `const`.
-  First slice landed: `TypeParameterKind::Value { type_reference }` runs
-  through syntax, symbol-resolved and typed trees; machine signature generics
-  parse `<Count: u32>` into it while `<const Count: u32>` keeps the static
-  const binder. Static arguments (literals, const declarations, and a caller's
-  forwarded `Value`/`const` binder) specialize through the existing const
-  path; canonical template identity encodes the kind distinctly (`V`, tag 5),
-  review-evidence codecs carry `Value` as tag 4 in both public and review
-  signature records, and conformance/callable-kind matching pairs `Value`
-  only with `Value`. The monomorphization slice landed at `b81c62f6fcb`
-  (macOS x86-64): a single-segment machine argument naming a caller local
-  or parameter resolves against exact lexical scope (state parameters,
-  then preceding let declarations, nearest match) in
-  `syntax-trees-to-symbol-resolved-trees`, so authored StaticArgument
-  selections finalize. Candidate/call-selection state carries
-  `runtime_value_bindings` beside the static tuple; the specialization
-  stays keyed on the static carrier, gains a trailing ordinary parameter
-  per runtime-bound `Value` slot in telescope order, and each call site
-  appends the caller's exact subject as a regular argument, including
-  forwarded subjects through nested generic callers. Static applications
-  keep const substitution and share one template with runtime
-  applications; `const` binders still reject runtime inputs; a
-  runtime-bound slot in a static type/layout/index/contract/const
-  position rejects explicitly. Gates: 27 monomorphization tests (6 new
-  `runtime_value_tests`), 469 symbol-resolution/typed-lowering tests,
-  `tests/omega/pass/generics/value_generic_runtime_argument` plus the
-  `const_generic_runtime_argument` and
-  `value_generic_runtime_static_bound` rejections. Reuse the Terminal
-  artifact replay coverage in `compiler/tests/runtime_value_generics.rs`
-  for captured subjects, reassigned sources, guarded proofs, indexed scalar
-  fields, and shared structural-subject bodies. Native leg (macOS ARM64,
-  2026-09-17): that file's `native` module compiles each scenario as a
-  `macos_arm64` application through the reviewed std package route and
-  checks the process exit code: shared dynamic body (exit 11), forwarded and
-  reassigned requirement subjects (12), guard-established requirement inside
-  a transition state (3), subject flowing through a literal-indexed receiver
-  field (38), and subject forwarded across cloned state transitions (7).
-  Receivers spell `console: Service<Console> in Bound` with an explicit
-  provider selection: a bare `console: Console` field stops at
-  `image-emission/src/hosted_receiver.rs:600` ("macOS hosted receiver bridge
-  lost exact contract, storage, or entry custody") whenever the entry
-  retains its receiver (states or attached fields), which is
-  **ENTRY-CONTENT-ROOTS** service-carrier migration, not a value-generic gap. Three scenarios do
-  not execute natively yet; each non-generic control stops identically, so
-  none is value-generic specific. (1) A receiver method whose realized
-  subject owes a `requires` contract (`Main::at<Count: u8>(&self) requires
-  Count <= 7`) stops in target lowering at
-  `abstract-operations-to-target-operations/src/lowering/control_flow.rs:92`
-  (`!function.entry_claims.is_empty()`, rendered
-  `UnsupportedControlFlow(MachineId(1))`), exactly as a plain
-  `Main::put(&mut self, c: u8, v: u8) requires c <= 7;` does; that path is
-  under the WRITE-ONLY-BORROW claim, so the native test drops the contract
-  and keeps the subject flow. (2) The suite's reassigned source (`let mut
-  source` in `Main::main` beside the Console receiver) stops at
-  `target-operations-to-selected-instructions/src/legalization/source/scalar_graph/terminator.rs:86`
-  (`Selection(Legalization(SourceCustodyMismatch))`), the known
-  receiver-plus-mutable-primitive-local limit; the native test keeps the
-  source in a helper machine. (3) A structural subject (`take<t>()` over a
-  record local) beside a Console receiver leaves `Main::main` without a
-  checked Unit plan (`local construction stopped at statement sequence:
-  local data: scalar call binding, statement 1`; marker at
-  `typed-trees-to-checked-trees/src/execution/unit/control/statement_sequence.rs:562`,
-  declined downstream in the call planner); the same program without the
-  Console receiver compiles and runs natively (exit 0), and a non-generic
-  `read(t: Token)` stops identically, so this is STATE-LOCAL-VALUE-FRONTIER
-  territory (record-local call operands beside a provider receiver). Next
-  acceptance: contract-bearing receiver methods and the structural subject
-  observed natively once (1) and (3) land, then module-owned forms.
+  Flag: the landed slice classifies every type-position use of a runtime-bound
+  binder as a static-only use, and the suite's two "indexed scalar field"
+  scenarios index a `[u8; 8]` receiver field with a literal, which involves no
+  value-indexed type. A runtime subject that reaches only executable positions
+  and `requires` clauses behaves as an ordinary parameter; the specification's
+  result-range and `u32 [0..Limit]` field cases are the feature, and they are
+  currently a fence.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
