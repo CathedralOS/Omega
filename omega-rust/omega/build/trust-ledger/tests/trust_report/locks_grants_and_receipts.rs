@@ -68,7 +68,7 @@ fn domain_declarations_do_not_create_trust_rows() {
         r#"domain u32::Meters;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::exercise(&mut self) {
+machine Main::exercise(&mut self) reaches Console {
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
 }
@@ -107,7 +107,7 @@ fn trust_report_empty_without_commitments() {
         project.join("main.omg"),
         r#"boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::exercise(&mut self) {
+machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
 "#,
@@ -275,7 +275,7 @@ fn domain_and_unmatched_root_grants_reject_without_receipts() {
         r#"domain u32::Meters;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
-machine Main::exercise(&mut self) {
+machine Main::exercise(&mut self) reaches Console {
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
 }
@@ -404,7 +404,7 @@ fn lockfile_written_and_drift_fails_until_reapproved() {
             r#"boundary machine admitted() ensures {claim};
 boundary trait Console {{ machine exit_process(return_code: i32); }}
 data Main {{ console: Console; }}
-machine Main::exercise(&mut self) {{
+machine Main::exercise(&mut self) reaches Console {{
     self.console.exit_process(70);
 }}
 "#
@@ -635,7 +635,7 @@ boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
 ensures
     {claim};
 
-machine Main::exercise(&mut self) {{
+machine Main::exercise(&mut self) reaches Console {{
     self.console.exit_process(70);
 }}
 "#
@@ -699,7 +699,7 @@ boundary machine admitted_axis()
 {axis}
 ensures true;
 
-machine Main::exercise(&mut self) {{
+machine Main::exercise(&mut self) reaches Console {{
     self.console.exit_process(70);
 }}
 "#
@@ -777,7 +777,7 @@ boundary machine admitted<T, const N: u64, Order: T satisfies Ranked, machine F>
 where machine F(item: &T){requirement_clause};
 ensures true;
 
-machine Main::exercise(&mut self) {{
+machine Main::exercise(&mut self) reaches Console {{
     let first_receipt: i64 in Quantity<1> = admitted<Card, Ascending, selected_first>(&self.first);
     let second_receipt: i64 in Quantity<2> = admitted<Card, Descending, selected_second>(&self.second);
     self.console.exit_process(70);

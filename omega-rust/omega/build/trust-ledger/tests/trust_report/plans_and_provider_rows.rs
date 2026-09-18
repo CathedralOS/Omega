@@ -26,7 +26,7 @@ boundary trait Flags {{
 machine open_read() -> i32
     satisfies Flags::open_read via Binding::Syscall({slot});
 data Main {{ console: Console; }}
-machine Main::exercise(&mut self) {{
+machine Main::exercise(&mut self) reaches Console {{
     self.console.exit_process(70);
 }}
 "#
@@ -75,7 +75,7 @@ boundary trait Flags {
 machine open_read() -> i32
     satisfies Flags::open_read via Binding::Syscall(101);
 data Main { console: Console; }
-machine Main::exercise(&mut self) {
+machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
 "#,
@@ -576,7 +576,7 @@ boundary trait Pair {
 machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::Syscall(107);
 
 data Main { console: Console; }
-machine Main::exercise(&mut self) {
+machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
 "#,
@@ -709,7 +709,7 @@ machine SecondProvider::second(code: i32) -> i32
     satisfies Pair::second via Binding::VtableField(second);
 
 data Main { console: Console; }
-machine Main::exercise(&mut self) {
+machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
 "#,
