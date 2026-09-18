@@ -158,3 +158,65 @@ fn shared_borrow_arms_still_reject_exclusive_and_case_bearing_linear_referents()
         );
     }
 }
+
+/// The owned linear side is admitted one claim at a time: an exact projection
+/// moves the child claim its path names, while the whole root that holds that
+/// same child still rejects here. The asymmetry is deliberate until the
+/// owned-selection receipt can name a consumed claim set. A root carries one
+/// claim place per frontier child and none for the whole place, so a
+/// whole-root arm records an empty transfer path, consumes nothing, and would
+/// leave every child claim live to scope exit. Admitting the shape here only
+/// replaces this exact diagnostic with that later, less accurate one.
+#[test]
+fn whole_affine_root_with_linear_children_rejects_while_its_projected_child_joins() {
+    const ONE_CHILD: &str = "data Holder { left: Token; }\n";
+    const TWO_CHILDREN: &str = "data Pair { left: Token; right: Token; }\n";
+    let projected = format!(
+        "{LINEAR_TOKEN}{ONE_CHILD}machine choose(other: bool, x: Holder) -> u64 {{
+             let picked: Token = match other {{ true -> x.left, false -> x.left }};
+             0
+         }}"
+    );
+    assert!(
+        choose_dispatch_diagnostics(&projected).is_empty(),
+        "an exact projection of a linear child joins on its own claim path: {:?}",
+        choose_dispatch_diagnostics(&projected),
+    );
+    for (label, source) in [
+        (
+            "one linear child, uniform source",
+            format!(
+                "{LINEAR_TOKEN}{ONE_CHILD}machine choose(other: bool, x: Holder) -> u64 {{
+                     let picked: Holder = match other {{ true -> x, false -> x }};
+                     0
+                 }}"
+            ),
+        ),
+        (
+            "one linear child, distinct sources",
+            format!(
+                "{LINEAR_TOKEN}{ONE_CHILD}machine choose(other: bool, x: Holder, y: Holder) -> u64 {{
+                     let picked: Holder = match other {{ true -> x, false -> y }};
+                     0
+                 }}"
+            ),
+        ),
+        (
+            "two linear children, uniform source",
+            format!(
+                "{LINEAR_TOKEN}{TWO_CHILDREN}machine choose(other: bool, x: Pair) -> u64 {{
+                     let picked: Pair = match other {{ true -> x, false -> x }};
+                     0
+                 }}"
+            ),
+        ),
+    ] {
+        let messages = choose_dispatch_diagnostics(&source);
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.contains(CUSTODY_JOIN_REJECTION)),
+            "{label}: the whole root must still reject by naming the missing join: {messages:?}",
+        );
+    }
+}
