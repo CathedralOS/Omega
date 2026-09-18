@@ -1,0 +1,38 @@
+// FAIL CANARY. `walk` stores a machine call's result in its ranked body
+// (`self.total = self.level(remaining);`). The rank-preserving walk admits an
+// assignment only when BOTH its target and its value are inert, and
+// `expression_is_inert` returns false for `ExpressionNode::Call`, so the
+// store is refused structurally -- before its write frame is ever consulted.
+//
+// The store target is deliberately `self.total`, a field that is neither the
+// ranked subject, an endpoint, nor a `requires` carrier. Its write frame is
+// therefore disjoint from every protected carrier, so the disjointness check
+// would ADMIT this statement; only the inertness clause refuses it. That is
+// what separates this canary from
+// `fail/termination/rank_range_call_copied_input_write`, which pins the frame
+// side by storing into a slot that shares an entry role.
+//
+// This is `pass/termination/rank_range_prefix_call` with one variable moved:
+// there the prefix statement is the call `self.audit(remaining)`, admitted
+// because its complete write frame misses every premise carrier. Storing that
+// call's result instead of issuing it as a statement is what this canary pins.
+data Main { total: u32 }
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.walk(4, 9) }
+}
+
+machine Main::level(&self, value: u32) -> u32 {
+    transition { _ -> value }
+}
+
+machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    self.total = self.level(remaining);
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}

@@ -1034,6 +1034,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "termination/rank_range_prefix_call_premise_write",
     "termination/rank_range_prefix_nested_call_argument",
     "termination/rank_range_prefix_let_binding",
+    "termination/rank_range_prefix_call_result_store",
     "termination/rank_range_call_component_prefix_write",
     "termination/rank_range_indexed_store_premise_write",
     "termination/identity_measure_call_component_domain",
