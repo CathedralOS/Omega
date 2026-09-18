@@ -7,6 +7,7 @@ mod indexed_derivation;
 mod indexed_levels;
 mod indexed_mutual;
 mod indexed_nested;
+mod indexed_relations;
 mod indexed_vector;
 mod integer_order_weakening;
 mod predicate_conversion;
