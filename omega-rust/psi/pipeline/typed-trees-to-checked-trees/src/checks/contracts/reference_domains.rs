@@ -40,7 +40,13 @@ pub(super) fn proves(
     else {
         return false;
     };
-    let Some(source) = crate::flow::local_reference_storage_at_call(
+    // Match facts at this call, not facts that held when the alias was made.
+    // Exact identity transports an existing qualification; it cannot create one.
+    // A helper's guarantee may name a different live alias to this same storage.
+    // A reference-result local with no single origin names one of finitely
+    // many candidates; the required row must then hold on every candidate,
+    // since the callee receives whichever storage the loan names.
+    let sources = match crate::flow::local_reference_storage_at_call(
         program,
         frames,
         machine,
@@ -48,30 +54,42 @@ pub(super) fn proves(
         state,
         call,
         place.clone(),
-    ) else {
-        return false;
-    };
-    // Match facts at this call, not facts that held when the alias was made.
-    // Exact identity transports an existing qualification; it cannot create one.
-    // A helper's guarantee may name a different live alias to this same storage.
-    if contexts_prove_domain(
-        program,
-        facts,
-        entry_contexts.iter().copied(),
-        &source,
-        domain_symbol,
-        |candidate| {
-            crate::flow::local_reference_storage_at_call(
-                program,
-                frames,
-                machine,
-                &facts.flow,
-                state,
-                call,
-                candidate,
-            )
-        },
     ) {
+        Some(source) => vec![source],
+        None => crate::flow::local_reference_candidate_storages_at_call(
+            program,
+            frames,
+            &facts.borrow,
+            machine,
+            &facts.flow,
+            state,
+            call,
+            place.clone(),
+        )
+        .unwrap_or_default(),
+    };
+    if !sources.is_empty()
+        && sources.iter().all(|source| {
+            contexts_prove_domain(
+                program,
+                facts,
+                entry_contexts.iter().copied(),
+                source,
+                domain_symbol,
+                |candidate| {
+                    crate::flow::local_reference_storage_at_call(
+                        program,
+                        frames,
+                        machine,
+                        &facts.flow,
+                        state,
+                        call,
+                        candidate,
+                    )
+                },
+            )
+        })
+    {
         return true;
     }
     // An owned copy freezes its source value. Replay the existing exact value

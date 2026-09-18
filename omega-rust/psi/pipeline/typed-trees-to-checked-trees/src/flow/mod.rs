@@ -18,8 +18,8 @@ mod reach;
 mod reference_places;
 mod value_origins;
 pub(crate) use reference_places::{
-    local_reference_storage_at_call, local_reference_storage_before_statement,
-    reference_result_candidates_before_statement,
+    local_reference_candidate_storages_at_call, local_reference_storage_at_call,
+    local_reference_storage_before_statement, reference_result_candidates_before_statement,
 };
 pub(crate) use value_origins::{value_origin_at_call, value_origin_at_call_resolving};
 mod state;
@@ -63,7 +63,7 @@ pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_write_accesses,
     canonical_receiver_place_for_call_site, frame_storage_writes, place_from_origin_path,
-    statement_mutated_place, statement_storage_writes,
+    signature_ceiling_places, statement_mutated_place, statement_storage_writes,
 };
 use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,

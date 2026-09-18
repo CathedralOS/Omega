@@ -20,7 +20,7 @@ use typed_trees::types::TypeReferenceNode;
 /// The storage an unknown-frame call may write, with each exclusive actual's
 /// own alias place beside its storage so facts keyed on the alias retire
 /// too. The alias closure runs in the caller (`call_storage_writes`).
-pub(super) fn signature_ceiling_places(
+pub(crate) fn signature_ceiling_places(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
