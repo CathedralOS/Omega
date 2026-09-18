@@ -998,7 +998,61 @@ fn mutable_receiver_field_keeps_no_identity_past_its_own_write() {
         None,
     );
 
+    // A write in another state that can still reach the read — here `drift`
+    // re-enters `work` — may already have run on an earlier arrival.
     let other_state = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             transition true { true -> work() false -> true }
+             state work(&mut self) -> bool {
+                 sink(self.count);
+                 transition true { true -> drift() false -> true }
+             }
+             state drift(&mut self) -> bool {
+                 self.count = 1;
+                 transition true { true -> work() false -> true }
+             }
+         }",
+    );
+    let (machine, work) = named_state(&other_state, "Main::run", "work");
+    let (call_index, argument) = first_call_argument(&other_state, machine, work);
+    assert_eq!(
+        entry_operand(&other_state, machine, work, call_index, argument),
+        None,
+        "a predecessor state's write still escapes the field's entry identity"
+    );
+}
+
+#[test]
+fn mutable_receiver_field_survives_writes_in_states_that_cannot_precede() {
+    // `done` runs only after `work` has already read, and `drift` is never
+    // visited at all: neither state's write can execute before the read, so
+    // the escape window excludes them and `self.count` keeps entry identity.
+    let downstream = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             transition true { true -> work() false -> true }
+             state work(&mut self) -> bool {
+                 sink(self.count);
+                 transition true { true -> done() false -> true }
+             }
+             state done(&mut self) -> bool { self.count = -1; true }
+         }",
+    );
+    let (machine, work) = named_state(&downstream, "Main::run", "work");
+    let (call_index, argument) = first_call_argument(&downstream, machine, work);
+    assert_eq!(
+        entry_operand(&downstream, machine, work, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+        "a write in a state that cannot reach the read never precedes it",
+    );
+
+    let unreachable = typed_program(
         "data Main { count: i32; }
          machine sink(input: i32) -> bool { true }
          machine Main::run(&mut self) -> bool {
@@ -1007,23 +1061,123 @@ fn mutable_receiver_field_keeps_no_identity_past_its_own_write() {
              state drift(&mut self) { self.count = 1; }
          }",
     );
-    let (machine, work) = named_state(&other_state, "Main::run", "work");
-    let (call_index, argument) = first_call_argument(&other_state, machine, work);
+    let (machine, work) = named_state(&unreachable, "Main::run", "work");
+    let (call_index, argument) = first_call_argument(&unreachable, machine, work);
     assert_eq!(
-        entry_operand(&other_state, machine, work, call_index, argument),
+        entry_operand(&unreachable, machine, work, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+        "an unvisited state's write is outside the escape window",
+    );
+}
+
+#[test]
+fn mutable_receiver_field_keeps_no_identity_when_an_upstream_state_writes() {
+    // `drift` is a real predecessor of `work` — the invocation runs it before
+    // every `work` arrival — so its `self.count` write ends entry identity.
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             transition true { true -> drift() false -> true }
+             state drift(&mut self) -> bool {
+                 self.count = 1;
+                 transition true { true -> work() false -> true }
+             }
+             state work(&mut self) -> bool { sink(self.count); true }
+         }",
+    );
+    let (machine, work) = named_state(&program, "Main::run", "work");
+    let (call_index, argument) = first_call_argument(&program, machine, work);
+    assert_eq!(
+        entry_operand(&program, machine, work, call_index, argument),
         None,
-        "the unvisited `drift` state's write still escapes the field's entry identity"
+    );
+}
+
+#[test]
+fn mutable_receiver_field_keeps_no_identity_when_a_cycle_reaches_back() {
+    // `done` writes `self.count` and then returns to `work`, so on the second
+    // `work` arrival the write has already run: it stays inside the window.
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             transition true { true -> work() false -> true }
+             state work(&mut self) -> bool {
+                 sink(self.count);
+                 transition true { true -> done() false -> true }
+             }
+             state done(&mut self) -> bool {
+                 self.count = -1;
+                 transition true { true -> work() false -> true }
+             }
+         }",
+    );
+    let (machine, work) = named_state(&program, "Main::run", "work");
+    let (call_index, argument) = first_call_argument(&program, machine, work);
+    assert_eq!(
+        entry_operand(&program, machine, work, call_index, argument),
+        None,
+    );
+}
+
+#[test]
+fn mutable_receiver_field_survives_a_later_write_without_reentry() {
+    // The write sits after the read in the same state, which never re-enters:
+    // nothing after the read can have run before it, so the prefix is the
+    // whole escape window and `self.count` keeps entry identity.
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             sink(self.count);
+             self.count = -1;
+             true
+         }",
+    );
+    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&program, machine, run);
+    assert_eq!(
+        entry_operand(&program, machine, run, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+    );
+}
+
+#[test]
+fn mutable_receiver_field_later_write_still_escapes_once_the_state_reenters() {
+    // `-> self` re-enters `run`, so its post-read statements may already have
+    // run on the earlier arrival: the whole state stays in the window and the
+    // write ends entry identity.
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool {
+             sink(self.count);
+             self.count = -1;
+             transition true { true -> self false -> true }
+         }",
+    );
+    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&program, machine, run);
+    assert_eq!(
+        entry_operand(&program, machine, run, call_index, argument),
+        None,
     );
 }
 
 #[test]
 fn mutable_receiver_field_keeps_no_identity_past_a_whole_receiver_escape() {
     // An exclusive `&mut self` loan or a `&mut self` receiver call can write
-    // any field, so no field projection survives either escape. The window is
-    // machine-wide — the state may be re-entered — so an escape statement
-    // after the read still voids provenance.
+    // any field, so no field projection survives either escape while it can
+    // still precede the read. A `&mut self` escape AFTER the read in a state
+    // that cannot re-enter stays outside the window instead.
     for body in [
-        "sink(self.count); peek(&mut self); true",
         "self.recompute(); sink(self.count); true",
         "let loan: &mut i32 = &mut self.count; sink(self.count); true",
     ] {
@@ -1042,6 +1196,27 @@ fn mutable_receiver_field_keeps_no_identity_past_a_whole_receiver_escape() {
             "{body}"
         );
     }
+
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine peek(x: &mut Main) { }
+         machine Main::run(&mut self) -> bool {
+             sink(self.count);
+             peek(&mut self);
+             true
+         }",
+    );
+    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&program, machine, run);
+    assert_eq!(
+        entry_operand(&program, machine, run, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+        "a whole-receiver escape after the read cannot precede it without re-entry",
+    );
 }
 
 #[test]

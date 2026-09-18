@@ -14,8 +14,9 @@
 //! projections version the storage below the binding root, so a field read
 //! survives writes confined to disjoint siblings. The receiver is bound once
 //! at the invocation and never rebound, so a mutable receiver's field keeps
-//! its entry identity only while no statement anywhere in the machine can
-//! write through it — the window spans every state, not one arrival's prefix.
+//! its entry identity only while no statement that can precede the read can
+//! write through it — the window spans every state that still reaches the
+//! read's state, not one arrival's prefix.
 //! Mutable bindings with unstable contents, divergent arrivals and
 //! unresolvable cycles retain no entry identity. Substitution transports a
 //! proven origin, never re-reads an initializer after later operands execute.
@@ -685,11 +686,12 @@ fn state_parameter_entry_operand(
         // receiver, so an immutable receiver's storage is the entry storage in
         // every state — including through field projections. A mutable
         // receiver keeps entry identity only below a field projection no
-        // statement in the machine can write through: `self.<field>` writes
-        // root at the field rather than this parameter, and any earlier
-        // arrival may already have run any state, so the pristine-storage
-        // window is machine-wide (`mutable::receiver_field_holds_entry_value`
-        // — the write-escape rule). The produced `Parameter` names the
+        // statement that can precede the read can write through: `self.<field>`
+        // writes root at the field rather than this parameter, and any earlier
+        // arrival may already have run any state that still reaches this one,
+        // so the pristine-storage window is bounded by re-entrancy
+        // reachability (`mutable::receiver_field_holds_entry_value` — the
+        // write-escape rule). The produced `Parameter` names the
         // receiver's position in the ENTRY state's telescope, matching the
         // ordinal authored `self.<field>` contract predicates take through
         // `parameter_names`.
@@ -701,7 +703,13 @@ fn state_parameter_entry_operand(
             .iter()
             .position(|candidate| candidate.is_self)?;
         if parameter.is_mutable
-            && !mutable::receiver_field_holds_entry_value(program, machine, field_path)
+            && !mutable::receiver_field_holds_entry_value(
+                program,
+                machine,
+                state_symbol,
+                before_statement,
+                field_path,
+            )
         {
             return None;
         }

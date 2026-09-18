@@ -401,6 +401,62 @@ fn named_call_keeps_a_route_whose_mutable_receiver_field_is_written() {
 }
 
 #[test]
+fn named_call_mutable_receiver_field_window_excludes_states_that_cannot_precede() {
+    // `done` writes `self.count` but runs only after `check`'s read and can
+    // never return, so it sits outside the escape window: the entry fact
+    // still covers the read and the route discharges.
+    let source = "pub data Main { count: i32; }
+         boundary operator Ns::probe(value: i32) -> bool
+         crashes Trap !(value >= 0);
+         pub machine Main::check(&mut self) -> bool
+         requires self.count >= 0 {
+             let seen: bool = Ns::probe(self.count);
+             transition true { true -> done() false -> seen }
+             state done(&mut self) -> bool { self.count = -1; true }
+         }";
+    check(source).expect("a downstream-only write cannot precede the read");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_mutable_receiver_field_window_reaches_through_a_cycle() {
+    // `done` writes `self.count` and can return to `check`, so a second
+    // `check` arrival reads written storage: the write stays inside the
+    // escape window and the route survives rather than borrowing the entry
+    // fact.
+    let source = "pub data Main { count: i32; }
+         boundary operator Ns::probe(value: i32) -> bool
+         crashes Trap !(value >= 0);
+         pub machine Main::check(&mut self) -> bool
+         requires self.count >= 0 {
+             let seen: bool = Ns::probe(self.count);
+             transition true { true -> done() false -> seen }
+             state done(&mut self) -> bool {
+                 self.count = -1;
+                 transition self.count >= 0 { true -> check() false -> true }
+             }
+         }";
+    let diagnostics = check(source).expect_err("a cycling predecessor's write keeps the route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
 fn named_call_keeps_a_route_whose_mutable_receiver_escapes() {
     // A `&mut self` receiver call and an exclusive `&mut self` loan can each
     // write any receiver field, so neither lets the read borrow the entry
