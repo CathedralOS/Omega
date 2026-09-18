@@ -87,8 +87,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   executes, alternate the port's supplied-byte scan work with the concrete compiler
   gaps that it exposes; Terminal publication alone does not close that milestone.
 
-  Bridge owners: **ENTRY-CONTENT-ROOTS** and
-  **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**, owned by
+  Bridge owner: **ENTRY-CONTENT-ROOTS**, owning
   `native-realization/src/native_realization.rs`, `program-entry-plan`
   and `external-roots`, under [entry roots](wiki/spec/build/entry_roots.md).
   Preserve the target-backed receiver, private-stack and continuation partitions,
@@ -1374,8 +1373,8 @@ Owners include
   source owner and retained/erased projection; erasing an unused borrow cannot
   erase initialization, nominal cleanup or Fused establishment obligations.
   Actual occurrence custody remains with installation, not compilation of the
-  conditional native product; coordinate that join with
-  **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION**.
+  conditional native product; the join lives in `external-roots`'s
+  `ProgramLocalRootInstallationLedger`.
 
   Resume evidence: `cea82370e6` adds
   `ProgramLocalExtentRegistry::materialize_aggregate`, which discharges a
@@ -1552,43 +1551,6 @@ Owners include
   preserve identity, while partitions require authored proof. Acceptance:
   every surviving content claim traces to a reconstructed introduction or
   admitted provider issuance and every residual is accounted for.
-
-- **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION.** Derive enumerable program-local
-  content roots from exact installed parameter positions, capacity, and epoch.
-  Ordinary results with no parent lineage cannot mint roots. Acceptance:
-  aggregate capacity is reconstructed for one artifact instance and lifecycle
-  epoch, with no ambient provision or row-equality authority.
-
-  Resume evidence: `external-roots`
-  `ProgramLocalRootInstallationLedger::derive_eligible_prebindings` now
-  enumerates the complete eligible set from the sealed required-slot closure
-  instead of a caller roster, so a cohort cannot seal over an understated
-  aggregate. Omitted, extra, duplicate, substituted, and replayed members and
-  sealing before derivation all reject transactionally. Witnessed on macOS
-  arm64 by `mbx nextest run -p external-roots --lib` (130/130), including
-  `epoch_cohort_cannot_seal_before_the_eligible_set_is_derived` and
-  `program_local_root_schemas_derive_exact_installed_slots_without_minting`.
-  `eda0f330c2` adds
-  `ProgramLocalRootInstallationLedger::reconstruct_aggregate_capacity`,
-  which replays the complete live established membership of one aggregate
-  schema group in one sealed epoch cohort of one installed artifact instance
-  and composes the members' evaluated per-occurrence capacities into the
-  exact counted sum or separated interval set — accounting evidence only,
-  no minting or row-equality authority. Empty, repeated, cross-schema,
-  cross-cohort, stale-epoch, foreign-lifecycle, and foreign-installation
-  rosters all reject, as does an interval member set whose ranges overlap.
-  Witnessed on Linux x86-64 by `cargo nextest run -p external-roots --lib`
-  (210/210), including
-  `aggregate_capacity_reconstruction_sums_the_live_group_for_one_epoch`,
-  `aggregate_capacity_reconstruction_composes_the_interval_member_set`,
-  and
-  `aggregate_capacity_reconstruction_rejects_mixed_schemas_cohorts_and_installations`.
-  Remaining: connect that ledger to actual installed backing, receiver
-  partitions, activation loans and completion for the same occurrence/epoch.
-  The ordinary macOS `cli_mvp` receiver bridge already executes under its
-  explicit loader premises; do not recreate it or treat its conditional image
-  correspondence as an installation-ledger receipt. **ENTRY-CONTENT-ROOTS**
-  owns the remaining target and lifecycle realization.
 
 - **BOUNDARY-ISSUANCE.** After conservation closes, derive provider issuance
   geometry from exact invocation parameters, entry places, and results. Keep
@@ -4367,11 +4329,14 @@ Owners include
   dispatch to the table row by exact tuple (`tests/dynamic_dispatch.rs`);
   and `checked-trees-to-lowered-psi` fills every table and dispatch row from
   one `checked_requirement_family_tuple` source, rejecting a requirement that
-  declares local binders rather than lowering an empty-tuple row. Remaining
-  open slice: Omega native table replay of tuple rows
-  (`terminal-psi-to-abstract-operations`, `abstract-operations`, and
-  `image-emission` replay still rejoin rows by the two identities alone), and
-  a Psi producer admitting a finite family into the local `dyn` surface (the
+  declares local binders rather than lowering an empty-tuple row. The
+  downstream rejoin slice landed at `ee43060ab2` (macw4-finite-dispatch-6):
+  `family_tuple` is an exact join coordinate through every downstream row
+  rejoin — `abstract-operations` custody joins, rebound lowering row lookup,
+  `image-emission` `selected_row_position` conformance replay, and
+  `requirement_row` descriptor resolution — and the canonical
+  optimization-unit identity encodes it. Remaining open slice: a Psi producer
+  admitting a finite family into the local `dyn` surface (the
   `selected-dispatch` roster settles only boundary adapter dispatch, which
   that surface excludes), so a nonempty tuple is producible only by tests;
   boundary calls never demand provider specializations, so every roster
@@ -4868,11 +4833,6 @@ Owners include
   selection. Erased fields remain semantically present but never produce
   runtime cleanup. Acceptance: every path invokes the exact selected hook once
   or proves the value transferred/consumed.
-
-- **EXTERNAL-ENTRY-STACK-EPOCHS.** Finish exact enter/body/exit stack epochs,
-  context-specific provider dispositions, finite nesting, and installed-root
-  binding. Acceptance: WCSU, stack leases, artifact entry, and runtime context
-  independently rejoin; unresolved or cross-context dispositions reject.
 
 - **TR3-TR8.** Finish whole-call-graph worst-case stack derivation, exact
   `StackPlan`, nonmoving `StackLease`, suspension/cancellation preservation,
