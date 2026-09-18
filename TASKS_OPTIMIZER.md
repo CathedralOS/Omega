@@ -1693,13 +1693,25 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   range's end is provably disjoint and walks past like any disjoint
   row, while one starting below that end still interferes however far
   its reach extends (crate `nextest`: 1154 pass on macOS x86-64).
-  Remaining: staging `Structural` slots still cannot die, cover,
-  source, or move — a `Structural` slot the place's declaration does
-  not charge to its producer only stages bytes that name the place —
-  dynamic-extent rows still cannot serve as the removed dead store,
-  the covering write, the forwarding source, or the moved store, and
-  legs whose paths resolve to different writers or never resolve stay
-  unproven.
+  Store motion also admits the byte-sequence store as the moved
+  store: a `Store { 0, 1 }` through a fully computed view address
+  carrying exactly one `WriteByteSequence` row — the written byte
+  sits at the row's `byte_offset + index` for the runtime `index`,
+  so the moved extent is unbounded upward from that fixed offset and
+  the interference direction mirrors the contested-range rule: an
+  exact or local row still reaches the moved byte once its own
+  extent ends past the row's fixed offset, and a dynamic-extent row
+  on the moved place always meets it. The encoded one-byte store,
+  the row's one-byte count, and the single row pin the route while
+  the packed widths never encode one byte and the direct slot store
+  names a slot, so neither carries a sequence row (crate `nextest`:
+  1192 pass on macOS x86-64). Remaining: staging `Structural` slots
+  still cannot die, cover, source, or move — a `Structural` slot the
+  place's declaration does not charge to its producer only stages
+  bytes that name the place — dynamic-extent rows still cannot serve
+  as the removed dead store, the covering write, or the forwarding
+  source, and legs whose paths resolve to different writers or never
+  resolve stay unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
