@@ -4,7 +4,9 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 use super::{MergedFact, ParameterFacts, StateArgumentFacts};
-use crate::checks::ranges::expressions::{expression_indexable_length, expression_integer_value};
+use crate::checks::ranges::expressions::{
+    ensured_call_result_bounds, expression_indexable_length, expression_integer_value,
+};
 use crate::checks::ranges::facts::RangeFacts;
 use crate::checks::ranges::proofs::unknown_length_index_is_proven;
 
@@ -46,6 +48,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                     minimum_length: super::MergedBound::Unseen,
                     integer: MergedFact::Unseen,
                     upper_bound: super::MergedBound::Unseen,
+                    non_negative: MergedFact::Unseen,
                 })
                 .collect(),
             index_proofs: Default::default(),
@@ -101,15 +104,38 @@ pub(super) fn collect_state_argument_facts_for_call(
                     .and_then(|length| i64::try_from(length).ok())
             });
         parameter.minimum_length.merge_lower(minimum_length);
-        // R4 transport: a constant argument bounds exclusively at value+1;
-        // otherwise the argument's own proven upper bound (ensures-seeded
-        // or guard-seeded) carries over by display name.
-        let argument_bound = expression_integer_value(program, facts, argument)
-            .and_then(|value| (value >= 0).then(|| value.checked_add(1)).flatten())
-            .or_else(|| {
-                facts.proven_index_upper_bound(&program.expression_table.display_name(argument))
-            });
+        // R4 transport: every proven bound on the argument is sound for the
+        // destination parameter, so meet them. A constant bounds exclusively
+        // at value+1, a bound name carries its seeded label fact, and a call
+        // argument's own `ensures` substitutes the exit proof the callee
+        // discharged at every return (`result <= K` bounds this occurrence's
+        // result at K+1) — the consumer consults the contract rather than
+        // weakening the index admission downstream.
+        let ensured = ensured_call_result_bounds(program, argument);
+        let argument_label = program.expression_table.display_name(argument);
+        let argument_bound = [
+            expression_integer_value(program, facts, argument)
+                .and_then(|value| (value >= 0).then(|| value.checked_add(1)).flatten()),
+            facts.proven_index_upper_bound(&argument_label),
+            ensured
+                .and_then(|(_, high)| high)
+                .and_then(|high| high.checked_add(1)),
+        ]
+        .into_iter()
+        .flatten()
+        .min();
         parameter.upper_bound.merge(argument_bound);
+        // The same exit proof discharges the lower half for a signed
+        // parameter: the argument is non-negative when it folds to a
+        // non-negative literal, carries a proven label fact, or the call's
+        // ensured conjunct bounds its result `>= 0`. One unproven edge
+        // poisons the lane like every other merged fact.
+        let non_negative = (expression_integer_value(program, facts, argument)
+            .is_some_and(|value| value >= 0)
+            || facts.non_negative_is_proven(&argument_label)
+            || ensured.and_then(|(low, _)| low).is_some_and(|low| low >= 0))
+        .then_some(());
+        parameter.non_negative.merge(non_negative);
     }
 
     let mut index_proofs = Vec::new();

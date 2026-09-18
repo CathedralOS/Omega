@@ -63,7 +63,7 @@ pub(super) fn seed_local_alias_facts(
 /// owes. The facts key on the binding's label, so reassignment and overlapping
 /// call writes retire them like any other label-keyed bound — a later
 /// `i = unknown` must not keep the initializer's contract.
-pub(super) fn seed_ensured_call_result_bounds(
+pub(in crate::checks::ranges) fn seed_ensured_call_result_bounds(
     program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     label: &str,

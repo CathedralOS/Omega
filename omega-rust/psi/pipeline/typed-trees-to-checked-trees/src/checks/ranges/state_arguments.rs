@@ -44,6 +44,11 @@ struct ParameterFacts {
     /// The meet is the MAX over edges -- the weakest bound all satisfy;
     /// one unbounded edge poisons it.
     upper_bound: MergedBound,
+    /// Every incoming edge proved its argument non-negative -- a literal
+    /// `>= 0`, a proven label fact, or the callee's ensured `result >= 0`
+    /// exit proof. A signed parameter owes this half to the index check;
+    /// one unproven edge poisons the lane.
+    non_negative: MergedFact<()>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -258,6 +263,9 @@ fn merge_contribution(collected: &mut Vec<StateArgumentFacts>, incoming: &StateA
         if incoming.upper_bound != MergedBound::Unseen {
             existing.upper_bound.merge(incoming.upper_bound.get());
         }
+        if incoming.non_negative != MergedFact::Unseen {
+            existing.non_negative.merge(incoming.non_negative.get());
+        }
     }
     if let Some(incoming) = &incoming.index_proofs.proofs {
         if let Some(existing) = &mut existing.index_proofs.proofs {
@@ -394,6 +402,9 @@ pub(super) fn seed_state_argument_facts(
         );
         if let Some(bound) = parameter.upper_bound.get() {
             facts.prove_index_upper_bound(parameter.name.clone(), bound);
+        }
+        if parameter.non_negative.get().is_some() {
+            facts.prove_non_negative(parameter.name.clone());
         }
         if let Some(minimum) = parameter.minimum_length.get() {
             facts.prove_minimum_length(parameter.name.clone(), minimum);

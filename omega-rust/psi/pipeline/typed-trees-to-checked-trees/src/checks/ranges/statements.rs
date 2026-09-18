@@ -1,4 +1,4 @@
-mod aliases;
+pub(in crate::checks::ranges) mod aliases;
 #[cfg(test)]
 mod tests;
 mod transitions;
