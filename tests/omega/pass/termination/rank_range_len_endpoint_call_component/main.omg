@@ -1,0 +1,36 @@
+// PASS CANARY. Both ranged members pin a produced slice length as their
+// authored ceiling while ranking by the scalar `remaining`: `items.len` is a
+// non-polynomial coordinate, not the collection's own value. `outer`
+// decreases into `inner` and `inner` forwards both carriers unchanged, so
+// every endpoint input is conserved and the complete cycle descends.
+data Main {
+    entries: [u64; 4];
+}
+
+machine Main::main(&mut self) -> u64 {
+    let view: &[u64] = self.entries.as_slice();
+
+    transition {
+        _ -> self.outer(3, view)
+    }
+}
+
+machine Main::outer(&mut self, remaining: u64, items: &[u64])
+requires items.len >= remaining;
+terminates by remaining in 0..=items.len;
+-> u64 {
+    transition remaining > 0 && items.len > 0 {
+        true -> self.inner(remaining - 1, items)
+        false -> remaining
+    }
+}
+
+machine Main::inner(&mut self, n: u64, bag: &[u64])
+requires bag.len >= n;
+terminates by n in 0..=bag.len;
+-> u64 {
+    transition n > 0 {
+        true -> self.outer(n, bag)
+        false -> n
+    }
+}

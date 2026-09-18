@@ -1,0 +1,35 @@
+// FAIL CANARY. `outer` pins its authored ceiling to the produced length of
+// `items`, but the call rewindows the collection: `items[1..].len` is
+// `items.len - 1`, so `inner`'s `bag.len` endpoint no longer equals the
+// pinned input. The changed endpoint invalidates the preserved premise.
+data Main {
+    entries: [u64; 4];
+}
+
+machine Main::main(&mut self) -> u64 {
+    let view: &[u64] = self.entries.as_slice();
+
+    transition {
+        _ -> self.outer(3, view)
+    }
+}
+
+machine Main::outer(&mut self, remaining: u64, items: &[u64])
+requires items.len >= remaining;
+terminates by remaining in 0..=items.len;
+-> u64 {
+    transition remaining > 0 {
+        true -> self.inner(remaining, items[1..])
+        false -> remaining
+    }
+}
+
+machine Main::inner(&mut self, n: u64, bag: &[u64])
+requires bag.len >= n;
+terminates by n in 0..=bag.len;
+-> u64 {
+    transition n > 0 {
+        true -> self.outer(n - 1, bag)
+        false -> n
+    }
+}
