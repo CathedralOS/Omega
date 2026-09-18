@@ -719,7 +719,19 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   replay-bound evidence while the declared shared-entry route and
   runtime-spill recovery stay distinct
   (`default_path_routes_entry_transitions_into_the_leaf_local_fixed_view_sequence`).
-  Remaining: coalescing across split points and live-range splitting.
+  Landed: fixed/precolored segment-home placement coalesces across split
+  points — each recorded copy affinity binds to the two segment domains
+  covering the copy's exact use/def points, so a preference never crosses
+  an incompatible fixed-use boundary, and among already-legal candidates
+  the view satisfying the most assigned-partner copy edges wins, then the
+  view the most still-unassigned partners would take, then the view
+  stealing the fewest constrained-neighbor coalesces — after dropping any
+  candidate that would leave such a neighbor with no viable view; the
+  identical ranking replays from the plan with matching work accounting
+  (`copy_partner_home_pulls_the_copy_domain_across_the_split_point`,
+  `coalesce_loses_to_keeping_a_constrained_neighbor_feasible`,
+  `affinity_binds_to_the_domain_covering_the_copy_point`).
+  Remaining: live-range splitting.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
   CFG families: red-zone policy, probing, unwind
