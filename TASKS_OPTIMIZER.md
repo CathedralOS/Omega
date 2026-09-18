@@ -1503,16 +1503,60 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   relocation, and a one-member run stays with the
   commuting member relocation, under the same replayed
   restore-by-content validation (crate `nextest`: 1152
-  pass).
+  pass). Also landed: `rewrites/boundary_branch`
+  rewrites a `ConditionalBranchU64LessThan` or
+  `ConditionalBranchI64LessThan` terminator whose
+  implicit uses partition under the flag universe the
+  target's three compare rows publish — flag units
+  must resolve to one compare through the same
+  least-fixpoint entry-event walk read at the
+  terminator position and must be among that
+  compare's published definitions, and every other
+  observed unit must lie in the jump row's implicit
+  surface when the fold lands on `Jump` — when that
+  compare carries one operand at its carrier
+  domain's pole while the other side stays
+  unresolved: a far pole (`x < 0` unsigned, `x <
+  i64::MIN` signed, or a strict less-than issued
+  from the domain maximum) or two known operands
+  decides the predicate outright and the terminator
+  becomes the target's own `Jump` carrying the
+  decided `SelectedSuccessor` record verbatim, while
+  a near pole (`0 < x` unsigned, `x < u64::MAX`,
+  `i64::MIN < x`, `x < i64::MAX` signed) collapses
+  the ordering to the nonzero condition on the
+  identical published flag state — the terminator
+  becomes `ConditionalBranch` carrying
+  `ConditionalBranchNonZero` on the one constraint
+  row the conditional-branch kinds share, the
+  branch's instruction identity, implicit surface,
+  and provenance retained and `when_less`
+  republished as `when_nonzero` — admitted only
+  when every flag-universe unit, not only the ones
+  the source branch declared, resolves to that
+  compare, since the collapsed reader can observe
+  any unit its kind's encoding implies. A
+  `ConditionalBranch`/`ConditionalBranchNonZero`
+  pair reads the equality condition no single pole
+  decides, and the identity
+  `register - register` compare stays with the
+  constant family; a clobber, a different
+  definition, unknown entry state, an eventless
+  path, disagreeing paths, or a non-flag
+  observation the jump surface cannot carry all
+  refuse — under the same replayed
+  restore-by-content validation (crate `nextest`:
+  1171 pass).
   Remaining: scheduling past the proven bounded window,
   run, member-against-run, commuting-pair,
   commuting-run, and commuting-member-against-run
   interchanges and the commuting member and run
   relocations — relocation through further converging
   or branching control flow, and compare/test
-  selection past the landed literal folds and the
+  selection past the landed literal folds, the
   constant-flag boolean materialization and
-  conditional-branch folds.
+  conditional-branch folds, and the boundary-pole
+  branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
