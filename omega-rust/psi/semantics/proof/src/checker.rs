@@ -26,6 +26,7 @@ mod integer_ranges;
 mod named_constraints;
 mod return_arrival;
 
+pub use certificate::{CertificateVerdict, guarded_transition_integer_verdict};
 pub use integer_ranges::{
     AssignmentRangeContext, proved_assignment_integer_range,
     proved_assignment_integer_range_with_context,

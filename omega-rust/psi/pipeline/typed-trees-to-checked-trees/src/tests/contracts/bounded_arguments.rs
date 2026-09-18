@@ -522,6 +522,106 @@ fn authored_dispatch_operators_cannot_supply_builtin_bounds() {
 }
 
 #[test]
+fn guarded_transition_argument_certificate_is_independently_accepted() {
+    // The guarded leg's own verdict, queried on the real obligation: the
+    // certificate route discharges `fuel - 1` under `fuel > 1` through the
+    // admission kernel, not the producer's say-so.
+    let program = parse_typed_trees(
+        "machine run(fuel: u64 [1..=128]) -> u64 {
+            transition { fuel > 1 -> advance(fuel - 1) _ -> 0 }
+            state advance(delivered: u64 [1..=128]) -> u64 { delivered }
+        }",
+    );
+    let plan = proof::obligations::build_proof_plan(&program);
+    let obligation = plan
+        .obligations
+        .iter()
+        .find_map(|(_, obligation)| match obligation {
+            proof::obligations::ProofObligation::BoundedTransitionArgument(argument) => {
+                Some(argument)
+            }
+            _ => None,
+        })
+        .expect("bounded argument occurrence");
+    let target = proof::obligations::IntegerRange {
+        minimum: numerics::bignum::BigInt::from_i64(1),
+        maximum: numerics::bignum::BigInt::from_i64(128),
+    };
+    assert_eq!(
+        proof::checker::guarded_transition_integer_verdict(&plan, obligation, &target, 1),
+        proof::checker::CertificateVerdict::Certified,
+    );
+    proof::checker::check_proof_plan(&plan).expect("plan checks");
+}
+
+#[test]
+fn guarded_transition_argument_certificate_stays_uncovered_when_unproven() {
+    // `fuel >= 1` narrows `fuel - 1` only to `[0, 127]`: the certificate
+    // route emits nothing rather than a certificate the kernel must refuse,
+    // and the ordinary derivation reports the gap.
+    let program = parse_typed_trees(
+        "machine run(fuel: u64 [1..=128], matched: bool) -> u64 {
+            transition { fuel >= 1 -> advance(fuel - 1) _ -> 0 }
+            state advance(delivered: u64 [1..=128]) -> u64 { delivered }
+        }",
+    );
+    let plan = proof::obligations::build_proof_plan(&program);
+    let obligation = plan
+        .obligations
+        .iter()
+        .find_map(|(_, obligation)| match obligation {
+            proof::obligations::ProofObligation::BoundedTransitionArgument(argument) => {
+                Some(argument)
+            }
+            _ => None,
+        })
+        .expect("bounded argument occurrence");
+    let target = proof::obligations::IntegerRange {
+        minimum: numerics::bignum::BigInt::from_i64(1),
+        maximum: numerics::bignum::BigInt::from_i64(128),
+    };
+    assert_eq!(
+        proof::checker::guarded_transition_integer_verdict(&plan, obligation, &target, 1),
+        proof::checker::CertificateVerdict::Uncovered,
+    );
+    assert!(proof::checker::check_proof_plan(&plan).is_err());
+}
+
+#[test]
+fn anonymous_landed_arguments_stay_off_the_guarded_certificate_route() {
+    // `7 / 2 * 2` lands at 7 by exact-rational anonymous arithmetic while its
+    // derived constraint interval claims `[6, 6]`: the anonymous leg owns the
+    // verdict, so the guarded route must not re-litigate it from premises the
+    // landing already falsified.
+    let program = parse_typed_trees(
+        "machine run() -> i32 {
+            transition { _ -> finish(7 / 2 * 2) }
+            state finish(delivered: i32 [6..=6]) -> i32 { delivered }
+        }",
+    );
+    let plan = proof::obligations::build_proof_plan(&program);
+    let obligation = plan
+        .obligations
+        .iter()
+        .find_map(|(_, obligation)| match obligation {
+            proof::obligations::ProofObligation::BoundedTransitionArgument(argument) => {
+                Some(argument)
+            }
+            _ => None,
+        })
+        .expect("bounded argument occurrence");
+    let target = proof::obligations::IntegerRange {
+        minimum: numerics::bignum::BigInt::from_i64(6),
+        maximum: numerics::bignum::BigInt::from_i64(6),
+    };
+    assert_eq!(
+        proof::checker::guarded_transition_integer_verdict(&plan, obligation, &target, 1),
+        proof::checker::CertificateVerdict::Uncovered,
+    );
+    assert!(proof::checker::check_proof_plan(&plan).is_err());
+}
+
+#[test]
 fn bounded_argument_proof_independently_preserves_negation_polarity() {
     // Exercise the proof consumer directly so rejection cannot be attributed
     // solely to the earlier arithmetic validation pass.
