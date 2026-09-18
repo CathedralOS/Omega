@@ -323,17 +323,25 @@ pub(crate) fn staged_active_resident_exact_add_chain(
 pub(crate) fn staged_active_resident_exact_add_bridge_chain(
     target: NativeTarget,
 ) -> StagedOptimizedSelectedInstructions {
+    staged_active_resident_exact_add_bridge_chain_with_selections(
+        target,
+        OptimizationSelections::new([
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+        ])
+        .unwrap(),
+    )
+}
+
+pub(crate) fn staged_active_resident_exact_add_bridge_chain_with_selections(
+    target: NativeTarget,
+    selections: OptimizationSelections,
+) -> StagedOptimizedSelectedInstructions {
     let (semantic, proof) = conditional_active_resident_exact_add_bridge_chain_artifact();
     let optimized = optimize_artifact_sections(
         &semantic,
         &proof,
         &AdmissionProfile::default(),
-        request(
-            OptimizationSelections::new([
-                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
-            ])
-            .unwrap(),
-        ),
+        request(selections),
     )
     .unwrap();
     let target = lower_optimized_to_target_operations(

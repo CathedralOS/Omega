@@ -691,6 +691,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   geometry and value lineage without adding source crash routes. A byte ceiling
   alone must not stand in for valid stack backing. Target-required probing and
   setup remain frame/provisioning work, not an owner-blocked language choice.
+  Landed: runtime-spill recovery composes after active-resident
+  rematerialization on residual `NoCompatibleHome` — the declared route
+  proves a pressure prefix (choices, classifications, the rewrite, and
+  rebuilt liveness/ranges/legality), assigns homes over the rebuilt facts,
+  and hands the identical prefix to executable spill recovery when
+  assignment still has no home, keeping `PressureRematerialization` first
+  in the post-allocation manifest and binding the published allocation to
+  `ActiveResidentImmediateU64MultiUseRematerializationV1` on x86-64 and
+  AArch64
+  (`runtime_spill_composition::residual_active_resident_pressure_composes_runtime_spill_after_rematerialization`).
 
 - **ALLOCATION-REFINEMENT.** Complete coalescing, live-range splitting,
   fixed/precolored intervals, and rematerialization cost decisions while

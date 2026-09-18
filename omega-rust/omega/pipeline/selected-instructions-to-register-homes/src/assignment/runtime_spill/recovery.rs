@@ -333,6 +333,19 @@ pub(crate) fn recover_after_declined_fixed_view_probe(
     })
 }
 
+/// An active-resident rematerialization sweep whose rebuilt facts still
+/// report `NoCompatibleHome` hands custody here: recovery runs over the
+/// rematerialized program and its rebuilt analyses, the recorded sweep stays
+/// the first transformation in the produced manifest, and retained replay
+/// re-proves the whole prefix before trusting any spill step.
+pub(crate) fn recover_after_active_resident_rematerialization(
+    pressure: crate::StagedOptimizedActiveResidentRematerializationPressure,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    recover_over(RuntimeSpillSource::ActiveResidentRematerialization(
+        pressure,
+    ))
+}
+
 fn recover_over(
     source: RuntimeSpillSource,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {

@@ -73,6 +73,36 @@ impl RetainedAllocation {
         }
     }
 
+    /// Corrupt the recorded active-resident rematerialization prefix a
+    /// runtime-spill composition carries, so cross-phase controls prove
+    /// replay rejects the prefix before trusting its spill steps.
+    /// Returns `false` when the retained source has no such prefix.
+    #[cfg(feature = "test-support")]
+    pub fn corrupt_runtime_spill_active_resident_prefix_custody_for_test(&mut self) -> bool {
+        match &mut self.replay {
+            ReplayInputs::RuntimeSpill(source) => {
+                source.corrupt_active_resident_prefix_custody_for_test()
+            }
+            _ => false,
+        }
+    }
+
+    /// Re-run the full independent replay of the retained source rather than
+    /// the immutable-admission projection. Cross-phase corruption controls use
+    /// this to prove a mutated source is rejected by the same validation the
+    /// constructor ran.
+    #[cfg(feature = "test-support")]
+    pub fn fresh_source_replay_for_test(&self) -> Result<(), AllocationReplayError> {
+        match &self.replay {
+            ReplayInputs::RuntimeSpill(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::Baseline(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::FixedView(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::LiteralFolds(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::SelectedLowering(source) => source.replay_allocation().map(|_| ()),
+            ReplayInputs::Rematerialization(source) => source.replay_allocation().map(|_| ()),
+        }
+    }
+
     pub fn program(&self) -> &register_homes::AllocatedProgram {
         &self.current.program
     }
@@ -90,8 +120,8 @@ impl AllocationSource for RetainedAllocation {
         // a detached identity or a result from another allocation. Fresh source
         // inputs still take the full replay path in every TryFrom below. Rejoin
         // all current facts so even test-only current-program substitution rejects.
-        let prefix_policy = match &self.replay {
-            ReplayInputs::RuntimeSpill(source) => source.fixed_view_copy_policy(),
+        let prefix_selection = match &self.replay {
+            ReplayInputs::RuntimeSpill(source) => source.recovery_prefix_selection(),
             _ => None,
         };
         let current = match &self.replay {
@@ -102,7 +132,7 @@ impl AllocationSource for RetainedAllocation {
             ReplayInputs::SelectedLowering(source) => source.project_allocation(),
             ReplayInputs::Rematerialization(source) => source.project_allocation(),
         };
-        validate_recovery_selection(&current, prefix_policy)?;
+        validate_recovery_selection(&current, prefix_selection)?;
         self.current.validate_against(&current)?;
         Ok(self.current())
     }
@@ -191,7 +221,7 @@ impl TryFrom<StagedOptimizedActiveResidentRematerialization> for RetainedAllocat
 // with the retained build policy; copying policy into a manifest is not proof.
 fn validate_recovery_selection(
     current: &AllocationOutput<'_>,
-    runtime_spill_prefix_policy: Option<crate::FixedViewCopyPolicy>,
+    runtime_spill_prefix_selection: Option<optimization_core::Optimization>,
 ) -> Result<(), AllocationReplayError> {
     use super::AllocationEvidence;
     use optimization_core::{Optimization, OptimizationExecutionPhase};
@@ -206,15 +236,20 @@ fn validate_recovery_selection(
                 crate::FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => &[],
             }
         }
-        AllocationEvidence::RuntimeSpill(_) => match runtime_spill_prefix_policy {
-            // A fixed-view sequence that faced pressure hands custody to
-            // runtime spill — whether the segment-home probe declined it
-            // before custody was consumed or copies materialized first. The
-            // recorded policy comes from replayed custody evidence, so a
-            // shared-entry prefix binds the declared selection while the
-            // leaf-local default path binds none.
-            Some(crate::FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1) => {
+        AllocationEvidence::RuntimeSpill(_) => match runtime_spill_prefix_selection {
+            // A sequence that faced pressure hands custody to runtime spill —
+            // a shared-entry fixed-view prefix whether the segment-home probe
+            // declined it before custody was consumed or copies materialized
+            // first, or an active-resident rematerialization sweep whose
+            // rebuilt facts still reported `NoCompatibleHome`. The recorded
+            // prefix comes from replayed custody evidence, so each declared
+            // prefix binds its declared selection while the default paths —
+            // direct legality or leaf-local copies — bind none.
+            Some(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1) => {
                 &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
+            }
+            Some(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1) => {
+                &[Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
             }
             _ => &[],
         },
@@ -243,7 +278,7 @@ impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for Retai
         source: crate::assignment::runtime_spill::RuntimeSpillAllocation,
     ) -> Result<Self, Self::Error> {
         let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed, source.fixed_view_copy_policy())?;
+        validate_recovery_selection(&replayed, source.recovery_prefix_selection())?;
         let current = super::current::CurrentAllocation::from_replayed(&replayed);
         Ok(Self {
             current,

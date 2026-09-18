@@ -1,6 +1,8 @@
 use crate::{
     PostAllocationSelectedTransformation, PressureRematerializationPolicy,
-    RecoveryClassificationPolicy, SpillChoicePolicy, validate_allocation_legality,
+    RecoveryClassificationPolicy, SpillChoicePolicy, ValidatedAllocationLegality,
+    ValidatedLiveRanges, ValidatedLiveness, ValidatedPressureRematerialization,
+    ValidatedRecoveryClassifications, ValidatedSpillChoices, validate_allocation_legality,
     validate_live_ranges, validate_liveness, validate_post_allocation_optimization_manifest,
     validate_pressure_rematerialization, validate_recovery_classifications,
     validate_register_homes, validate_spill_choices,
@@ -11,93 +13,108 @@ use crate::{
     validate_optimized_allocation_legality_custody,
 };
 
-use super::custody::custody_receipt;
+use super::custody::{custody_receipt, pressure_custody_receipt};
 use super::model::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    StagedOptimizedActiveResidentRematerializationPressure,
+    StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
 };
 
-pub fn validate_optimized_active_resident_rematerialization(
-    staged: &StagedOptimizedActiveResidentRematerialization,
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn replay_prefix(
+    source: &StagedOptimizedAllocationLegality,
+    staged_choices: &ValidatedSpillChoices,
+    staged_classifications: &ValidatedRecoveryClassifications,
+    staged_rematerialization: &ValidatedPressureRematerialization,
+    staged_liveness: &ValidatedLiveness,
+    staged_ranges: &ValidatedLiveRanges,
+    staged_legality: &ValidatedAllocationLegality,
 ) -> Result<
-    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    (
+        StagedOptimizedAllocationLegalityCustodyReceipt,
+        ValidatedSpillChoices,
+        ValidatedRecoveryClassifications,
+        ValidatedPressureRematerialization,
+        ValidatedLiveness,
+        ValidatedLiveRanges,
+        ValidatedAllocationLegality,
+    ),
     OptimizedActiveResidentRematerializationError,
 > {
-    let source_receipt = validate_source(&staged.source)?;
-    if staged.choices.receipt().policy()
+    let source_receipt = validate_source(source)?;
+    if staged_choices.receipt().policy()
         != SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1
-        || staged.classifications.receipt().policy()
+        || staged_classifications.receipt().policy()
             != RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1
-        || staged.rematerialization.receipt().policy()
+        || staged_rematerialization.receipt().policy()
             != PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1
-        || staged.choices.plan().budget != staged.classifications.plan().budget
-        || staged.choices.plan().budget != staged.rematerialization.plan().budget
+        || staged_choices.plan().budget != staged_classifications.plan().budget
+        || staged_choices.plan().budget != staged_rematerialization.plan().budget
     {
         return Err(OptimizedActiveResidentRematerializationError::UnsupportedPolicy);
     }
-    let environment = staged
-        .source
+    let environment = source
         .live_range_stage()
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    let selected = staged
-        .source
+    let selected = source
         .live_range_stage()
         .liveness_stage()
         .selected_stage()
         .selected();
-    let source_ranges = staged.source.live_range_stage().ranges();
+    let source_ranges = source.live_range_stage().ranges();
     let choices = validate_spill_choices(
-        staged.source.legality(),
+        source.legality(),
         source_ranges,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
-        staged.choices.plan().clone(),
+        staged_choices.plan().clone(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::SpillChoice)?;
     let classifications = validate_recovery_classifications(
         selected,
         source_ranges,
-        staged.source.legality(),
+        source.legality(),
         &choices,
-        staged.classifications.plan().clone(),
+        staged_classifications.plan().clone(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::Classification)?;
     let rematerialization = validate_pressure_rematerialization(
         selected,
         source_ranges,
-        staged.source.legality(),
+        source.legality(),
         &choices,
         &classifications,
-        staged.source.allocator_availability(),
+        source.allocator_availability(),
         environment.identity(),
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
-        staged.rematerialization.plan().clone(),
+        staged_rematerialization.plan().clone(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::Rematerialization)?;
     if rematerialization.receipt().applied_count() == 0 {
         return Err(OptimizedActiveResidentRematerializationError::NoAppliedAction);
     }
-    let liveness = validate_liveness(&rematerialization, staged.liveness.plan().clone())
+    let liveness = validate_liveness(&rematerialization, staged_liveness.plan().clone())
         .map_err(OptimizedActiveResidentRematerializationError::Liveness)?;
-    let ranges = validate_live_ranges(&rematerialization, &liveness, staged.ranges.plan().clone())
+    let ranges = validate_live_ranges(&rematerialization, &liveness, staged_ranges.plan().clone())
         .map_err(OptimizedActiveResidentRematerializationError::Ranges)?;
     let legality = validate_allocation_legality(
         &ranges,
-        staged.source.allocator_availability(),
+        source.allocator_availability(),
         environment.identity(),
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
-        staged.legality.plan().clone(),
+        staged_legality.plan().clone(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::Legality)?;
     if legality.receipt().entry_transition_count() != 0 {
@@ -107,6 +124,81 @@ pub fn validate_optimized_active_resident_rematerialization(
             },
         );
     }
+    Ok((
+        source_receipt,
+        choices,
+        classifications,
+        rematerialization,
+        liveness,
+        ranges,
+        legality,
+    ))
+}
+
+/// Independently replay the proven prefix before terminal homes assignment:
+/// the sweep, its rebuilt analyses, and the recorded pressure custody must
+/// reproduce exactly. This is the custody runtime-spill recovery replays
+/// before trusting the prefix as its source.
+pub fn validate_optimized_active_resident_rematerialization_pressure(
+    staged: &StagedOptimizedActiveResidentRematerializationPressure,
+) -> Result<
+    StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
+    OptimizedActiveResidentRematerializationError,
+> {
+    let (source_receipt, choices, classifications, rematerialization, liveness, ranges, legality) =
+        replay_prefix(
+            &staged.source,
+            &staged.choices,
+            &staged.classifications,
+            &staged.rematerialization,
+            &staged.liveness,
+            &staged.ranges,
+            &staged.legality,
+        )?;
+    let custody = pressure_custody_receipt(
+        source_receipt,
+        &choices,
+        &classifications,
+        &rematerialization,
+        &liveness,
+        &ranges,
+        &legality,
+    );
+    if choices != staged.choices
+        || classifications != staged.classifications
+        || rematerialization != staged.rematerialization
+        || liveness != staged.liveness
+        || ranges != staged.ranges
+        || legality != staged.legality
+        || custody != staged.custody
+    {
+        return Err(OptimizedActiveResidentRematerializationError::ReceiptMismatch);
+    }
+    Ok(custody)
+}
+
+pub fn validate_optimized_active_resident_rematerialization(
+    staged: &StagedOptimizedActiveResidentRematerialization,
+) -> Result<
+    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    OptimizedActiveResidentRematerializationError,
+> {
+    let (source_receipt, choices, classifications, rematerialization, liveness, ranges, legality) =
+        replay_prefix(
+            &staged.source,
+            &staged.choices,
+            &staged.classifications,
+            &staged.rematerialization,
+            &staged.liveness,
+            &staged.ranges,
+            &staged.legality,
+        )?;
+    let environment = staged
+        .source
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
     let homes = validate_register_homes(
         &legality,
         &ranges,

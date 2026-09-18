@@ -18,9 +18,23 @@ pub(crate) struct RuntimeSpillAllocation {
 
 impl RuntimeSpillAllocation {
     /// Replayed custody evidence for retained selection validation: the
-    /// fixed-view policy this recovery's recorded prefix ran under.
-    pub(crate) fn fixed_view_copy_policy(&self) -> Option<crate::FixedViewCopyPolicy> {
-        self.source.fixed_view_copy_policy()
+    /// declared allocation-recovery selection this recovery's recorded
+    /// prefix ran under, when the prefix came from a declared rule.
+    pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
+        self.source.recovery_prefix_selection()
+    }
+
+    /// Corrupt the recorded active-resident prefix custody so cross-phase
+    /// controls can prove replay rejects it before trusting any spill step.
+    /// Returns `false` when this recovery has no such prefix.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub(crate) fn corrupt_active_resident_prefix_custody_for_test(&mut self) -> bool {
+        let RuntimeSpillSource::ActiveResidentRematerialization(pressure) = &mut self.source else {
+            return false;
+        };
+        crate::corrupt_active_resident_rematerialization_pressure_custody_for_test(pressure);
+        true
     }
 }
 
@@ -32,7 +46,10 @@ impl RuntimeSpillAllocation {
 /// before custody was consumed enters with the same legality plus the
 /// declined policy and verdict — the probe outcome is re-derived on every
 /// replay so the recorded selection binding is custody evidence, not a
-/// producer assertion.
+/// producer assertion. An active-resident rematerialization sweep whose
+/// rebuilt facts still report `NoCompatibleHome` enters with that proven
+/// prefix: the rematerialization stays recorded ahead of every spill step
+/// and the whole prefix is replayed before any step is trusted.
 #[derive(Debug)]
 pub(crate) enum RuntimeSpillSource {
     Legality(StagedOptimizedAllocationLegality),
@@ -42,12 +59,15 @@ pub(crate) enum RuntimeSpillSource {
         decline: crate::FixedPrecoloredSegmentHomeDecline,
     },
     FixedViewCopies(StagedOptimizedSelectedReanalysis),
+    ActiveResidentRematerialization(crate::StagedOptimizedActiveResidentRematerializationPressure),
 }
 
 impl RuntimeSpillSource {
     /// Every arm shares one underlying legality stage: the fixed-view entries
     /// reach it through the copy transformation's source custody or carry it
-    /// directly when the sequence was declined before committing.
+    /// directly when the sequence was declined before committing, and the
+    /// active-resident entry reaches it as the rematerialization's own
+    /// staged source.
     fn legality_stage(&self) -> &StagedOptimizedAllocationLegality {
         match self {
             Self::Legality(source) => source,
@@ -55,6 +75,7 @@ impl RuntimeSpillSource {
             Self::FixedViewCopies(reanalysis) => {
                 reanalysis.transformation_stage().source_legality_stage()
             }
+            Self::ActiveResidentRematerialization(pressure) => pressure.source(),
         }
     }
 
@@ -99,18 +120,38 @@ impl RuntimeSpillSource {
     /// replayed custody evidence, not a producer assertion. The post-copy
     /// arm reads it from the validated reanalysis custody; the declined arm
     /// carries it from the probe the route re-proves on every replay.
-    /// `None` on the direct legality path.
+    /// `None` on the direct legality and active-resident paths.
     pub(crate) fn fixed_view_copy_policy(&self) -> Option<crate::FixedViewCopyPolicy> {
         match self {
-            Self::Legality(_) => None,
+            Self::Legality(_) | Self::ActiveResidentRematerialization(_) => None,
             Self::DeclinedFixedView { policy, .. } => Some(*policy),
             Self::FixedViewCopies(reanalysis) => Some(reanalysis.custody().source().policy()),
         }
     }
 
+    /// The declared allocation-recovery selection this recovery's recorded
+    /// prefix ran under: a shared-entry prefix binds the shared-entry
+    /// selection and an active-resident sweep binds the rematerialization
+    /// selection. Every other prefix is default-path recovery and binds
+    /// none. Derived from replayed custody evidence, never asserted.
+    pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
+        match self {
+            Self::ActiveResidentRematerialization(_) => {
+                Some(optimization_core::Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
+            }
+            _ => match self.fixed_view_copy_policy() {
+                Some(crate::FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1) => {
+                    Some(optimization_core::Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1)
+                }
+                _ => None,
+            },
+        }
+    }
+
     /// The program the first recovery step consumes: the selected program on
-    /// the direct and pre-copy declined paths, or the fixed-view
-    /// transformation's copy output.
+    /// the direct and pre-copy declined paths, the fixed-view
+    /// transformation's copy output, or the active-resident
+    /// rematerialization's transformed program.
     pub(crate) fn base(&self) -> crate::SelectedProgramRef<'_> {
         match self {
             Self::Legality(source) => crate::SelectedProgramRef::new(
@@ -130,12 +171,16 @@ impl RuntimeSpillSource {
             Self::FixedViewCopies(reanalysis) => {
                 crate::SelectedProgramRef::new(reanalysis.transformation_stage().copies())
             }
+            Self::ActiveResidentRematerialization(pressure) => {
+                crate::SelectedProgramRef::new(pressure.rematerialization())
+            }
         }
     }
 
     /// Facts valid when recovery begins: the original legality facts on the
-    /// direct and pre-copy declined paths, or the completely reanalyzed facts
-    /// after fixed-view copies. No analysis result is carried across the
+    /// direct and pre-copy declined paths, the completely reanalyzed facts
+    /// after fixed-view copies, or the rebuilt facts after the
+    /// rematerialization sweep. No analysis result is carried across the
     /// rewrite boundary.
     pub(crate) fn liveness(&self) -> &ValidatedLiveness {
         match self {
@@ -144,6 +189,7 @@ impl RuntimeSpillSource {
                 legality.live_range_stage().liveness_stage().liveness()
             }
             Self::FixedViewCopies(reanalysis) => reanalysis.liveness(),
+            Self::ActiveResidentRematerialization(pressure) => pressure.liveness(),
         }
     }
 
@@ -152,6 +198,7 @@ impl RuntimeSpillSource {
             Self::Legality(source) => source.live_range_stage().ranges(),
             Self::DeclinedFixedView { legality, .. } => legality.live_range_stage().ranges(),
             Self::FixedViewCopies(reanalysis) => reanalysis.ranges(),
+            Self::ActiveResidentRematerialization(pressure) => pressure.ranges(),
         }
     }
 
@@ -160,6 +207,7 @@ impl RuntimeSpillSource {
             Self::Legality(source) => source.legality(),
             Self::DeclinedFixedView { legality, .. } => legality.legality(),
             Self::FixedViewCopies(reanalysis) => reanalysis.legality(),
+            Self::ActiveResidentRematerialization(pressure) => pressure.legality(),
         }
     }
 
@@ -169,7 +217,9 @@ impl RuntimeSpillSource {
     /// its copy transformation first so the recorded ledger replays the
     /// actual rewrite order; the declined arm re-runs the segment-home probe
     /// and requires the same capacity verdict, so a recorded policy was
-    /// earned by the front-end's own rejection.
+    /// earned by the front-end's own rejection. The active-resident arm
+    /// replays the proven rematerialization prefix and keeps its sweep
+    /// transformation first for the same reason.
     pub(crate) fn upstream_manifest(
         &self,
     ) -> Result<
@@ -227,6 +277,19 @@ impl RuntimeSpillSource {
                     )],
                 ))
             }
+            Self::ActiveResidentRematerialization(pressure) => {
+                let upstream =
+                    crate::validate_optimized_active_resident_rematerialization_pressure(pressure)
+                        .map_err(RuntimeSpillAllocationError::UpstreamRematerialization)?;
+                Ok((
+                    upstream.source().manifest(),
+                    vec![
+                        crate::PostAllocationSelectedTransformation::PressureRematerialization(
+                            upstream.rematerialization(),
+                        ),
+                    ],
+                ))
+            }
         }
     }
 }
@@ -274,6 +337,10 @@ pub(crate) struct RuntimeSpillFacts {
 pub enum RuntimeSpillAllocationError {
     Upstream(crate::OptimizedAllocationLegalityCustodyError),
     UpstreamReanalysis(crate::OptimizedSelectedReanalysisError),
+    /// The recorded active-resident prefix could not be independently
+    /// replayed — the rematerialization custody the recovery claims was
+    /// never proven.
+    UpstreamRematerialization(crate::OptimizedActiveResidentRematerializationError),
     Rewrite(crate::RuntimeSpillError),
     Rematerialization(crate::RuntimeRematerializationError),
     Liveness(crate::LivenessError),

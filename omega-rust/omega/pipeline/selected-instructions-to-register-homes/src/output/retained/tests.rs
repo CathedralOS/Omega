@@ -18,8 +18,9 @@ fn every_retained_constructor_fully_replays_fresh_source_before_capture() {
             .unwrap();
         assert!(replay < policy && policy < capture);
     }
-    // Only the runtime-spill constructor may bind a fixed-view prefix policy;
-    // every other recovery family has no prefix to report.
+    // Only the runtime-spill constructor may bind a recorded prefix's
+    // declared selection; every other recovery family has no prefix to
+    // report.
     assert_eq!(
         source
             .matches("validate_recovery_selection(&replayed, None)?;")
@@ -27,8 +28,9 @@ fn every_retained_constructor_fully_replays_fresh_source_before_capture() {
         5
     );
     assert!(
-        source
-            .contains("validate_recovery_selection(&replayed, source.fixed_view_copy_policy())?;")
+        source.contains(
+            "validate_recovery_selection(&replayed, source.recovery_prefix_selection())?;"
+        )
     );
 }
 
@@ -50,8 +52,8 @@ fn immutable_retained_reads_rejoin_all_facts_without_reexecuting_source_replay()
         1
     );
     assert!(!retained.contains("source.replay_allocation()"));
-    assert!(retained.contains("validate_recovery_selection(&current, prefix_policy)?;"));
-    assert!(retained.contains("source.fixed_view_copy_policy()"));
+    assert!(retained.contains("validate_recovery_selection(&current, prefix_selection)?;"));
+    assert!(retained.contains("source.recovery_prefix_selection()"));
     assert!(retained.contains("self.current.validate_against(&current)?;"));
 
     let runtime = include_str!("../runtime_spill.rs");

@@ -1,15 +1,23 @@
-//! Fixed-view copies composed with runtime spill. When post-copy assignment
-//! still reports `NoCompatibleHome`, the complete reanalysis — not the
-//! original legality — becomes spill recovery's source, the manifest keeps
-//! the copy transformation ahead of every spill step, and the recorded copy
-//! policy binds the declared recovery selection through retained replay.
+//! Fixed-view copies and active-resident rematerialization composed with
+//! runtime spill. When post-prefix assignment still reports
+//! `NoCompatibleHome`, the proven prefix — the complete reanalysis for the
+//! fixed-view arms, the validated rematerialization sweep for the
+//! active-resident arm — not the original legality becomes spill recovery's
+//! source, the manifest keeps the prefix transformation ahead of every spill
+//! step, and the recorded prefix binds the declared recovery selection
+//! through retained replay.
 
 use crate::tests::{
     AllocationEvidence, AllocationReplayError, NativeTarget, Optimization, OptimizationSelections,
-    OptimizedPostAllocationMachinePipelineError, PostAllocationSelectedTransformation,
-    stage_leaf_local_fixed_view_register_allocation_composing,
-    stage_optimized_post_allocation_machine_plan,
+    OptimizedActiveResidentRematerializationError, OptimizedPostAllocationMachinePipelineError,
+    PostAllocationSelectedTransformation, RuntimeSpillAllocationError,
+    StagedOptimizedSelectedInstructions, stage_active_resident_register_allocation,
+    stage_leaf_local_fixed_view_register_allocation_composing, stage_optimized_live_ranges,
+    stage_optimized_liveness, stage_optimized_post_allocation_machine_plan,
     stage_shared_entry_fixed_view_register_allocation,
+    staged_active_resident_exact_add_bridge_chain,
+    staged_active_resident_exact_add_bridge_chain_with_selections,
+    staged_active_resident_exact_add_chain, staged_active_resident_exact_add_original_victim_chain,
     staged_composition_pressure_computed_killer_legality,
     staged_composition_pressure_module_legality,
 };
@@ -343,6 +351,231 @@ fn changed_real_spill_slot_geometry_invalidates_retained_demand() {
         );
         retained.substitute_current_program_for_test(original);
         retained.replay_allocation().unwrap();
+    }
+}
+
+fn active_resident_ranges(
+    staged: StagedOptimizedSelectedInstructions,
+) -> selected_instructions_to_register_homes::StagedOptimizedLiveRanges {
+    stage_optimized_live_ranges(stage_optimized_liveness(staged).unwrap()).unwrap()
+}
+
+/// The declared active-resident route proves its rematerialization sweep as a
+/// validated prefix — the transformed program plus rebuilt liveness, ranges,
+/// and legality — then attempts assignment over those rebuilt facts. The
+/// plain chain resolves inside the sweep and keeps rematerialization
+/// evidence; the bridge and original-victim graphs still report
+/// `NoCompatibleHome`, so the same proven prefix — not the original
+/// legality — becomes runtime spill's source, the recorded sweep stays
+/// first in the ledger ahead of every runtime step, and the whole retained
+/// allocation replays into the machine plan.
+#[test]
+fn active_resident_rematerialization_composes_into_runtime_spill_when_residual_pressure_remains() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let retained = stage_active_resident_register_allocation(active_resident_ranges(
+            staged_active_resident_exact_add_chain(target),
+        ))
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: the resolved chain must keep its terminal sweep: {error}")
+        });
+        let current = retained.current();
+        assert!(
+            matches!(
+                current.evidence(),
+                AllocationEvidence::ActiveResidentRematerialization(_)
+            ),
+            "{target:?}: resolved pressure must publish rematerialization evidence"
+        );
+        assert!(
+            matches!(
+                transformations(&retained),
+                [PostAllocationSelectedTransformation::PressureRematerialization(_)]
+            ),
+            "{target:?}: the resolved route records exactly its sweep transformation"
+        );
+        let replayed = retained.replay_allocation().unwrap();
+        assert_eq!(current.homes(), replayed.homes());
+        assert_eq!(current.evidence(), replayed.evidence());
+
+        for (name, staged) in [
+            (
+                "bridge",
+                staged_active_resident_exact_add_bridge_chain(target),
+            ),
+            (
+                "original-victim",
+                staged_active_resident_exact_add_original_victim_chain(target),
+            ),
+        ] {
+            let retained = stage_active_resident_register_allocation(active_resident_ranges(
+                staged,
+            ))
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{target:?} {name}: residual pressure must compose into runtime spill: {error}"
+                )
+            });
+            let current = retained.current();
+            assert!(
+                matches!(current.evidence(), AllocationEvidence::RuntimeSpill(_)),
+                "{target:?} {name}: residual pressure must publish runtime-spill evidence"
+            );
+            let ledger = transformations(&retained);
+            assert!(
+                matches!(
+                    ledger.first(),
+                    Some(PostAllocationSelectedTransformation::PressureRematerialization(_))
+                ),
+                "{target:?} {name}: the rematerialization sweep stays first in the ledger"
+            );
+            assert!(
+                ledger.len() > 1
+                    && ledger[1..].iter().all(|transformation| matches!(
+                        transformation,
+                        PostAllocationSelectedTransformation::RuntimeSpill(_)
+                            | PostAllocationSelectedTransformation::RuntimeRematerialization(_)
+                    )),
+                "{target:?} {name}: runtime steps follow the rematerialization prefix, got {ledger:?}"
+            );
+            // Fresh and retained replays rejoin the same facts: the prefix
+            // is validated custody, not a downstream representation selector.
+            let replayed = retained.replay_allocation().unwrap();
+            assert_eq!(current.selected_plan(), replayed.selected_plan());
+            assert_eq!(current.homes(), replayed.homes());
+            assert_eq!(current.evidence(), replayed.evidence());
+            assert_eq!(
+                current.post_allocation_manifest(),
+                replayed.post_allocation_manifest()
+            );
+            let machine = stage_optimized_post_allocation_machine_plan(&retained).unwrap();
+            assert_eq!(
+                machine.machine().plan().selected,
+                retained.current().selected().selected_identity()
+            );
+        }
+    }
+}
+
+/// The active-resident prefix binds the declared recovery selection: under no
+/// declared selection — or under a different declared recovery rule — the
+/// composed allocation must fail retained replay with `SelectionMismatch`,
+/// while the same composition under the declared selection retains and
+/// publishes runtime-spill evidence.
+#[test]
+fn active_resident_composition_binds_the_declared_recovery_selection() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        for (name, selections) in [
+            (
+                "undeclared",
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            ),
+            (
+                "foreign-recovery",
+                OptimizationSelections::new([
+                    Optimization::CopyPropagation,
+                    Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                ])
+                .unwrap(),
+            ),
+        ] {
+            let allocation = stage_active_resident_register_allocation(active_resident_ranges(
+                staged_active_resident_exact_add_bridge_chain_with_selections(target, selections),
+            ));
+            assert!(
+                matches!(
+                    allocation,
+                    Err(RegisterAllocationError::Replay(
+                        AllocationReplayError::SelectionMismatch
+                    ))
+                ),
+                "{target:?} {name}: an active-resident prefix must not absorb a missing or foreign selection"
+            );
+        }
+
+        let retained = stage_active_resident_register_allocation(active_resident_ranges(
+            staged_active_resident_exact_add_bridge_chain(target),
+        ))
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: declared active-resident composition must complete: {error}")
+        });
+        assert!(
+            matches!(
+                retained.current().evidence(),
+                AllocationEvidence::RuntimeSpill(_)
+            ),
+            "{target:?}: residual pressure must publish runtime-spill evidence"
+        );
+        let replayed = retained.replay_allocation().unwrap();
+        assert_eq!(retained.current().homes(), replayed.homes());
+    }
+}
+
+/// A corrupted active-resident prefix inside a composed runtime-spill source
+/// must fail the same independent replay the constructor ran — the prefix is
+/// replayed custody, not a producer assertion — before any spill step is
+/// trusted.
+#[test]
+fn corrupted_active_resident_prefix_rejects_composed_replay() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut retained = stage_active_resident_register_allocation(active_resident_ranges(
+            staged_active_resident_exact_add_bridge_chain(target),
+        ))
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: declared active-resident composition must complete: {error}")
+        });
+        retained.replay_allocation().unwrap();
+        assert!(
+            retained.corrupt_runtime_spill_active_resident_prefix_custody_for_test(),
+            "{target:?}: the composed source must carry an active-resident prefix"
+        );
+        assert!(
+            matches!(
+                retained.fresh_source_replay_for_test(),
+                Err(AllocationReplayError::RuntimeSpill(
+                    RuntimeSpillAllocationError::UpstreamRematerialization(
+                        OptimizedActiveResidentRematerializationError::ReceiptMismatch
+                    )
+                ))
+            ),
+            "{target:?}: a corrupted prefix must reject before spill steps are trusted"
+        );
+    }
+}
+
+/// A changed retained allocation — the homes alone — must invalidate replay
+/// of the composed route before any downstream demand derives from stale
+/// facts, exactly as it does for every other retained allocation.
+#[test]
+fn changed_allocation_invalidates_active_resident_composed_replay() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut retained = stage_active_resident_register_allocation(active_resident_ranges(
+            staged_active_resident_exact_add_bridge_chain(target),
+        ))
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: declared active-resident composition must complete: {error}")
+        });
+        retained.replay_allocation().unwrap();
+        let mut changed_homes = retained.program().clone();
+        std::sync::Arc::make_mut(&mut changed_homes.homes)
+            .functions
+            .clear();
+        retained.substitute_current_program_for_test(changed_homes);
+        assert!(
+            matches!(
+                retained.replay_allocation(),
+                Err(AllocationReplayError::CurrentProgramMismatch)
+            ),
+            "{target:?}: a changed allocation must fail retained replay"
+        );
+        assert!(
+            matches!(
+                stage_optimized_post_allocation_machine_plan(&retained),
+                Err(OptimizedPostAllocationMachinePipelineError::Allocation(
+                    AllocationReplayError::CurrentProgramMismatch
+                ))
+            ),
+            "{target:?}: stale demand must reject before post-allocation derivation"
+        );
     }
 }
 

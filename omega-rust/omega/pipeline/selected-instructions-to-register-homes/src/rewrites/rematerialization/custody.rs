@@ -6,7 +6,46 @@ use crate::{
 
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
 
-use super::model::StagedOptimizedActiveResidentRematerializationCustodyReceipt;
+use super::model::{
+    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
+};
+
+/// Custody receipt for the proven prefix alone: identical identity legs to
+/// the completed receipt minus homes and manifest, which only exist once a
+/// resolving assignment lands.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn pressure_custody_receipt(
+    source: StagedOptimizedAllocationLegalityCustodyReceipt,
+    choices: &ValidatedSpillChoices,
+    classifications: &ValidatedRecoveryClassifications,
+    rematerialization: &ValidatedPressureRematerialization,
+    liveness: &ValidatedLiveness,
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
+) -> StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
+    StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
+        source,
+        choices: choices.receipt().identity(),
+        choice_policy: choices.receipt().policy(),
+        choice_usage: choices.receipt().usage(),
+        classifications: classifications.receipt().identity(),
+        classification_policy: classifications.receipt().policy(),
+        classification_usage: classifications.receipt().usage(),
+        rematerialization: rematerialization.receipt().identity(),
+        rematerialization_policy: rematerialization.receipt().policy(),
+        rematerialization_usage: rematerialization.receipt().usage(),
+        budget: rematerialization.plan().budget,
+        transformed_selected: rematerialization.receipt().transformed_selected(),
+        liveness: liveness.receipt().identity(),
+        ranges: ranges.receipt().identity(),
+        legality: legality.receipt().identity(),
+        function_count: rematerialization.receipt().function_count(),
+        virtual_register_count: legality.receipt().virtual_register_count(),
+        applied_count: rematerialization.receipt().applied_count(),
+        rewritten_use_count: rematerialization.receipt().rewritten_use_count(),
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn custody_receipt(
