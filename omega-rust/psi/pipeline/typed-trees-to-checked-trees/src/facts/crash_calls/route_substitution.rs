@@ -117,6 +117,13 @@ pub(crate) fn call_argument_substitution(
             .statements(state.statement_nodes)
             .get(before_statement)
     });
+    // Structural guard leaves name the authored parameter telescope. Each
+    // actual's root is the frozen caller parameter (plus its member spine)
+    // whose storage it reads, so a callee leaf can re-root into the caller's
+    // contract namespace. A mutable or exclusively borrowed root keeps
+    // `None`: the surviving annotation is an entry snapshot and could not
+    // speak for the bound operand.
+    let caller_parameters = owner.map(|(_, state)| program.state_parameters(state));
     // The dense binding namespace of `lower_unit_scalar_argument`: primitive
     // parameters, then immutable primitive locals in declaration order.
     // Mutable storage resolves through named StorageRead leaves instead.
@@ -157,17 +164,22 @@ pub(crate) fn call_argument_substitution(
     let mut argument_index = 0usize;
     let mut identity = Vec::with_capacity(target_parameters.len());
     let mut scalar = Vec::with_capacity(target_parameters.len());
+    let mut fields = Vec::with_capacity(target_parameters.len());
     let mut values = Vec::with_capacity(target_parameters.len());
     for parameter in target_parameters {
         if parameter.is_self {
             // Receiver-entry identity needs retained referent custody. A name
             // alone must not impersonate a caller entry value.
             identity.push(None);
+            fields.push(None);
             values.push(None);
             continue;
         }
         let argument = arguments.get(argument_index).copied();
         argument_index = argument_index.saturating_add(1);
+        fields.push(argument.and_then(|argument| {
+            structural_actual_root(program, caller_parameters.unwrap_or(&[]), argument)
+        }));
         let entry_identity = argument.and_then(|argument| {
             let (machine, state) = owner?;
             crate::facts::crash_entry_values::entry_operand(
@@ -262,13 +274,118 @@ pub(crate) fn call_argument_substitution(
     CallArgumentSubstitution {
         identity,
         scalar,
+        fields,
         values,
     }
+}
+
+/// The caller structural root one actual binds: the frozen caller parameter
+/// whose storage the actual reads, plus the actual's own member spine below
+/// it. A surviving `StructuralParameterField` leaf keeps that root and
+/// appends the callee leaf's path — `inner(pair.cell)` under a `left.narrow`
+/// guard reads `pair.cell.narrow`. The same field-identity spelling
+/// `structural_parameter_place` produces keeps the checked path exact, and
+/// the `resolve_structural_parameter_path` round trip proves the converted
+/// spine resolves to the canonical place the actual occupies. Only `frozen`
+/// roots qualify: a mutable parameter or an exclusive borrow can hold
+/// storage newer than the entry snapshot the contract namespace names, so
+/// their rows stay `None` rather than naming stale storage.
+fn structural_actual_root(
+    program: &TypedTrees,
+    caller_parameters: &[StateParameter],
+    actual: ExpressionHandle,
+) -> Option<checked_trees::CheckedStructuralParameterField> {
+    let place = crate::flow::canonical_place_from_expression(program, actual)?;
+    let root = crate::flow::normalized_event_place_root(program, place.root);
+    if !matches!(root, facts::PlaceRoot::Symbol(_)) {
+        return None;
+    }
+    let parameter_position = caller_parameters.iter().position(|parameter| {
+        crate::flow::normalized_event_place_root(
+            program,
+            facts::PlaceRoot::Symbol(parameter.symbol),
+        ) == root
+    })?;
+    let mut path = Vec::with_capacity(place.segments.len());
+    for segment in &place.segments {
+        path.push(match *segment {
+            facts::PlaceSegment::Field { symbol } => {
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                    structural_member_identity(program, symbol)?,
+                )
+            }
+            facts::PlaceSegment::Case { variant } => {
+                checked_trees::CheckedStructuralPredicatePathSegment::Case(
+                    structural_member_identity(program, variant)?,
+                )
+            }
+            facts::PlaceSegment::FixedIndex { .. }
+            | facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::Index { .. } => return None,
+        });
+    }
+    let parameter_position = u32::try_from(parameter_position).ok()?;
+    let (resolved_root, segments, _, frozen) = crate::values::resolve_structural_parameter_path(
+        program,
+        caller_parameters,
+        parameter_position,
+        &path,
+    )?;
+    (frozen
+        && crate::flow::normalized_event_place_root(
+            program,
+            facts::PlaceRoot::Symbol(resolved_root),
+        ) == root
+        && segments == place.segments)
+        .then_some(checked_trees::CheckedStructuralParameterField {
+            parameter_position,
+            path,
+        })
+}
+
+/// The checked identity string a place segment's member symbol carries: the
+/// field's declared `#identity` when present, else its authored name. This
+/// mirrors the spelling `structural_parameter_place` produces so a
+/// transported leaf resolves to the same canonical storage.
+fn structural_member_identity(program: &TypedTrees, symbol: SymbolHandle) -> Option<String> {
+    program.data_definitions().iter().find_map(|data| {
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => Some(
+                    field
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                ),
+                typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
+                    Some(
+                        variant
+                            .identity
+                            .map(|identity| format!("#{identity}"))
+                            .unwrap_or_else(|| variant.name.as_str().to_owned()),
+                    )
+                }
+                typed_trees::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.symbol == symbol)
+                    .map(|field| {
+                        field
+                            .identity
+                            .map(|identity| format!("#{identity}"))
+                            .unwrap_or_else(|| field.name.as_str().to_owned())
+                    }),
+                typed_trees::data::DataMember::Field(_) => None,
+            })
+    })
 }
 
 pub(crate) fn substitute_checked_boolean_expression(
     expression: &checked_trees::CheckedBooleanExpression,
     arguments: &[Option<checked_trees::CheckedScalarExpression>],
+    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
 ) -> Option<checked_trees::CheckedBooleanExpression> {
     use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 
@@ -288,39 +405,91 @@ pub(crate) fn substitute_checked_boolean_expression(
         CheckedBooleanExpression::Local { .. } | CheckedBooleanExpression::StorageRead { .. } => {
             return None;
         }
+        // An IEEE float comparison is atomic over structural field leaves.
+        // Each leaf re-roots through the caller's frozen structural channel:
+        // the callee position binds the actual's own caller parameter and
+        // member spine, and the leaf path appends below it. The remaining
+        // structural terms still refuse — byte-sequence, payload-less sum,
+        // and case-membership leaves keep their own transport gaps.
+        CheckedBooleanExpression::IeeeFloatComparison {
+            kind,
+            primitive_type,
+            left,
+            right,
+        } => CheckedBooleanExpression::IeeeFloatComparison {
+            kind: *kind,
+            primitive_type: *primitive_type,
+            left: substitute_structural_parameter_field(left, fields)?,
+            right: substitute_structural_parameter_field(right, fields)?,
+        },
         CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => return None,
         CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
-            substitute_checked_boolean_expression(operand, arguments)?,
+            substitute_checked_boolean_expression(operand, arguments, fields)?,
         )),
         CheckedBooleanExpression::Equal { left, right } => CheckedBooleanExpression::Equal {
-            left: Box::new(substitute_checked_boolean_expression(left, arguments)?),
-            right: Box::new(substitute_checked_boolean_expression(right, arguments)?),
+            left: Box::new(substitute_checked_boolean_expression(
+                left, arguments, fields,
+            )?),
+            right: Box::new(substitute_checked_boolean_expression(
+                right, arguments, fields,
+            )?),
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             CheckedBooleanExpression::IntegerComparison {
                 kind: *kind,
-                left: Box::new(substitute_checked_scalar_expression(left, arguments)?),
-                right: Box::new(substitute_checked_scalar_expression(right, arguments)?),
+                left: Box::new(substitute_checked_scalar_expression(
+                    left, arguments, fields,
+                )?),
+                right: Box::new(substitute_checked_scalar_expression(
+                    right, arguments, fields,
+                )?),
             }
         }
         CheckedBooleanExpression::And { left, right } => CheckedBooleanExpression::And {
-            left: Box::new(substitute_checked_boolean_expression(left, arguments)?),
-            right: Box::new(substitute_checked_boolean_expression(right, arguments)?),
+            left: Box::new(substitute_checked_boolean_expression(
+                left, arguments, fields,
+            )?),
+            right: Box::new(substitute_checked_boolean_expression(
+                right, arguments, fields,
+            )?),
         },
         CheckedBooleanExpression::Or { left, right } => CheckedBooleanExpression::Or {
-            left: Box::new(substitute_checked_boolean_expression(left, arguments)?),
-            right: Box::new(substitute_checked_boolean_expression(right, arguments)?),
+            left: Box::new(substitute_checked_boolean_expression(
+                left, arguments, fields,
+            )?),
+            right: Box::new(substitute_checked_boolean_expression(
+                right, arguments, fields,
+            )?),
         },
+    })
+}
+
+/// Re-root one structural leaf through the call: the callee parameter
+/// position binds the actual's caller root (`parameter_position` plus the
+/// actual's own member spine) and the leaf's authored path extends below it.
+/// `None` where the actual's root stayed unproven — the guard then loses its
+/// checked scalar form rather than naming storage the entry snapshot cannot
+/// describe.
+fn substitute_structural_parameter_field(
+    leaf: &checked_trees::CheckedStructuralParameterField,
+    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
+) -> Option<checked_trees::CheckedStructuralParameterField> {
+    let root = fields.get(leaf.parameter_position as usize)?.as_ref()?;
+    let mut path = root.path.clone();
+    path.extend_from_slice(&leaf.path);
+    Some(checked_trees::CheckedStructuralParameterField {
+        parameter_position: root.parameter_position,
+        path,
     })
 }
 
 fn substitute_checked_scalar_expression(
     expression: &checked_trees::CheckedScalarExpression,
     arguments: &[Option<checked_trees::CheckedScalarExpression>],
+    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
 ) -> Option<checked_trees::CheckedScalarExpression> {
     use checked_trees::CheckedScalarExpression;
 
@@ -356,22 +525,30 @@ fn substitute_checked_scalar_expression(
         } => CheckedScalarExpression::IntegerBinary {
             kind: *kind,
             primitive_type: *primitive_type,
-            left: Box::new(substitute_checked_scalar_expression(left, arguments)?),
-            right: Box::new(substitute_checked_scalar_expression(right, arguments)?),
+            left: Box::new(substitute_checked_scalar_expression(
+                left, arguments, fields,
+            )?),
+            right: Box::new(substitute_checked_scalar_expression(
+                right, arguments, fields,
+            )?),
         },
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,
             operand,
         } => CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type: *primitive_type,
-            operand: Box::new(substitute_checked_scalar_expression(operand, arguments)?),
+            operand: Box::new(substitute_checked_scalar_expression(
+                operand, arguments, fields,
+            )?),
         },
         CheckedScalarExpression::IntegerWiden {
             primitive_type,
             operand,
         } => CheckedScalarExpression::IntegerWiden {
             primitive_type: *primitive_type,
-            operand: Box::new(substitute_checked_scalar_expression(operand, arguments)?),
+            operand: Box::new(substitute_checked_scalar_expression(
+                operand, arguments, fields,
+            )?),
         },
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
@@ -379,11 +556,13 @@ fn substitute_checked_scalar_expression(
             range,
         } => CheckedScalarExpression::IntegerExactCast {
             primitive_type: *primitive_type,
-            operand: Box::new(substitute_checked_scalar_expression(operand, arguments)?),
+            operand: Box::new(substitute_checked_scalar_expression(
+                operand, arguments, fields,
+            )?),
             range: range.clone(),
         },
         CheckedScalarExpression::Boolean(expression) => CheckedScalarExpression::Boolean(Box::new(
-            substitute_checked_boolean_expression(expression, arguments)?,
+            substitute_checked_boolean_expression(expression, arguments, fields)?,
         )),
     })
 }
@@ -530,7 +709,11 @@ pub(crate) fn refine_published_crash_routes(
                                 continue;
                             };
                             let scalar = identity.scalar_expression().and_then(|scalar| {
-                                substitute_checked_boolean_expression(scalar, &substitution.scalar)
+                                substitute_checked_boolean_expression(
+                                    scalar,
+                                    &substitution.scalar,
+                                    &substitution.fields,
+                                )
                             });
                             let folded = if builtin_meaning {
                                 summary_boolean_value(&predicate)
