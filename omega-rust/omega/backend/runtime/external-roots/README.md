@@ -69,7 +69,11 @@ the next stage the context's canonical enter/body/exit order realizes, and
 only while the invocation is the innermost live entry. A nested arrival's
 reported preempted stage must rejoin that retained stage, so a stale or
 cross-context report rejects instead of choosing which sibling epochs the
-finite-depth check consults.
+finite-depth check consults. Settle rejoins the same retained stage
+independently: `finish_interrupt_entry` admits the exit only once the
+invocation has realized the terminal stage its admitted context declares,
+so an exit reported with epochs still unrealized rejects with the pending
+custody returned and the completed entry records the stage it settled at.
 
 Byte materialization keeps the same writer/consumer split: the ledger derives
 the checked post-handoff writer program whose fragments resolve each member's

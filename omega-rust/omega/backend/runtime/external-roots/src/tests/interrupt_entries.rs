@@ -1650,3 +1650,162 @@ fn interrupt_epoch_turns_advance_the_retained_live_stage() {
         .expect_err("a settled invocation is not live");
     assert!(settled.diagnostic().0.contains("not live"));
 }
+
+#[test]
+fn interrupt_exit_rejoins_the_terminal_realized_epoch_stage() {
+    // Root 1's context realizes the full enter/body/exit progression; root
+    // 101's context ends at its body epoch. Settle independently rejoins the
+    // retained stage to the terminal stage the admitted context realizes: a
+    // stage with unrealized epochs behind it is an unresolved disposition.
+    let entry = entry_id(1001);
+    let mut code = installed_code(1, entry);
+    let exit_boundary = interrupt_boundary_shaped(
+        EntryStack::Dedicated { class: 1 },
+        Preemption::Nestable { maximum_depth: 2 },
+    );
+    let body_boundary = interrupt_boundary_on(EntryStack::Dedicated { class: 2 });
+    let exit_candidate = interrupt_candidate_shaped(entry, &code, 1, false);
+    let body_candidate = interrupt_candidate_shaped(entry, &code, 101, false);
+    let provider = exit_candidate.provider;
+    let exit_input = stack_epoch_input(
+        exit_candidate.identity,
+        provider,
+        &exit_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 1 },
+        1024,
+        &[(
+            1,
+            &[
+                (EntryStackStage::Enter, Preemption::Masked),
+                (
+                    EntryStackStage::Body,
+                    Preemption::Nestable { maximum_depth: 2 },
+                ),
+                (EntryStackStage::Exit, Preemption::Masked),
+            ] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let body_input = stack_epoch_input(
+        body_candidate.identity,
+        provider,
+        &body_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 2 },
+        1024,
+        &[(
+            1,
+            &[
+                (EntryStackStage::Enter, Preemption::Masked),
+                (EntryStackStage::Body, Preemption::Masked),
+            ] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let relation = StackNestingRelation {
+        identity: exit_candidate.nesting_relation,
+        edges: BTreeSet::new(),
+    };
+    let composition = compose_bound_entry_stack_epochs(&relation, [&exit_input, &body_input])
+        .expect("shared two-root composition");
+    let mut exit_candidate = exit_candidate;
+    exit_candidate.stack.realization = composition.clone();
+    let mut body_candidate = body_candidate;
+    body_candidate.stack.realization = composition;
+
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
+    let exit_root = install_interrupt_root(
+        &mut ledger,
+        &code,
+        exit_candidate,
+        &exit_boundary,
+        20,
+        21,
+        54,
+        22,
+    );
+    let body_root = install_interrupt_root(
+        &mut ledger,
+        &code,
+        body_candidate,
+        &body_boundary,
+        120,
+        121,
+        154,
+        122,
+    );
+
+    let context = ArrivalContextId::new(1).expect("arrival context");
+    let exit_invocation = root_id(90, InterruptInvocationId::from_normalized_identity);
+    let body_invocation = root_id(91, InterruptInvocationId::from_normalized_identity);
+
+    let obligations = ledger
+        .begin_interrupt_entry(
+            &exit_root,
+            interrupt_entry_receipt_in_context(&exit_root, context, None, 90, None, None),
+        )
+        .expect("the top-level entry realizes at Enter");
+    let (pending, control, _) = obligations.into_parts();
+
+    // The retained stage is Enter while the context still realizes Body and
+    // Exit: settle is an unresolved disposition and returns all custody.
+    let early = ledger
+        .finish_interrupt_entry(pending, control, None)
+        .expect_err("settle at Enter leaves the context's epochs unrealized");
+    assert!(early.diagnostic().0.contains("terminal stage"));
+    let (pending, control, _) = early.into_parts();
+
+    // Body is not the terminal stage either: the Exit epoch remains
+    // unrealized.
+    ledger
+        .turn_interrupt_epoch_stage(
+            &exit_root,
+            InterruptEpochTurnReport::new(exit_root.root(), exit_invocation, EntryStackStage::Body),
+        )
+        .expect("the invocation turns to Body");
+    let mid = ledger
+        .finish_interrupt_entry(pending, control, None)
+        .expect_err("settle at Body leaves the exit epoch unrealized");
+    assert!(mid.diagnostic().0.contains("terminal stage"));
+    let (pending, control, _) = mid.into_parts();
+
+    // Only the terminal stage admits settle; the completed record retains
+    // the stage it settled at.
+    ledger
+        .turn_interrupt_epoch_stage(
+            &exit_root,
+            InterruptEpochTurnReport::new(exit_root.root(), exit_invocation, EntryStackStage::Exit),
+        )
+        .expect("the invocation turns to Exit");
+    let completed = ledger
+        .finish_interrupt_entry(pending, control, None)
+        .expect("the terminal stage admits settle");
+    assert_eq!(completed.arrival_context, context);
+    assert_eq!(completed.settled_stage, EntryStackStage::Exit);
+
+    // A context ending at its body epoch settles at Body: the terminal stage
+    // is the last stage the admitted context realizes, not a fixed Exit.
+    let body_obligations = ledger
+        .begin_interrupt_entry(
+            &body_root,
+            interrupt_entry_receipt_in_context(&body_root, context, None, 91, None, None),
+        )
+        .expect("the sibling entry realizes at Enter");
+    let (pending, control, _) = body_obligations.into_parts();
+    let early = ledger
+        .finish_interrupt_entry(pending, control, None)
+        .expect_err("settle at Enter leaves the body epoch unrealized");
+    assert!(early.diagnostic().0.contains("terminal stage"));
+    let (pending, control, _) = early.into_parts();
+    ledger
+        .turn_interrupt_epoch_stage(
+            &body_root,
+            InterruptEpochTurnReport::new(body_root.root(), body_invocation, EntryStackStage::Body),
+        )
+        .expect("the sibling invocation turns to its terminal Body stage");
+    let completed = ledger
+        .finish_interrupt_entry(pending, control, None)
+        .expect("the terminal body stage admits settle");
+    assert_eq!(completed.settled_stage, EntryStackStage::Body);
+}
