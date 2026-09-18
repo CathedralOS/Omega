@@ -31,3 +31,7 @@ machine signed_divisor(value: Flag<(1 / ((match true { true -> -1, false -> 1 })
 machine spaced_divisor(value: Flag<(1 / ((match true { true -> 1, false -> 3 }) - 2) == -1)>) -> Flag<true> {
     value
 }
+
+machine lattice_divisors(value: SignedIndex<((match true { true -> 24, false -> 48 }) / (match false { true -> 2, false -> 4 }))>) -> SignedIndex<6> {
+    value
+}
