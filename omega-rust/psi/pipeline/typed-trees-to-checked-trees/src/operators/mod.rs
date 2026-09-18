@@ -643,6 +643,11 @@ fn builtin_float_operator_use_fact(
 ) -> Option<CheckedNamedOperatorUseFact> {
     let (selected_operator_symbol, format) =
         builtin_float_operator_selection(program, expression, origin, call)?;
+    if typed_trees::operator::declaration_by_symbol(program, selected_operator_symbol).is_none() {
+        // The shorthand resolved to a top-level `boundary requirement`; that
+        // species retains its own named requirement use.
+        return None;
+    }
 
     Some(CheckedNamedOperatorUseFact {
         expression,
@@ -666,7 +671,11 @@ pub(super) fn resolve_builtin_float_operator_requirement(
         .map(|(operator, _)| operator)
 }
 
-fn builtin_float_operator_selection(
+/// The requirement one `min`/`max`/`sqrt` shorthand selects: the visible
+/// tokenless `F32::`/`F64::` boundary operator of that name, or, when core
+/// spells it as a top-level `boundary requirement`, that requirement machine.
+/// Both are the same slot; the returned symbol tells the species apart.
+pub(super) fn builtin_float_operator_selection(
     program: &TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
@@ -740,10 +749,44 @@ fn builtin_float_operator_selection(
                 && program.primitive_type_reference(operator.return_type) == Some(primitive)
         })
         .collect::<Vec<_>>();
-    let [operator] = matching.as_slice() else {
+    match matching.as_slice() {
+        [operator] => return Some((operator.symbol, format)),
+        [] => {}
+        _ => return None,
+    }
+    let path = format!("{namespace}::{requirement}");
+    let matching = program
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && machine.is_public
+                && !machine.body_is_present
+                && machine.lifetime_parameters.is_empty()
+                && program.machine_type_parameters(machine).is_empty()
+                && machine.name.as_str() == path
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(reference_span, machine.symbol)
+        })
+        .filter(|machine| {
+            matches!(program.machine_states(machine), [entry]
+            if {
+                let parameters = program.state_parameters(entry);
+                parameters.len() == arity
+                    && parameters.iter().all(|parameter| {
+                        !parameter.is_self
+                            && program.primitive_type_reference(parameter.type_reference)
+                                == Some(primitive)
+                    })
+                    && program.primitive_type_reference(entry.return_type) == Some(primitive)
+            })
+        })
+        .collect::<Vec<_>>();
+    let [machine] = matching.as_slice() else {
         return None;
     };
-    Some((operator.symbol, format))
+    Some((machine.symbol, format))
 }
 
 /// Retain the selected identity of one unambiguously resolved named operator
