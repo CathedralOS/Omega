@@ -317,8 +317,16 @@ fn prove_edge(
     let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
         return None;
     };
+    // A field-view endpoint that is not statically formed still owes a
+    // carrier-landing proof under this edge's installed hypotheses; it is
+    // deferred, not rejected, until that engine exists below.
+    let mut deferred_endpoints = Vec::new();
     if field_rank.is_some() {
-        fields::endpoints_formed(program, machine, root, range)?;
+        for endpoint in [range.start, range.end] {
+            if !fields::endpoint_statically_formed(program, machine, root, endpoint) {
+                deferred_endpoints.push(endpoint);
+            }
+        }
     }
     let admit_template = |expression| meanings::builtin(program, machine, root, expression, 0);
     admit_template(range.start)?;
@@ -548,6 +556,25 @@ fn prove_edge(
     }
     if !engine.install_hypotheses(comparisons) {
         return None;
+    }
+    // A computed endpoint that declaration bounds alone could not place still
+    // owes its carrier landing under this edge's hypotheses: a requires or
+    // constrained-parameter fact that bounds a leaf reaches the produced
+    // polynomial where the declaration-interval owner saw only the field's
+    // store range. Dead edges stay vacuous; a live edge that cannot land its
+    // endpoint has no defined range to read.
+    if !engine.requires_unsatisfiable {
+        for endpoint in &deferred_endpoints {
+            let polynomial = if *endpoint == range.start {
+                &floor
+            } else {
+                &ceiling
+            };
+            if !fields::endpoint_lands_under(&engine, program, machine, root, *endpoint, polynomial)
+            {
+                return None;
+            }
+        }
     }
     // For distance views raw subtraction represents the produced natural rank
     // only on this proved branch. The caller retains the separate clamped
@@ -779,6 +806,30 @@ pub(super) fn carrier_maximum(carrier: symbols::BuiltinTypeAtom) -> Option<Polyn
         _ => return None,
     };
     Some(Polynomial::constant(BigInt::from_u64(maximum)))
+}
+
+/// The representable range of an exact integer primitive as BigInt endpoints.
+/// The shared interval engine cannot hold `u64::MAX` or `i64::MIN`, so a
+/// flow-dependent endpoint formation proof bounds the produced polynomial with
+/// this exact carrier range instead of a signed-window approximation.
+pub(super) fn integer_carrier_bounds(primitive: PrimitiveType) -> Option<(BigInt, BigInt)> {
+    let (signed, bits): (bool, u32) = match primitive {
+        PrimitiveType::I8 => (true, 8),
+        PrimitiveType::I16 => (true, 16),
+        PrimitiveType::I32 => (true, 32),
+        PrimitiveType::I64 => (true, 64),
+        PrimitiveType::U8 => (false, 8),
+        PrimitiveType::U16 => (false, 16),
+        PrimitiveType::U32 => (false, 32),
+        PrimitiveType::U64 => (false, 64),
+        _ => return None,
+    };
+    let (minimum, maximum): (i128, i128) = if signed {
+        (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
+    } else {
+        (0, (1i128 << bits) - 1)
+    };
+    Some((BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
 }
 
 /// Read entry facts in the root template, even when their current aliases

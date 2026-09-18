@@ -455,6 +455,20 @@ mod field_views {
         }
     "#;
 
+    const FLOW_BOUND: &str = r#"
+        data Countdown { remaining: u64 [0..=5]; limit: u64; }
+        measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+        machine walk(countdown: Countdown)
+        requires countdown.remaining <= countdown.limit && countdown.limit <= 5;
+        terminates by countdown -> Countdown::Remaining in 0..(countdown.limit + 1);
+        -> u64 {
+            transition countdown.remaining > 0 {
+                true -> walk(Countdown { remaining: countdown.remaining - 1, limit: countdown.limit })
+                false -> countdown.remaining
+            }
+        }
+    "#;
+
     fn field(program: &TypedTrees) -> RankingRangeMeasure {
         let machine = &program.machines()[0];
         let custody = program
@@ -540,6 +554,20 @@ mod field_views {
             NESTED.replace("inner: Inner { remaining", "inner: Twin { remaining")
         ));
         assert!(self_edge(&foreign).is_none());
+    }
+
+    #[test]
+    fn computed_endpoint_lands_under_a_flow_bound_not_in_the_declaration() {
+        // `limit` is an unbounded u64 field, so `limit + 1` is not statically
+        // formed; the requires bound lands it inside the carrier under the
+        // edge's own hypotheses.
+        let program = typed(FLOW_BOUND);
+        assert!(entry(&program));
+        let proof = self_edge(&program).expect("self edge");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        // Without the flow bound the same endpoint can overflow its carrier.
+        let unbounded = typed(&FLOW_BOUND.replace(" && countdown.limit <= 5", ""));
+        assert!(!entry(&unbounded));
     }
 
     #[test]
