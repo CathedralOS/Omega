@@ -8,20 +8,20 @@ use crate::{
     ValidatedBoundaryBranch, ValidatedBypassRelocation, ValidatedBypassRunRelocation,
     ValidatedCommutingInterchange, ValidatedCommutingMemberRunInterchange,
     ValidatedCommutingRelocation, ValidatedCommutingRunInterchange,
-    ValidatedCommutingRunRelocation, ValidatedConfluenceRelocation,
-    ValidatedConfluenceRunRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
-    ValidatedCopyRemoval, ValidatedDeadCompare, ValidatedDeadStoreElimination,
-    ValidatedDiamondRelocation, ValidatedDiamondRunRelocation, ValidatedEdgeRelocation,
-    ValidatedEdgeRunRelocation, ValidatedEquivalentCompare, ValidatedFixedViewCopies,
-    ValidatedForkRelocation, ValidatedForkRunRelocation, ValidatedInflowRelocation,
-    ValidatedJoinRelocation, ValidatedLiteralArithmetic, ValidatedLiteralCompare,
-    ValidatedLiteralFold, ValidatedLiteralMinuend, ValidatedLocalRelocation,
-    ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
-    ValidatedPredecessorRunRelocation, ValidatedPressureRematerialization,
-    ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedRunInterchange,
-    ValidatedRunRelocation, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding, ValidatedTerminatorPair,
-    ValidatedTriangleRelocation,
+    ValidatedCommutingRunRelocation, ValidatedConditionMaterialization,
+    ValidatedConfluenceRelocation, ValidatedConfluenceRunRelocation, ValidatedConstantBoolean,
+    ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedDeadCompare,
+    ValidatedDeadStoreElimination, ValidatedDiamondRelocation, ValidatedDiamondRunRelocation,
+    ValidatedEdgeRelocation, ValidatedEdgeRunRelocation, ValidatedEquivalentCompare,
+    ValidatedFixedViewCopies, ValidatedForkRelocation, ValidatedForkRunRelocation,
+    ValidatedInflowRelocation, ValidatedJoinRelocation, ValidatedLiteralArithmetic,
+    ValidatedLiteralCompare, ValidatedLiteralFold, ValidatedLiteralMinuend,
+    ValidatedLocalRelocation, ValidatedLocalSchedule, ValidatedMemberRunInterchange,
+    ValidatedPredecessorRelocation, ValidatedPredecessorRunRelocation,
+    ValidatedPressureRematerialization, ValidatedRedundantCompare, ValidatedRedundantExtension,
+    ValidatedRunInterchange, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
+    ValidatedRuntimeSpill, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedTerminatorPair, ValidatedTriangleRelocation,
 };
 
 mod sealed {
@@ -1058,6 +1058,26 @@ impl ValidatedSelectedAnalysis for ValidatedPressureRematerialization {
 impl sealed::Sealed for ValidatedTerminatorPair {}
 
 impl ValidatedSelectedAnalysis for ValidatedTerminatorPair {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedConditionMaterialization {}
+
+impl ValidatedSelectedAnalysis for ValidatedConditionMaterialization {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

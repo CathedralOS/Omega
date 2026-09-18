@@ -10,7 +10,7 @@
 //! `terminator_pair/pair` extends the same declaration discipline to that
 //! position: each rule declares one condition-state producer kind, one
 //! conditional-branch consumer kind, the `Jump` rewrite, and the axes the
-//! relationship must satisfy — `TerminatorOperandResolution` for the
+//! relationship must satisfy — `ConditionOperandResolution` for the
 //! producer's operand grammar, `TerminatorPairUnitFlow` for the implicit
 //! unit relationship, and `TerminatorPairControlFlow` for the encoded
 //! control effect the rewrite carries.
@@ -63,7 +63,6 @@
 //! restores the complete source by content.
 
 mod admission;
-mod condition_flow;
 mod pair;
 mod replay;
 mod rewrite;

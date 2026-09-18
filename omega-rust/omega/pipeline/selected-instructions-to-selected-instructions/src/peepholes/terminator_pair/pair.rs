@@ -39,31 +39,7 @@ use selected_instructions::{
 };
 
 use crate::machine_semantic_kind;
-
-/// How the producer record resolves the bits the consumer predicate decides
-/// on — `left - right` in the compare's own direction.
-///
-/// Each variant binds one producer kind's operand grammar: the descriptor
-/// names the grammar rather than leaving admission to infer it from operand
-/// counts, and the replay restates the same grammar from the producer's
-/// kind alone.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminatorOperandResolution {
-    /// `CompareI64`: two plain `Use` operands. Each register resolves to the
-    /// bits its unique in-function `MaterializeI64` producer publishes — a
-    /// `UseDef` or a terminator-carried write makes it a second producer and
-    /// refuses — or both operands name the same register, where `x - x`
-    /// fixes the state at `(0, 0)` whatever produced `x`.
-    TwoRegisterOperands,
-    /// `CompareI64Immediate`: operand 0 resolves as under
-    /// [`TwoRegisterOperands`](Self::TwoRegisterOperands); the right operand
-    /// is the literal the kind's `immediate` field carries.
-    RegisterAndKindImmediate,
-    /// `CompareI64Zero`: operand 0 resolves as under
-    /// [`TwoRegisterOperands`](Self::TwoRegisterOperands); the right operand
-    /// is the kind's zero bound.
-    RegisterAndZeroBound,
-}
+use crate::peepholes::condition_flow::ConditionOperandResolution;
 
 /// The implicit physical-unit relationship the rewrite asserts between the
 /// producer's definitions and the consumer's uses — the unit roles the
@@ -115,7 +91,7 @@ pub struct TerminatorPairRule {
     producer: MachineSemanticKind,
     consumer: MachineSemanticKind,
     rewritten: MachineSemanticKind,
-    operand_resolution: TerminatorOperandResolution,
+    operand_resolution: ConditionOperandResolution,
     unit_flow: TerminatorPairUnitFlow,
     control: TerminatorPairControlFlow,
 }
@@ -129,7 +105,7 @@ impl TerminatorPairRule {
         producer: MachineSemanticKind::CompareI64,
         consumer: MachineSemanticKind::ConditionalBranchNonZero,
         rewritten: MachineSemanticKind::Jump,
-        operand_resolution: TerminatorOperandResolution::TwoRegisterOperands,
+        operand_resolution: ConditionOperandResolution::TwoRegisterOperands,
         unit_flow: TerminatorPairUnitFlow::ConditionStateResolved,
         control: TerminatorPairControlFlow::ConditionalResolvedToUnconditional,
     };
@@ -149,7 +125,7 @@ impl TerminatorPairRule {
     /// `compare left, immediate` deciding a nonzero/zero branch.
     pub const COMPARE_IMMEDIATE_BRANCH_NONZERO: Self = Self {
         producer: MachineSemanticKind::CompareI64Immediate,
-        operand_resolution: TerminatorOperandResolution::RegisterAndKindImmediate,
+        operand_resolution: ConditionOperandResolution::RegisterAndKindImmediate,
         ..Self::DECIDED_BRANCH
     };
     /// `compare left, immediate` deciding an unsigned-less-than branch.
@@ -165,7 +141,7 @@ impl TerminatorPairRule {
     /// `compare left, 0` deciding a nonzero/zero branch.
     pub const COMPARE_ZERO_BRANCH_NONZERO: Self = Self {
         producer: MachineSemanticKind::CompareI64Zero,
-        operand_resolution: TerminatorOperandResolution::RegisterAndZeroBound,
+        operand_resolution: ConditionOperandResolution::RegisterAndZeroBound,
         ..Self::DECIDED_BRANCH
     };
     /// `compare left, 0` deciding an unsigned-less-than branch.
@@ -188,7 +164,7 @@ impl TerminatorPairRule {
     pub const fn rewritten(self) -> MachineSemanticKind {
         self.rewritten
     }
-    pub const fn operand_resolution(self) -> TerminatorOperandResolution {
+    pub const fn operand_resolution(self) -> ConditionOperandResolution {
         self.operand_resolution
     }
     pub const fn unit_flow(self) -> TerminatorPairUnitFlow {
@@ -293,16 +269,9 @@ impl TerminatorPairRule {
     ) -> bool {
         match self.unit_flow() {
             TerminatorPairUnitFlow::ConditionStateResolved => {
-                !flag_uses.is_empty()
-                    && plain_uses
-                        .iter()
-                        .all(|unit| rewritten.implicit_uses.contains(unit))
-                    && rewritten.implicit_defs == consumer.implicit_defs
-                    && rewritten.clobbers == consumer.clobbers
-                    && rewritten
-                        .implicit_uses
-                        .iter()
-                        .all(|unit| consumer.implicit_uses.contains(unit))
+                crate::peepholes::condition_flow::resolved_unit_surface(
+                    flag_uses, plain_uses, consumer, rewritten,
+                )
             }
         }
     }
