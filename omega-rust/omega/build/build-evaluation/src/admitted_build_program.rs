@@ -243,25 +243,6 @@ impl AdmittedBuildProgram {
     }
 }
 
-pub fn reject_uncompiled_generated_sources(
-    computed: &ComputedBuildConfig,
-) -> Result<(), Vec<Diagnostic>> {
-    let Some(first) = computed.generated_sources.first() else {
-        return Ok(());
-    };
-    let digest = first.digest();
-    Err(vec![Diagnostic::error(format!(
-        "build handed off {} captured generated source(s), beginning with `{}` ({} bytes, sha256 {:02x}{:02x}{:02x}{:02x}), but the frozen final compilation pass is not implemented yet",
-        computed.generated_sources.len(),
-        String::from_utf8_lossy(first.relative_path()),
-        first.bytes().len(),
-        digest[0],
-        digest[1],
-        digest[2],
-        digest[3],
-    ))])
-}
-
 /// Prepare and admit the program's exact build-machine activation.
 ///
 /// This stage performs every selection and authority decision but executes no
