@@ -112,49 +112,7 @@ must be surfaced before relying on them.
      entrypoints. Keep the item; decide whether that split is spec (add the
      clause) or an owner architecture decision recorded here.
 
-3. **Receiving-policy selection surface** (named decision:
-   `receiving-policy-selection`). The
-   [two-axis containment contract](wiki/spec/build/permissions.md#two-axis-containment)
-   and [receiver-owned requirements](wiki/spec/proofs/publication.md#receiver-owned-requirements)
-   settle that the receiver "selects a versioned policy package and its exact
-   concrete configuration through ordinary package review and pinning",
-   independently of the offered program, and that accepted package permission
-   rows must not be mirrored into that receiving policy. No contract spells how
-   a consuming project names that policy package: the
-   [build declarations](wiki/spec/build/declarations.md) project only
-   `package`/`application`/`member`/`depend*`/`artifact_only`, the lock and
-   acceptance contracts describe only package rows, and the compiler's
-   `PreparedLocalProjectNativeRequest::with_receiving_terminal_authority_permission_policy`
-   has no caller outside tests, so `operations/compile_project.rs` defaults to
-   the empty deny-by-absence policy. Product requirement: the documented
-   `cli_mvp` CLI command, Cathedral's native smoke
-   (`tools/x86-empty-page-table-canary/native-smoke`) and Squalr's native
-   acceptance all pass package review and stop at "receiving terminal-authority
-   policy omits the accepted permission for `Console::exit_process`" (TASKS.md
-   `cli_mvp` row and Process-exit contract at e2447086af). Which surface should
-   select the receiving policy?
-
-   - (a) A projected root-build declaration naming a policy package by ordinary
-     source selection, for example `builder.receiving_policy(Source::Path {
-     location: "../console-policy" })`, reviewed and pinned like a dependency
-     edge but never imported as product or build code; the policy package's
-     concrete rows are ordinary Omega data in that package. This fits "ordinary
-     package review and pinning" and keeps the axis distinct from accepted
-     package rows. Recommended default.
-   - (b) A compiler invocation input (`--receiving-policy <file>`) carrying the
-     rows directly. Simplest, but the policy then bypasses package review and
-     pinning, which the contract requires.
-   - (c) Reuse the PCC receiver policy package selected for
-     [proof publication](wiki/spec/proofs/publication.md) as the single
-     receiver policy (physical permissions as one section of it). Coherent, but
-     PCC-PRODUCT-PUBLICATION is unimplemented and this couples ordinary native
-     realization to the proof-product route.
-
-   Until answered, TWO-AXIS-TERMINAL-AUTHORITY-REVIEW's receiving-axis input
-   and the `cli_mvp` CLI acceptance are design-blocked; the package axis
-   (proposing and accepting the permission row) is not.
-
-4. **Is a token-bound proof-machine `requires` a formation obligation at
+3. **Is a token-bound proof-machine `requires` a formation obligation at
    the selecting use?** (named decision: `proof-operator-requires-formation`).
    `core/nat.omg` states that subtraction is partial at formation with its
    premise carried by the operator contract, and
@@ -198,7 +156,7 @@ must be surfaced before relying on them.
    Until answered, the `core/nat.omg` satisfier pairs stay on `operator`
    and OPERATOR-MACHINE-SUPPLY's map marks them design-blocked.
 
-5. **Which explicit binder selects an indexed domain's index operation
+4. **Which explicit binder selects an indexed domain's index operation
    contract?** (named decision: `open-index-operation-selection`). The
    [executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
    retires bodyless root `operator` slots and states that "any required
@@ -240,7 +198,7 @@ must be surfaced before relying on them.
    this is distinct from the proof-machine `requires` question, which concerns
    formation-time `requires` rather than the selection binder.
 
-6. **Which boot protocol issues the AP startup vector, and who owns it?**
+5. **Which boot protocol issues the AP startup vector, and who owns it?**
    (named decision: `ap-startup-protocol-ownership`). The [executable
    installation contract](wiki/spec/build/executable_installation.md) says AP
    startup "installs a compiler-produced low-memory trampoline and invokes a
@@ -266,7 +224,7 @@ must be surfaced before relying on them.
    start until one of these edges exists; AP-BRINGUP owns the implementation
    either way.
 
-7. **Is `alpha_bootstrap` an ordinary target profile of the differential
+6. **Is `alpha_bootstrap` an ordinary target profile of the differential
    compiler, and what happens to a root row owned by a profile the comparator
    does not catalogue?** (named decision: `alpha-bootstrap-target-profile`).
    The [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain)
@@ -312,7 +270,7 @@ must be surfaced before relying on them.
    Until answered, the product check stops on this row once the calling-policy
    admission bug is fixed; everything before that stop is engineering.
 
-8. **Which route admits the complete Beta-encoding certificate, or does the
+7. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:
     `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
     acceptance requires the produced
@@ -364,7 +322,7 @@ must be surfaced before relying on them.
     certificate measured but inadmissible, and the chain retains its
     explicit assumption that the selected evaluator implements Gamma.
 
-9. **Does a transported contract instantiate its `FloatMeaning` projections
+8. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,

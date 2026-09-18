@@ -6,6 +6,12 @@ is eligible only through the sealed `Artifact::AdmittedExecutable` qualification
 Admission binds exact content, identity, relocation and required evidence, footprint,
 and placement plan. Packages cannot self-establish it; mutation destroys it.
 
+This is the receiving environment's installation boundary, not a prerequisite
+for emitting an executable file. Ordinary compilation grants no installation or
+execution authority and requires no receiving policy. An ecosystem may demand
+PCC or other admitted evidence here under its independently selected
+[policy](permissions.md#artifact-production-versus-receiver-admission).
+
 ## Placement lifecycle
 
 These are semantic states, not prescribed generic source type names:

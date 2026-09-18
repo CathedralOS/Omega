@@ -5,7 +5,8 @@
 coverage evidence. Selection chooses a declared candidate; it does not construct
 provider rows or grant runtime permission.
 Receiving [permission policy](permissions.md) independently checks exact
-service/schema permissions against exercised physical mechanisms.
+service/schema permissions against exercised physical mechanisms at explicit
+receiver admission, not as a mandatory gate on ordinary artifact production.
 
 ## Declaration and choice
 

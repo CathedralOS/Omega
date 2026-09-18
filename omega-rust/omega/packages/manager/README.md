@@ -151,10 +151,18 @@ policy state.
 policy before producing in-memory evidence. That evidence retains exact
 compiler-consumed semantic bindings scoped to their
 consuming package. Changed requirements need ordinary project review; stale
-source evidence, unproved contracts, and receiving-policy denial still reject.
+source evidence and unproved contracts still reject.
 It has no codec, `omega.lock` mutation route, or transaction
 authority. Its promotion layer is current implementation, not a requirement to
 add `PackageInstance` certification before implementing install/update.
+
+A receiving-policy verdict
+belongs to explicit artifact admission, not ordinary package/native production;
+the current mandatory native gate is migration work under
+`TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`. Install/update must separately surface and
+accept restricted build requests before execution, retain decisions in the lock,
+and require actual host grants under
+[restricted-build acceptance](../../../../wiki/spec/packages/acceptance.md#restricted-build-acceptance).
 
 Start candidate compilation at
 [`compilation.rs`](src/review/candidate/compilation.rs): product selection,

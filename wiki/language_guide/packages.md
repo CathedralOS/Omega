@@ -49,6 +49,31 @@ Missing old source still permits policy comparison, but limits the code diff and
 calls for auditing the candidate directly. Keep the lock under the project's
 normal review controls: it records your decisions, not a certificate of safety.
 
+### Build-time requests are part of the audit
+
+Build code is confined by default to its admitted inputs, private staged outputs,
+and bounded build facilities. Ordinary dependency generators using that baseline
+need no unsafe-action approval.
+
+Install/update also show what a dependency wants to do **during compilation**:
+restricted host operations, the package requesting them, their resource scope,
+and any change from accepted requests. Calls through another build helper or a
+dependency's build activation do not hide those requirements. The review pauses
+before an unaccepted restricted action; accepting it permits the build phase to
+continue only if the host also supplies the required resources. Generated code
+still goes through normal checking and review afterward.
+
+`omega.lock` records accepted requests alongside package acceptance. It does not
+store credentials, machine-specific grant paths, or temporary capabilities.
+New or expanded authority needs explicit acceptance; unchanged accepted requests
+do not prompt again. A resolution refresh cannot silently grant more access, and
+changed source stays visible for audit even when its permissions are unchanged.
+See [restricted-build acceptance](../spec/packages/acceptance.md#restricted-build-acceptance).
+
+Ordinary compilation needs no policy from the OS that may eventually run the
+binary. That ecosystem decides admission itself, optionally checking PCC evidence.
+Project package acceptance and build-host grants do not authorize execution there.
+
 ## Inspect without accepting
 
 ```text

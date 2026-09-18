@@ -3,21 +3,46 @@
 [Service reach](../language/effects.md) reports which abstract boundaries may be
 reached. [Authority values](../resources/authority.md) carry permission for an
 invocation. [Provider trust](provider_selection.md#executable-trust-and-containment)
-records evidence for the realization. Receiving policy separately checks the
-dangerous authority exercised by selected physical mechanisms. None of these
+records evidence for the realization. At an ecosystem admission boundary,
+receiving policy separately checks the dangerous authority exercised by selected
+physical mechanisms. None of these
 axes substitutes for another.
 
 The receiver selects the policy's versioned package, exact dependency closure
 and concrete configuration independently of the offered program, as specified
 for [PCC admission](../proofs/publication.md#receiver-owned-requirements).
-Its accepted commitments enter realization evidence. This authority-class policy
+Its accepted commitments enter receiver-admission evidence. This authority-class policy
 does not replace memory-safety guarantees or confine which objects may be touched.
+
+## Artifact production versus receiver admission
+
+Ordinary compilation and retained-Terminal lowering produce artifacts, not
+permission to install or execute them in another environment. They require no
+receiving policy. Absence of that input means no receiver-admission claim, not
+an empty deny-all policy and not implicit acceptance. Do not add a mandatory
+policy file, build declaration, or CLI switch merely to emit a binary.
+
+The compiler still checks source contracts, project acceptance, selected-provider
+custody, lowering, and all requested guarantees. It retains the mechanism and
+authority evidence needed for those claims. An explicitly requested deployment
+compatibility check applies the supplied policy and rejects incompatibility;
+ordinary production must not silently invent such a request.
+
+An OS, loader, registry, or deployment system selects and enforces its own
+admission policy. Optional [PCC](../proofs/publication.md) lets that receiver check
+claims without trusting their producer. Neither a binary nor its build script
+can authorize itself, select the receiver's policy, or enforce rules on its host.
+Shared policy/checking infrastructure does not make PCC mandatory for compilation.
+`omega run` combines production with a host execution request; production grants
+no host permission. [Build-time authority](execution.md#restricted-build-requests)
+is a separate concern because the build actually executes on the build host.
 
 [Build-level exclusions](behavior_exclusions.md) may independently forbid exact
 abstract services or physical terminal classes. Physical exclusions consume the
 classified selected-mechanism closure below; missing classification is failure,
-not evidence of absence. A class exclusion is additional to the ordinary
-`exercised subset-of permitted` check and grants no authority. An empty physical
+not evidence of absence. A class exclusion is a producer-requested guarantee,
+not receiver permission, and grants no authority. It uses the same classification
+semantics without requiring a receiving-policy acceptance table. An empty physical
 class set cannot satisfy an abstract service exclusion if that service is invoked.
 
 ## Two-axis containment
@@ -32,7 +57,8 @@ The accepted versioned receiving policy relates two independently keyed tables:
 | Service permission | Exact service identity, normalized schema commitment, and requirement identity map to permitted terminal classes. |
 | Mechanism classification | Exact role-tagged normalized mechanism and checked/admitted contract map to exercised terminal classes. |
 
-For every demanded terminal leaf, `exercised classes subset-of permitted classes`.
+For receiver admission, every demanded terminal leaf must satisfy
+`exercised classes subset-of permitted classes`.
 Every admitted leaf needs exactly one explicit classification, including an
 explicit empty set. The policy may be partial over the operating system's
 coordinate universe, but it must be complete for the admitted demand. Unknown,
@@ -81,9 +107,12 @@ merely because its service is familiar.
 [Package review](../packages/review.md) retains each permission as its own
 blocking obligation with exact service/requirement source custody. Broad risk
 acceptance cannot authorize a specific terminal class. Direct compilation and
-retained-Terminal re-entry compare checked package rows with the independently
-accepted permission set and then the distinct receiving policy. Missing, changed,
-or duplicate package rows reject; unrelated receiving-policy rows are allowed.
+retained-Terminal re-entry compare checked package rows with project acceptance;
+they do not additionally require an ecosystem's receiving permission set.
+Missing, changed, or duplicate required package rows reject. Explicit receiver
+admission separately checks the offered artifact against its independently
+selected policy; unrelated receiving-policy rows are allowed. Project acceptance
+must never be mirrored into that policy to make admission pass.
 
 Accepted-permission transport derives solely from obligations accepted by fresh
 root-policy replay. Re-entry binds the retained production report to the accepted
@@ -92,9 +121,10 @@ invocation-local evaluation usage, build observations, and target. Aggregate
 sponsor/session peaks remain orchestration custody, not invocation identity.
 Retained profile/native target and production subject must agree. A constructed
 policy, reconstructed proposal, or Terminal module cannot grant package admission.
-Exact receiving policy version and strong commitment survive native-artifact
-replay; classification alone grants no execution, installation, or invocation
-authority.
+When receiver admission is requested, its exact policy version and strong
+commitment survive admission replay against the native artifact. Ordinary
+artifact evidence does not fabricate that verdict. Classification alone grants
+no execution, installation, or invocation authority.
 
 ## Portable filesystem control and lifecycle authority
 

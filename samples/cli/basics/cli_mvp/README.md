@@ -82,9 +82,10 @@ checkout. With a completed local review (`omega update`, accept the three
 audit-recommended rows, `omega update --resume`), the same command passes
 acceptance and stops inside native production at `receiving terminal-authority
 permission policy has no exact row for Console::exit_process`: the CLI supplies
-the empty deny-by-absence receiving policy and consumer permission rows have no
-CLI input yet. That independently supplied receiving axis belongs to
-TWO-AXIS-TERMINAL-AUTHORITY-REVIEW. Remaining
+the empty deny-by-absence receiving policy. This is a misplaced production gate,
+not a missing CLI policy option: ordinary compilation needs no ecosystem policy.
+TWO-AXIS-TERMINAL-AUTHORITY-REVIEW owns moving that check to explicit admission
+while preserving project acceptance and compiler checks. Remaining
 package latency, current measurements, and the next performance investigation
 belong to the owning task; Windows release timing has not been measured.
 
@@ -92,8 +93,8 @@ On Windows, std contributes `FilesystemHost` authority and three external Consol
 leaves: `read_byte`, `write_byte`, and `exit_process`. `read_line` is a checked
 library adapter over that same provider's `read_byte` leaf. These are review
 findings, not implicit grants. Do not supply blanket acceptance merely to advance
-the example. Native proof, provider, and receiving-permission checks remain
-independent requirements.
+the example. Native proof/provider checks remain production requirements;
+receiving-permission checks apply separately when an ecosystem admits the artifact.
 
 The compiler-library sample test supplies test-owned acceptance and publishes
 and executes the unchanged program on macOS ARM64. Installed provider calls use
