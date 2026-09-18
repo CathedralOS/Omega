@@ -17,6 +17,7 @@ use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::types::TypeReferenceNode;
 
 mod named_routes;
 
@@ -394,6 +395,45 @@ pub(crate) fn named_call_operands(
         });
     }
     (parameters.len() == arguments.len()).then(|| arguments.to_vec())
+}
+
+/// Operand labels for leaf instantiation at a named call. A reference formal
+/// used as a predicate value reads its referent — the borrow at the call site
+/// supplies access, not an extra operator in the predicate — so a `&x`
+/// operand names `x`, exactly as call-`requires` instantiation renders it
+/// (checks/contracts/labels/calls.rs). Other operands keep their proof
+/// spelling.
+pub(crate) fn named_call_operand_labels(
+    program: &TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    operands: &[ExpressionHandle],
+) -> Vec<String> {
+    operands
+        .iter()
+        .enumerate()
+        .map(|(ordinal, operand)| {
+            let operand = match (
+                parameters.get(ordinal),
+                program.expression_table.expression(*operand),
+            ) {
+                (Some(parameter), ExpressionNode::Borrow(borrow))
+                    if matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference),
+                        TypeReferenceNode::Reference { .. }
+                    ) =>
+                {
+                    borrow.target
+                }
+                _ => *operand,
+            };
+            program.render_proof_expression(
+                operand,
+                typed_trees::proposition::ProofSubstitutions::None,
+            )
+        })
+        .collect()
 }
 
 fn unreachable_match_arm(

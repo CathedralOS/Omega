@@ -36,7 +36,6 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::TypeReferenceNode;
 
 use crate::labels::{
     canonical_place_label, instantiate_operator_contract_expression_label_with_labels,
@@ -68,7 +67,7 @@ pub(super) fn named_route_is_false(
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
-    let operand_labels = operand_labels(program, parameters, operands);
+    let operand_labels = super::named_call_operand_labels(program, parameters, operands);
     if flow
         .control
         .operator_invocations
@@ -244,45 +243,6 @@ fn expression_has_polarity(
                 })
         })
     })
-}
-
-/// Operand labels for leaf instantiation. A reference formal used as a
-/// predicate value reads its referent — the borrow at the call site supplies
-/// access, not an extra operator in the predicate — so a `&x` operand names
-/// `x`, exactly as call-`requires` instantiation renders it
-/// (checks/contracts/labels/calls.rs). Other operands keep their proof
-/// spelling.
-fn operand_labels(
-    program: &TypedTrees,
-    parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
-) -> Vec<String> {
-    operands
-        .iter()
-        .enumerate()
-        .map(|(ordinal, operand)| {
-            let operand = match (
-                parameters.get(ordinal),
-                program.expression_table.expression(*operand),
-            ) {
-                (Some(parameter), ExpressionNode::Borrow(borrow))
-                    if matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference),
-                        TypeReferenceNode::Reference { .. }
-                    ) =>
-                {
-                    borrow.target
-                }
-                _ => *operand,
-            };
-            program.render_proof_expression(
-                operand,
-                typed_trees::proposition::ProofSubstitutions::None,
-            )
-        })
-        .collect()
 }
 
 /// Every place occurrence the leaf reads must resolve to an operator
