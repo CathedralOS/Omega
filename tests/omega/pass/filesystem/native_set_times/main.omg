@@ -5,7 +5,7 @@
 // st_mtimespec.tv_sec (@48) reads back 1500000000. Proves the futimens op (fd +
 // timespec-buffer pointer, the fstat operand shape) lowers and runs on macOS.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

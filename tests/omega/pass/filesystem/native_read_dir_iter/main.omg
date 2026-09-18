@@ -7,7 +7,7 @@
 // runtime value) exercise `CopyRuntimeMachineIndexedToRuntimeStorage`, which now
 // lowers correctly on aarch64. Prints PASS iff exactly 4 entries are walked.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

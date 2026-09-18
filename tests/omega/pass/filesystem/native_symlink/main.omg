@@ -3,7 +3,7 @@
 // target bytes ("the_target!!", first byte 't' = 116). Proves symlink/readlink
 // on real macOS syscalls. Prints PASS iff read_link returns the target.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

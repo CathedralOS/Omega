@@ -11,7 +11,7 @@
 // start for a non-scalar enum (mutation/frame_slots.rs). canary_suite 85-baseline
 // (zero new failures).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Pair [copy] {
     a: i64;

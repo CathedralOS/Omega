@@ -8,7 +8,7 @@
 //   5. stat dst -> assert perm bits == 0o640 AND st_size == 11
 // Prints PASS iff the destination is byte-exact AND mode-exact.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

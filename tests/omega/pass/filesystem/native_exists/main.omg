@@ -4,7 +4,7 @@
 // Path::exists (and the ergonomic Filesystem::exists wrapper). Prints PASS iff the
 // file is present after create and absent after remove.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

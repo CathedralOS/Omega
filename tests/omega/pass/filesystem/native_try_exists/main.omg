@@ -6,7 +6,7 @@
 // Error is reserved for a genuine non-ENOENT stat failure (e.g. an unsearchable
 // ancestor). Prints PASS iff Yes/No/Yes all match.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

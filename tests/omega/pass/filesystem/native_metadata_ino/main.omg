@@ -4,7 +4,7 @@
 // (u64 @8), st_uid (u32 @16) and st_gid (u32 @20) decode from the real stat
 // record on macOS syscalls, and that inode identity behaves as POSIX specifies.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

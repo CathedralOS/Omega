@@ -4,7 +4,7 @@
 // inode on real macOS syscalls. Prints PASS iff the link reads 11 bytes starting
 // with 'h' (104).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

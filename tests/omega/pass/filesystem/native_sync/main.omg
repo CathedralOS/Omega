@@ -3,7 +3,7 @@
 // seeking to the end (size == 17). Prints PASS. Exercises the value-returning
 // `sync` op end-to-end on real macOS syscalls.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

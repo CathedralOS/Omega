@@ -9,7 +9,7 @@
 //   5. stat -> the create mode was applied (perm bits == 0o600)
 // Prints PASS iff all match. Proves the stack-marshalled variadic mode is correct.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

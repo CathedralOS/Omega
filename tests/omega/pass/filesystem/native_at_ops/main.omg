@@ -6,7 +6,7 @@
 // `remove_dir_all`. Names are LITERALS (NUL-terminated in rodata); a runtime subslice
 // name awaits the NUL-termination seam.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

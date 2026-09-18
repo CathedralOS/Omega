@@ -4,7 +4,7 @@
 // length materialized as 0 (empty write); now the full {ptr -> rodata, len}
 // descriptor lands, so the write is 5 bytes. Verified via seek-to-end == 5.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

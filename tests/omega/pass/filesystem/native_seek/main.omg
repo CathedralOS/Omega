@@ -3,7 +3,7 @@
 // value-returning 3-scalar-arg host call lowers + runs. Prints PASS and cleans
 // up. NOT registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

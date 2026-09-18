@@ -4,7 +4,7 @@
 // S_IFLNK (0o120000 = 40960) while the file's is not. Proves the lstat op lowers
 // and runs on real macOS syscalls, distinguishing a symlink from its target.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

@@ -4,7 +4,7 @@
 // regular file must report len 10 and is_dir false ((st_mode & S_IFMT) !=
 // S_IFDIR). Proves the stat op + native byte-assembly on real macOS syscalls.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

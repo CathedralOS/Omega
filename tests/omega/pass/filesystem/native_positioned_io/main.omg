@@ -5,7 +5,7 @@
 // [fd, buffer, count/len, offset] operand shapes (read/write plus a trailing
 // offset scalar) — lower and run on real macOS syscalls.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

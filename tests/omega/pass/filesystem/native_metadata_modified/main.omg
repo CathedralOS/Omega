@@ -4,7 +4,7 @@
 // (> 1_000_000_000 seconds since the epoch). Exercises the stat op + a runtime
 // i64 byte-assembly + comparison on real macOS syscalls.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {
