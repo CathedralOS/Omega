@@ -229,6 +229,29 @@ fn duplicated_symbol_rows_cannot_mint_field_type_evidence() {
 }
 
 #[test]
+fn type_reference_rooted_place_projects_through_its_segments() {
+    // A place rooted at a stored type reference names that type directly:
+    // its declared type is the root replayed through the retained segments,
+    // so `Outer.inner` lands on the field's own `u64`.
+    let fixture = fixture();
+    let place = CanonicalPlace {
+        root: facts::PlaceRoot::TypeReference(fixture.value_type),
+        segments: vec![facts::PlaceSegment::Field {
+            symbol: fixture.field_symbol,
+        }],
+    };
+    assert_eq!(
+        canonical_place_type_reference(
+            &fixture.program,
+            fixture.state_symbol,
+            fixture.statement_count,
+            &place,
+        ),
+        Some(fixture.field_type)
+    );
+}
+
+#[test]
 fn attached_self_place_projects_through_the_retained_declaration_identity() {
     // A non-generic attachment carries no application handle, so `self.inner`
     // resolves its declaration through `attached_data_symbol` alone.

@@ -13,14 +13,21 @@ mod tests;
 /// Where a demanded member path currently points: a stored type reference
 /// that still retains the reaching generic application's arguments, or a
 /// declaration reached without one (an attached `self` datum, a struct
-/// literal's type). This mirrors the typed-tree lowerer's `SubjectPosition`
+/// literal's type), or a half-open window taken from a collection. This
+/// mirrors the typed-tree lowerer's `SubjectPosition`
 /// and the checker-side partition replay: a `Box<Context>` leaf keeps its
 /// `T` argument bound so a member whose declared type is `T` resumes the
 /// walk at `Context` instead of stopping at an opaque leaf.
+///
+/// `Sliced` carries the window's element reference rather than the window's
+/// own type: no slice type-reference node exists to mint for it, and the
+/// distinction is load-bearing — an index hop resumes at the element while
+/// a member demand resolves nothing, because a slice declares no fields.
 #[derive(Clone, Copy)]
 pub(super) enum MemberPosition {
     Reference(typed_trees::types::TypeReferenceHandle),
     Declaration(SymbolHandle),
+    Sliced(typed_trees::types::TypeReferenceHandle),
 }
 
 /// The declaration symbol a position's leaf names. Substituted arguments are
@@ -34,6 +41,9 @@ pub(super) fn position_leaf_symbol(
     match position {
         MemberPosition::Reference(reference) => program.type_reference_table.type_symbol(reference),
         MemberPosition::Declaration(symbol) => symbol,
+        // A window's leaf is the slice, which owns no declaration identity:
+        // only a further index hop names the element a member could live on.
+        MemberPosition::Sliced(_) => SymbolHandle::invalid(),
     }
 }
 
@@ -191,6 +201,10 @@ pub(super) fn expression_type_position(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => expression_type_position(program, inner.target),
+        // An atomic expression's value is its operand's evaluation (the
+        // checked interpreter lowers the node the same way), so the position
+        // is the operand's position rather than an opaque leaf.
+        ExpressionNode::Atomic(atomic) => expression_type_position(program, atomic.value),
         ExpressionNode::Call(call) => {
             super::super::calls::call_target_return_type(program, call.target_symbol)
                 .map(MemberPosition::Reference)
@@ -206,15 +220,30 @@ pub(super) fn expression_type_position(
             // its generic argument still bound. A collection whose position
             // does not project to an element keeps no position rather than
             // minting the collection's own for the element.
+            let segment = super::index_place_segment(program, indexed.index);
             match expression_type_position(program, indexed.collection) {
-                Some(MemberPosition::Reference(reference)) => {
-                    super::super::project_type_reference_from_segments(
+                Some(MemberPosition::Reference(reference)) => match segment {
+                    // A range hop yields a window over the same element —
+                    // `values[0..2]` is a slice of `Box<Context>`, not one
+                    // element — so the position becomes the window and only
+                    // a further index hop resumes at the element.
+                    facts::PlaceSegment::FixedRange { .. } => {
+                        super::super::collection_element_type_reference(program, reference)
+                            .map(MemberPosition::Sliced)
+                    }
+                    _ => super::super::project_type_reference_from_segments(
                         program,
                         reference,
-                        &[super::index_place_segment(program, indexed.index)],
+                        &[segment],
                     )
-                    .map(MemberPosition::Reference)
-                }
+                    .map(MemberPosition::Reference),
+                },
+                Some(MemberPosition::Sliced(element)) => match segment {
+                    // Re-windowing a window keeps the same element; an index
+                    // hop names one element and resumes at its position.
+                    facts::PlaceSegment::FixedRange { .. } => Some(MemberPosition::Sliced(element)),
+                    _ => Some(MemberPosition::Reference(element)),
+                },
                 position => position,
             }
         }

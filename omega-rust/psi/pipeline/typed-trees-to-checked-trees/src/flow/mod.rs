@@ -101,8 +101,9 @@ pub(crate) fn resolved_operator_statement_symbol(
 }
 pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, canonical_place_type_reference,
-    discover_state_move_events, expression_type_reference_in_state, normalized_event_place_root,
-    owned_call_operand_places, owned_method_receiver_place, project_type_reference_from_segments,
+    collection_element_type_reference, discover_state_move_events,
+    expression_type_reference_in_state, normalized_event_place_root, owned_call_operand_places,
+    owned_method_receiver_place, project_type_reference_from_segments,
 };
 #[allow(unused_imports)]
 pub(crate) use place::{

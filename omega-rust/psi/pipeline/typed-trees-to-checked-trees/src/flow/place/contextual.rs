@@ -162,7 +162,12 @@ fn resolve_member_symbol_from_place(
         facts::PlaceRoot::Expression(expression) => {
             resolution::expression_type_position(program, expression)?
         }
-        facts::PlaceRoot::Unknown | facts::PlaceRoot::TypeReference(_) => return None,
+        // A type-reference root names the place's own stored type: the walk
+        // resumes at that reference with its reaching application intact.
+        facts::PlaceRoot::TypeReference(reference) => {
+            resolution::MemberPosition::Reference(reference)
+        }
+        facts::PlaceRoot::Unknown => return None,
     };
 
     for segment in &place.segments {
@@ -191,6 +196,10 @@ fn resolve_member_symbol_from_place(
                     resolution::MemberPosition::Declaration(_) => {
                         resolution::symbol_type_position(program, *symbol)?
                     }
+                    // A window declares no fields: keeping the element
+                    // position would mint the element's member for the slice
+                    // itself, so the demanded member stays unresolved.
+                    resolution::MemberPosition::Sliced(_) => return None,
                 };
             }
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
@@ -202,7 +211,9 @@ fn resolve_member_symbol_from_place(
                 // bound. A position that does not project to an element keeps
                 // no position rather than minting the collection's own for
                 // the element; a declaration position names a record, which
-                // has no element to resume at.
+                // has no element to resume at. An index into a window names
+                // one of its elements, so the walk resumes at the element
+                // the window was taken over.
                 position = match position {
                     resolution::MemberPosition::Reference(reference) => {
                         resolution::MemberPosition::Reference(
@@ -213,14 +224,29 @@ fn resolve_member_symbol_from_place(
                             )?,
                         )
                     }
+                    resolution::MemberPosition::Sliced(element) => {
+                        resolution::MemberPosition::Reference(element)
+                    }
                     resolution::MemberPosition::Declaration(_) => return None,
                 };
             }
             facts::PlaceSegment::FixedRange { .. } => {
                 // A range hop produces a slice of the collection, not one
-                // element; the projection has no range shape to replay, so
-                // the demanded member stays unresolved here.
-                return None;
+                // element: the position becomes the window over the same
+                // element, so a later index hop still resumes at the element
+                // while a member demand resolves nothing — a slice declares
+                // no fields to answer it with.
+                position = match position {
+                    resolution::MemberPosition::Reference(reference) => {
+                        resolution::MemberPosition::Sliced(
+                            crate::flow::collection_element_type_reference(program, reference)?,
+                        )
+                    }
+                    resolution::MemberPosition::Sliced(element) => {
+                        resolution::MemberPosition::Sliced(element)
+                    }
+                    resolution::MemberPosition::Declaration(_) => return None,
+                };
             }
         }
     }
