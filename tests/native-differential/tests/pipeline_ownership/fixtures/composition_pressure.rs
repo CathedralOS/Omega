@@ -24,11 +24,24 @@
 //! The three killers die as second leaf arguments, keeping `{x1, x2, x3}`:
 //! register homes take `x1` for `X` and strand the last killer while segment
 //! homes take `x0` and let all three place.
+//!
+//! Two killer shapes share that pressure. `Immediate` defines every killer by
+//! a bare literal, so the stranded register's only definition is a
+//! materialization and recovery rematerializes it — every runtime step in
+//! the retained ledger is a `RuntimeRematerialization`. `Computed` defines
+//! each killer by an add over an already-live operand plus a fresh literal —
+//! an exact add whose known operands keep the certificate provable on
+//! x86-64, a wrapping add over `X`'s forwarded parameter on AArch64 — so the
+//! failed register's definition is never a materialization. Recovery's
+//! rematerialization-first cost decision declines it and the same victim
+//! commits a genuine `RuntimeSpill` step instead: a private `{Spill, 8, 8}`
+//! slot, a store at the add, and reload pairs at the leaf uses, all retained
+//! for replay under the same divergent pressure.
 
 use crate::tests::{
     AdmissionProfile, AllocatorAvailabilityPolicy, Block, BlockId, ContractId, EdgeId,
     ExplicitOptimizationRequest, IntegerSign, IntegerType, IntegerValue, MachineContract,
-    MachineId, NativeTarget, Operation, OperationId, OperationKind, OperationResult,
+    MachineId, NativeTarget, ObligationId, Operation, OperationId, OperationKind, OperationResult,
     OptimizationSelections, OptimizationWorkBudget, OptimizedTargetLoweringRequest, ScalarType,
     StagedOptimizedAllocationLegality, SuccessorEdge, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, ValueId, conditional_immediate_module,
@@ -38,6 +51,16 @@ use crate::tests::{
     stage_optimized_live_ranges, stage_optimized_liveness,
 };
 use target::Architecture;
+
+/// How the pressured leaf victims are defined. `Immediate` keeps each killer
+/// a bare literal so recovery rematerializes it; `Computed` defines each by
+/// an add whose result is not a materialization, so rematerialization
+/// declines and the same victim commits a real spill step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CompositionPressureKillers {
+    Immediate,
+    Computed,
+}
 
 const COMPOSITION_PRESSURE_CALLER: u64 = 24_400;
 const COMPOSITION_PRESSURE_ENTRY: u64 = 24_401;
@@ -58,6 +81,8 @@ const COMPOSITION_PRESSURE_MID: u64 = 24_445;
 const COMPOSITION_PRESSURE_W2_LEAF: u64 = 24_446;
 const COMPOSITION_PRESSURE_FILLER_BASE: u64 = 24_450;
 const COMPOSITION_PRESSURE_EDGE_BASE: u64 = 24_460;
+const COMPOSITION_PRESSURE_OPERAND_BASE: u64 = 24_700;
+const COMPOSITION_PRESSURE_OBLIGATION_BASE: u64 = 24_720;
 const COMPOSITION_PRESSURE_OP_BASE: u64 = 24_500;
 const COMPOSITION_PRESSURE_CONTRACT: u64 = 24_530;
 const COMPOSITION_PRESSURE_TRIO_CALLEE: u64 = 24_100;
@@ -123,7 +148,10 @@ fn unit_callee(machine: u64, base: u64, arity: usize) -> TerminalMachine {
     }
 }
 
-fn composition_pressure_module(target: NativeTarget) -> TerminalModule {
+fn composition_pressure_module(
+    target: NativeTarget,
+    killers: CompositionPressureKillers,
+) -> TerminalModule {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let boolean_type = ScalarType::Boolean;
     let declaration = |id, scalar_type| ValueDeclaration {
@@ -139,6 +167,9 @@ fn composition_pressure_module(target: NativeTarget) -> TerminalModule {
     let z = value(COMPOSITION_PRESSURE_Z);
     let param = |index: u64| value(COMPOSITION_PRESSURE_PARAM_BASE + index);
     let filler = |index: u64| value(COMPOSITION_PRESSURE_FILLER_BASE + index);
+    let operand = |index: u64| value(COMPOSITION_PRESSURE_OPERAND_BASE + index);
+    let obligation =
+        |index: u64| ObligationId::new(COMPOSITION_PRESSURE_OBLIGATION_BASE + index).unwrap();
     let constant = |id: u64, result, n: u64| Operation {
         static_reach_binding: None,
         id: OperationId::new(id).unwrap(),
@@ -146,6 +177,22 @@ fn composition_pressure_module(target: NativeTarget) -> TerminalModule {
         kind: OperationKind::IntegerConstant {
             value: IntegerValue::Unsigned(n.into()),
         },
+    };
+    let exact_add = |id: u64, left, right, result, obligation: ObligationId| Operation {
+        static_reach_binding: None,
+        id: OperationId::new(id).unwrap(),
+        result: OperationResult::Scalar(scalar(result)),
+        kind: OperationKind::ExactIntegerAdd {
+            left,
+            right,
+            obligation,
+        },
+    };
+    let wrapping_add = |id: u64, left, right, result| Operation {
+        static_reach_binding: None,
+        id: OperationId::new(id).unwrap(),
+        result: OperationResult::Scalar(scalar(result)),
+        kind: OperationKind::WrappingIntegerAdd { left, right },
     };
     let boolean_constant = |id: u64, result| Operation {
         static_reach_binding: None,
@@ -251,13 +298,41 @@ fn composition_pressure_module(target: NativeTarget) -> TerminalModule {
         Architecture::X86_64 => (
             Vec::new(),
             // The entry block defines `X` first so it holds the earliest live
-            // point of the pressure trio.
-            vec![
-                constant(COMPOSITION_PRESSURE_OP_BASE, x, 0),
-                boolean_constant(COMPOSITION_PRESSURE_OP_BASE + 1, cond_entry),
-                constant(COMPOSITION_PRESSURE_OP_BASE + 2, w, 1),
-                constant(COMPOSITION_PRESSURE_OP_BASE + 3, z, 2),
-            ],
+            // point of the pressure trio. Under `Computed` the killers are
+            // exact adds over the still-live `X` and a fresh literal: the
+            // result's definition is an `ExactAddI64`, not a materialization,
+            // while the known-zero left operand keeps the certificate
+            // provable. The added literal's interval is one instruction, so
+            // the killers' live ranges — and the divergent pressure — are
+            // unchanged.
+            match killers {
+                CompositionPressureKillers::Immediate => vec![
+                    constant(COMPOSITION_PRESSURE_OP_BASE, x, 0),
+                    boolean_constant(COMPOSITION_PRESSURE_OP_BASE + 1, cond_entry),
+                    constant(COMPOSITION_PRESSURE_OP_BASE + 2, w, 1),
+                    constant(COMPOSITION_PRESSURE_OP_BASE + 3, z, 2),
+                ],
+                CompositionPressureKillers::Computed => vec![
+                    constant(COMPOSITION_PRESSURE_OP_BASE, x, 0),
+                    boolean_constant(COMPOSITION_PRESSURE_OP_BASE + 1, cond_entry),
+                    constant(COMPOSITION_PRESSURE_OP_BASE + 2, operand(0), 1),
+                    exact_add(
+                        COMPOSITION_PRESSURE_OP_BASE + 3,
+                        x,
+                        operand(0),
+                        w,
+                        obligation(0),
+                    ),
+                    constant(COMPOSITION_PRESSURE_OP_BASE + 4, operand(1), 2),
+                    exact_add(
+                        COMPOSITION_PRESSURE_OP_BASE + 5,
+                        x,
+                        operand(1),
+                        z,
+                        obligation(1),
+                    ),
+                ],
+            },
             vec![
                 Block {
                     structural_parameters: Vec::new(),
@@ -322,19 +397,38 @@ fn composition_pressure_module(target: NativeTarget) -> TerminalModule {
             (0..4_u64)
                 .map(|index| scalar(param(index)))
                 .collect::<Vec<_>>(),
-            vec![
-                // `param2`/`param3` are consumed early so their transport
-                // registers die before the killers are born; the compare also
-                // supplies the shared branch condition for every dispatcher.
-                less_than(COMPOSITION_PRESSURE_OP_BASE, param(2), param(3), cond_entry),
-                constant(COMPOSITION_PRESSURE_OP_BASE + 1, w, 1),
-                constant(
-                    COMPOSITION_PRESSURE_OP_BASE + 2,
-                    value(COMPOSITION_PRESSURE_W2),
-                    2,
-                ),
-                constant(COMPOSITION_PRESSURE_OP_BASE + 3, z, 3),
-            ],
+            // `param2`/`param3` are consumed early so their transport
+            // registers die before the killers are born; the compare also
+            // supplies the shared branch condition for every dispatcher.
+            // Under `Computed` each killer is a wrapping add over `X`'s
+            // forwarded parameter and one shared literal — the parameter's
+            // register is already live to `x_leaf`, so the killers' ranges
+            // and the divergent pressure are unchanged while their
+            // definitions become adds, not materializations.
+            match killers {
+                CompositionPressureKillers::Immediate => vec![
+                    less_than(COMPOSITION_PRESSURE_OP_BASE, param(2), param(3), cond_entry),
+                    constant(COMPOSITION_PRESSURE_OP_BASE + 1, w, 1),
+                    constant(
+                        COMPOSITION_PRESSURE_OP_BASE + 2,
+                        value(COMPOSITION_PRESSURE_W2),
+                        2,
+                    ),
+                    constant(COMPOSITION_PRESSURE_OP_BASE + 3, z, 3),
+                ],
+                CompositionPressureKillers::Computed => vec![
+                    less_than(COMPOSITION_PRESSURE_OP_BASE, param(2), param(3), cond_entry),
+                    constant(COMPOSITION_PRESSURE_OP_BASE + 1, operand(0), 1),
+                    wrapping_add(COMPOSITION_PRESSURE_OP_BASE + 2, param(1), operand(0), w),
+                    wrapping_add(
+                        COMPOSITION_PRESSURE_OP_BASE + 3,
+                        param(1),
+                        operand(0),
+                        value(COMPOSITION_PRESSURE_W2),
+                    ),
+                    wrapping_add(COMPOSITION_PRESSURE_OP_BASE + 4, param(1), operand(0), z),
+                ],
+            },
             vec![
                 Block {
                     structural_parameters: Vec::new(),
@@ -469,8 +563,9 @@ fn composition_pressure_module(target: NativeTarget) -> TerminalModule {
 fn staged_composition_pressure_legality(
     target: NativeTarget,
     request: ExplicitOptimizationRequest,
+    killers: CompositionPressureKillers,
 ) -> StagedOptimizedAllocationLegality {
-    let module = composition_pressure_module(target);
+    let module = composition_pressure_module(target, killers);
     let proof = operation_proof_bundle(&module);
     let (semantic, proof) = (
         terminal_codec::encode_module(&module).unwrap(),
@@ -509,7 +604,8 @@ fn staged_composition_pressure_legality(
 }
 
 /// Composition-coverage legality: the divergent-pressure caller under
-/// caller-chosen optimization selections.
+/// caller-chosen optimization selections, its killers defined by bare
+/// literals.
 pub(crate) fn staged_composition_pressure_module_legality(
     target: NativeTarget,
     selections: OptimizationSelections,
@@ -521,5 +617,24 @@ pub(crate) fn staged_composition_pressure_module_legality(
             OptimizationWorkBudget::new(4096, 8192, 8192, 4096, 4096).unwrap(),
         )
         .unwrap(),
+        CompositionPressureKillers::Immediate,
+    )
+}
+
+/// The same divergent pressure with each killer defined by an add instead of
+/// a literal, so the stranded register fails rematerialization admission and
+/// recovery must commit a genuine `RuntimeSpill` ledger step.
+pub(crate) fn staged_composition_pressure_computed_killer_legality(
+    target: NativeTarget,
+    selections: OptimizationSelections,
+) -> StagedOptimizedAllocationLegality {
+    staged_composition_pressure_legality(
+        target,
+        ExplicitOptimizationRequest::new(
+            selections,
+            OptimizationWorkBudget::new(4096, 8192, 8192, 4096, 4096).unwrap(),
+        )
+        .unwrap(),
+        CompositionPressureKillers::Computed,
     )
 }
