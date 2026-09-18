@@ -1585,3 +1585,207 @@ fn spelled_index_use_keeps_a_collection_length_route_no_premise_disproves() {
     };
     assert_eq!(site.surviving.len(), 1);
 }
+
+fn spelled_site(checked: &CheckedTrees) -> &checked_trees::CheckedCrashOperatorSite {
+    let sites: Vec<_> = checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| machine.crash.checked_operators())
+        .filter(|site| site.operator_use.is_valid())
+        .collect();
+    let [site] = sites.as_slice() else {
+        panic!("one spelled operator crash site: {sites:?}")
+    };
+    site
+}
+
+fn surviving_guard_expressions(
+    site: &checked_trees::CheckedCrashOperatorSite,
+) -> Vec<&checked_trees::CrashPredicateExpression> {
+    site.surviving
+        .iter()
+        .flat_map(|bucket| bucket.alternative_guards())
+        .map(|guard| match guard {
+            checked_trees::CrashRouteGuard::Predicate(identity) => identity
+                .expression()
+                .expect("a checked route keeps its predicate expression"),
+            checked_trees::CrashRouteGuard::Truth => {
+                panic!("the route must keep a structured predicate, not Truth")
+            }
+        })
+        .collect()
+}
+
+/// A `crashes` guard may read an owner-scope call — `floor()` — beside a
+/// formal. The call leaf needs no actual of its own, so the surviving route
+/// must carry the authored call verbatim in caller coordinates rather than
+/// widening to `Truth`. Before entry substitution transported `Call`
+/// leaves, this route's identity was dropped and the surviving guard became
+/// `Truth`, which a caller could only cover by publishing an unconditional
+/// `crashes Trap`.
+#[test]
+fn spelled_use_keeps_a_route_whose_guard_reads_a_callee_scope_call() {
+    use checked_trees::CrashPredicateExpression;
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    let source = "machine floor() -> i32 { 0 }
+         boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= floor());
+         machine keep(value: i32) -> bool {
+             1 == value
+         }";
+    check(source).expect("a callee-scope call leaf keeps its route structured");
+    let checked = inspect(source);
+    let site = spelled_site(&checked);
+    assert_eq!(site.published.len(), 1);
+    // `right` binds the caller's `value`, an entry-state parameter, so the
+    // surviving predicate is `!(value >= floor())` in caller coordinates.
+    let expected = CrashPredicateExpression::Unary {
+        operator: UnaryOperator::LogicalNot as u8,
+        operand: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::GreaterOrEqual as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(0)),
+            right: Box::new(CrashPredicateExpression::Call {
+                target: "floor".to_owned(),
+                receiver: Box::new(CrashPredicateExpression::Invalid),
+                arguments: Vec::new(),
+            }),
+        }),
+    };
+    assert_eq!(surviving_guard_expressions(site), [&expected]);
+}
+
+/// A published-ceiling caller republishing `!(value >= floor())` covers the
+/// surviving route exactly: the transported `Call` leaf gives the caller a
+/// route it can spell again, so the invocation checks clean without
+/// over-publishing an unconditional ceiling.
+#[test]
+fn caller_republication_covers_a_route_whose_guard_reads_a_callee_scope_call() {
+    let source = "pub machine floor() -> i32 { 0 }
+         boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= floor());
+         pub machine keep(value: i32) -> bool
+         crashes Trap !(value >= floor()) {
+             1 == value
+         }";
+    check(source).expect("the caller's matching published route covers the call-leaf route");
+}
+
+/// Without coverage the route still fails closed — the uncovered diagnostic
+/// names the same structured route the site retained.
+#[test]
+fn spelled_use_call_leaf_route_stays_uncoverable_without_a_matching_ceiling() {
+    let source = "machine floor() -> i32 { 0 }
+         boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= floor());
+         pub machine keep(value: i32) -> bool {
+             1 == value
+         }";
+    let diagnostics = check(source).expect_err("an uncovered call-leaf route rejects");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let site = spelled_site(&checked);
+    assert_eq!(site.surviving.len(), 1);
+    assert!(
+        site.surviving
+            .iter()
+            .flat_map(|bucket| bucket.alternative_guards())
+            .all(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_))),
+        "the uncovered route still keeps its structured predicate: {:?}",
+        site.surviving
+    );
+}
+
+/// A call leaf is structural: formals appearing inside its arguments still
+/// substitute from the saved actuals, so `offset(left)` becomes `offset(1)`
+/// at the use `1 == value`.
+#[test]
+fn spelled_use_substitutes_formals_inside_a_guard_call_argument() {
+    use checked_trees::CrashPredicateExpression;
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    let source = "machine offset(amount: i32) -> i32 { amount }
+         boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= offset(left));
+         machine keep(value: i32) -> bool {
+             1 == value
+         }";
+    check(source).expect("a formal inside a call argument still substitutes");
+    let checked = inspect(source);
+    let site = spelled_site(&checked);
+    let expected = CrashPredicateExpression::Unary {
+        operator: UnaryOperator::LogicalNot as u8,
+        operand: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::GreaterOrEqual as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(0)),
+            right: Box::new(CrashPredicateExpression::Call {
+                target: "offset".to_owned(),
+                receiver: Box::new(CrashPredicateExpression::Invalid),
+                arguments: vec![CrashPredicateExpression::Integer("1".to_owned())],
+            }),
+        }),
+    };
+    assert_eq!(surviving_guard_expressions(site), [&expected]);
+}
+
+/// A namespaced call keeps its receiver path: `Ns::floor()` encodes the
+/// receiver as a `Name` leaf, which transports verbatim since a non-formal
+/// name means the same path in caller coordinates.
+#[test]
+fn spelled_use_keeps_a_route_whose_guard_call_has_a_namespace_receiver() {
+    use checked_trees::CrashPredicateExpression;
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    let source = "machine Ns::floor() -> i32 { 0 }
+         boundary operator == Comparison::equal(left: i32, right: i32) -> bool
+         crashes Trap !(right >= Ns::floor());
+         machine keep(value: i32) -> bool {
+             1 == value
+         }";
+    check(source).expect("a namespaced call leaf keeps its route structured");
+    let checked = inspect(source);
+    let site = spelled_site(&checked);
+    let expected = CrashPredicateExpression::Unary {
+        operator: UnaryOperator::LogicalNot as u8,
+        operand: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::GreaterOrEqual as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(0)),
+            right: Box::new(CrashPredicateExpression::Call {
+                target: "floor".to_owned(),
+                receiver: Box::new(CrashPredicateExpression::Name(vec!["Ns".to_owned()])),
+                arguments: Vec::new(),
+            }),
+        }),
+    };
+    assert_eq!(surviving_guard_expressions(site), [&expected]);
+}
+
+/// The transport boundary stays conservative: an `Opaque` leaf can hide a
+/// formal inside its flattened display — `left[0u64]` mentions `left` — so
+/// the route still widens to `Truth` rather than leaking a callee spelling
+/// into caller coordinates.
+#[test]
+fn spelled_use_still_widens_a_route_whose_opaque_leaf_hides_a_formal() {
+    let source = "boundary operator Ns::probe(left: [i32; 4], right: i32) -> bool
+         crashes Trap !(right >= left[0u64]);
+         machine keep(items: [i32; 4], value: i32) -> bool {
+             Ns::probe(items, value)
+         }";
+    check(source).expect("an internal caller retains the widened route");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    let [bucket] = site.surviving.as_slice() else {
+        panic!("one surviving bucket: {:?}", site.surviving)
+    };
+    assert_eq!(
+        bucket.alternative_guards(),
+        &[checked_trees::CrashRouteGuard::Truth],
+    );
+}

@@ -951,9 +951,15 @@ pub(super) fn substitute_entry(
 ) -> Option<CrashPredicateExpression> {
     Some(match expression {
         CrashPredicateExpression::Parameter(ordinal) => operands.get(*ordinal as usize)?.clone()?,
-        CrashPredicateExpression::Boolean(_) | CrashPredicateExpression::Integer(_) => {
-            expression.clone()
-        }
+        // Literals and owner-scope names need no operand: a `Name` leaf only
+        // survives predicate extraction when its spelling matched no formal,
+        // so it already names a fixed path the caller side can spell the same
+        // way. `Opaque` and `ContentConservation` may hide formals inside a
+        // flattened display, so they keep refusing rather than leaking a
+        // callee spelling into caller coordinates.
+        CrashPredicateExpression::Boolean(_)
+        | CrashPredicateExpression::Integer(_)
+        | CrashPredicateExpression::Name(_) => expression.clone(),
         CrashPredicateExpression::Binary {
             operator,
             left,
@@ -971,6 +977,25 @@ pub(super) fn substitute_entry(
             receiver: Box::new(substitute_entry(receiver, operands)?),
             member: member.clone(),
         },
+        // A call leaf transports its authored target and substitutes inside
+        // its receiver and arguments: `floor()` keeps its parameter-free
+        // shape while `offset(left)` still requires `left`'s actual. The
+        // `Invalid` receiver is the receiverless marker, not a broken guard.
+        CrashPredicateExpression::Call {
+            target,
+            receiver,
+            arguments,
+        } => CrashPredicateExpression::Call {
+            target: target.clone(),
+            receiver: Box::new(match receiver.as_ref() {
+                CrashPredicateExpression::Invalid => CrashPredicateExpression::Invalid,
+                receiver => substitute_entry(receiver, operands)?,
+            }),
+            arguments: arguments
+                .iter()
+                .map(|argument| substitute_entry(argument, operands))
+                .collect::<Option<Vec<_>>>()?,
+        },
         _ => return None,
     })
 }
@@ -983,7 +1008,9 @@ pub(super) fn substitute_entry(
 /// field's saved actual rather than widening the route to `Truth`. The
 /// `Member` spine re-applies its own names over the resolved root, so the
 /// resolver returns the operand's entry operand unprojected by `members`.
-/// Nodes `substitute_entry` cannot express keep the same refusal here.
+/// Parameter-free nodes need no operand and transport under the same rule
+/// `substitute_entry` uses; `Opaque`, `ContentConservation` and a bare
+/// `Invalid` keep the same refusal here.
 pub(super) fn substitute_entry_projected(
     expression: &CrashPredicateExpression,
     resolve: &mut (impl FnMut(u32, &[String]) -> Option<CrashPredicateExpression> + ?Sized),
@@ -1013,9 +1040,9 @@ pub(super) fn substitute_entry_projected(
                     member: member.clone(),
                 })
         }
-        CrashPredicateExpression::Boolean(_) | CrashPredicateExpression::Integer(_) => {
-            expression.clone()
-        }
+        CrashPredicateExpression::Boolean(_)
+        | CrashPredicateExpression::Integer(_)
+        | CrashPredicateExpression::Name(_) => expression.clone(),
         CrashPredicateExpression::Binary {
             operator,
             left,
@@ -1028,6 +1055,21 @@ pub(super) fn substitute_entry_projected(
         CrashPredicateExpression::Unary { operator, operand } => CrashPredicateExpression::Unary {
             operator: *operator,
             operand: Box::new(substitute_entry_projected(operand, resolve)?),
+        },
+        CrashPredicateExpression::Call {
+            target,
+            receiver,
+            arguments,
+        } => CrashPredicateExpression::Call {
+            target: target.clone(),
+            receiver: Box::new(match receiver.as_ref() {
+                CrashPredicateExpression::Invalid => CrashPredicateExpression::Invalid,
+                receiver => substitute_entry_projected(receiver, resolve)?,
+            }),
+            arguments: arguments
+                .iter()
+                .map(|argument| substitute_entry_projected(argument, resolve))
+                .collect::<Option<Vec<_>>>()?,
         },
         _ => return None,
     })
