@@ -660,15 +660,16 @@ pub(super) fn lower_operation(
                 provenance,
             )
         }
+        // Requirement obligations are proof metadata the shipped bundle
+        // already discharged; scalar `Call` and legalized calls forward them
+        // unchanged, so a Unit call carrying them lowers through the same
+        // structural-call route. Claim transfers and crash continuations still
+        // carry runtime custody/control meaning and keep refusing here.
         AbstractOperation::CallUnit {
             claim_transfers,
-            requirement_obligations,
             crash_continuations,
             ..
-        } if claim_transfers.is_empty()
-            && requirement_obligations.is_empty()
-            && crash_continuations.is_empty() =>
-        {
+        } if claim_transfers.is_empty() && crash_continuations.is_empty() => {
             crate::lowering::unit::structural_call::lower_structural_unit_call(
                 operation,
                 function,
