@@ -13,7 +13,7 @@ use crate::{
     ValidatedLocalRelocation, ValidatedLocalSchedule, ValidatedPredecessorRelocation,
     ValidatedPressureRematerialization, ValidatedRedundantCompare, ValidatedRedundantExtension,
     ValidatedRunRelocation, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding, ValidatedTriangleRelocation,
 };
 
 mod sealed {
@@ -523,6 +523,26 @@ impl ValidatedSelectedAnalysis for ValidatedRuntimeSpill {
 impl sealed::Sealed for ValidatedRuntimeRematerialization {}
 
 impl ValidatedSelectedAnalysis for ValidatedRuntimeRematerialization {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedTriangleRelocation {}
+
+impl ValidatedSelectedAnalysis for ValidatedTriangleRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

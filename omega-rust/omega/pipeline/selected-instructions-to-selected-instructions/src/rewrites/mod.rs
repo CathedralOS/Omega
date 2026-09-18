@@ -35,6 +35,7 @@ mod selected_lowering;
 mod store_motion;
 #[cfg(feature = "test-support")]
 pub mod test_support;
+mod triangle_relocation;
 mod window_hazards;
 
 pub use address_fold::*;
@@ -66,6 +67,7 @@ pub use runtime_rematerialization::*;
 pub use runtime_spill::*;
 pub use selected_lowering::*;
 pub use store_motion::*;
+pub use triangle_relocation::*;
 
 /// Explicit applicability of the currently architecture-independent rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
