@@ -3202,75 +3202,86 @@ Owners include
   used premise is reconstructed for the exact subject and no qualification or
   similarly shaped row mints one implicitly.
 
-  Complete owned value loads through references, additional reference-boundary
-  loads, indexed or replaced carriers, and reference-bearing helper results
-  with unresolved control-flow or binding transfers in
-  `checks/termination/progress/{origins.rs,lineage.rs}`. Captured record and
-  array constructors now arrive from the selected field or element operand
-  (`flow/value_origins.rs`); owned helper results such as
-  `context.scheduler = pick(replacement)` now derive the checked callee's
-  exact frozen-input projection through the same backward trace
-  (`checks/termination/progress/origins.rs`), while `&mut` or mutable
-  captures, generic or dispatched callees, and unresolved result routes stay
-  unproven. A mutated aggregate
-  cannot use root correspondence as evidence for its previous field values;
-  a may-write frame cannot identify a replacement value. Reuse
-  `lineage/places.rs` partition replay for per-field arrivals through reference
-  and unresolved generic leaves with exact declared-field provenance; retain
-  opaque prefixes where that provenance is absent. Acceptance: those finite
-  projected arrivals and checked helper correspondences derive the replacement
-  input's exact premise, while unknown writes and reference aliases without
-  exact provenance retain no checked guarantee. Slice landed at da11319b0e on
-  Linux x86-64: a checked helper result whose returned expression is itself a
-  checked call now recurses through the nested callee's transition-free
-  prefix with the same gates
-  (`checks/termination/progress/origins.rs`), so per-field arrivals through
-  the recursive-proof leaf derive the replacement input's exact frozen
-  projection, while mutable inputs, generic or dispatched callees, and
-  unresolved result routes keep no checked guarantee.
+  Premise origins. Owners: `typed-trees-to-checked-trees`
+  `checks/termination/progress/{origins.rs,lineage.rs,lineage/places.rs}`,
+  `flow/value_origins.rs` and `flow/place/resolution.rs`. The backward trace
+  already derives exact frozen-input projections for captured constructors,
+  owned and nested checked helper results, constructed results and constructor
+  operands that select one operand, write-clean mutable helper bindings,
+  shared-reference leaves through their slot stores, and nested call-result
+  arguments; partition replay follows reference and generic-application leaves
+  with exact declared-field provenance. Do not rebuild those as new slices.
+  Remaining work:
 
-  Realize projected nested value-call operands guarded by
+  - Complete owned value loads through references, additional
+    reference-boundary loads, indexed or replaced carriers, and
+    reference-bearing helper results with unresolved control-flow or binding
+    transfers.
+  - Mutable demanded paths, helper bodies that may write the demanded
+    projection, write-tainted nested calls, generic or dispatched callees,
+    ambiguous or dynamic projections, opaque or overlapping write frames,
+    unresolved exclusive aliases and unresolved result routes keep no checked
+    guarantee. Admit one only from exact provenance.
+  - A mutated aggregate cannot use root correspondence as evidence for its
+    previous field values; a may-write frame cannot identify a replacement
+    value. Retain opaque prefixes where declared-field provenance is absent.
+
+  Acceptance: those finite projected arrivals and checked helper
+  correspondences derive the replacement input's exact premise, while unknown
+  writes and reference aliases without exact provenance retain no checked
+  guarantee.
+
+  Nested value-call operands. Realize projected nested value-call operands
+  guarded by
   `validation/src/machine_calls/calls/expression_scanning/result_realization.rs`
   through the checked/lowered value planning path. Borrow checking can
   transfer owned helper-result projections, but full checking still rejects
-  the inner call's result as an unrealized operand. Complete result
-  projections through the shared evaluator and result-binding lookup; extend
-  the shared closure to general structural-result callees. Carry loans,
-  qualifications, and projected claims through structural results without
-  erasing their obligations. Acceptance: `select(forward_outer(outer).inner)`
-  and `select(forward_array(values)[0])` evaluate each call once, retain the
-  inner result home through projection and the outer call, and preserve every
+  the inner call's result as an unrealized operand. Whole owned record ingress
+  and forwarding already execute from encoded Terminal evidence
+  (`checked-trees-to-lowered-psi/tests/reference_result_source.rs`); that is
+  Terminal acceptance, not native acceptance. The gate also admits nested call
+  operands for free scalar callers, bare scalar stores, and member scalar
+  stores on a borrowed parameter or receiver. Remaining work:
+
+  - Complete result projections through the shared evaluator and
+    result-binding lookup; extend the shared closure to general
+    structural-result callees. Carry loans, qualifications, and projected
+    claims through structural results without erasing their obligations.
+  - Resume at the checked/Terminal representation seam, not another evaluator
+    source-shape gate: realize projected owned reference leaves with residual
+    carrier cleanup, then nested result operands with their recursive loan
+    custody. Structural-element array construction is a further dependency.
+  - `select(value: View) -> &mut i32 { value.body }` must move the selected
+    permission and dispose the remainder, not create a reborrow whose parent
+    dies at return. `EstablishReference` creates a child loan and cannot
+    substitute for moving an existing leaf through call/edge/result moves.
+  - Keep carrier location distinct from loan occurrence/parent, relocate
+    runtime descriptors without copying referents, and reject nested
+    reference host interfaces until their custody exists. Reuse
+    `validation/src/machine_calls/reference_result_custody.rs` and the typed
+    projection/result maps; preserve conservative lifetime unions when
+    extending exact runtime origins beyond the whole-record route.
+
+  Acceptance: `select(forward_outer(outer).inner)` and
+  `select(forward_array(values)[0])` evaluate each call once, retain the inner
+  result home through projection and the outer call, and preserve every
   selected source loan and linear claim. Remove the nested-call gate only when
   those result uses have real producers; a correct declared type or source
-  origin alone does not realize a value. Resume at the checked/Terminal
-  representation seam, not another evaluator source-shape gate: realize
-  projected owned reference leaves with residual carrier cleanup, then nested
-  result operands with their recursive loan custody. Whole owned record
-  ingress and forwarding are available: at `5374ab3198`, `cargo nextest run -p
-  checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
-  (macOS ARM64, `RUST_MIN_STACK=33554432`) checks canonical encoding,
-  independent verification, and fuel-stepped execution of `forward(input)`
-  followed by `replace(held.body)`, preserving the transferred leaf and
-  restoring the caller's original backing after cleanup. `select(value: View)
-  -> &mut i32 { value.body }` must move the selected permission and dispose
-  the remainder, not create a reborrow whose parent dies at return. This is
-  Terminal acceptance, not native acceptance. Reuse
-  `validation/src/machine_calls/reference_result_custody.rs` for ordinary
-  completion and independent source replay; preserve conservative lifetime
-  unions when extending exact runtime origins beyond the current whole-record
-  route. Transfer existing permissions through owned call/edge/result moves
-  and residual cleanup; `EstablishReference` creates a child loan and cannot
-  substitute for moving an existing leaf. Keep carrier location distinct from
-  loan occurrence/parent, relocate runtime descriptors without copying
-  referents, and reject nested reference host interfaces until their custody
-  exists. Reuse existing typed projection/result maps; structural-element
-  array construction remains a further dependency beyond the record route. The
-  full-checking rejection controls in
-  `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs` cover
-  nested `select(forward_outer(...).inner)` and
-  `select(forward_array(...)[0])` calls, not the simpler `make_view` binding.
-  Keep those controls until their corresponding unchanged source cases execute
-  from encoded Terminal evidence, including projected moves and array ingress.
+  origin alone does not realize a value. Keep the rejection controls for those
+  two calls in
+  `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs` until the
+  unchanged sources execute from encoded Terminal evidence, including
+  projected moves and array ingress.
+
+  Flag: `result_realization.rs` is now 1391 lines of per-shape admission.
+  `unit_scalar_store_assignment_is_supported` (97b01d64f2) and
+  `unit_member_scalar_store_assignment_is_supported` (9baac8ad7b, 687 added
+  lines) each repeat inside validation the walk the checked Unit producer
+  performs for one destination shape, and the producer still rejects what it
+  cannot sequence. The general mechanism is the one named above: nested result
+  operands become ordinary evaluation-graph computations
+  (**STATE-LOCAL-VALUE-FRONTIER**) and the gate is deleted, not widened one
+  destination shape at a time.
 
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements
