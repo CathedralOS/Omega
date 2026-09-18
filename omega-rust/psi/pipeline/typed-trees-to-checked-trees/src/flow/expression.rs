@@ -577,7 +577,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 );
                 // A named call mints no borrow-call row for `invoke` to find;
                 // its mutable-operand invalidation and `ensures` publication
-                // run here, at the exact point the call completes.
+                // run here, at the exact point the call completes. The same
+                // write set then joins the operand-write timeline `invoke`
+                // fills for ordinary calls: an enclosing operand captured
+                // before this call ran must not keep claiming — or republish a
+                // callee `ensures` onto — source storage this call rewrote.
                 for &named_use in &named_uses {
                     super::operator_calls::apply_named_operator_call_effects(
                         self.program,
@@ -591,6 +595,16 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         named_use,
                         contexts,
                         constraints,
+                    );
+                    self.operand_writes.push(
+                        super::operator_calls::named_operator_call_mutated_places(
+                            self.program,
+                            self.context.operators,
+                            self.state.symbol,
+                            self.statement_index,
+                            call,
+                            named_use,
+                        ),
                     );
                 }
             }

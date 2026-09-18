@@ -311,6 +311,42 @@ pub(super) fn apply_named_operator_call_effects(
     );
 }
 
+/// The write set one expression-form named operator call contributes to the
+/// enclosing operand-write timeline: the canonical places of the operand
+/// storage its mutable parameters rewrite, resolved through the same operand
+/// custody `apply_named_operator_call_effects` uses so the two can never
+/// disagree about what a `&mut` operand names. `None` means the write set is
+/// unknown — the operator or its operand list could not be reconstructed, or
+/// a mutable operand names no canonical place — and the timeline must read it
+/// as an overlap with every earlier operand source, never as "writes
+/// nothing". The expression-form counterpart of
+/// `operator_statement_call_mutated_places`.
+pub(super) fn named_operator_call_mutated_places(
+    program: &typed_trees::TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    call: &typed_trees::expression::TableCallExpression,
+    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
+) -> Option<Vec<CanonicalPlace>> {
+    let operator = typed_trees::operator::declaration_by_symbol(
+        program,
+        operators.named_uses.get(named_use).selected_operator_symbol,
+    )?;
+    let operands = named_operator_call_operands(
+        program,
+        caller_state_symbol,
+        statement_index,
+        call,
+        operator,
+    )?;
+    operands
+        .iter()
+        .filter(|operand| operand.is_mutable)
+        .map(|operand| operand.place.clone())
+        .collect()
+}
+
 /// A named boundary/operator call has no ordinary borrow-call fact. Its mutable
 /// operands still invalidate every fact depending on those places before the
 /// operator's postconditions are introduced.
