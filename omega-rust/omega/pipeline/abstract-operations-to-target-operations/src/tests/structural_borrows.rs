@@ -364,6 +364,93 @@ fn established_home_borrow_plan() -> abstract_operations::AbstractOperationPlan 
     plan
 }
 
+/// A shared borrow of one element inside an owned caller array. The indexed
+/// projection retains the root array's extent and element stride beside the
+/// projected byte offset — metadata the validator must reconstruct from the
+/// referent's declaration rather than accept from the retained row.
+fn indexed_element_borrow_plan() -> abstract_operations::AbstractOperationPlan {
+    let element = StructuralTypeId::new(1).unwrap();
+    let array = StructuralTypeId::new(2).unwrap();
+    let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let function = |raw, structural_type, access, multiplicity| AbstractFunction {
+        machine: MachineId::new(raw).unwrap(),
+        attachment: None,
+        entry: BlockId::new(raw).unwrap(),
+        parameters: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: PlaceId::new(raw).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }],
+        result: AbstractFunctionResult::Unit,
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        block_entries: vec![AbstractBlockEntry {
+            structural_parameters: Vec::new(),
+            block: BlockId::new(raw).unwrap(),
+            parameters: Vec::new(),
+            operation_offset: 0,
+        }],
+        operations: vec![AbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(raw).unwrap(),
+            cleanup_actions: Vec::new(),
+        }],
+    };
+    let mut caller = function(
+        1,
+        array,
+        StructuralAccess::Owned,
+        StructuralMultiplicity::Affine,
+    );
+    let callee = function(
+        2,
+        element,
+        StructuralAccess::SharedBorrow,
+        StructuralMultiplicity::Unrestricted,
+    );
+    caller.operations.insert(
+        0,
+        AbstractOperation::CallUnit {
+            psi_operation: OperationId::new(1).unwrap(),
+            callee: callee.machine,
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: caller.structural_parameters[0].place,
+                access: StructuralAccess::SharedBorrow,
+                path: vec![terminal_psi::StructuralPathSegment::FixedIndex(2)],
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    );
+    AbstractOperationPlan {
+        psi: super::support::identity(),
+        entry: caller.machine,
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: element,
+                identity: "u64".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(unsigned),
+            },
+            StructuralTypeDeclaration {
+                id: array,
+                identity: "[u64; 4]".into(),
+                shape: StructuralTypeShape::FixedArray { element, length: 4 },
+            },
+        ]
+        .into(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![caller, callee],
+    }
+}
+
 /// A caller that owns an aggregate actual, invokes a callee returning the
 /// same structural type, and returns that result itself. The retained
 /// `StructuralResultCall` must carry the declared result identity plus the
@@ -875,6 +962,113 @@ fn established_home_borrow_rejects_substituted_root_projection_and_home() {
                 crate::validate_abstract_to_target_translation(&source, native, &mutated),
                 Err(expected.clone()),
                 "substituted argument identity"
+            );
+        }
+    }
+}
+
+#[test]
+fn indexed_element_borrow_retains_array_transport_and_validates() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let source = indexed_element_borrow_plan();
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .unwrap();
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let argument = target.functions[0]
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call { arguments, .. } => arguments.first(),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(
+            argument.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+        );
+        // Borrowed references stay pointer-classified; the referent element's
+        // extent and alignment ride the shared classifier, never a copy.
+        assert_eq!(argument.shape.class, ValueClass::BorrowedReference);
+        assert_eq!(argument.structural_type, StructuralTypeId::new(1).unwrap());
+        assert_eq!(
+            argument.root_structural_type,
+            StructuralTypeId::new(2).unwrap()
+        );
+        assert_eq!(
+            argument.path,
+            vec![terminal_psi::StructuralPathSegment::FixedIndex(2)]
+        );
+        assert_eq!(argument.source_byte_offset, 16);
+        assert_eq!(argument.fixed_array_length, Some(4));
+        assert_eq!(argument.element_stride, Some(8));
+        assert_eq!(
+            argument.source,
+            target_operations::TargetStructuralArgumentSource::Placement(
+                target.functions[0].graph.parameters[0].placement.clone()
+            )
+        );
+        assert!(!argument.destination.locations.is_empty());
+    }
+}
+
+#[test]
+fn indexed_element_borrow_rejects_substituted_projection_and_transport() {
+    let source = indexed_element_borrow_plan();
+    let expected =
+        crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+            machine: MachineId::new(1).unwrap(),
+            operation: OperationId::new(1).unwrap(),
+        };
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .unwrap();
+        for mutation in [
+            // A different element inside the same owned array home.
+            Box::new(|argument: &mut TargetStructuralArgument| argument.source_byte_offset = 0)
+                as Box<dyn Fn(&mut TargetStructuralArgument)>,
+            Box::new(|argument: &mut TargetStructuralArgument| argument.source_byte_offset = 24),
+            // The referent root is the array, not its element.
+            Box::new(|argument: &mut TargetStructuralArgument| {
+                argument.root_structural_type = StructuralTypeId::new(1).unwrap()
+            }),
+            // The projected carrier is the element, not the root array.
+            Box::new(|argument: &mut TargetStructuralArgument| {
+                argument.structural_type = StructuralTypeId::new(2).unwrap()
+            }),
+            // Dropped or fabricated array transport metadata.
+            Box::new(|argument: &mut TargetStructuralArgument| argument.fixed_array_length = None),
+            Box::new(|argument: &mut TargetStructuralArgument| {
+                argument.fixed_array_length = Some(8)
+            }),
+            Box::new(|argument: &mut TargetStructuralArgument| argument.element_stride = None),
+            Box::new(|argument: &mut TargetStructuralArgument| argument.element_stride = Some(16)),
+            // Access, ABI class, and destination substitutions still reject.
+            Box::new(|argument: &mut TargetStructuralArgument| {
+                argument.access = terminal_psi::StructuralAccess::MutableBorrow
+            }),
+            Box::new(|argument: &mut TargetStructuralArgument| {
+                argument.shape.class = ValueClass::Integer
+            }),
+            Box::new(|argument: &mut TargetStructuralArgument| {
+                argument.destination.locations.clear()
+            }),
+            // An owned array parameter is not an operation-established home.
+            Box::new(|argument: &mut TargetStructuralArgument| {
+                argument.source =
+                    target_operations::TargetStructuralArgumentSource::StructuralHome {
+                        psi_operation: OperationId::new(1).unwrap(),
+                    }
+            }),
+        ] {
+            let mutated = mutate_call_arguments(&target, mutation);
+            assert_eq!(
+                crate::validate_abstract_to_target_translation(&source, native, &mutated),
+                Err(expected.clone()),
+                "substituted indexed projection"
             );
         }
     }

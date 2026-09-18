@@ -1942,6 +1942,36 @@ impl Replay<'_> {
                     }
                 }
             }
+        } else if semantic.path.iter().all(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            )
+        }) {
+            // An indexed projection outside the borrowed-subloan arm —
+            // an owned root or owned transport — still replays its root
+            // type, projected carrier, and byte offset from the referent's
+            // own declaration, and the retained array extent and element
+            // stride must equal the root's reconstructed transport
+            // metadata rather than any substituted pair.
+            let (expected_length, expected_stride) =
+                structural_shapes::root_array_transport(root.structural_type, self.declarations)
+                    .map_err(|_| psi_operation)?;
+            let Ok((projected_type, byte_offset)) = structural_shapes::project_static_path(
+                root.structural_type,
+                &semantic.path,
+                self.declarations,
+            ) else {
+                return Err(psi_operation);
+            };
+            if actual.root_structural_type != root.structural_type
+                || actual.structural_type != projected_type
+                || actual.source_byte_offset != byte_offset
+                || actual.fixed_array_length != expected_length
+                || actual.element_stride != expected_stride
+            {
+                return Err(psi_operation);
+            }
         }
         Ok(())
     }
