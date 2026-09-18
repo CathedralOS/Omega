@@ -1189,8 +1189,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   losing affine/linear custody.
 - **STATE-SPECIALIZATION.** Add state-argument/result specialization with exact
   edge provenance.
-- **INTERPROCEDURAL-SUMMARIES.** Add service/call summaries and proof-bound
-  inlining.
+- **INTERPROCEDURAL-SUMMARIES.** Add proof-bound inlining and the service/call
+  summaries it needs. Transitive per-function effect summaries (observable,
+  structural-state, crash, suspension, services, boundaries) and the direct
+  call graph already exist in
+  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/`
+  and feed control-flow cleanup and loop-invariant scalar motion. They
+  classify effects only: no summary names the places a callee reads or
+  writes, and no rule inlines or otherwise rewrites across a call.
 - **PROOF-DIRECTED-LOOPS.** Add loop-bound reasoning, induction
   simplification, and vectorization with exact lane semantics.
 
