@@ -312,6 +312,112 @@ fn array_literal_position(
         .then_some(MemberPosition::Sliced(element))
 }
 
+/// Replay retained place segments against a member position, producing the
+/// position the walk resumes at after the hops — the shared fold both member
+/// resolution (`resolve_member_symbol_from_place`) and reference-type
+/// reconstruction (`expression_place_type_reference`) commit to, so a member
+/// demand and a declared-type question never disagree about where a segment
+/// leaves the walk.
+///
+/// A `Case` segment qualifies spelling only; the position is unchanged. A
+/// `Field` hop on a reference position replays the reaching generic
+/// application's own substitution (see `project_type_reference_from_segments`),
+/// so a field whose declared type is a bound parameter resumes at the
+/// supplied argument — `Box<Context>::item` continues at `Context`. When the
+/// hop does not replay (a declaration position, an opaque leaf, or a field
+/// outside the replayed declaration) the field's own declared position
+/// applies, as before. A window declares no fields: keeping the element
+/// position would mint the element's member for the slice itself, so a field
+/// demanded on a `Sliced` position stays unresolved.
+///
+/// An index hop lands on an element, not on the collection itself: a
+/// collection reference projects to its element through the same
+/// collection-to-element projection `expression_type_position` applies to an
+/// `Indexed` node, so `values[i]` resumes at the element position with the
+/// collection's generic arguments still bound. A position that does not
+/// project to an element keeps no position rather than minting the
+/// collection's own for the element; a declaration position names a record,
+/// which has no element to resume at. An index into a window names one of
+/// its elements, so the walk resumes at the element the window was taken
+/// over.
+///
+/// A range hop produces a slice of the collection, not one element: the
+/// position becomes the window over the same element, so a later index hop
+/// still resumes at the element while a member demand resolves nothing — a
+/// slice declares no fields to answer it with. Re-windowing a window keeps
+/// its element.
+pub(super) fn member_position_after_segments(
+    program: &typed_trees::TypedTrees,
+    position: MemberPosition,
+    segments: &[facts::PlaceSegment],
+) -> Option<MemberPosition> {
+    let mut position = position;
+    for segment in segments {
+        position = match segment {
+            facts::PlaceSegment::Case { .. } => position,
+            facts::PlaceSegment::Field { symbol } => match position {
+                MemberPosition::Reference(reference) => {
+                    match super::super::project_type_reference_from_segments(
+                        program,
+                        reference,
+                        std::slice::from_ref(segment),
+                    ) {
+                        Some(projected) => MemberPosition::Reference(projected),
+                        None => symbol_type_position(program, *symbol)?,
+                    }
+                }
+                MemberPosition::Declaration(_) => symbol_type_position(program, *symbol)?,
+                MemberPosition::Sliced(_) => return None,
+            },
+            facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
+                match position {
+                    MemberPosition::Reference(reference) => MemberPosition::Reference(
+                        super::super::project_type_reference_from_segments(
+                            program,
+                            reference,
+                            std::slice::from_ref(segment),
+                        )?,
+                    ),
+                    MemberPosition::Sliced(element) => MemberPosition::Reference(element),
+                    MemberPosition::Declaration(_) => return None,
+                }
+            }
+            facts::PlaceSegment::FixedRange { .. } => match position {
+                MemberPosition::Reference(reference) => MemberPosition::Sliced(
+                    super::super::collection_element_type_reference(program, reference)?,
+                ),
+                MemberPosition::Sliced(element) => MemberPosition::Sliced(element),
+                MemberPosition::Declaration(_) => return None,
+            },
+        };
+    }
+    Some(position)
+}
+
+/// The declared type reference a place rooted at `expression` names after
+/// replaying its retained segments — the reference-world counterpart of the
+/// position walk's member resolution. A call root resumes at the declared
+/// return type, a stored-type leaf (a cast's normalized result, a zero
+/// value's materialized reference) at its own stored reference, an array or
+/// match leaf at its joined position, and an index hop at the element a
+/// window was taken over — each through the same stored evidence
+/// `expression_type_position` already proves. A terminal `Declaration` or
+/// `Sliced` position cannot mint a type-reference handle (the immutable
+/// typed table stores no row for a literal's own type or a window), so the
+/// place keeps no reference rather than inventing one from a same-shaped
+/// row.
+pub(crate) fn expression_place_type_reference(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let position = expression_type_position(program, expression)?;
+    match member_position_after_segments(program, position, segments)? {
+        MemberPosition::Reference(reference) => Some(reference),
+        MemberPosition::Declaration(_) | MemberPosition::Sliced(_) => None,
+    }
+}
+
 /// A match's value is whichever arm produces it, so every arm must agree on
 /// one exact position — the same stored reference, declaration, or window
 /// element. An opaque arm or a different stored row keeps the dispatch

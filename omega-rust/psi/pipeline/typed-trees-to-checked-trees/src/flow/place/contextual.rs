@@ -157,7 +157,7 @@ fn resolve_member_symbol_from_place(
     member_name: &str,
     case_variant: Option<&str>,
 ) -> Option<SymbolHandle> {
-    let mut position = match place.root {
+    let position = match place.root {
         facts::PlaceRoot::Symbol(symbol) => resolution::symbol_type_position(program, symbol)?,
         facts::PlaceRoot::Expression(expression) => {
             resolution::expression_type_position(program, expression)?
@@ -170,86 +170,13 @@ fn resolve_member_symbol_from_place(
         facts::PlaceRoot::Unknown => return None,
     };
 
-    for segment in &place.segments {
-        match segment {
-            facts::PlaceSegment::Case { .. } => {}
-            facts::PlaceSegment::Field { symbol } => {
-                // A reference position replays the reaching generic
-                // application's own substitution (see
-                // `project_type_reference_from_segments`), so a field whose
-                // declared type is a bound parameter resumes at the supplied
-                // argument — `Box<Context>::item` continues at `Context`.
-                // When the hop does not replay (a declaration position, an
-                // opaque leaf, or a field outside the replayed declaration)
-                // the field's own declared position applies, as before.
-                position = match position {
-                    resolution::MemberPosition::Reference(reference) => {
-                        match crate::flow::project_type_reference_from_segments(
-                            program,
-                            reference,
-                            std::slice::from_ref(segment),
-                        ) {
-                            Some(projected) => resolution::MemberPosition::Reference(projected),
-                            None => resolution::symbol_type_position(program, *symbol)?,
-                        }
-                    }
-                    resolution::MemberPosition::Declaration(_) => {
-                        resolution::symbol_type_position(program, *symbol)?
-                    }
-                    // A window declares no fields: keeping the element
-                    // position would mint the element's member for the slice
-                    // itself, so the demanded member stays unresolved.
-                    resolution::MemberPosition::Sliced(_) => return None,
-                };
-            }
-            facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
-                // The index hop lands on an element, not on the collection
-                // itself: replay the reaching reference through the same
-                // element projection `expression_type_position` applies to an
-                // `Indexed` node, so `values[i]` resumes at the element
-                // position with the collection's generic arguments still
-                // bound. A position that does not project to an element keeps
-                // no position rather than minting the collection's own for
-                // the element; a declaration position names a record, which
-                // has no element to resume at. An index into a window names
-                // one of its elements, so the walk resumes at the element
-                // the window was taken over.
-                position = match position {
-                    resolution::MemberPosition::Reference(reference) => {
-                        resolution::MemberPosition::Reference(
-                            crate::flow::project_type_reference_from_segments(
-                                program,
-                                reference,
-                                std::slice::from_ref(segment),
-                            )?,
-                        )
-                    }
-                    resolution::MemberPosition::Sliced(element) => {
-                        resolution::MemberPosition::Reference(element)
-                    }
-                    resolution::MemberPosition::Declaration(_) => return None,
-                };
-            }
-            facts::PlaceSegment::FixedRange { .. } => {
-                // A range hop produces a slice of the collection, not one
-                // element: the position becomes the window over the same
-                // element, so a later index hop still resumes at the element
-                // while a member demand resolves nothing — a slice declares
-                // no fields to answer it with.
-                position = match position {
-                    resolution::MemberPosition::Reference(reference) => {
-                        resolution::MemberPosition::Sliced(
-                            crate::flow::collection_element_type_reference(program, reference)?,
-                        )
-                    }
-                    resolution::MemberPosition::Sliced(element) => {
-                        resolution::MemberPosition::Sliced(element)
-                    }
-                    resolution::MemberPosition::Declaration(_) => return None,
-                };
-            }
-        }
-    }
+    // The segment hops are the shared fold `member_position_after_segments`
+    // owns: reference positions replay the reaching generic application's
+    // own substitution, declaration positions resume at the member's own
+    // declared type, and a window keeps its element while refusing member
+    // demands — the same contract `expression_place_type_reference` replays
+    // for reference-world consumers.
+    let position = resolution::member_position_after_segments(program, position, &place.segments)?;
 
     let current = resolution::position_leaf_symbol(program, position);
     match case_variant {
