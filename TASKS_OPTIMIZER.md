@@ -291,121 +291,59 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   invalidate and reconstruct component, loop-carried custody, ranking,
   provenance, effect, and fuel evidence. The dedicated countdown zero/one
   relocation is not general LICM authority. The shared-source preheader
-  boundary relocates scalar constant leaves, side-effect-free scalar
-  computations — including exact, wrapping-divide/remainder, and
-  saturating-divide/remainder variants whose verifier-discharged totality
-  obligation moves byte-exact inside the relocated operation — place
-  observations whose storage root is visible at the preheader, is
-  produced by a node the same run relocates ahead of the read — a
-  uniquely member-produced root the moved observation keeps spelling
-  byte-exact — or rebinds to the invariant representative its member
-  structural parameter resolves to, `ByteSequenceRead` reads whose `index`
-  operand substitutes through the same scalar rule, whose bounds
-  obligation stays byte-exact, and whose `length` operand relocates with
-  its `ByteSequenceLength` producer measuring the same rebound root in the
-  same run, `ByteSequenceSubslice` views whose scalar operands rebind
-  the same way while the structural result and bounds obligation stay
-  byte-exact inside the moved operation,
-  `EstablishByteSequenceLiteral` establishments — the boundary's first
-  non-observation structural relocation — whose declared place,
-  structural type, and payload move byte-exact inside the moved
-  operation while every consumer keeps spelling the same place
-  identity, scalar-signature `Call`
-  nodes — the boundary's first call relocation — whose callee's
-  transitive effect summary proves no observable effect, crash, or
-  suspension (the `structural_state` axis stays exempt because a scalar
-  call passes no places) while every member node stays unobservable, so
-  hoisting the call's possible non-return reorders nothing anyone could
-  see; a call carrying `crash_continuations` keeps its crash-route
-  custody inside, and discharged `requirement_obligations` move
-  byte-exact inside the moved operation, `EstablishPrimitiveLocal`
-  establishments whose declared place, structural type, and claim-free
-  result custody move byte-exact while the scalar initializer
-  substitutes under the member-parameter rule, and structural calls
-  (`CallUnit`, `CallStructuralScalar`) behind the same purity and
-  unobservable-roster evidence whose every structural argument is a
-  non-owned borrow naming a preheader-visible, member-parameter-resolved,
-  or run-covered member-produced root — a mutating borrow's root must be
-  uniquely member-produced and covered by the same run, and a producing
-  establishment relocates only when every member mutable borrower of its
-  root relocates too, and unrestricted `EstablishRecord`
-  establishments — the boundary's first operand-carrying structural
-  establishment — whose declared place, structural type, claim-free and
-  qualification-free result custody, declaration-ordered field
-  initializers, and range obligations move byte-exact inside the moved
-  operation, while every scalar field initializer substitutes under the
-  member-parameter rule and every structural field initializer copies a
-  whole unrestricted root the run resolves to a preheader-visible,
-  member-parameter-resolved, or uniquely member-produced run-covered
-  place the moved record keeps spelling, under the same whole-component
-  custody bound that no member stores to the declared place. Invariant
-  discovery resolves
-  member scalar and structural
-  parameters transitively across component-internal edges to the
-  representative every reaching edge agrees on — a member parameter
-  every reaching edge binds to one run-covered member result substitutes
-  to that preserved result, and a member structural parameter bound the
-  same way to one uniquely produced member root rebinds to that covered
-  root — rebinding moved operands
-  and observed roots to the preheader-visible anchor. The insertion
-  preheader is the one block every authenticated entry edge departs —
-  several entry edges of one dispatching terminator share it, while
-  entries departing different blocks decline — and non-leaf motion
-  additionally requires every terminator successor to enter the component
-  plus a member block every traversal that leaves executed; the freeze
-  fence re-derives both halves of that non-speculative gate from the
-  authenticated topology. Operand-carrying structural establishments now
-  relocate in bounded slices: unrestricted `EstablishScalarArray`
-  establishments move under the same whole-component custody bound, and
-  `EstablishScalarCase` establishments move unrestricted under that bound
-  or affine under a containment admission that strips the result from
-  member-internal `StructuralCase` dispatch-edge discard rosters and
-  disposes the persistent preheader result on component exit edges and
-  member returns — ownership-frontier membership for the relocated place
-  is invalidated and re-derived from the transformed graph rather than
-  trusted, and freeze replay independently re-derives both the admission
-  and the custody rewrite. Remaining: other
-  non-scalar families, profitability, and motion beyond the shared-source
-  preheader. `EstablishTrivialAffineLocal` and place-result structural
-  calls (`CallStructural`) still have no admitted relocation evidence; the
-  remaining establishments still need an admitted cyclic source shape —
-  scalar-graph arrays only emit as call arguments — before admission
-  work can begin. Cycle-admission evidence (linw2): the verifier's
-  cyclic-operation whitelist `unranked_cycles::eligible` now admits
-  unrestricted `EstablishRecord` establishments — `record::fields`
-  validation proves the fresh result place, declaration-paired field
-  initializers, and claim-free result, and the unrestricted result never
-  carries a per-iteration disposal obligation — and admits unrestricted
-  `EstablishScalarArray` establishments through `scalar_array::shape`
-  (fresh result place, declared leaf shape, claim-free result;
-  re-entry replaces the stored payload without moving custody), while
-  `EstablishTrivialAffineLocal` falls to the scalar-result fallthrough —
-  and admits `EstablishScalarCase` and place-result `CallStructural`
-  only bound to the same block's `StructuralCase`/`ReturnStructural`
-  terminator, whose edges trivially discard the result place — the
-  affine scalar-case slice relocates past that shape by rewriting the
-  dispatch custody, while a hoisted `CallStructural` would still leave
-  later traversals dispatching a disposed place. Synthetic fixtures cannot
-  bypass the fence: optimizer admission replays
-  `verify_module_for_optimization`. Profitability likewise has no
-  bounded leg — every operation and terminator costs one fuel unit, so
-  no zero-cost speculation exists beyond the constant-leaf exemption —
-  and motion past the shared preheader needs new blocks or run
-  duplication the frozen block roster and unique-occurrence freeze
-  reject. The remaining work therefore starts upstream in psi.
+  boundary in `abstract-operations-to-abstract-operations`
+  (`src/ranked_rewrites/loop_invariant_scalar_motion/`) relocates scalar
+  constant leaves and side-effect-free scalar computations, place observations,
+  byte-sequence reads, subslices and literals, primitive locals, records,
+  scalar arrays, scalar cases, and unit, scalar-signature, structural-scalar
+  and affine structural calls, each behind one `admissible_invariant_*`
+  predicate in `src/validation/mod.rs`. Invariant discovery resolves member
+  scalar and structural parameters transitively across component-internal edges
+  to the representative every reaching edge agrees on; the insertion preheader
+  is the one block every authenticated entry edge departs; and the freeze fence
+  re-derives the non-speculative gate from the authenticated topology rather
+  than trusting the proposal.
+
+  Remaining work:
+
+  - Other non-scalar families. `EstablishTrivialAffineLocal` has no admitted
+    relocation evidence and falls to the scalar-result fallthrough in the
+    verifier's `unranked_cycles::eligible`. `CallStructural` relocates only in
+    its affine claim-free form bound to the same block's `StructuralCase` or
+    `ReturnStructural` terminator: an unrestricted place result would leave
+    later traversals dispatching a disposed place, and a call carrying a
+    structural argument would let the callee observe a caller place the
+    containment bound does not freeze. The remaining establishments still need
+    an admitted cyclic source shape — scalar-graph arrays only emit as call
+    arguments — so that work starts upstream in psi. Synthetic fixtures cannot
+    bypass the fence: optimizer admission replays
+    `verify_module_for_optimization`.
+  - Profitability has no bounded leg. Every operation and terminator costs one
+    fuel unit, so no zero-cost speculation exists beyond the constant-leaf
+    exemption.
+  - Motion past the shared-source preheader needs new blocks or run
+    duplication, which the frozen block roster and the unique-occurrence freeze
+    reject.
 
   Region custody constrains every remaining motion family: the counted-loop
   `LoopRegion` is projected from validated Terminal-SCC custody, never from a
   private loop forest or a second edge/reachability walk inside the countdown
   leaf. Reducibility under the certified header rests on the custody's unique
   entry edge landing on that header plus the verifier's all-blocks-reachable
-  control graph — a component holding the machine entry block has no entry edge
-  at all, because any non-member reaching into it would join its cycle. The
-  independent reconstruction lives in
-  `validation/context/ranked_cycles/ordinary.rs`, which rebuilds components from
-  the current optimizer body and requires them to equal the verifier's Terminal
-  surface exactly. Keep both halves; do not reintroduce a loop-forest producer
-  to recover a region.
+  control graph — a component holding the machine entry block has no entry
+  edge at all, because any non-member reaching into it would join its cycle.
+  The independent reconstruction in
+  `src/validation/context/ranked_cycles/ordinary.rs` rebuilds components from
+  the current optimizer body and requires them to equal the verifier's
+  Terminal surface exactly. Keep both halves; do not reintroduce a loop-forest
+  producer to recover a region.
+
+  Acceptance: each added family relocates under an admission that freeze replay
+  re-derives independently from the transformed graph, with ownership-frontier
+  membership invalidated and rebuilt rather than trusted, and rejects forged
+  operands, retained member-internal discards, missing exit disposals, and
+  stale frontier catalogs. Component, loop-carried custody, ranking,
+  provenance, effect and fuel evidence all reconstruct after the move.
 
 ## Lowering and instruction selection
 
