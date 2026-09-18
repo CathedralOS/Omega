@@ -851,6 +851,121 @@ fn a_named_self_cycle_with_a_rebound_argument_stays_unproven() {
     );
 }
 
+#[test]
+fn immutable_receiver_transports_its_field_entry_identity() {
+    // `self.count` reads the receiver's storage, and an immutable receiver is
+    // bound once at the invocation and never rebound or written, so the field
+    // is the entry field — rendered as the entry telescope's self parameter.
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&self) -> bool { sink(self.count); true }",
+    );
+    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&program, machine, run);
+    assert_eq!(
+        entry_operand(&program, machine, run, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+    );
+}
+
+#[test]
+fn immutable_receiver_transports_its_identity_and_shared_field_borrows() {
+    // A bare `self` operand names the receiver itself; `&self.count` is a
+    // shared borrow whose referent is the same entry field.
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(owner: &Main) -> bool { true }
+         machine Main::run(&self) -> bool { sink(self); true }",
+    );
+    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&program, machine, run);
+    assert_eq!(
+        entry_operand(&program, machine, run, call_index, argument),
+        Some(CrashPredicateExpression::Parameter(0)),
+        "the whole immutable receiver is the invocation's entry receiver"
+    );
+
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(cell: &i32) -> bool { true }
+         machine Main::run(&self) -> bool { sink(&self.count); true }",
+    );
+    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&program, machine, run);
+    assert_eq!(
+        entry_operand(&program, machine, run, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+        "a shared borrow of the receiver field transports the field's entry identity"
+    );
+}
+
+#[test]
+fn immutable_receiver_identity_holds_in_non_entry_states() {
+    // The receiver is never rebound by a transition, so `self.count` in a
+    // later state still names the invocation's entry storage.
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&self) -> bool {
+             transition true { true -> work() false -> true }
+             state work(&self) -> bool { sink(self.count); true }
+         }",
+    );
+    let (machine, work) = named_state(&program, "Main::run", "work");
+    let (call_index, argument) = first_call_argument(&program, machine, work);
+    assert_eq!(
+        entry_operand(&program, machine, work, call_index, argument),
+        Some(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+    );
+}
+
+#[test]
+fn mutable_receiver_keeps_no_entry_identity() {
+    // `&mut self` can write `self.count` between entry and the read, and
+    // receiver-field provenance across arrivals is not yet transported, so
+    // the operand stays unproven even though the field read itself is a plain
+    // projection.
+    let program = typed_program(
+        "data Main { count: i32; }
+         machine sink(input: i32) -> bool { true }
+         machine Main::run(&mut self) -> bool { sink(self.count); true }",
+    );
+    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&program, machine, run);
+    assert_eq!(
+        entry_operand(&program, machine, run, call_index, argument),
+        None,
+    );
+}
+
+#[test]
+fn a_receiver_with_unstable_contents_keeps_provenance_unknown() {
+    // `Main` owns a mutable loan, so even the immutable `&self` receiver
+    // cannot promise `self.slot`'s referent is the entry observation.
+    let program = typed_program(
+        "data Rec { flag: bool; }
+         data Main { slot: &mut Rec; }
+         machine sink(input: bool) -> bool { input }
+         machine Main::run(&self) -> bool { sink(self.slot.flag); true }",
+    );
+    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (call_index, argument) = first_call_argument(&program, machine, run);
+    assert_eq!(
+        entry_operand(&program, machine, run, call_index, argument),
+        None,
+    );
+}
+
 const TRIGGER: &str = "machine trigger(input: bool) -> bool
          crashes Trap input
          {

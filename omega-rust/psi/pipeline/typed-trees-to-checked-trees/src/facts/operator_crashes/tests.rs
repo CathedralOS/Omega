@@ -273,6 +273,97 @@ fn named_call_keeps_a_route_after_the_operand_storage_is_overwritten() {
     );
 }
 
+#[test]
+fn named_call_discharges_a_route_through_a_receiver_field_operand() {
+    // `self.count` is an entry-proven operand: an immutable receiver is bound
+    // once at the invocation and never rebound or written, so the
+    // statement-entry fact `self.count >= 0` still describes the read.
+    let source = "pub data Main { count: i32; }
+         boundary operator Ns::probe(value: i32) -> bool
+         crashes Trap !(value >= 0);
+         pub machine Main::check(&self) -> bool
+         requires self.count >= 0 {
+             Ns::probe(self.count)
+         }";
+    check(source).expect("the entry fact covers the receiver-field operand");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_discharges_a_receiver_field_route_in_a_non_entry_state() {
+    // `self` is never rebound by a transition, so `work`'s own entry
+    // requirement still describes the entry receiver's `count` field.
+    let source = "pub data Main { count: i32; }
+         boundary operator Ns::probe(value: i32) -> bool
+         crashes Trap !(value >= 0);
+         pub machine Main::check(&self) -> bool
+         requires self.count >= 0 {
+             transition true { true -> work() false -> true }
+             state work(&self) -> bool requires self.count >= 0 { Ns::probe(self.count) }
+         }";
+    check(source).expect("the immutable receiver carries entry identity across states");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_receiver_is_mutable() {
+    // `&mut self` can write `self.count` between entry and the read, so the
+    // operand carries no entry identity and the route cannot borrow the
+    // statement-entry fact.
+    let source = "pub data Main { count: i32; }
+         boundary operator Ns::probe(value: i32) -> bool
+         crashes Trap !(value >= 0);
+         pub machine Main::check(&mut self) -> bool
+         requires self.count >= 0 {
+             Ns::probe(self.count)
+         }";
+    let diagnostics = check(source).expect_err("a mutable receiver operand keeps its route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
+fn named_call_discharges_a_route_through_a_shared_borrow_of_a_receiver_field() {
+    // `&self.cell` borrows the receiver's field: the referent's entry
+    // identity is the immutable receiver's entry field.
+    let source = "pub data Cell { count: i32; }
+         pub data Main { cell: Cell; }
+         boundary operator Ns::probe(cell: &Cell) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine Main::check(&self) -> bool
+         requires self.cell.count >= 0 {
+             Ns::probe(&self.cell)
+         }";
+    check(source).expect("a shared borrow of an immutable receiver field discharges the route");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
 fn published_guard_forms(
     checked: &CheckedTrees,
 ) -> Vec<Option<checked_trees::CheckedBooleanExpression>> {
