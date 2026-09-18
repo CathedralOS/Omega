@@ -1595,3 +1595,128 @@ fn field_guards_drop_scalar_evidence_below_mutable_roots() {
         "a mutable root keeps no entry-snapshot annotation: {buckets:?}"
     );
 }
+
+/// An integer-field comparison guard's checked scalar annotation crosses the
+/// call the same way the standalone Boolean leaf does: the scalar
+/// `StructuralParameterField` leaf re-roots to the caller parameter the
+/// actual reads, so `inner(pair)` under `left.count == 0` retains
+/// `pair.count == 0` as structured evidence instead of dropping the
+/// annotation to the bare identity. The structural lowering rechecks the
+/// re-rooted path ends at a retained integer field of the declared type
+/// before emitting the scalar term, so a redirected leaf stays fail-closed
+/// downstream.
+#[test]
+fn integer_field_guards_keep_their_scalar_evidence_through_calls() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
+        CheckedStructuralPredicatePathSegment,
+    };
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::types::PrimitiveType;
+
+    let expected_scalar = CheckedBooleanExpression::IntegerComparison {
+        kind: CheckedIntegerComparisonKind::Equal,
+        left: Box::new(CheckedScalarExpression::StructuralParameterField {
+            parameter_position: 0,
+            path: vec![CheckedStructuralPredicatePathSegment::Field(
+                "count".to_owned(),
+            )],
+            primitive_type: PrimitiveType::U64,
+        }),
+        right: Box::new(CheckedScalarExpression::IntegerLiteral {
+            literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
+                .unwrap()
+                .with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U64,
+                    domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                }),
+        }),
+    };
+    let expected_identity = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Member {
+            receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+            member: "count".to_owned(),
+        }),
+        right: Box::new(CrashPredicateExpression::Integer("0".into())),
+    };
+
+    let buckets = call_site_buckets(
+        "data Pair { count: u64; }
+         machine inner(left: Pair) -> bool
+         crashes Trap left.count == 0 { true }
+         machine outer(pair: Pair) -> bool crashes Trap { inner(pair) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the integer-field guard keeps its guarded route: {buckets:?}")
+    };
+    assert_eq!(identity.expression(), Some(&expected_identity));
+    assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
+}
+
+/// The actual's own member spine prepends below the caller root for a
+/// scalar field leaf too: binding `pair.left` re-roots the comparison to
+/// `pair.left.count` under the same caller parameter rather than leaving
+/// the callee position behind.
+#[test]
+fn integer_field_guards_substitute_through_member_projections() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
+    };
+    use typed_trees::types::PrimitiveType;
+
+    let buckets = call_site_buckets(
+        "data Pair { count: u64; }
+         data Both { left: Pair; right: Pair; }
+         machine inner(left: Pair) -> bool
+         crashes Trap left.count == 0 { true }
+         machine outer(pair: Both) -> bool crashes Trap { inner(pair.left) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the projected actual keeps the integer-field guard: {buckets:?}")
+    };
+    let Some(CheckedBooleanExpression::IntegerComparison { left, .. }) =
+        identity.scalar_expression()
+    else {
+        panic!("the comparison keeps its checked scalar form: {buckets:?}")
+    };
+    assert_eq!(
+        left.as_ref(),
+        &CheckedScalarExpression::StructuralParameterField {
+            parameter_position: 0,
+            path: vec![
+                CheckedStructuralPredicatePathSegment::Field("left".to_owned()),
+                CheckedStructuralPredicatePathSegment::Field("count".to_owned()),
+            ],
+            primitive_type: PrimitiveType::U64,
+        },
+    );
+}
+
+/// A mutable caller root cannot promise the entry snapshot the contract
+/// namespace names, so the annotation stays empty rather than describing
+/// stale storage — the route still keeps its substituted identity.
+#[test]
+fn integer_field_guards_drop_scalar_evidence_below_mutable_roots() {
+    let buckets = call_site_buckets(
+        "data Pair { count: u64; }
+         data Both { left: Pair; right: Pair; }
+         machine inner(left: Pair) -> bool
+         crashes Trap left.count == 0 { true }
+         machine outer(mut pair: Both) -> bool crashes Trap { inner(pair.left) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the mutable root still keeps the guarded route: {buckets:?}")
+    };
+    assert!(
+        identity.scalar_expression().is_none(),
+        "a mutable root keeps no entry-snapshot annotation: {buckets:?}"
+    );
+}
