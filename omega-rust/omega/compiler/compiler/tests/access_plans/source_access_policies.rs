@@ -749,6 +749,11 @@ machine Inspector::inspect(
         terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &profile).and_then(|admitted| admitted.try_into_native_input()),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
     ));
+    // A successfully replayed ledger does not bypass the custody gate either.
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: Some(&obligation_ledger) }, &profile).and_then(|admitted| admitted.try_into_native_input()),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
     assert!(matches!(
         terminal_psi_to_abstract_operations::lower_artifact_for_optimization(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &profile).and_then(|admitted| admitted.try_into_optimization_input()),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
@@ -798,6 +803,23 @@ machine Inspector::inspect(
     assert_eq!(
         native.placed_view_inputs(),
         lowered.semantic_module.placed_view_inputs.as_slice()
+    );
+    // Native admission replays the offered exact ledger before retaining the
+    // roster, the same as the ordinary and optimizer entrances.
+    let native_replayed =
+        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: Some(&obligation_ledger),
+            },
+            &profile,
+        )
+        .expect("placed-view input survives native replay of the exact ledger");
+    assert_eq!(native_replayed.plan(), native.plan());
+    assert_eq!(
+        native_replayed.placed_view_inputs(),
+        native.placed_view_inputs()
     );
     let native_input = native.into_optimization_artifact();
     assert_eq!(native_input.plan(), &codec_plan.plan);
@@ -872,6 +894,17 @@ machine Inspector::inspect(
         ),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
     ));
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: Some(&stale_ledger)
+            },
+            &profile
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
+    ));
     let stale_replayed = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &stale_semantic,
@@ -882,6 +915,31 @@ machine Inspector::inspect(
     )
     .map(|admitted| admitted.into_parts());
     assert!(stale_replayed.is_err() || stale_replayed.unwrap() != codec_plan);
+    // At the native and optimizer entrances the substituted module replays its
+    // own ledger but is rejected when the proof section's sealed subject names
+    // the original module instead.
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &stale_semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: Some(&stale_ledger)
+            },
+            &profile
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ProofDecode(_))
+    ));
+    assert!(matches!(
+        terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &stale_semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: Some(&stale_ledger)
+            },
+            &profile
+        ),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ProofDecode(_))
+    ));
 
     // An invalid roster row cannot reach replay at all: canonical encode
     // rejects it before an artifact exists.
