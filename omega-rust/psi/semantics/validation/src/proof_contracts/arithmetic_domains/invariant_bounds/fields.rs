@@ -10,6 +10,10 @@ pub(super) fn type_reference(
     program: &TypedTrees,
     state: &State,
     expression: ExpressionHandle,
+    // When true, a mutable receiver still contributes the field's declared
+    // storage bounds: every store maintains them, so they hold at every
+    // evaluation. When false, mutable places are opaque.
+    declared_mutable_leaves: bool,
 ) -> Option<TypeReferenceHandle> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
@@ -27,7 +31,7 @@ pub(super) fn type_reference(
             && parameter.symbol == receiver.symbol
             && parameter.name == *name
             && !parameter.is_self
-            && !parameter.is_mutable
+            && (declared_mutable_leaves || !parameter.is_mutable)
             && !parameter.is_const
     })?;
     // Reference and generic receivers need load or instantiated-field evidence.

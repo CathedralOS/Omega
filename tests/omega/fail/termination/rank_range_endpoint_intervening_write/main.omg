@@ -1,17 +1,17 @@
 // FAIL CANARY. The pinned view bound `limit` is stored to before the
 // transition. The endpoint is a premise carrier, so the store invalidates the
-// invocation-fixed range even though the value written may be in range.
+// invocation-fixed range even though the self-copy writes an in-range value.
 data Main {}
 
 machine Main::main(&mut self) -> u64 {
     transition { _ -> self.walk(0, 4, 0) }
 }
 
-machine Main::walk(&mut self, index: u64, mut limit: u64, mut count: u64)
+machine Main::walk(&mut self, index: u64, mut limit: u64 [0..=10], mut count: u64)
 requires index <= limit;
 terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
 -> u64 {
-    limit = index;
+    limit = limit;
     transition index < limit {
         true -> walk(index + 1, limit, count)
         false -> count

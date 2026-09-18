@@ -2,7 +2,7 @@ use super::{lower_typed_trees, typed};
 
 const CLIMB: &str = r#"
 data Payload { value: u64; }
-machine climb(flag: bool, limit: u64, payload: Payload, index: u64)
+machine climb(flag: bool, limit: u64 [0..=10], payload: Payload, index: u64)
 requires index <= limit;
 terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
 -> u64 {
@@ -187,7 +187,7 @@ fn missing_rank_or_endpoint_slots_reject_even_on_impossible_arrivals() {
         for guard in ["index <= limit", "index > limit"] {
             reject(&format!(
                 r#"
-                machine climb(limit: u64, index: u64)
+                machine climb(limit: u64 [0..=10], index: u64)
                 requires index <= limit;
                 terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
                 -> u64 {{

@@ -14,30 +14,14 @@ use typed_trees::name::Identifier;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 
-/// Relational membership cannot bypass the existing endpoint formation owner.
-/// Bare Exact parameters perform no arithmetic; computed scalar endpoints need
-/// independently defined, representable intermediates before normalization.
-pub(super) fn endpoints_formed(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    range: &typed_trees::expression::TableRangeExpression,
-) -> Option<()> {
-    for endpoint in [range.start, range.end] {
-        if !endpoint_statically_formed(program, machine, state, endpoint) {
-            return None;
-        }
-    }
-    Some(())
-}
-
 /// Whether `endpoint` is known to land inside its carrier without reading any
 /// live edge hypothesis. An exact immutable u64 field read performs no
 /// arithmetic; a bare exact integer formal is already a carrier value; any
-/// other authored expression must land on declaration bounds alone. An
-/// endpoint that fails this is not malformed -- it only owes the edge judgment
-/// a flow-dependent formation proof under that edge's installed hypotheses
-/// ([`endpoint_lands_under`]).
+/// other authored expression must land on declaration bounds alone, where a
+/// mutable input contributes its store-enforced declared bounds at every
+/// evaluation. An endpoint that fails this is not malformed -- it only owes
+/// the edge judgment a flow-dependent formation proof under that edge's
+/// installed hypotheses ([`endpoint_lands_under`]).
 pub(super) fn endpoint_statically_formed(
     program: &TypedTrees,
     machine: &Machine,
@@ -54,7 +38,9 @@ pub(super) fn endpoint_statically_formed(
     }) {
         return true;
     }
-    crate::immutable_integer_expression_bounds(program, machine, state, endpoint).is_some()
+    crate::proof_contracts::arithmetic_domains::declared_integer_expression_lands(
+        program, machine, state, endpoint,
+    )
 }
 
 /// Prove `endpoint` lands inside its exact integer carrier under the engine's

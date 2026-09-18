@@ -57,11 +57,17 @@ pub(crate) fn prove_ranking_range_call_entry(
         let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
             return None;
         };
-        if matches!(measure, RankingRangeMeasure::Field { .. }) {
-            // A field-view endpoint keeps the state-edge owner's formation
-            // bar: an exact u64 formal, an exact declared projection, or a
-            // bounded integer expression -- never a selected computation.
-            fields::endpoints_formed(program, member.machine, state, range)?;
+        // Every authored range keeps the state-edge owner's endpoint
+        // formation bar: an exact integer formal, an exact declared
+        // projection, or a bounded integer expression -- never a selected
+        // computation. An endpoint declaration bounds alone cannot place is
+        // deferred, not rejected: the entry hypotheses installed below still
+        // owe it a carrier landing, exactly as at a state edge.
+        let mut deferred_endpoints = Vec::new();
+        for endpoint in [range.start, range.end] {
+            if !fields::endpoint_statically_formed(program, member.machine, state, endpoint) {
+                deferred_endpoints.push(endpoint);
+            }
         }
         let bindings = integer_bindings(program, state)?;
         let mut engine = Engine::strict_with_symbol_bindings(program, member.machine, &bindings);
@@ -134,6 +140,25 @@ pub(crate) fn prove_ranking_range_call_entry(
         if !engine.install_hypotheses(comparisons) {
             return None;
         }
+        if !engine.requires_unsatisfiable {
+            for endpoint in &deferred_endpoints {
+                let polynomial = if *endpoint == range.start {
+                    &floor
+                } else {
+                    &ceiling
+                };
+                if !fields::endpoint_lands_under(
+                    &engine,
+                    program,
+                    member.machine,
+                    state,
+                    *endpoint,
+                    polynomial,
+                ) {
+                    return None;
+                }
+            }
+        }
         Some(
             engine.requires_unsatisfiable
                 || (membership(
@@ -201,19 +226,36 @@ pub(crate) fn prove_ranking_range_call(
     // subordinate state.
     admit_member(program, &caller, entry, source_measure)?;
     admit_member(program, &callee, destination, destination_measure)?;
-    // A field-view authored range keeps the state-edge owner's endpoint
-    // formation bar on both sides: an exact u64 formal, an exact declared
-    // projection, or a bounded integer expression, each in its own entry
-    // scope -- never a selected computation smuggled through the call.
-    if matches!(source_measure, RankingRangeMeasure::Field { .. }) {
-        for (machine, state, range) in [
-            (caller.machine, entry, caller.range),
-            (callee.machine, destination, callee.range),
-        ] {
-            if range.is_valid()
-                && let ExpressionNode::Range(range) = program.expression_table.expression(range)
-            {
-                fields::endpoints_formed(program, machine, state, range)?;
+    // An authored range keeps the state-edge owner's endpoint formation bar
+    // on both sides: an exact integer formal, an exact declared projection,
+    // or a bounded integer expression, each in its own entry scope -- never a
+    // selected computation smuggled through the call. An endpoint declaration
+    // bounds alone cannot place is deferred, not rejected: each side's
+    // installed hypotheses still owe it a carrier landing, exactly as at a
+    // state edge.
+    let mut caller_deferred_endpoints = Vec::new();
+    let mut callee_deferred_endpoints = Vec::new();
+    for (machine, state, range, deferred) in [
+        (
+            caller.machine,
+            entry,
+            caller.range,
+            &mut caller_deferred_endpoints,
+        ),
+        (
+            callee.machine,
+            destination,
+            callee.range,
+            &mut callee_deferred_endpoints,
+        ),
+    ] {
+        if range.is_valid()
+            && let ExpressionNode::Range(range) = program.expression_table.expression(range)
+        {
+            for endpoint in [range.start, range.end] {
+                if !fields::endpoint_statically_formed(program, machine, state, endpoint) {
+                    deferred.push(endpoint);
+                }
             }
         }
     }
@@ -406,6 +448,34 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
+    // A caller endpoint that declaration bounds alone could not place owes
+    // its carrier landing under this site's hypotheses: requires facts at
+    // entry, or the member's own range invariant re-established at a
+    // subordinate arrival. A dead site stays vacuous.
+    if !engine.requires_unsatisfiable
+        && let Some((floor, ceiling, _)) = &source_range
+    {
+        let ExpressionNode::Range(range) = program.expression_table.expression(caller.range) else {
+            return None;
+        };
+        for endpoint in &caller_deferred_endpoints {
+            let polynomial = if *endpoint == range.start {
+                floor
+            } else {
+                ceiling
+            };
+            if !fields::endpoint_lands_under(
+                &engine,
+                program,
+                caller.machine,
+                entry,
+                *endpoint,
+                polynomial,
+            ) {
+                return None;
+            }
+        }
+    }
     let parameters = program
         .state_parameters(destination)
         .iter()
@@ -522,6 +592,32 @@ pub(crate) fn prove_ranking_range_call(
     };
     if engine.requires_unsatisfiable {
         return Some(RankingRangeCallProgress::Strict);
+    }
+    // The destination's deferred endpoints land under the caller's
+    // hypotheses with this call's actuals already bound: the range the call
+    // feeds must be a defined interval of the callee's carrier here, not only
+    // inside the callee's own entry proof.
+    if let Some((floor, ceiling, _)) = &destination_range {
+        let ExpressionNode::Range(range) = program.expression_table.expression(callee.range) else {
+            return None;
+        };
+        for endpoint in &callee_deferred_endpoints {
+            let polynomial = if *endpoint == range.start {
+                floor
+            } else {
+                ceiling
+            };
+            if !fields::endpoint_lands_under(
+                &engine,
+                program,
+                callee.machine,
+                destination,
+                *endpoint,
+                polynomial,
+            ) {
+                return None;
+            }
+        }
     }
     // A computed rank is a carrier value only while its body forms there,
     // on both sides of the call, from the caller's own hypotheses.

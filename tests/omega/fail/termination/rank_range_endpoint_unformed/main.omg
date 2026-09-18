@@ -1,0 +1,19 @@
+// FAIL CANARY. The authored ceiling `limit + 1` has no proof it lands
+// inside u64: `limit` carries no declared bound, and no requires or edge
+// hypothesis bounds it either. An unformed endpoint is not a defined
+// interval, so the produced rank has no range to satisfy.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.walk(0, 4) }
+}
+
+machine Main::walk(&mut self, remaining: u64 [0..=10], limit: u64)
+requires remaining <= limit;
+terminates by remaining -> Nat::Descending in 0..=(limit + 1);
+-> u64 {
+    transition remaining > 0 {
+        true -> walk(remaining - 1, limit)
+        false -> remaining
+    }
+}

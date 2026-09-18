@@ -72,13 +72,13 @@ fn bounded_distance_subject_may_shrink_but_view_argument_stays_pinned() {
         "machine shrink(lower: u64, upper: u64) requires lower <= upper && upper <= 10; terminates by (lower, upper) -> Nat::BoundedDistance in 0..=10; -> u64 { transition lower < upper { true -> shrink(lower, upper) false -> lower } }",
     );
     reject(
-        "machine climb(index: u64, limit: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { transition index < limit { true -> climb(index, limit - 1) false -> index } }",
+        "machine climb(index: u64, limit: u64 [0..=10]) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { transition index < limit { true -> climb(index, limit - 1) false -> index } }",
     );
 }
 
 #[test]
 fn increasing_view_relational_tier_requires_natural_rank_formation_at_entry() {
-    let source = "machine climb(index: u64, limit: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { transition index < limit { true -> climb(index + 1, limit) false -> index } }";
+    let source = "machine climb(index: u64, limit: u64 [0..=10]) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { transition index < limit { true -> climb(index + 1, limit) false -> index } }";
     prove(source);
     reject(&source.replace("requires index <= limit;", ""));
     reject(&source.replace("in 0..=(limit + 1)", "in 1..=(limit + 1)"));
@@ -91,8 +91,27 @@ fn increasing_view_relational_tier_requires_natural_rank_formation_at_entry() {
 }
 
 #[test]
+fn computed_endpoint_may_land_under_requires_facts_not_declarations() {
+    // `limit` has no declared bound, so `limit + 1` cannot form on storage
+    // bounds alone; the requires fact bounds the leaf, and the edge
+    // judgment's installed hypotheses still land the endpoint inside u64.
+    let source = "machine climb(index: u64, limit: u64) requires index <= limit && limit <= 10; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { transition index < limit { true -> climb(index + 1, limit) false -> index } }";
+    prove(source);
+    // Without the requires bound on `limit`, nothing lands `limit + 1`.
+    reject(&source.replace(
+        "requires index <= limit && limit <= 10;",
+        "requires index <= limit;",
+    ));
+    // The requires fact cannot rescue an endpoint that overflows anyway.
+    reject(&source.replace(
+        "in 0..=(limit + 1)",
+        "in 0..=(limit + 18446744073709551615u64)",
+    ));
+}
+
+#[test]
 fn unrelated_payloads_and_immutable_locals_preserve_exact_parameter_ordinals() {
-    let source = "data Payload { value: u64; } machine climb(flag: bool, limit: u64, payload: Payload, index: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { let unrelated: u64 = 7; transition index < limit { true -> climb(flag, limit, payload, index + 1) false -> index } }";
+    let source = "data Payload { value: u64; } machine climb(flag: bool, limit: u64 [0..=10], payload: Payload, index: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { let unrelated: u64 = 7; transition index < limit { true -> climb(flag, limit, payload, index + 1) false -> index } }";
     prove(source);
     lower_typed_trees(typed(source)).expect("the unrelated payload fixture checks completely");
     reject(&source.replace(
@@ -128,7 +147,7 @@ fn a_failed_guard_on_a_mutable_parameter_still_discharges_the_next_edge() {
 
 #[test]
 fn disjoint_receiver_store_preserves_rank_range_and_pinned_endpoints() {
-    let source = "data Cursor { visited: u64; } machine Cursor::walk(&mut self, index: u64, limit: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { self.visited = index; transition index < limit { true -> walk(index + 1, limit) false -> index } }";
+    let source = "data Cursor { visited: u64; } machine Cursor::walk(&mut self, index: u64, limit: u64 [0..=10]) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { self.visited = index; transition index < limit { true -> walk(index + 1, limit) false -> index } }";
     prove(source);
     for replacement in ["index = 0", "limit = 0"] {
         reject(&source.replace("self.visited = index", replacement));

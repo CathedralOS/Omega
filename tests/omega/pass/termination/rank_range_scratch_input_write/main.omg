@@ -8,7 +8,7 @@ machine Main::main(&mut self) -> u64 {
     transition { _ -> self.walk(0, 4, 0) }
 }
 
-machine Main::walk(&mut self, index: u64, limit: u64, mut count: u64)
+machine Main::walk(&mut self, index: u64, limit: u64 [0..=10], mut count: u64)
 requires index <= limit;
 terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
 -> u64 {
