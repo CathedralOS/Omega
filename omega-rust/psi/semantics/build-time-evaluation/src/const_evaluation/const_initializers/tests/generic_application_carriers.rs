@@ -302,28 +302,158 @@ fn module_const_match_aggregate_leaf() {
 }
 
 #[test]
-fn foreign_aggregate_call_nominal_spelling_residual() {
-    // Documented residual: the checked interpreter records the use-site
-    // nominal spelling `geom::Point`, which admission compares against the
-    // owning definition's bare name `Point`. Foreign aggregate calls keep
-    // rejecting until admission carries selected-home identity rather than a
-    // display spelling.
-    let (syntax, sources, _) = parse_files(&[
+fn foreign_aggregate_call_through_owner_spelling() {
+    // The probe machine's return type records the const's use-site spelling
+    // (`geom::Point`, or the bare leaf `Point` under a narrow import); the
+    // resolved symbol is the selected-home identity admission compares, so a
+    // qualified spelling of the exact selected carrier is consistent. The
+    // checked interpreter's record materializes under the owning module's
+    // path at the leaf's source.
+    for (tag, declaring) in [
         (
-            "geom.omg",
-            "module geom; pub data Point [copy] { x: u64; } pub machine make() -> Point { Point { x: 7 } }",
-        ),
-        (
-            "mine.omg",
+            "qualified",
             "module mine; const P: geom::Point = geom::make();",
         ),
-    ]);
-    let errors = super::super::evaluate(syntax, Some(sources), &[], None)
-        .expect_err("foreign aggregate call still fences on nominal spelling");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("inconsistent nominal type spelling")),
-        "unexpected diagnostics: {errors:?}"
+        (
+            "imported carrier",
+            "module mine; use geom::Point; const P: Point = geom::make();",
+        ),
+        (
+            "imported call",
+            "module mine; use geom::make; const P: geom::Point = make();",
+        ),
+    ] {
+        let evaluated = evaluate_files(&[
+            (
+                "geom.omg",
+                "module geom; pub data Point [copy] { x: u64; } pub machine make() -> Point { Point { x: 7 } }",
+            ),
+            ("mine.omg", declaring),
+        ])
+        .unwrap_or_else(|errors| panic!("{tag} foreign aggregate call: {errors:?}"));
+        let definition = constant(&evaluated, "P");
+        assert!(
+            definition.normalization.is_some(),
+            "{tag}: evaluated receipt"
+        );
+        assert!(
+            matches!(
+                evaluated.expressions.expression(definition.value),
+                ExpressionNode::StructLiteral(_)
+            ),
+            "{tag}: the record materializes as a constructor literal"
+        );
+    }
+}
+
+#[test]
+fn foreign_aggregate_call_replays_end_to_end() {
+    // The receiving-side replay re-admits the retained probe under the same
+    // qualified carrier spelling and re-encodes the interpreter result.
+    let typed = evaluate_fully(
+        &[
+            (
+                "geom.omg",
+                "module geom; pub data Point [copy] { x: u64; } pub machine make() -> Point { Point { x: 7 } }",
+            ),
+            (
+                "mine.omg",
+                "module mine; const P: geom::Point = geom::make();",
+            ),
+        ],
+        &[],
     );
+    assert!(
+        typed
+            .const_declarations()
+            .iter()
+            .any(|declaration| declaration.canonical_value_encoding.is_some())
+    );
+}
+
+#[test]
+fn foreign_aggregate_call_rejection_coverage() {
+    for (tag, sources, fragment) in [
+        // The declared carrier is a different module's same-leaf `Point` than
+        // the one the selected call returns: the qualified spelling selects
+        // `decoys`' owner exactly, and ConstEvaluable admission rejects the
+        // interpreted record whose fields do not match it.
+        (
+            "mismatched carrier",
+            vec![
+                (
+                    "geom.omg",
+                    "module geom; pub data Point [copy] { x: u64; } pub machine make() -> Point { Point { x: 7 } }",
+                ),
+                (
+                    "decoys.omg",
+                    "module decoys; pub data Point [copy] { x: u64; y: u64; }",
+                ),
+                (
+                    "mine.omg",
+                    "module mine; const P: decoys::Point = geom::make();",
+                ),
+            ],
+            "is not ConstEvaluable",
+        ),
+        // Both foreign `Point`s are narrow-imported, so the bare leaf carrier
+        // is contested and module name law declines to pick an owner.
+        (
+            "contested carrier leaf",
+            vec![
+                (
+                    "geom.omg",
+                    "module geom; pub data Point [copy] { x: u64; } pub machine make() -> Point { Point { x: 7 } }",
+                ),
+                (
+                    "decoys.omg",
+                    "module decoys; pub data Point [copy] { x: u64; }",
+                ),
+                (
+                    "mine.omg",
+                    "module mine; use geom::Point; use decoys::Point; const P: Point = geom::make();",
+                ),
+            ],
+            "does not select one declared",
+        ),
+        // A private foreign carrier cannot be named by the consumer at all.
+        (
+            "private foreign carrier",
+            vec![
+                (
+                    "geom.omg",
+                    "module geom; data Point [copy] { x: u64; } pub machine make() -> Point { Point { x: 7 } }",
+                ),
+                (
+                    "mine.omg",
+                    "module mine; const P: geom::Point = geom::make();",
+                ),
+            ],
+            "private data",
+        ),
+        // A non-copyable foreign record never reaches admission: the constant
+        // carrier gate requires a copy-permitting type first.
+        (
+            "linear foreign carrier",
+            vec![
+                (
+                    "geom.omg",
+                    "module geom; pub data Secret { key: u64; } pub machine mint() -> Secret { Secret { key: 1 } }",
+                ),
+                (
+                    "mine.omg",
+                    "module mine; const S: geom::Secret = geom::mint();",
+                ),
+            ],
+            "must permit copying",
+        ),
+    ] {
+        let (syntax, sources, _) = parse_files(&sources);
+        let errors = super::super::evaluate(syntax, Some(sources), &[], None)
+            .expect_err("{tag} must reject");
+        assert!(
+            errors.iter().any(|error| error.message.contains(fragment)),
+            "{tag}: unexpected diagnostics: {errors:?}"
+        );
+    }
 }

@@ -159,6 +159,21 @@ fn check_primitive(
     }
 }
 
+/// The `name` recorded on a `Named`/`Generic` reference is the use-site
+/// spelling; the symbol already carries the resolved identity. A
+/// module-qualified occurrence prefixes the declared name with its owner path
+/// (`geom::Point`, `geom::Box<u64>`) while the definition keeps the
+/// declaration's own name (`Point`, `Box<u64>`), so consistency requires the
+/// spelling to end at the declared name on a `::` boundary. Matching a suffix
+/// keeps `::` inside a generic instance's argument spelling part of the
+/// declared tail rather than misparsing it as owner path.
+fn consistent_nominal_spelling(recorded: &str, declared: &str) -> bool {
+    recorded == declared
+        || recorded
+            .strip_suffix(declared)
+            .is_some_and(|prefix| prefix.ends_with("::"))
+}
+
 fn check_named_data(
     program: &TypedTrees,
     symbol: SymbolHandle,
@@ -184,7 +199,7 @@ fn check_named_data(
             "{path} has ambiguous nominal type identity for `{name}`"
         ));
     }
-    if definition.name.as_str() != name {
+    if !consistent_nominal_spelling(name, definition.name.as_str()) {
         return Err(format!(
             "{path} has inconsistent nominal type spelling `{name}` for `{}`",
             definition.name
@@ -304,7 +319,9 @@ fn require_closed_generic_application(
             "{path} has ambiguous nominal base identity for `{base_name}`"
         ));
     }
-    if base.name.as_str() != base_name.as_str() || base.generic_instance.is_some() {
+    if !consistent_nominal_spelling(base_name.as_str(), base.name.as_str())
+        || base.generic_instance.is_some()
+    {
         return Err(format!(
             "{path} has generic aggregate type `{}` whose base `{base_name}` is not the open generic template",
             definition.name
@@ -410,7 +427,7 @@ fn require_closed_type(
                     "{path} has ambiguous nominal type identity for `{name}`"
                 ));
             }
-            if definition.name.as_str() != name.as_str() {
+            if !consistent_nominal_spelling(name.as_str(), definition.name.as_str()) {
                 return Err(format!(
                     "{path} has inconsistent nominal type spelling `{name}` for `{}`",
                     definition.name
@@ -731,6 +748,64 @@ mod tests {
             },
         );
         assert!(text_error.contains("contains Text"), "{text_error}");
+    }
+
+    /// A `Named` reference records the use-site spelling while its symbol
+    /// carries the resolved identity. Admission accepts a module-owner
+    /// qualified spelling of the selected declaration and still rejects a
+    /// spelling whose leaf names a different declaration.
+    #[test]
+    fn nominal_spelling_uses_selected_home_identity() {
+        let value = || BuildTimeValue::Struct {
+            type_name: "Packet".to_owned(),
+            fields: vec![
+                ("code".to_owned(), BuildTimeValue::Int(1)),
+                ("valid".to_owned(), BuildTimeValue::Bool(true)),
+            ],
+        };
+        let mut typed = typed(SOURCE);
+        let return_type = {
+            let machine = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "packet_value")
+                .expect("machine");
+            typed.machine_states(machine)[0].return_type
+        };
+        let symbol = match typed.type_reference_table.type_reference(return_type) {
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+            _ => panic!("packet result is nominal"),
+        };
+
+        // The same selected symbol under a module-owner spelling admits.
+        typed.type_reference_table.substitute_node(
+            return_type,
+            typed_trees::types::TypeReferenceNode::Named {
+                symbol,
+                name: typed_trees::name::Identifier::generated("geom::Packet"),
+            },
+        );
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "packet_value")
+            .expect("machine");
+        require_const_evaluable_result(&typed, machine, &value())
+            .expect("an owner-qualified spelling of the selected carrier admits");
+
+        // A leaf that is not the selected declaration's name still rejects.
+        typed.type_reference_table.substitute_node(
+            return_type,
+            typed_trees::types::TypeReferenceNode::Named {
+                symbol,
+                name: typed_trees::name::Identifier::generated("geom::Parcel"),
+            },
+        );
+        let error = reject(&typed, "packet_value", value());
+        assert!(
+            error.contains("inconsistent nominal type spelling `geom::Parcel`"),
+            "{error}"
+        );
     }
 
     #[test]
