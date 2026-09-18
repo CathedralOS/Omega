@@ -16,7 +16,7 @@ use crate::execution::terminal_unit::{
     ShapeCollector, base_type_identity, machine_binders, state_flow,
 };
 
-pub(super) fn binding(
+pub(in crate::execution::terminal_unit) fn binding(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
@@ -28,32 +28,11 @@ pub(super) fn binding(
     let [StatementNode::Call(_)] = program.statement_table.statements(state.statement_nodes) else {
         return None;
     };
-    binding_at(program, facts, shapes, machine, state, 0, 0)
-}
-
-pub(in crate::execution::terminal_unit) fn binding_at(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    binding_ordinal: u32,
-) -> Option<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)> {
-    if !matches!(
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement_index),
-        Some(StatementNode::Call(_))
-    ) {
-        return None;
-    }
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span(flow.calls)?;
     let calls = calls
         .iter()
-        .filter(|call| call.statement_index == statement_index)
+        .filter(|call| call.statement_index == 0)
         .collect::<Vec<_>>();
     if calls.len() != 2 {
         return None;
@@ -66,6 +45,72 @@ pub(in crate::execution::terminal_unit) fn binding_at(
     if producer.call_ordinal != 1 {
         return None;
     }
+    // This lane retains exactly one consumer operand. Wider argument lists and
+    // multiple producers belong to the shared statement sequencer, where each
+    // temporary's exact dying continuation is its own cleanup row.
+    let source =
+        crate::semantic_calls::find_call_site(program, machine.symbol, state.symbol, 0, 0)?;
+    if crate::semantic_calls::call_site_argument_expressions(program, &source).len() != 1 {
+        return None;
+    }
+    binding_at(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        0,
+        0,
+        facts::PlaceRoot::Expression(producer.authored_expression),
+    )
+}
+
+/// Identify the anonymous temporary `root` projected by one operand of the
+/// `call_ordinal == 0` consumer at `statement_index`. The producer is the
+/// nested call that authored the operand's expression root; any number of
+/// sibling producers or unrelated arguments may share the same consumer.
+pub(in crate::execution::terminal_unit) fn binding_at(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    binding_ordinal: u32,
+    root: facts::PlaceRoot,
+) -> Option<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)> {
+    if !matches!(
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement_index),
+        Some(StatementNode::Call(_))
+    ) {
+        return None;
+    }
+    let facts::PlaceRoot::Expression(expression) = root else {
+        return None;
+    };
+    let flow = state_flow(facts, machine.symbol, state.symbol)?;
+    let calls = facts.flow.control.calls.span(flow.calls)?;
+    let calls = calls
+        .iter()
+        .filter(|call| call.statement_index == statement_index)
+        .collect::<Vec<_>>();
+    if calls.len() < 2 {
+        return None;
+    }
+    if calls.iter().all(|call| call.call_ordinal != 0) {
+        return None;
+    }
+    let mut producers = calls
+        .iter()
+        .filter(|call| call.call_ordinal != 0 && call.authored_expression == expression);
+    let producer = producers.next()?;
+    if producers.next().is_some() {
+        return None;
+    }
+    let _ = producer;
     let source = crate::semantic_calls::find_call_site(
         program,
         machine.symbol,
@@ -73,36 +118,36 @@ pub(in crate::execution::terminal_unit) fn binding_at(
         statement_index,
         0,
     )?;
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &source);
-    let [argument] = arguments else {
+    // Exactly one operand may project this temporary's root; a second use would
+    // leave part of the residual without a checked owner.
+    let mut projected = crate::semantic_calls::call_site_argument_expressions(program, &source)
+        .iter()
+        .filter_map(|argument| {
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                *argument,
+            )
+        })
+        .filter(|place| place.root == root && !place.segments.is_empty());
+    if projected.next().is_none() || projected.next().is_some() {
         return None;
+    }
+    let root_place = crate::flow::CanonicalPlace {
+        root,
+        segments: Vec::new(),
     };
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let reference = crate::flow::canonical_place_type_reference(
         program,
         state.symbol,
         statement_index,
-        *argument,
+        &root_place,
     )?;
-    if place.root != facts::PlaceRoot::Expression(producer.authored_expression)
-        || place.segments.is_empty()
-    {
-        return None;
-    }
-    let root = crate::flow::CanonicalPlace {
-        root: place.root,
-        segments: Vec::new(),
-    };
-    let reference =
-        crate::flow::canonical_place_type_reference(program, state.symbol, statement_index, &root)?;
     let type_identity =
         shapes.add_partial_affine_type(reference, &machine_binders(program, machine))?;
-    let result = control::structural_operands::result(
-        program,
-        facts,
-        machine.symbol,
-        producer.authored_expression,
-        shapes,
-    )?;
+    let result =
+        control::structural_operands::result(program, facts, machine.symbol, expression, shapes)?;
     if result.type_identity != type_identity {
         return None;
     }
@@ -113,7 +158,7 @@ pub(in crate::execution::terminal_unit) fn binding_at(
             type_identity,
             multiplicity: Multiplicity::Affine,
         },
-        place.root,
+        root,
     ))
 }
 
@@ -139,17 +184,29 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     binding_ordinal: u32,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Option<()> {
+    let facts::PlaceRoot::Expression(expression) = root else {
+        return None;
+    };
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span(flow.calls)?;
     let calls = calls
         .iter()
         .filter(|call| call.statement_index == statement_index)
         .collect::<Vec<_>>();
-    if calls.len() != 2 {
+    if calls.len() < 2 {
         return None;
     }
-    let producer = calls.iter().find(|call| call.call_ordinal == 1)?;
     let consumer = calls.iter().find(|call| call.call_ordinal == 0)?;
+    // The temporary's producer is the nested call that authored its
+    // expression root, not a fixed ordinal: wider argument lists admit
+    // producers at any later ordinal in the same statement.
+    let mut producers = calls
+        .iter()
+        .filter(|call| call.call_ordinal != 0 && call.authored_expression == expression);
+    let producer = producers.next()?;
+    if producers.next().is_some() {
+        return None;
+    }
     let consumer_site = crate::semantic_calls::find_call_site(
         program,
         machine.symbol,
@@ -157,17 +214,20 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
         statement_index,
         0,
     )?;
-    let [argument] = crate::semantic_calls::call_site_argument_expressions(program, &consumer_site)
-    else {
-        return None;
-    };
-    let selected = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        *argument,
-    )?;
-    if selected.root != root || selected.segments.is_empty() {
+    let mut selected =
+        crate::semantic_calls::call_site_argument_expressions(program, &consumer_site)
+            .iter()
+            .filter_map(|argument| {
+                crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    *argument,
+                )
+            })
+            .filter(|place| place.root == root && !place.segments.is_empty());
+    let selected_place = selected.next()?;
+    if selected.next().is_some() {
         return None;
     }
     let source = |call: &checked_trees::FlowCallFact| PermissionEventSource::Call {
@@ -213,7 +273,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
                 if established
                     && !transferred
                     && event.source == source(consumer)
-                    && segments == selected.segments.as_slice() =>
+                    && segments == selected_place.segments.as_slice() =>
             {
                 transferred = true;
             }
@@ -248,7 +308,10 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     .then_some(())
 }
 
-/// Dispose only this expression owner's maximal complement at its actual call.
+/// Dispose each expression owner's maximal complement at its actual call.
+/// One consumer may die for several temporaries at once: every projected
+/// owned operand names its own producer's result binding, and the residual
+/// rows keep that operand order.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn append_continuation(
     program: &TypedTrees,
@@ -256,39 +319,77 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     shapes: &ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    result: &CheckedUnitStructuralResultBindingPlan,
-    root: facts::PlaceRoot,
+    temporaries: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
     let CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
         target_machine,
         target_state,
-        scalar_arguments,
         structural_arguments,
-        claim_transfers,
         ..
     } = operations.last()?
     else {
         return None;
     };
-    let [argument] = structural_arguments.as_slice() else {
-        return None;
-    };
-    if coordinate.statement_index != result.statement_index
-        || coordinate.call_ordinal != 0
-        || argument.source_structural_result_binding_ordinal() != Some(result.binding_ordinal)
-        || argument.access != CheckedStructuralAccess::Owned
-        || argument.path.is_empty()
-        || !scalar_arguments.is_empty()
-        || !claim_transfers.is_empty()
-        || !matches!(root, facts::PlaceRoot::Expression(_))
+    if coordinate.call_ordinal != 0
         || machine_has_content_evidence(facts, machine.symbol, state.symbol)
         || facts
             .qualifications
             .for_machine(machine.symbol)
             .is_some_and(|fact| !fact.body_committed.is_empty())
     {
+        return None;
+    }
+    // Every projected owned operand must belong to a dying temporary, and
+    // every temporary must own exactly one of them. Whole moves and scalar
+    // operands keep their own custody outside this cleanup row.
+    let mut affine_discards = Vec::new();
+    let mut covered = Vec::new();
+    for argument in structural_arguments {
+        let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
+            continue;
+        };
+        if argument.access != CheckedStructuralAccess::Owned {
+            // A borrowed anonymous operand owns the separate shared-temporary
+            // continuation; mixing it into this row is not admitted here.
+            return None;
+        }
+        if argument.path.is_empty() {
+            continue;
+        }
+        let Some((result, root)) = temporaries
+            .iter()
+            .find(|(result, _)| result.binding_ordinal == binding_ordinal)
+        else {
+            return None;
+        };
+        if covered.contains(&binding_ordinal)
+            || coordinate.statement_index != result.statement_index
+            || !matches!(root, facts::PlaceRoot::Expression(_))
+        {
+            return None;
+        }
+        covered.push(binding_ordinal);
+        let residuals = partial_affine_residuals(
+            &shapes.types,
+            &argument.source,
+            &result.type_identity,
+            &[(argument.path.clone(), argument.type_identity.clone())],
+        )?;
+        validate_permissions_at(
+            program,
+            facts,
+            machine,
+            state,
+            *root,
+            usize::try_from(result.statement_index).ok()?,
+            result.binding_ordinal,
+            &residuals,
+        )?;
+        affine_discards.extend(residuals);
+    }
+    if covered.len() != temporaries.len() {
         return None;
     }
     let target = program
@@ -313,67 +414,57 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     {
         return None;
     }
-    if argument
-        .path
-        .iter()
-        .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_)))
-        && (!program.machine_contracts(machine).is_empty()
-            || !program.state_contracts(state).is_empty()
-            || !program.machine_contracts(target).is_empty()
-            || !program.state_contracts(callee).is_empty())
+    if structural_arguments.iter().any(|argument| {
+        argument
+            .source_structural_result_binding_ordinal()
+            .is_some()
+            && argument
+                .path
+                .iter()
+                .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_)))
+    }) && (!program.machine_contracts(machine).is_empty()
+        || !program.state_contracts(state).is_empty()
+        || !program.machine_contracts(target).is_empty()
+        || !program.state_contracts(callee).is_empty())
     {
         return None;
     }
     let coordinate = *coordinate;
-    let residuals = partial_affine_residuals(
-        &shapes.types,
-        &argument.source,
-        &result.type_identity,
-        &[(argument.path.clone(), argument.type_identity.clone())],
-    )?;
-    validate_permissions_at(
-        program,
-        facts,
-        machine,
-        state,
-        root,
-        usize::try_from(result.statement_index).ok()?,
-        result.binding_ordinal,
-        &residuals,
-    )?;
-    let mut producers = operations
-        .iter_mut()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                result: produced,
-                discard_result_on_return,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate,
-                result: produced,
-                discard_result_on_return,
-                ..
-            } if produced.binding_ordinal == result.binding_ordinal => {
-                Some((coordinate, produced, discard_result_on_return))
-            }
-            _ => None,
-        });
-    let (producer_coordinate, produced, discard_on_return) = producers.next()?;
-    if producers.next().is_some()
-        || producer_coordinate.statement_index != coordinate.statement_index
-        || producer_coordinate.call_ordinal != 1
-        || produced != result
-        || !*discard_on_return
-    {
-        return None;
+    for (result, _) in temporaries {
+        let mut producers = operations
+            .iter_mut()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    coordinate,
+                    result: produced,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    coordinate,
+                    result: produced,
+                    discard_result_on_return,
+                    ..
+                } if produced.binding_ordinal == result.binding_ordinal => {
+                    Some((coordinate, produced, discard_result_on_return))
+                }
+                _ => None,
+            });
+        let (producer_coordinate, produced, discard_on_return) = producers.next()?;
+        if producers.next().is_some()
+            || producer_coordinate.statement_index != coordinate.statement_index
+            || producer_coordinate.call_ordinal == 0
+            || *produced != *result
+            || !*discard_on_return
+        {
+            return None;
+        }
+        *discard_on_return = false;
     }
-    *discard_on_return = false;
     // Keep even an empty complement: it records the exact dying continuation.
     operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
         coordinate,
-        affine_discards: residuals,
+        affine_discards,
     });
     Some(())
 }

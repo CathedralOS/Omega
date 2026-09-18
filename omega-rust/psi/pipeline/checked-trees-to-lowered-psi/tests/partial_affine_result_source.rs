@@ -64,6 +64,159 @@ fn anonymous_result_projection_cleans_before_the_next_statement() {
     }
 }
 
+// Two helper temporaries die at one consumer argument list: each keeps its
+// own residual row, its own producer place, and its own live frontier entry.
+#[test]
+fn anonymous_projected_operands_share_one_dying_continuation() {
+    for boundary in [false, true] {
+        let source = if boundary {
+            r#"
+            pub data Token { value: u64; }
+            pub data Pair { left: Token; right: Token; }
+            data Sink {}
+            machine Sink::take2(first: Token, second: Token) {}
+            boundary trait Factory { machine create() -> Pair reaches Factory; }
+            data Root {}
+            machine Root::enter() reaches Factory {
+                Sink::take2(Factory::create().right, Factory::create().left);
+            }
+            "#
+        } else {
+            r#"
+            data Token { value: u64; }
+            data Pair { left: Token; right: Token; }
+            data Sink {}
+            machine Sink::take2(first: Token, second: Token) {}
+            data Root {}
+            machine Root::forward(value: Pair) -> Pair { value }
+            machine Root::enter(first: Pair, second: Pair) {
+                Sink::take2(Root::forward(first).right, Root::forward(second).left);
+            }
+            "#
+        };
+        let checked = checked(source);
+        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
+            .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
+        let module = &lowered.semantic_module;
+        let semantic = encode_module(module).unwrap();
+        assert_eq!(decode_module(&semantic).unwrap(), *module);
+        let proof = encode_proof_section(module, &lowered.proof_bundle).unwrap();
+        assert_eq!(decode_proof_bundle(&proof).unwrap(), lowered.proof_bundle);
+        let published =
+            terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
+                .produce_artifact()
+                .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
+        assert_eq!(decode_module(published.semantic_bytes()).unwrap(), *module);
+        let verified = terminal_verifier::verify_module(
+            module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
+        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+        let caller = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let block = caller
+            .blocks
+            .iter()
+            .find(|block| {
+                matches!(&block.terminator, Terminator::Jump {
+                    residual_affine_discards,
+                    ..
+                } if !residual_affine_discards.is_empty())
+            })
+            .expect("the shared dying continuation carries the residual rows");
+        assert_eq!(block.operations.len(), 3);
+        let producers = block.operations[..2]
+            .iter()
+            .map(|operation| {
+                let Some(result) = operation.result.structural() else {
+                    panic!("each producer binds a structural result")
+                };
+                result.place
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(producers[0], producers[1]);
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &block.operations[2].kind
+        else {
+            panic!("one shared Unit consumer")
+        };
+        let [first_move, second_move] = structural_arguments.as_slice() else {
+            panic!("both temporaries are consumer operands")
+        };
+        assert_eq!(first_move.place, producers[0]);
+        assert_eq!(second_move.place, producers[1]);
+        let residual_affine_discards = match &block.terminator {
+            Terminator::ReturnUnitPartialAffine {
+                residual_affine_discards,
+                ..
+            }
+            | Terminator::Jump {
+                residual_affine_discards,
+                ..
+            } => residual_affine_discards,
+            terminator => panic!("the shared continuation owns the residuals: {terminator:?}"),
+        };
+        let [first_residual, second_residual] = residual_affine_discards.as_slice() else {
+            panic!("two temporaries keep two residual rows")
+        };
+        // Rows keep operand order: the first operand moved `right`, so `left`
+        // remains; the second moved `left`, so `right` remains.
+        assert_eq!(first_residual.place, producers[0]);
+        assert_eq!(first_residual.path, path(&["left"]));
+        assert_eq!(second_residual.place, producers[1]);
+        assert_eq!(second_residual.path, path(&["right"]));
+        let arguments = if boundary {
+            Vec::new()
+        } else {
+            caller
+                .structural_parameters
+                .iter()
+                .enumerate()
+                .map(|(ordinal, parameter)| TerminalStructuralValue {
+                    opaque_identity: 61 + ordinal as u64,
+                    structural_type: parameter.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut factory = Factory::default();
+        let mut meter = TerminalFuelMeter::unbounded();
+        for _ in 0..256 {
+            match execution.resume(&mut meter, &mut factory).unwrap() {
+                TerminalExecutionStatus::Complete(value) => {
+                    assert_eq!(value, TerminalExecutionResult::Unit);
+                    break;
+                }
+                status => panic!("unexpected {status:?}"),
+            }
+        }
+        assert_eq!(factory.calls, if boundary { 2 } else { 0 });
+        assert!(
+            execution.live_affine_frontier().next().is_none(),
+            "both temporaries are fully accounted: moved halves transferred, residuals cleaned"
+        );
+    }
+}
+
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

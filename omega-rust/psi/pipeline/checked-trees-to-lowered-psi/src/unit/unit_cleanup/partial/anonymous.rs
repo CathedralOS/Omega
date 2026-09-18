@@ -40,8 +40,12 @@ pub(crate) fn validate_permissions(
     consumer: &CheckedUnitEffectOperationPlan,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Result<(), LoweringError> {
-    let (CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }) = producer
+    let (CheckedUnitEffectOperationPlan::StructuralCall {
+        coordinate, result, ..
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        coordinate, result, ..
+    }) = producer
     else {
         return unsupported("anonymous partial permissions have no structural producer");
     };
@@ -63,9 +67,17 @@ pub(crate) fn validate_permissions(
     else {
         return unsupported("anonymous partial permissions have no Unit consumer");
     };
-    let [argument] = structural_arguments.as_slice() else {
+    // The dying operand is the one sourced from this producer's binding;
+    // sibling temporaries and unrelated arguments share the same consumer.
+    let mut projected = structural_arguments.iter().filter(|argument| {
+        argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+    });
+    let argument = projected.next().ok_or(LoweringError::Unsupported(
+        "anonymous partial permissions lost their projected operand",
+    ))?;
+    if projected.next().is_some() || argument.path.is_empty() {
         return unsupported("anonymous partial permissions have ambiguous projected operands");
-    };
+    }
     let authored_consumer = crate::emission::call_source_custody::authored::locate_source(
         checked,
         plan.state,
@@ -105,9 +117,9 @@ pub(crate) fn validate_permissions(
         .iter()
         .filter(|call| call.statement_index == coordinate.statement_index as usize)
         .count()
-        != 2
+        < 2
     {
-        return unsupported("anonymous partial permissions have extra captured calls");
+        return unsupported("anonymous partial permissions lost their captured calls");
     }
     let call_source = |coordinate: checked_trees::CheckedUnitCallCoordinate,
                        target: symbols::SymbolHandle|

@@ -50,6 +50,7 @@ mod admission;
 pub(super) mod body;
 pub(super) mod case_emission;
 mod cases;
+mod claims;
 mod edges;
 mod emission;
 mod guarded;

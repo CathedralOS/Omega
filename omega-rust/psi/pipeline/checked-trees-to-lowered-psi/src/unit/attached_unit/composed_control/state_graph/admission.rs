@@ -5,7 +5,7 @@ use super::super::super::{
     CheckedScalarExpressionRole, Multiplicity, ScalarType, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
-use super::{CheckedComposedUnitControlMachinePlan, edges, scalars, successors, topology};
+use super::{CheckedComposedUnitControlMachinePlan, claims, edges, scalars, topology};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use checked_trees::types::TypeReferenceNode;
 
@@ -33,18 +33,47 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
         })
         && plan.body_qualifications.is_empty()
         && plan.states.iter().all(|state| {
-            (state.entry_claims.is_empty() || (plan.states.len() == 1 && successors(state).is_empty()))
-                && state.structural_parameters.iter().all(|parameter| {
-                    ((parameter.multiplicity == Multiplicity::Unrestricted
-                        && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
-                        || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
-                        && (parameter.qualifications.is_empty() || parameter.multiplicity == Multiplicity::Linear)
-                })
+            state.structural_parameters.iter().all(|parameter| {
+                ((parameter.multiplicity == Multiplicity::Unrestricted
+                    && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
+                    || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
+                    && (parameter.qualifications.is_empty() || parameter.multiplicity == Multiplicity::Linear)
+            })
         })
+        && claim_transport_supported(checked, plan)
+}
+
+/// A state's entry claims are established at every admission of that state,
+/// so a claim carried across an edge keeps the machine parameter's place
+/// instead of becoming a fresh block parameter. The restricted three-state
+/// conditional route still owns its exact slice; every other claim-bearing
+/// shape reaches this emitter only when its successor transport resolves each
+/// claim onto an entry parameter place.
+fn claim_transport_supported(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+) -> bool {
+    if plan
+        .states
+        .iter()
+        .all(|state| state.entry_claims.is_empty())
+    {
+        return true;
+    }
+    if plan.states.len() == 3
+        && matches!(
+            plan.states[0].terminator,
+            CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+        )
+    {
+        return false;
+    }
+    claims::resolve(checked, plan).is_ok()
 }
 
 pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     pub(super) source_states: &'a [checked_trees::state::State],
+    pub(super) claim_transport: claims::ClaimTransport,
     pub(in crate::unit::attached_unit::composed_control) boundaries:
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
     pub(in crate::unit::attached_unit::composed_control) internal_targets:
@@ -125,11 +154,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             source,
         ) {
             return unsupported("structural graph state has unrepresented authored contracts");
-        }
-        if !state.entry_claims.is_empty()
-            && (plan.states.len() != 1 || !successors(state).is_empty())
-        {
-            return unsupported("structural graph successor has no retained claim transport");
         }
         if !super::returns::signature_matches(checked, source, &plan.result) {
             return unsupported("structural graph result signature disagrees with source");
@@ -400,6 +424,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             _ => return unsupported("Unit graph terminator disagrees with authored state"),
         }
     }
+    // Claim-bearing successor parameters permanently bind the entry
+    // parameter's place; resolve replays each edge's checked Transfer event
+    // before emission trusts that alias.
+    let claim_transport = claims::resolve(checked, plan)?;
     topology::validate(plan)?;
     let states = plan.states.iter().collect::<Vec<_>>();
     let (boundaries, internal_targets) =
@@ -443,6 +471,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     }
     Ok(AdmittedGraph {
         source_states,
+        claim_transport,
         boundaries,
         internal_targets,
     })

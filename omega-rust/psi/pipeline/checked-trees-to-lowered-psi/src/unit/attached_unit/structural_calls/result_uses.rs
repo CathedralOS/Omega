@@ -574,9 +574,12 @@ pub(crate) fn validate_usage(
                     !matches!(affine_discards.as_slice(), [discard]
                         if discard.source == source && discard.path.is_empty() && discard.type_identity == result.type_identity)
                 } else {
+                    // One continuation may carry several temporaries; this
+                    // owner's rows must all be nonempty residual paths. An
+                    // empty complement leaves no row at all.
                     affine_discards
                         .iter()
-                        .any(|discard| discard.source != source || discard.path.is_empty())
+                        .any(|discard| discard.source == source && discard.path.is_empty())
                 }
             {
                 return unsupported("call continuation does not own this result remainder");

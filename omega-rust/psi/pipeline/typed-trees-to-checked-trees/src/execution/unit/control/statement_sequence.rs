@@ -792,33 +792,38 @@ pub(in crate::execution::terminal_unit) fn build(
             result.binding_ordinal = u32::try_from(structural_count).ok()?;
         }
         // The existing sole-call partial-return route remains available to
-        // native consumers. Wider statement schedules use a dying continuation.
-        let partial_temporary = if program
+        // native consumers. Wider statement schedules use a dying continuation;
+        // every anonymous operand of this consumer owns one row in it.
+        let anonymous_lane_claims = program
             .statement_table
             .statements(state.statement_nodes)
             .len()
-            > 1
-            && entry_claims.is_empty()
-        {
-            structural_results.last().and_then(|(result, root)| {
-                if result.statement_index != statement_index
-                    || !matches!(root, facts::PlaceRoot::Expression(_))
-                {
-                    return None;
-                }
-                let candidate = super::super::cleanup::anonymous::binding_at(
-                    program,
-                    facts,
-                    shapes,
-                    machine,
-                    state,
-                    index,
-                    result.binding_ordinal,
-                )?;
-                (candidate.0 == *result && candidate.1 == *root).then_some(candidate)
-            })
+            == 1
+            && super::super::cleanup::anonymous::binding(program, facts, shapes, machine, state)
+                .is_some();
+        let partial_temporaries = if entry_claims.is_empty() && !anonymous_lane_claims {
+            structural_results
+                .iter()
+                .filter(|(result, root)| {
+                    result.statement_index == statement_index
+                        && matches!(root, facts::PlaceRoot::Expression(_))
+                })
+                .filter_map(|(result, root)| {
+                    let candidate = super::super::cleanup::anonymous::binding_at(
+                        program,
+                        facts,
+                        shapes,
+                        machine,
+                        state,
+                        index,
+                        result.binding_ordinal,
+                        *root,
+                    )?;
+                    (candidate.0 == *result && candidate.1 == *root).then_some(candidate)
+                })
+                .collect::<Vec<_>>()
         } else {
-            None
+            Vec::new()
         };
         call_phase("statement sequence: call: call operation");
         let mut operation = build_call_operation(
@@ -831,7 +836,7 @@ pub(in crate::execution::terminal_unit) fn build(
             trivial_affine_locals,
             entry_claims,
             call,
-            partial_temporary.is_some(),
+            !partial_temporaries.is_empty(),
             result
                 .as_ref()
                 .map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))
@@ -918,15 +923,14 @@ pub(in crate::execution::terminal_unit) fn build(
         if let Some(store) = call_result_store {
             operations.push(store);
         }
-        if let Some((result, root)) = partial_temporary {
+        if !partial_temporaries.is_empty() {
             super::super::cleanup::anonymous::append_continuation(
                 program,
                 facts,
                 shapes,
                 machine,
                 state,
-                &result,
-                root,
+                &partial_temporaries,
                 &mut operations,
             )?;
         } else {

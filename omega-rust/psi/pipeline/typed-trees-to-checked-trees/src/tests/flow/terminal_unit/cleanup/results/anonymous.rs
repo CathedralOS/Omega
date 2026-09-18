@@ -143,6 +143,221 @@ fn anonymous_projection_permissions_name_exact_producer_and_residual() {
     }
 }
 
+/// Two projected helper temporaries die at one shared consumer; each keeps
+/// its own residual row and its own producer custody handoff.
+#[test]
+fn anonymous_projected_operands_share_one_consumer_continuation() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Pair { left: Token; right: Token; }
+        data Sink {}
+        machine Sink::take2(first: Token, second: Token) {}
+        data Root {}
+        machine Root::forward(value: Pair) -> Pair { value }
+        machine Root::enter(first: Pair, second: Pair) {
+            Sink::take2(Root::forward(first).right, Root::forward(second).left);
+        }
+    "#,
+    );
+    let machine = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "two anonymous temporaries share one dying continuation: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let [
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate: first_producer,
+            result: first_result,
+            discard_result_on_return: first_discard,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate: second_producer,
+            result: second_result,
+            discard_result_on_return: second_discard,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate: consumer,
+            structural_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+            coordinate: cleanup,
+            affine_discards,
+        },
+        CheckedUnitEffectOperationPlan::Complete { .. },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("producer, producer, consumer, cleanup, completion")
+    };
+    assert_eq!(
+        (first_producer.statement_index, first_producer.call_ordinal),
+        (0, 1)
+    );
+    assert_eq!(
+        (
+            second_producer.statement_index,
+            second_producer.call_ordinal
+        ),
+        (0, 2)
+    );
+    assert_eq!((consumer.statement_index, consumer.call_ordinal), (0, 0));
+    assert_eq!(*cleanup, *consumer);
+    assert!(
+        !*first_discard && !*second_discard,
+        "each producer hands its residual custody to the continuation"
+    );
+    assert_eq!(first_result.binding_ordinal, 0);
+    assert_eq!(second_result.binding_ordinal, 1);
+    let [first_argument, second_argument] = structural_arguments.as_slice() else {
+        panic!("both projected temporaries are consumer operands")
+    };
+    assert_eq!(
+        first_argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: 0
+        }
+    );
+    assert_eq!(
+        second_argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: 1
+        }
+    );
+    let field = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
+        let [checked_trees::CheckedUnitStructuralPathSegment::Field(name)] =
+            argument.path.as_slice()
+        else {
+            panic!("one exact field projection")
+        };
+        name.clone()
+    };
+    assert_eq!(field(first_argument), "right");
+    assert_eq!(field(second_argument), "left");
+    // Residual rows keep operand order: each complement names its own owner.
+    let residual = |discard: &checked_trees::CheckedUnitPartialAffineDiscardPlan| {
+        let [checked_trees::CheckedUnitStructuralPathSegment::Field(name)] =
+            discard.path.as_slice()
+        else {
+            panic!("one exact residual field")
+        };
+        (discard.source.clone(), name.clone())
+    };
+    let [first_residual, second_residual] = affine_discards.as_slice() else {
+        panic!("two temporaries keep two residual rows")
+    };
+    assert_eq!(
+        residual(first_residual),
+        (
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: 0
+            },
+            "left".into()
+        )
+    );
+    assert_eq!(
+        residual(second_residual),
+        (
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: 1
+            },
+            "right".into()
+        )
+    );
+}
+
+/// A projected temporary shares its consumer's argument list with an
+/// ordinary owned parameter and a scalar operand without losing custody.
+#[test]
+fn anonymous_projected_operand_shares_its_consumer_with_other_effects() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Pair { left: Token; right: Token; }
+        data Sink {}
+        machine Sink::take2(first: Token, count: u16, second: Token) {}
+        machine Sink::done() {}
+        data Root {}
+        machine Root::forward(value: Pair) -> Pair { value }
+        machine Root::enter(token: Token, input: Pair, count: u16) {
+            Sink::take2(token, count, Root::forward(input).left);
+            Sink::done();
+        }
+    "#,
+    );
+    let machine = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "a projected temporary beside other operands dies at the call: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let [
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            discard_result_on_return,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate: consumer,
+            structural_arguments,
+            scalar_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+            coordinate: cleanup,
+            affine_discards,
+        },
+        CheckedUnitEffectOperationPlan::CallUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("producer, consumer, cleanup, trailing call, completion")
+    };
+    assert!(!*discard_result_on_return);
+    assert_eq!(*cleanup, *consumer);
+    assert_eq!(scalar_arguments.len(), 1);
+    let [owned, projected] = structural_arguments.as_slice() else {
+        panic!("the parameter and the temporary are separate operands")
+    };
+    assert_eq!(
+        owned.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+    );
+    assert!(owned.path.is_empty());
+    assert_eq!(
+        projected.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: 0
+        }
+    );
+    let [discard] = affine_discards.as_slice() else {
+        panic!("one temporary keeps one residual row")
+    };
+    assert_eq!(discard.source, projected.source);
+}
+
 #[test]
 fn anonymous_projection_permissions_cannot_be_removed_duplicated_or_rebound() {
     for boundary in [false, true] {

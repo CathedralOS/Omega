@@ -254,20 +254,18 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_jump")
         };
-        // Projected owned arguments open partial custody on one
-        // shared root: each moves an exact affine child while the
-        // residual list closes the untouched complement. Replay
-        // the splits on a scratch frontier so the whole edge
-        // validates before charging or mutating state.
+        // Projected owned arguments open partial custody on their
+        // roots: each moves an exact affine child while the
+        // residual list closes every dying root's untouched
+        // complement. Replay the splits on a scratch frontier so
+        // the whole edge validates before charging or mutating
+        // state.
         let mut projected_frontier = None;
-        let mut projected_root = None;
+        let mut residual_roots = BTreeSet::new();
         for argument in structural_arguments.iter().filter(|argument| {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
-            if projected_root.is_some_and(|previous| previous != argument.place) {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
-            }
-            projected_root = Some(argument.place);
+            residual_roots.insert(argument.place);
             consume_affine_projection(
                 &self.structural_types,
                 &self.structural_values,
@@ -275,37 +273,40 @@ impl TerminalExecution {
                 argument,
             )?;
         }
-        let residual_root = projected_root.or_else(|| {
-            residual_affine_discards
-                .first()
-                .map(|discard| discard.place)
-        });
-        if let Some(place) = residual_root {
-            let root = self.structural_values.get(&place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(place),
+        let mut expected = BTreeSet::new();
+        for discard in residual_affine_discards {
+            let root = self.structural_values.get(&discard.place).ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
             )?;
-            let mut expected = BTreeSet::new();
-            for discard in residual_affine_discards {
-                if discard.place != place
-                    || discard.path.is_empty()
-                    || resolve_structural_path_type(
-                        &self.structural_types,
-                        root.structural_type,
-                        &discard.path,
-                    )? != discard.structural_type
-                    || !expected.insert(discard.clone())
-                {
-                    return Err(TerminalInterpretError::AffineFrontierMismatch);
-                }
+            if discard.path.is_empty()
+                || resolve_structural_path_type(
+                    &self.structural_types,
+                    root.structural_type,
+                    &discard.path,
+                )? != discard.structural_type
+                || !expected.insert(discard.clone())
+            {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            if projected_frontier
-                .as_ref()
-                .unwrap_or(&self.live_affine_frontier)
+            residual_roots.insert(discard.place);
+        }
+        let replayed = projected_frontier
+            .as_ref()
+            .unwrap_or(&self.live_affine_frontier);
+        // Every root this edge touches must be left with exactly its
+        // declared residual rows: projected transfers opened the
+        // holes, and the listed complement is the only remainder.
+        for place in &residual_roots {
+            if replayed
                 .iter()
-                .filter(|entry| entry.place == place)
+                .filter(|entry| entry.place == *place)
                 .cloned()
                 .collect::<BTreeSet<_>>()
                 != expected
+                    .iter()
+                    .filter(|entry| entry.place == *place)
+                    .cloned()
+                    .collect::<BTreeSet<_>>()
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
@@ -333,7 +334,7 @@ impl TerminalExecution {
         for discard in residual_affine_discards {
             self.live_affine_frontier.remove(discard);
         }
-        if let Some(place) = residual_root {
+        for place in &residual_roots {
             // Every remaining semantic path was validated and
             // disposed. Only now may the dead root's opaque backing
             // leave storage. Referent descriptors under a moved
@@ -342,11 +343,13 @@ impl TerminalExecution {
             let moved_paths: Vec<&[StructuralPathSegment]> = structural_arguments
                 .iter()
                 .filter(|argument| {
-                    argument.access == StructuralAccess::Owned && !argument.path.is_empty()
+                    argument.access == StructuralAccess::Owned
+                        && !argument.path.is_empty()
+                        && argument.place == *place
                 })
                 .map(|argument| argument.path.as_slice())
                 .collect();
-            if let Some(value) = self.structural_values.remove(&place) {
+            if let Some(value) = self.structural_values.remove(place) {
                 self.reference_referents.retain(|carrier, _| {
                     if carrier.opaque_identity != value.opaque_identity
                         || !carrier.path.starts_with(&value.path)

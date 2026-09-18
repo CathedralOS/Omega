@@ -928,31 +928,39 @@ fn apply_continuation_residual_discards(
         machine: machine.id,
         block,
     };
-    if let Some(first) = discards.first() {
+    // Each dying root owns one contiguous run of residual rows — the shape
+    // pass has already required the same per-place grouping and order. Every
+    // run must be that place's exact complement before the root leaves the
+    // frontier; a second run for one root cannot re-open closed custody.
+    let mut offset = 0;
+    while offset < discards.len() {
+        let place = discards[offset].place;
         let moved = frontier
             .partial_custody_paths
-            .get(&first.place)
+            .get(&place)
             .ok_or_else(invalid)?;
-        let expected = partial_affine_root_type(machine, first.place)
+        let expected = partial_affine_root_type(machine, place)
             .and_then(|root_type| {
-                partial_affine_residuals(module, root_type, moved, discards.len())
+                partial_affine_residuals(module, root_type, moved, discards.len() - offset)
             })
             .ok_or_else(invalid)?;
-        if expected.len() != discards.len()
-            || discards
+        if expected.is_empty()
+            || offset + expected.len() > discards.len()
+            || discards[offset..offset + expected.len()]
                 .iter()
-                .zip(expected)
+                .zip(&expected)
                 .any(|(discard, (path, structural_type))| {
-                    discard.place != first.place
-                        || discard.path != path
-                        || discard.structural_type != structural_type
+                    discard.place != place
+                        || discard.path != *path
+                        || discard.structural_type != *structural_type
                 })
-            || frontier.owned_places.get(&first.place) != Some(&StructuralMultiplicity::Affine)
+            || frontier.owned_places.get(&place) != Some(&StructuralMultiplicity::Affine)
         {
             return Err(invalid());
         }
-        frontier.partial_custody_paths.remove(&first.place);
-        frontier.owned_places.remove(&first.place);
+        frontier.partial_custody_paths.remove(&place);
+        frontier.owned_places.remove(&place);
+        offset += expected.len();
     }
     // A dying partial root cannot leak across an unannotated continuation.
     // Fully transferred roots have already left both frontier maps at the call.
