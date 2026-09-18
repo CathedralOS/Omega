@@ -231,6 +231,62 @@ fn runtime_indexed_reference_result_retires_the_element_family_only() {
     );
 }
 
+/// A call through a `&mut` local bound from a two-candidate reference result
+/// is valid only while every candidate storage origin carries the declared
+/// field domain the callee's `self` parameter requires. The nested operand
+/// call `builder.label()` writes only disjoint `self` storage, so it preserves
+/// the candidate set; corrupting one candidate's field keeps the call
+/// rejected.
+#[test]
+fn candidate_reference_result_call_requires_every_candidate_domain() {
+    let source = format!(
+        r#"{CANDIDATE_DEFINITIONS}
+        data Builder {{ tag: u64; }}
+        machine Builder::label(&mut self) -> u64 {{ self.tag }}
+        machine Record::pick(&mut self, first: bool) -> &mut Slot {{
+            transition first {{
+                true -> &mut self.others[0]
+                false -> &mut self.others[1]
+            }}
+        }}
+        machine Slot::touch(&mut self, tag: u64) {{ self.count = tag; }}
+        machine probe(builder: &mut Builder, spare: &mut Record, first: bool) {{
+            let chosen: &mut Slot = spare.pick(first);
+            chosen.touch(builder.label());
+        }}
+    "#
+    );
+    lower_typed_trees(parse_typed_trees(&source)).expect(
+        "both candidates carry the declared domain and the disjoint operand preserves them",
+    );
+    let corrupted = format!(
+        r#"{CANDIDATE_DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 3]) {{ bytes[0] = 255; }}
+        machine Record::pick(&mut self, first: bool) -> &mut Slot {{
+            transition first {{
+                true -> &mut self.others[0]
+                false -> &mut self.others[1]
+            }}
+        }}
+        machine Slot::touch(&mut self) {{ }}
+        machine probe(spare: &mut Record, first: bool) {{
+            corrupt(&mut spare.others[1].bytes);
+            let chosen: &mut Slot = spare.pick(first);
+            chosen.touch();
+        }}
+    "#
+    );
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(&corrupted)) else {
+        panic!("a corrupted candidate must keep the call rejected");
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove default-domain field requirement")),
+        "the corrupted candidate must surface as an unproven declared-field requirement: {diagnostics:#?}"
+    );
+}
+
 /// A write through a two-candidate reference local rewrites exactly one
 /// candidate with a value the write checker proved in the field's declared
 /// domain and leaves the other untouched, so both candidates keep their

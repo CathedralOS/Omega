@@ -92,6 +92,7 @@ pub(super) fn check(
     call: &FlowCallFact,
     requirements: &DeclaredFieldRequirements,
     contexts: &[FactContextHandle],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(site) = crate::semantic_calls::find_call_site(
@@ -189,6 +190,16 @@ pub(super) fn check(
                         contexts,
                         &subject,
                         *domain_symbol,
+                    ) || candidate_referents_prove_domain(
+                        program,
+                        facts,
+                        state,
+                        call,
+                        actual,
+                        segments,
+                        *domain_symbol,
+                        contexts,
+                        call_frames,
                     )
                 });
             if !satisfied {
@@ -202,4 +213,58 @@ pub(super) fn check(
             }
         }
     }
+}
+
+/// A `&mut` local bound from a checked reference result names one of
+/// finitely many referent candidates -- `level.rooms[0]` .. `level.rooms[15]`
+/// for `level.room_mut(cell)`. The callee receives whichever storage the loan
+/// actually names, so an actual spelled through the local discharges a
+/// declared-field row only when EVERY candidate proves it; anything less is
+/// the one-exact-origin refusal the single-origin resolver already gives.
+fn candidate_referents_prove_domain(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    actual: &crate::flow::CanonicalPlace,
+    segments: &[PlaceSegment],
+    domain_symbol: SymbolHandle,
+    contexts: &[FactContextHandle],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state.machine_symbol)
+    else {
+        return false;
+    };
+    let mut owned_frames = None;
+    let Some(frames) = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+    else {
+        return false;
+    };
+    let Some(candidates) = crate::flow::local_reference_candidate_storages_at_call(
+        program,
+        frames,
+        &facts.borrow,
+        machine,
+        &facts.flow,
+        state,
+        call,
+        actual.clone(),
+    ) else {
+        return false;
+    };
+    candidates.iter().all(|candidate| {
+        let mut subject = candidate.clone();
+        subject.extend_segments(segments);
+        super::prover::prove_domain_at_place(
+            program,
+            &facts.semantic,
+            contexts,
+            &subject,
+            domain_symbol,
+        )
+    })
 }
