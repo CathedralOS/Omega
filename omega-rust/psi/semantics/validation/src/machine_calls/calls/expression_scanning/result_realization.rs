@@ -325,9 +325,14 @@ fn unit_type(
     }
 }
 
-/// Only an exact mutable scalar local is an assignment computation destination.
-/// Projected storage, state parameters, and attached/structural callers keep the
-/// realization fence until their writes have the same checked evaluation path.
+/// Only an exact mutable scalar local is an assignment computation destination
+/// in the scalar graph. The unit statement sequence owns the same write when
+/// the destination is a mutable primitive local or a whole borrowed primitive
+/// parameter: its `AssignmentValue` computation root evaluates the outer call
+/// and every nested operand in authored order before the store. Projected or
+/// indexed storage, plain scalar parameters, and generic or boundary callers
+/// keep the realization fence until their stores sequence nested operands
+/// through that same checked path.
 pub(crate) fn report_nested_call_in_local_assignment(
     program: &TypedTrees,
     machine: &Machine,
@@ -344,7 +349,8 @@ pub(crate) fn report_nested_call_in_local_assignment(
             .name_path_members(path.members)
             .len()
             == 1
-        && program
+    {
+        if program
             .statement_table
             .statements(state.statement_nodes)
             .iter()
@@ -354,9 +360,19 @@ pub(crate) fn report_nested_call_in_local_assignment(
                         && local.is_mutable
                         && program.primitive_type_reference(local.type_reference).is_some())
             })
-        && scalar_computation_call(program, machine, assignment.value, false)
-    {
-        return;
+            && scalar_computation_call(program, machine, assignment.value, false)
+        {
+            return;
+        }
+        if unit_scalar_store_assignment_is_supported(
+            program,
+            machine,
+            state,
+            assignment,
+            path.symbol,
+        ) {
+            return;
+        }
     }
     report_nested_call_in_bound_value_call(
         program,
@@ -365,6 +381,106 @@ pub(crate) fn report_nested_call_in_local_assignment(
         assignment.value,
         diagnostics,
     );
+}
+
+/// Mirrors the checked `AssignmentValue` computation admission for a call
+/// stored through the unit statement sequence: the outer call is a direct,
+/// ordinary checked-body call to a free scalar callee whose declared result
+/// primitive is exactly the destination's stored primitive. The evaluator
+/// recurses into each argument itself, so this admission intentionally covers
+/// only the root call shape — argument custody, structural operands, and flow
+/// call ordinals still resolve in the checked builder, which rejects anything
+/// it cannot sequence.
+fn unit_scalar_store_assignment_is_supported(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    assignment: &TableAssignment,
+    target_symbol: symbols::SymbolHandle,
+) -> bool {
+    // Generic, owned-data, and bound callers do not have a proven unit store
+    // plan for this destination family.
+    if !machine.type_parameters.is_empty()
+        || !machine.lifetime_parameters.is_empty()
+        || !machine.conformance_bounds.is_empty()
+        || !machine.owned_data.is_empty()
+        || !assignment.value.is_valid()
+    {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
+        return false;
+    };
+    if call.receiver.is_valid()
+        || !call.machine_arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
+        return false;
+    }
+    let Some(entry) = program
+        .machines()
+        .iter()
+        .find(|owner| {
+            owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && free_scalar_machine(program, owner)
+                && program
+                    .machine_states(owner)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == call.target_symbol)
+        })
+        .and_then(|owner| program.machine_states(owner).first())
+    else {
+        return false;
+    };
+    let Some(result_primitive) = program.primitive_type_reference(entry.return_type) else {
+        return false;
+    };
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == target_symbol)
+    {
+        // A bare `target = call(..)` writes through the whole borrowed place.
+        // Only `&mut`/`&writeonly` primitives are whole-value store
+        // destinations; shared borrows, plain scalars, and structural
+        // referees keep the fence.
+        return !parameter.is_self
+            && parameter.is_mutable
+            && !parameter.is_const
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                typed_trees::types::TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Mutable
+                        | language_semantics::ReferenceAccess::WriteOnly,
+                    referee,
+                    ..
+                } if matches!(
+                    program.type_reference_table.type_reference(*referee),
+                    typed_trees::types::TypeReferenceNode::Named { .. }
+                ) && program.primitive_type_reference(*referee) == Some(result_primitive)
+            );
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            matches!(statement, StatementNode::LocalData(local)
+                if local.symbol == target_symbol
+                    && local.is_mutable
+                    && program.expression_table.expression_is_valid(local.initial_value)
+                    && matches!(
+                        program.type_reference_table.type_reference(local.type_reference),
+                        typed_trees::types::TypeReferenceNode::Named { .. }
+                    )
+                    && program.primitive_type_reference(local.type_reference)
+                        == Some(result_primitive))
+        })
 }
 
 fn scalar_computation_call(
