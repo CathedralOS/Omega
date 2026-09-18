@@ -5,6 +5,7 @@
 mod case_where_generic_instance;
 mod constant_carriers;
 mod data_where_identity;
+mod generic_range_arguments;
 mod module_namespace_residuals;
 mod module_namespaces;
 mod omitted_data_binders;

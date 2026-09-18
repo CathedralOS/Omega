@@ -23,19 +23,11 @@ pub(crate) fn lower_domain_definition(
         syntax_trees,
         domain.type_parameters,
     )?;
-    let mut index_arguments = arena::HandleSpan::empty();
-    for argument in syntax_trees
-        .type_references
-        .type_reference_handles(domain.index_arguments)
-    {
-        let argument = lower_type_reference_handle(lowerer, syntax_trees, *argument)?;
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .child_type_references
-            .append_to_span(&mut index_arguments, argument);
-    }
+    let index_arguments = crate::lowering::type_reference::lower_child_type_references(
+        lowerer,
+        syntax_trees,
+        domain.index_arguments,
+    )?;
     let alias = domain
         .alias
         .as_ref()
@@ -173,23 +165,11 @@ fn lower_membership_domain_arguments(
         return Ok(arena::HandleSpan::empty());
     }
     let selection_start = lowerer.pending_const_argument_selections.len();
-    let mut lowered = arena::HandleSpan::empty();
-    for argument in syntax_trees
-        .type_references
-        .type_reference_handles(arguments)
-    {
-        let argument = crate::lowering::type_reference::lower_type_reference_handle(
-            lowerer,
-            syntax_trees,
-            *argument,
-        )?;
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .child_type_references
-            .append_to_span(&mut lowered, argument);
-    }
+    let lowered = crate::lowering::type_reference::lower_child_type_references(
+        lowerer,
+        syntax_trees,
+        arguments,
+    )?;
     crate::lowering::type_reference::retain_const_argument_slots(
         lowerer,
         syntax_trees,
