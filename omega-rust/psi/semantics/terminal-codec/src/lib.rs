@@ -69,9 +69,8 @@ pub use sections::proof_sidecar::{
     PSI_TERMINAL_VERIFIED_GUARANTEE, PccDependency, PccGuarantee, PccIncompleteness,
     PccProductKind, PccProofSidecar, PccReceiverPolicy, PccRejection, PccVerificationOutcome,
     PccVerifiedProduct, TerminalProofVerdict, admission_profile_identity, build_psi_proof_sidecar,
-    pcc_artifact_commitment, pcc_dependency_content_commitment, psi_semantic_profile_identity,
-    terminal_assumption_closure, verify_pcc_claim_fields, verify_psi_proof_sidecar,
-    verify_terminal_artifact_proof,
+    pcc_artifact_commitment, psi_semantic_profile_identity, terminal_assumption_closure,
+    verify_pcc_claim_fields, verify_psi_proof_sidecar, verify_terminal_artifact_proof,
 };
 pub use sections::semantic_module::canonical_order::{
     canonical_proposition_order_key, canonical_scalar_term_order_key,
