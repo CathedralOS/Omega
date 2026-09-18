@@ -1456,21 +1456,38 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   because coverage looks forward, while forks to distinct blocks,
   returns and hosted exits, re-entered blocks, and edge transports
   writing or retiring the dead place's storage end the walk unproven.
-  `rewrites/store_motion` sinks a place `Store` carrying exactly one
-  `WritePlace` row to just before the first position that must stay
-  ordered after it — an interfering roster row on the moved place, a
-  call or hosted effect, a carried pointer or value redefinition, an
-  unaccounted memory-capable instruction, or a boundary settlement —
-  and keeps walking forward across a terminator when every outgoing
-  edge names one block that sees the crossed block as its only
-  predecessor, checking each crossed terminator's roster rows and each
-  edge's transports: forks to distinct blocks, joins into the
-  successor, successors that can reach back to the walked chain, and
-  transports redefining the carried registers or writing the moved
-  place's storage land the store at the last proven position rather
-  than rejecting. The roster names the store by instruction identity,
-  so it stays unchanged; boundary settlements at or after a
-  crossed-block landing shift one ordinal. Load forwarding also walks
+  `rewrites/store_motion` sinks a place `Store` or `StorePacked`
+  carrying exactly one `WritePlace` row — or, through the place's own
+  local storage, a `Store`/`StorePacked` through the slot's
+  materialized address or a `Store64` into that slot directly, each
+  carrying one `WriteLocal` row on the place's storage, the direct
+  store's row naming the same slot it encodes — to just before the
+  first position that must stay ordered after it — an interfering
+  roster row on the moved place, a call or hosted effect, a
+  carried-register redefinition, an unaccounted memory-capable
+  instruction, or a boundary settlement — and keeps walking forward
+  across a terminator when every outgoing edge names one block that
+  sees the crossed block as its only predecessor, checking each
+  crossed terminator's roster rows and each edge's transports: forks
+  to distinct blocks, joins into the successor, successors that can
+  reach back to the walked chain, and transports redefining the
+  carried registers or writing the moved place's storage land the
+  store at the last proven position rather than rejecting. The packed
+  form carries the target's declared `store_packed` row — `[use
+  pointer, use packed value, def scratch]` with the scratch
+  early-clobbered — and its scratch `Def` and declared clobbers move
+  with it, so the coupling the walk already enforces on the carried
+  reads guards its writes too: a window instruction or crossed
+  terminator may not read or rewrite the scratch nor read or publish
+  a condition-state unit the row clobbers, and a crossed edge's
+  transports may not carry the scratch in either direction — on a
+  flag-publishing target a flag writer or reader in the window and a
+  flag-reading terminator each bound the motion at the last proven
+  position, while a target whose packed row publishes no condition
+  state slides past them (crate `nextest`: 986 pass). The roster
+  names the store by instruction identity, so it stays unchanged;
+  boundary settlements at or after a crossed-block landing shift one
+  ordinal. Load forwarding also walks
   back across edges when the load's block has exactly one predecessor
   block — every
   path to the load then carries that block's writer — checking each
@@ -1539,11 +1556,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   sources, a row disagreeing with its instruction's slot or
   encoded range rejects, and a `Store64` under a sub-word read
   rejects (crate `nextest`: 535 pass).
-  Remaining: operation-slot and dynamic-extent writes still cannot
-  die, cover, or source — an operation-owned `Structural` slot
-  records no storage-versus-staging role and a dynamic extent
-  proves no fixed containment — and legs whose paths disagree or
-  reach writerless cycles stay unproven.
+  Remaining: staging `Structural` slots and dynamic-extent writes
+  still cannot die, cover, source, or move — a `Structural` slot the
+  place's declaration does not charge to its producer only stages
+  bytes that name the place, and a dynamic extent proves no fixed
+  containment — and legs whose paths resolve to different writers or
+  never resolve stay unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without

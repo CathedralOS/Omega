@@ -13,12 +13,12 @@ use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
-    SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    PackedByteWidth, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
+    SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
+    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
@@ -74,6 +74,9 @@ const POINTER: VirtualRegisterId = VirtualRegisterId(0);
 const VALUE: VirtualRegisterId = VirtualRegisterId(1);
 
 const SCRATCH: VirtualRegisterId = VirtualRegisterId(2);
+
+/// The packed store's early-clobber scratch register.
+const PACKED_SCRATCH: VirtualRegisterId = VirtualRegisterId(9);
 
 fn place() -> PlaceId {
     PlaceId::new(1).unwrap()
@@ -267,6 +270,48 @@ fn mutated(
     source.receipt.source_selected = identity;
     source.receipt.transformed_selected = identity;
     source
+}
+
+/// Rewrite the fixture's moved store into a seven-byte `StorePacked` writing
+/// the same range: `[use pointer, use packed value, def PACKED_SCRATCH]`
+/// with the scratch defined early-clobbered by the target's packed-store
+/// row, and the write row's byte count following the encoded width.
+fn pack_store(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) {
+    let packed = environment
+        .constraint(environment.selected_keys().store_packed.unwrap())
+        .unwrap();
+    let (scalar_type, class) = {
+        let register = function
+            .virtual_registers
+            .iter()
+            .find(|register| register.id == VALUE)
+            .unwrap();
+        (register.scalar_type, register.class)
+    };
+    function.virtual_registers.push(VirtualRegister {
+        id: PACKED_SCRATCH,
+        scalar_type,
+        class,
+        origin: VirtualRegisterOrigin::InstructionResult {
+            instruction: STORE,
+            source_value: ValueId::new(8).unwrap(),
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    function.blocks[0].instructions[1] = instruction(
+        STORE,
+        SelectedInstructionKind::StorePacked {
+            byte_offset: 0,
+            width: PackedByteWidth::Seven,
+        },
+        packed,
+        &[POINTER, VALUE, PACKED_SCRATCH],
+    );
+    function.memory_accesses[0].byte_count = 7;
 }
 
 fn sink(

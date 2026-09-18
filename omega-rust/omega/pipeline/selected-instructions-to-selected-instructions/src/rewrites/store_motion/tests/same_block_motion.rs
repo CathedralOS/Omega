@@ -1,6 +1,6 @@
 use super::{
-    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, fixture, instruction,
-    landed_ids, mutated, place, settlement, sink,
+    BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
+    fixture, instruction, landed_ids, mutated, pack_store, place, settlement, sink,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::store_motion::{
@@ -8,6 +8,7 @@ use crate::rewrites::store_motion::{
 };
 use optimization_core::OptimizationWorkBudget;
 use register_environment::baseline_target_register_environment;
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
     SelectedMemoryAccessRole, VirtualRegisterId,
@@ -599,6 +600,317 @@ fn sub_width_stores_slide_within_the_same_window() {
     );
 }
 
+/// A `StorePacked` sinks under the same window proof as the plain store,
+/// but its early-clobber scratch `Def` and the target row's declared
+/// clobbers move with it: a use of the scratch inside the window would read
+/// the moved definition early, a second scratch write would be overtaken by
+/// it, and on a flag-publishing target a flag writer or reader couples with
+/// the moved clobber. Uses and definitions outside the window — before the
+/// store's own position, or at and after the covering store that bounds it —
+/// stay ordered correctly, and on a target whose packed row publishes no
+/// condition state the same flag-pair window does not couple.
+#[test]
+fn packed_stores_sink_under_window_custody() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The seven-byte packed store slides past the copy to the covering
+    // store, keeping its identity, operands, and the retained write row.
+    let packed = mutated(target, |function, environment| {
+        pack_store(function, environment);
+    });
+    let result = sink(&packed, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    assert_eq!(
+        result.transformed().functions[0].blocks[0].instructions[2],
+        packed.transformed().functions[0].blocks[0].instructions[1]
+    );
+    assert_eq!(
+        result.transformed().functions[0].memory_accesses,
+        packed.transformed().functions[0].memory_accesses
+    );
+    validate_store_mutation_motion(
+        &packed,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // Two runs are identical, and the landed plan is a terminal second
+    // input: the packed store's next provable position is its own index.
+    assert_eq!(sink(&packed, &environment).unwrap(), result);
+    let replayed = crate::OwnedSelectedProgram::retain(&result);
+    assert_eq!(
+        sink_selected_store_mutation(&replayed, 0, STORE, &environment, budget()).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A scratch read inside the window observes the moved definition early.
+    let scratch_read = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[PACKED_SCRATCH, SCRATCH],
+        );
+    });
+    assert_eq!(
+        sink(&scratch_read, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A second scratch definition inside the window is overtaken by the
+    // moved one.
+    let scratch_write = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[POINTER, PACKED_SCRATCH],
+        );
+    });
+    assert_eq!(
+        sink(&scratch_write, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // The same hazards one instruction later admit the partial landing.
+    let partial = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[0].instructions.insert(
+            3,
+            instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[PACKED_SCRATCH, VALUE],
+            ),
+        );
+    });
+    let result = sink(&partial, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![
+            SelectedInstructionId(1),
+            BETWEEN,
+            STORE,
+            SelectedInstructionId(6),
+            KILLER
+        ]
+    );
+    // A scratch definition before the store's own position stays before it:
+    // the window only orders the moved span.
+    let before = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[0].instructions[0] = instruction(
+            SelectedInstructionId(1),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[POINTER, PACKED_SCRATCH],
+        );
+    });
+    let result = sink(&before, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    // A scratch use at or after the covering store — here the covering store
+    // itself reads it — stays ordered after the moved definition.
+    let after = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            KILLER,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, PACKED_SCRATCH],
+        );
+    });
+    let result = sink(&after, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    // On x86 the packed row clobbers the flag unit: a flag writer inside the
+    // window would be overtaken by the moved clobber, and a flag reader
+    // would observe the moved flags — each bounds the motion.
+    let flag_writer = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        let compare = environment
+            .constraint(environment.selected_keys().compare_i64)
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::CompareI64,
+            compare,
+            &[POINTER, VALUE],
+        );
+    });
+    assert_eq!(
+        sink(&flag_writer, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    let flag_reader = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        let boolean = environment
+            .constraint(environment.selected_keys().materialize_boolean)
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::MaterializeBooleanEqual,
+            boolean,
+            &[SCRATCH],
+        );
+    });
+    assert_eq!(
+        sink(&flag_reader, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // The same flag-pair window does not couple on a target whose packed row
+    // publishes no condition state: the store slides to the covering store.
+    let flag_free_target = NativeTarget::linux_arm64();
+    let flag_free = mutated(flag_free_target, |function, environment| {
+        pack_store(function, environment);
+        let compare = environment
+            .constraint(environment.selected_keys().compare_i64)
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::CompareI64,
+            compare,
+            &[POINTER, VALUE],
+        );
+    });
+    let flag_free_environment = baseline_target_register_environment(flag_free_target).unwrap();
+    let result = sink(&flag_free, &flag_free_environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+}
+
+/// The packed store must carry the target's declared `store_packed` row and
+/// its exact `[use pointer, use packed value, def scratch]` surface, and its
+/// single roster row must record the encoded offset and width on the route's
+/// role: a different constraint key, a missing or misplaced scratch operand,
+/// a non-defining scratch access, a second row, a disagreeing offset or
+/// width, and a read role each reject.
+#[test]
+fn packed_store_surfaces_must_match_the_route() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The packed store must carry the target's declared packed row.
+    let wrong_row = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        function.blocks[0].instructions[1].constraint = copy.key;
+    });
+    assert_eq!(
+        sink(&wrong_row, &environment).unwrap_err(),
+        StoreMutationMotionError::ConstraintMismatch
+    );
+    // The surface missing its scratch definition is not the declared row.
+    let short = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        function.blocks[0].instructions[1].operands.pop();
+    });
+    assert_eq!(
+        sink(&short, &environment).unwrap_err(),
+        StoreMutationMotionError::ConstraintMismatch
+    );
+    // A scratch operand out of its declared position mismatches the surface.
+    let misplaced = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        function.blocks[0].instructions[1].operands[2].operand = 0;
+    });
+    assert_eq!(
+        sink(&misplaced, &environment).unwrap_err(),
+        StoreMutationMotionError::ConstraintMismatch
+    );
+    // A scratch operand that does not define is not the packed row's shape.
+    let non_defining = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        function.blocks[0].instructions[1].operands[2].access = RegisterOperandAccess::Use;
+    });
+    assert_eq!(
+        sink(&non_defining, &environment).unwrap_err(),
+        StoreMutationMotionError::ConstraintMismatch
+    );
+    // A second row on the packed store is not the exact write surface.
+    let extra = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        function.memory_accesses.insert(
+            1,
+            access(STORE, 9, place(), 0, SelectedMemoryAccessRole::WritePlace),
+        );
+    });
+    assert_eq!(
+        sink(&extra, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // The row must record the packed encoding's own offset and width.
+    let wide = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        function.memory_accesses[0].byte_count = 8;
+    });
+    assert_eq!(
+        sink(&wide, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    let shifted = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        function.memory_accesses[0].byte_offset = 1;
+    });
+    assert_eq!(
+        sink(&shifted, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A read row on the packed store is not the moved write.
+    let read = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::ReadPlace;
+    });
+    assert_eq!(
+        sink(&read, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A proposal that drifts the packed store one slot early fails the
+    // content replay even though the position is still legal-looking.
+    let packed = mutated(target, |function, environment| {
+        pack_store(function, environment);
+    });
+    let mut drifted = sink(&packed, &environment).unwrap().transformed().clone();
+    let moved = drifted.functions[0].blocks[0].instructions.remove(2);
+    drifted.functions[0].blocks[0].instructions.insert(1, moved);
+    assert_eq!(
+        validate_store_mutation_motion(&packed, 0, STORE, &environment, budget(), drifted)
+            .unwrap_err(),
+        StoreMutationMotionError::ReplayMismatch
+    );
+}
+
 /// The moved store can also reach the place's storage through its own local
 /// slot: a `Store` through the parameter home's materialized address or a
 /// `Store64` into that slot directly, each carrying the single `WriteLocal`
@@ -786,6 +1098,40 @@ fn local_storage_stores_sink() {
     assert_eq!(
         sink(&spilled, &environment).unwrap_err(),
         StoreMutationMotionError::UnsupportedInstruction
+    );
+    // The packed store takes the same `WriteLocal` route through the
+    // producer-declared home's materialized address, its scratch custody
+    // proven like the pointer route's.
+    let packed_home = mutated(target, |function, environment| {
+        declare(function, producer);
+        push_slot(function, home);
+        pack_store(function, environment);
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot: home };
+    });
+    let result = sink(&packed_home, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    validate_store_mutation_motion(
+        &packed_home,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A staging slot's `WriteLocal` is not the place's storage for the
+    // packed route either.
+    let staged_packed = mutated(target, |function, environment| {
+        push_slot(function, home);
+        pack_store(function, environment);
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot: home };
+    });
+    assert_eq!(
+        sink(&staged_packed, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
     );
 }
 
