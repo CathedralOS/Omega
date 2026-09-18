@@ -27,11 +27,11 @@
 // Drop `acc <= 1000` and the transition argument is rejected as unprovable;
 // drop `acc <= index` or `limit <= 1000` and the arrival cannot re-establish
 // it. The unbounded spelling is the fail canary
-// fail/proofs/proof_inductive_climbing_sum_bounded. Neither Wrapping nor
-// Saturating substitutes for the bound here: the `ensures` is an inequality
-// that a modular reduction or a clamp at `u64::MAX` would falsify rather than
-// preserve, which is why the Gauss-sum sibling can be modular and this one
-// cannot.
+// fail/proofs/inductive_climbing_sum_unbounded_accumulator. Neither
+// Wrapping nor Saturating substitutes for the bound here: the `ensures` is
+// an inequality that a modular reduction or a clamp at `u64::MAX` would
+// falsify rather than preserve, which is why the Gauss-sum sibling can be
+// modular and this one cannot.
 
 data Main {
 }
