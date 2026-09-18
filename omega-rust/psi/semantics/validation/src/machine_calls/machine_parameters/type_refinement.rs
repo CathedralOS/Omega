@@ -134,6 +134,41 @@ fn required_type_matches_inner<const EXACT: bool>(
             bindings,
             binder_bindings,
         ),
+        // A constraint (`Token in Carry::AcrossSuspend`) is a value-level
+        // permission or domain on its carrier, not a different type. The
+        // exact closed-binding match above already compares only carriers for
+        // two constrained spellings; a mixed spelling does the same, so a
+        // caller's plain `Token` argument satisfies a parameter bound to the
+        // carry-constrained spelling. Refinement checking (non-EXACT) still
+        // sees the authored constraint.
+        (
+            _,
+            TypeReferenceNode::Constrained {
+                base_type: required_base,
+                ..
+            },
+        ) if EXACT => required_type_matches_inner::<EXACT>(
+            program,
+            actual,
+            *required_base,
+            generic_types,
+            bindings,
+            binder_bindings,
+        ),
+        (
+            TypeReferenceNode::Constrained {
+                base_type: actual_base,
+                ..
+            },
+            _,
+        ) if EXACT => required_type_matches_inner::<EXACT>(
+            program,
+            *actual_base,
+            required,
+            generic_types,
+            bindings,
+            binder_bindings,
+        ),
         (
             TypeReferenceNode::FixedArray {
                 element_type: actual_element,

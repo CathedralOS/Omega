@@ -184,3 +184,54 @@ fn closed_bindings_reject_missing_selection_conflicting_arguments_and_borrow_era
         "a same-spelled binder in another declaration cannot supply this substitution"
     );
 }
+
+#[test]
+fn closed_bindings_accept_a_plain_carrier_for_a_carry_constrained_parameter() {
+    // The selected machine's `Job in Carry::AcrossSuspend` parameter binds
+    // `Arguments` to the constrained spelling. The caller's plain `Job`
+    // argument is the same carrier; the constraint is a value-level
+    // permission grant, not a different type, so the closed substitution
+    // must not demand the constrained spelling textually.
+    let program = typed_program(&source(false).replace(
+        "machine work(arguments: Job) -> i32",
+        "machine work(arguments: Job in Carry::AcrossSuspend) -> i32",
+    ));
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Client::run")
+        .unwrap()
+        .clone();
+    let state = program.machine_states(&machine)[0].clone();
+    let call = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "submit" => Some(call.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let signature = program
+        .traits()
+        .iter()
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .find(|signature| signature.symbol == call.target_symbol)
+        .unwrap()
+        .clone();
+    let arguments = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .to_vec();
+    let substitutions = validation::closed_static_call_type_bindings(
+        &program,
+        &machine,
+        &state,
+        &signature,
+        &call.machine_arguments,
+        &arguments,
+    );
+    assert!(
+        substitutions.is_some(),
+        "a plain `Job` argument satisfies the `Job in Carry::AcrossSuspend` binding"
+    );
+}
