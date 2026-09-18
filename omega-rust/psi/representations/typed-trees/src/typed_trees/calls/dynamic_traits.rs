@@ -16,7 +16,16 @@ impl TypedTrees {
         if trait_definition.is_boundary {
             return Err(DynamicSignatureIneligibility::BoundaryRequirement);
         }
-        if !self.state_signature_type_parameters(requirement).is_empty() {
+        // Requirement-local const/value binders are admissible only as an
+        // explicit finite family: the signature `where` clause must declare
+        // the complete tuple roster so dispatch can retain one exact row per
+        // tuple. Every other local-generic shape stays ineligible.
+        if !self.state_signature_type_parameters(requirement).is_empty()
+            && !matches!(
+                self.finite_signature_family(requirement),
+                crate::finite_family::FamilyProbe::Finite { .. }
+            )
+        {
             return Err(DynamicSignatureIneligibility::RequirementLocalGenerics);
         }
 
