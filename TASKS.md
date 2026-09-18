@@ -4669,7 +4669,21 @@ Owners include
   `countdown_induction/replay/region.rs` (which carried `fn current_edges`,
   `fn reachable` and the boundary comparisons), replaced it with a 42-line
   custody-derived `region.rs`, and never updated the guardrail; it is being
-  resolved on that item.
+  resolved on that item. Guard note (macOS ARM64, 2026-09-18): the
+  architecture suite is green at 465/465, but two of its guards were widened
+  rather than satisfied. 95c6f4a6e3 taught
+  `stable_evidence_and_encoding_exclude_compiler_representations` to cut
+  inline `mod tests {` blocks and skip test files, so the two
+  compiler-representation references 5641d2ca1e added to
+  `packages/review/evidence/src/record/contracts/expressions/operator_policy.rs`
+  still stand in that file's test module; the crate's own README and
+  `record/mod.rs` say the record branch "does not inspect compiler state", so
+  the shipped-code reading is defensible but the boundary is looser than it
+  was. The same commit relaxed
+  `checked_operator_provider_reports_retain_strong_plan_authority` to match
+  the join by any binding name, which is independent of the source fix that
+  made it pass honestly (3627af3e7a bound the commitment once). Recorded for
+  this item's owner, not reverted.
 
 - **BUILD-ADMISSION-CHECKPOINT.** Execute an admitted build machine against one
   coherent frontend/source/authority snapshot and append generated source in a
