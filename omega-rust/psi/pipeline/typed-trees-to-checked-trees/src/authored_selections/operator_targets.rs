@@ -451,10 +451,20 @@ fn operator_contract_value_type(
                     .iter()
                     .any(|fact| match fact {
                         typed_trees::domain::ProofFact::Expression(root) => {
-                            expression_tree_contains(program, *root, expression)
+                            crate::authored_selections::member_targets::expression_contains(
+                                program,
+                                *root,
+                                expression,
+                                &mut Vec::new(),
+                            )
                         }
                         typed_trees::domain::ProofFact::Membership(membership) => {
-                            expression_tree_contains(program, membership.value, expression)
+                            crate::authored_selections::member_targets::expression_contains(
+                                program,
+                                membership.value,
+                                expression,
+                                &mut Vec::new(),
+                            )
                         }
                         typed_trees::domain::ProofFact::Proposition(_) => false,
                     })
@@ -474,38 +484,6 @@ fn operator_contract_value_type(
     types
         .all(|type_reference| type_reference == first)
         .then_some(first)
-}
-
-fn expression_tree_contains(
-    program: &TypedTrees,
-    root: typed_trees::expression::ExpressionHandle,
-    target: typed_trees::expression::ExpressionHandle,
-) -> bool {
-    use typed_trees::expression::ExpressionNode;
-
-    let mut pending = vec![root];
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if expression == target {
-            return true;
-        }
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Atomic(atomic) => pending.push(atomic.value),
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.left);
-                pending.push(binary.right);
-            }
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            _ => {}
-        }
-    }
-    false
 }
 
 fn operator_has_no_authored_spelling_candidate(

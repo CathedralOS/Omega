@@ -1459,3 +1459,129 @@ fn named_call_capture_rows_fail_closed_when_duplicated() {
         "{diagnostics:#?}"
     );
 }
+
+/// A `crashes` guard may read a member projection of a structural formal —
+/// `items.len` on a `&[i32]` — and the member selection must still resolve.
+/// Contract copies keep parameter names unbound, so the formal's type is
+/// recovered by locating the exact operator contract fact that contains the
+/// receiver expression; a name nested under a `Member` receiver is inside
+/// the fact just as a top-level operand is. Before the contract-fact
+/// traversal reached member receivers, this source rejected during authored
+/// selection finalization with an unresolved `MemberAccess` occurrence.
+///
+/// The resolved projection lowers to a surviving predicate route in caller
+/// coordinates — not a degraded `Truth` — because the caller's premise does
+/// not falsify the guard.
+#[test]
+fn spelled_index_crash_guard_resolves_collection_length_on_a_slice_formal() {
+    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+         requires index < items.len
+         crashes Trap items.len == 0;
+         data Main {}
+         machine Main::main(&mut self, items: &[i32], index: u64) -> i32
+         requires index < items.len {
+             items[index]
+         }";
+    check(source).expect("the collection-length member resolves and the route is retained");
+    let checked = inspect(source);
+    let sites: Vec<_> = checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| machine.crash.checked_operators())
+        .filter(|site| site.operator_use.is_valid())
+        .collect();
+    let [site] = sites.as_slice() else {
+        panic!("one spelled operator crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    let [surviving] = site.surviving.as_slice() else {
+        panic!("the unfalsified collection-length route survives")
+    };
+    assert!(
+        surviving
+            .alternative_guards()
+            .iter()
+            .all(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_))),
+        "the surviving route keeps its structured member predicate: {surviving:?}"
+    );
+}
+
+/// The named spelling of the same operator reads the same authored `crashes`
+/// guard: `items.len` resolves to the collection-length intrinsic once, on
+/// the declaration, and the named use carries the same surviving predicate
+/// route the spelled use produced.
+#[test]
+fn named_index_call_crash_guard_resolves_collection_length_on_a_slice_formal() {
+    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+         requires index < items.len
+         crashes Trap items.len == 0;
+         data Main {}
+         machine Main::main(&mut self, items: &[i32], index: u64) -> i32
+         requires index < items.len {
+             Index::at(items, index)
+         }";
+    check(source).expect("the named call retains the collection-length route");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    assert_eq!(site.surviving.len(), 1);
+}
+
+/// A published-ceiling caller that republishes the same `items.len == 0`
+/// route covers the surviving invocation route: the surviving predicate was
+/// already substituted into caller coordinates, so the caller's own guard
+/// matches it exactly.
+#[test]
+fn caller_republication_covers_a_collection_length_route() {
+    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+         requires index < items.len
+         crashes Trap items.len == 0;
+         pub data Main {}
+         pub machine Main::main(&mut self, items: &[i32], index: u64) -> i32
+         requires index < items.len
+         crashes Trap items.len == 0 {
+             items[index]
+         }";
+    check(source).expect("the caller's matching published route covers the invocation route");
+}
+
+/// Without a premise or published route covering it, a public caller keeps
+/// the collection-length route and admission rejects it as uncovered —
+/// fail-closed, as with any other surviving route.
+#[test]
+fn spelled_index_use_keeps_a_collection_length_route_no_premise_disproves() {
+    let source = "boundary machine [] Index::at(items: &[i32], index: u64) -> i32
+         requires index < items.len
+         crashes Trap items.len == 7;
+         pub data Main {}
+         pub machine Main::main(&mut self, items: &[i32], index: u64) -> i32
+         requires index < items.len {
+             items[index]
+         }";
+    let diagnostics =
+        check(source).expect_err("a collection-length route the caller cannot falsify rejects");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites: Vec<_> = checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| machine.crash.checked_operators())
+        .filter(|site| site.operator_use.is_valid())
+        .collect();
+    let [site] = sites.as_slice() else {
+        panic!("one spelled operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
