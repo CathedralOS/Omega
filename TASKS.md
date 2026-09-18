@@ -3304,9 +3304,27 @@ Owners include
   downstream contracts root partial-affine residual custody at the target
   block's declared parameter roster, and the chained fixture replays all four
   input combinations with mutation coverage on the residual path, join
-  arguments, and origin receipt (macOS). Remaining: borrowed and linear
-  custody joins plus the borrowed-subject and operator-result obligations
-  below; preserve exact origins and actual death edges. Owners:
+  arguments, and origin receipt (macOS). The shared-borrow join is now
+  linear-tolerant: a `&T` result whose referent is a `[linear]` record joins
+  at the selection with no owned custody to merge, because owned transfer,
+  claims and referent cleanup cannot cross the borrowed boundary, so each
+  arm's owner keeps its exactly-once claim on every edge. One carrier rule in
+  three places -- `selected_shared_borrow_place`, the checked
+  `shared_record_reference`, and the lowering `shared_borrow_record_referent`
+  plus its root check -- now reads `has_linear_owned_contents`; loans, nominal
+  cleanup and recursive storage stay excluded by that same rule. Tests
+  `shared_borrow_arms_{join_a_linear_referent_without_an_owned_custody_join,
+  reject_a_linear_referent_that_holds_a_loan,
+  still_reject_exclusive_and_case_bearing_linear_referents}` in
+  `validation/src/value_custody/expression_types/match_dispatch/tests.rs`
+  (macOS ARM64). Remaining borrowed joins, in order: a primitive referent
+  (`&u64`) needs the structural pipeline to carry a non-record referent;
+  exclusive (`&mut`) arms have affine custody of their own; case-bearing
+  referents stay outside the record-shaped frontier. Remaining linear join: a
+  whole affine root carrying linear children joined whole still rejects, while
+  its projected child is already admitted. Plus the borrowed-subject and
+  operator-result obligations below; preserve exact origins and actual death
+  edges. Owners:
   `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
   canonical package-review contract/index projection. Preserve a

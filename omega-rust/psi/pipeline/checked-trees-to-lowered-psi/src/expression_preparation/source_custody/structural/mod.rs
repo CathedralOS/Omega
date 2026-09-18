@@ -1260,11 +1260,15 @@ fn replays_loan_event(
 }
 
 /// The record referent of a shared-borrow `&T` result/local type: `T` must be
-/// a named record with plain-owned contents, the same admissible carrier the
-/// checked value planner required. `None` for owned types, `&mut` carriers
-/// (which keep their own `reference_result_custody` lane), and sums. Shared by
-/// source replay and attached-unit registration, so it lives here rather than
-/// in a machine producer.
+/// a named record whose contents the structural pipeline carries, the same
+/// admissible carrier the checked value planner required. The rule is
+/// linear-tolerant for the same reason it is there: a shared borrow observes
+/// the referent instead of moving it, so a linear declaration's claim stays
+/// with the referent's owner and never becomes an obligation of this join.
+/// `None` for owned types, `&mut` carriers (which keep their own
+/// `reference_result_custody` lane), and sums. Shared by source replay and
+/// attached-unit registration, so it lives here rather than in a machine
+/// producer.
 pub(crate) fn shared_borrow_record_referent(
     checked: &CheckedTrees,
     reference: checked_trees::types::TypeReferenceHandle,
@@ -1291,7 +1295,7 @@ pub(crate) fn shared_borrow_record_referent(
         .data_members(record)
         .iter()
         .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-        || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, *referee)
+        || !validation::has_linear_owned_contents(&checked.typed, *referee)
     {
         return None;
     }
