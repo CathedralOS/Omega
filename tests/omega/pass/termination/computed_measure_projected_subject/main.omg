@@ -1,0 +1,29 @@
+// PASS CANARY. A declared scalar view over projected storage:
+// `countdown.remaining -> Countdown::Doubled` produces `value * 2` from the
+// exact `u64` member coordinate rather than a bare formal. The flat self
+// call descends directly; the two-state form transports the same coordinate
+// and the pinned ceiling through the discovered telescope.
+data Countdown { remaining: u64 [0..=5]; }
+measure Countdown::Doubled(value: u64) -> u64 { value * 2 }
+
+machine walk_flat(countdown: Countdown)
+terminates by countdown.remaining -> Countdown::Doubled in 0..=10;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> walk_flat(Countdown { remaining: countdown.remaining - 1 })
+        false -> countdown.remaining
+    }
+}
+
+machine walk(countdown: Countdown, limit: u64 [0..=10])
+requires countdown.remaining * 2 <= limit;
+terminates by countdown.remaining -> Countdown::Doubled in 0..=limit;
+-> u64 {
+    transition { _ -> step(countdown, limit) }
+    state step(current: Countdown, bound: u64 [0..=10]) {
+        transition current.remaining > 0 {
+            true -> step(Countdown { remaining: current.remaining - 1 }, bound)
+            false -> current.remaining
+        }
+    }
+}

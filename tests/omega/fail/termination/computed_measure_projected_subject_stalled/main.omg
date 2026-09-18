@@ -1,0 +1,19 @@
+// FAIL CANARY. The scalar view's projected subject is forwarded unchanged:
+// `current.remaining` keeps the same `u64` member coordinate, so the
+// produced `2 * remaining` rank does not descend on the cyclic edge even
+// though the literal respells the record.
+data Countdown { remaining: u64 [0..=5]; }
+measure Countdown::Doubled(value: u64) -> u64 { value * 2 }
+
+machine walk(countdown: Countdown, limit: u64 [0..=10])
+requires countdown.remaining * 2 <= limit;
+terminates by countdown.remaining -> Countdown::Doubled in 0..=limit;
+-> u64 {
+    transition { _ -> step(countdown, limit) }
+    state step(current: Countdown, bound: u64 [0..=10]) {
+        transition current.remaining > 0 {
+            true -> step(Countdown { remaining: current.remaining }, bound)
+            false -> current.remaining
+        }
+    }
+}

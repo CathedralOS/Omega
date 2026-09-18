@@ -1,0 +1,18 @@
+// FAIL CANARY. The ceiling slot receives `current.items.len` instead of the
+// pinned `bound` copy: the produced-length spelling normalizes to the same
+// coordinate but it is not the pinned endpoint, so endpoint equality on the
+// cyclic arrival is unproven.
+data Bag { items: &[u32]; }
+
+machine walk(bag: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(bag, capacity) }
+    state step(current: Bag, bound: u64) {
+        transition current.items.len > 0 {
+            true -> step(Bag { items: current.items[1..] }, current.items.len)
+            false -> 0
+        }
+    }
+}

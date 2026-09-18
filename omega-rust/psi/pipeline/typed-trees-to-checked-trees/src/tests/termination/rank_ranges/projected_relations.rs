@@ -21,6 +21,54 @@ const NESTED_PRECONDITION: &str = "requires countdown.inner.remaining <= ceiling
 const NESTED_REBUILD: &str = "Countdown { label: countdown.label, inner: Inner { remaining: countdown.inner.remaining - amount } }, ceiling, amount";
 const BORROWED_PRECONDITION: &str = "requires card.power <= ceiling;";
 
+const PROJECTED_SLICE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/rank_range_projected_slice_length/main.omg"
+));
+const NESTED_SLICE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/rank_range_nested_slice_length/main.omg"
+));
+const PROJECTED_SCALAR: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../tests/omega/pass/termination/computed_measure_projected_subject/main.omg"
+));
+const SLICE_PRECONDITION: &str = "requires bag.items.len <= capacity;";
+const SCALAR_PRECONDITION: &str = "requires countdown.remaining * 2 <= limit;";
+/// The same `step` telescope with a second record carrier, so the ranked
+//  coordinate's role competes with a sibling slot for arrivals.
+const SLICE_SIBLING: &str = r#"
+data Bag { items: &[u32]; }
+
+machine walk(bag: Bag, other: Bag, capacity: u64)
+requires bag.items.len <= capacity && other.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(bag, other, capacity) }
+    state step(current: Bag, spare: Bag, bound: u64) {
+        transition current.items.len > 0 && spare.items.len > 0 {
+            true -> step(Bag { items: current.items[1..] }, spare, bound)
+            false -> 0
+        }
+    }
+}
+"#;
+/// A declared scalar view over a nested member chain.
+const NESTED_SCALAR: &str = r#"
+data Inner { remaining: u64 [0..=5]; }
+data Outer { inner: Inner; }
+measure Outer::Doubled(value: u64) -> u64 { value * 2 }
+
+machine walk(outer: Outer)
+terminates by outer.inner.remaining -> Outer::Doubled in 0..=10;
+-> u64 {
+    transition outer.inner.remaining > 0 {
+        true -> walk(Outer { inner: Inner { remaining: outer.inner.remaining - 1 } })
+        false -> 0
+    }
+}
+"#;
+
 fn prove_termination(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source))
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
@@ -217,4 +265,129 @@ fn borrowed_projection_relation_reads_the_referent_and_keeps_the_binding_unwritt
     prove_termination(&other);
     reject_range(&other.replace(BORROWED_PRECONDITION, "requires other.power <= ceiling;"));
     reject_termination(&other.replace("walk(&Card { power: card.power - amount }", "walk(other"));
+}
+
+#[test]
+fn projected_slice_length_relation_checks_through_complete_lowering() {
+    for source in [
+        PROJECTED_SLICE,
+        NESTED_SLICE,
+        PROJECTED_SCALAR,
+        SLICE_SIBLING,
+    ] {
+        crate::checks::termination::check_machine_termination(&typed(source))
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+        lower_typed_trees(typed(source))
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn projected_slice_length_requires_entry_evidence_on_the_exact_chain() {
+    for requirement in ["", "requires capacity >= 0;", "requires bound <= capacity;"] {
+        reject_range(&PROJECTED_SLICE.replace(SLICE_PRECONDITION, requirement));
+    }
+    // The produced length is natural only through the exact leaf spelling:
+    // the enclosing record's other members and the `.len` subject of a
+    // foreign chain never bound it.
+    let labeled = PROJECTED_SLICE
+        .replace(
+            "data Bag { items: &[u32]; }",
+            "data Bag { label: u64; items: &[u32]; }",
+        )
+        .replace(
+            "Bag { items: current.items[1..] }",
+            "Bag { label: current.label, items: current.items[1..] }",
+        );
+    prove_termination(&labeled);
+    reject_range(&labeled.replace(SLICE_PRECONDITION, "requires bag.label <= capacity;"));
+}
+
+#[test]
+fn projected_slice_length_pins_endpoints_and_proves_subslice_descent() {
+    // A respelled produced length is not the pinned endpoint copy.
+    reject_range(&PROJECTED_SLICE.replace("}, bound)", "}, current.items.len)"));
+    // A `.len` spelling is collection metadata, not a formed endpoint.
+    reject_range(&PROJECTED_SLICE.replace("in 0..=capacity", "in 0..=bag.items.len"));
+    // The unchanged collection, a deeper cut than the guard proves, and a
+    // cyclic plateau all fail the produced-rank arithmetic.
+    for actual in [
+        "Bag { items: current.items }",
+        "Bag { items: current.items[0..] }",
+        "Bag { items: current.items[2..] }",
+    ] {
+        reject_termination(&PROJECTED_SLICE.replace("Bag { items: current.items[1..] }", actual));
+    }
+    reject_range(&PROJECTED_SLICE.replace("false -> 0", "false -> step(current, bound)"));
+}
+
+#[test]
+fn projected_slice_length_rejects_prefix_writes_on_the_carrier_path() {
+    let mutable = PROJECTED_SLICE.replace("state step(current: Bag", "state step(mut current: Bag");
+    prove_termination(&mutable);
+    for statement in ["current.items = current.items;", "current = current;"] {
+        reject_termination(&mutable.replace(
+            "        transition current.items.len",
+            &format!("        {statement}\n        transition current.items.len"),
+        ));
+    }
+    // A scratch local write outside every premise path still preserves.
+    let disjoint = mutable.replace(
+        "        transition current.items.len",
+        "        let mut scratch: u64 = 0;\n        scratch = 5;\n        transition current.items.len",
+    );
+    prove_termination(&disjoint);
+}
+
+#[test]
+fn projected_slice_length_keeps_every_role_coordinate_exact() {
+    // The sibling slot forwards its own role: the ranked carrier still
+    // descends while `spare` keeps `other`'s length coordinate.
+    prove_termination(SLICE_SIBLING);
+    // Rebuilding the ranked slot from the sibling's collection is a foreign
+    // coordinate: `len(spare.items)` never equals `len(current.items)` by
+    // ancestry or spelling.
+    for actual in [
+        "Bag { items: spare.items[1..] }",
+        "Bag { items: spare.items }",
+    ] {
+        reject_range(&SLICE_SIBLING.replace("Bag { items: current.items[1..] }", actual));
+    }
+    // The shortened slice arriving in the payload slot does not descend the
+    // ranked carrier, which forwards unchanged.
+    reject_range(&SLICE_SIBLING.replace(
+        "step(Bag { items: current.items[1..] }, spare, bound)",
+        "step(current, Bag { items: spare.items[1..] }, bound)",
+    ));
+}
+
+#[test]
+fn nested_slice_length_relation_rebuilds_both_declarations() {
+    // Forwarding the whole `inner` step, respelling the leaf unchanged, or
+    // cutting deeper than the guard proves all fail descent or formability.
+    for actual in [
+        "Outer { inner: current.inner }",
+        "Outer { inner: Inner { items: current.inner.items } }",
+        "Outer { inner: Inner { items: current.inner.items[2..] } }",
+    ] {
+        reject_termination(&NESTED_SLICE.replace(
+            "Outer { inner: Inner { items: current.inner.items[1..] } }",
+            actual,
+        ));
+    }
+    reject_range(&NESTED_SLICE.replace("requires outer.inner.items.len <= capacity;", ""));
+    reject_range(&NESTED_SLICE.replace("}, bound)", "}, current.inner.items.len)"));
+}
+
+#[test]
+fn projected_scalar_view_relation_uses_the_member_coordinate() {
+    // The view body reads the exact `u64` leaf: stalling the field, respelling
+    // the ceiling, and dropping the produced-rank fact each fail exactly.
+    reject_range(&PROJECTED_SCALAR.replace("current.remaining - 1", "current.remaining"));
+    reject_range(&PROJECTED_SCALAR.replace("}, bound)", "}, current.remaining)"));
+    reject_range(&PROJECTED_SCALAR.replace(SCALAR_PRECONDITION, ""));
+    // A ceiling the declared field bound cannot reach never holds.
+    reject_range(&PROJECTED_SCALAR.replace("in 0..=limit", "in 0..=9"));
+    prove_termination(NESTED_SCALAR);
+    reject_range(&NESTED_SCALAR.replace("outer.inner.remaining - 1", "outer.inner.remaining"));
 }

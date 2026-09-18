@@ -1,0 +1,19 @@
+// FAIL CANARY. The ranked slot is rebuilt from the sibling record's
+// collection: `spare.items[1..]` is a foreign coordinate, so the produced
+// length at the destination has no proven relation to `current.items`'s
+// length and strict descent is unproven. Same-spelled fields under another
+// formal never name the ranked coordinate.
+data Bag { items: &[u32]; }
+
+machine walk(bag: Bag, other: Bag, capacity: u64)
+requires bag.items.len <= capacity && other.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(bag, other, capacity) }
+    state step(current: Bag, spare: Bag, bound: u64) {
+        transition current.items.len > 0 && spare.items.len > 0 {
+            true -> step(Bag { items: spare.items[1..] }, spare, bound)
+            false -> 0
+        }
+    }
+}
