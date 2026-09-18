@@ -1882,110 +1882,69 @@ Owners include
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
-  through call argument preparation and native validation/replay. Extend the
-  [target signature checks](omega-rust/omega/pipeline/abstract-operations-to-target-operations/README.md)
-  to embedded callee plans, projected argument/home identity, and standalone
-  receiving entrances. All borrowed access modes retain `BorrowedReference`;
-  shared physical shape cannot authorize access substitution. Acceptance: caller-
-  visible writes, forwarded references, legal synchronized shared observations,
-  write-only non-reading, and register/stack pointer passing work on both Linux
-  targets. Independently formed or substituted access/shape/placement pairs
-  reject; direct-home controls must use owned semantics or test rejection of
-  borrowed copies. Do not claim copy equivalence merely because a
-  following callee sees the staged write.
+  through call argument preparation and native validation/replay. The
+  [target signature checks](omega-rust/omega/pipeline/abstract-operations-to-target-operations/README.md#references-calls-and-storage)
+  now replay embedded callee plans, projected argument/home identity and
+  standalone receiving entrances against signatures derived from the
+  declarations. Every borrowed access keeps `BorrowedReference`, an inline byte
+  field cannot satisfy a parameter by shape equality, and an exclusive view
+  reaches an ordinary call from a non-entry block parameter. One caller form
+  has no admitted route: an owned root cannot lend an exclusive projected
+  subloan.
 
-  Standalone-receiving-entrance slice landed at 3f48fd6a15:
-  `structural_signatures::validate` now replays every standalone receiving
-  entrance — the graph's own scalar parameter rows and the published
-  `scalar_abi`/`mixed_structural_scalar_abi` — against the signature
-  independently derived from the abstract declaration rather than trusting the
-  embedded plan. Scalar and result rows must bind the declared value identity,
-  scalar type, and canonical plan placement; a published ABI is admitted only
-  for the family its producer derives (scalar-only service-free for
-  `scalar_abi`, scalar-result with a structural suffix over Boolean/fixed-integer
-  parameters for the mixed form), so a coherent plan on an ineligible function,
-  either ABI form beside the other, or any substituted row rejects. Borrowed
-  structural parameters keep `BorrowedReference` through the shared classifier.
-  Witnessed on linux_x64 and linux_arm64 by the substitution matrices in
-  `src/tests/scalar_abi.rs` and `src/tests/scalar_primitive_stores.rs`; native
-  caller-visible writes and register/stack pointer passing replay through the
-  `primitive_store_return` and `terminal_psi_indexed_receivers` differential
-  legs. The byte-carrier half of "shared physical shape cannot authorize
-  access substitution" is enforced at its owner: an inline byte field
-  resolves to no standalone leaf shape, so a `ByteSequence(BorrowedView)`
-  field can no longer satisfy a callee parameter by shape equality and must
-  reach it through the inline presentation route
-  (`structural_unit::boundary_buffers::inline_byte_identity`, six rows over
-  ordinary and boundary calls, mutable and shared access, and nested carrier
-  paths, with positive controls for every admitted bounded-owned
-  presentation). The codec's independent copy of that argument check is
-  pinned too, so it cannot reopen while the verifier stays correct
-  (`terminal-codec/tests/canonical/structural_and_proposition_rows.rs`,
-  which asserts the path-custody refusal that the codec's own foundation
-  validation raises rather than a verifier rejection). The control-flow
-  call path landed at d844244bbb3: an exclusive borrowed view now reaches an
-  ordinary call from a non-entry block structural parameter, not only from the
-  machine entrance, so a caller-visible write lent along an edge has a lowering
-  at all. Three layers refused it and each is now symmetric with the shared
-  route it already carried. The unit graph's `CallUnit` arm routed to the
-  borrowed-call family only on a live structural home or an owned machine
-  parameter, so a block-view argument fell through to the unit family, which
-  resolves places against the parameter roster alone and reported an unknown
-  argument place; its routing guard now consults `live.block_views`, which
-  already tracked exclusive block parameters beside shared ones. `byte_argument`
-  gated its block-parameter route on a shared argument and required the
-  declaration itself to be shared; the root's own access now authorizes the
-  argument exactly as an incoming parameter does, so an exclusive block
-  parameter lends shared, exclusive or write-only and a shared one lends only
-  shared. Legalization's exclusive route resolved roots from
-  `caller.structural_parameters` alone and returned a custody mismatch for any
-  place absent from it; a non-entry block structural parameter now reconstructs
-  from the block declaration and the verifier-owned
-  `StructuralPlaceKind::BlockParameter` role, while entry-block rows keep the
-  entrance route that owns the published placement. The lowering comment
-  claiming exclusive views stay on their machine parameter was stale rather than
-  a contract: `mutable_parameter_view` already reconstructs exclusive
-  block-parameter views for byte writes. Witnessed on both Linux targets by
-  `an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects`
-  in `target-operations-to-selected-instructions/src/tests/legalization/unit_view_graph.rs`,
-  which pins the retained block-parameter source and mutable access through
-  legalization and its independent replay and keeps the shared-root rejection,
-  so the physical view alone never authorizes the access. Remaining: an owned root cannot lend an
-  exclusive projected subloan. Two earlier notes here named the wrong reason --
-  first an empty-path requirement, then the aggregate access checks -- and both
-  were wrong; this one is instrumented rather than reasoned, and the two access
-  checks are never reached for the shape at all.
+  Remaining work:
 
-  Measured 2026-09-18 by marker-tracing a witness through lowering and
-  legalization. A projected *shared* borrow rooted in an owned non-entry block
-  arrival lowers, legalizes and replays today, unmodified. Making only the
-  argument exclusive rejects in `validate_psi_optimization_unit_with_admitted_cycle_machines`
-  with `StructuralCallContractMismatch`, reached through legalization's
-  `source/custody.rs` -> `scalar_graph_input/custody.rs`, long before the
-  source-to-target join and before `structural_call::argument_at` is ever
-  called. Fourteen instrumented rejection points in the join layer and the
-  per-operation validator never fire.
+  - Admit `Owned` storage as the parent of a mutable or write-only projected
+    loan. A projected shared borrow rooted in an owned non-entry block arrival
+    lowers, legalizes and replays. Making only the argument exclusive rejects
+    with `StructuralCallContractMismatch` in
+    `validate_psi_optimization_unit_with_admitted_cycle_machines`, before the
+    source-to-target join runs. The rule is `structural_arguments_match`
+    (`optimization-unit-semantics/src/unit_validation/operation_contracts/structural_access.rs`):
+    `static_borrowed_path` admits mutable-to-any, shared-to-shared and
+    write-only-to-write-only parents, `unrestricted_mutable_subloan` requires
+    `source.access == MutableBorrow`, and `Owned` appears in neither. The
+    restriction covers every owned root, including an established record home,
+    not only block arrivals. The Terminal verifier's
+    `is_unrestricted_mutable_subloan` and `is_unrestricted_write_only_subloan`
+    (`terminal-verifier/src/validation/structural_operations/structural_arguments.rs`)
+    also require a borrowed caller parameter as parent; change both sides
+    together.
+  - The [reborrow table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access)
+    has rows for Read, Mutable and Write-only parents and none for an owned
+    root. State the owned-parent rule there before changing the validators.
+    If the specification is genuinely silent, file it in `OWNER_QUESTIONS.md`
+    and mark this step blocked; no such question exists today.
+  - Do not retry by relaxing `aggregate_borrows::argument` or the legalization
+    aggregate route. Lowering and legalization already admit the form, so that
+    edit lowers the program and then fails at the same unit-semantics rule.
+  - Record runtime results for both Linux targets. The target-lowering
+    substitution matrices cover linux_x64 and linux_arm64, but the board has
+    recorded native `terminal_psi_indexed_receivers` runs on macOS arm64 and
+    Linux x86-64 only. `primitive_store_return` is the second native leg.
 
-  The rule is `structural_arguments_match`
-  (`optimization-unit-semantics/src/unit_validation/operation_contracts/structural_access.rs`).
-  Its `static_borrowed_path` source/argument matrix admits mutable-to-anything,
-  shared-to-shared and write-only-to-write-only; `Owned` appears nowhere in it,
-  and `unrestricted_mutable_subloan` separately requires
-  `source.access == MutableBorrow`. `unrestricted_shared_subloan` constrains no
-  source access at all, which is exactly why the shared form passes and the
-  exclusive one does not. The restriction is therefore uniform over owned roots
-  -- an established record home is refused the same way -- and is not specific to
-  block arrivals; `established_home_borrow_plan` only appears to contradict that
-  because it never builds a `PsiOptimizationUnit` and so never runs this
-  validator.
+  Acceptance: caller-visible writes, forwarded references, legal synchronized
+  shared observations, write-only non-reading, and register/stack pointer
+  passing work on both Linux targets, including an owned local's field lent
+  `&mut` and `&write`. Independently formed or substituted access/shape/
+  placement pairs reject; shared physical shape never authorizes access
+  substitution. Direct-home controls use owned semantics or test rejection of
+  borrowed copies. A following callee seeing the staged write is not
+  caller-visible writeback.
 
-  So the open decision is whether owning storage may hand out an exclusive
-  projected loan while the owner still holds it. That is a custody question for
-  the loan contract, not a fence to widen in the aggregate routes: lowering and
-  legalization both admit the shape once the verifier does. Do not re-attempt it
-  by relaxing `aggregate_borrows::argument` or the legalization aggregate route;
-  an edit there lowers the program and then fails identically at unit-semantics
-  validation, which was measured and reverted rather than landed.
+  Flag: projected-argument admission is a roster of access pairs and path
+  shapes, kept in two places with different path grammars. For an owned source
+  `structural_arguments_match` admits an empty path, a field-only path,
+  `[FixedIndex]`, `[FixedIndex, FixedIndex]` or a partial affine path under
+  the `Unit` policy and any path under `Projected`, and the policy is chosen by
+  call kind (`CallUnit` against `CallStructuralScalar`), so the admitted paths
+  depend on the callee's result. The verifier's
+  `is_bounded_structural_scalar_store_path` admits fields followed by at most
+  one index: `[Field, FixedIndex]` fits that grammar and not the `Unit`
+  roster, `[FixedIndex, FixedIndex]` the reverse. The general rule is parent
+  custody from the loan table, requested access, and any type-resolved static
+  `Field`/`FixedIndex` path, stated once in `terminal-semantics` and used by
+  both validators.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md): relational
