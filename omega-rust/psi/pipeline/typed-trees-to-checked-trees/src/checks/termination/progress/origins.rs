@@ -4,6 +4,7 @@ use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject};
 use crate::flow::{self, CanonicalPlace};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::state::State;
 use typed_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
@@ -34,6 +35,8 @@ pub(super) fn at_call(
     // helper result substitutes the caller argument place the callee's
     // returned expression establishes, then the trace keeps walking before
     // that store.
+    let mut owned_frames = None;
+    let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let place = flow::value_origin_at_call_resolving(
         program,
         flow,
@@ -41,9 +44,9 @@ pub(super) fn at_call(
         state,
         call,
         place,
-        call_frames,
+        Some(frames),
         |state, statement_index, call, relative| {
-            call_result_value_place(program, state, statement_index, call, relative, 16)
+            call_result_value_place(program, frames, state, statement_index, call, relative, 16)
         },
     )?;
     crate::checks::termination::progress::fact_subjects::subject_from_place(
@@ -63,18 +66,30 @@ enum ArgumentScope<'a> {
         statement_index: usize,
     },
     Callee {
-        prefix: &'a [StatementNode],
+        body: CalleeBody<'a>,
     },
+}
+
+/// The checked callee body under proof. The write scan that keeps mutable
+/// bindings honest needs the machine/state pair so the shared frame resolver
+/// can name this body's may-write places; `prefix` is the transition-free
+/// statement run before the returned expression.
+#[derive(Clone, Copy)]
+struct CalleeBody<'a> {
+    machine: &'a Machine,
+    state: &'a State,
+    prefix: &'a [StatementNode],
 }
 
 /// The exact caller-side place an owned call result arrived from, proven only
 /// when the callee is a nongeneric checked body whose returned expression
-/// resolves to a frozen input projection. Receivers, generic or evidence
-/// arguments, unresolved dispatch, reference-capable inputs, and mutable
-/// bindings stay opaque: a declared result type or a matching spelling is
+/// resolves to an input projection the body provably leaves unwritten.
+/// Receivers, generic or evidence arguments, unresolved dispatch, and opaque
+/// write frames stay opaque: a declared result type or a matching spelling is
 /// never evidence of a caller identity.
 fn call_result_value_place(
     program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     call: &TableCallExpression,
@@ -83,6 +98,7 @@ fn call_result_value_place(
 ) -> Option<CanonicalPlace> {
     call_result_place(
         program,
+        frames,
         ArgumentScope::Caller {
             state,
             statement_index,
@@ -99,6 +115,7 @@ fn call_result_value_place(
 /// that nested callee instead of stopping at an opaque leaf.
 fn call_result_place(
     program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
     scope: ArgumentScope<'_>,
     call: &TableCallExpression,
     result_relative: &[PlaceSegment],
@@ -155,12 +172,18 @@ fn call_result_place(
     {
         return None;
     }
+    let body = CalleeBody {
+        machine: callee,
+        state: callee_state,
+        prefix,
+    };
     // `result_relative` is the demanded path into the call result; the callee
     // trace applies it inside its own body so a returned constructor routes
     // the demand to the operand that supplied that exact field or element.
     let returned = callee_value_place(
         program,
-        prefix,
+        frames,
+        body,
         result,
         callee_state.return_type,
         result_relative,
@@ -174,7 +197,20 @@ fn call_result_place(
         .iter()
         .find(|parameter| parameter.symbol == root)?;
     if parameter.is_mutable || !frozen_input_reference(program, parameter.type_reference) {
-        return None;
+        // A mutable or write-capable binding still carries exact provenance
+        // when no statement in this body may write the demanded projection:
+        // writes are what let an owned copy diverge or a reference rebind.
+        // Any overlap or opaque frame keeps the result unproven.
+        callee_leaves_demanded_path_unwritten(
+            program,
+            frames,
+            callee,
+            callee_state,
+            &CanonicalPlace {
+                root: PlaceRoot::Symbol(parameter.symbol),
+                segments: returned.segments.clone(),
+            },
+        )?;
     }
     let actual = if parameter.is_self {
         call.receiver
@@ -197,6 +233,7 @@ fn call_result_place(
     };
     scope_argument_place(
         program,
+        frames,
         scope,
         actual,
         parameter.type_reference,
@@ -211,6 +248,7 @@ fn call_result_place(
 /// expression that recurses through that callee's locals and nested calls.
 fn scope_argument_place(
     program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
     scope: ArgumentScope<'_>,
     actual: ExpressionHandle,
     declared_type: TypeReferenceHandle,
@@ -247,25 +285,33 @@ fn scope_argument_place(
                     };
                     let mut nested_relative = segments;
                     nested_relative.extend_from_slice(relative);
-                    call_result_place(program, scope, nested, &nested_relative, depth)
+                    call_result_place(program, frames, scope, nested, &nested_relative, depth)
                 }
                 _ => None,
             }
         }
-        ArgumentScope::Callee { prefix } => {
-            callee_value_place(program, prefix, actual, declared_type, relative, depth)
-        }
+        ArgumentScope::Callee { body } => callee_value_place(
+            program,
+            frames,
+            body,
+            actual,
+            declared_type,
+            relative,
+            depth,
+        ),
     }
 }
 
 /// The returned expression's exact place in callee space, under the demanded
-/// `relative` projection into its value. A parameter or an immutable local
-/// traced to its initializer qualifies, as does a nested checked call proven
-/// through the same result gate; every other root (an opaque expression, a
-/// mutable slot) stays unproven.
+/// `relative` projection into its value. A parameter or a local traced to its
+/// initializer qualifies, as does a nested checked call proven through the
+/// same result gate; a mutable binding additionally needs the whole body to
+/// provably leave the demanded projection unwritten, and every other root
+/// (an opaque expression, an unresolved route) stays unproven.
 fn callee_value_place(
     program: &TypedTrees,
-    prefix: &[StatementNode],
+    frames: &validation::CallFrameResolver<'_>,
+    body: CalleeBody<'_>,
     expression: ExpressionHandle,
     declared_type: TypeReferenceHandle,
     relative: &[PlaceSegment],
@@ -292,13 +338,14 @@ fn callee_value_place(
         let projection = projections.remove(0);
         return callee_value_place_leaf(
             program,
-            prefix,
+            frames,
+            body,
             projection.expression,
             &projection.remaining,
             depth - 1,
         );
     }
-    callee_value_place_leaf(program, prefix, expression, relative, depth)
+    callee_value_place_leaf(program, frames, body, expression, relative, depth)
 }
 
 /// The non-constructor leaf of `callee_value_place`. `relative` is appended
@@ -307,7 +354,8 @@ fn callee_value_place(
 /// composed path as its result projection.
 fn callee_value_place_leaf(
     program: &TypedTrees,
-    prefix: &[StatementNode],
+    frames: &validation::CallFrameResolver<'_>,
+    body: CalleeBody<'_>,
     expression: ExpressionHandle,
     relative: &[PlaceSegment],
     depth: usize,
@@ -330,7 +378,8 @@ fn callee_value_place_leaf(
             nested_relative.extend_from_slice(relative);
             return call_result_place(
                 program,
-                ArgumentScope::Callee { prefix },
+                frames,
+                ArgumentScope::Callee { body },
                 nested,
                 &nested_relative,
                 depth - 1,
@@ -338,7 +387,7 @@ fn callee_value_place_leaf(
         }
         _ => return None,
     };
-    let Some(local) = prefix.iter().find_map(|statement| match statement {
+    let Some(local) = body.prefix.iter().find_map(|statement| match statement {
         StatementNode::LocalData(local) if local.symbol == root => Some(local),
         _ => None,
     }) else {
@@ -346,16 +395,29 @@ fn callee_value_place_leaf(
         place.segments.extend_from_slice(relative);
         return Some(place);
     };
-    if local.is_mutable {
-        return None;
-    }
     // The demanded path into the local's value applies to its initializer,
-    // including a constructor bound for later return.
+    // including a constructor bound for later return. A mutable local keeps
+    // that correspondence only when no write in the body may overlap it;
+    // the scan covers the whole stream, so statements before the declaration
+    // simply cannot name the symbol and an untracked alias fails closed.
     let mut demanded = place.segments;
     demanded.extend_from_slice(relative);
+    if local.is_mutable {
+        callee_leaves_demanded_path_unwritten(
+            program,
+            frames,
+            body.machine,
+            body.state,
+            &CanonicalPlace {
+                root: PlaceRoot::Symbol(local.symbol),
+                segments: demanded.clone(),
+            },
+        )?;
+    }
     callee_value_place(
         program,
-        prefix,
+        frames,
+        body,
         local.initial_value,
         local.type_reference,
         &demanded,
@@ -363,11 +425,82 @@ fn callee_value_place_leaf(
     )
 }
 
+/// Whether no statement in this checked body may write the demanded place.
+/// Mutable and reference-capable bindings keep exact provenance only while
+/// every write — a direct store, a statement-position call, or a call
+/// embedded in any operand — provably lands outside the demanded projection.
+/// An opaque frame or an overlapping write proves nothing, so the binding
+/// stays unproven rather than borrowing a same-shaped guarantee.
+fn callee_leaves_demanded_path_unwritten(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    callee: &Machine,
+    callee_state: &State,
+    demanded: &CanonicalPlace,
+) -> Option<()> {
+    let statements = program
+        .statement_table
+        .statements(callee_state.statement_nodes);
+    for (index, statement) in statements.iter().enumerate() {
+        let writes = match statement {
+            StatementNode::Assignment(_) | StatementNode::RootBinding(_) => {
+                flow::statement_storage_writes(
+                    program,
+                    callee.symbol,
+                    callee_state.symbol,
+                    index,
+                    statement,
+                    Some(frames),
+                )?
+            }
+            StatementNode::Call(call) => flow::frame_storage_writes(
+                program,
+                callee.symbol,
+                callee_state.symbol,
+                index,
+                &frames.may_write_frame(callee, call),
+                Some(frames),
+            )?,
+            _ => Vec::new(),
+        };
+        if writes
+            .iter()
+            .any(|write| places_may_overlap(program, demanded, write))
+        {
+            return None;
+        }
+        // Value-position calls nested in any statement — including the
+        // returned expression — carry their own operand write frames.
+        let writes = flow::frame_storage_writes(
+            program,
+            callee.symbol,
+            callee_state.symbol,
+            index,
+            &frames.statement_value_write_frame(callee, statement),
+            Some(frames),
+        )?;
+        if writes
+            .iter()
+            .any(|write| places_may_overlap(program, demanded, write))
+        {
+            return None;
+        }
+    }
+    Some(())
+}
+
+fn places_may_overlap(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
+    flow::normalized_event_place_root(program, left.root)
+        == flow::normalized_event_place_root(program, right.root)
+        && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
+}
+
 /// A callee reads a frozen input but cannot change which storage it names:
 /// an immutable owned binding or a shared reference whose referent is
 /// read-only for the whole call. `&mut`, write-only, and mutable bindings can
-/// rebind or rewrite the returned path, so they carry no exact caller
-/// provenance.
+/// rebind or rewrite the returned path, so they carry exact caller provenance
+/// only when the body's own write scan leaves the demanded projection
+/// untouched (`callee_leaves_demanded_path_unwritten`).
 fn frozen_input_reference(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(reference)
