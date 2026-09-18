@@ -36,6 +36,57 @@ pub struct ConsumedSourceUnit {
 }
 
 impl ConsumedSourceUnit {
+    /// Construct one canonical source row for custody coverage. The retained
+    /// coordinate must match the shape [`consumed_source_unit`] derives: a
+    /// package-authored or package-generated unit names its reconciled package
+    /// and no toolchain namespace, an owned toolchain unit names its canonical
+    /// namespace and no package, and a virtual toolchain unit names neither.
+    /// Every row retains a nonempty relative path of nonempty components, and
+    /// a toolchain namespace is never empty.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn for_test(
+        kind: ConsumedSourceUnitKind,
+        package: Option<semantic_vocabulary::PackageKeyIdentity>,
+        toolchain_namespace: Option<String>,
+        relative_path: Vec<String>,
+        byte_count: u64,
+        content_digest: [u8; 32],
+    ) -> Result<Self, &'static str> {
+        let coordinates_match = match kind {
+            ConsumedSourceUnitKind::PackageAuthored | ConsumedSourceUnitKind::PackageGenerated => {
+                package.is_some() && toolchain_namespace.is_none()
+            }
+            ConsumedSourceUnitKind::ToolchainOwned => {
+                package.is_none()
+                    && toolchain_namespace
+                        .as_deref()
+                        .is_some_and(|namespace| !namespace.is_empty())
+            }
+            ConsumedSourceUnitKind::ToolchainVirtual => {
+                package.is_none() && toolchain_namespace.is_none()
+            }
+        };
+        if !coordinates_match {
+            return Err("consumed source unit kind disagrees with its retained coordinates");
+        }
+        if let Some(namespace) = &toolchain_namespace
+            && namespace.is_empty()
+        {
+            return Err("consumed source unit retains an empty toolchain namespace");
+        }
+        if relative_path.is_empty() || relative_path.iter().any(|component| component.is_empty()) {
+            return Err("consumed source unit retains a non-canonical relative path");
+        }
+        Ok(Self {
+            kind,
+            package,
+            toolchain_namespace,
+            relative_path,
+            byte_count,
+            content_digest,
+        })
+    }
+
     pub const fn kind(&self) -> ConsumedSourceUnitKind {
         self.kind
     }
@@ -127,6 +178,43 @@ impl PackageCompilationSubject {
                 .expect("consumed source row length fits u64");
             bytes[length_offset..row_start].copy_from_slice(&row_length.to_le_bytes());
         }
+    }
+
+    /// Construct the package/source subject from canonical parts for custody
+    /// coverage. The retained shape must match what
+    /// [`derive_package_compilation_subject`] produces: `root` is the closure
+    /// root, the consumed rows are nonempty, strictly ordered, and unique, and
+    /// every row naming a package resolves inside the retained closure.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn for_test(
+        root: semantic_vocabulary::PackageKeyIdentity,
+        dependency_closure: super::PackageDependencyClosure,
+        source_consumption_commitment: PackageSourceConsumptionCommitment,
+        consumed_units: Vec<ConsumedSourceUnit>,
+    ) -> Result<Self, &'static str> {
+        if dependency_closure.root() != root {
+            return Err("package compilation subject root disagrees with its dependency closure");
+        }
+        if consumed_units.is_empty() {
+            return Err("package compilation subject requires consumed source units");
+        }
+        if consumed_units.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err("package compilation subject requires strictly ordered unique units");
+        }
+        let packages = dependency_closure.packages();
+        if consumed_units
+            .iter()
+            .filter_map(ConsumedSourceUnit::package)
+            .any(|package| !packages.contains(&package))
+        {
+            return Err("consumed source unit names a package outside the dependency closure");
+        }
+        Ok(Self {
+            root,
+            dependency_closure,
+            source_consumption_commitment,
+            consumed_units,
+        })
     }
 }
 

@@ -594,6 +594,16 @@ impl CompileReport {
         self.production_manifest.as_ref()
     }
 
+    /// Substitute the retained production manifest so custody coverage can
+    /// drive a stale or honestly recomputed manifest through the report joins.
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn production_manifest_mut_for_test(
+        &mut self,
+    ) -> &mut Option<ProductionCompilationManifest> {
+        &mut self.production_manifest
+    }
+
     /// Require the exact native physical evidence for this package-aware,
     /// retained-native production. Standalone and already-published reports do
     /// not carry the package/artifact join needed to make this claim.
