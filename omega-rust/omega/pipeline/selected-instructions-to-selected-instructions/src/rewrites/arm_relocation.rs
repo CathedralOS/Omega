@@ -84,7 +84,6 @@
 //! call, and settlement is retained bit-identical.
 
 mod admission;
-mod dead_path;
 mod rewrite;
 mod validation;
 
