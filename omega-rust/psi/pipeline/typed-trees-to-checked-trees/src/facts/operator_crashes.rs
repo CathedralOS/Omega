@@ -17,6 +17,7 @@ use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 mod named_routes;
@@ -213,6 +214,49 @@ pub(crate) fn build(
                 surviving,
             },
         ));
+    }
+    // A `StatementNode::Call` that still resolves to an operator mints no
+    // `named_uses` row — only return-typed selections are rewritten into the
+    // `LocalData` expression form operand capture sees. A surviving statement
+    // call to a crash-contracted operator — a declaration with no result
+    // type, or a requirement the rewrite does not select — would pass with
+    // its routes unchecked; it has no site to retain, so admit nothing.
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+            {
+                let StatementNode::Call(call) = statement else {
+                    continue;
+                };
+                let Some(operator) = crate::flow::resolved_operator_statement_symbol(program, call)
+                    .and_then(|symbol| {
+                        typed_trees::operator::declaration_by_symbol(program, symbol)
+                    })
+                else {
+                    continue;
+                };
+                if !program
+                    .signature_contracts
+                    .span_or_empty(operator.contracts)
+                    .iter()
+                    .any(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+                {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "statement call to named operator `{}` carries crash routes no checked site can cover",
+                    program
+                        .operator_path_members(operator.name)
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::"),
+                )));
+            }
+        }
     }
     if diagnostics.is_empty() {
         Ok(sites)

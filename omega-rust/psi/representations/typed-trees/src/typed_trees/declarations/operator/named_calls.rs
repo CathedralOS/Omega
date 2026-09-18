@@ -158,23 +158,42 @@ pub fn named_statement_call_candidates<'program>(
             .collect();
     }
     let receiver = program.statement_table.name_path_members(call.receiver);
-    let is_static_namespace = call.receiver_symbol.is_valid()
-        && (program
-            .data_definitions()
-            .iter()
-            .any(|definition| definition.symbol == call.receiver_symbol)
-            || program
-                .domain_definitions()
-                .iter()
-                .any(|definition| definition.symbol == call.receiver_symbol)
-            || program
-                .machines()
-                .iter()
-                .any(|definition| definition.symbol == call.receiver_symbol)
-            || program
-                .traits()
-                .iter()
-                .any(|definition| definition.symbol == call.receiver_symbol));
+    // The receiver names a static namespace when it resolved to one of the
+    // namespace kinds the statement-call gate admits
+    // (`is_named_operator_namespace`), or when it did not resolve at all but
+    // an operator's own path prefix spells it exactly — the same
+    // `is_operator_namespace` fallback the expression-side counterpart uses.
+    // Without it `Ns::probe(arg);` classified `Ns` as the value operand,
+    // shifted every arity check by one, and the statement call never
+    // selected: the downstream rewrite that produces the checked
+    // `named_uses` row then never ran, leaving requires/crash obligations
+    // unexamined while flow still applied the call's ensures.
+    let receiver_resolves_to_namespace = call.receiver_symbol.is_valid()
+        && matches!(
+            program.symbols.get(call.receiver_symbol).kind,
+            symbols::SymbolKind::Module
+                | symbols::SymbolKind::BuiltinType
+                | symbols::SymbolKind::Data
+                | symbols::SymbolKind::Domain
+                | symbols::SymbolKind::Machine
+                | symbols::SymbolKind::Trait
+        );
+    let is_operator_namespace = !call.receiver_symbol.is_valid()
+        && !receiver.is_empty()
+        && program.operators().iter().any(|operator| {
+            let operator_path = program.operator_path_members(operator.name);
+            operator_path
+                .split_last()
+                .is_some_and(|(member, namespace)| {
+                    member.as_str() == call.target.as_str()
+                        && namespace.len() == receiver.len()
+                        && namespace
+                            .iter()
+                            .zip(receiver.iter())
+                            .all(|(expected, actual)| expected == actual)
+                })
+        });
+    let is_static_namespace = receiver_resolves_to_namespace || is_operator_namespace;
     let static_segments = is_static_namespace.then(|| {
         receiver
             .iter()

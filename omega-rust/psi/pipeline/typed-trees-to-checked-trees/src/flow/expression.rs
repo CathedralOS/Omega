@@ -575,6 +575,24 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     contexts,
                     constraints,
                 );
+                // A named call mints no borrow-call row for `invoke` to find;
+                // its mutable-operand invalidation and `ensures` publication
+                // run here, at the exact point the call completes.
+                for &named_use in &named_uses {
+                    super::operator_calls::apply_named_operator_call_effects(
+                        self.program,
+                        self.domains,
+                        self.semantic,
+                        self.context,
+                        self.machine.symbol,
+                        self.state.symbol,
+                        self.statement_index,
+                        call,
+                        named_use,
+                        contexts,
+                        constraints,
+                    );
+                }
             }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.program.expression_table.expression_handles(*values) {
