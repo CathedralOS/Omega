@@ -236,23 +236,54 @@ fn mixed_initializer_namespaces_keep_pure_call_and_storage_bindings_distinct() {
     assert_selected_initializer_roots(
         &checked,
         &["pure", "direct", "current", "saved", "result_value"],
-        &["current", "result_value"],
+        &["direct", "current", "result_value"],
         1,
     );
+    use typed_trees::statement::StatementNode;
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let state = &checked.typed.machine_states(machine)[0];
+    let direct_ordinal = checked
+        .typed
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .position(|statement| {
+            matches!(statement, StatementNode::LocalData(local) if local.name.as_str() == "direct")
+        })
+        .unwrap() as u32;
+    let direct_root = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .find(|root| {
+            root.state == state.symbol
+                && root.statement_ordinal == direct_ordinal
+                && matches!(
+                    root.role,
+                    CheckedScalarExpressionRole::LocalInitializer { .. }
+                )
+        })
+        .expect("pure-argument call kept a local initializer computation root");
     assert!(
-        checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.states)
-            .flat_map(|state| &state.bindings)
-            .any(|binding| matches!(
-                binding.value,
-                checked_trees::CheckedScalarBindingValue::DirectCall { .. }
-            )),
-        "legacy direct call shares the rebased local namespace"
+        matches!(
+            checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(direct_root.root)
+                .kind,
+            checked_trees::CheckedScalarComputationKind::Call { .. }
+        ),
+        "pure-argument call composes through the shared computation owner"
     );
     let artifact = encoded(source);
     for flag in [false, true] {

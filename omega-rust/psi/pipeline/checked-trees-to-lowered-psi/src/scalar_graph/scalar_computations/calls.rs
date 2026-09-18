@@ -30,6 +30,98 @@ enum Operand {
     },
 }
 
+/// A `LocalInitializer` call whose retained actuals all kept pure scalar plans
+/// owns one `CallArgument` row per operand beside its computation root. Both
+/// channels describe the same authored actual: the row must exist, rejoin
+/// source custody, and agree with the computed operand value.
+fn consume_pure_call_argument(
+    checked: &CheckedTrees,
+    bindings: &storage::ScalarBindings,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    binding_ordinal: u32,
+    argument_ordinal: u32,
+    operand: &checked_trees::CheckedScalarExpression,
+) -> Result<(), LoweringError> {
+    let retained = bindings.expression_at(
+        checked,
+        state,
+        statement,
+        CheckedScalarExpressionRole::CallArgument {
+            binding_ordinal,
+            argument_ordinal,
+        },
+    )?;
+    if retained != bindings.expression(operand)? {
+        return unsupported("computed call operand disagrees with its retained pure argument");
+    }
+    Ok(())
+}
+
+/// The same custody on the continuation path: `CallArgument` rows exist only
+/// when every retained actual produced a pure scalar plan, so a single
+/// computed operand means this call legitimately owns none.
+pub(crate) fn consume_pure_call_arguments(
+    checked: &CheckedTrees,
+    bindings: &storage::ScalarBindings,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    binding_ordinal: u32,
+    root: Computation,
+) -> Result<(), LoweringError> {
+    let plans = &checked.facts.values.scalar_computations;
+    if !plans.nodes.is_valid(root) {
+        return unsupported("scalar computation has no live root");
+    }
+    let CheckedScalarComputationKind::Call {
+        arguments,
+        structural_arguments,
+        ..
+    } = &plans.nodes.get(root).kind
+    else {
+        return Ok(());
+    };
+    let structural = plans
+        .structural_arguments
+        .span(*structural_arguments)
+        .ok_or(LoweringError::Unsupported(
+            "computed structural arguments have a stale span",
+        ))?;
+    if !structural.is_empty() {
+        return Ok(());
+    }
+    let operands = plans
+        .operands
+        .span(*arguments)
+        .ok_or(LoweringError::Unsupported(
+            "scalar computation call has an invalid argument span",
+        ))?;
+    let mut values = Vec::with_capacity(operands.len());
+    for operand in operands {
+        if !plans.nodes.is_valid(*operand) {
+            return unsupported("scalar computation has a stale operand");
+        }
+        let CheckedScalarComputationKind::Value(value) = &plans.nodes.get(*operand).kind else {
+            return Ok(());
+        };
+        values.push(value);
+    }
+    for (argument_ordinal, operand) in values.into_iter().enumerate() {
+        let argument_ordinal = u32::try_from(argument_ordinal)
+            .map_err(|_| LoweringError::Unsupported("scalar call argument ordinal exceeds u32"))?;
+        consume_pure_call_argument(
+            checked,
+            bindings,
+            state,
+            statement,
+            binding_ordinal,
+            argument_ordinal,
+            operand,
+        )?;
+    }
+    Ok(())
+}
+
 /// Keep a call with completed scalar expressions in its caller block. Splitting
 /// these operands into forwarding blocks would replace live local results with
 /// block parameters and lose their exact suspension storage provenance.
@@ -81,7 +173,7 @@ pub(crate) fn lower_inline_call(
             "scalar computation call has an invalid argument span",
         ))?;
     let mut arguments = Vec::with_capacity(operands.len());
-    for operand in operands {
+    for (argument_ordinal, operand) in operands.iter().enumerate() {
         if !plans.nodes.is_valid(*operand) {
             return unsupported("scalar computation has a stale operand");
         }
@@ -91,6 +183,20 @@ pub(crate) fn lower_inline_call(
         let argument = bindings.expression(value)?;
         if direct_expression_contains_short_circuit(&argument) {
             return Ok(None);
+        }
+        if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = role {
+            let argument_ordinal = u32::try_from(argument_ordinal).map_err(|_| {
+                LoweringError::Unsupported("scalar call argument ordinal exceeds u32")
+            })?;
+            consume_pure_call_argument(
+                checked,
+                bindings,
+                state,
+                statement,
+                binding_ordinal,
+                argument_ordinal,
+                value,
+            )?;
         }
         arguments.push(argument);
     }
