@@ -133,7 +133,7 @@ fn evaluated_root_bindings_retain_the_executed_entry() {
 }
 
 #[test]
-fn uefi_entry_machine_plan_reaches_terminal_claim_cycle_fence() {
+fn uefi_entry_machine_plan_produces_terminal_artifact() {
     let canary = pass_canary(fixture_roster::BUILD_UEFI_PROGRAM_ENTRY_STORAGE_ROOTS);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
@@ -160,18 +160,14 @@ fn uefi_entry_machine_plan_reaches_terminal_claim_cycle_fence() {
         source.machine_symbol(),
     )
     .produce_program_entry(source.identity().bytes());
-    // The emitted machine then stops at the verifier's unranked-cycle
-    // claim-custody admission fence: cyclic machines do not yet admit
-    // claim-bearing custody. Any other failure means this join regressed;
-    // success means the fence opened and this witness needs updating.
-    match produced {
-        Err(terminal_production::TerminalArtifactProductionError::Lowering(
-            checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::ControlCycle(_),
-            ),
-        )) => {}
-        other => panic!("UEFI entry production stopped at an unexpected boundary: {other:?}"),
-    }
+    // Both claims stay pinned on their owned entry roots for the loop's whole
+    // cyclic lifetime — nothing in the emitted graph rebinds, consumes, or
+    // transfers them — so the verifier's claim-custody fence admits the
+    // two-state machine and the canonical Terminal artifact publishes. The
+    // physical entry adapter remains downstream of this product.
+    let produced = produced
+        .expect("the claim-pinned retain cycle must validate and produce the Terminal artifact");
+    assert_eq!(produced.receipt().source_machine_name(), "Boot::launch");
 }
 
 #[test]

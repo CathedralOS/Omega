@@ -1014,3 +1014,6 @@ mod scalar_array_availability;
 
 #[path = "ranked_scc/unranked_records.rs"]
 mod unranked_records;
+
+#[path = "ranked_scc/unranked_claims.rs"]
+mod unranked_claims;
