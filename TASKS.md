@@ -2995,15 +2995,30 @@ Owners include
   (`a_wrapped_arithmetic_selector_still_proves_its_call_operand_footprint`);
   `cargo nextest run -p typed-trees-to-checked-trees` is 4176 tests, 4173
   passed, 3 failed against base 779b8eaffa's 4172 tests, 4169 passed, 3 failed
-  — the same three failing names. Next remaining family: a bare authored
-  arithmetic application in a point selector (`items[low + step]`) still
-  records no footprint, and that refusal sits above the operand gate rather
-  than inside it — the identical operands are admitted once a cast gives the
-  occurrence builtin index meaning — so the index-meaning probe
-  (`has_builtin_index_meaning`) and the `[]` use-row lookup below it are what
-  the next slice has to close. Statically applied calls, statically dispatched
-  requirement calls, machine-valued applications and the single-attempt
-  `CompareExchangeOnce` observing form remain incomplete as before.
+  — the same three failing names. Next remaining family, corrected by measurement at 1d1914d599 (macOS ARM64):
+  the bare authored arithmetic point selector `items[low + step]` is NOT
+  refused and needs no work -- `syntax-trees-to-symbol-resolved-trees` hoists
+  it into `let __hoist_0 = low + step;` so the selector node is a `Name`,
+  `has_builtin_index_meaning` returns true, and the element read already
+  records a complete two-place footprint (the frozen `__hoist_0` capture plus
+  `items[Index]`), with writes to `low`/`step` correctly preserving the
+  premise and a write to `items` retiring it; the all-local variant is already
+  pinned by the tenth slice's
+  `a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservative`.
+  The actual refusal is the hoisted initializer: `let __hoist_0 = low + step;`
+  records an incomplete read set even with its exact checked operator-use row
+  present and `Resolved`, because `record_dependencies`
+  (`checks/ranges/facts/dependencies.rs`) gates every row on
+  `validation::has_builtin_bound_expression_meaning`, which a root `Binary`
+  carrying an authored `+` fails. That floor is DESIGN-BLOCKED, not
+  engineering: it defines what may be a range premise, not merely what a
+  premise's read set contains. Open question for the owner: may
+  `record_dependencies` record a range-premise row for an expression whose
+  root is a selected (authored) arithmetic application with exact checked
+  operator-use custody, or does the floor stand and the hoisted initializer
+  keep its incomplete read set? Practical stakes are low either way, since the
+  hoisted capture is frozen and the element premise is already complete and
+  conservative without it.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
