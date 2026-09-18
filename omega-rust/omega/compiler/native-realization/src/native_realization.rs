@@ -222,24 +222,47 @@ fn validate_executable_entry_receiver(
         }
         return Ok(None);
     }
+    let lowered_entry = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.entry);
+    let terminal_entry = terminal
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal.entry);
+    let lowered_attachment = lowered_entry.and_then(|function| function.attachment);
+    let terminal_attachment = terminal_entry.and_then(|machine| machine.attachment);
     if !has_receiver {
         // Erasure removes the borrow parameter, not the source owner's
         // initialization and cleanup obligations. The attachment still binds
         // that owner, and checked eligibility below must justify eliding it.
-        let lowered_attachment = plan
-            .functions
-            .iter()
-            .find(|function| function.machine == plan.entry)
-            .and_then(|function| function.attachment);
-        let terminal_attachment = terminal
-            .machines
-            .iter()
-            .find(|machine| machine.id == terminal.entry)
-            .and_then(|machine| machine.attachment);
         if lowered_attachment.is_none() || lowered_attachment != terminal_attachment {
             return Err(realization_error(
                 "ProgramEntry receiver provisioning",
                 "lowered entry does not preserve the source-selected receiver mode",
+            ));
+        }
+    } else {
+        // A retained borrow is the receiver this realization physically
+        // provisions: the bridge sizes and lends the storage the lowered
+        // declaration spells out, and no later stage rejoins a drifted
+        // receiver to the checked Terminal receiver. The owner attachment and
+        // the exact self declaration must survive lowering unchanged.
+        let receiver_preserved = match (lowered_entry, terminal_entry) {
+            (Some(function), Some(machine)) => function
+                .structural_parameters
+                .iter()
+                .filter(|parameter| parameter.is_self)
+                .eq(machine
+                    .structural_parameters
+                    .iter()
+                    .filter(|parameter| parameter.is_self)),
+            _ => false,
+        };
+        if lowered_attachment != terminal_attachment || !receiver_preserved {
+            return Err(realization_error(
+                "ProgramEntry receiver provisioning",
+                "lowered entry does not preserve the source-selected receiver identity",
             ));
         }
     }

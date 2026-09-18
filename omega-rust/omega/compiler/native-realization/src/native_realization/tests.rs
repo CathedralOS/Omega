@@ -286,6 +286,91 @@ fn erased_provisioned_receiver_must_retain_its_attached_type() {
 }
 
 #[test]
+fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
+    let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let (artifact, receipt, _, _, _) = produced.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let input =
+        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("checked receiver input");
+    let request = NativeRealizationRequest {
+        program_entry: NativeProgramEntrySettlement::new(&signature, None, &[])
+            .with_checked_entry(&receipt),
+        ..request(&signature, &profile, &optimizations, &providers)
+    };
+    // The unmutated retained receiver clears the identity join: this unit
+    // fixture carries no paired calling plans, so a later rejection is a
+    // separate settlement requirement, never a receiver-identity drift.
+    if let Err(diagnostics) = super::validate_executable_entry_receiver(
+        input.plan(),
+        input.context().module(),
+        &artifact,
+        &request,
+    ) {
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                !diagnostic
+                    .message
+                    .contains("source-selected receiver identity")
+            }),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
+    }
+    // The bridge sizes and lends the storage this lowered declaration spells
+    // out, and no later stage rejoins it to the checked Terminal receiver: a
+    // drifted owner attachment or self declaration must reject at admission.
+    let drifts: [fn(&mut abstract_operations::AbstractFunction); 4] = [
+        |function| function.attachment = None,
+        |function| {
+            function.attachment =
+                Some(semantic_vocabulary::StructuralTypeId::new(u64::MAX).unwrap());
+        },
+        |function| {
+            function
+                .structural_parameters
+                .iter_mut()
+                .find(|parameter| parameter.is_self)
+                .expect("retained receiver")
+                .access = terminal_psi::StructuralAccess::SharedBorrow;
+        },
+        |function| {
+            function
+                .structural_parameters
+                .iter_mut()
+                .find(|parameter| parameter.is_self)
+                .expect("retained receiver")
+                .structural_type = semantic_vocabulary::StructuralTypeId::new(u64::MAX).unwrap();
+        },
+    ];
+    for drift in drifts {
+        let mut plan = input.plan().clone();
+        drift(
+            plan.functions
+                .iter_mut()
+                .find(|function| function.machine == plan.entry)
+                .expect("selected entry"),
+        );
+        let diagnostics = super::validate_executable_entry_receiver(
+            &plan,
+            input.context().module(),
+            &artifact,
+            &request,
+        )
+        .expect_err("a drifted receiver identity must reject");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("source-selected receiver identity")
+            }),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn free_source_entry_cannot_acquire_a_receiver() {
     let (produced, signature) = entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
     let artifact = produced.artifact();
