@@ -159,7 +159,14 @@ fn prove(
             .coordinates()
             .filter(|field| field.parameter.symbol == parameter.symbol)
         {
-            let actual = if let Some(actual) = field.rebased(program, caller_state, *argument) {
+            // An exact carrier actual -- a formal forward, `&x`, or a
+            // member-target `p.f`/`&p.f` whose projection lands on the goal
+            // coordinate's root -- produces the caller-side coordinate itself,
+            // so its declared field bounds join the hypotheses; only a literal
+            // or computed actual falls to `actual`'s declaration walk.
+            let actual = if let Some(actual) =
+                field.actual_coordinate(program, caller_state, *argument, field.borrowed)
+            {
                 let value = actual.value();
                 source_fields.include(actual);
                 value
