@@ -32,15 +32,8 @@ pub fn validate_optimized_selected_reanalysis_custody(
     if replayed_ranges.receipt() != ranges.receipt() {
         return Err(OptimizedSelectedReanalysisError::ReceiptMismatch);
     }
-    let environment = transformation
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
-    let availability = transformation
-        .source_legality_stage()
-        .allocator_availability();
+    let environment = transformation.register_environment();
+    let availability = transformation.allocator_availability();
     let replayed_legality = validate_allocation_legality(
         ranges,
         availability,

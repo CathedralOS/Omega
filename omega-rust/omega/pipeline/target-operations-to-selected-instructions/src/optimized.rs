@@ -31,9 +31,15 @@ pub fn stage_optimized_instruction_selection(
         &selected,
     )
     .map_err(OptimizedSelectionPipelineError::Custody)?;
+    // Admit the governing selections and budget as stage-owned data so the
+    // retained optimized-target product stays replay evidence only.
+    let selections = optimized_target.optimized().selections().clone();
+    let budget_per_pass = optimized_target.optimized().budget_per_pass();
     Ok(StagedOptimizedSelectedInstructions {
         optimized_target: optimized_target.into(),
         register_environment,
+        selections,
+        budget_per_pass,
         legalized,
         selected,
         custody,

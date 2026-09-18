@@ -8,8 +8,12 @@ use crate::{
 
 use crate::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
-    StagedOptimizedAllocationLegalityCustodyReceipt,
+    StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
+    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
 };
+use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
+use register_environment::ValidatedTargetRegisterEnvironment;
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 #[derive(Debug)]
 pub struct StagedOptimizedFixedPrecoloredSegmentHomes {
@@ -21,9 +25,53 @@ pub struct StagedOptimizedFixedPrecoloredSegmentHomes {
 }
 
 impl StagedOptimizedFixedPrecoloredSegmentHomes {
+    /// The retained producer stage. Replay and custody validation inspect it;
+    /// ordinary consumers read the current program and analyses directly.
     pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
         &self.source
     }
+
+    /// The current selected program this probe describes. Segment homes do
+    /// not transform the program, so the source program remains current.
+    pub const fn selected(&self) -> &ValidatedSelectedInstructions {
+        self.source.selected()
+    }
+
+    /// The liveness facts over the current program.
+    pub const fn liveness(&self) -> &ValidatedLiveness {
+        self.source.liveness()
+    }
+
+    /// The live ranges over the current program.
+    pub const fn ranges(&self) -> &ValidatedLiveRanges {
+        self.source.ranges()
+    }
+
+    /// The allocation legality over the current program.
+    pub const fn legality(&self) -> &ValidatedAllocationLegality {
+        self.source.legality()
+    }
+
+    /// The environment-derived allocator availability for the program.
+    pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
+        self.source.allocator_availability()
+    }
+
+    /// The target register environment admitted with the current program.
+    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+        self.source.register_environment()
+    }
+
+    /// The governing optimizer selections for this admission.
+    pub fn selections(&self) -> &OptimizationSelections {
+        self.source.selections()
+    }
+
+    /// The per-pass work budget admitted beside the same evidence.
+    pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
+        self.source.budget_per_pass()
+    }
+
     pub const fn fixed_intervals(&self) -> &ValidatedFixedPrecoloredIntervals {
         &self.fixed
     }

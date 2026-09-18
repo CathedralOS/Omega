@@ -11,10 +11,7 @@ use super::model::OptimizedAllocationLegalityCustodyError;
 pub(super) fn all_environment_allocatable_views(
     ranges: &StagedOptimizedLiveRanges,
 ) -> Result<ValidatedAllocatorAvailability, OptimizedAllocationLegalityCustodyError> {
-    let environment = ranges
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = ranges.register_environment();
     let availability = materialize_allocator_availability(
         environment.identity(),
         environment.target(),
@@ -34,10 +31,7 @@ pub(super) fn all_environment_allocatable_views(
 pub(super) fn frameless_leaf_caller_saved_views(
     ranges: &StagedOptimizedLiveRanges,
 ) -> Result<ValidatedAllocatorAvailability, OptimizedAllocationLegalityCustodyError> {
-    let environment = ranges
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = ranges.register_environment();
     let convention = match environment.target().architecture {
         target::Architecture::X86_64 => {
             x86_64_preservation_convention_for_target(environment.physical(), environment.target())
@@ -87,10 +81,7 @@ pub(super) fn frameless_leaf_caller_saved_views(
 pub(super) fn active_resident_immediate_u64_multi_use_rematerialization_v1(
     ranges: &StagedOptimizedLiveRanges,
 ) -> Result<ValidatedAllocatorAvailability, OptimizedAllocationLegalityCustodyError> {
-    let environment = ranges
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = ranges.register_environment();
     let views = active_resident_immediate_u64_multi_use_rematerialization_v1_views(
         environment.target().architecture,
         environment.physical().model(),

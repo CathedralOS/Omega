@@ -14,10 +14,7 @@ pub(super) fn compute_allocation_legality(
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
     let upstream = validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
         .map_err(OptimizedAllocationLegalityCustodyError::UpstreamLiveRanges)?;
-    let environment = ranges
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = ranges.register_environment();
     let replayed_availability = validate_allocator_availability(
         environment.identity(),
         environment.target(),

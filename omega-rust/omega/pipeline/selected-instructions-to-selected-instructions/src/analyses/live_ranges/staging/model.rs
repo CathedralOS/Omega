@@ -1,10 +1,13 @@
-use crate::{LiveRangeError, LiveRangeIdentity, ValidatedLiveRanges};
+use crate::{LiveRangeError, LiveRangeIdentity, ValidatedLiveRanges, ValidatedLiveness};
 use optimization_core::{
-    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
-    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
+    OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
+    PrePhysicalOptimizationManifestIdentity,
 };
+use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use terminal_psi::TerminalPsiIdentity;
 
 use crate::{OptimizedLivenessCustodyError, StagedOptimizedLiveness};
@@ -20,8 +23,35 @@ pub struct StagedOptimizedLiveRanges {
 }
 
 impl StagedOptimizedLiveRanges {
+    /// The retained producer stage. Replay and custody validation inspect it;
+    /// ordinary consumers read the current program and analyses directly.
     pub const fn liveness_stage(&self) -> &StagedOptimizedLiveness {
         &self.liveness
+    }
+
+    /// The liveness facts over the current program.
+    pub const fn liveness(&self) -> &ValidatedLiveness {
+        self.liveness.liveness()
+    }
+
+    /// The current selected program these ranges describe.
+    pub const fn selected(&self) -> &ValidatedSelectedInstructions {
+        self.liveness.selected()
+    }
+
+    /// The target register environment admitted with the current program.
+    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+        self.liveness.register_environment()
+    }
+
+    /// The governing optimizer selections for this admission.
+    pub fn selections(&self) -> &OptimizationSelections {
+        self.liveness.selections()
+    }
+
+    /// The per-pass work budget admitted beside the same evidence.
+    pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
+        self.liveness.budget_per_pass()
     }
 
     pub const fn ranges(&self) -> &ValidatedLiveRanges {

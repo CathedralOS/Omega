@@ -31,16 +31,11 @@ fn revalidate(
     source: &StagedOptimizedFixedPrecoloredSegmentHomes,
     copies: &ValidatedFixedViewCopies,
 ) -> Result<ValidatedFixedViewCopies, FixedViewCopyError> {
-    let legality = source.source_legality_stage();
-    let selected_stage = legality
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let environment = selected_stage.register_environment();
+    let environment = source.register_environment();
     validate_fixed_view_copies(
-        selected_stage.selected(),
-        legality.live_range_stage().ranges(),
-        legality.legality(),
+        source.selected(),
+        source.ranges(),
+        source.legality(),
         source.fixed_intervals(),
         source.split_requirements(),
         source.segment_homes(),

@@ -36,14 +36,10 @@ pub fn stage_first_optimized_literal_fold(
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedLiteralFolds, OptimizedLiteralFoldCustodyError> {
     let upstream = validate_source(&source)?;
-    let selected = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .selected();
+    let selected = source.selected();
     let step = build_step(
         selected,
-        source.live_range_stage().ranges(),
+        source.ranges(),
         source.legality(),
         &source,
         choice_policy,
@@ -92,25 +88,15 @@ pub(super) fn execute_selected_lowering_optimizations(
     fold_policy: LiteralFoldPolicy,
 ) -> Result<StagedSelectedLoweringOptimizationRun, OptimizedLiteralFoldCustodyError> {
     let upstream = validate_source(&source)?;
-    let budget = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .budget_per_pass();
+    let budget = source.budget_per_pass();
 
     let choice_policy = SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1;
     let recovery_policy = RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1;
     let iteration_bound = source.legality().receipt().virtual_register_count();
-    let selected = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .selected();
+    let selected = source.selected();
     let mut attempt = build_attempt(
         selected,
-        source.live_range_stage().ranges(),
+        source.ranges(),
         source.legality(),
         &source,
         choice_policy,
@@ -192,20 +178,13 @@ pub fn validate_selected_lowering_optimization_custody(
     run: &StagedSelectedLoweringOptimizationRun,
 ) -> Result<StagedSelectedLoweringOptimizationCustodyReceipt, OptimizedLiteralFoldCustodyError> {
     let upstream = validate_source(&run.source)?;
-    let optimized = run
-        .source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized();
-    let expected_budget = optimized.budget_per_pass();
+    let expected_budget = run.source.budget_per_pass();
     let selected_lowering = run
         .selections
         .project_phase(optimization_core::OptimizationExecutionPhase::SelectedLowering);
     let (projected, fold_policy) = resolve_selected_lowering_rules(&selected_lowering)?;
-    if run.selections != *optimized.selections()
-        || run.custody.selections != optimized.selections().identity()
+    if run.selections != *run.source.selections()
+        || run.custody.selections != run.source.selections().identity()
         || run.custody.budget != expected_budget
     {
         return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
@@ -229,18 +208,13 @@ pub fn validate_selected_lowering_optimization_custody(
         expected_budget,
         fold_policy,
     )?;
-    let selected = run
-        .source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .selected();
+    let selected = run.source.selected();
     let mut replayed = Vec::with_capacity(run.steps.len());
     if let Some(first) = run.steps.first() {
         replayed.push(replay_step(
             0,
             selected,
-            run.source.live_range_stage().ranges(),
+            run.source.ranges(),
             run.source.legality(),
             &run.source,
             first,
@@ -270,7 +244,7 @@ pub fn validate_selected_lowering_optimization_custody(
         )?,
         None => build_attempt(
             selected,
-            run.source.live_range_stage().ranges(),
+            run.source.ranges(),
             run.source.legality(),
             &run.source,
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
@@ -332,16 +306,11 @@ pub fn validate_optimized_literal_fold_custody(
     let Some(first) = sequence.steps.first() else {
         return Err(OptimizedLiteralFoldCustodyError::EmptySequence);
     };
-    let selected = sequence
-        .source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .selected();
+    let selected = sequence.source.selected();
     let mut replayed = vec![replay_step(
         0,
         selected,
-        sequence.source.live_range_stage().ranges(),
+        sequence.source.ranges(),
         sequence.source.legality(),
         &sequence.source,
         first,
@@ -414,11 +383,7 @@ fn build_attempt<S: ValidatedSelectedAnalysis>(
     fold_policy: LiteralFoldPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedLiteralFoldAttempt, OptimizedLiteralFoldCustodyError> {
-    let environment = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = source.register_environment();
     let choices = choose_spill_victims(
         legality,
         ranges,
@@ -474,11 +439,7 @@ fn complete_attempt(
     attempt: StagedOptimizedLiteralFoldAttempt,
     source: &StagedOptimizedAllocationLegality,
 ) -> Result<StagedOptimizedLiteralFoldStep, OptimizedLiteralFoldCustodyError> {
-    let environment = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = source.register_environment();
     let StagedOptimizedLiteralFoldAttempt {
         choices,
         recovery,

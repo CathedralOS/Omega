@@ -10,16 +10,11 @@ pub(super) fn compute_fixed_view_copies(
     policy: FixedViewCopyPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedFixedViewCopies, OptimizedFixedViewCopyCustodyError> {
-    let legality = source.source_legality_stage();
-    let selected_stage = legality
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let environment = selected_stage.register_environment();
+    let environment = source.register_environment();
     materialize_fixed_view_copies(
-        selected_stage.selected(),
-        legality.live_range_stage().ranges(),
-        legality.legality(),
+        source.selected(),
+        source.ranges(),
+        source.legality(),
         source.fixed_intervals(),
         source.split_requirements(),
         source.segment_homes(),
