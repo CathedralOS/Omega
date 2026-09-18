@@ -19,6 +19,7 @@ mod reference_places;
 mod value_origins;
 pub(crate) use reference_places::{
     local_reference_storage_at_call, local_reference_storage_before_statement,
+    reference_result_candidates_before_statement,
 };
 pub(crate) use value_origins::{value_origin_at_call, value_origin_at_call_resolving};
 mod state;
@@ -59,7 +60,6 @@ use exits::append_state_exit_facts;
 pub(crate) use mutation::close_storage_places_over_aliases_with_resolver;
 pub(crate) use mutation::origin_place;
 pub(crate) use mutation::rebase_exact_local_place;
-pub(crate) use mutation::rebase_local_write_places;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_write_accesses,
     canonical_receiver_place_for_call_site, frame_storage_writes, place_from_origin_path,

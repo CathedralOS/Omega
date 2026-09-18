@@ -102,6 +102,7 @@ pub(super) fn build_call_flow_fact(
         machine,
         state,
         borrow_call,
+        entry.contexts,
         &mut exit,
     );
     let boundary_edges = append_call_boundary_edges(program, ctx, borrow_call);

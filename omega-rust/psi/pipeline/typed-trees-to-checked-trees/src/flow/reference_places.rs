@@ -9,8 +9,11 @@ use facts::PlaceRoot;
 use typed_trees::types::TypeReferenceNode;
 use typed_trees::{TypedTrees, machine::Machine, statement::StatementNode};
 
+mod result_candidates;
 #[cfg(test)]
 mod tests;
+
+pub(crate) use result_candidates::reference_result_candidates_before_statement;
 
 pub(crate) fn local_reference_storage_before_statement(
     program: &TypedTrees,

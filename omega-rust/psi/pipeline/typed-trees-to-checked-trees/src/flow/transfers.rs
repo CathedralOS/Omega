@@ -1,3 +1,4 @@
+use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::common;
@@ -8,7 +9,8 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint,
+    QualificationEvidence,
 };
 use facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdentity};
 use symbols::SymbolHandle;
@@ -34,6 +36,13 @@ pub(super) fn propagate_statement_transfers(
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
+    // An assignment through a reference local of finite candidate origins
+    // (flow/reference_places) rewrites exactly one candidate with a value the
+    // write checker proved in the destination's declared domains; every
+    // other candidate keeps its previous contents. Each candidate therefore
+    // holds a declared domain after the write exactly when it held it
+    // before, and those rows are re-established below.
+    let mut candidate_targets: Vec<CanonicalPlace> = Vec::new();
     let (target_place, source_expression, source_place) = match statement {
         StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => return,
         StatementNode::LocalData(local_data) => (
@@ -74,20 +83,45 @@ pub(super) fn propagate_statement_transfers(
                         .and_then(|(resolver, machine)| {
                             resolver.assignment_write_target(machine, statement)
                         })
-                        .is_some_and(|target| {
+                        // An unclassified target is a write through a
+                        // reference local the resolver has no origin for;
+                        // only a local binding replacement keeps the alias.
+                        .is_none_or(|target| {
                             matches!(target, validation::AssignmentWriteTarget::Storage { .. })
                         });
                 if !writes_through_alias {
                     return canonical;
                 }
-                crate::flow::rebase_exact_local_place(
+                match crate::flow::rebase_exact_local_place(
                     program,
                     state_symbol,
                     statement_index,
                     canonical.clone(),
                     ctx.call_frames,
-                )
-                .unwrap_or(canonical)
+                ) {
+                    Some(exact) => exact,
+                    None => {
+                        if let PlaceRoot::Symbol(root) = canonical.root
+                            && let Some(candidates) =
+                                crate::flow::reference_result_candidates_before_statement(
+                                    program,
+                                    state_symbol,
+                                    statement_index,
+                                    root,
+                                    ctx.call_frames,
+                                )
+                        {
+                            candidate_targets = candidates
+                                .into_iter()
+                                .map(|mut candidate| {
+                                    candidate.segments.extend_from_slice(&canonical.segments);
+                                    candidate
+                                })
+                                .collect();
+                        }
+                        canonical
+                    }
+                }
             })
             .map(|canonical| {
                 crate::semantic_places::append_place_with_segments(
@@ -561,7 +595,7 @@ pub(super) fn propagate_statement_transfers(
         }
         _ => Vec::new(),
     };
-    for (domain_symbol, semantic_domain) in declared_target_domains {
+    for (domain_symbol, semantic_domain) in &declared_target_domains {
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(target_place),
             point: ProgramPoint::Statement {
@@ -577,11 +611,57 @@ pub(super) fn propagate_statement_transfers(
             payload: FactPayload::DomainMembership {
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
-                domain_symbol,
-                semantic_domain,
+                domain_symbol: *domain_symbol,
+                semantic_domain: *semantic_domain,
             },
         });
         semantic.append_ref(&mut refs, fact);
+    }
+    for candidate in candidate_targets {
+        let candidate_place = crate::semantic_places::append_place_with_segments(
+            semantic,
+            candidate.root,
+            &candidate.segments,
+        );
+        for (domain_symbol, semantic_domain) in &declared_target_domains {
+            let was_live = ctx
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(assignment_source_contexts)
+                .iter()
+                .any(|reference| {
+                    semantic
+                        .context_view(semantic.contexts.get(reference.context))
+                        .proves_place_domain_membership_in_program(
+                            program,
+                            candidate_place,
+                            *domain_symbol,
+                        )
+                });
+            if !was_live {
+                continue;
+            }
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(candidate_place),
+                point: ProgramPoint::Statement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                },
+                origin: FactOrigin::StatementTransfer,
+                evidence: QualificationEvidence::from_origin(
+                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
+                    state_symbol,
+                ),
+                payload: FactPayload::DomainMembership {
+                    value: ExpressionHandle::invalid(),
+                    domain: HandleSpan::empty(),
+                    domain_symbol: *domain_symbol,
+                    semantic_domain: *semantic_domain,
+                },
+            });
+            semantic.append_ref(&mut refs, fact);
+        }
     }
 
     if refs.is_empty() {

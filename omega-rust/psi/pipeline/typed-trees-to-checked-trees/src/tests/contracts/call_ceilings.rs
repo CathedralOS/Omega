@@ -102,3 +102,185 @@ fn unrepresentable_exclusive_actual_keeps_the_conservative_retirement() {
     );
     check(&source, false);
 }
+
+/// The retirement observed through scalar facts a call never hands back:
+/// `count == 7` survives a call exactly where the call could not write.
+fn check_scalar_survivals(source: &str, retired: &[&str], surviving: &[&str]) {
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+        panic!("the retired scalar facts must reject their contract calls:\n{source}");
+    };
+    let unproved = |place: &str| {
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains(&format!(
+                "cannot prove requires contract for call needs_seven from probe: {place} == 7"
+            ))
+        })
+    };
+    for place in retired {
+        assert!(
+            unproved(place),
+            "{place} must be retired: {diagnostics:#?}\n{source}"
+        );
+    }
+    for place in surviving {
+        assert!(
+            !unproved(place),
+            "{place} must survive: {diagnostics:#?}\n{source}"
+        );
+    }
+}
+
+const CANDIDATE_DEFINITIONS: &str = r#"
+    domain [u8; 3]::Utf8 requires valid_utf8(self);
+    data Slot { bytes: [u8; 3] in Utf8; count: u64; }
+    data Record { out: Slot; others: [Slot; 2]; }
+    machine needs_seven(count: u64) requires count == 7 { }
+    machine clear(slot: &mut Slot) { slot.bytes = ""; slot.count = 0; }
+"#;
+
+/// A `&mut Slot` local bound from a checked reference result whose exits
+/// return `&mut record.others[0]` or `&mut record.others[1]` names one of
+/// those two candidates: the callee's `slot.count` write lands on exactly
+/// both candidates' `count`, and the unrelated `mine.out` / `spare.out`
+/// facts survive.
+#[test]
+fn two_candidate_reference_result_retires_exactly_its_candidates() {
+    let source = format!(
+        r#"{CANDIDATE_DEFINITIONS}
+        machine pick(record: &mut Record, first: bool) -> &mut Slot {{
+            transition first {{
+                true -> &mut record.others[0]
+                false -> &mut record.others[1]
+            }}
+        }}
+        machine probe(mine: &mut Record, spare: &mut Record, first: bool) {{
+            mine.out.count = 7;
+            spare.out.count = 7;
+            spare.others[0].count = 7;
+            spare.others[1].count = 7;
+            let chosen: &mut Slot = pick(spare, first);
+            clear(chosen);
+            needs_seven(mine.out.count);
+            needs_seven(spare.out.count);
+            needs_seven(spare.others[0].count);
+            needs_seven(spare.others[1].count);
+        }}
+    "#
+    );
+    check_scalar_survivals(
+        &source,
+        &["spare.others[0].count", "spare.others[1].count"],
+        &["mine.out.count", "spare.out.count"],
+    );
+}
+
+/// A result routed through another state has no finite candidate set, so
+/// the call keeps retiring every live fact.
+#[test]
+fn state_routed_reference_result_keeps_the_conservative_retirement() {
+    let source = format!(
+        r#"{CANDIDATE_DEFINITIONS}
+        machine pick(record: &mut Record, first: bool) -> &mut Slot {{
+            transition first {{
+                true -> &mut record.others[0]
+                false -> second(record)
+            }}
+            state second(record: &mut Record) -> &mut Slot {{ &mut record.others[1] }}
+        }}
+        machine probe(mine: &mut Record, spare: &mut Record, first: bool) {{
+            mine.out.count = 7;
+            spare.out.count = 7;
+            let chosen: &mut Slot = pick(spare, first);
+            clear(chosen);
+            needs_seven(mine.out.count);
+            needs_seven(spare.out.count);
+        }}
+    "#
+    );
+    check_scalar_survivals(&source, &["mine.out.count", "spare.out.count"], &[]);
+}
+
+/// A result selected by a runtime index into a fixed array already resolves
+/// through the frame resolver's own origin to the element family
+/// (`spare.others[*]`): both elements retire, nothing else does.
+#[test]
+fn runtime_indexed_reference_result_retires_the_element_family_only() {
+    let source = format!(
+        r#"{CANDIDATE_DEFINITIONS}
+        machine pick(record: &mut Record, index: u64 [0..=1]) -> &mut Slot {{
+            &mut record.others[index]
+        }}
+        machine probe(mine: &mut Record, spare: &mut Record, index: u64 [0..=1]) {{
+            mine.out.count = 7;
+            spare.out.count = 7;
+            spare.others[0].count = 7;
+            spare.others[1].count = 7;
+            let chosen: &mut Slot = pick(spare, index);
+            clear(chosen);
+            needs_seven(mine.out.count);
+            needs_seven(spare.out.count);
+            needs_seven(spare.others[0].count);
+            needs_seven(spare.others[1].count);
+        }}
+    "#
+    );
+    check_scalar_survivals(
+        &source,
+        &["spare.others[0].count", "spare.others[1].count"],
+        &["mine.out.count", "spare.out.count"],
+    );
+}
+
+/// A write through a two-candidate reference local rewrites exactly one
+/// candidate with a value the write checker proved in the field's declared
+/// domain and leaves the other untouched, so both candidates keep their
+/// `Utf8` coverage: the machine's return re-proves it for every room.
+#[test]
+fn write_through_two_candidate_alias_keeps_both_candidates_domains() {
+    let source = format!(
+        r#"{CANDIDATE_DEFINITIONS}
+        machine Record::pick(&mut self, first: bool) -> &mut Slot {{
+            transition first {{
+                true -> &mut self.others[0]
+                false -> &mut self.others[1]
+            }}
+        }}
+        machine label() -> [u8; 3] in Utf8 {{ "abc" }}
+        machine carve(spare: &mut Record, first: bool) {{
+            let chosen: &mut Slot = spare.pick(first);
+            chosen.count = 3;
+            chosen.bytes = label();
+        }}
+    "#
+    );
+    lower_typed_trees(parse_typed_trees(&source))
+        .expect("both candidates keep their declared domain across the alias write");
+    let corrupted = format!(
+        r#"{CANDIDATE_DEFINITIONS}
+        machine Record::pick(&mut self, first: bool) -> &mut Slot {{
+            transition first {{
+                true -> &mut self.others[0]
+                false -> &mut self.others[1]
+            }}
+        }}
+        machine carve(spare: &mut Record, first: bool) {{
+            let chosen: &mut Slot = spare.pick(first);
+            let raw: &mut [u8; 3] = &mut chosen.bytes;
+            raw[0] = 255;
+        }}
+    "#
+    );
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(&corrupted)) else {
+        panic!("a corrupting alias write through the candidates must not be handed back");
+    };
+    for candidate in ["spare.others[0].bytes", "spare.others[1].bytes"] {
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(&format!(
+                    "for return from carve at statement 3: {candidate} requires"
+                ))),
+            "{candidate} must stay retired: {diagnostics:#?}"
+        );
+    }
+}
