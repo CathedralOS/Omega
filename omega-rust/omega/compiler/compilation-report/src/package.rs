@@ -40,7 +40,8 @@ publication_digest!(PackageComponentDigest);
 publication_digest!(NativePackageEvidenceDigest);
 
 /// Digest one installed package member's exact bytes under its own domain.
-fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
+/// Crate-visible for report-custody tests minting honest member digests.
+pub(crate) fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
     let mut digest = Sha256::new();
     digest.update(b"omega.published-package-component.sha256.v1\0");
     digest.update((bytes.len() as u64).to_le_bytes());
@@ -108,21 +109,27 @@ impl PackagePublicationComponent {
 /// The receipt covers the exact executable/plist/companion bytes and the
 /// directory shape they were installed under. It is compiler artifact
 /// evidence only — package consistency is not a distribution signature,
-/// notarization, or authenticity claim.
+/// notarization, or authenticity claim. Fields are crate-visible for
+/// report-custody tests; the replayed evidence digest and the executable
+/// member joins are what make a forged field detectable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePackagePublicationReceipt {
-    package_root: PathBuf,
-    application_name: String,
-    application_identifier: build_evaluation::ApplicationIdentifier,
+    pub(crate) package_root: PathBuf,
+    pub(crate) application_name: String,
+    pub(crate) application_identifier: build_evaluation::ApplicationIdentifier,
     /// The inner executable's ordinary v1 container commitment — the same
     /// digest the flat publication receipt carries — so package and
     /// executable custody are cross-bound rather than parallel claims.
-    executable_container_digest: ExecutableContainerDigest,
-    executable_byte_count: usize,
+    pub(crate) executable_container_digest: ExecutableContainerDigest,
+    /// Retained inner-executable byte count. It never enters the evidence
+    /// digest: its replay binding is the `Contents/MacOS/<name>` member's own
+    /// byte count plus the flat receipt's container byte count at the
+    /// report-level join.
+    pub(crate) executable_byte_count: usize,
     /// Ordered installed members: `Contents/Info.plist` first, then
     /// `Contents/MacOS/<name>`, then each requested proof companion.
-    components: Vec<PackagePublicationComponent>,
-    package_evidence_digest: NativePackageEvidenceDigest,
+    pub(crate) components: Vec<PackagePublicationComponent>,
+    pub(crate) package_evidence_digest: NativePackageEvidenceDigest,
 }
 
 impl NativePackagePublicationReceipt {
