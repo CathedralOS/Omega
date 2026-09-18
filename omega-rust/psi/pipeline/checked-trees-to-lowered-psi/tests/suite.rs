@@ -45,6 +45,7 @@ mod mutable_scalar_parameters;
 mod nested_call_arguments_source;
 mod nested_custody;
 mod nested_initializer_arguments_source;
+mod nested_member_store_calls;
 mod nested_scalar_store_calls;
 mod nominal_affine_source;
 mod owned_match_state_residuals;

@@ -112,7 +112,11 @@ fn unit_scalar_store_assignments_admit_nested_call_evaluation() {
 }
 
 #[test]
-fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
+fn member_scalar_store_assignments_admit_nested_call_evaluation() {
+    // Member destinations on a borrowed structural parameter or the attached
+    // receiver sequence through the same checked structural field-store
+    // producer as a scalar source: the nested operand is an `AssignmentValue`
+    // computation evaluated exactly once before the outer call and the store.
     for source in [
         "data Container { flag: bool; }
          machine identity(input: bool) -> bool { input }
@@ -120,6 +124,36 @@ fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
              self.flag = identity(identity(input));
              self.flag
          }",
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine value(param: &mut Container, input: bool) {
+             param.flag = identity(identity(input));
+         }",
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine value(param: &write Container, input: bool) {
+             param.flag = identity(identity(input));
+         }",
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine Container::write(&write self, input: bool) {
+             self.flag = identity(identity(input));
+         }",
+        "data Inner { flag: bool; }
+         data Outer { inner: Inner; }
+         machine identity(input: bool) -> bool { input }
+         machine value(param: &mut Outer, input: bool) {
+             param.inner.flag = identity(identity(input));
+         }",
+    ] {
+        let diagnostics = diagnostics(source);
+        assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
+    }
+}
+
+#[test]
+fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
+    for source in [
         "machine identity(input: bool) -> bool { input }
          machine value(input: bool) -> bool {
              let mut saved: [bool; 1] = [input];
@@ -133,7 +167,23 @@ fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
              saved.flag = identity(identity(input));
              input
          }",
+        // A shared borrow carries no store authority, so `param.flag` stays
+        // outside the realized member-store family.
         "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine value(param: &Container, input: bool) {
+             param.flag = identity(identity(input));
+         }",
+        // A shared primitive borrow sibling is unplannable in the
+        // attached/no-scalar-parameter signature variant, so the receiver
+        // member store keeps the fence rather than outrun the producer.
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine Container::value(&mut self, observer: &bool) {
+             self.flag = identity(identity(false));
+         }",
+        // The leaf's declared primitive must be exactly the callee's result.
+        "data Container { flag: i32; }
          machine identity(input: bool) -> bool { input }
          machine value(param: &mut Container, input: bool) {
              param.flag = identity(identity(input));
