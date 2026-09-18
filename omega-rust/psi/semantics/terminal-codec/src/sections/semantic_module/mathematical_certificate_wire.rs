@@ -518,6 +518,106 @@ fn encode_term(
                 encode_level(&mut node, level, 0)?;
             }
         }
+        Term::Empty => {
+            node.u8(21);
+        }
+        Term::EmptyElim { ty, scrutinee } => {
+            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
+            let scrutinee = encode_term(
+                table,
+                arena,
+                scrutinee,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            node.u8(22);
+            node.u32(ty);
+            node.u32(scrutinee);
+        }
+        Term::Squash { ty } => {
+            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
+            node.u8(23);
+            node.u32(ty);
+        }
+        Term::SquashIntro { ty, value } => {
+            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
+            let value = encode_term(table, arena, value, by_handle, by_bytes, count, depth + 1)?;
+            node.u8(24);
+            node.u32(ty);
+            node.u32(value);
+        }
+        Term::SquashElim {
+            proposition,
+            function,
+            scrutinee,
+        } => {
+            let proposition = encode_term(
+                table,
+                arena,
+                proposition,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            let function = encode_term(
+                table,
+                arena,
+                function,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            let scrutinee = encode_term(
+                table,
+                arena,
+                scrutinee,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            node.u8(25);
+            node.u32(proposition);
+            node.u32(function);
+            node.u32(scrutinee);
+        }
+        Term::Box { ty } => {
+            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
+            node.u8(26);
+            node.u32(ty);
+        }
+        Term::BoxIntro { ty, value } => {
+            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
+            let value = encode_term(table, arena, value, by_handle, by_bytes, count, depth + 1)?;
+            node.u8(27);
+            node.u32(ty);
+            node.u32(value);
+        }
+        Term::BoxElim {
+            motive,
+            body,
+            scrutinee,
+        } => {
+            let motive = encode_term(table, arena, motive, by_handle, by_bytes, count, depth + 1)?;
+            let body = encode_term(table, arena, body, by_handle, by_bytes, count, depth + 1)?;
+            let scrutinee = encode_term(
+                table,
+                arena,
+                scrutinee,
+                by_handle,
+                by_bytes,
+                count,
+                depth + 1,
+            )?;
+            node.u8(28);
+            node.u32(motive);
+            node.u32(body);
+            node.u32(scrutinee);
+        }
     }
     let bytes = node.finish();
     if let Some(&index) = by_bytes.get(&bytes) {
@@ -754,6 +854,62 @@ fn decode_term(
                     levels,
                 },
                 1,
+            )
+        }
+        21 => (Term::Empty, 1),
+        22 => {
+            let (ty, ty_depth) = child(reader)?;
+            let (scrutinee, scrutinee_depth) = child(reader)?;
+            (
+                Term::EmptyElim { ty, scrutinee },
+                1 + ty_depth.max(scrutinee_depth),
+            )
+        }
+        23 => {
+            let (ty, ty_depth) = child(reader)?;
+            (Term::Squash { ty }, 1 + ty_depth)
+        }
+        24 => {
+            let (ty, ty_depth) = child(reader)?;
+            let (value, value_depth) = child(reader)?;
+            (
+                Term::SquashIntro { ty, value },
+                1 + ty_depth.max(value_depth),
+            )
+        }
+        25 => {
+            let (proposition, proposition_depth) = child(reader)?;
+            let (function, function_depth) = child(reader)?;
+            let (scrutinee, scrutinee_depth) = child(reader)?;
+            (
+                Term::SquashElim {
+                    proposition,
+                    function,
+                    scrutinee,
+                },
+                1 + proposition_depth.max(function_depth).max(scrutinee_depth),
+            )
+        }
+        26 => {
+            let (ty, ty_depth) = child(reader)?;
+            (Term::Box { ty }, 1 + ty_depth)
+        }
+        27 => {
+            let (ty, ty_depth) = child(reader)?;
+            let (value, value_depth) = child(reader)?;
+            (Term::BoxIntro { ty, value }, 1 + ty_depth.max(value_depth))
+        }
+        28 => {
+            let (motive, motive_depth) = child(reader)?;
+            let (body, body_depth) = child(reader)?;
+            let (scrutinee, scrutinee_depth) = child(reader)?;
+            (
+                Term::BoxElim {
+                    motive,
+                    body,
+                    scrutinee,
+                },
+                1 + motive_depth.max(body_depth).max(scrutinee_depth),
             )
         }
         tag => return Err(CodecError::InvalidTag("MathematicalTerm", tag)),

@@ -4,6 +4,7 @@
 mod identity_and_w_types;
 mod levels_and_declarations;
 mod schemes_and_quotients;
+mod strict_layer;
 mod type_checking;
 
 use crate::mathematical_core::{
@@ -128,6 +129,56 @@ fn ind_w(
     tree: TermHandle,
 ) -> TermHandle {
     arena.insert(Term::IndW { motive, step, tree })
+}
+
+fn empty(arena: &mut TermArena) -> TermHandle {
+    arena.insert(Term::Empty)
+}
+
+fn empty_elim(arena: &mut TermArena, ty: TermHandle, scrutinee: TermHandle) -> TermHandle {
+    arena.insert(Term::EmptyElim { ty, scrutinee })
+}
+
+fn squash(arena: &mut TermArena, ty: TermHandle) -> TermHandle {
+    arena.insert(Term::Squash { ty })
+}
+
+fn squash_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
+    arena.insert(Term::SquashIntro { ty, value })
+}
+
+fn squash_elim(
+    arena: &mut TermArena,
+    proposition: TermHandle,
+    function: TermHandle,
+    scrutinee: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::SquashElim {
+        proposition,
+        function,
+        scrutinee,
+    })
+}
+
+fn boxed(arena: &mut TermArena, ty: TermHandle) -> TermHandle {
+    arena.insert(Term::Box { ty })
+}
+
+fn box_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
+    arena.insert(Term::BoxIntro { ty, value })
+}
+
+fn box_elim(
+    arena: &mut TermArena,
+    motive: TermHandle,
+    body: TermHandle,
+    scrutinee: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::BoxElim {
+        motive,
+        body,
+        scrutinee,
+    })
 }
 
 fn default_budget() -> Budget {

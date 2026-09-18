@@ -1,9 +1,9 @@
-//! Typed conversion for the Π/Σ fragment and the `Two`/`Id`/`W`
-//! primitives: β, pair-projection and constructor-scrutinee
-//! `caseTwo`/`J`/`indW` weak-head normalization under a step ceiling,
-//! pair eta at a `Sigma` shared type, typed function eta at a `Pi`
-//! shared type, and definitional proof irrelevance gated on the *shared
-//! type's* sort — never on the shape of either side.
+//! Typed conversion for the Π/Σ fragment, the `Two`/`Id`/`W` primitives
+//! and the strict layer: β, pair-projection and constructor-scrutinee
+//! `caseTwo`/`J`/`indW`/`unsq`/`unbox` weak-head normalization under a
+//! step ceiling, pair eta at a `Sigma` shared type, typed function eta
+//! at a `Pi` shared type, and definitional proof irrelevance gated on
+//! the *shared type's* sort — never on the shape of either side.
 //!
 //! Function eta is the profile's selected extension (`inductive_profile.md`
 //! §typed-function-eta): a lambda and a non-lambda convert only when the
@@ -15,7 +15,7 @@
 use super::signature::Signature;
 use super::substitution::{instantiate_levels, shift, substitute};
 use super::term::{Level, Sort, Term, TermArena, TermHandle, levels_equal, sorts_equal};
-use super::typing::{Context, CoreError, infer_sort, infer_type, w_step_type};
+use super::typing::{Context, CoreError, box_body_type, infer_sort, infer_type, w_step_type};
 
 /// The default number of β steps a conversion attempt may take.
 pub const DEFAULT_CONVERSION_STEPS: u32 = 65_536;
@@ -271,6 +271,78 @@ pub fn weak_head_normalize(
                     }
                 }
             }
+            Term::EmptyElim { ty, scrutinee } => {
+                // `sEmpty` has no constructors, so the eliminator never
+                // fires — a well-typed scrutinee is always neutral. The
+                // scrutinee still weak-head normalizes so the stuck
+                // form is canonical.
+                let head = weak_head_normalize(arena, signature, scrutinee, budget)?;
+                if head == scrutinee {
+                    return Ok(current);
+                }
+                return Ok(arena.insert(Term::EmptyElim {
+                    ty,
+                    scrutinee: head,
+                }));
+            }
+            Term::SquashElim {
+                proposition,
+                function,
+                scrutinee,
+            } => {
+                // `unsq P f (sq a) → f a`: a squashed witness hands the
+                // unwrapped value to the function. A neutral scrutinee
+                // keeps the elimination stuck; there is no squash eta.
+                let head = weak_head_normalize(arena, signature, scrutinee, budget)?;
+                match arena.get(head) {
+                    Term::SquashIntro { value, .. } => {
+                        budget.consume()?;
+                        current = arena.insert(Term::Apply {
+                            function,
+                            argument: value,
+                        });
+                    }
+                    _ => {
+                        if head == scrutinee {
+                            return Ok(current);
+                        }
+                        return Ok(arena.insert(Term::SquashElim {
+                            proposition,
+                            function,
+                            scrutinee: head,
+                        }));
+                    }
+                }
+            }
+            Term::BoxElim {
+                motive,
+                body,
+                scrutinee,
+            } => {
+                // `unbox P f (box a) → f a`: a boxed proof opens at the
+                // body's binder. A neutral scrutinee keeps the
+                // elimination stuck; there is no box eta.
+                let head = weak_head_normalize(arena, signature, scrutinee, budget)?;
+                match arena.get(head) {
+                    Term::BoxIntro { value, .. } => {
+                        budget.consume()?;
+                        current = arena.insert(Term::Apply {
+                            function: body,
+                            argument: value,
+                        });
+                    }
+                    _ => {
+                        if head == scrutinee {
+                            return Ok(current);
+                        }
+                        return Ok(arena.insert(Term::BoxElim {
+                            motive,
+                            body,
+                            scrutinee: head,
+                        }));
+                    }
+                }
+            }
             _ => return Ok(current),
         }
     }
@@ -329,9 +401,10 @@ pub fn convertible(
             // cumulativity, no `Type`-versus-`Strict` collapse.
             Ok(sorts_equal(&left_sort, &right_sort))
         }
-        (Term::Two, Term::Two) | (Term::TwoZero, Term::TwoZero) | (Term::TwoOne, Term::TwoOne) => {
-            Ok(true)
-        }
+        (Term::Two, Term::Two)
+        | (Term::TwoZero, Term::TwoZero)
+        | (Term::TwoOne, Term::TwoOne)
+        | (Term::Empty, Term::Empty) => Ok(true),
         (
             Term::Pi {
                 domain: left_domain,
@@ -824,6 +897,203 @@ pub fn convertible(
             }
             let step_type = w_step_type(arena, carrier, children, left_motive);
             convertible(arena, context, left_step, right_step, step_type, budget)
+        }
+        (Term::Squash { ty: left_ty }, Term::Squash { ty: right_ty })
+        | (Term::Box { ty: left_ty }, Term::Box { ty: right_ty }) => {
+            // Two squash or box types compare componentwise: the
+            // payloads as types at the left payload's sort. For `Box`
+            // that sort is `Strict v` — a universe whose own sort is
+            // relevant — so two boxed propositions stay distinct; for
+            // `Squash` it is `Type u`, a real comparison.
+            let ty_sort = infer_sort(arena, context, left_ty, budget)?;
+            let shared_ty = arena.insert(Term::Sort(ty_sort));
+            convertible(arena, context, left_ty, right_ty, shared_ty, budget)
+        }
+        (
+            Term::SquashIntro {
+                value: left_value, ..
+            },
+            Term::SquashIntro {
+                value: right_value, ..
+            },
+        ) => {
+            // Two squashed values at a shared `Squash A`: the `ty`
+            // annotations each convert to `A`, so only the values
+            // decide — compared at the shared squash's payload. The
+            // comparison is strict-collapsed before it runs; the arm
+            // exists so the traversal stays honest if it ever meets
+            // one at a non-collapsed shared type.
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            match arena.get(type_head) {
+                Term::Squash { ty } => {
+                    convertible(arena, context, left_value, right_value, ty, budget)
+                }
+                _ => Ok(false),
+            }
+        }
+        (
+            Term::BoxIntro {
+                value: left_value, ..
+            },
+            Term::BoxIntro {
+                value: right_value, ..
+            },
+        ) => {
+            // Two boxed proofs at a shared `Box A`: only the values
+            // decide, compared at `A` — where strictness collapses any
+            // two well-typed proofs, so canonical boxes are always
+            // equal. Neutrals never reach this arm, which is exactly
+            // how boxing keeps irrelevance from escaping.
+            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            match arena.get(type_head) {
+                Term::Box { ty } => {
+                    convertible(arena, context, left_value, right_value, ty, budget)
+                }
+                _ => Ok(false),
+            }
+        }
+        (
+            Term::EmptyElim {
+                ty: left_ty,
+                scrutinee: left_scrutinee,
+            },
+            Term::EmptyElim {
+                ty: right_ty,
+                scrutinee: right_scrutinee,
+            },
+        ) => {
+            // Two stuck ex falso eliminations compare componentwise:
+            // the targets as types at the left target's sort, then the
+            // scrutinees at `sEmpty` — where strict collapse already
+            // equates them, so only the targets decide. No constructor
+            // scrutinee ever reaches here: `sEmpty` has none.
+            let ty_sort = infer_sort(arena, context, left_ty, budget)?;
+            let shared_ty = arena.insert(Term::Sort(ty_sort));
+            if !convertible(arena, context, left_ty, right_ty, shared_ty, budget)? {
+                return Ok(false);
+            }
+            let empty = arena.insert(Term::Empty);
+            convertible(
+                arena,
+                context,
+                left_scrutinee,
+                right_scrutinee,
+                empty,
+                budget,
+            )
+        }
+        (
+            Term::SquashElim {
+                proposition: left_proposition,
+                function: left_function,
+                scrutinee: left_scrutinee,
+            },
+            Term::SquashElim {
+                proposition: right_proposition,
+                function: right_function,
+                scrutinee: right_scrutinee,
+            },
+        ) => {
+            // Two stuck squash eliminations compare componentwise: the
+            // propositions at the left proposition's sort, the
+            // scrutinees at the left scrutinee's inferred `Squash A`,
+            // and the functions at `Π(_ : A). P` rebuilt from them. A
+            // `sq` scrutinee never reaches here — weak-head
+            // normalization already applied the function — and the
+            // whole comparison sits under a strict shared type, so the
+            // arm runs only on malformed inputs; it still decides
+            // honestly.
+            let proposition_sort = infer_sort(arena, context, left_proposition, budget)?;
+            let shared_proposition = arena.insert(Term::Sort(proposition_sort));
+            if !convertible(
+                arena,
+                context,
+                left_proposition,
+                right_proposition,
+                shared_proposition,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
+            let scrutinee_head =
+                weak_head_normalize(arena, context.signature(), scrutinee_type, budget)?;
+            let carrier = match arena.get(scrutinee_head) {
+                Term::Squash { ty } => ty,
+                _ => return Ok(false),
+            };
+            if !convertible(
+                arena,
+                context,
+                left_scrutinee,
+                right_scrutinee,
+                scrutinee_head,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let codomain = shift(arena, left_proposition, 0, 1);
+            let function_type = arena.insert(Term::Pi {
+                domain: carrier,
+                codomain,
+            });
+            convertible(
+                arena,
+                context,
+                left_function,
+                right_function,
+                function_type,
+                budget,
+            )
+        }
+        (
+            Term::BoxElim {
+                motive: left_motive,
+                body: left_body,
+                scrutinee: left_scrutinee,
+            },
+            Term::BoxElim {
+                motive: right_motive,
+                body: right_body,
+                scrutinee: right_scrutinee,
+            },
+        ) => {
+            // Two stuck unboxings compare componentwise: the motives at
+            // the left motive's inferred `Π(_ : Box A). s_v`, the
+            // scrutinees at the left scrutinee's inferred `Box A`, and
+            // the bodies at `Π(a : A). P (box a)` rebuilt from them. A
+            // `box` scrutinee never reaches here — weak-head
+            // normalization already applied the body.
+            let motive_type = infer_type(arena, context, left_motive, budget)?;
+            if !convertible(
+                arena,
+                context,
+                left_motive,
+                right_motive,
+                motive_type,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
+            let scrutinee_head =
+                weak_head_normalize(arena, context.signature(), scrutinee_type, budget)?;
+            let payload = match arena.get(scrutinee_head) {
+                Term::Box { ty } => ty,
+                _ => return Ok(false),
+            };
+            if !convertible(
+                arena,
+                context,
+                left_scrutinee,
+                right_scrutinee,
+                scrutinee_head,
+                budget,
+            )? {
+                return Ok(false);
+            }
+            let body_type = box_body_type(arena, payload, left_motive);
+            convertible(arena, context, left_body, right_body, body_type, budget)
         }
         (Term::Pair { first, second }, _) => {
             // Pair eta: a literal pair converts to a non-pair only when the

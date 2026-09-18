@@ -30,7 +30,9 @@ The judgments, as implemented, are:
 Terms (`term.rs::Term`): `Variable`, `Sort` (`Type u` relevant /
 `Strict u` irrelevant), `Pi`, `Lambda`, `Apply`, `Sigma`, `Pair`, `Fst`,
 `Snd`, `Two`, `TwoZero`, `TwoOne`, `CaseTwo`, `Id`, `Refl`, `IdElim`, `W`,
-`Sup`, `IndW`, `Constant{declaration, levels}`, and the arena `Dummy`
+`Sup`, `IndW`, the strict layer `Empty`, `EmptyElim`, `Squash`,
+`SquashIntro`, `SquashElim`, `Box`, `BoxIntro`, `BoxElim`,
+`Constant{declaration, levels}`, and the arena `Dummy`
 (never well-typed). Levels are `Constant`, `Parameter(i)`, `Successor`,
 `Maximum` — no `imax`, matching the predicative selection.
 
@@ -46,6 +48,9 @@ step per rule, along head spines only:
 - ι-W: `indW(P,s,sup A B a k) ⟶ s a k (λ(b:B a). indW(P,s,k b))` — the
   hypothesis domain `B a` is rebuilt from the `sup`'s checked annotations,
   so the step fires even when the ambient `W` type is neutral.
+- ι-unsq: `unsq P f (sq A a) ⟶ f a`; `sEmpty_rect` has no constructor
+  to fire on.
+- ι-unbox: `unbox P f (box A a) ⟶ f a`.
 
 Conversion `s ≡ t : T` (`convertible`) is decided by: the shared type must
 itself be a type (`infer_sort(T)` runs first, so a malformed shared type
@@ -55,8 +60,10 @@ terms' shapes. Otherwise a reflexivity shortcut, weak-head normalization of
 both sides, a second reflexivity probe, then head-matched typed recursion:
 componentwise for `Pi`/`Sigma` (codomain under an extended context), for
 `Lambda` at a `Pi` shared type, for `Pair` at a `Sigma` shared type, for
-neutral spines (`Apply`, `Fst`, `Snd`, stuck `CaseTwo`/`IdElim`/`IndW`) at
-inferred types, and for `Id`/`Refl`/`Sup`/`W` at the shared type's own
+neutral spines (`Apply`, `Fst`, `Snd`, stuck
+`CaseTwo`/`IdElim`/`IndW`/`EmptyElim`/`SquashElim`/`BoxElim`) at
+inferred types, and for `Id`/`Refl`/`Sup`/`W`/`Squash`/`SquashIntro`/
+`Box`/`BoxIntro` at the shared type's own
 structure. Pair eta runs in both directions at a `Sigma` shared type; the
 profile's typed function eta runs in both directions at a `Pi` shared type.
 Sorts convert through `levels_equal`; assumption constants convert only at
@@ -125,6 +132,12 @@ case on the reduction:
   eliminator's result. The hypothesis lambda's domain is rebuilt from the
   `sup`'s own checked `carrier`/`children` annotations; this is why the
   annotations are checked at typing and ignored at conversion.
+- ι-unsq: the eliminator's type is `P` outright, and `f a : P` by
+  application — `f`'s domain was checked convertible to the squashed
+  carrier, and the introduction's `a` checked at that same carrier.
+- ι-unbox: the eliminator's type is `P x` where `x` is the scrutinee;
+  for `x = box A a` the body `f` checked at `Π(a:A). P (box A a)` gives
+  `f a : P (box A a)` — the result up to reflexivity.
 
 *Witnessed:* the computation tests run each ι rule on a constructor with an
 arbitrary neutral child function, and the step-ceiling refusal tests pin
@@ -138,7 +151,15 @@ of the reference paper's section 4:
 
 - The base two-layer calculus (sorts, Π, Σ) is the predicative sMLTT
   fragment the paper's reducibility argument covers. Strict irrelevance
-  lives in conversion, not reduction, so the strict layer adds no redexes.
+  lives in conversion, not reduction.
+- `sEmpty`/`sEmpty_rect`, `Squash`/`sq`/`unsq`, `Box`/`box`/`unbox`:
+  the strict layer's redexes are the paper's eliminator∘constructor
+  iota steps — `unsq P f (sq a) → f a` and `unbox P f (box a) → f a`
+  fire only on the matching introduction, so each is a standard
+  projection-shaped reduction on canonical scrutinees; `sEmpty_rect`
+  never fires because `sEmpty` has no constructors. The strict unit is
+  derived (`sUnit := Π(_ : sEmpty). sEmpty`), so it contributes no new
+  former at all.
 - `Two`/`caseTwo`: the eliminator fires only on the two constructors; the
   reducibility candidate for `Two` is its two constants.
 - `Id`/`J`: elimination fires only on `refl`; the candidate for
@@ -308,6 +329,7 @@ kernel's guarantee ends at the checked declaration graph.
 | --- | --- |
 | Formation/typing rules, sorts, pairs, eta, ceiling, storage receipt | `type_checking.rs` (24 tests) — including the 51-slot polymorphic-identity receipt and `checking_the_polymorphic_identity_retains_bounded_storage` |
 | `Id`/`Two`/`W` formation, dependent elimination, computation, neutral controls | `identity_and_w_types.rs` (15 tests) — including `identity_proofs_stay_relevant_without_uip` and `pointwise_two_agreement_grants_no_function_equality` |
+| Strict layer: `sEmpty` ex falso, squash formation/introduction/elimination/computation, box formation/introduction/elimination/computation, irrelevance boundaries, derived `sUnit`, declaration checking | `strict_layer.rs` (14 tests) |
 | Level scope, parametric checking, declaration discipline, closure | `levels_and_declarations.rs` (17 tests) |
 | Indexed + quotient schemes checked as signatures, applications, boundaries | `schemes_and_quotients/` |
 | Acceptance families: vector length, mutual, nested, derivation context/conclusion, level polymorphism | `tests/indexed_{vector,mutual,nested,derivation,levels}.rs` — each pins constructor computation on neutral children, rejection controls, exact closures and measured receipts |
@@ -322,13 +344,19 @@ Trusted code is the kernel proper: `term.rs`, `substitution.rs`,
 theorems and bounded denotation are *data* the kernel re-decides; a defect
 in them surfaces as an ordinary rejection, not a false judgment.
 
-Not implemented, by name: the reference core's strict-layer formers —
-squash, boxing and strict empty/unit. `Strict` sorts and definitional
-irrelevance exist; the strict layer's own introduction and elimination
-formers do not, so the eliminators reject strict motives rather than box
-them. `core::Squash` from
-[mathematical bindings](mathematical_bindings.md) has no kernel counterpart
-yet, which gates the squash cases of `PROOF-CONTRACT-MIGRATION`.
+The reference core's strict layer is implemented: `sEmpty` with ex
+falso into either sort, `Squash`/`sq`/`unsq` (existence without witness
+extraction; the dependent eliminator is derived through irrelevance,
+not primitive), `Box`/`box`/`unbox` (the converse embedding, whose
+strict-motive non-dependent instance is the plain projection
+`Box A → A`), and the derived strict unit `sUnit := Π(_ : sEmpty).
+sEmpty`. Definitional proof irrelevance is governed by the shared
+type's sort, so `Box`'s relevant payload is precisely where a neutral
+proof stays distinct from a canonical `box`. `core::Squash` from
+[mathematical bindings](mathematical_bindings.md) now has a kernel
+counterpart; what still gates the squash cases of
+`PROOF-CONTRACT-MIGRATION` is the source-side migration, which that
+item owns.
 
 Not claimed: K/UIP, identity eta, `Two` eta, W eta, function
 extensionality, equality reflection, cumulativity, `imax`, impredicativity.
