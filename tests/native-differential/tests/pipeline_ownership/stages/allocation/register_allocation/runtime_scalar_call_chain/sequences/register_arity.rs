@@ -13,11 +13,12 @@ use crate::tests::{
     stage_optimized_verified_physical_pipeline_with_provider_executions,
     stage_validated_optimized_object_artifact, stage_validated_optimized_ordinary_callable_entry,
 };
-fn register_targets() -> [(NativeTarget, usize); 4] {
+fn register_targets() -> [(NativeTarget, usize); 5] {
     [
         (NativeTarget::linux_x64(), 6),
-        (NativeTarget::linux_arm64(), 8),
         (NativeTarget::windows_x64(), 4),
+        (NativeTarget::uefi_x64(), 4),
+        (NativeTarget::linux_arm64(), 8),
         (NativeTarget::macos_arm64(), 8),
     ]
 }
