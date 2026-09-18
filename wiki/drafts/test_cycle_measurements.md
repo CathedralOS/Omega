@@ -106,9 +106,9 @@ work makes the build-time difference unsuitable as a speedup claim. Release
 performance and repeat-run variance were not measured. The prototype was
 discarded rather than adding an index on this evidence.
 
-The next CRASH-GUARD-COST investigation should measure cumulative phase costs
-and repeated checking across the whole review route before choosing another
-lookup structure. A two-second sample of the unchanged run reached preliminary
+This experiment alone did not locate a remaining optimization target; the
+subsequent attribution below measures the classification work. A two-second
+sample of the unchanged run reached preliminary
 flow-fact construction, illustrating that the earlier crash-classification
 sample does not attribute the entire nine-minute route. Neither sample measures
 a phase's total share. Preserve the explicit review controls above; no thread
