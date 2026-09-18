@@ -144,6 +144,15 @@ floating ranges; reconstruction fails inside `src/proofs/operation_proofs.rs`
 for an obligation issued on the `machine_calls` call path, an area under live
 borrow-proof work.
 
+`cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
+a66852a558 (2026-09-18, macOS arm64) runs the whole crate: 2023 run, 1998
+passed, 25 failed, of which the row above is one. With the
+`validation/affine_cleanup/continuation.rs` repair recorded in the
+terminal-verifier section it is 1999 passed, 24 failed: that repair also
+restores `unit_state_graph::bindings::structural_successors_reject_missing_and_surplus_arguments`,
+which asserts the arity diagnostic from the producer side. The other 24 are
+not attributed here.
+
 ## compiler build-target activation
 
 `mbx nextest run -p compiler --test build_target_activation` — 49/51 pass; 2
