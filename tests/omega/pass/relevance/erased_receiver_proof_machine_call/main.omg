@@ -1,0 +1,21 @@
+// The receiver check is a RUNTIME check: a call whose target is a proof
+// machine is proof computation, so an erased binding may be its receiver.
+// `P` is recursive data with no layout (proof-only by computed
+// classification), `P::touch` takes `self` by value and is therefore a proof
+// machine, and the erased local `p` legally supplies its proof-term receiver.
+// Checked-only: proof machines emit no runtime code (contracts.md).
+data P {
+    case Z;
+    case S(prev: P);
+}
+
+machine P::touch(self) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let p [erased]: P = P::Z {};
+    p.touch();
+}
