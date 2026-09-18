@@ -72,12 +72,48 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   entrance.
 
 - **REPRESENTATION-OWNERSHIP.** Finish
-  `omega-rust/{omega,psi}/representations/`: one named program-root file beside
-  `lib.rs`, with concept-owned subdirectories and current data independent of
-  producer history. Move durable schemas out of transforms/backends where
-  necessary, alongside their consuming stage changes.
+  `omega-rust/{omega,psi}/representations/` under
+  [native representation ownership](omega-rust/omega/representations/README.md):
+  one named program-root file beside `lib.rs`, concept-owned subdirectories,
+  and current data independent of producer history.
+  `tests/architecture/representation_ownership.rs` already enforces the named
+  root for all ten Psi representations and for eight Omega programs (abstract,
+  target, legalized and selected operations, register homes, physical
+  instructions, machine code, representation selections) and rejects
+  `StagedOptimized` ancestry inside them. It does not cover the other ten
+  Omega representation crates, and consumers in the selected and allocation
+  stages still reach current data through producer history.
+
+  Remaining work:
+
+  - Replace stage-ancestry walks with direct reads of the current program.
+    `selected-instructions-to-selected-instructions/src/selected_optimization.rs`
+    obtains its selections through
+    `ranges.liveness_stage().selected_stage().optimized_target().optimized()`;
+    the same accessor chains occur on about 100 non-test lines of
+    `selected-instructions-to-register-homes` and about 60 of
+    `selected-instructions-to-selected-instructions`. Keep the retained inputs
+    as replay evidence only.
+  - Settle `representations/optimization-unit`. It holds an executable entrance
+    (`construction/`, `reconstruct_psi_optimization_unit_seed`) that projects an
+    `AbstractOperationPlan` into a second program, `PsiOptimizationUnit`, plus
+    three root files beside `lib.rs`. Either the unit is private working state
+    of `abstract-operations-to-abstract-operations` and moves there, or it is a
+    named representation with one root and its projection moves to the stage.
+  - Move durable codecs out of transforms and coordinators with their
+    consuming stage changes: `post_allocation_manifest/codec` and
+    `rewrites/allocation_recovery/fixed_view_copy/codec` in the two selected
+    stages, and `optimized_semantic_wrapper_object/codec` in
+    `native-realization` (see `PIPELINE-OWNER-CONSOLIDATION` for whether that
+    owner survives).
+  - For `optimization-core`, `register-model`, `task-plans` and `effects`,
+    which keep several root files, decide whether each is shared vocabulary
+    (exempt under [pipeline.md](omega-rust/pipeline.md#placement-and-semantic-ownership))
+    or a program needing one root, and extend the guard's table to match.
+
   Acceptance: current programs outlive their producers; ordinary consumers
-  read current data directly; historical inputs remain separate replay evidence.
+  read current data directly; historical inputs remain separate replay
+  evidence; the architecture guard names every program representation.
 
 ## Product pruning and rollout
 
