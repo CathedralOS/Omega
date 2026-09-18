@@ -98,6 +98,67 @@ pub(super) fn realize(
             "signed macOS GUI image emission requires the authored Build identifier",
         )]);
     }
+    // This compile's own verified build filesystem replay record realizes one
+    // occurrence-specific ordinary-release contract per retained
+    // open/query/close chain. The contracts narrow demanded release-cohort
+    // mechanisms into their evidence-bound keys; the receiving policy gains
+    // exactly the explicit-empty rows that evidence authorizes, and any key
+    // the caller already rowed keeps the caller's classification.
+    let replay_limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
+    let filesystem_release_contracts = checked
+        .build_observation_summary()
+        .map(|summary| {
+            build_evaluation::capture_verified_build_filesystem_replay_record(
+                summary,
+                replay_limits,
+            )
+        })
+        .transpose()
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "native-artifact retained filesystem replay record could not be recovered: {error}"
+            ))]
+        })?
+        .flatten()
+        .map(|record| {
+            crate::filesystem_native_handle_query_release_contracts(&record, replay_limits)
+        })
+        .transpose()
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "native-artifact retained filesystem replay record did not rehydrate its occurrences: {error}"
+            ))]
+        })?
+        .unwrap_or_default();
+    let terminal_authority_policy = if filesystem_release_contracts.is_empty() {
+        terminal_authority_policy
+    } else {
+        let release_rows = crate::filesystem_release_occurrence_mechanism_rows(
+            &filesystem_release_contracts,
+            &demanded_intrinsics,
+            checked.selected_provider_plans(),
+            checked.external_binding_rows(),
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "native-artifact retained filesystem release evidence did not realize its mechanism rows: {error}"
+            ))]
+        })?;
+        let mut rows = terminal_authority_policy.explicit_rows().to_vec();
+        for row in release_rows {
+            if rows
+                .iter()
+                .all(|existing| existing.mechanism() != row.mechanism())
+            {
+                rows.push(row);
+            }
+        }
+        crate::terminal_authority_policy_with_rows(rows).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "native-artifact retained filesystem release rows do not form one exact mechanism policy: {error:?}"
+            ))]
+        })?
+    };
     let request = crate::NativeRealizationRequest {
         checked_scope: Some(&checked_boundary_operator_scope),
         prepared_input: Some(prepared_input),
@@ -118,14 +179,18 @@ pub(super) fn realize(
         native_callbacks: &[],
         callback_thunks: &[],
     };
-    crate::realize_native_artifact(artifact, request)
-        .map_err(|error| error.into_parts().1)?
-        .into_direct()
-        .map_err(|_| {
-            vec![Diagnostic::error(
-                "direct native realization returned a different image kind",
-            )]
-        })
+    crate::realize_native_artifact_with_release_contracts(
+        artifact,
+        request,
+        &filesystem_release_contracts,
+    )
+    .map_err(|error| error.into_parts().1)?
+    .into_direct()
+    .map_err(|_| {
+        vec![Diagnostic::error(
+            "direct native realization returned a different image kind",
+        )]
+    })
 }
 
 #[cfg(test)]

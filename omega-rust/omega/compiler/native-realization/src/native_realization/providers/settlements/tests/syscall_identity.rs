@@ -138,6 +138,7 @@ fn coverage_rejects_missing_and_duplicate_external_rows_before_policy_lookup() {
             &rows,
             &[],
             &[],
+            &[],
         )
         .expect_err("external multiplicity is independently checked");
         assert_eq!(
@@ -168,6 +169,7 @@ fn coverage_counts_uncalled_boundary_aliases_and_preserves_error_precedence() {
             &policy,
             profile.native_target(),
             &[external(profile, number)],
+            &[],
             &[],
             &[],
         )
@@ -233,6 +235,7 @@ fn coverage_callback_join_counts_duplicate_operations_and_keeps_callback_order()
         &[],
         &[],
         std::slice::from_ref(&callback),
+        &[],
     )
     .expect("one occurrence joins; this does not claim callback publication admission");
     let duplicate = plan.functions[0].operations[0].clone();
@@ -250,6 +253,7 @@ fn coverage_callback_join_counts_duplicate_operations_and_keeps_callback_order()
             &[],
             &[],
             &callbacks,
+            &[],
         )
         .expect_err("callback rows retain input-order diagnostics despite sorted lookup keys");
         assert_eq!(
@@ -295,6 +299,7 @@ fn import_coverage_preserves_callback_multiplicity_and_registrar_plan_rejection(
             std::slice::from_ref(&external),
             &[],
             &callbacks,
+            &[],
         )
         .expect_err("one matching registrar plan remains mandatory after occurrence joins");
         assert_eq!(
@@ -325,6 +330,7 @@ fn uncalled_selected_import_needs_no_settlement_but_cannot_hide_an_orphan_callba
         &[],
         &[],
         &[],
+        &[],
     )
     .expect("unreachable selection retains identity without execution inputs");
     assert!(admitted.is_empty());
@@ -337,6 +343,7 @@ fn uncalled_selected_import_needs_no_settlement_but_cannot_hide_an_orphan_callba
         &[],
         &[],
         &[callback],
+        &[],
     )
     .expect_err("empty demand cannot hide an orphan callback occurrence");
     assert_eq!(
@@ -480,6 +487,7 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         std::slice::from_ref(&external),
         &[],
         &[],
+        &[],
     )
     .expect("provider settlement derives the checked syscall identity");
     assert_eq!(
@@ -525,6 +533,7 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         &[wrong_number],
         &[],
         &[],
+        &[],
     )
     .expect_err("retained external number substitution rejects");
     assert!(
@@ -543,6 +552,7 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         &[wrong_target],
         &[],
         &[],
+        &[],
     )
     .expect_err("retained external target substitution rejects");
     assert!(
@@ -559,11 +569,193 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
         &[external],
         &[],
         &[],
+        &[],
     )
     .expect_err("an absent exact syscall policy row rejects");
     assert!(
         absent_policy[0]
             .message
             .contains("does not classify syscall mechanism")
+    );
+}
+
+/// A selected `close_handle` syscall plan: the same requirement the rest of
+/// this file demands, but served by a canonical `FilesystemHost` release
+/// cohort method so occurrence-bound keys may classify.
+fn filesystem_release_syscall_plan(
+    profile: target::TargetProfile,
+    number: i64,
+) -> effects::SelectedProviderPlanFacts {
+    let mut plan = import_plan(b"unused", profile);
+    plan.schema.trait_name = "omega::test::FilesystemHost".into();
+    plan.schema.methods[0].name = "close_handle".into();
+    plan.rows[0].method = "close_handle".into();
+    plan.rows[0].binding = ProviderBinding::Syscall { number };
+    effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+        .expect("one exact filesystem release syscall plan")
+}
+
+fn retained_release_contracts(
+    occurrences: &[(&[u8], u64)],
+) -> Vec<crate::native_realization::FilesystemOrdinaryReleaseContract> {
+    let record = build_evaluation::capture_verified_build_filesystem_replay_record(
+        &build_evaluation::test_support::replayable_native_handle_query_chain_summary(occurrences),
+        build_evaluation::BuildFilesystemReplayRecordLimits::default(),
+    )
+    .expect("retained query-release chains encode")
+    .expect("verified query-release chains retain replay custody");
+    crate::native_realization::filesystem_native_handle_query_release_contracts(
+        &record,
+        build_evaluation::BuildFilesystemReplayRecordLimits::default(),
+    )
+    .expect("retained occurrences realize their contracts")
+}
+
+#[test]
+fn settlement_admits_the_occurrence_bound_release_key() {
+    let profile = target::TargetProfile::LinuxX64;
+    let target = profile.native_target();
+    let plan = abstract_plan();
+    let boundary = plan.boundary_machines[0].id;
+    let selected = filesystem_release_syscall_plan(profile, 1);
+    let conservative =
+        crate::native_realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+            profile, 1, &plan, boundary,
+        )
+        .expect("verified boundary supplies the conservative checked contract");
+    let contracts = retained_release_contracts(&[(b"pkg/main.omg", 7), (b"pkg/lib.omg", 8)]);
+    let [first, second] = contracts.as_slice() else {
+        panic!("two retained occurrences derive two contracts")
+    };
+    let first_bound =
+        crate::native_realization::filesystem_release_bound_mechanism(conservative, *first)
+            .expect("a syscall accepts the checked release coordinate");
+    let second_bound =
+        crate::native_realization::filesystem_release_bound_mechanism(conservative, *second)
+            .expect("a syscall accepts the checked release coordinate");
+    assert_ne!(first_bound, second_bound);
+    let policy = crate::native_realization::terminal_authority_policy_with_rows(vec![
+        crate::native_realization::TerminalAuthorityPolicyRow::new(
+            first_bound,
+            effects::TerminalAuthorityDisposition::from_filesystem_facets([]),
+        ),
+        crate::native_realization::TerminalAuthorityPolicyRow::new(
+            second_bound,
+            effects::TerminalAuthorityDisposition::from_filesystem_facets([]),
+        ),
+    ])
+    .expect("exact release-bound policy rows");
+    let external = external(profile, 1);
+
+    let admitted = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &policy,
+        target,
+        std::slice::from_ref(&external),
+        &[],
+        &[],
+        &contracts,
+    )
+    .expect("a demanded release-cohort mechanism admits under its bound key");
+    assert_eq!(
+        admitted,
+        vec![
+            crate::native_realization::providers::AdmittedTerminalMechanism {
+                boundary,
+                mechanism: first_bound,
+            }
+        ],
+        "settlement binds the first retained occurrence's key in authored order"
+    );
+
+    // Without this compile's retained evidence the bound keys are inert: the
+    // conservative mechanism was never rowed, so the demand stays fail-closed.
+    let error = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &policy,
+        target,
+        std::slice::from_ref(&external),
+        &[],
+        &[],
+        &[],
+    )
+    .expect_err("no retained release evidence keeps the generic key unclassified");
+    assert!(
+        error[0]
+            .message
+            .contains("does not classify syscall mechanism")
+    );
+
+    // A stale record's contracts mint different bound keys, none of which the
+    // receiving policy rows; the unconstrained fallback has no row either.
+    let stale = retained_release_contracts(&[(b"pkg/other.omg", 7)]);
+    let error = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &policy,
+        target,
+        std::slice::from_ref(&external),
+        &[],
+        &[],
+        &stale,
+    )
+    .expect_err("stale release evidence cannot classify the retained bound key");
+    assert!(
+        error[0]
+            .message
+            .contains("does not classify syscall mechanism")
+    );
+}
+
+#[test]
+fn settlement_never_binds_release_contracts_into_non_release_cohorts() {
+    let profile = target::TargetProfile::LinuxX64;
+    let target = profile.native_target();
+    let plan = abstract_plan();
+    let boundary = plan.boundary_machines[0].id;
+    // `leaf` is not a `FilesystemHost` ordinary-release cohort method, so no
+    // retained contract may narrow its mechanism key.
+    let selected = syscall_plan(profile, 1);
+    let conservative =
+        crate::native_realization::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+            profile, 1, &plan, boundary,
+        )
+        .expect("verified boundary supplies the conservative checked contract");
+    let contracts = retained_release_contracts(&[(b"pkg/main.omg", 7)]);
+    let [contract] = contracts.as_slice() else {
+        panic!("one retained occurrence derives one contract")
+    };
+    let bound =
+        crate::native_realization::filesystem_release_bound_mechanism(conservative, *contract)
+            .expect("a syscall accepts the checked release coordinate");
+    // Even when the receiving policy rows the bound key, a non-release
+    // requirement must classify under its own exact mechanism only.
+    let policy = crate::native_realization::terminal_authority_policy_with_rows(vec![
+        crate::native_realization::TerminalAuthorityPolicyRow::new(
+            bound,
+            effects::TerminalAuthorityDisposition::from_filesystem_facets([]),
+        ),
+        crate::native_realization::TerminalAuthorityPolicyRow::new(
+            conservative,
+            effects::TerminalAuthorityDisposition::from_classes([]),
+        ),
+    ])
+    .expect("exact policy rows");
+    let admitted = validate_source_evaluated_import_coverage(
+        &plan,
+        &selected,
+        &policy,
+        target,
+        &[external(profile, 1)],
+        &[],
+        &[],
+        &contracts,
+    )
+    .expect("the conservative key still admits a non-release cohort");
+    assert_eq!(
+        admitted[0].mechanism, conservative,
+        "a non-release cohort never carries a release-contract coordinate"
     );
 }
