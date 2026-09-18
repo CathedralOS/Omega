@@ -9,7 +9,10 @@
 //! selects through the same pointer routes, or a write into the place's own
 //! local storage carrying `WriteLocal` — a `Store` or `StorePacked` through
 //! the slot's materialized address, or the always-eight-byte `Store64` into
-//! that slot directly. The place's own storage is its
+//! that slot directly — or the byte-sequence store: a `Store { 0, 1 }`
+//! through a fully computed view address carrying one `WriteByteSequence`
+//! row, whose written byte sits at the row's `byte_offset + index` for the
+//! runtime `index`. The place's own storage is its
 //! `StructuralParameter`/`StructuralBlockParameter` slot or the producing
 //! operation's `Structural` home — the place's declaration names that
 //! producer. A `Structural` slot the declaration does not charge to that
@@ -34,6 +37,11 @@
 //! carried register, a memory-capable instruction with no roster row, or a
 //! boundary settlement. The store lands immediately before that position;
 //! every kept event still observes the write in the same relative order.
+//! When the moved store is itself a byte-sequence write the reach direction
+//! mirrors: the written byte can sit anywhere at or past the row's fixed
+//! offset, so a later exact or local row still reaches it once its own
+//! extent ends past that offset, and a later dynamic-extent row on the
+//! place always meets it.
 //!
 //! The walk is not confined to one block: reaching a block's end without a
 //! stop continues through its terminator's successor edges when every edge
@@ -81,17 +89,29 @@ pub(super) struct Admission<'source> {
     pub insert_index: usize,
 }
 
-/// One exact byte range within one place root.
+/// The bytes the moved store writes within one place root: an exact range,
+/// or a dynamic extent when the store is a byte-sequence write — its single
+/// written byte sits at `byte_offset + index` for the runtime `index`, so
+/// every byte it can touch lies at or after `byte_offset` with no static
+/// upper bound.
 struct Moved {
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
+    dynamic: bool,
 }
 
 impl Moved {
     /// Exact rows intersect when their half-open byte intervals share a byte;
-    /// widened to u64 so edge offsets cannot wrap.
+    /// widened to u64 so edge offsets cannot wrap. A dynamic moved extent is
+    /// unbounded upward from `byte_offset`, so the exact row interferes once
+    /// its own extent reaches that offset — only a row ending at or below it
+    /// is provably disjoint.
     fn intersects(&self, access: &SelectedMemoryAccess) -> bool {
+        if self.dynamic {
+            return u64::from(self.byte_offset)
+                < u64::from(access.byte_offset) + u64::from(access.byte_count);
+        }
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
             && u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count)
@@ -103,8 +123,13 @@ impl Moved {
     /// can touch lies at or after `byte_offset`. It still reaches this range
     /// exactly while its fixed offset starts below the range's end; an
     /// offset at or past the end is provably disjoint however far the reach
-    /// extends.
+    /// extends. When the moved extent is itself dynamic the row can always
+    /// meet it — two reaches unbounded upward on one place share a byte
+    /// whenever both extend far enough — so it always interferes.
     fn reached_by(&self, access: &SelectedMemoryAccess) -> bool {
+        if self.dynamic {
+            return true;
+        }
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
     }
 }
@@ -182,6 +207,16 @@ pub(super) fn admit<'source>(
     let write = rows
         .next()
         .ok_or(StoreMutationMotionError::UnsupportedInstruction)?;
+    // A byte-sequence store takes the dynamic route: `Store { 0, 1 }` writes
+    // one byte through a fully computed view address, and its
+    // `WriteByteSequence` row carries the payload base as `byte_offset` plus
+    // the runtime `index` — so the row's offset is a lower bound the index
+    // extends, not the encoded range, and the written byte's position is
+    // decided at runtime.
+    let sequence = matches!(
+        write.role,
+        SelectedMemoryAccessRole::WriteByteSequence { .. }
+    );
     let storage_route = match (write.role, direct_slot) {
         (SelectedMemoryAccessRole::WritePlace, None) => true,
         (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
@@ -190,12 +225,14 @@ pub(super) fn admit<'source>(
         (SelectedMemoryAccessRole::WriteLocal { slot }, Some(encoded)) => {
             slot == encoded && local_slot_is_place_storage(slot, write.place, structural_places)
         }
+        (SelectedMemoryAccessRole::WriteByteSequence { .. }, None) => {
+            encoded_offset == 0 && encoded_size == 1 && write.byte_count == 1
+        }
         _ => false,
     };
     if rows.next().is_some()
         || !storage_route
-        || write.byte_offset != encoded_offset
-        || write.byte_count != encoded_size
+        || (!sequence && (write.byte_offset != encoded_offset || write.byte_count != encoded_size))
     {
         return Err(StoreMutationMotionError::UnsupportedPair);
     }
@@ -203,6 +240,7 @@ pub(super) fn admit<'source>(
         place: write.place,
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
+        dynamic: sequence,
     };
     // The moved instruction must carry the operand surface its route
     // declares: the plain `[use pointer, use value]` place store — the
@@ -488,11 +526,16 @@ fn carried_surface(
 }
 
 /// Whether one roster row touches the moved bytes or the place's dynamic
-/// storage. Exact rows must intersect the moved range. A dynamic-extent row
+/// storage. Exact rows must intersect the moved range — when the moved
+/// extent is itself dynamic, an exact row interferes once its extent ends
+/// past the row's fixed offset, the only provable disjointness left. A
+/// dynamic-extent row
 /// on the moved place reaches only upward from its fixed offset, so it
 /// interferes exactly while that offset starts below the moved range's end;
 /// a row beginning at or past the end is provably disjoint and the store
-/// slides past it like any disjoint row. A `WriteLocal` row names an exact
+/// slides past it like any disjoint row. Against a dynamic moved extent the
+/// row always interferes: two unbounded-upward reaches on one place can
+/// share a byte. A `WriteLocal` row names an exact
 /// range on a slot: when
 /// the slot is the moved place's own storage, range intersection decides; a
 /// slot that only stages bytes naming the place holds none of the place's

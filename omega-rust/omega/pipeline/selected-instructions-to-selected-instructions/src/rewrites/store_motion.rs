@@ -6,7 +6,11 @@
 //! `StructuralParameter`/`StructuralBlockParameter` slot or the producing
 //! operation's `Structural` home, which a `Store64` also writes directly. A
 //! `StorePacked { byte_offset, width }` takes the same pointer routes for
-//! the odd fragment widths the plain store cannot encode.
+//! the odd fragment widths the plain store cannot encode. A `Store { 0, 1 }`
+//! through a fully computed view address carries a `WriteByteSequence` row
+//! instead: its written byte sits at the row's `byte_offset + index` for the
+//! runtime `index`, so the moved extent is unbounded upward from that fixed
+//! offset.
 //! Sinking the store later along the control-flow path defers the write
 //! inside the window where nothing can observe the place's old bytes: every
 //! instruction the store slides past must leave the relative order of the
@@ -36,7 +40,10 @@
 //! row reaches only upward from its fixed byte offset — a span covers
 //! `length` bytes there and a sequence row touches `offset + index` — so
 //! one starting at or past the moved range's end is provably disjoint and
-//! slides past like any disjoint row. Only a
+//! slides past like any disjoint row. When the moved extent is itself
+//! dynamic the direction mirrors: an exact or local row still reaches the
+//! moved byte once its own extent ends past the row's fixed offset, and a
+//! dynamic-extent row on the place always can. Only a
 //! potentially overlapping access on the moved place, a dynamic-extent row
 //! on it still able to reach the moved bytes, a write to or materialized
 //! address of the place's own storage, or

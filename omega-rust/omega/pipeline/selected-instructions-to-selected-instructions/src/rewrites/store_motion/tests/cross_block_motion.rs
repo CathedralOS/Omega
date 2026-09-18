@@ -1,7 +1,7 @@
 use super::{
     BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
-    crossed_edge, instruction, mutated_chained, pack_store, place, settlement, settlement_at, sink,
-    successor,
+    crossed_edge, instruction, mutated_chained, pack_store, place, sequence_store, settlement,
+    settlement_at, sink, successor,
 };
 use crate::rewrites::store_motion::{
     StoreMutationMotionError, sink_selected_store_mutation, validate_store_mutation_motion,
@@ -494,6 +494,154 @@ fn cross_block_local_slot_store_sinks_across_the_edge() {
         });
     });
     let result = sink(&value_edge, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+}
+
+#[test]
+fn cross_block_byte_sequence_store_sinks_across_the_edge() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The byte-sequence store's reach is unbounded upward from its payload
+    // base: the covering store's exact write ends at that base, so the moved
+    // byte never meets it and the store slides to the successor's end.
+    let sunk = mutated_chained(target, |function, environment| {
+        sequence_store(function, environment, 8);
+    });
+    let result = sink(&sunk, &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    assert_eq!(
+        function.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    assert_eq!(
+        function.blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![KILLER, STORE]
+    );
+    assert_eq!(
+        function.memory_accesses,
+        sunk.transformed().functions[0].memory_accesses
+    );
+    validate_store_mutation_motion(
+        &sunk,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A covering write reaching the payload base can still meet the moved
+    // byte, so the store lands at the successor's head before it.
+    let reached = mutated_chained(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        function.memory_accesses[1].byte_offset = 8;
+    });
+    let result = sink(&reached, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![STORE, KILLER]
+    );
+    // A terminator row on the moved place reaching the payload base lands
+    // the store at the crossed block's end.
+    let terminator_row = mutated_chained(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        let SelectedTerminator::Jump {
+            instruction: terminator,
+            ..
+        } = &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        function.memory_accesses.push(access(
+            terminator.id,
+            3,
+            place(),
+            8,
+            SelectedMemoryAccessRole::WritePlace,
+        ));
+    });
+    let result = sink(&terminator_row, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // An edge transport writing the moved place's storage runs between the
+    // old and new positions however far the moved byte reaches.
+    let aliased = mutated_chained(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        crossed_edge(function)
+            .structural_bindings
+            .push(SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: PlaceId::new(2).unwrap(),
+                    argument: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                },
+                transport: SelectedStructuralTransport::WholeValue {
+                    argument: SCRATCH,
+                    destination: LocalStorageSlotId::Structural {
+                        operation: OperationId::new(9).unwrap(),
+                        place: place(),
+                    },
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            });
+    });
+    let result = sink(&aliased, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // An edge redefining the carried address register still stops the
+    // crossing: the moved store's reads keep the same custody.
+    let redefined = mutated_chained(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: SCRATCH,
+                parameter: POINTER,
+            },
+        });
+    });
+    let result = sink(&redefined, &environment).unwrap();
     assert_eq!(
         result.transformed().functions[0].blocks[0]
             .instructions

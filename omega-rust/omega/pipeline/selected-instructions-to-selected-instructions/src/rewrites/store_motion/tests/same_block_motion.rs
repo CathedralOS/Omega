@@ -1,6 +1,6 @@
 use super::{
     BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
-    fixture, instruction, landed_ids, mutated, pack_store, place, settlement, sink,
+    fixture, instruction, landed_ids, mutated, pack_store, place, sequence_store, settlement, sink,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::store_motion::{
@@ -1216,6 +1216,391 @@ fn local_storage_stores_sink() {
     assert_eq!(
         sink(&staged_packed, &environment).unwrap_err(),
         StoreMutationMotionError::UnsupportedPair
+    );
+}
+
+#[test]
+fn byte_sequence_stores_sink() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The byte-sequence store writes one byte at `offset + index` — a reach
+    // unbounded upward from the payload base. The covering store's exact
+    // write ends at that base, so the two never meet and the store slides
+    // past every position to the block's end.
+    let sunk = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+    });
+    let result = sink(&sunk, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, KILLER, STORE]
+    );
+    assert_eq!(
+        result.transformed().functions[0].memory_accesses,
+        sunk.transformed().functions[0].memory_accesses
+    );
+    validate_store_mutation_motion(
+        &sunk,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A covering write that reaches the payload base still can meet the
+    // moved byte, so the store lands just before it.
+    let reached = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        function.memory_accesses[1].byte_offset = 8;
+    });
+    let result = sink(&reached, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    // The disjointness edge is the row's own extent: a read ending exactly
+    // at the payload base slides past, while one ending a byte later can
+    // observe the moved byte and stops the walk before any motion.
+    let row_end_at_base = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        let load = environment
+            .constraint(environment.selected_keys().load64.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            load,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 0, SelectedMemoryAccessRole::ReadPlace),
+        );
+    });
+    let result = sink(&row_end_at_base, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, KILLER, STORE]
+    );
+    let row_end_past_base = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        let load = environment
+            .constraint(environment.selected_keys().load64.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Load64 { byte_offset: 1 },
+            load,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 1, SelectedMemoryAccessRole::ReadPlace),
+        );
+    });
+    assert_eq!(
+        sink(&row_end_past_base, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A dynamic-extent row on the moved place always meets a dynamic moved
+    // extent — two unbounded-upward reaches can share a byte — even when the
+    // row's fixed offset sits past the payload base.
+    let dynamic_later = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    24,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(11).unwrap(),
+                        value: ValueId::new(12).unwrap(),
+                        length: ValueId::new(13).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(2).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([4; 32]),
+                    },
+                )
+            },
+        );
+    });
+    assert_eq!(
+        sink(&dynamic_later, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A dynamic read on the moved place meets the moved extent the same way.
+    let dynamic_read = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    0,
+                    SelectedMemoryAccessRole::ReadByteSpan {
+                        length: ValueId::new(13).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(2).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([4; 32]),
+                    },
+                )
+            },
+        );
+    });
+    assert_eq!(
+        sink(&dynamic_read, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // Dynamic rows on another place never meet the moved byte.
+    let other_place = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    BETWEEN,
+                    3,
+                    PlaceId::new(2).unwrap(),
+                    0,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(11).unwrap(),
+                        value: ValueId::new(12).unwrap(),
+                        length: ValueId::new(13).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(2).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([4; 32]),
+                    },
+                )
+            },
+        );
+    });
+    let result = sink(&other_place, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, KILLER, STORE]
+    );
+    // A `WriteLocal` on the place's own storage decides by its exact extent:
+    // ending at the payload base it is disjoint and slides past; reaching
+    // past it, the store lands before the write.
+    let parameter = LocalStorageSlotId::StructuralParameter { place: place() };
+    let local_disjoint = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        function
+            .local_storage_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: parameter,
+                byte_size: 16,
+                alignment: 8,
+            });
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WriteLocal { slot: parameter },
+            ),
+        );
+    });
+    let result = sink(&local_disjoint, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, KILLER, STORE]
+    );
+    let local_reaching = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        function
+            .local_storage_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: parameter,
+                byte_size: 16,
+                alignment: 8,
+            });
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                byte_offset: 8,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                8,
+                SelectedMemoryAccessRole::WriteLocal { slot: parameter },
+            ),
+        );
+    });
+    assert_eq!(
+        sink(&local_reaching, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A materialized address of the place's own storage can reach the moved
+    // byte by a route the roster does not bound, so it stops the walk.
+    let materialized = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        let frame_address = environment
+            .constraint(environment.selected_keys().frame_address.unwrap())
+            .unwrap();
+        function
+            .local_storage_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: parameter,
+                byte_size: 16,
+                alignment: 8,
+            });
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::FrameAddress {
+                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                byte_offset: 0,
+            },
+            frame_address,
+            &[SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::AddressLocal { slot: parameter },
+            ),
+        );
+    });
+    assert_eq!(
+        sink(&materialized, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+}
+
+#[test]
+fn byte_sequence_store_route_must_match() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The sequence route admits only the one-byte store through the computed
+    // address: any other encoded offset or width disagrees with the row.
+    for (byte_offset, byte_size) in [(1, 1), (0, 4)] {
+        let mismatched = mutated(target, |function, environment| {
+            sequence_store(function, environment, 8);
+            function.blocks[0].instructions[1].kind = SelectedInstructionKind::Store {
+                byte_offset,
+                byte_size,
+            };
+        });
+        assert_eq!(
+            sink(&mismatched, &environment).unwrap_err(),
+            StoreMutationMotionError::UnsupportedPair
+        );
+    }
+    // The row names exactly one written byte; a different count disagrees.
+    let wrong_count = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        function.memory_accesses[0].byte_count = 2;
+    });
+    assert_eq!(
+        sink(&wrong_count, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A second roster row on the moved store leaves its reach unaccounted.
+    let second_row = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        function.memory_accesses.insert(
+            1,
+            access(STORE, 2, place(), 8, SelectedMemoryAccessRole::WritePlace),
+        );
+    });
+    assert_eq!(
+        sink(&second_row, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // The packed and direct-slot routes never carry a sequence row: the
+    // packed store's width is never one byte and the slot store writes a
+    // named slot, not a computed view address.
+    let packed = mutated(target, |function, environment| {
+        pack_store(function, environment);
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            role: SelectedMemoryAccessRole::WriteByteSequence {
+                index: ValueId::new(5).unwrap(),
+                value: ValueId::new(6).unwrap(),
+                length: ValueId::new(7).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [3; 32],
+                ),
+            },
+            ..access(STORE, 1, place(), 0, SelectedMemoryAccessRole::WritePlace)
+        };
+    });
+    assert_eq!(
+        sink(&packed, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    let direct = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(
+                    LocalStorageSlotId::StructuralParameter { place: place() },
+                ),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+    });
+    assert_eq!(
+        sink(&direct, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // The replay consumes the moved store's row as proposed: flipping it to
+    // a plain place write no longer matches the admitted roster.
+    let sunk = mutated(target, |function, environment| {
+        sequence_store(function, environment, 8);
+    });
+    let result = sink(&sunk, &environment).unwrap();
+    let mut proposed = result.transformed().clone();
+    proposed.functions[0].memory_accesses[0].role = SelectedMemoryAccessRole::WritePlace;
+    assert_eq!(
+        validate_store_mutation_motion(&sunk, 0, STORE, &environment, budget(), proposed)
+            .unwrap_err(),
+        StoreMutationMotionError::ReplayMismatch
     );
 }
 

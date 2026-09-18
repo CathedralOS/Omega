@@ -314,6 +314,47 @@ fn pack_store(
     function.memory_accesses[0].byte_count = 7;
 }
 
+/// Rewrite the fixture's moved store into a byte-sequence `Store { 0, 1 }`
+/// through a fully computed view address: its single `WriteByteSequence` row
+/// carries the payload base `offset` and writes the byte at
+/// `offset + index` for the runtime `index`, so its reach is unbounded
+/// upward from `offset`.
+fn sequence_store(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    offset: u32,
+) {
+    let store = environment
+        .constraint(environment.selected_keys().store.unwrap())
+        .unwrap();
+    function.blocks[0].instructions[1] = instruction(
+        STORE,
+        SelectedInstructionKind::Store {
+            byte_offset: 0,
+            byte_size: 1,
+        },
+        store,
+        &[POINTER, VALUE],
+    );
+    function.memory_accesses[0] = SelectedMemoryAccess {
+        byte_count: 1,
+        role: SelectedMemoryAccessRole::WriteByteSequence {
+            index: ValueId::new(5).unwrap(),
+            value: ValueId::new(6).unwrap(),
+            length: ValueId::new(7).unwrap(),
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        },
+        ..access(
+            STORE,
+            1,
+            place(),
+            offset,
+            SelectedMemoryAccessRole::WritePlace,
+        )
+    };
+}
+
 fn sink(
     source: &ValidatedStoreMutationMotion,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
