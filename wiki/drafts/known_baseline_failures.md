@@ -163,19 +163,17 @@ imported the retired `omega::language::std` spelling, so
 pass canaries" rather than a failure: the family was inventoried through
 `fixture_rosters/native_filesystem_canaries.rs` but sat on no executing pass
 roster. With an ordinary build declaration and the `omega_language_std`
-alias, 38 reach checked semantics and are registered in
-`CHECKED_ONLY_PASS_CANARIES`. The 16 left unregistered are 15 decision-17
-obligations on `widen_u8_to_*` value-machine calls with unproven return
-ranges, plus `native_wrapper_write_all_result` on
-**MATCH-SELECTIVE-LOWERING**'s value-dispatch pattern limit. Of the 15,
-eight (`native_fstat`, `native_metadata_blocks`, `native_metadata_ctime_dev`,
-`native_metadata_ino`, `native_metadata_modified`, `native_metadata_times`,
-`native_set_times`, `native_stat`) assemble a `struct stat` field with
+alias, and with the core library's unsigned widening machines publishing
+their source carrier's range at 96c08b0109, 45 reach checked semantics and
+are registered in `CHECKED_ONLY_PASS_CANARIES`. The 9 left unregistered are
+`native_wrapper_write_all_result`, on **MATCH-SELECTIVE-LOWERING**'s
+value-dispatch pattern limit, and eight (`native_fstat`,
+`native_metadata_blocks`, `native_metadata_ctime_dev`, `native_metadata_ino`,
+`native_metadata_modified`, `native_metadata_times`, `native_set_times`,
+`native_stat`) that assemble a `struct stat` field with
 `widen_u8_to_i64(byte) << 56`, whose intermediate exceeds `i64` however the
-return range is written, so they are unsound as authored; the other seven
-shift by at most 8 into `i32` or `u32` and wait only on
-`source/library/core/numeric_conversion.omg` publishing a return range for
-its `u8` widening machines.
+return range is written; those are unsound as authored and need the byte
+assembly re-spelled, not a further annotation.
 
 `proofs/proof_inductive_climbing_sum` left this set when its accumulator
 was bounded; the other four tests in the command pass, so the roster,
