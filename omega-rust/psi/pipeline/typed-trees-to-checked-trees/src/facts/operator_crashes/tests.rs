@@ -1196,6 +1196,92 @@ fn named_call_capture_rows_fail_closed_when_their_operands_are_substituted() {
     );
 }
 
+/// A `Ns::requirement(args);` statement call selects the requirement: the
+/// result-overload pass rewrites it into the discarded-local expression form,
+/// so the `named_uses` row, operand-time capture, and crash site appear
+/// exactly as for an expression-position use. Before selection recognized an
+/// unresolved namespace receiver, the call minted nothing and its routes
+/// passed unexamined.
+#[test]
+fn statement_position_named_call_discharges_a_covered_route() {
+    let source = "boundary operator Ns::store(v: i32) -> ()
+         crashes Trap !(v >= 0);
+         pub machine m(value: i32)
+         requires value >= 0 { Ns::store(value); }";
+    check(source).expect("a covered statement-position named call checks");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("the rewritten statement call retains one named crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    assert!(
+        site.surviving.is_empty(),
+        "the machine's requires discharges the route at the operand-time capture"
+    );
+}
+
+#[test]
+fn statement_position_named_call_rejects_an_uncovered_route() {
+    let diagnostics = check(
+        "boundary operator Ns::store(v: i32) -> ()
+         crashes Trap !(v >= 0);
+         pub machine m(value: i32) { Ns::store(value); }",
+    )
+    .expect_err("an unprovable route at a statement-position named call rejects");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("uncovered Trap crash route") }),
+        "{diagnostics:#?}"
+    );
+}
+
+/// An explicit `_ = Ns::requirement(...)` discard is the admitted spelling for
+/// a result-returning operator in statement position; it rewrites the same
+/// way and keeps its crash site.
+#[test]
+fn explicitly_discarded_named_call_keeps_its_crash_site() {
+    let source = "boundary operator Ns::probe(v: i32) -> bool
+         crashes Trap !(v >= 0);
+         pub machine m(value: i32)
+         requires value >= 0 { _ = Ns::probe(value); }";
+    check(source).expect("an explicitly discarded covered call checks");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("the discarded call retains one named crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+/// The rewrite can only carry a selection with a declared result type — a
+/// `boundary operator` without one stays a `StatementNode::Call`, mints no
+/// `named_uses` row, and has no operand capture. Its crash obligations must
+/// fail closed rather than pass unexamined.
+#[test]
+fn unrewritten_statement_call_to_a_crash_contracted_operator_fails_closed() {
+    for source in [
+        "boundary operator Ns::store(v: i32)
+         crashes Trap !(v >= 0);
+         pub machine m(value: i32) requires value >= 0 { Ns::store(value); }",
+        "operator Ns::store(v: i32) -> ()
+         crashes Trap !(v >= 0);
+         pub machine m(value: i32) requires value >= 0 { Ns::store(value); }",
+    ] {
+        let diagnostics =
+            check(source).expect_err("a statement call with no retained site must not pass");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("carries crash routes no checked site can cover")
+            }),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
 #[test]
 fn named_call_capture_rows_fail_closed_when_duplicated() {
     // Two rows claiming the same named use are ambiguous custody: neither may

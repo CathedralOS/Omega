@@ -12,7 +12,8 @@ use crate::semantic_calls::CallSite;
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{
-    ContractProofFactKind, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef,
+    ContractProofFactKind, DomainFacts, FlowConstraintKind, FlowConstraintRef,
+    FlowInvalidationSource, FlowSemanticContextRef,
 };
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
@@ -178,6 +179,138 @@ fn operator_statement_operands<'program>(
     Some((resolved.operator, operands))
 }
 
+/// Operand custody for a named call that selected `operator`, in signature
+/// order — the expression-form counterpart of `operator_statement_operands`.
+/// `named_call_operands` binds each parameter to its operand expression (the
+/// receiver expression for a `self` or leading value-receiver parameter);
+/// places and labels canonicalize exactly as the statement form's do, so
+/// contract instantiation renders identical operand names either way.
+fn named_operator_call_operands<'program>(
+    program: &'program typed_trees::TypedTrees,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    call: &typed_trees::expression::TableCallExpression,
+    operator: &'program typed_trees::operator::OperatorDefinition,
+) -> Option<Vec<OperatorStatementOperand>> {
+    let parameters = program.operator_parameters(operator);
+    let operand_expressions =
+        crate::facts::operator_crashes::named_call_operands(program, call, parameters)?;
+    Some(
+        parameters
+            .iter()
+            .zip(operand_expressions.iter())
+            .map(|(parameter, expression)| {
+                let place = canonical_place_from_expression_in_state(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    *expression,
+                )
+                .or_else(|| canonical_place_from_expression(program, *expression));
+                let label = place.as_ref().map_or_else(
+                    || program.expression_table.display_name(*expression),
+                    |place| {
+                        crate::labels::canonical_place_label_from_parts(
+                            program,
+                            place.root,
+                            &place.segments,
+                        )
+                    },
+                );
+                OperatorStatementOperand {
+                    parameter_symbol: parameter.symbol,
+                    is_mutable: parameter.is_mutable,
+                    label,
+                    place,
+                }
+            })
+            .collect(),
+    )
+}
+
+/// Post-invocation effects of a named boundary/operator call already in
+/// expression form. The result-overload rewrite turns `Ns::requirement(..);`
+/// into a `LocalData` initializer, so ownership flow sees a `Call` expression
+/// carrying a `named_uses` row — no `StatementNode::Call` remains for the
+/// statement path to handle. This applies the same effects that path
+/// performs: a `&mut` operand's referent writes retire dependent facts first,
+/// then the operator's `ensures` publish onto the caller operands.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn apply_named_operator_call_effects(
+    program: &typed_trees::TypedTrees,
+    domains: &DomainFacts,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    call: &typed_trees::expression::TableCallExpression,
+    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let Some(operator) = typed_trees::operator::declaration_by_symbol(
+        program,
+        ctx.operators
+            .named_uses
+            .get(named_use)
+            .selected_operator_symbol,
+    ) else {
+        return;
+    };
+    let Some(operands) = named_operator_call_operands(
+        program,
+        caller_state_symbol,
+        statement_index,
+        call,
+        operator,
+    ) else {
+        return;
+    };
+    let mutated_places: Vec<CanonicalPlace> = operands
+        .iter()
+        .filter_map(|operand| {
+            operand
+                .is_mutable
+                .then_some(operand.place.clone())
+                .flatten()
+        })
+        .collect();
+    if !mutated_places.is_empty() {
+        *active_contexts = crate::flow::filter_contexts_after_place_mutations(
+            program,
+            semantic,
+            domains,
+            &mut ctx.contexts.semantic_context_refs,
+            &mut ctx.invalidations.segments,
+            &mut ctx.invalidations.events,
+            *active_contexts,
+            &mutated_places,
+            FlowInvalidationSource::Statement { statement_index },
+        );
+        *active_constraints = crate::flow::project_constraint_refs_to_active_contexts(
+            &mut ctx.contexts.constraint_refs,
+            *active_constraints,
+            *active_contexts,
+            &ctx.contexts.semantic_context_refs,
+        );
+    }
+    append_operator_ensures_context(
+        program,
+        semantic,
+        ctx,
+        operator,
+        &operands,
+        ProgramPoint::Statement {
+            machine_symbol: caller_machine_symbol,
+            state_symbol: caller_state_symbol,
+            statement_index,
+        },
+        active_contexts,
+        active_constraints,
+    );
+}
+
 /// A named boundary/operator call has no ordinary borrow-call fact. Its mutable
 /// operands still invalidate every fact depending on those places before the
 /// operator's postconditions are introduced.
@@ -229,11 +362,36 @@ pub(super) fn append_operator_statement_ensures(
     ) else {
         return;
     };
-    let point = ProgramPoint::Statement {
-        machine_symbol: caller_machine_symbol,
-        state_symbol: caller_state_symbol,
-        statement_index,
-    };
+    append_operator_ensures_context(
+        program,
+        semantic,
+        ctx,
+        operator,
+        &operands,
+        ProgramPoint::Statement {
+            machine_symbol: caller_machine_symbol,
+            state_symbol: caller_state_symbol,
+            statement_index,
+        },
+        active_contexts,
+        active_constraints,
+    );
+}
+
+/// Append one context carrying `operator`'s `ensures` instantiated onto the
+/// bound `operands`, then activate it. Shared by the unrewritten
+/// `StatementNode::Call` path and the expression-form named-use path.
+#[allow(clippy::too_many_arguments)]
+fn append_operator_ensures_context(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    operator: &typed_trees::operator::OperatorDefinition,
+    operands: &[OperatorStatementOperand],
+    point: ProgramPoint,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
     let parameters = program.operator_parameters(operator);
     let operand_labels = operands
         .iter()

@@ -388,6 +388,50 @@ pub(super) fn selected_binary_requires_diagnostics(
         }
     }
 
+    // The same residual species for `requires`: a `StatementNode::Call` that
+    // still resolves to a requires-bearing operator minted no `named_uses`
+    // row — only return-typed selections are rewritten into the `LocalData`
+    // expression form operand capture sees. A survivor (a declaration with
+    // no result type, or a requirement the rewrite does not select) must not
+    // pass with its preconditions unexamined.
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+            {
+                let typed_trees::statement::StatementNode::Call(call) = statement else {
+                    continue;
+                };
+                let Some(operator) = crate::flow::resolved_operator_statement_symbol(program, call)
+                    .and_then(|symbol| {
+                        typed_trees::operator::declaration_by_symbol(program, symbol)
+                    })
+                else {
+                    continue;
+                };
+                if !program
+                    .signature_contracts
+                    .span_or_empty(operator.contracts)
+                    .iter()
+                    .any(|contract| contract.kind == SignatureContractKind::Requires)
+                {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "statement call to named operator `{}` carries `requires` obligations no checked capture can prove",
+                    operator_path_label(
+                        program,
+                        Some(operator),
+                        operator.home_domain,
+                        operator.symbol
+                    ),
+                )));
+            }
+        }
+    }
+
     diagnostics
 }
 

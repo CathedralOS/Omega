@@ -318,3 +318,95 @@ fn named_call_symbolic_operand_keeps_the_label_path() {
         "{diagnostics:#?}"
     );
 }
+
+/// A `Ns::requirement(args);` statement call selects the requirement: the
+/// result-overload pass rewrites it into the discarded-local expression form,
+/// so its `requires` discharges through the same `named_uses` custody an
+/// expression-position call gets. Before selection recognized an unresolved
+/// namespace receiver the call minted nothing and passed unexamined.
+#[test]
+fn statement_position_named_call_checks_its_selected_requires() {
+    check(
+        "boundary operator Ns::store(v: i32) -> ()
+         requires v >= 0;
+         machine caller(value: i32) requires value >= 0 { Ns::store(value); }",
+    )
+    .expect("the machine's requires covers the statement call's operand");
+
+    let diagnostics = check(
+        "boundary operator Ns::store(v: i32) -> ()
+         requires v >= 0;
+         machine caller(value: i32) { Ns::store(value); }",
+    )
+    .expect_err("a statement-position named call owes the selected requires");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("cannot prove `value >= 0`")
+                && diagnostic.message.contains("Ns::store")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+/// The rewrite can only carry a selection with a declared result type — a
+/// `boundary operator` without one stays a `StatementNode::Call` with no
+/// `named_uses` row or operand capture, so its `requires` fails closed.
+#[test]
+fn unrewritten_statement_call_to_a_requires_operator_fails_closed() {
+    let diagnostics = check(
+        "boundary operator Ns::store(v: i32)
+         requires v >= 0;
+         machine caller(value: i32) requires value >= 0 { Ns::store(value); }",
+    )
+    .expect_err("a statement call with no operand capture must not pass");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("carries `requires` obligations no checked capture can prove")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+/// A statement-position named call to a result-returning operator must not
+/// silently drop the value; `_ = Ns::probe(...)` is the admitted spelling and
+/// still selects the requirement for contract checking.
+#[test]
+fn statement_position_named_call_discard_gate_and_checked_discard() {
+    let diagnostics = check(
+        "boundary operator Ns::probe(v: i32) -> bool
+         requires v >= 0;
+         machine caller(value: i32) requires value >= 0 { Ns::probe(value); }",
+    )
+    .expect_err("discarding a non-unit named requirement result rejects");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("discards its non-unit `bool` result")
+        }),
+        "{diagnostics:#?}"
+    );
+
+    check(
+        "boundary operator Ns::probe(v: i32) -> bool
+         requires v >= 0;
+         machine caller(value: i32) requires value >= 0 { _ = Ns::probe(value); }",
+    )
+    .expect("an explicitly discarded call is selected and its requires checks");
+
+    let diagnostics = check(
+        "boundary operator Ns::probe(v: i32) -> bool
+         requires v >= 0;
+         machine caller(value: i32) { _ = Ns::probe(value); }",
+    )
+    .expect_err("an explicitly discarded call still owes the requires");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("cannot prove `value >= 0`")
+                && diagnostic.message.contains("Ns::probe")
+        }),
+        "{diagnostics:#?}"
+    );
+}

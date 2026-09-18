@@ -444,7 +444,7 @@ fn accepts_requires_from_instantiated_boundary_operator_boolean_ensures() {
         }
 
         machine Main::main(&mut self) {
-            Guard::establish(self.reading, self.reference);
+            Guard::establish(&mut self.reading, self.reference);
             self.accept(self.reading, self.reference);
         }
     "#;
@@ -478,7 +478,7 @@ fn invalidates_instantiated_boundary_operator_boolean_ensures_when_either_operan
         }
 
         machine Main::main(&mut self) {
-            Guard::establish(self.reading, self.reference);
+            Guard::establish(&mut self.reading, self.reference);
             self.reference.floor = 100;
             self.accept(self.reading, self.reference);
         }
@@ -493,6 +493,94 @@ fn invalidates_instantiated_boundary_operator_boolean_ensures_when_either_operan
             && diagnostic
                 .message
                 .contains("reading.value > reference.floor")
+    }));
+}
+
+/// The result-overload rewrite turns `Guard::establish(..);` into a discarded
+/// `LocalData` initializer carrying a `named_uses` row. Its `ensures` must
+/// publish through the named-use path exactly as the unrewritten
+/// `StatementNode::Call` path published them — including the `_ =` discard
+/// spelling for a result-returning operator.
+#[test]
+fn named_call_ensures_publish_from_rewritten_and_discarded_statement_forms() {
+    for call in [
+        "Guard::establish(&mut self.reading, self.reference);",
+        "_ = Guard::establish(&mut self.reading, self.reference);",
+    ] {
+        let source = format!(
+            r#"
+        data Reading [copy] {{
+            value: i32;
+            floor: i32;
+        }}
+
+        boundary operator Guard::establish(reading: &mut Reading, reference: &Reading) -> ()
+        ensures
+            reading.value > reference.floor;
+
+        data Main {{
+            reading: Reading;
+            reference: Reading;
+        }}
+
+        machine Main::accept(reading: Reading, reference: Reading)
+        requires
+            reading.value > reference.floor
+        {{
+        }}
+
+        machine Main::main(&mut self) {{
+            {call}
+            self.accept(self.reading, self.reference);
+        }}
+    "#
+        );
+        lower_typed_trees(parse_typed_trees(&source)).unwrap_or_else(|diagnostics| {
+            panic!("ensures from `{call}` must discharge accept's requires: {diagnostics:?}")
+        });
+    }
+}
+
+/// A named call's `&mut` operand is written before its `ensures` publish:
+/// facts proven on that place before the call must not survive it.
+#[test]
+fn named_call_mutable_operand_invalidation_retires_prior_facts() {
+    let source = r#"
+        data Reading [copy] {
+            value: i32;
+            floor: i32;
+        }
+
+        boundary operator Guard::establish(reading: &mut Reading, reference: &Reading) -> ()
+        ensures
+            reading.value > reference.floor;
+
+        data Main {
+            reading: Reading;
+            reference: Reading;
+        }
+
+        machine Main::accept_forty_two(reading: Reading)
+        requires
+            reading.value == 42
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.reading.value == 42
+        {
+            Guard::establish(&mut self.reading, self.reference);
+            self.accept_forty_two(self.reading);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the `&mut` operand write must retire the pre-call `value == 42` fact");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept_forty_two")
     }));
 }
 
