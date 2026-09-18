@@ -83,6 +83,11 @@ fn invalid(target: target::NativeTarget) -> Diagnostic {
             "Linux x86-64 hosted receiver bridge lost exact contract, storage, or entry custody",
         );
     }
+    if target == target::NativeTarget::linux_arm64() {
+        return Diagnostic::error(
+            "Linux ARM64 hosted receiver bridge lost exact contract, storage, or entry custody",
+        );
+    }
     Diagnostic::error("hosted receiver bridge lost exact contract, storage, or entry custody")
 }
 
@@ -275,6 +280,9 @@ pub(crate) fn prepare(
     if artifact.target == target::NativeTarget::linux_x64() {
         return prepare_linux_x86_64(artifact, binding, object, storage);
     }
+    if artifact.target == target::NativeTarget::linux_arm64() {
+        return prepare_linux_arm64(artifact, binding, object, storage);
+    }
     let offset = artifact.text_bytes.len();
     let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 9 * 4);
     if !offset.is_multiple_of(4)
@@ -402,10 +410,103 @@ fn prepare_linux_x86_64(
     })
 }
 
+/// Fixed Linux ARM64 hosted-receiver bridge byte width: fifteen A64
+/// instructions — adrp/add the saved-continuation residence, observe the
+/// incoming sp, load the authored contract's head-word input, store the
+/// pair, switch sp to the private stack top, adrp/add the receiver into x0,
+/// call the semantic continuation, and complete through exit_group (x8 = 94)
+/// with a brk fence.
+pub(crate) const LINUX_ARM64_RECEIVER_SHIM_BYTES: usize = 60;
+
+/// The Linux kernel arrives on AArch64 with the machine stack pointer at the
+/// initial process-stack image ([argc][argv...][NULL][envp...][NULL][auxv...])
+/// and supplies no return continuation. The bridge preserves the incoming sp —
+/// the continuation pointer — together with the authored contract's head-word
+/// input (`argc`, the value at the image base) in the sixteen-byte
+/// saved-continuation residence, then switches sp to the exact private stack
+/// top before the application can spill, passes the receiver through x0 under
+/// AAPCS64, calls the exact semantic continuation, and completes through
+/// exit_group with the value-free Unit result published as status zero in w0.
+/// `brk #0` fails closed if the nonreturning supervisor call ever returned.
+fn prepare_linux_arm64(
+    artifact: &crate::ObjectArtifact,
+    _binding: &HostedReceiverBinding,
+    object: object_file::ObjectPlan,
+    storage: ReceiverStorage,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
+    let invalid = || invalid(artifact.target);
+    let offset = artifact.text_bytes.len();
+    let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 10 * 4);
+    if !offset.is_multiple_of(4)
+        || displacement % 4 != 0
+        || !(-134_217_728..134_217_728).contains(&displacement)
+    {
+        return Err(invalid());
+    }
+    // The incoming stack image is read once, through the observed base, before
+    // sp moves to the private stack; nothing else touches the provider stack.
+    let words = [
+        0x9000_0009,
+        0x9100_0129, // continuation residence -> x9
+        0x9100_03ea, // mov x10, sp: observe the incoming stack image base
+        0xf940_014b, // ldr x11, [x10]: the contract's head-word input (argc)
+        0xa900_2d2a, // stp x10, x11, [x9]: preserve continuation and input
+        0x9000_000a,
+        0x9100_014a, // private stack top -> x10
+        0x9100_015f, // mov sp, x10: switch before any application spill
+        0x9000_0000,
+        0x9100_0000,                                             // receiver -> x0
+        0x9400_0000 | ((displacement / 4) as u32 & 0x03ff_ffff), // bl semantic entry
+        0x5280_0000, // mov w0, #0: Unit -> physical status zero
+        0xd280_0bc8, // movz x8, #94: exit_group
+        0xd400_0001, // svc #0
+        0xd420_0000, // brk #0 if the nonreturning call ever returned
+    ];
+    let mut shim_bytes = Vec::with_capacity(LINUX_ARM64_RECEIVER_SHIM_BYTES);
+    shim_bytes.extend(words.into_iter().flat_map(u32::to_le_bytes));
+    debug_assert_eq!(shim_bytes.len(), LINUX_ARM64_RECEIVER_SHIM_BYTES);
+    let (object, text, symbol, offset) = install_entry_text(
+        object,
+        artifact,
+        &shim_bytes,
+        "omega_linux_arm64_hosted_receiver_entry",
+    )?;
+    let mut relocations = artifact.relocations.clone();
+    for (instruction, destination) in [
+        (0, storage.scratch),
+        (5, storage.stack_top),
+        (8, storage.receiver),
+    ] {
+        for (relative, kind) in [
+            (0, RelocationKind::Aarch64Page21),
+            (1, RelocationKind::Aarch64PageOffset12),
+        ] {
+            relocations.push_record(RelocationRecord {
+                origin: RelocationOrigin::Materialization {
+                    object_symbol_handle: symbol,
+                },
+                section: SectionKind::Text,
+                offset: offset + (instruction + relative) * 4,
+                byte_width: 4,
+                symbol_handle: destination,
+                addend: 0,
+                kind,
+            });
+        }
+    }
+    Ok(crate::hosted_unit_entry::PreparedEntry {
+        object,
+        text,
+        relocations,
+        shim: crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset },
+    })
+}
+
 /// Bind the exact hosted receiver bridge the admitted settlement selected.
 /// The target chooses the emitted bridge surface — Darwin dyld arrival on
-/// AArch64, kernel process arrival on Linux x86-64 — and `validate_binding`
-/// rejects any pairing drift before bytes exist.
+/// AArch64, kernel process arrival on Linux x86-64 and Linux ARM64 — and
+/// `validate_binding` rejects any pairing drift before bytes exist.
 pub fn bind_hosted_receiver(
     artifact: &mut crate::ObjectArtifact,
     source: &SelectedProgramEntrySourceSignature,
@@ -459,6 +560,9 @@ fn physical_contract_matches(
     if target == target::NativeTarget::linux_x64() {
         return linux_x86_64_physical_contract_matches(physical);
     }
+    if target == target::NativeTarget::linux_arm64() {
+        return linux_arm64_physical_contract_matches(physical);
+    }
     false
 }
 
@@ -506,6 +610,25 @@ fn linux_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContrac
         && physical.guaranteed_entry_stack_application().is_none()
 }
 
+fn linux_arm64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
+    use program_entry_plan::{LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_U64_TYPE_IDENTITY};
+    let expected = program_entry_plan::exact_linux_arm64_physical_boundary_entry_plan();
+    // Same custody rule as the other bridges: the accepted-package requirement
+    // may carry a qualified spelling, but the target-source bytes, slot,
+    // parameter/result identities, ABI plan, and state are all exact.
+    physical.target_slot() == target::TargetProfile::LinuxArm64.program_entry_slot()
+        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::LinuxArm64
+        && physical.target_package_source_digest()
+            == program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest()
+        && !physical.requirement_identity().is_empty()
+        && physical.parameter_type_identities() == [LINUX_ARM64_U64_TYPE_IDENTITY]
+        && physical.result_type_identity() == LINUX_ARM64_I32_TYPE_IDENTITY
+        && physical.boundary_entry_plan() == expected.plan()
+        && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
+        && physical.guaranteed_entry_stack().is_none()
+        && physical.guaranteed_entry_stack_application().is_none()
+}
+
 /// Layout-side zero checking cannot establish authored default domains or
 /// absence of nominal cleanup. Native realization must separately retain and
 /// replay its checked source receipt before installing this conditional bridge.
@@ -520,10 +643,15 @@ fn receiver_layout(
     };
     let invalid = || invalid(artifact.target);
     let (expected_policy, receiver_register) = match artifact.target {
-        target_ if target_ == target::NativeTarget::macos_arm64() => (
-            CallingPolicy::Aapcs64,
-            calling_conventions::MachineRegister::Aarch64X(0),
-        ),
+        target_
+            if target_ == target::NativeTarget::macos_arm64()
+                || target_ == target::NativeTarget::linux_arm64() =>
+        {
+            (
+                CallingPolicy::Aapcs64,
+                calling_conventions::MachineRegister::Aarch64X(0),
+            )
+        }
         target_ if target_ == target::NativeTarget::linux_x64() => (
             CallingPolicy::SystemVAMD64,
             calling_conventions::MachineRegister::X86Rdi,
@@ -766,6 +894,21 @@ pub(crate) fn validate_image(
             }
             (symbol, offset)
         }
+        crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset }
+            if expected_shim_matches(expected.shim, shim) =>
+        {
+            if !crate::hosted_unit_entry::unique_region(
+                object,
+                symbol,
+                offset,
+                LINUX_ARM64_RECEIVER_SHIM_BYTES,
+                output,
+            ) || !elf_entry_points_to(output, offset)
+            {
+                return Err(invalid());
+            }
+            (symbol, offset)
+        }
         _ => return Err(invalid()),
     };
     if expected.object != *object || expected.text != text || expected.relocations != *relocations {
@@ -828,6 +971,21 @@ pub(crate) fn validate_image(
                 partitions,
             )
         }
+        crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { .. } => {
+            let end = offset
+                .checked_add(LINUX_ARM64_RECEIVER_SHIM_BYTES)
+                .ok_or_else(invalid)?;
+            instructions::validate_linux_arm64(
+                output
+                    .final_text_bytes
+                    .get(offset..end)
+                    .ok_or_else(invalid)?,
+                shim_address,
+                selected_entry,
+                output.final_image_layout.bss_address,
+                partitions,
+            )
+        }
         _ => Err(invalid()),
     }
 }
@@ -850,6 +1008,13 @@ fn expected_shim_matches(
                 offset: expected_offset,
             },
             crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
+        )
+        | (
+            crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver {
+                symbol: expected_symbol,
+                offset: expected_offset,
+            },
+            crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset },
         ) => expected_symbol == symbol && expected_offset == offset,
         _ => false,
     }

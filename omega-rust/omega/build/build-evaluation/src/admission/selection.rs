@@ -773,6 +773,9 @@ pub fn program_entry_semantic_binding_role(
         target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
             package_compilation::AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
         }
+        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
+            package_compilation::AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
+        }
     }
 }
 
@@ -789,6 +792,9 @@ fn exact_bundled_physical_contract_package_source_digest(
         }
         target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
             program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest()
+        }
+        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
+            program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest()
         }
     }
 }

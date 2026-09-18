@@ -236,6 +236,10 @@ fn sample_native_package_inputs(
                 standard_library,
             )?,
         ),
+        "linux_arm64" => Some(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
+            &repo_root().join("source/library/std"),
+            standard_library,
+        )?),
         _ => None,
     };
     if let Some(entry_binding) = entry_binding {

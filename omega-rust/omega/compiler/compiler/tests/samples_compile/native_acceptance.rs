@@ -47,6 +47,15 @@ fn native_sample_console_acceptance_binds_the_exact_selected_target() {
                         .contains("accepted package-owned Linux x86-64 binding")
                 }));
             }
+            "linux_arm64" => {
+                let diagnostics =
+                    unaccepted.expect_err("an ordinary dependency needs entry acceptance");
+                assert!(diagnostics.iter().any(|diagnostic| {
+                    diagnostic
+                        .message
+                        .contains("accepted package-owned Linux ARM64 binding")
+                }));
+            }
             _ => {
                 assert_eq!(byte_identity(&unaccepted.unwrap()), None);
             }
@@ -54,7 +63,7 @@ fn native_sample_console_acceptance_binds_the_exact_selected_target() {
         let accepted = sample_native_package_inputs(&root, Some(target)).unwrap();
         assert_eq!(
             accepted.accepted_semantic_bindings().count(),
-            if matches!(target, "macos_arm64" | "linux_x86_64") {
+            if matches!(target, "macos_arm64" | "linux_x86_64" | "linux_arm64") {
                 2
             } else {
                 1

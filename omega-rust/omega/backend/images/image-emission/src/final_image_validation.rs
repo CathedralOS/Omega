@@ -239,7 +239,8 @@ fn validate_terminal_image_with_import_count(
     if let Some(shim) = scalar_exit_shim {
         match shim {
             shim @ (super::hosted_unit_entry::EntryShim::DarwinReceiver { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxReceiver { .. }) => {
+            | super::hosted_unit_entry::EntryShim::LinuxReceiver { .. }
+            | super::hosted_unit_entry::EntryShim::LinuxArm64Receiver { .. }) => {
                 super::hosted_receiver::validate_image(
                     artifact,
                     object,

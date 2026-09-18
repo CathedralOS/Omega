@@ -220,9 +220,11 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
                 crate::realize_native_artifact(replayed_artifact, complete_request);
             if matches!(
                 target_profile,
-                target::TargetProfile::MacosArm64 | target::TargetProfile::LinuxX64
+                target::TargetProfile::MacosArm64
+                    | target::TargetProfile::LinuxX64
+                    | target::TargetProfile::LinuxArm64
             ) {
-                // macOS ARM64 and Linux x86-64 declare their two-surface
+                // macOS ARM64 and the Linux slots declare their two-surface
                 // application contracts on the target slot, so native
                 // realization must fail closed when the settlement lost the
                 // exact paired semantic/physical calling plans a real
