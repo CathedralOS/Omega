@@ -5,6 +5,11 @@
 //! sum. Opaque same-stack leaves enter only through an exact admitted
 //! contribution; a provider-stack or new-activation transfer contributes no
 //! child frame to this stack and therefore has no edge in this graph.
+//! A live call the producer cannot resolve to a checked callee or an admitted
+//! contribution is not dropped: it enters the frame summary's
+//! [`UnresolvedCallSite`] roster, the composed demand publishes as partial,
+//! and the roster rides the sealed projection so no `StackLease` can treat
+//! the covered subgraph as the whole call graph.
 //! Projections spelled `wcsu` carry the worst-case stack usage (WCSU) that the
 //! storage contract defines.
 
@@ -192,9 +197,50 @@ pub enum StackCallContribution {
     AdmittedSameStack(AdmittedSameStackContribution),
 }
 
+/// Why one live call's same-stack demand is absent from a frame's covered
+/// roster. This is the only place an uncovered call is classified; the
+/// coordinate plus kind is the admission worklist's evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum UnresolvedCallKind {
+    /// The call target names no checked machine state: a requirement slot,
+    /// a machine parameter, or a dynamic descriptor call.
+    UnresolvedTarget,
+    /// The call target resolves to a machine state supplied by non-checked
+    /// means: requirement, top-level requirement, boundary, admission-claim
+    /// or external realization supply.
+    NonCheckedSupply,
+}
+
+/// One live call a frame's whole-call-graph bound could not cover.
+///
+/// A worst-case bound cannot silently omit a call that may place a callee
+/// frame on this stack. Recording the site keeps the composed demand honest:
+/// it publishes as partial rather than exact, and each entry names the exact
+/// call coordinate provider admission must later cover with an
+/// [`AdmittedSameStackContribution`] — or prove transfers off this stack —
+/// before the plan can back a `StackLease`. The coordinate mirrors the
+/// canonical suspension-crossing coordinate: `frame` supplies the machine
+/// and entry, `state` the reachable state inside that frame, and
+/// `(statement_index, call_ordinal)` the exact call within that state.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnresolvedCallSite {
+    /// The frame containing the uncovered call.
+    pub frame: TaskStackFrameId,
+    /// Name of the reachable state inside `frame` whose flow row owns the
+    /// call — the frame spans several states of one machine, so the
+    /// statement/call index pair is only exact alongside it.
+    pub state: String,
+    /// Exact call coordinate inside the state's checked flow row.
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub kind: UnresolvedCallKind,
+}
+
 /// Compiler-produced local frame facts before whole-graph composition.
 /// `local_bytes` includes target calling/entry overhead owned by this frame;
-/// every child begins while those bytes remain live.
+/// every child begins while those bytes remain live. `unresolved_calls`
+/// carries the live calls this frame cannot bound; while any frame's roster
+/// is non-empty the composed demand is partial, not exact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskStackFrameSummary {
     pub frame: TaskStackFrameId,
@@ -202,6 +248,7 @@ pub struct TaskStackFrameSummary {
     pub alignment: u64,
     pub validation: TaskStackFrameValidationId,
     pub calls: Vec<StackCallContribution>,
+    pub unresolved_calls: Vec<UnresolvedCallSite>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -246,8 +293,20 @@ pub fn validate_task_stack_frame_summary(
             )?;
         }
     }
+    for site in &summary.unresolved_calls {
+        if site.frame != summary.frame {
+            return Err(TaskPlanDiagnostic(format!(
+                "task stack frame 0x{:016x} carries an unresolved call site attributed to frame \
+                 0x{:016x}",
+                summary.frame.normalized_identity(),
+                site.frame.normalized_identity()
+            )));
+        }
+    }
     summary.calls.sort_unstable();
     summary.calls.dedup();
+    summary.unresolved_calls.sort_unstable();
+    summary.unresolved_calls.dedup();
     Ok(ValidatedTaskStackFrameSummary(summary))
 }
 
@@ -267,6 +326,12 @@ struct TaskStackCompositionEvidence {
 }
 
 /// Sealed maximum live stack chain for one fixed-stack activation.
+///
+/// `unresolved_calls` is the roster of live calls the graph could not bind
+/// to a checked or admitted contribution. While it is non-empty the composed
+/// bound is partial: `bytes`/`alignment` describe only the covered subgraph,
+/// and `is_exact` is the publication gate consumers such as
+/// `establish_stack_lease` must require.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComposedTaskStackDemand {
     identity: TaskStackCompositionId,
@@ -277,6 +342,7 @@ pub struct ComposedTaskStackDemand {
     frame_validations: BTreeSet<TaskStackFrameValidationId>,
     admitted_contribution_report_identities: BTreeSet<AdmittedStackContributionReportId>,
     admitted_contribution_commitments: BTreeSet<SameStackContributionCommitment>,
+    unresolved_calls: BTreeSet<UnresolvedCallSite>,
     evidence: TaskStackCompositionEvidence,
 }
 
@@ -316,6 +382,20 @@ impl ComposedTaskStackDemand {
     ) -> &BTreeSet<SameStackContributionCommitment> {
         &self.admitted_contribution_commitments
     }
+
+    /// The live calls this bound could not cover, deduplicated across the
+    /// reachable graph. Empty means the bound is the exact whole-call-graph
+    /// WCSU the storage contract names.
+    pub const fn unresolved_calls(&self) -> &BTreeSet<UnresolvedCallSite> {
+        &self.unresolved_calls
+    }
+
+    /// Whether the bound covers every live call in the reachable graph. A
+    /// partial bound is sealed evidence of the covered subgraph plus its
+    /// unresolved roster — never the whole-call-graph WCSU.
+    pub fn is_exact(&self) -> bool {
+        self.unresolved_calls.is_empty()
+    }
 }
 
 /// Sealed projection of one composed WCSU demand into a physical fixed-stack
@@ -324,7 +404,9 @@ impl ComposedTaskStackDemand {
 /// The compact composition identity is not used as a substitute for the facts
 /// a stack allocator and activation fingerprint rely on. The projection also
 /// retains the exact root, composed shape, frame-validation set, admitted
-/// contribution set, and selected representation.
+/// contribution set, unresolved-call roster, and selected representation.
+/// A non-empty roster makes the projection partial: the retained shape is the
+/// covered subgraph's demand, not the whole-call-graph WCSU.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WcsuStackPlanProjection {
     identity: StackPlanProjectionId,
@@ -335,6 +417,7 @@ pub struct WcsuStackPlanProjection {
     frame_validations: BTreeSet<TaskStackFrameValidationId>,
     admitted_contribution_report_identities: BTreeSet<AdmittedStackContributionReportId>,
     admitted_contribution_commitments: BTreeSet<SameStackContributionCommitment>,
+    unresolved_calls: BTreeSet<UnresolvedCallSite>,
     representation: StackRepresentationId,
 }
 
@@ -375,6 +458,18 @@ impl WcsuStackPlanProjection {
         &self.admitted_contribution_commitments
     }
 
+    /// The live calls the projected bound does not cover. Empty means the
+    /// projected shape is the exact whole-call-graph WCSU.
+    pub const fn unresolved_calls(&self) -> &BTreeSet<UnresolvedCallSite> {
+        &self.unresolved_calls
+    }
+
+    /// Whether the projected bound covers every live call in the reachable
+    /// graph. A partial projection cannot back a `StackLease`.
+    pub fn is_exact(&self) -> bool {
+        self.unresolved_calls.is_empty()
+    }
+
     pub const fn representation(&self) -> StackRepresentationId {
         self.representation
     }
@@ -397,13 +492,16 @@ impl WcsuStackPlanProjection {
                 &self.frame_validations,
                 &self.admitted_contribution_report_identities,
                 &self.admitted_contribution_commitments,
+                &self.unresolved_calls,
                 self.representation,
             ))
     }
 }
 
 /// Bind one validated whole-call-graph demand to the exact fixed-stack
-/// representation that will provision it.
+/// representation that will provision it. The projection inherits the
+/// demand's unresolved-call roster: a partial demand projects a partial
+/// plan, and the projection identity keeps the two apart.
 pub fn project_wcsu_stack_plan(
     demand: &ComposedTaskStackDemand,
     representation: StackRepresentationId,
@@ -416,6 +514,7 @@ pub fn project_wcsu_stack_plan(
     let admitted_contribution_report_identities =
         demand.admitted_contribution_report_identities.clone();
     let admitted_contribution_commitments = demand.admitted_contribution_commitments.clone();
+    let unresolved_calls = demand.unresolved_calls.clone();
     let identity = StackPlanProjectionId(stack_plan_projection_report_fingerprint(
         composition,
         root,
@@ -424,6 +523,7 @@ pub fn project_wcsu_stack_plan(
         &frame_validations,
         &admitted_contribution_report_identities,
         &admitted_contribution_commitments,
+        &unresolved_calls,
         representation,
     ));
     WcsuStackPlanProjection {
@@ -435,6 +535,7 @@ pub fn project_wcsu_stack_plan(
         frame_validations,
         admitted_contribution_report_identities,
         admitted_contribution_commitments,
+        unresolved_calls,
         representation,
     }
 }
@@ -513,6 +614,10 @@ pub fn compose_task_stack_demand(
             StackCallContribution::Checked { .. } => None,
         })
         .collect();
+    let unresolved_calls = frames
+        .values()
+        .flat_map(|summary| summary.summary().unresolved_calls.iter().cloned())
+        .collect();
     let identity = TaskStackCompositionId(composition_report_fingerprint(
         root, &frames, bytes, alignment,
     ));
@@ -525,6 +630,7 @@ pub fn compose_task_stack_demand(
         frame_validations,
         admitted_contribution_report_identities,
         admitted_contribution_commitments,
+        unresolved_calls,
         evidence: TaskStackCompositionEvidence { root, frames },
     })
 }
@@ -635,10 +741,31 @@ fn composition_report_fingerprint(
                 }
             }
         }
+        hash_unresolved_calls(&mut hash, summary.unresolved_calls.iter());
     }
     hash.word(bytes);
     hash.word(alignment);
     hash.finish()
+}
+
+fn hash_unresolved_calls<'a>(
+    hash: &mut Fnv1a,
+    sites: impl ExactSizeIterator<Item = &'a UnresolvedCallSite>,
+) {
+    hash.word(sites.len() as u64);
+    for site in sites {
+        hash.word(site.frame.normalized_identity());
+        for byte in site.state.as_bytes() {
+            hash.byte(*byte);
+        }
+        hash.byte(0);
+        hash.word(site.statement_index as u64);
+        hash.word(site.call_ordinal as u64);
+        hash.byte(match site.kind {
+            UnresolvedCallKind::UnresolvedTarget => 1,
+            UnresolvedCallKind::NonCheckedSupply => 2,
+        });
+    }
 }
 
 fn admitted_contribution_report_fingerprint(
@@ -679,6 +806,7 @@ fn stack_plan_projection_report_fingerprint(
     frame_validations: &BTreeSet<TaskStackFrameValidationId>,
     admitted_contribution_report_identities: &BTreeSet<AdmittedStackContributionReportId>,
     admitted_contribution_commitments: &BTreeSet<SameStackContributionCommitment>,
+    unresolved_calls: &BTreeSet<UnresolvedCallSite>,
     representation: StackRepresentationId,
 ) -> u64 {
     let mut hash = Fnv1a::new();
@@ -700,6 +828,7 @@ fn stack_plan_projection_report_fingerprint(
             hash.byte(byte);
         }
     }
+    hash_unresolved_calls(&mut hash, unresolved_calls.iter());
     hash.word(representation.normalized_identity());
     hash.finish()
 }
@@ -743,9 +872,9 @@ mod tests {
         AdmittedSameStackContribution, BTreeSet, SameStackContributionAdmissionCandidate,
         SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
         StackCallContribution, StackPlan, StackRepresentationId, TaskPlanDiagnostic,
-        TaskStackFrameId, TaskStackFrameSummary, TaskStackFrameValidationId,
-        ValidatedTaskStackFrameSummary, admit_same_stack_contribution, compose_task_stack_demand,
-        project_wcsu_stack_plan, validate_task_stack_frame_summary,
+        TaskStackFrameId, TaskStackFrameSummary, TaskStackFrameValidationId, UnresolvedCallKind,
+        UnresolvedCallSite, ValidatedTaskStackFrameSummary, admit_same_stack_contribution,
+        compose_task_stack_demand, project_wcsu_stack_plan, validate_task_stack_frame_summary,
     };
 
     fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
@@ -767,6 +896,7 @@ mod tests {
                 TaskStackFrameValidationId::from_normalized_identity,
             ),
             calls,
+            unresolved_calls: Vec::new(),
         })
         .expect("valid local frame")
     }
@@ -950,6 +1080,81 @@ mod tests {
                 .0
                 .contains("projection identity")
         );
+    }
+
+    #[test]
+    fn unresolved_call_sites_publish_a_partial_bound_through_the_projection() {
+        let root = id(50, TaskStackFrameId::from_normalized_identity);
+        let child = id(51, TaskStackFrameId::from_normalized_identity);
+        let site = UnresolvedCallSite {
+            frame: root,
+            state: "run".into(),
+            statement_index: 3,
+            call_ordinal: 1,
+            kind: UnresolvedCallKind::UnresolvedTarget,
+        };
+        let mut partial_root = frame(
+            50,
+            24,
+            8,
+            vec![StackCallContribution::Checked { callee: child }],
+        );
+        partial_root.0.unresolved_calls.push(site.clone());
+        let demand = compose_task_stack_demand(root, [partial_root, frame(51, 32, 16, Vec::new())])
+            .expect("the covered subgraph still composes");
+
+        // 24-byte root extent, child aligned to 16 -> base 32, plus 32 bytes.
+        assert_eq!(demand.bytes(), 64);
+        assert!(!demand.is_exact());
+        assert_eq!(demand.unresolved_calls(), &BTreeSet::from([site.clone()]));
+
+        let representation = id(52, StackRepresentationId::from_normalized_identity);
+        let projection = project_wcsu_stack_plan(&demand, representation);
+        assert!(!projection.is_exact());
+        assert_eq!(projection.unresolved_calls(), &BTreeSet::from([site]));
+
+        let exact_demand = compose_task_stack_demand(
+            root,
+            [
+                frame(
+                    50,
+                    24,
+                    8,
+                    vec![StackCallContribution::Checked { callee: child }],
+                ),
+                frame(51, 32, 16, Vec::new()),
+            ],
+        )
+        .expect("the same subgraph without unresolved calls composes exactly");
+        let exact_projection = project_wcsu_stack_plan(&exact_demand, representation);
+        assert!(exact_projection.is_exact());
+        assert_eq!(exact_projection.stack_plan(), projection.stack_plan());
+        assert_ne!(
+            exact_projection.identity(),
+            projection.identity(),
+            "a partial bound and an exact bound of equal shape must carry different identities"
+        );
+    }
+
+    #[test]
+    fn unresolved_call_site_must_name_its_owning_frame() {
+        let root = id(60, TaskStackFrameId::from_normalized_identity);
+        let error = validate_task_stack_frame_summary(TaskStackFrameSummary {
+            frame: root,
+            local_bytes: 24,
+            alignment: 8,
+            validation: id(160, TaskStackFrameValidationId::from_normalized_identity),
+            calls: Vec::new(),
+            unresolved_calls: vec![UnresolvedCallSite {
+                frame: id(61, TaskStackFrameId::from_normalized_identity),
+                state: "run".into(),
+                statement_index: 0,
+                call_ordinal: 0,
+                kind: UnresolvedCallKind::NonCheckedSupply,
+            }],
+        })
+        .expect_err("a site attributed to another frame must not validate");
+        assert!(error.0.contains("unresolved call site attributed to frame"));
     }
 
     #[test]

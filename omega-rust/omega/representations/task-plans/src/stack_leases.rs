@@ -6,9 +6,11 @@
 //! plan — the whole-call-graph WCSU bytes, the alignment, and the selected
 //! fixed representation — for the exact activation it will serve. A numeric
 //! fit alone supplies no lease: `establish_stack_lease` refuses a plan that
-//! lacks its sealed WCSU projection, and the issued lease binds the plan's
-//! normalized identity so backing proven for one activation cannot be
-//! presented for another.
+//! lacks its sealed WCSU projection, refuses a projection whose
+//! unresolved-call roster is non-empty — a partial bound does not bound the
+//! whole call graph — and the issued lease binds the plan's normalized
+//! identity so backing proven for one activation cannot be presented for
+//! another.
 //!
 //! The lease is linear and has no mobility parameter: address stability for
 //! stack residents follows from the lease itself, and there is no
@@ -88,20 +90,49 @@ impl StackLease {
 /// Establish the nonmoving stack lease for one activation.
 ///
 /// `plan` must carry its sealed whole-call-graph WCSU projection: a numeric
-/// fit alone supplies no `StackLease`. The presented backing must cover the
-/// plan's exact byte demand at its exact alignment in the selected fixed
-/// representation; the issued lease binds the plan's normalized identity so
-/// it cannot be offered to a different activation.
+/// fit alone supplies no `StackLease`, and a projection still carrying
+/// unresolved call sites is partial evidence — its bytes bound only the
+/// covered subgraph, not the activation's worst-case stack use. The
+/// presented backing must cover the plan's exact byte demand at its exact
+/// alignment in the selected fixed representation; the issued lease binds
+/// the plan's normalized identity so it cannot be offered to a different
+/// activation.
 pub fn establish_stack_lease(
     plan: &ValidatedActivationPlan,
     backing: StackLeaseBacking,
 ) -> Result<StackLease, TaskPlanDiagnostic> {
-    if plan.wcsu_stack_projection().is_none() {
+    let Some(projection) = plan.wcsu_stack_projection() else {
         return Err(TaskPlanDiagnostic(
             "stack lease requires the activation plan's sealed whole-call-graph WCSU evidence; \
              a numeric fit alone supplies no StackLease"
                 .into(),
         ));
+    };
+    if !projection.is_exact() {
+        let sites = projection
+            .unresolved_calls()
+            .iter()
+            .map(|site| {
+                format!(
+                    "frame {:x} state `{}` statement {} call {} ({})",
+                    site.frame.normalized_identity(),
+                    site.state,
+                    site.statement_index,
+                    site.call_ordinal,
+                    match site.kind {
+                        crate::UnresolvedCallKind::UnresolvedTarget => "unresolved call target",
+                        crate::UnresolvedCallKind::NonCheckedSupply =>
+                            "target resolved to non-checked supply",
+                    }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(TaskPlanDiagnostic(format!(
+            "stack lease requires an exact whole-call-graph WCSU bound; the plan's projection \
+             is partial with {} unresolved call site(s): {sites}",
+            projection.unresolved_calls().len(),
+        )));
     }
     let required = plan.candidate().stack_plan;
     if backing.backing.representation != required.representation {

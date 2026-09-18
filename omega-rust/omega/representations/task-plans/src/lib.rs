@@ -70,8 +70,9 @@ pub use stack_composition::{
     AdmittedSameStackContribution, ComposedTaskStackDemand,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,
     SameStackProviderPlanCommitment, StackCallContribution, TaskStackFrameSummary,
-    ValidatedTaskStackFrameSummary, WcsuStackPlanProjection, admit_same_stack_contribution,
-    compose_task_stack_demand, project_wcsu_stack_plan, validate_task_stack_frame_summary,
+    UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary,
+    WcsuStackPlanProjection, admit_same_stack_contribution, compose_task_stack_demand,
+    project_wcsu_stack_plan, validate_task_stack_frame_summary,
 };
 pub use stack_leases::{
     StackLease, StackLeaseBacking, TaskStorageProvenance, establish_stack_lease,
