@@ -180,12 +180,40 @@ public promises and candidate admission, not a previous provider's private proof
 
 ## Service bindings and era entry
 
-Runtime call authority uses a carrier such as affine `Service<R> in Bound`,
-not a bare trait value, provider object, or source-visible vtable. It names the
-stable slot, not one permanent era. Installation/publication establishes routed
-`Bound`; literals, ZII, injection, or proof alone cannot. A protocol may publish
-checked explicit duplication or stronger linear lifecycle obligations on the
-carrier; the requirement trait itself acquires no multiplicity.
+Runtime call authority uses compiler-known affine `Service<R>`, not a bare trait
+value, provider object, or source-visible vtable. `R` identifies the exact closed
+boundary requirement. `Service` is declared as opaque boundary data in
+`omega::core`; binding establishment, custody, and realization are compiler
+semantics, not an implementation supplied by that source declaration. It is a
+service-binding carrier, not a general wrapper for trusted build-provided objects.
+
+Every usable `Service<R>` has an established binding as part of its validity.
+There is no separate authored `Bound` domain or valid unestablished service value.
+This is not shorthand for a qualified type. A bare boundary trait in value
+position, such as `console: Console`, does not denote a service carrier and rejects.
+Ordinary library authority continues to use
+[domains and authorized establishment routes](../resources/authority.md).
+
+For build-bound entry fields, the compiler joins the build's exact provider
+selection to the [entry establishment](entry_roots.md#entry-shape-and-arrival-bridge)
+before invocation. Missing or incompatible supply, or an unestablishable field,
+rejects compilation. Provider availability alone does not establish arbitrary
+locals or fields. Outside entry provisioning, a value must be transferred from
+an existing binding or produced by authorized installation/publication; a record
+literal can move an existing service but cannot manufacture one. Zeroed storage,
+equal bits, injection, or a proof alone cannot create a binding. No runtime
+provider lookup is invented to repair missing build-time supply.
+
+The compiler retains and independently checks exact occurrence, requirement,
+provider-plan, and lifecycle evidence even when the carrier erases. Removing an
+authored qualification must not remove these checks. The existing distinction
+between storage allocation and established values applies to service fields too;
+containing records cannot be consumed before their service fields are established.
+No new user-authored validity modifier or construction syntax is introduced.
+
+An independently installed binding names the stable slot, not one permanent era.
+A protocol may publish checked explicit duplication or stronger linear lifecycle
+obligations on the carrier; the requirement trait itself acquires no multiplicity.
 
 Fused lowering may erase an established carrier into direct dispatch.
 Independent calls resolve the current era, enter exactly that era, and retain

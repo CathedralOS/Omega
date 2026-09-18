@@ -153,8 +153,8 @@ older reading:
 - `operators/runtime_integer_division_value`: "native-artifact production
   requires one exact selected program entry".
 - `atomics/atomic_field_declared`: "macOS hosted receiver bridge lost exact
-  contract, storage, or entry custody" (**ENTRY-CONTENT-ROOTS**, and
-  [owner question 1](../../OWNER_QUESTIONS.md) for the bare receiver field).
+  contract, storage, or entry custody" (**ENTRY-CONTENT-ROOTS**; migrate the bare
+  receiver field to the [intrinsically established service carrier](../spec/build/component_publication.md#service-bindings-and-era-entry)).
 
 `proofs/proof_inductive_climbing_sum` left this set when its accumulator
 was bounded; the other four tests in the command pass, so the roster,

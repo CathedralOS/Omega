@@ -1,7 +1,14 @@
 # Authority values and qualification evidence
 
-Runtime authority uses ordinary data plus checked qualification and provenance.
-Fields carry runtime information; domain membership states an established
+Library-issued authority uses the domain and provenance rules below.
+Compiler-known [service bindings](../build/component_publication.md#service-bindings-and-era-entry)
+instead carry establishment intrinsically: a usable `Service<R>` already has an
+authorized binding. There is no separate service `Bound` qualification. Its
+toolchain-known core declaration does not permit package-authored minting, and
+build provider selection alone does not establish arbitrary service values.
+
+Library-defined runtime authority uses ordinary data plus checked qualification
+and provenance. Fields carry runtime information; domain membership states an established
 authority, validation, interpretation, or historical fact. Reconstructing equal
 fields does not reconstruct membership. Qualification adds no runtime tag.
 

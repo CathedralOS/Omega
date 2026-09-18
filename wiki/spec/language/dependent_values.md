@@ -78,6 +78,13 @@ representation guarantee, not universal semantic membership or ambient write
 authority. A zeroed storage representation can be accessed as an established
 value only after its default-domain obligations hold.
 
+Compiler-known `Service<R>` additionally requires established binding custody as
+part of carrier validity. It needs no authored domain qualification. Zeroing its
+storage does not create a service; containing values remain unavailable until
+authorized provisioning or transfer establishes the field. This uses the same
+storage-versus-value distinction, not a user-definable validity mechanism. See
+[service bindings](../build/component_publication.md#service-bindings-and-era-entry).
+
 [Case-local `where` clauses](data_and_literals.md#case-constraints) contribute
 conditions only for the active case. Common-field and type-wide obligations
 remain conjunctive with that case's payload validity and constraints. The zero

@@ -83,9 +83,11 @@ The compiler does not invent meanings for platform handles. The combined bridge
 derives crash, reach, write, work, stack/state, introduction, provisioning, and
 provenance contracts and composes them with the application closure.
 
-A free entry receives no implicit state. An attached entry gets one ZII-valid
-receiver derived beneath an admitted root and borrowed for that activation;
-it is not globally nameable. Provisioning is occurrence-local: the nominal data
+A free entry receives no implicit state. An attached entry gets one receiver
+derived beneath an admitted root and borrowed for that activation. Ordinary
+fields must be ZII-valid; compiler-provisioned service fields must have their
+binding established before the receiver is exposed to the entry. The receiver
+is not globally nameable. Provisioning is occurrence-local: the nominal data
 type acquires no root authority or storage class. Storage used for the receiver
 or active stack cannot also be forwarded whole; retain the partition and pass
 only the exact disjoint residual. Generated bridge code remains subject to
@@ -98,20 +100,29 @@ retains the distinct external terminal outcome and abandonment contract.
 Returning from the entry does not establish that other activations were settled:
 the root/runtime contract must settle or legally transfer outstanding task and
 resource custody before physical completion. The result map cannot conceal
-abandonment behind the same exit syscall. A non-ZII-valid
-receiver rejects; a free entry may instead explicitly construct state from the
-resources in its schema. Other roots, tasks, and handlers obtain access only
-through explicit ordinary capability transfer, borrowing, or synchronized sharing.
+abandonment behind the same exit syscall. An ordinary non-ZII-valid field or
+unestablishable service field rejects; a free entry may instead explicitly
+construct state from the resources in its schema. Other roots, tasks, and
+handlers obtain access only through explicit ordinary capability transfer,
+borrowing, or synchronized sharing.
 Hosted writable-image placement and freestanding storage partitioning must
 preserve the same occurrence, root lineage, backing, and initial exclusive borrow.
 Knowing the receiver's size never creates a new physical root.
 
-For selected Fused service fields, ZII bytes alone do not establish `Bound`.
-Each direct `Service<R> in Bound` receiver field requires occurrence evidence
-binding source signature/slot, receiver/attachment/field, carrier/qualification,
-service schema, and selected plan digest. Terminal replay independently joins
-the erased field and plan. This establishes the provisioned occurrence, not a
-runtime-published slot, era handle, or Independent execution.
+Each direct `Service<R>` receiver field requires occurrence evidence binding
+source signature/slot, receiver/attachment/field, exact carrier application,
+service schema, and selected plan digest. Establishment is intrinsic to
+[service validity](component_publication.md#service-bindings-and-era-entry), not
+an authored domain qualification. A missing or incompatible selected provider
+or missing establishment rejects compilation; no erased-field fallback or
+late provider discovery is permitted. A bare boundary-trait field rejects as
+a non-carrier, not as an alternative service spelling.
+
+For selected Fused service fields, Terminal replay independently joins the erased
+field and plan. ZII bytes alone cannot satisfy that join. This establishes the
+provisioned occurrence, not a runtime-published slot, era handle, or Independent
+execution. Other records obtain services by ordinary transfer of established
+values, not automatic injection merely because their field type is `Service<R>`.
 
 ## Authority, identity, and resources
 
