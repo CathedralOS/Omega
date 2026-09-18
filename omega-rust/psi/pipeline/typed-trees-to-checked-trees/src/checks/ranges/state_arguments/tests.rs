@@ -377,6 +377,97 @@ fn ensured_result_bounds_transport_through_transition_arguments() {
     assert_eq!(index.upper_bound.get(), Some(4));
 }
 
+/// A bound name that aliases another bound name carries the source's proven
+/// bounds into a transition argument: `let j = i` records `j` as a full-extent
+/// alias of `i` (`alias_index`), so the collection replay transports `i`'s
+/// ensured-result, `requires`, or member-store bound through `j` exactly the
+/// way the checking pass does inside the body. Chained copies, reassignment
+/// into a mutable local, and member-source aliases take the same path; an
+/// unbounded source or a later unbounded write still rejects.
+#[test]
+fn bound_name_alias_transports_through_transition_arguments() {
+    for (prefix, argument, accepted) in [
+        // `let j = i` inherits `i`'s ensured-result bound.
+        ("let i: u64 = self.pick(); let j: u64 = i;", "j", true),
+        // A chained copy inherits through the middle alias.
+        (
+            "let i: u64 = self.pick(); let j: u64 = i; let k: u64 = j;",
+            "k",
+            true,
+        ),
+        // Assigning `i` into a mutable local aliases the same bound.
+        (
+            "let i: u64 = self.pick(); let mut j: u64 = 0; j = i;",
+            "j",
+            true,
+        ),
+        // A member store's seeded bound reaches `j` through `let j =
+        // self.slot`.
+        (
+            "self.slot = self.pick(); let j: u64 = self.slot;",
+            "j",
+            true,
+        ),
+        // An unbounded source keeps the ordinary rejection.
+        ("let i: u64 = self.raw(); let j: u64 = i;", "j", false),
+        // A later unbounded write retires the aliased bound.
+        (
+            "let i: u64 = self.pick(); let mut j: u64 = i; j = self.raw();",
+            "j",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "data Main {{ cells: [u8; 4]; slot: u64; }}
+            machine Main::pick(&self) -> u64 ensures result < 4u64 {{ 2 }}
+            machine Main::raw(&self) -> u64 {{ 7 }}
+            machine Main::run(&mut self) -> u8 {{
+                {prefix}
+                transition {{ _ -> load({argument}) }}
+                state load(&mut self, index: u64) -> u8 {{ self.cells[index] }}
+            }}"
+        );
+        let result = check_source(&source);
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{prefix} | {argument}: {result:?}"
+        );
+    }
+
+    // A `requires`-proven parameter bound aliases the same way: `let j = i`
+    // transports `i < 4` without any call contract in the chain.
+    let result = check_source(
+        "data Main { cells: [u8; 4]; }
+        machine Main::run(&mut self, i: u64) -> u8 requires i < 4u64 {
+            let j: u64 = i;
+            transition { _ -> load(j) }
+            state load(&mut self, index: u64) -> u8 { self.cells[index] }
+        }",
+    );
+    assert!(result.is_ok(), "{result:?}");
+
+    // The collected facts carry the aliased exclusive bound: `j < 4` enters
+    // `load`'s `index` parameter as `index < 4`.
+    let (facts, _, _) = compare_machine(
+        "data Main { cells: [u8; 4]; }
+        machine Main::pick(&self) -> u64 ensures result < 4u64 { 2 }
+        machine Main::run(&mut self) -> u8 {
+            let i: u64 = self.pick();
+            let j: u64 = i;
+            transition { _ -> load(j) }
+            state load(&mut self, index: u64) -> u8 { self.cells[index] }
+        }",
+        Some("Main::run"),
+    );
+    let index = facts
+        .iter()
+        .flat_map(|facts| &facts.parameters)
+        .find(|parameter| parameter.name == "index")
+        .expect("load index parameter facts");
+    assert_eq!(index.upper_bound.get(), Some(4));
+}
+
 #[test]
 fn grouped_scalar_meets_preserve_unseen_unknown_and_conflicting_inputs() {
     let values = [None, Some(3), Some(9)];

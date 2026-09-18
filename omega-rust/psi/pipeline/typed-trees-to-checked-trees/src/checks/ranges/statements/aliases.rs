@@ -3,7 +3,17 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use super::super::expressions::ensured_call_result_bounds;
 use super::super::facts::RangeFacts;
 
-pub(super) fn seed_local_alias_facts(
+/// Seeds every fact a freshly bound name inherits from its value: the captured
+/// integer-place identity, the ensured call result bounds, and the source
+/// place's proven index/range facts (`alias_index`, with `alias_collection`
+/// and a full-extent window parent when the value aliases a stable place).
+///
+/// Both range passes call this for a bound name: the checking pass so the
+/// body's own index proofs see the alias, and the state-argument collection
+/// replay so a later `-> target(alias)` transition transports the same bounds
+/// into the destination parameter's merged facts. Keeping the two mirrors in
+/// one function is what lets `let j = i; -> load(j)` carry `i`'s bound.
+pub(in crate::checks::ranges) fn seed_local_alias_facts(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

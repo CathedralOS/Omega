@@ -89,14 +89,19 @@ pub(super) fn collect_state_argument_facts_from_statement(
                     );
                 }
                 seed_boolean_guard_local(context, facts, symbol, name, assignment.value);
-                // The checking pass seeds a bound name's ensured result
-                // bounds on its label; mirror that here or a later
-                // transition cannot transport `i = pick()`'s exit proof.
-                crate::checks::ranges::statements::aliases::seed_ensured_call_result_bounds(
+                // The checking pass seeds a bound name's alias facts on its
+                // label — ensured call result bounds AND the source place's
+                // proven index bounds via alias_index. Mirror the whole
+                // seeding or `j = i` cannot transport `i`'s bound into a
+                // later transition's argument facts.
+                crate::checks::ranges::statements::aliases::seed_local_alias_facts(
                     program,
+                    machine,
+                    context.state,
                     facts,
-                    name.unwrap_or_default(),
                     assignment.value,
+                    symbol,
+                    name,
                 );
             } else if matches!(
                 program.expression_table.expression(assignment.target),
@@ -198,14 +203,19 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 Some(local.name.as_str()),
                 local.initial_value,
             );
-            // Mirror the checking pass's ensured-result seeding on the bound
-            // name so a later transition transports `let i = pick()`'s exit
-            // proof through the local's label (`i < K`, `i >= 0`).
-            crate::checks::ranges::statements::aliases::seed_ensured_call_result_bounds(
+            // Mirror the checking pass's bound-name seeding so a later
+            // transition transports `let i = pick()`'s exit proof (`i < K`,
+            // `i >= 0`) and `let j = i`'s aliased index bound through the
+            // local's label — seed_local_alias_facts runs both the ensured
+            // contract seeding and the source place's alias_index transport.
+            crate::checks::ranges::statements::aliases::seed_local_alias_facts(
                 program,
+                machine,
+                context.state,
                 facts,
-                local.name.as_str(),
                 local.initial_value,
+                local.symbol,
+                Some(local.name.as_str()),
             );
         }
         StatementNode::Transition(transition) => {
