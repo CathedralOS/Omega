@@ -9,12 +9,15 @@ fn probe_program_with_helpers(body: &str, helpers: &str) -> typed_trees::TypedTr
     let source = format!(
         r#"
         data View {{ body: &mut u64; }}
-        data Main {{ value: u64; other: u64; audit: u64; tag: u64; }}
+        data Cell {{ n: u64; }}
+        data Main {{ value: u64; other: u64; audit: u64; tag: u64; c1: Cell; c2: Cell; v1: View; v2: View; }}
         machine consume(value: &mut u64) {{ value = 1; }}
         machine write_through(value: &mut u64) -> u64 {{ value = 1; 0 }}
         machine opaque_ref(value: &mut u64) -> &mut u64 {{ opaque_ref(value) }}
         machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 {{ match tag {{ 0 -> a, _ -> b }} }}
         machine pick_view(a: View, b: View, tag: u64) -> &mut u64 {{ match tag {{ 0 -> a.body, _ -> b.body }} }}
+        machine pick_carrier(a: &mut View, b: &mut View, tag: u64) -> &mut View {{ match tag {{ 0 -> a, _ -> b }} }}
+        machine pick_cell(a: &mut Cell, b: &mut Cell, tag: u64) -> &mut Cell {{ match tag {{ 0 -> a, _ -> b }} }}
         machine forward_pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 {{ pick(a, b, tag) }}
         machine Main::run(&mut self) {{ {body} }}
         {helpers}
@@ -131,9 +134,46 @@ fn divergent_carrier_leaf_arms_union_actual_leaf_origins() {
     );
 }
 
+// A divergent result bound to a reference local keeps its whole referent set:
+// a bare write through the binding lands on one proven candidate, so the
+// state frame records the exact union. A later proven rebind replaces the
+// set, and the write that follows instantiates the replacement alone.
+#[test]
+fn divergent_local_binding_writes_through_every_candidate() {
+    for (name, body, expected) in [
+        (
+            "write_through_divergent_binding",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); alias = 1; consume(&mut self.audit);",
+            ["self.audit", "self.other", "self.value"].as_slice(),
+        ),
+        // Rebinding to another proven place retires the first set entirely.
+        (
+            "proven_rebind_replaces_the_set",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); alias = &mut self.audit; alias = 1; consume(&mut self.tag);",
+            ["self.audit", "self.tag"].as_slice(),
+        ),
+        // A member write through the binding composes its suffix onto every
+        // proven carrier.
+        (
+            "member_write_through_divergent_binding",
+            "let alias: &mut Cell = pick_cell(&mut self.c1, &mut self.c2, self.tag); alias.n = 1; consume(&mut self.audit);",
+            ["self.audit", "self.c1.n", "self.c2.n"].as_slice(),
+        ),
+    ] {
+        let program = probe_program(body);
+        let expected = expected
+            .iter()
+            .map(|path| (*path).to_owned())
+            .collect::<Vec<_>>();
+        let [state, _public] = caller_frames(&program);
+        assert_eq!(state, Some(expected), "{name}");
+    }
+}
+
 // Routes that cannot name every arm's provenance still fail closed: a
-// recursive helper, an arm landing on helper-private storage, and a divergent
-// binding rebinding all keep an opaque frame rather than selecting one route.
+// recursive helper, an arm landing on helper-private storage, a divergent
+// binding rebound to an unproven source, and a divergent binding transported
+// or reborrowed all keep an opaque frame rather than selecting one route.
 #[test]
 fn unproven_candidate_routes_stay_opaque() {
     for (name, helpers, body) in [
@@ -149,12 +189,32 @@ fn unproven_candidate_routes_stay_opaque() {
             "machine pick_private(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 { let local: u64 = 0; match tag { 0 -> a, _ -> &mut local } }",
             "consume(pick_private(&mut self.value, &mut self.other, self.tag));",
         ),
-        // A divergent result bound to a reference local has no single alias
-        // origin, so the binding itself stays opaque.
+        // Rebinding a divergent binding to an unproven result loses the set.
         (
-            "divergent_local_binding",
+            "divergent_binding_unproven_rebind",
             "",
-            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); alias = 1; consume(&mut self.audit);",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); alias = opaque_ref(&mut self.audit); consume(&mut self.tag);",
+        ),
+        // Transporting the divergent binding into another binding cannot
+        // name a referent set for the new name.
+        (
+            "divergent_binding_transport",
+            "",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); let again: &mut u64 = alias; consume(&mut self.audit);",
+        ),
+        // Reborrowing the divergent binding into a call argument is not yet a
+        // proven route: the argument position keeps no candidate set.
+        (
+            "divergent_binding_call_argument",
+            "",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(&mut alias);",
+        ),
+        // A value write into a reference-typed interior slot passes through
+        // the slot's own referent, which the path frame cannot name.
+        (
+            "divergent_binding_reference_interior",
+            "",
+            "let alias: &mut View = pick_carrier(&mut self.v1, &mut self.v2, self.tag); alias.body = 1; consume(&mut self.audit);",
         ),
     ] {
         let program = probe_program_with_helpers(body, helpers);

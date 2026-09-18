@@ -89,6 +89,54 @@ pub(crate) fn stable_local_reference_alias_origin(
     )
 }
 
+/// The divergent counterpart of [`stable_local_reference_alias_origin`]: an
+/// exclusive-reference local whose initializer resolves to several proven
+/// candidate origins keeps the whole finite set rather than failing closed.
+/// The exclusive-reference gate is identical; only the single-place collapse
+/// is skipped, so callers receive every route a conditional helper result or
+/// match expression admits.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stable_local_reference_alias_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    inference: &mut FrameInference,
+    local: &typed_trees::statement::TableLocalData,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<FramePlaceOrigin>> {
+    let mut reference = local.type_reference;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    let TypeReferenceNode::Reference { access, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    if !access.is_exclusive() {
+        return None;
+    }
+    stable_alias_initializer_origins(
+        program,
+        current_machine,
+        machine_symbols,
+        inference,
+        local.initial_value,
+        parameters,
+        isolated_local_roots,
+        aliases,
+        symbols,
+        true,
+        stored,
+    )
+}
+
 /// The single proven origin a binding, target, or argument may name. Divergent
 /// conditional routes keep a finite candidate set internally; consumers holding
 /// one binding still collapse the set only when every route agrees on a storage

@@ -9,6 +9,7 @@ use crate::machine_calls::calls::write_frames::alias_bindings::{
 use crate::machine_calls::calls::write_frames::alias_origins::{
     stable_alias_initializer_origin, stable_alias_initializer_origins,
     stable_assignment_target_path, stable_local_reference_alias_origin,
+    stable_local_reference_alias_origins,
 };
 use crate::machine_calls::calls::write_frames::assignment_targets::expression_is_effectful_indexed_place;
 use crate::machine_calls::calls::write_frames::boundary_calls::{
@@ -27,7 +28,9 @@ use crate::machine_calls::calls::write_frames::local_aliases::expression_reborro
 use crate::machine_calls::calls::write_frames::permuted_cycle_frames::{
     summarize_state_written_paths_with_permuted_cycles, summarize_transition_target_written_paths,
 };
-use crate::machine_calls::calls::write_frames::place_paths::{FramePlaceOrigin, coarse_place_path};
+use crate::machine_calls::calls::write_frames::place_paths::{
+    FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, split_place_root,
+};
 use crate::machine_calls::calls::write_frames::state_paths::{
     push_visible_frame_path, relative_state_path_is_visible,
 };
@@ -113,6 +116,11 @@ pub(crate) fn summarize_state_written_paths(
 pub(crate) struct StateWritePrefix {
     written: Vec<String>,
     pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
+    /// Exclusive-reference locals whose proven referents form a divergent
+    /// candidate set rather than one origin. The set is not representable in
+    /// `aliases`: a caller-side query whose boundary statement mentions one of
+    /// these roots must fail closed instead of spelling the bare local.
+    pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
     pub(crate) stored: Vec<StoredLocalOrigins>,
     pub(crate) assignment: Option<AssignmentWriteTarget>,
 }
@@ -169,6 +177,11 @@ fn walk_state_write_prefix_inner(
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
     let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
+    // Exclusive-reference locals bound to a divergent conditional result keep
+    // their whole proven referent set here rather than a single origin. A
+    // write through such a binding lands on one of its candidates, so the
+    // frame unions every route; any other mention still fails closed below.
+    let mut divergent_alias_origins = Vec::<(String, Vec<FramePlaceOrigin>)>::new();
     let include_shared = matches!(
         query,
         Some(StateWriteQuery::ReferenceBefore(_) | StateWriteQuery::ReferenceResult)
@@ -210,6 +223,7 @@ fn walk_state_write_prefix_inner(
             return Some(StateWritePrefix {
                 written,
                 aliases: local_alias_origins,
+                divergent: divergent_alias_origins,
                 stored,
                 assignment: None,
             });
@@ -219,6 +233,7 @@ fn walk_state_write_prefix_inner(
         if queried_assignment
             && local_alias_origins.is_empty()
             && stored.is_empty()
+            && divergent_alias_origins.is_empty()
             && let StatementNode::Assignment(assignment) = statement
             && let Some(path) = coarse_place_path(program, assignment.target)
         {
@@ -238,6 +253,7 @@ fn walk_state_write_prefix_inner(
             return Some(StateWritePrefix {
                 written,
                 aliases: local_alias_origins,
+                divergent: divergent_alias_origins,
                 stored,
                 assignment: Some(AssignmentWriteTarget::Storage { paths: vec![path] }),
             });
@@ -333,6 +349,138 @@ fn walk_state_write_prefix_inner(
             &local_alias_origins,
         ) {
             return None;
+        }
+        if !divergent_alias_origins.is_empty() {
+            let divergent_roots = divergent_alias_origins
+                .iter()
+                .map(|(name, _)| name.clone())
+                .collect::<Vec<_>>();
+            if local_aliases::statement_mentions_place_roots(program, statement, &divergent_roots) {
+                // A statement touching a divergent binding is admitted only
+                // when it writes through it, rebinds it to another proven
+                // set, or re-exports it through the pure tail return. Every
+                // other use — a reborrow, a call argument, a transport into
+                // another binding — would lose part of the referent set.
+                if let StatementNode::Assignment(assignment) = statement
+                    && let Some(relative) = coarse_place_path(program, assignment.target)
+                    && let Some(position) = divergent_alias_origins
+                        .iter()
+                        .position(|(name, _)| name.as_str() == split_place_root(&relative).0)
+                {
+                    if local_aliases::expression_mentions_place_roots(
+                        program,
+                        assignment.value,
+                        &divergent_roots,
+                    ) {
+                        return None;
+                    }
+                    let (_, suffix) = split_place_root(&relative);
+                    // Only a bare-name target can rebind the binding itself;
+                    // a member or indexed target writes inside the referent
+                    // (`coarse_place_path` already coarsened `alias[i]` to
+                    // `alias`, so it lands here as a write, not a rebind).
+                    let bare_name_target = matches!(
+                        program.expression_table.expression(assignment.target),
+                        typed_trees::expression::ExpressionNode::Name(_)
+                    );
+                    if bare_name_target
+                        && suffix.is_empty()
+                        && local_aliases::expression_may_rebind_mutable_alias(
+                            program,
+                            machine,
+                            state,
+                            assignment.value,
+                        )
+                    {
+                        let origins = stable_alias_initializer_origins(
+                            program,
+                            machine,
+                            &machine_symbols,
+                            inference,
+                            assignment.value,
+                            parameters,
+                            &isolated_local_roots,
+                            &local_alias_origins,
+                            symbols,
+                            true,
+                            &stored,
+                        )?;
+                        if queried_assignment {
+                            return Some(StateWritePrefix {
+                                written,
+                                aliases: local_alias_origins,
+                                divergent: divergent_alias_origins,
+                                stored,
+                                assignment: Some(AssignmentWriteTarget::LocalBindingReplacement {
+                                    path: relative,
+                                }),
+                            });
+                        }
+                        divergent_alias_origins[position].1 = origins;
+                    } else {
+                        // A value RHS into a reference-typed interior slot
+                        // writes through that slot's own referent, which the
+                        // path frame cannot name.
+                        if !bare_name_target
+                            && !local_aliases::expression_may_rebind_mutable_alias(
+                                program,
+                                machine,
+                                state,
+                                assignment.value,
+                            )
+                            && crate::value_custody::places::declared_place_type_raw(
+                                program,
+                                machine,
+                                Some(state),
+                                assignment.target,
+                            )
+                            .is_some_and(|reference| {
+                                type_reference_is_reference(program, reference)
+                            })
+                        {
+                            return None;
+                        }
+                        // A bare write through the binding lands on one proven
+                        // referent, so the frame records the whole union. Each
+                        // candidate still expands through the ordinary write
+                        // path so stored carrier slots contribute their
+                        // overlapping external leaves.
+                        let mut paths = Vec::new();
+                        for origin in &divergent_alias_origins[position].1 {
+                            let composed = match origin.precision {
+                                FramePathPrecision::Exact => {
+                                    append_place_suffix(&origin.path, suffix)
+                                }
+                                FramePathPrecision::CollectionCoarse => origin.path.clone(),
+                            };
+                            for path in expand_write_path(&composed, &local_alias_origins, &stored)
+                            {
+                                if !paths.contains(&path) {
+                                    paths.push(path);
+                                }
+                            }
+                        }
+                        if queried_assignment {
+                            return Some(StateWritePrefix {
+                                written,
+                                aliases: local_alias_origins,
+                                divergent: divergent_alias_origins,
+                                stored,
+                                assignment: Some(AssignmentWriteTarget::Storage { paths }),
+                            });
+                        }
+                        for path in paths {
+                            push_visible_frame_path(&mut written, path, parameters, &locals)?;
+                        }
+                    }
+                    continue;
+                }
+                if !alias_bindings::statement_returns_reference_without_effects(
+                    program, state, statement,
+                ) {
+                    return None;
+                }
+            }
         }
         for expression in statement_value_expression_roots(program, statement) {
             let exposes_reference_binding = if include_shared {
@@ -494,6 +642,7 @@ fn walk_state_write_prefix_inner(
                         return Some(StateWritePrefix {
                             written,
                             aliases: local_alias_origins,
+                            divergent: divergent_alias_origins,
                             stored,
                             assignment: Some(AssignmentWriteTarget::LocalBindingReplacement {
                                 path: relative.to_owned(),
@@ -518,6 +667,7 @@ fn walk_state_write_prefix_inner(
                     return Some(StateWritePrefix {
                         written,
                         aliases: local_alias_origins,
+                        divergent: divergent_alias_origins,
                         stored,
                         assignment: Some(AssignmentWriteTarget::Storage { paths }),
                     });
@@ -654,7 +804,9 @@ fn walk_state_write_prefix_inner(
             }
             StatementNode::Transition(transition) => {
                 for target in [transition.target, transition.continuation] {
-                    if (!local_alias_origins.is_empty() || !stored.is_empty())
+                    if (!local_alias_origins.is_empty()
+                        || !stored.is_empty()
+                        || !divergent_alias_origins.is_empty())
                         && target.is_valid()
                         && matches!(
                             program.statement_table.transition_target(target),
@@ -713,6 +865,28 @@ fn walk_state_write_prefix_inner(
                     } else if let Some(origins) = declared_stored_origins {
                         inference.record_local(&origins);
                         stored.push(origins);
+                    } else if let Some(origins) = (!include_shared)
+                        .then(|| {
+                            stable_local_reference_alias_origins(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                inference,
+                                local,
+                                parameters,
+                                &isolated_local_roots,
+                                &local_alias_origins,
+                                symbols,
+                                &stored,
+                            )
+                        })
+                        .flatten()
+                    {
+                        // A divergent exclusive-reference binding keeps its
+                        // whole proven referent set. The mention gate above
+                        // the statement dispatch admits only a write through
+                        // it, a proven rebind, or a pure tail re-export.
+                        divergent_alias_origins.push((local.name.as_str().to_owned(), origins));
                     } else {
                         // A binding the transfer cannot name stays opaque —
                         // unless every later mention re-exports it intact
@@ -762,6 +936,9 @@ fn walk_state_write_prefix_inner(
                     && !local_alias_origins
                         .iter()
                         .any(|(name, _)| name == local.name.as_str())
+                    && !divergent_alias_origins
+                        .iter()
+                        .any(|(name, _)| name == local.name.as_str())
                 {
                     isolated_local_roots.push(local.name.as_str().to_owned());
                 }
@@ -774,6 +951,7 @@ fn walk_state_write_prefix_inner(
         StateWritePrefix {
             written,
             aliases: local_alias_origins,
+            divergent: divergent_alias_origins,
             stored,
             assignment: None,
         },

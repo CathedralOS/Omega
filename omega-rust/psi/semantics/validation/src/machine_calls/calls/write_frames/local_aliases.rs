@@ -231,7 +231,7 @@ pub(super) fn statement_mentions_place_roots(
         .any(|expression| expression_mentions_place_roots(program, expression, roots))
 }
 
-fn expression_mentions_place_roots(
+pub(super) fn expression_mentions_place_roots(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[String],
