@@ -139,43 +139,6 @@ prerequisite to every lower-rung milestone.
   the selected language; adoption requires reconciled contracts and evidence,
   not a ruling merely to explore the alternatives.
 
-- **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
-  [measured cost review](wiki/drafts/bootstrap_cost_review.md) before
-  expanding infrastructure. Owners remain Delta normalization,
-  Gamma evaluator/checker/Beta definitions, and selected-chain resource profiles.
-  Current Epsilon demand does not justify more depth machinery; retain deep-source
-  conformance until a simpler implementation or owner-approved scope replaces it.
-  For P1 in `bootstrap/proofs/beta_encoding/`, use the consolidated
-  [complete encoder candidate](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md), not
-  another isolated helper probe. It removes completed-token/output histories
-  from incoming state and accounts explicitly for fragment composition, exact
-  emission counts, all Beta cases, limits, failures, EOF, and owner custody.
-  **Strategy pause:** retain the open P1 obligation, but do not add more isolated
-  helper families or change provisions without a defensible integrated cost
-  argument. Complete definitions and an integrated recipe remain the proposed
-  unit for evaluating that route; routine engineering choices do not require
-  an owner question. Continue independent bootstrap work while it is paused.
-  Resume evidence at `50a27b9bfc` on macOS arm64 (prose + gates): the
-  consolidated candidate's state removal is a feasibility precondition
-  (~10-20GB-class history carriage vs the 8 MiB request), the successor recipe
-  reproduces at 4,611,614 unshared / 2,122,796 shared work, encoder-state
-  census is 17,130 vs 1,521 leaf keys with/without count, and the physical
-  work ceiling is 675,017 under the selected pair arena — every derivable
-  integrated scenario lands ~9-41 times over work, so no measured recipe
-  family reaches acceptance under selected provisions. Remaining routes:
-  recipe restructuring toward ~675k work, checked closed-lemma composition
-  (owner escalation), or more native backing (owner decision). The actual
-  `encode_Beta(S, limits) = Success(T)` probe has not run and has no repository
-  command: complete definitions, owner-root reconstruction, and source-owned
-  production remain missing. No partial diagnostic or unimplemented valid case
-  may stand in for that root; no unchecked length or independent chunk budget
-  may become a premise.
-  Acceptance: a bounded simplification/retirement plan and evidence that the
-  proposed proof route can plausibly reduce total audit burden, with extrapolated
-  cost distinguished from actual full-subject checks. If the strategy is not
-  justified, preserve its evidence and continue elsewhere; do not build an
-  alternative language or delete unreviewed machinery.
-
 ## Alpha execution hardening
 
 - **ALPHA-WINDOWS-CONFORMANCE.** Owners: `bootstrap/0_alpha/` semantics, native
