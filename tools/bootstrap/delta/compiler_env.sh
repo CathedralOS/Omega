@@ -36,6 +36,20 @@ DELTA_COMPILER_SUPPORT_MANIFEST_SHA256=cf20f4a6331c3af516dbed8bc206298d1d1205b4f
 DELTA_COMPILER_SUPPORT_PACKED_SIZE=2998
 DELTA_COMPILER_SUPPORT_PACKED_SHA256=cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255
 
+# Bound diagnostic prefix. The staged-compiler gate's
+# tests/delta/staged-compiler/development_driver.gamma is a separate entry
+# packed on top of the bound member closure as an unmarked raw-source
+# transformer; it never selects a compiler application profile, so the packed
+# development compiler is a diagnostic subject, not a second canonical
+# compiler. The identical pins in
+# tests/delta/staged-compiler/{README.md,run.sh} and
+# tests/bootstrap/source-closure.py are records of this one subject, not
+# independent identities. A digest here is an identity check on the entry
+# bytes; it is not a proof of the staged pipeline. Changing the driver changes
+# the packed development compiler and must update every record together.
+DELTA_COMPILER_DEVELOPMENT_ENTRY_SIZE=580
+DELTA_COMPILER_DEVELOPMENT_ENTRY_SHA256=7bcf4098ff44fb5cec57659b7d3c1ceddfbb50a05e1e9f2ec9704be0da5b95bb
+
 # require_delta_compiler_identity : the canonical entry, manifests, and
 # composed record are the bound files; the composed record names the selected
 # Gamma evaluator, packed closure, and packed support section; and repacking
@@ -107,6 +121,20 @@ support-length $DELTA_COMPILER_SUPPORT_PACKED_SIZE"
   DELTA_IDENTITY_RC=$?
   rm -rf -- "$DELTA_IDENTITY_TMP"
   return "$DELTA_IDENTITY_RC"
+}
+
+# require_delta_compiler_development_entry_identity : the diagnostic entry the
+# staged-compiler gate prefixes onto the bound member closure is the bound
+# file. The driver is a separate input from the canonical entry and never part
+# of the sealed DCREQ subject, so consumers that pack it run this before
+# packing; tests may call it directly. It is not part of the canonical closure
+# and does not run during materialization.
+require_delta_compiler_development_entry_identity() {
+  require_bound_identity "development_driver.gamma" \
+    "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY" \
+    "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SIZE" \
+    "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SHA256" \
+    "tests/delta/staged-compiler/README.md"
 }
 
 # materialize_delta_compiler DEST : write the canonical entry-plus-member

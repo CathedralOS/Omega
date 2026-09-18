@@ -6,6 +6,14 @@ their role manifest, verifies their identities, and runs the selected Gamma
 evaluator. The host frames inputs and compares bytes; it does not implement
 Delta checking or lowering.
 
+The development closure prefixes the bound member bytes with this gate's
+`development_driver.gamma` entry, bound at 580 bytes, SHA-256
+`7bcf4098ff44fb5cec57659b7d3c1ceddfbb50a05e1e9f2ec9704be0da5b95bb`, and packs
+to 146,668 bytes, SHA-256
+`f93392a3a1ca68fb08f98e41ba52a2df8e80ed18dedcaf736a8d8df6595442f4`.
+`tools/bootstrap/delta/compiler_env.sh` checks the entry identity before every
+packing and `tests/bootstrap/delta-identity.sh` covers the refusals.
+
 The retained cases compare exact receipts for nominal matches, recursion,
 lists, `Bytes`, and forward/mutual nominal types. Further controls cover scope,
 declaration lookup, checked arithmetic, immutable byte ropes, proper tail calls,

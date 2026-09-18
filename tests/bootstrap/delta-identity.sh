@@ -149,6 +149,38 @@ rc=0
   fail "corrupted composed record: destination was written"
 echo "composed: a one-byte record change is refused before packing"
 
+require_delta_compiler_development_entry_identity ||
+  fail "bound development entry check refused the canonical driver"
+echo "driver: canonical development entry passes the bound identity check"
+
+cp "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY" "$TMP/corrupt-driver.gamma"
+if [ "$(od -An -tc -j 100 -N1 "$TMP/corrupt-driver.gamma" | tr -d ' ')" = "a" ]; then
+  printf 'b' | dd of="$TMP/corrupt-driver.gamma" bs=1 seek=100 conv=notrunc status=none
+else
+  printf 'a' | dd of="$TMP/corrupt-driver.gamma" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY=$TMP/corrupt-driver.gamma
+  require_delta_compiler_development_entry_identity
+) 2>"$TMP/corrupt-driver.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted development entry: expected exit 3, got $rc"
+grep -q 'staged-compiler/README.md' "$TMP/corrupt-driver.err" ||
+  fail "corrupted development entry: refusal did not cite the driver record"
+echo "driver: a one-byte development entry change is refused"
+
+head -c $((DELTA_COMPILER_DEVELOPMENT_ENTRY_SIZE - 1)) \
+  "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY" > "$TMP/truncated-driver.gamma"
+rc=0
+(
+  export OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY=$TMP/truncated-driver.gamma
+  require_delta_compiler_development_entry_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated development entry: expected exit 3, got $rc"
+echo "driver: a truncated development entry is refused"
+
 for needle in \
   "$GAMMA_EVALUATOR_TAPE_SHA256" "$DELTA_COMPILER_PACKED_SHA256" \
   "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_SUPPORT_PACKED_SHA256" \
@@ -171,9 +203,24 @@ do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/delta/normalization/compiler.tsv" ||
     fail "normalization compiler.tsv lacks bound record $needle"
 done
+for needle in \
+  "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SIZE" \
+  "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SHA256"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/tests/delta/staged-compiler/README.md" ||
+    fail "staged-compiler README lacks bound driver record $needle"
+done
+for needle in "146668" "f93392a3a1ca68fb08f98e41ba52a2df8e80ed18dedcaf736a8d8df6595442f4"
+do
+  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/delta/staged-compiler/run.sh" ||
+    fail "staged-compiler gate lacks packed development record $needle"
+  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/source-closure.py" ||
+    fail "source-closure gate lacks packed development record $needle"
+done
 grep -q "$GAMMA_EVALUATOR_TAPE_SHA256" \
   "$OMEGA_REPO_ROOT/bootstrap/2_gamma/EVALUATOR_PROFILE.md" ||
   fail "EVALUATOR_PROFILE.md lacks bound evaluator identity"
-echo "records: bound identities match delta_compiler.composed, README.md, compiler.tsv, and EVALUATOR_PROFILE.md"
+echo "records: bound identities match delta_compiler.composed, README.md, compiler.tsv, EVALUATOR_PROFILE.md, and the staged-compiler records"
 
-echo "Delta identity: bound closure materialized exactly; corrupted entry, manifest, member, and record refused"
+echo "Delta identity: bound closure materialized exactly; corrupted entry, manifest, member, record, and driver refused"

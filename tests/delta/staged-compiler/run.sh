@@ -18,8 +18,9 @@ trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 COMPILER="$TMP/development.gamma"
 CANONICAL_COMPILER="$TMP/compiler.gamma"
 # The bound member closure is checked against its audited record; the gate's
-# development driver entry packs on top of those bound members.
+# bound development driver entry packs on top of those bound members.
 require_delta_compiler_identity
+require_delta_compiler_development_entry_identity
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$COMPILER" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY"
