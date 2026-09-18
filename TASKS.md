@@ -1808,6 +1808,40 @@ Owners include
   runtime-indexed carrier write -- and not `digit_div`. Resume at the
   field-store sequence; do not re-derive a counter/divisor invariant that has
   already landed.
+
+  The field-store refusal is located, measured 2026-09-18 by instrumenting the
+  builders and re-running that canary test. `digit_write`'s statement 1 is
+  `self.out[self.p] = narrow_u32_to_u8_wrapping(self.ch as u32)`, a
+  runtime-indexed carrier write. In
+  `execution/unit/structural_scalar_store/build_structural_scalar_store.rs` the
+  byte-sequence branch is entered -- the carrier resolves as
+  `BoundedOwned { capacity: 5 }` -- and the `Utf8` domain-constraint check
+  passes. It then refuses at the pair of
+  `facts.values.scalar_expressions.bound_expression_at(..)?` lookups: the
+  `AssignmentIndex` role is bound for that statement and `AssignmentValue` is
+  NOT, so the `?` collapses the whole store sequence and the state yields no
+  admitted body. `frame::matches` is not involved; it passed on every traversal.
+
+  The producers explain the asymmetry. `AssignmentIndex` is recorded in
+  `values/scalar/expression_plans.rs` inside the assignment arm's
+  `ExpressionNode::Indexed` branch. `AssignmentValue` is recorded in two other
+  places: the same file after a target type-reference gate, and
+  `values/scalar/computations.rs`, whose assignment arm records it only for
+  `ExpressionNode::Member` targets with a primitive declared place type and for
+  `ExpressionNode::Name` targets naming a mutable local or a mutable non-self,
+  non-const state parameter. An `Indexed` target matches neither, so an indexed
+  destination gets its index bound and its value unbound. Note
+  `assignment_target_primitive_type` also has no fixed-array case: it unwraps
+  `Constrained` and one `Reference` and otherwise asks for a primitive type
+  reference, which `[u8; 5] in Utf8` is not.
+
+  Not yet established: exactly which gate in `expression_plans.rs` ends that
+  arm for this statement. Repeated instrumentation there gave inconsistent
+  results across runs (a sentinel proved both files live in the same binary, so
+  it is not a stale build), so treat any claim about that specific exit as
+  unmeasured until re-probed. The two facts above -- the missing
+  `AssignmentValue` binding, and that no producer records it for an `Indexed`
+  target -- are reproducible.
   Existing order transitivity, exact equality bridges and closed literal
   predicate denotation already discharge incompatible integer guards;
   no new contradiction rule is needed. Equality-cited bounds now join that
