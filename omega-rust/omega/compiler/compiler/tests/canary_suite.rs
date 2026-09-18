@@ -1418,6 +1418,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/inductive_gauss_sum_false_twin",
     "proofs/inductive_gauss_sum_step_false_twin",
     "proofs/inductive_climbing_sum_step_false_twin",
+    "proofs/proof_inductive_climbing_sum_bounded",
     "proofs/nat_unmeasured_recursion_rejected",
     "proofs/nat_nondescending_recursion_rejected",
     "proofs/integer_measured_nat_recursion_stalled",
