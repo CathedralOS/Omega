@@ -88,7 +88,36 @@ fn try_lower(source: &str) -> Result<TypedTrees, String> {
     try_lower_with_package(source, Some(package))
 }
 
+/// Lower a fixture exactly as the compiler pipeline prefix does, with no
+/// test-only termination injection.
+fn try_lower_unmodified(source: &str) -> Result<TypedTrees, String> {
+    let package = PackageKeyIdentity::from_digest([0x71; 32]).expect("nonzero package identity");
+    lower_typed_trees(source, Some(package))
+}
+
 fn try_lower_with_package(
+    source: &str,
+    package: Option<PackageKeyIdentity>,
+) -> Result<TypedTrees, String> {
+    let mut program = lower_typed_trees(source, package)?;
+    // Termination is established by a later stage; these fixtures exercise the
+    // quotient join, so the proof machines carry their checked summary here.
+    let mut terminating = 0;
+    for machine in program.machines_mut() {
+        let name = machine.name.as_str();
+        if name.starts_with("representative") || name.starts_with("admitted") {
+            machine.termination_plan.checked_summary =
+                language_semantics::TerminationGuarantee::Terminates {
+                    premises: Vec::new(),
+                };
+            terminating += 1;
+        }
+    }
+    assert!(terminating >= 2, "quotient fixtures need proof machines");
+    Ok(program)
+}
+
+fn lower_typed_trees(
     source: &str,
     package: Option<PackageKeyIdentity>,
 ) -> Result<TypedTrees, String> {
@@ -122,23 +151,7 @@ fn try_lower_with_package(
         top_level_bindings: Vec::new(),
     })
     .expect("package-aware resolution");
-    let mut program =
-        lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| diagnostic.message)?;
-    // Termination is established by a later stage; these fixtures exercise the
-    // quotient join, so the proof machines carry their checked summary here.
-    let mut terminating = 0;
-    for machine in program.machines_mut() {
-        let name = machine.name.as_str();
-        if name.starts_with("representative") || name.starts_with("admitted") {
-            machine.termination_plan.checked_summary =
-                language_semantics::TerminationGuarantee::Terminates {
-                    premises: Vec::new(),
-                };
-            terminating += 1;
-        }
-    }
-    assert!(terminating >= 2, "quotient fixtures need proof machines");
-    Ok(program)
+    lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| diagnostic.message)
 }
 
 fn validation_messages(program: &TypedTrees) -> Vec<String> {
@@ -541,4 +554,105 @@ fn a_congruence_only_lift_has_no_canonical_row_and_keeps_its_fence() {
         &messages,
         "are not admitted until canonical Terminal correspondence are independently checked",
     );
+}
+
+/// One corpus fail fixture and the diagnostic fragment its `expected.txt`
+/// pins down.
+struct CorpusFixture {
+    name: &'static str,
+    source: &'static str,
+    expected: &'static str,
+}
+
+/// Drive the authored corpus fixtures through the same lex/parse/resolve/type
+/// pipeline prefix the compiler uses, with no test-only termination injection,
+/// and confirm each fixture's recorded fragment is actually produced.
+///
+/// The compiler crate owns the canary roster, so this keeps the checked-in
+/// expectations honest from the crate that owns the judgment.
+const CORPUS_FIXTURES: &[CorpusFixture] = &[
+    CorpusFixture {
+        name: "quotient_define_transport_role_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_define_transport_role_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_define_transport_role_rejected/expected.txt"
+        ),
+    },
+    CorpusFixture {
+        name: "quotient_lift_congruence_missing_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_lift_congruence_missing_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_lift_congruence_missing_rejected/expected.txt"
+        ),
+    },
+    CorpusFixture {
+        name: "quotient_lift_surplus_role_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_lift_surplus_role_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_lift_surplus_role_rejected/expected.txt"
+        ),
+    },
+    CorpusFixture {
+        name: "quotient_theorem_result_bearing_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_result_bearing_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_result_bearing_rejected/expected.txt"
+        ),
+    },
+    CorpusFixture {
+        name: "quotient_theorem_boundary_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_boundary_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_theorem_boundary_rejected/expected.txt"
+        ),
+    },
+    CorpusFixture {
+        name: "quotient_congruence_substituted_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_congruence_substituted_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_congruence_substituted_rejected/expected.txt"
+        ),
+    },
+    CorpusFixture {
+        name: "quotient_transport_roles_reversed_rejected",
+        source: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_transport_roles_reversed_rejected/main.omg"
+        ),
+        expected: include_str!(
+            "../../../../../tests/omega/fail/proofs/quotient_transport_roles_reversed_rejected/expected.txt"
+        ),
+    },
+];
+
+#[test]
+fn every_quotient_role_corpus_fixture_produces_its_recorded_fragment() {
+    for fixture in CORPUS_FIXTURES {
+        let fragment = fixture.expected.trim_end_matches('\n');
+        assert!(!fragment.is_empty(), "{} has no fragment", fixture.name);
+        let messages = match try_lower_unmodified(fixture.source) {
+            Ok(program) => validate_program(&program)
+                .expect_err("a fail fixture must reject")
+                .iter()
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect::<Vec<_>>(),
+            Err(message) => vec![message],
+        };
+        assert!(
+            messages.iter().any(|message| message.contains(fragment)),
+            "{} never produced `{fragment}`; got {messages:#?}",
+            fixture.name,
+        );
+    }
 }
