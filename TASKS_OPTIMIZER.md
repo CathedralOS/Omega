@@ -454,10 +454,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Broader changing-reference transfers still require loan/alias and ranking
   substitution work; increasing the parameter count alone does not close them.
 
-- **TERMINAL-SCC-CONSUMERS.** Retarget LICM and other loop consumers from the
-  exact countdown slice to validated Terminal SCCs. General invariant
-  discovery, profitability, and motion remain open.
-
 - **GENERAL-LICM.** Implement motion only through transformations that
   invalidate and reconstruct component, loop-carried custody, ranking,
   provenance, effect, and fuel evidence. The dedicated countdown zero/one
