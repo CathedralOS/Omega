@@ -36,8 +36,11 @@
 //!
 //! The sibling [`redundant`] family removes a compare whose publication is
 //! observed but adds nothing: every published unit already carries the same
-//! flag state from an earlier flag-equivalent compare in the same block, so
-//! the removal leaves every reader observing identical values.
+//! flag state from flag-equivalent shadow compares — the last flag event on
+//! every path to the compare, resolved through the shared condition-state
+//! walk across block boundaries — with the operand registers provably
+//! unchanged between each shadow and the compare, so the removal leaves
+//! every reader observing identical values.
 //!
 //! Removing the compare shortens its block's instruction vector, so
 //! boundary settlements positioned after it shift one ordinal earlier;
