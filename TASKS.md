@@ -48,102 +48,52 @@ has no exercising program. The finite definition of Rust-product completion is
 the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
-  [Squalr application](samples/apps/README.md) through its nested workspace and
-  package builds. Preserve the essentially 1:1 Rust port, its actual dependency
-  graph, and native acceptance; do not flatten packages or substitute a fixed-size
-  scanner to fit current lowering. Start with its geometry test application,
-  then the real supplied-byte scan/filtered-result path. The submodule's TASKS
-  owns port work; this board owns compiler blockers exposed by the unchanged app.
+  [Squalr application](samples/apps/README.md) through its nested package builds
+  and native execution: geometry first, then the supplied-byte scan and filtered
+  results. Preserve the essentially 1:1 Rust algorithms and complete dependency
+  graph. The submodule's TASKS owns port work; this item owns integration and
+  compiler blockers exposed by that application.
+
+  The tracked app `7a272a896c85` still declares `console: Console` and pins std
+  to `a91d878cb9252647d977c45787969b16e6ef937a`. Update the app to the settled
+  [service contract](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge):
+  `Service<Console>`, with intrinsic binding establishment, not `in Bound`.
+  Publish application changes in its own repository before updating the gitlink;
+  private-repository access is required. Complete ordinary package update/review
+  for the exact checkout and selected target. Do not delete acceptance or restore
+  a stale checkout-specific lock to bypass review.
+
+  Keep one integration owner and work from the actual application command:
+
+  1. Reconcile the app's source/std pin and package acceptance, preserving its
+     geometry and package graph. Recheck publication access rather than treating
+     a previous session's 403 as a permanent compiler blocker.
+  2. Run the native acceptance below and assign only the failure it now exposes.
+     A source-only probe at `76478cbd6e` retained the composed entry and geometry
+     bodies; the old missing-Unit-plan diagnosis is not a current native result.
+     **ENTRY-CONTENT-ROOTS** owns service establishment and the hosted entry bridge
+     in `native-realization`, `program-entry-plan`, and `external-roots`.
+     Its existing `canary_suite::entry_and_abi::hosted_receiver*` controls still
+     author `Service<Console> in Bound`; passing them does not establish the
+     intrinsic-only source contract. Fix that shared path, not an app-specific
+     eligibility exception. **MATCH-SELECTIVE-LOWERING** and
+     **STATE-LOCAL-VALUE-FRONTIER** own newly witnessed operation joins.
+  3. After geometry runs, drive the submodule's supplied-byte scan and repeated
+     filtering through the real growable/partitioned storage and result path.
+     Keep build-only packages explicitly unported; no fixed-capacity substitute,
+     Rust FFI scanner, package flattening, or isolated-helper milestone replaces
+     application progress.
 
   Acceptance: `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
-  must execute the unchanged application and print `Squalr geometry: PASS`.
-  Package acceptance and verified Terminal production do not establish native
-  execution. Invocation output lives under its ignored `build/verification/`.
-  Initialization is explicit and needs private repository access.
-
-  Resume: the tracked app is `7a272a896c85`, with std pinned to
-  `a91d878cb9252647d977c45787969b16e6ef937a`. Compiler `bf35e75acb` checks the complete
-  17-package graph when the application imports `omega::language::core::service`
-  and declares `console: Service<Console> in Bound`; its geometry is unchanged.
-  On macOS ARM64 with Python 3.13 and `RUST_MIN_STACK=67108864`, ordinary
-  `omega update --project samples/apps/squalr/squalr-tests --target macos_arm64`
-  exits 3 at pending Console-read/native-supply/FilesystemHost decisions. The
-  available Git identity cannot publish to the private application repository
-  (403), so its tracked pin still needs that source correction. Publish it there
-  before advancing the gitlink. Preserve the historical lock outside the package
-  while completing checkout-local review; restoring it still makes the outer
-  native command exit 200 before compilation. No native acceptance is established.
-
-  Do not resume from the application's historical missing-Unit-plan diagnosis.
-  At `76478cbd6e`, a targetless compiler-library probe of unchanged app `7a272a896c85`
-  and its complete reachable package graph, using std's exact pinned source tree
-  `f299035391e73299c6cad3918ada57cb144fb1cc`, retains the composed `Main::main`
-  plan and all geometry helper bodies. `compile_to_checked` followed by
-  `TerminalProductionRequest::new(&checked, "Main::main").produce_artifact()`
-  succeeds on macOS ARM64. This bypasses neither approval nor native admission:
-  the probe supplied source bindings only, selected no target, and did not execute
-  the app. Complete the explicit review and source publication above, then rerun
-  the real native command before assigning another lowering repair. Once geometry
-  executes, alternate the port's supplied-byte scan work with the concrete compiler
-  gaps that it exposes; Terminal publication alone does not close that milestone.
-
-  Bridge owner: **ENTRY-CONTENT-ROOTS**, owning
-  `native-realization/src/native_realization.rs`, `program-entry-plan`
-  and `external-roots`, under [entry roots](wiki/spec/build/entry_roots.md).
-  Preserve the target-backed receiver, private-stack and continuation partitions,
-  activation and completion contract under the loading premises below. A
-  test-supplied receiver or zero-payload provider layout is not provisioning.
-
-  Keep one integration owner and this application command across the bridge
-  and subsequent native/provider failures. Do not restart isolated getter/setter
-  helper milestones: the ordinary/composed Psi route now serves this application.
-  Preserve its operation order, complete package graph and independent evidence;
-  the current `console: Console` field must migrate to `Service<Console>` under
-  the intrinsic binding-validity contract. Existing service eligibility and
-  exact field establishment already work; do not add another eligibility path
-  or make a missing row authorize an erased-field fallback.
-
-  The integrated conditional bridge at `96854008a0` reuses the exact target
-  contracts and unified package review. On macOS ARM64,
-  `RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test canary_suite
-  --no-fail-fast -E 'test(entry_and_abi::hosted_receiver)'` executes a canonical
-  Bound receiver with retained scalar mutation (`A`, exit 0) and distinct process
-  exit (`A`, exit 37), and rejects missing establishment and corrupted object
-  binding. The implementation additionally checks partition bounds/alignment and
-  decodes final bridge instructions independently of the emitter and relocation
-  patcher. This remains dependency evidence, not unchanged Squalr acceptance.
-  Entry schema discovery proposes review candidates without accepting them;
-  explicit missing/stale bindings reject. Automatic source seeding preserves
-  ordinary supplier identity rather than relabeling it toolchain-owned.
-  Next: finish the relocated application's explicit review, reconcile canonical
-  intrinsic service establishment, and rerun the outer command through the next
-  native/provider failure. Do not rebuild the already integrated bridge or
-  replace the unified package workflow. These probes do not establish Squalr
-  acceptance.
-
-  `image-macho/src/loader_mapping.rs` and `loader_fixups.rs` independently check
-  segment mapping, retained payloads, exact eager bind/rebase writes and zero-fill
-  exclusion during ordinary image replay. Object relocations and normalized
-  import locators supply the expected pointers; these checks do not establish
-  the receiver grant or authorize loaded providers.
-  The `hosted_receiver` implementation joins these checks to disjoint
-  receiver/private-stack/continuation partitions and exact SP/LR and call flow.
-  Its claim remains conditional on conforming loading, process-local exclusive
-  writable-image storage, one entry activation, admitted provider behavior and
-  the declared completion contract; callback occupancy rejects. Preserve these
-  premises during integration rather than treating byte checking as an actual
-  installed receiver grant. The
-  [native product contract](wiki/spec/build/component_publication.md#products-and-authority)
-  does not require a live `InstalledCode` or Rust supervisor before compiling
-  an ordinary executable. Actual installation/epoch custody remains necessary
-  for an installed-runnable claim; a conditional image check cannot create it.
-  Do not route artifact production through a fabricated runtime ledger.
-  This is implementation work under the entry and
-  [service binding contract](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md#service-bindings),
-  not an unanswered language decision.
-  **MATCH-SELECTIVE-LOWERING** and **STATE-LOCAL-VALUE-FRONTIER** own any newly
-  witnessed operation joins. These are engineering dependencies, not owner
-  questions. Keep build-only packages explicitly unported.
+  executes the geometry app and prints `Squalr geometry: PASS`; then the
+  supplied-byte path matches Rust's exact addresses/ranges, including overlap,
+  tails, empty input, and repeated filtering. Retain results under the app's
+  ignored `build/verification/`, with exact app/compiler pins and host.
+  Package acceptance, Terminal publication, and hosted-entry test execution alone
+  do not close either application milestone. Preserve disjoint receiver/stack/
+  continuation storage and missing-establishment rejection. Ordinary artifact
+  production has [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
+  not a fabricated runtime installation grant or a required Rust supervisor.
 
 - **MACOS-APPLICATION-PUBLICATION.** The
   [settled publication contract](wiki/spec/build/macos_application.md)
