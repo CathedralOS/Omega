@@ -251,6 +251,20 @@ fn resolve_source(
                     captured_root = name.symbol;
                     break name.symbol;
                 }
+                // An established `&T` local is no owned record home, but it is
+                // the exact authored carrier: source borrow facts capture the
+                // read under the local's own symbol, and its referent's
+                // established storage rejoins through the same `StructuralLocal`
+                // binding a borrowed parameter follows. Only observation
+                // sources take this lane -- exclusive alias formation and store
+                // destinations keep their existing roots and access rules.
+                if require_endpoint_stamp
+                    && let Some((statement_index, _)) = statement_index
+                    && locals::shared_borrow(checked, state, statement_index, name.symbol).is_some()
+                {
+                    captured_root = name.symbol;
+                    break name.symbol;
+                }
                 if let Some((statement_index, formation)) = statement_index
                     && let Some(alias) = aliases::parameter_source(
                         checked,

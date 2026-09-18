@@ -1248,7 +1248,33 @@ fn replays_loan_event(
                         statement_index: loan.statement_index,
                     }
             }
-            PermissionEventKind::Consume => event.source == PermissionEventSource::StateExit,
+            // A loan's Consume fires at its weakening boundary: `StateExit`
+            // when the borrow's last use ends the state, otherwise the
+            // statement after that last use -- the same boundary the borrow
+            // lifetime weakening records in `aliases` replay.
+            PermissionEventKind::Consume => {
+                let Some(boundary) = loan.last_use_statement_index.checked_add(1) else {
+                    return false;
+                };
+                let Ok((_, authored)) =
+                    crate::expression_preparation::source_custody::authored_state(checked, state)
+                else {
+                    return false;
+                };
+                let expected = if boundary
+                    == checked
+                        .statement_table
+                        .statements(authored.statement_nodes)
+                        .len()
+                {
+                    PermissionEventSource::StateExit
+                } else {
+                    PermissionEventSource::Statement {
+                        statement_index: boundary,
+                    }
+                };
+                event.source == expected
+            }
             _ => false,
         }
     });
