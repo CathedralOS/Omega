@@ -1,16 +1,19 @@
 //! Borrow-aware mutation motion on the selected CFG.
 //!
-//! A `Store { byte_offset, byte_size }` writes the low exact-width bits of its
-//! value operand through the referent pointer. Sinking the store later along
-//! the control-flow path defers the write inside the window where nothing can
-//! observe the place's old bytes: every instruction the store slides past must
-//! leave the relative order of the write and every later access on the same
-//! place unchanged. The motion lands the store immediately before the first
-//! position that must stay ordered after it — the first roster access on the
-//! moved place, a call or hosted effect, a redefinition of either carried
-//! register, an unaccounted memory-capable instruction, or a boundary
-//! settlement — or at the end of the last block the walk can prove it still
-//! reaches on every path.
+//! A `Store { byte_offset, byte_size }` writes the low exact-width bits of
+//! its value operand through the referent pointer — or through the
+//! materialized address of the place's own local storage, its
+//! `StructuralParameter`/`StructuralBlockParameter` slot or the producing
+//! operation's `Structural` home, which a `Store64` also writes directly.
+//! Sinking the store later along the control-flow path defers the write
+//! inside the window where nothing can observe the place's old bytes: every
+//! instruction the store slides past must leave the relative order of the
+//! write and every later access on the same place unchanged. The motion
+//! lands the store immediately before the first position that must stay
+//! ordered after it — the first roster access on the moved place, a call or
+//! hosted effect, a redefinition of a carried register, an unaccounted
+//! memory-capable instruction, or a boundary settlement — or at the end of
+//! the last block the walk can prove it still reaches on every path.
 //!
 //! The alias decision is borrow-aware: it comes from the validated
 //! `memory_accesses` roster, not from pointer-register equality. Each access
@@ -19,9 +22,13 @@
 //! referent under different place identities — exclusivity rejects
 //! overlapping exclusive custody before selection — so rows for other places
 //! and exact rows on disjoint ranges of the moved place cannot observe the
-//! slide. Only a potentially overlapping access on the moved place, a
-//! dynamic-extent row on it, a place-backed local slot or materialized local
-//! address for it, or a call/hosted effect bounds the window.
+//! slide. A `WriteLocal` or `AddressLocal` row names a slot: the place's own
+//! storage — a parameter, block-parameter, or producer-declared `Structural`
+//! home — interferes on the moved bytes like a place row, while a slot that
+//! only stages bytes naming the place never reaches them. Only a
+//! potentially overlapping access on the moved place, a dynamic-extent row
+//! on it, a write to or materialized address of the place's own storage, or
+//! a call/hosted effect bounds the window.
 //!
 //! The walk is not confined to one block: reaching a block's end without a
 //! stop continues through its terminator's successor edges when every edge

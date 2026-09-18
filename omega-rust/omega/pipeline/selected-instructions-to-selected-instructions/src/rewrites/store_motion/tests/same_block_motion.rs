@@ -10,9 +10,9 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
     LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
-    SelectedMemoryAccessRole,
+    SelectedMemoryAccessRole, VirtualRegisterId,
 };
-use semantic_vocabulary::{MachineId, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -273,8 +273,11 @@ fn observing_accesses_land_the_store_just_before_them() {
         sink(&dynamic, &environment).unwrap_err(),
         StoreMutationMotionError::UnsupportedPair
     );
-    // A place-backed local slot write targets the moved place's storage.
-    let local = mutated(target, |function, environment| {
+    // A `WriteLocal` on a `Structural` slot the place's declaration does not
+    // charge to that operation only stages bytes naming the place — its
+    // writes are not the place's bytes at any offset, so the store slides
+    // past it to the covering store.
+    let staged = mutated(target, |function, environment| {
         let store64 = environment
             .constraint(environment.selected_keys().store64.unwrap())
             .unwrap();
@@ -302,9 +305,140 @@ fn observing_accesses_land_the_store_just_before_them() {
             ),
         );
     });
+    let result = sink(&staged, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    // The place's own storage — its parameter home — interferes by range: a
+    // write into it at the moved offset must stay ordered after the store.
+    let local = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        function
+            .local_storage_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WriteLocal { slot },
+            ),
+        );
+    });
     assert_eq!(
         sink(&local, &environment).unwrap_err(),
         StoreMutationMotionError::UnsupportedPair
+    );
+    // A disjoint range of the place's own storage cannot observe the moved
+    // bytes, so the store slides past it to the covering store.
+    let disjoint_local = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+        function
+            .local_storage_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                byte_offset: 8,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                8,
+                SelectedMemoryAccessRole::WriteLocal { slot },
+            ),
+        );
+    });
+    let result = sink(&disjoint_local, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    // A materialized address of the place's own storage could reach the moved
+    // bytes by a route the roster does not bound, so it bounds the window;
+    // the same address on a staging slot reaches only the staged bytes.
+    let materialized = |staging: bool| {
+        mutated(target, move |function, environment| {
+            let frame_address = environment
+                .constraint(environment.selected_keys().frame_address.unwrap())
+                .unwrap();
+            let slot = if staging {
+                LocalStorageSlotId::Structural {
+                    operation: OperationId::new(9).unwrap(),
+                    place: place(),
+                }
+            } else {
+                LocalStorageSlotId::StructuralParameter { place: place() }
+            };
+            function
+                .local_storage_slots
+                .push(selected_instructions::SelectedLocalStorageSlot {
+                    id: slot,
+                    byte_size: 16,
+                    alignment: 8,
+                });
+            function.blocks[0].instructions[2] = instruction(
+                BETWEEN,
+                SelectedInstructionKind::FrameAddress {
+                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                frame_address,
+                &[SCRATCH],
+            );
+            function.memory_accesses.insert(
+                1,
+                access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    0,
+                    SelectedMemoryAccessRole::AddressLocal { slot },
+                ),
+            );
+        })
+    };
+    assert_eq!(
+        sink(&materialized(false), &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    let result = sink(&materialized(true), &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
     );
 }
 
@@ -462,6 +596,196 @@ fn sub_width_stores_slide_within_the_same_window() {
     assert_eq!(
         landed_ids(&result),
         vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+}
+
+/// The moved store can also reach the place's storage through its own local
+/// slot: a `Store` through the parameter home's materialized address or a
+/// `Store64` into that slot directly, each carrying the single `WriteLocal`
+/// row on the place's storage. An operation-owned `Structural` home qualifies
+/// only when the place's declaration names the operation as the result's
+/// producer; a staging slot's store is not a place write and rejects, as do
+/// a row disagreeing with the encoded slot, a `WritePlace` row on the direct
+/// slot store, and a private spill slot that carries no row at all.
+#[test]
+fn local_storage_stores_sink() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let parameter = LocalStorageSlotId::StructuralParameter { place: place() };
+    let declare = |function: &mut selected_instructions::SelectedFunction, operation| {
+        function.structural = Some(legalized_operations::LegalizedStructuralContract {
+            result: None,
+            structural_types: Vec::new().into(),
+            parameters: Vec::new(),
+            structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
+                id: place(),
+                kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer: operation,
+                    structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                },
+            }],
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+    };
+    let push_slot = |function: &mut selected_instructions::SelectedFunction,
+                     slot: LocalStorageSlotId| {
+        function
+            .local_storage_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+    };
+    // The direct route: a `Store64` into the place's parameter home slides
+    // past the copy to the covering store.
+    let direct = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        push_slot(function, parameter);
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot: parameter };
+    });
+    let result = sink(&direct, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    validate_store_mutation_motion(
+        &direct,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A `Store` through the producer-declared `Structural` home's
+    // materialized address carries the `WriteLocal` row and sinks the same
+    // way.
+    let producer = OperationId::new(9).unwrap();
+    let home = LocalStorageSlotId::Structural {
+        operation: producer,
+        place: place(),
+    };
+    let addressed = mutated(target, |function, _| {
+        declare(function, producer);
+        push_slot(function, home);
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot: home };
+    });
+    let result = sink(&addressed, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    // The same declaration without the producer charge leaves the slot a
+    // staging slot: a `Store` carrying its `WriteLocal` row never moves the
+    // place's bytes, so it cannot be the moved store.
+    let staged = mutated(target, |function, _| {
+        push_slot(function, home);
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot: home };
+    });
+    assert_eq!(
+        sink(&staged, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A `WriteLocal` row on a different place's parameter home is not the
+    // moved place's storage either.
+    let other = mutated(target, |function, _| {
+        let slot = LocalStorageSlotId::StructuralParameter {
+            place: PlaceId::new(2).unwrap(),
+        };
+        push_slot(function, slot);
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+    });
+    assert_eq!(
+        sink(&other, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // The direct `Store64`'s row must name the slot the instruction encodes:
+    // a disagreement rejects rather than moving bytes under the wrong name.
+    let mismatched = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let encoded = LocalStorageSlotId::StructuralParameter { place: place() };
+        let named = LocalStorageSlotId::StructuralBlockParameter {
+            block: semantic_vocabulary::BlockId::new(2).unwrap(),
+            place: place(),
+        };
+        push_slot(function, encoded);
+        push_slot(function, named);
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(encoded),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot: named };
+    });
+    assert_eq!(
+        sink(&mismatched, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A `WritePlace` row on the direct `Store64` disagrees with the route the
+    // instruction takes: the slot store does not write through a referent
+    // pointer.
+    let misroled = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        push_slot(function, parameter);
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(parameter),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+    });
+    assert_eq!(
+        sink(&misroled, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    // A `Store64` into a compiler-owned spill slot carries no roster row:
+    // there is no place write to move.
+    let spilled = mutated(target, |function, environment| {
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        let slot = LocalStorageSlotId::Spill {
+            register: VirtualRegisterId(7),
+        };
+        push_slot(function, slot);
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses.remove(0);
+    });
+    assert_eq!(
+        sink(&spilled, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedInstruction
     );
 }
 
