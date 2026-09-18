@@ -1,8 +1,8 @@
 //! Rational bound match dispatch tests.
 
 use super::{
-    BigRational, BinaryOperator, ExpressionNode, RationalBounds, RationalInterval, RationalLattice,
-    excludes_zero,
+    BigRational, BinaryOperator, ExpressionNode, RationalBounds, RationalCell, RationalInterval,
+    RationalLattice, excludes_zero,
 };
 use numerics::bignum::BigInt;
 
@@ -21,6 +21,25 @@ fn lattice_contains(lattice: &RationalLattice, value: &BigRational) -> bool {
             .div(&lattice.stride)
             .is_some_and(|multiple| multiple.to_integer_exact().is_some())
     }
+}
+
+/// The join of every hull's retained lattice: one rational lattice covering
+/// all summarized values, or none when any hull lacks lattice evidence.
+fn joined_lattice(bounds: &RationalBounds) -> Option<RationalLattice> {
+    let mut joined: Option<RationalLattice> = None;
+    let mut seen = false;
+    for cell in bounds.cells() {
+        joined = Some(match (joined, cell.lattice.as_ref()) {
+            (Some(previous), Some(lattice)) => previous.join(lattice)?,
+            (None, Some(lattice)) => RationalLattice {
+                offset: lattice.offset.clone(),
+                stride: lattice.stride.clone(),
+            },
+            (_, None) => return None,
+        });
+        seen = true;
+    }
+    if seen { joined } else { None }
 }
 
 #[test]
@@ -74,11 +93,13 @@ fn lattice_gap_refinement_retains_every_sampled_point_in_original_bounds() {
                         }
                     }
                     let mut bounds = RationalBounds {
-                        containing_zero: Some(RationalInterval {
-                            low: low.clone(),
-                            high: high.clone(),
+                        containing_zero: Some(RationalCell {
+                            interval: RationalInterval {
+                                low: low.clone(),
+                                high: high.clone(),
+                            },
+                            lattice: Some(lattice),
                         }),
-                        lattice: Some(lattice),
                         fractional_history: true,
                         ..RationalBounds::default()
                     };
@@ -208,13 +229,13 @@ fn singleton_divisor_partitions_preserve_exact_quotient_lattices() {
                     let quotients = numerators
                         .apply(BinaryOperator::Divide, &divisors)
                         .expect("nonzero singleton divisors");
-                    let lattice = quotients.lattice.as_ref().expect("joined quotient lattice");
+                    let lattice = joined_lattice(&quotients).expect("joined quotient lattice");
                     for numerator in [12, 25] {
                         for divisor in [negative_divisor, positive_divisor] {
                             let quotient = fraction(numerator, numerator_denominator)
                                 .div(&fraction(divisor, divisor_denominator))
                                 .expect("nonzero divisor");
-                            assert!(lattice_contains(lattice, &quotient));
+                            assert!(lattice_contains(&lattice, &quotient));
                         }
                     }
                     assert_eq!(
@@ -235,9 +256,7 @@ fn singleton_divisor_partitions_preserve_exact_quotient_lattices() {
         .apply(BinaryOperator::Divide, &divisors)
         .expect("integral quotient");
     assert!(
-        quotient
-            .lattice
-            .as_ref()
+        joined_lattice(&quotient)
             .expect("quotient lattice")
             .is_integral()
     );
@@ -259,9 +278,7 @@ fn integer_endpoints_do_not_prove_fractional_interiors_integral() {
                 && interval.high.to_integer_exact().is_some())
     );
     assert!(
-        !bounds
-            .lattice
-            .as_ref()
+        !joined_lattice(&bounds)
             .expect("rational lattice")
             .is_integral()
     );
@@ -272,9 +289,7 @@ fn integer_endpoints_do_not_prove_fractional_interiors_integral() {
         )
         .expect("defined arithmetic");
     assert!(
-        doubled
-            .lattice
-            .as_ref()
+        joined_lattice(&doubled)
             .expect("transported lattice")
             .is_integral()
     );
@@ -295,12 +310,9 @@ fn integer_endpoints_do_not_prove_fractional_interiors_integral() {
             .all(|interval| interval.low.to_integer_exact().is_some()
                 && interval.high.to_integer_exact().is_some())
     );
-    let lattice = quotients
-        .lattice
-        .as_ref()
-        .expect("admissible quotients retain a lattice");
+    let lattice = joined_lattice(&quotients).expect("admissible quotients retain a lattice");
     assert!(
-        lattice_contains(lattice, &fraction(3, 2)) && !lattice.is_integral(),
+        lattice_contains(&lattice, &fraction(3, 2)) && !lattice.is_integral(),
         "6/4 is fractional inside integer extrema 1..6"
     );
 }
@@ -315,12 +327,9 @@ fn nonconstant_divisors_enumerate_their_admissible_lattice_points() {
     let quotients = RationalBounds::constant(fraction(24, 1))
         .apply(BinaryOperator::Divide, &divisors)
         .expect("nonzero same-sign hull");
-    let lattice = quotients
-        .lattice
-        .as_ref()
-        .expect("enumerated quotient lattice");
+    let lattice = joined_lattice(&quotients).expect("enumerated quotient lattice");
     for quotient in [12, 8] {
-        assert!(lattice_contains(lattice, &fraction(quotient, 1)));
+        assert!(lattice_contains(&lattice, &fraction(quotient, 1)));
     }
     assert!(lattice.is_integral());
 
@@ -332,12 +341,9 @@ fn nonconstant_divisors_enumerate_their_admissible_lattice_points() {
     let quotients = RationalBounds::constant(fraction(12, 1))
         .apply(BinaryOperator::Divide, &divisors)
         .expect("nonzero opposite-sign hulls");
-    let lattice = quotients
-        .lattice
-        .as_ref()
-        .expect("enumerated quotient lattice");
+    let lattice = joined_lattice(&quotients).expect("enumerated quotient lattice");
     for quotient in [-6, -4, 6, 4] {
-        assert!(lattice_contains(lattice, &fraction(quotient, 1)));
+        assert!(lattice_contains(&lattice, &fraction(quotient, 1)));
     }
     assert!(lattice.is_integral());
 
@@ -347,14 +353,96 @@ fn nonconstant_divisors_enumerate_their_admissible_lattice_points() {
     let quotients = RationalBounds::constant(fraction(6, 1))
         .apply(BinaryOperator::Divide, &divisors)
         .expect("nonzero fractional hull");
-    let lattice = quotients
-        .lattice
-        .as_ref()
-        .expect("enumerated quotient lattice");
+    let lattice = joined_lattice(&quotients).expect("enumerated quotient lattice");
     for quotient in [12, 4] {
-        assert!(lattice_contains(lattice, &fraction(quotient, 1)));
+        assert!(lattice_contains(&lattice, &fraction(quotient, 1)));
     }
     assert!(lattice.is_integral());
+}
+
+#[test]
+fn each_result_hull_retains_the_gap_of_its_own_operand_pairs() {
+    // (-5+4Z)+{4} spans zero on the -1+4Z lattice, which skips zero. The
+    // sibling pairs joining this result's other hulls would dilute a single
+    // summary lattice to 1Z; retaining each hull's own lattice keeps the gap.
+    let mut left = RationalBounds::default();
+    left.include_cell(
+        RationalInterval {
+            low: fraction(-5, 1),
+            high: fraction(-1, 1),
+        },
+        Some(RationalLattice {
+            offset: fraction(-5, 1),
+            stride: fraction(4, 1),
+        }),
+    );
+    left.include_cell(
+        RationalInterval::constant(fraction(2, 1)),
+        Some(RationalLattice {
+            offset: fraction(2, 1),
+            stride: BigRational::zero(),
+        }),
+    );
+    let mut right = RationalBounds::default();
+    right.include_cell(
+        RationalInterval::constant(fraction(4, 1)),
+        Some(RationalLattice {
+            offset: fraction(4, 1),
+            stride: BigRational::zero(),
+        }),
+    );
+    right.include_cell(
+        RationalInterval::constant(fraction(-3, 1)),
+        Some(RationalLattice {
+            offset: fraction(-3, 1),
+            stride: BigRational::zero(),
+        }),
+    );
+    let sum = left
+        .apply(BinaryOperator::Add, &right)
+        .expect("defined sum");
+    assert!(sum.excludes_zero(), "the zero-spanning hull kept -1+4Z");
+    // Every actual sum still lands inside a retained hull and none is zero.
+    for left_value in [-5, -1, 2] {
+        for right_value in [-3, 4] {
+            let actual = fraction(left_value + right_value, 1);
+            assert!(!actual.is_zero());
+            assert!(
+                sum.intervals()
+                    .any(|interval| !interval.low.cmp_value(&actual).is_gt()
+                        && !interval.high.cmp_value(&actual).is_lt())
+            );
+        }
+    }
+
+    // A zero-spanning hull whose own lattice still reaches zero keeps the
+    // obligation open: -3+3=0 is a genuinely admissible sum.
+    let mut left = RationalBounds::default();
+    left.include_cell(
+        RationalInterval {
+            low: fraction(-5, 1),
+            high: fraction(-1, 1),
+        },
+        Some(RationalLattice {
+            offset: fraction(-5, 1),
+            stride: fraction(2, 1),
+        }),
+    );
+    let mut right = RationalBounds::default();
+    right.include_cell(
+        RationalInterval::constant(fraction(3, 1)),
+        Some(RationalLattice {
+            offset: fraction(3, 1),
+            stride: BigRational::zero(),
+        }),
+    );
+    let sum = left
+        .apply(BinaryOperator::Add, &right)
+        .expect("defined sum");
+    assert!(
+        !sum.excludes_zero(),
+        "-2+2Z reaches zero inside its own hull"
+    );
 }
 
 #[test]
@@ -363,45 +451,51 @@ fn nonconstant_divisor_enumeration_is_hull_exact_and_bounded() {
     // contributes nothing, leaving no quotient lattice rather than dividing
     // by a value the bound cannot produce.
     let mut divisors = RationalBounds {
-        positive: Some(RationalInterval::constant(fraction(3, 1))),
-        lattice: Some(RationalLattice {
-            offset: BigRational::zero(),
-            stride: fraction(2, 1),
+        positive: Some(RationalCell {
+            interval: RationalInterval::constant(fraction(3, 1)),
+            lattice: Some(RationalLattice {
+                offset: BigRational::zero(),
+                stride: fraction(2, 1),
+            }),
         }),
         ..RationalBounds::default()
     };
     let quotients = RationalBounds::constant(fraction(6, 1))
         .apply(BinaryOperator::Divide, &divisors)
         .expect("nonzero hull");
-    assert!(quotients.lattice.is_none());
+    assert!(joined_lattice(&quotients).is_none());
 
     // A wider admissible set than the enumeration bound declines rather than
     // scanning a range no authored bound could distinguish.
     divisors = RationalBounds {
-        positive: Some(RationalInterval {
-            low: fraction(1, 1),
-            high: fraction(1_000_000, 1),
-        }),
-        lattice: Some(RationalLattice {
-            offset: BigRational::zero(),
-            stride: fraction(1, 1),
+        positive: Some(RationalCell {
+            interval: RationalInterval {
+                low: fraction(1, 1),
+                high: fraction(1_000_000, 1),
+            },
+            lattice: Some(RationalLattice {
+                offset: BigRational::zero(),
+                stride: fraction(1, 1),
+            }),
         }),
         ..RationalBounds::default()
     };
     let quotients = RationalBounds::constant(fraction(6, 1))
         .apply(BinaryOperator::Divide, &divisors)
         .expect("nonzero hull");
-    assert!(quotients.lattice.is_none());
+    assert!(joined_lattice(&quotients).is_none());
 
     // An admissible zero divisor still propagates the nonzero obligation.
     let divisors = RationalBounds {
-        containing_zero: Some(RationalInterval {
-            low: fraction(-1, 1),
-            high: fraction(2, 1),
-        }),
-        lattice: Some(RationalLattice {
-            offset: BigRational::zero(),
-            stride: fraction(1, 1),
+        containing_zero: Some(RationalCell {
+            interval: RationalInterval {
+                low: fraction(-1, 1),
+                high: fraction(2, 1),
+            },
+            lattice: Some(RationalLattice {
+                offset: BigRational::zero(),
+                stride: fraction(1, 1),
+            }),
         }),
         ..RationalBounds::default()
     };
@@ -474,10 +568,13 @@ fn sign_partitioned_bounds_preserve_all_category_pairs() {
         let mut result = RationalBounds::default();
         for (category, low, high) in [(1, -3, -1), (2, 1, 3), (4, -1, 1)] {
             if categories & category != 0 {
-                result.include_interval(RationalInterval {
-                    low: fraction(low, 2),
-                    high: fraction(high, 2),
-                });
+                result.include_cell(
+                    RationalInterval {
+                        low: fraction(low, 2),
+                        high: fraction(high, 2),
+                    },
+                    None,
+                );
             }
         }
         result

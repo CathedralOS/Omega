@@ -200,6 +200,28 @@ fn nonconstant_divisor_lattices_prove_all_arm_integrality() {
 }
 
 #[test]
+fn nonzero_divisor_proof_retains_each_result_hulls_own_lattice_gap() {
+    // The joined lattice of the divisor's whole sum is 1Z and cannot exclude
+    // zero, but the zero-spanning sign pair (-5+4Z)+{4} keeps its own odd
+    // lattice gap: the actual divisors {-8,-4,-1,3,6} are all nonzero.
+    let (program, expression) = program(
+        "840 / ((match true { true -> (match true { true -> -5, false -> -1 }), false -> 2 }) + (match true { true -> 4, false -> -3 }))",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let (value, _warnings) = evaluate(
+        &program,
+        machine,
+        state,
+        expression,
+        PrimitiveType::I16,
+        None,
+    )
+    .expect("per-hull lattice retains the nonzero gap");
+    assert_eq!(value.display, "-840");
+}
+
+#[test]
 fn match_wildcard_does_not_erase_undefined_anonymous_subject() {
     let (program, expression) = program("match (1 / 0) { _ -> 1 }");
     let machine = &program.machines()[0];

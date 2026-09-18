@@ -12,14 +12,15 @@
 //! Joins still lose correlations and gaps not captured by the lattice. A possible
 //! zero leaves an obligation open; it is not evidence of an executed zero divisor.
 //! A rational lattice additionally contains every result as offset + stride*k
-//! for some integer k. Joins retain a common divisor of strides and offsets;
-//! arithmetic transports it without rounding intermediate fractions. Integral
-//! offset and stride prove integrality, while the intervals prove carrier fit.
-//! The same lattice can exclude zero inside an interval hull: split that hull
-//! at the nearest lattice points on either side of zero. This intersection of
-//! two overapproximations retains every result without storing individual arms.
-//! It also gives division zero-free intervals on which corner bounds are valid;
-//! a nonzero Boolean alone would not justify dividing across a continuous pole.
+//! for some integer k. Each hull keeps the lattice covering exactly the values
+//! it summarizes, so the retained evidence is the per-hull intersection of two
+//! overapproximations rather than one join diluted by every arm and operation.
+//! A zero-spanning pair like (-5+4Z)+{4} keeps its own zero-free -1+4Z lattice
+//! when other sign categories join the summary lattice down to 1Z; splitting
+//! that hull at the nearest lattice points on either side of zero still
+//! excludes the pole without storing individual arms. The same intersection
+//! gives division zero-free intervals on which corner bounds are valid; a
+//! nonzero Boolean alone would not justify dividing across a continuous pole.
 //! An integral pair of interval endpoints alone proves neither: joining 1, 1.5,
 //! and 2 must not erase the fractional interior. Division retains lattice
 //! evidence through the admissible divisor values inside each sign interval:
@@ -61,11 +62,7 @@ pub(super) fn validate_integer_landing(
     builtin: impl FnMut(ExpressionHandle) -> bool,
 ) -> Result<bool, String> {
     let bounds = analyze(program, root, builtin)?;
-    if !bounds
-        .lattice
-        .as_ref()
-        .is_some_and(RationalLattice::is_integral)
-    {
+    if !bounds.has_integral_lattice() {
         return Err(
             "anonymous constant Match landing requires an all-arm integral result proof".into(),
         );
@@ -166,24 +163,45 @@ fn analyze(
 
 #[derive(Default)]
 struct RationalBounds {
-    negative: Option<RationalInterval>,
-    positive: Option<RationalInterval>,
-    containing_zero: Option<RationalInterval>,
-    lattice: Option<RationalLattice>,
+    negative: Option<RationalCell>,
+    positive: Option<RationalCell>,
+    containing_zero: Option<RationalCell>,
     fractional_history: bool,
+}
+
+/// One sign-category hull: a closed interval paired with the lattice covering
+/// exactly the values summarized there. The lattice is evidence over this
+/// hull's values alone, so composing a cell pair never dilutes a sibling
+/// hull's retained gap.
+struct RationalCell {
+    interval: RationalInterval,
+    lattice: Option<RationalLattice>,
+}
+
+impl RationalCell {
+    fn include(&mut self, interval: RationalInterval, lattice: Option<RationalLattice>) {
+        self.interval.include(interval);
+        self.lattice = self
+            .lattice
+            .as_ref()
+            .zip(lattice.as_ref())
+            .and_then(|(left, right)| left.join(right));
+    }
 }
 
 impl RationalBounds {
     fn constant(value: BigRational) -> Self {
         let mut bounds = Self {
             fractional_history: value.to_integer_exact().is_none(),
-            lattice: Some(RationalLattice {
-                offset: value.clone(),
-                stride: BigRational::zero(),
-            }),
             ..Self::default()
         };
-        bounds.include_interval(RationalInterval::constant(value));
+        bounds.include_cell(
+            RationalInterval::constant(value.clone()),
+            Some(RationalLattice {
+                offset: value,
+                stride: BigRational::zero(),
+            }),
+        );
         bounds
     }
 
@@ -191,14 +209,32 @@ impl RationalBounds {
         self.containing_zero.is_none() && (self.negative.is_some() || self.positive.is_some())
     }
 
-    fn intervals(&self) -> impl Iterator<Item = &RationalInterval> {
+    /// Every summarized value is provably integral: at least one hull exists
+    /// and each retained lattice lands on integers.
+    fn has_integral_lattice(&self) -> bool {
+        self.cells().next().is_some()
+            && self.cells().all(|cell| {
+                cell.lattice
+                    .as_ref()
+                    .is_some_and(RationalLattice::is_integral)
+            })
+    }
+
+    fn cells(&self) -> impl Iterator<Item = &RationalCell> {
         self.negative
             .iter()
             .chain(&self.positive)
             .chain(&self.containing_zero)
     }
 
-    fn include_interval(&mut self, interval: RationalInterval) {
+    fn intervals(&self) -> impl Iterator<Item = &RationalInterval> {
+        self.cells().map(|cell| &cell.interval)
+    }
+
+    /// Fold one interval and its covering lattice into the matching sign
+    /// hull. The lattice must cover every value the interval contributes;
+    /// without that evidence the merged hull retains interval bounds only.
+    fn include_cell(&mut self, interval: RationalInterval, lattice: Option<RationalLattice>) {
         let destination = if interval.high.cmp_value(&BigRational::zero()).is_lt() {
             &mut self.negative
         } else if interval.low.cmp_value(&BigRational::zero()).is_gt() {
@@ -207,121 +243,129 @@ impl RationalBounds {
             &mut self.containing_zero
         };
         if let Some(existing) = destination {
-            existing.include(interval);
+            existing.include(interval, lattice);
         } else {
-            *destination = Some(interval);
+            *destination = Some(RationalCell { interval, lattice });
         }
     }
 
     fn include(&mut self, other: Self) {
         self.fractional_history |= other.fractional_history;
-        self.lattice = self
-            .lattice
-            .as_ref()
-            .zip(other.lattice.as_ref())
-            .and_then(|(left, right)| left.join(right));
-        for interval in [other.negative, other.positive, other.containing_zero]
+        for cell in [other.negative, other.positive, other.containing_zero]
             .into_iter()
             .flatten()
         {
-            self.include_interval(interval);
+            self.include_cell(cell.interval, cell.lattice);
         }
     }
 
     fn refine_zero_gap(&mut self) {
-        if self.containing_zero.is_none() {
-            return;
-        }
         let Some([negative, positive]) = self
-            .lattice
+            .containing_zero
             .as_ref()
+            .and_then(|cell| cell.lattice.as_ref())
             .and_then(RationalLattice::zero_neighbors)
         else {
             return;
         };
-        let Some(interval) = self.containing_zero.take() else {
+        let Some(cell) = self.containing_zero.take() else {
             return;
         };
         // Only the open lattice gap is removed. Clip to the original bounds:
         // extending an endpoint would discard the independent carrier evidence.
-        if !interval.low.cmp_value(&negative).is_gt() {
-            self.include_interval(RationalInterval {
-                low: interval.low,
-                high: negative,
-            });
+        // Each clipped piece keeps the hull's own lattice: its values still
+        // lie on exactly those lattice points.
+        if !cell.interval.low.cmp_value(&negative).is_gt() {
+            self.include_cell(
+                RationalInterval {
+                    low: cell.interval.low,
+                    high: negative,
+                },
+                cell.lattice.clone(),
+            );
         }
-        if !interval.high.cmp_value(&positive).is_lt() {
-            self.include_interval(RationalInterval {
-                low: positive,
-                high: interval.high,
-            });
+        if !cell.interval.high.cmp_value(&positive).is_lt() {
+            self.include_cell(
+                RationalInterval {
+                    low: positive,
+                    high: cell.interval.high,
+                },
+                cell.lattice,
+            );
         }
     }
 
     fn apply(&self, operator: BinaryOperator, right: &Self) -> Result<Self, String> {
-        let mut lattice = self
-            .lattice
-            .as_ref()
-            .zip(right.lattice.as_ref())
-            .and_then(|(left, right)| left.apply(operator, right));
-        if operator == BinaryOperator::Divide && lattice.is_none() {
-            lattice = self.divide_by_admissible_values(right);
-        }
         let mut result = Self {
-            lattice,
+            fractional_history: self.fractional_history || right.fractional_history,
             ..Self::default()
         };
-        result.fractional_history = self.fractional_history
-            || right.fractional_history
-            || !result
-                .lattice
-                .as_ref()
-                .is_some_and(RationalLattice::is_integral);
-        for left_interval in self.intervals() {
-            for right_interval in right.intervals() {
-                result.include_interval(left_interval.apply(operator, right_interval)?);
+        // Each result hull's lattice joins only the operand cell pairs whose
+        // intervals land there, so a pair routing into another sign category
+        // cannot erase this hull's gap. A pair without lattice evidence
+        // leaves its result hull lattice-free even when endpoints would
+        // divide evenly.
+        for left_cell in self.cells() {
+            for right_cell in right.cells() {
+                let interval = left_cell.interval.apply(operator, &right_cell.interval)?;
+                let lattice = match operator {
+                    BinaryOperator::Divide => divide_lattice(left_cell, right_cell),
+                    _ => left_cell
+                        .lattice
+                        .as_ref()
+                        .zip(right_cell.lattice.as_ref())
+                        .and_then(|(left, right)| left.apply(operator, right)),
+                };
+                result.include_cell(interval, lattice);
             }
         }
+        let unproven_integrality = result.cells().any(|cell| {
+            !cell
+                .lattice
+                .as_ref()
+                .is_some_and(RationalLattice::is_integral)
+        });
+        result.fractional_history |= unproven_integrality;
         result.refine_zero_gap();
         if result.intervals().next().is_none() {
             return Err("anonymous rational arithmetic requires nonempty bounds".into());
         }
         Ok(result)
     }
-
-    fn divide_by_admissible_values(&self, right: &Self) -> Option<RationalLattice> {
-        // For x in a+sZ and an exact nonzero d, x/d is in a/d+(s/d)Z.
-        // Each sign hull's admissible divisors are its intersection with the
-        // divisor's own lattice: a finite set of exact points, so a joined
-        // same-sign hull like [2,3] on 2+Z still contributes {2,3} and a
-        // lattice-free bound still needs the hull's single endpoint. Join
-        // every quotient lattice; one hull whose admissible set cannot be
-        // enumerated invalidates this proof, even if its endpoints divide
-        // evenly. This inspects at most three summary intervals and the
-        // bound's own lattice, never authored arms.
-        let left = self.lattice.as_ref()?;
-        let mut joined: Option<RationalLattice> = None;
-        for interval in right.intervals() {
-            let divisors = match right.lattice.as_ref() {
-                Some(lattice) => lattice.points_within(interval)?,
-                None if interval.low == interval.high => vec![interval.low.clone()],
-                None => return None,
-            };
-            for divisor in divisors {
-                let quotient = RationalLattice {
-                    offset: left.offset.div(&divisor)?,
-                    stride: left.stride.div(&divisor)?,
-                };
-                joined = Some(match joined {
-                    Some(previous) => previous.join(&quotient)?,
-                    None => quotient,
-                });
-            }
-        }
-        joined
-    }
 }
 
+/// Quotient lattice covering one operand cell pair under division. For x in
+/// a+sZ and an exact nonzero d, x/d is in a/d+(s/d)Z. Each right hull's
+/// admissible divisors are its intersection with its own lattice: a finite
+/// set of exact points, so a joined same-sign hull like [2,3] on 2+Z still
+/// contributes {2,3} and a lattice-free hull still needs the hull's single
+/// endpoint. Join every quotient lattice; a pair whose admissible set cannot
+/// be enumerated forfeits only its own result hull's lattice. This inspects
+/// at most three summary cells per operand, never authored arms.
+fn divide_lattice(left: &RationalCell, right: &RationalCell) -> Option<RationalLattice> {
+    let left = left.lattice.as_ref()?;
+    let divisors = match right.lattice.as_ref() {
+        Some(lattice) => lattice.points_within(&right.interval)?,
+        None if right.interval.low == right.interval.high => {
+            vec![right.interval.low.clone()]
+        }
+        None => return None,
+    };
+    let mut joined: Option<RationalLattice> = None;
+    for divisor in divisors {
+        let quotient = RationalLattice {
+            offset: left.offset.div(&divisor)?,
+            stride: left.stride.div(&divisor)?,
+        };
+        joined = Some(match joined {
+            Some(previous) => previous.join(&quotient)?,
+            None => quotient,
+        });
+    }
+    joined
+}
+
+#[derive(Clone)]
 struct RationalLattice {
     offset: BigRational,
     stride: BigRational,
