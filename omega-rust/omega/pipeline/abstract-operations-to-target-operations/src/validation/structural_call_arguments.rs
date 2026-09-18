@@ -943,19 +943,20 @@ impl Replay<'_> {
         else {
             return Err(psi_operation);
         };
-        // The producer admits only empty claim, obligation, and crash rosters
-        // on every lane that can emit this row, and an authored source never
-        // retains an installed-provider origin. A retained call carrying extra
-        // rows or the wrong origin is forged even when plausible.
+        // The producer admits only empty claim and crash rosters on every lane
+        // that can emit this row, and an authored source never retains an
+        // installed-provider origin. Requirement obligations are discharged
+        // proof metadata: the retained row must replay the source roster
+        // exactly rather than drop it. A retained call carrying extra rows or
+        // the wrong origin is forged even when plausible.
         if *origin != &NativeCallOrigin::Authored
             || !claim_transfers.is_empty()
             || !returned_claim_transfers.is_empty()
-            || !requirement_obligations.is_empty()
             || !crash_continuations.is_empty()
             || !actual_claims.is_empty()
             || !actual_returned.is_empty()
-            || !actual_obligations.is_empty()
             || !actual_crashes.is_empty()
+            || requirement_obligations != *actual_obligations
             || *callee != source_callee
             || actual_structural.len() != structural_arguments.len()
             || actual_scalar.len() != scalar_arguments.len()
