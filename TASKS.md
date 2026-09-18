@@ -1459,10 +1459,22 @@ Owners include
   `validate_method` still compares schema application identity with raw ABI-plan
   identity; retain exact source-application custody through the native binder
   instead of dropping this check or adding an upward backend dependency.
-  The last full Terminal probe of `build/uefi_program_entry_storage_roots` stopped
-  in lowering because `Boot::launch` lacked a checked transitive Unit machine plan.
-  Its checked-source/preflight regression is not complete Terminal or firmware
-  execution acceptance. Close these joins before claiming an executable bridge.
+  `1e3258134b` landed the checked transitive Unit machine plan join:
+  `Boot::launch` retains both `Extent in Granted` entry claims across its
+  `retain` self-loop, the composed-control claim resolver replays each edge's
+  checked Transfer event onto one machine-entry place, and lowering emits the
+  claim-aliased two-state graph. The witness
+  `canary_suite::entry_and_abi::program_entries_and_image_validation::
+  uefi_entry_machine_plan_reaches_terminal_claim_cycle_fence` pins the new
+  boundary: a native-artifact probe of
+  `build/uefi_program_entry_storage_roots` now stops at
+  `terminal_verifier::ModuleError::ControlCycle`, the verifier's unranked-cycle
+  claim-custody fence — cyclic machines carrying claims are not yet admitted.
+  Resume at that fence (ranked-cycle claim custody in `terminal-verifier`);
+  only after it opens does the route reach child emission and the
+  `optimized_semantic_wrapper_object` entrance. Its checked-source/preflight
+  regression is not complete Terminal or firmware execution acceptance. Close
+  these joins before claiming an executable bridge.
 
 - **UEFI-OS-HANDOFF.** Implement the nonreturning custody transfer from Boot
   Services to the selected OS entry. The bounded memory-map/key retry loop must
