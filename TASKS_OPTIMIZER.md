@@ -1422,14 +1422,32 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   settlement inside the window's span observes a changed
   executed prefix, under the same replayed
   restore-by-content validation (crate `nextest`: 999
+  pass). Also landed earlier without a board record:
+  `rewrites/member_run_interchange` interchanges one
+  named member against the contiguous run two named
+  members bound inside one block — and
+  `rewrites/commuting_interchange` interchanges two
+  named body instructions in one selected block — the
+  pair interchange's own geometry — when every roster
+  row that newly trades order commutes with every row
+  of the position it crosses: two non-writing rows
+  always commute, and a writer commutes only when the
+  rows reach provably disjoint bytes — distinct places,
+  distinct slots, a place against a slot that is not
+  its storage or any outgoing slot, or disjoint fixed
+  extents of shared storage — so the memory roster
+  itself follows the new execution order, the window's
+  rows rewritten in place, under the same replayed
+  restore-by-content validation that re-derives the
+  permutation from the source rather than the
+  proposal's own grouping (crate `nextest`: 1105
   pass).
-  Remaining: scheduling past the proven bounded window
-  interchange and the bounded run interchange — a
-  member-against-run trade stays unproven — relocation
-  through further converging or branching control flow,
-  and compare/test selection past the landed literal
-  folds and the constant-flag boolean materialization
-  and conditional-branch folds.
+  Remaining: scheduling past the proven bounded window,
+  run, member-against-run, and commuting-pair
+  interchanges, relocation through further converging
+  or branching control flow, and compare/test selection
+  past the landed literal folds and the constant-flag
+  boolean materialization and conditional-branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
