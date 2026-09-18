@@ -22,6 +22,7 @@ build-declarations = { path = "../../build/build-declarations" }
 build-evaluation = { path = "../../build/build-evaluation" }
 build-output = { path = "../../build/build-output" }
 compilation-report = { path = "../compilation-report" }
+component-description = { path = "../../backend/artifacts/component-description" }
 package-compilation = { path = "../../build/package-compilation" }
 provider-planning = { path = "../../build/provider-planning" }
 representation-planning = { path = "../../build/representation-planning" }

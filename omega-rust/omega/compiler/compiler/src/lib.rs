@@ -21,7 +21,9 @@ pub use compilation_report::{
 };
 pub use compiler::compile;
 pub use compiler::options::CompileOptions;
-pub use compiler::package::retained_terminal_report_from_checked_package;
+pub use compiler::package::{
+    published_independent_component_description, retained_terminal_report_from_checked_package,
+};
 pub use compiler::request::{
     CompileOutcomes, CompileRequest, CompileTargetOutcome, ExplicitTargetSet,
     RequestedCompileProduct, TargetCompileConfiguration,
