@@ -409,8 +409,8 @@ pub(crate) fn substitute_checked_boolean_expression(
         // Each leaf re-roots through the caller's frozen structural channel:
         // the callee position binds the actual's own caller parameter and
         // member spine, and the leaf path appends below it. The remaining
-        // structural terms still refuse — byte-sequence, payload-less sum,
-        // and case-membership leaves keep their own transport gaps.
+        // structural terms still refuse — byte-sequence and case-membership
+        // leaves keep their own transport gaps.
         CheckedBooleanExpression::IeeeFloatComparison {
             kind,
             primitive_type,
@@ -422,9 +422,20 @@ pub(crate) fn substitute_checked_boolean_expression(
             left: substitute_structural_parameter_field(left, fields)?,
             right: substitute_structural_parameter_field(right, fields)?,
         },
+        // A payload-less sum equality is atomic over the same structural
+        // leaves: both subjects re-root through the caller channel while the
+        // closed case roster names the sum's declared cases — a type-level
+        // identity the re-root cannot change, and one the lowering rechecks
+        // against the resolved subject before expanding the roster.
+        CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } => {
+            CheckedBooleanExpression::PayloadlessSumEqual {
+                left: substitute_structural_parameter_field(left, fields)?,
+                right: substitute_structural_parameter_field(right, fields)?,
+                cases: cases.clone(),
+            }
+        }
         CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => return None,
         CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
             substitute_checked_boolean_expression(operand, arguments, fields)?,

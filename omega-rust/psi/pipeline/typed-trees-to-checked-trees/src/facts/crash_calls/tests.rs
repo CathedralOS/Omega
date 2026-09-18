@@ -1175,3 +1175,110 @@ fn float_field_guards_drop_scalar_evidence_below_mutable_roots() {
         "a mutable root keeps no entry-snapshot annotation: {buckets:?}"
     );
 }
+
+/// A payload-less sum equality guard's checked scalar annotation crosses the
+/// call the same way float-field leaves do: both subjects re-root to the
+/// caller parameters the actuals read, so `inner(a, b)` under `left == right`
+/// retains `a == b` over the `Off`/`On` roster as structured evidence instead
+/// of dropping to the bare identity. The roster names the sum's declared
+/// cases — a type-level fact unchanged by the re-root — and the structural
+/// lowering replays the leaf as per-case membership implications.
+#[test]
+fn payloadless_sum_guards_keep_their_scalar_evidence_through_calls() {
+    use checked_trees::{CheckedBooleanExpression, CheckedStructuralParameterField};
+    use typed_trees::expression::BinaryOperator;
+
+    let expected_scalar = CheckedBooleanExpression::PayloadlessSumEqual {
+        left: CheckedStructuralParameterField {
+            parameter_position: 0,
+            path: Vec::new(),
+        },
+        right: CheckedStructuralParameterField {
+            parameter_position: 1,
+            path: Vec::new(),
+        },
+        cases: vec!["Off".to_owned(), "On".to_owned()],
+    };
+    let expected_identity = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Parameter(0)),
+        right: Box::new(CrashPredicateExpression::Parameter(1)),
+    };
+
+    let buckets = call_site_buckets(
+        "data Mode { case Off; case On; }
+         machine inner(left: Mode, right: Mode) -> bool
+         crashes Trap left == right { true }
+         machine outer(a: Mode, b: Mode) -> bool crashes Trap { inner(a, b) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the sum-equality guard keeps its guarded route: {buckets:?}")
+    };
+    assert_eq!(identity.expression(), Some(&expected_identity));
+    assert_eq!(identity.scalar_expression(), Some(&expected_scalar));
+}
+
+/// The actual's own member spine prepends below the caller root for sum
+/// subjects too: binding `pair.left`/`pair.right` re-roots the equality to
+/// `pair.left == pair.right` under the same caller parameter rather than
+/// leaving callee positions behind.
+#[test]
+fn payloadless_sum_guards_substitute_through_member_projections() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedStructuralParameterField,
+        CheckedStructuralPredicatePathSegment,
+    };
+
+    let subject = |root: &str| CheckedStructuralParameterField {
+        parameter_position: 0,
+        path: vec![CheckedStructuralPredicatePathSegment::Field(
+            root.to_owned(),
+        )],
+    };
+
+    let buckets = call_site_buckets(
+        "data Mode { case Off; case On; }
+         data Both { left: Mode; right: Mode; }
+         machine inner(left: Mode, right: Mode) -> bool
+         crashes Trap left == right { true }
+         machine outer(pair: Both) -> bool crashes Trap { inner(pair.left, pair.right) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the projected actuals keep the sum-equality guard: {buckets:?}")
+    };
+    assert_eq!(
+        identity.scalar_expression(),
+        Some(&CheckedBooleanExpression::PayloadlessSumEqual {
+            left: subject("left"),
+            right: subject("right"),
+            cases: vec!["Off".to_owned(), "On".to_owned()],
+        }),
+    );
+}
+
+/// A mutable caller root cannot promise the entry snapshot the contract
+/// namespace names, so the annotation stays empty rather than describing
+/// stale storage — the route still keeps its substituted identity.
+#[test]
+fn payloadless_sum_guards_drop_scalar_evidence_below_mutable_roots() {
+    let buckets = call_site_buckets(
+        "data Mode { case Off; case On; }
+         data Both { left: Mode; right: Mode; }
+         machine inner(left: Mode, right: Mode) -> bool
+         crashes Trap left == right { true }
+         machine outer(mut pair: Both) -> bool crashes Trap { inner(pair.left, pair.right) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the mutable root still keeps the guarded route: {buckets:?}")
+    };
+    assert!(
+        identity.scalar_expression().is_none(),
+        "a mutable root keeps no entry-snapshot annotation: {buckets:?}"
+    );
+}
