@@ -6,6 +6,7 @@
 mod bitwise_and_ones_copies;
 mod bitwise_and_zero_folds;
 mod bitwise_xor_zero_copies;
+mod compare_left_immediate_folds;
 mod compare_subtract_add_folds;
 mod divide_and_remainder_folds;
 mod extension_and_copy_folds;
@@ -595,6 +596,40 @@ fn staged_inputs(target: NativeTarget) -> Inputs {
         recovery,
         availability,
     }
+}
+
+/// A `MaterializeI64` victim feeding operand 0 — the minuend — of
+/// `CompareI64`, staged by reversing the right-literal fixture's compare
+/// operand registers and updating the three artifacts that record operand
+/// positions: the plan's operand records, the live-range occurrences, and
+/// the classification's future use. The conditional-branch terminator the
+/// base fixture carries stays the equality-sensing reader the
+/// operand-swapped grammar's flow audit admits.
+fn staged_left_inputs(target: NativeTarget) -> Inputs {
+    let mut inputs = staged_inputs(target);
+    let mut plan = inputs.selected.transformed().clone();
+    let compare = plan.functions[0].blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|instruction| instruction.kind == SelectedInstructionKind::CompareI64)
+        .expect("the staged fixture carries the compare");
+    compare.operands[0].virtual_register = VirtualRegisterId(1);
+    compare.operands[1].virtual_register = VirtualRegisterId(0);
+    inputs.selected.transformed = Arc::new(plan);
+    let ranges = Arc::make_mut(&mut inputs.ranges.plan);
+    ranges.functions[0].virtual_registers[0].occurrences[0].operand = 1;
+    ranges.functions[0].virtual_registers[1].occurrences[1].operand = 0;
+    let RecoveryClassification::ImmediateU64RematerializationCandidate { future_uses, .. } =
+        &mut inputs.recovery.plan.functions[0]
+            .classification
+            .as_mut()
+            .expect("the staged fixture admits a candidate")
+            .classification
+    else {
+        unreachable!()
+    };
+    future_uses[0].operand = 0;
+    inputs
 }
 
 fn fold_with(

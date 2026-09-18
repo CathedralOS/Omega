@@ -1360,8 +1360,43 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   rejection, and forbidden operand-binding negatives; the
   `compiler/tests/optimizer_byte_view_address_offset.rs` publication
   replay still passes).
-  Remaining: further unit roles beyond retired implicit definitions,
-  stack- and control-flow-carrying relationships, and trap relationships
+  Landed: the operand-swapped condition-state grammar —
+  `COMPARE_LEFT_IMMEDIATE_U12` joins `COMPARE_IMMEDIATE_U12` in the
+  `COMPARE_V1` catalog payload under the same
+  `SelectedIncomingU12CompareImmediate` selection, folding
+  `MaterializeI64` feeding the operand-0 minuend `Use` of `CompareI64`
+  into `CompareI64Immediate` computing `x - literal` for `literal - x`.
+  `PairOperandShape::BinaryLeftLiteralOperandSwap` declares the
+  non-commuting left-literal grammar whose result channel is implicit
+  units — the operand-1 subtrahend `Use` survives into the rewritten
+  row's sole `Use` position — and
+  `PairMachineEffects::OperandSwappedUnitDefs` declares the
+  condition-state reader-flow relationship: the rewrite keeps the
+  consumer's implicit unit definitions under the reversed operand
+  order, preserving the zero condition exactly while inverting every
+  ordering predicate, admitted only while every reader each defined
+  unit can reach through the function's CFG is equality-sensing
+  (`MaterializeBooleanEqual` or `ConditionalBranchNonZero`). The
+  declaration-level surface is otherwise the isolated contract — the
+  record-level audit follows successor edges through joins and loops,
+  ends each unit's live range at a redefinition or clobber, and
+  refuses an edge naming a block the function does not contain. The
+  producer runs `admits_swapped_condition_defs` on the concrete
+  consumer record; the replay independently restates the grammar
+  through its own `CompareLeftImmediate` source shape and re-walks the
+  flow itself — never consulting the pair descriptor — and both sides
+  charge the audit's bounded work into `validation_steps` (1419 crate
+  tests pass, including firing on both Linux targets, equality readers
+  through same-block, successor-edge, join, and loop shapes, ordering
+  reader rejection in each shape, redefinition-terminated flow,
+  unresolved-successor refusal, unpreserved unit surfaces, decorated
+  and misshapen operand rejection, wrong-position and wrong-policy
+  negatives, measured-budget enforcement showing the audit-inclusive
+  charge, decision-field substitution, and deterministic fixed-point
+  output).
+  Remaining: further unit roles beyond retired implicit definitions and
+  the landed operand-swapped preservation — stack- and
+  control-flow-carrying relationships, and trap relationships
   beyond the landed `FaultDischargedByLiteral` family — which now covers
   a second distinct discharging literal — plus the
   `FaultDischargedByObligation`, `FaultDischargedByLiteralDeadUnitDefs`,

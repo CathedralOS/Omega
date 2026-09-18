@@ -204,7 +204,15 @@ fn validate_immediate_row(
         }
         // Flag-defining form: `compare left, immediate` carries no `Def`
         // operand; its only implicit output is the target condition state.
-        (PairOperandShape::BinaryRightLiteral, PairResultDisposition::ImplicitUnits, [left]) => {
+        // The operand-swapped grammar binds the same row — the surviving
+        // subtrahend takes the `Use` position and the comparison keeps
+        // publishing the condition state, so the row shape does not
+        // distinguish the operand order.
+        (
+            PairOperandShape::BinaryRightLiteral | PairOperandShape::BinaryLeftLiteralOperandSwap,
+            PairResultDisposition::ImplicitUnits,
+            [left],
+        ) => {
             if left.operand != 0
                 || left.access != RegisterOperandAccess::Use
                 || !clean(&[left])
