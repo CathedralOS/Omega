@@ -563,25 +563,35 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   Reuse `tests/fixtures/packages/behavior-exclusions/` and compiler tests
   `behavior_exclusions.rs` / `build_behavior_exclusions.rs`.
 
-- **BUILD-EXCLUSION-REALIZATION.** Extend the existing receiving-policy and native
-  admission route in `omega-rust/omega/build/`, `omega-rust/omega/semantics/` and
-  target backends to enforce excluded physical terminal classes without inventing
-  a second classifier. Join semantic exclusions from the preceding task through
-  final realization and the component installation/replacement envelope. Reuse
-  `COMPONENT-SUBSTRATE` and `WIRE-RUNTIME-AND-INSTALLATION` for actual custody and
-  lifecycle; no build-time callback may inspect its own unfinished executable.
+- **BUILD-EXCLUSION-REALIZATION.** Enforce requested physical-authority exclusions
+  under the [exclusion contract](wiki/spec/build/behavior_exclusions.md). The
+  retained `BehaviorExclusions` currently carries crash causes and services, not
+  physical classes. Add evaluated physical-class selections and their retained
+  evidence in `build-evaluation` and `compilation-report`; integrate final checks
+  through `compiler/native-realization/src/native_realization/`.
 
-  Acceptance: distinguish no-Console from no physical process output, reject
-  unknown/changed mechanism classifications and failed final checks without
-  successful publication, and preserve exact policy/evidence identity through
-  source-free consumption. Rebinding or replacing code with an excluded behavior
-  must fail the existing envelope even when the old provider was benign. Keep
-  target children and build-host activity scoped separately. Exercise physical
-  provider and installation controls on each available supported host, explicitly
-  reporting unavailable Windows/macOS coverage; a semantic-only pass establishes
-  no physical absence claim. Specify versioned source/protocol fields before
-  claiming compatibility. Any unresolved semantic or trust change goes through
-  [owner questions](OWNER_QUESTIONS.md), not a weakened implementation verdict.
+  Reuse `terminal_authority_policy/` and the existing mechanism-closure review.
+  Classification is not receiving permission: a requested absence guarantee must
+  be checked even with no receiving permission policy. Do not invent a second
+  classifier, synthesize receiver approval, or claim that semantic exclusion replay
+  establishes physical absence. `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW` owns receiver
+  admission; this task owns the independently requested build guarantee.
+
+  Bind the exclusion scope, exact selected mechanisms, classification identity and
+  final product to independently replayable evidence. Carry the envelope through
+  rebinding/replacement using `COMPONENT-SUBSTRATE` and
+  `WIRE-RUNTIME-AND-INSTALLATION` for custody and lifecycle. Keep build-host
+  activity and target children separate; build code cannot inspect its unfinished
+  executable. Define the source/protocol fields before claiming portable support.
+
+  Acceptance: source-built products distinguish no-Console from no physical output,
+  including a silent Console provider. Unknown classifications and mismatched
+  evidence cannot count as absence; failed final checks publish no successful
+  product. Check with and without receiver permission policy and optional
+  optimizations. Source-free replay preserves the same verdict, and replacing a
+  benign provider with excluded behavior rejects. Exercise actual provider and
+  installation controls on each available Windows/macOS host and report the
+  unavailable legs explicitly.
 
 ## Checked boundary topology
 
