@@ -13,6 +13,44 @@ use typed_trees::signature::{SignatureContract, StateParameter};
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
+/// The shape one callable presents for refinement against a machine
+/// parameter's requirement: a machine entry, a forwarded machine parameter or
+/// a nested machine contract all reduce to these parts.
+pub(super) struct CallableParts<'a> {
+    pub(super) type_parameters: &'a [TypeParameter],
+    pub(super) parameters: &'a [StateParameter],
+    pub(super) return_type: TypeReferenceHandle,
+    pub(super) services: &'a [language_semantics::ServiceReachId],
+    pub(super) invocations: Vec<flow_effects::InvocationTarget>,
+    pub(super) may_suspend: bool,
+    pub(super) may_block: bool,
+    pub(super) terminates: bool,
+    pub(super) contracts: &'a [SignatureContract],
+}
+
+impl<'a> CallableParts<'a> {
+    /// The parts a state signature declares: a machine parameter's contract
+    /// presents exactly what it authored.
+    fn of_signature(
+        program: &'a TypedTrees,
+        signature: &'a typed_trees::signature::StateSignature,
+    ) -> Self {
+        Self {
+            type_parameters: program.state_signature_type_parameters(signature),
+            parameters: program.state_signature_parameters(signature),
+            return_type: signature.return_type,
+            services: program
+                .service_reach_rows
+                .services(signature.service_reach_row),
+            invocations: crate::declared_signature_invocations(program, signature),
+            may_suspend: signature.suspends,
+            may_block: signature.blocks,
+            terminates: signature.termination_guarantee.promises_termination(),
+            contracts: program.state_signature_contracts(signature),
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_selected_callable_shape(
     program: &TypedTrees,
@@ -60,19 +98,7 @@ pub(super) fn validate_selected_callable_shape(
             &label,
             parameter,
             requirement,
-            program.state_signature_type_parameters(actual_signature),
-            program.state_signature_parameters(actual_signature),
-            actual_signature.return_type,
-            program
-                .service_reach_rows
-                .services(actual_signature.service_reach_row),
-            &crate::declared_signature_invocations(program, actual_signature),
-            actual_signature.suspends,
-            actual_signature.blocks,
-            actual_signature
-                .termination_guarantee
-                .promises_termination(),
-            program.state_signature_contracts(actual_signature),
+            &CallableParts::of_signature(program, actual_signature),
             generic_types,
             bindings,
             &mut Vec::new(),
@@ -135,20 +161,22 @@ fn validate_callable_shape(
         &label,
         parameter,
         requirement,
-        program.machine_type_parameters(actual_machine),
-        program.state_parameters(actual_state),
-        actual_state.return_type,
-        actual_services,
-        actual_invocations,
-        actual_may_suspend,
-        actual_may_block,
-        matches!(
-            &actual_machine.termination_plan.interface,
-            language_semantics::TerminationInterface::Published(
-                language_semantics::TerminationGuarantee::Terminates { .. }
-            )
-        ),
-        program.machine_contracts(actual_machine),
+        &CallableParts {
+            type_parameters: program.machine_type_parameters(actual_machine),
+            parameters: program.state_parameters(actual_state),
+            return_type: actual_state.return_type,
+            services: actual_services,
+            invocations: actual_invocations.to_vec(),
+            may_suspend: actual_may_suspend,
+            may_block: actual_may_block,
+            terminates: matches!(
+                &actual_machine.termination_plan.interface,
+                language_semantics::TerminationInterface::Published(
+                    language_semantics::TerminationGuarantee::Terminates { .. }
+                )
+            ),
+            contracts: program.machine_contracts(actual_machine),
+        },
         generic_types,
         bindings,
         &mut Vec::new(),
@@ -162,26 +190,19 @@ fn validate_callable_parts(
     label: &str,
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,
-    actual_type_parameters: &[TypeParameter],
-    actual_parameters: &[StateParameter],
-    actual_return_type: TypeReferenceHandle,
-    actual_services: &[language_semantics::ServiceReachId],
-    actual_invocations: &[flow_effects::InvocationTarget],
-    actual_may_suspend: bool,
-    actual_may_block: bool,
-    actual_terminates: bool,
-    actual_contracts: &[SignatureContract],
+    actual: &CallableParts<'_>,
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
     binder_bindings: &mut Vec<BinderBinding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let actual_parameters = actual.parameters;
     validate_callable_type_parameters(
         program,
         label,
         parameter,
         requirement,
-        actual_type_parameters,
+        actual.type_parameters,
         generic_types,
         bindings,
         binder_bindings,
@@ -234,7 +255,7 @@ fn validate_callable_parts(
 
     if !required_type_matches(
         program,
-        actual_return_type,
+        actual.return_type,
         requirement.return_type,
         generic_types,
         bindings,
@@ -244,14 +265,14 @@ fn validate_callable_parts(
             "{label} does not refine `{}`: expected return `{}`, got `{}`",
             parameter.name,
             program.display_type_reference(requirement.return_type),
-            program.display_type_reference(actual_return_type)
+            program.display_type_reference(actual.return_type)
         )));
     }
 
     let allowed_services = program
         .service_reach_rows
         .services(requirement.service_reach_row);
-    for service in actual_services {
+    for service in actual.services {
         if allowed_services.contains(service) {
             continue;
         }
@@ -267,7 +288,7 @@ fn validate_callable_parts(
     }
 
     let allowed_invocations = crate::declared_signature_invocations(program, requirement);
-    for invocation in actual_invocations {
+    for invocation in &actual.invocations {
         if allowed_invocations.contains(invocation) {
             continue;
         }
@@ -291,20 +312,20 @@ fn validate_callable_parts(
         )));
     }
 
-    if actual_may_suspend && !requirement.suspends {
+    if actual.may_suspend && !requirement.suspends {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends;`",
             parameter.name
         )));
     }
-    if actual_may_block && !requirement.blocks {
+    if actual.may_block && !requirement.blocks {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: it may block, but the requirement omits `blocks;`",
             parameter.name
         )));
     }
 
-    if requirement.termination_guarantee.promises_termination() && !actual_terminates {
+    if requirement.termination_guarantee.promises_termination() && !actual.terminates {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: the requirement guarantees termination",
             parameter.name
@@ -316,7 +337,7 @@ fn validate_callable_parts(
         label,
         parameter,
         requirement,
-        actual_contracts,
+        actual.contracts,
         required_parameters,
         actual_parameters,
         diagnostics,
@@ -366,17 +387,7 @@ pub(crate) fn validate_trait_callable_parameter_refinement(
             &nested_label,
             required,
             required_contract,
-            program.state_signature_type_parameters(actual_contract),
-            program.state_signature_parameters(actual_contract),
-            actual_contract.return_type,
-            program
-                .service_reach_rows
-                .services(actual_contract.service_reach_row),
-            &crate::declared_signature_invocations(program, actual_contract),
-            actual_contract.suspends,
-            actual_contract.blocks,
-            actual_contract.termination_guarantee.promises_termination(),
-            program.state_signature_contracts(actual_contract),
+            &CallableParts::of_signature(program, actual_contract),
             generic_types,
             &mut bindings,
             &mut binder_bindings,
@@ -514,17 +525,7 @@ fn validate_callable_type_parameters(
                     &nested_label,
                     required,
                     required_contract,
-                    program.state_signature_type_parameters(actual_contract),
-                    program.state_signature_parameters(actual_contract),
-                    actual_contract.return_type,
-                    program
-                        .service_reach_rows
-                        .services(actual_contract.service_reach_row),
-                    &crate::declared_signature_invocations(program, actual_contract),
-                    actual_contract.suspends,
-                    actual_contract.blocks,
-                    actual_contract.termination_guarantee.promises_termination(),
-                    program.state_signature_contracts(actual_contract),
+                    &CallableParts::of_signature(program, actual_contract),
                     generic_types,
                     bindings,
                     binder_bindings,
