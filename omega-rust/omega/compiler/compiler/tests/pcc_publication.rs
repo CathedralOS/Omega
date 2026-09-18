@@ -1395,3 +1395,82 @@ fn receiver_requirements_come_from_the_receivers_own_pinned_policy() {
     ));
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn published_pair_framing_names_both_files_and_both_sizes() {
+    // Standalone output framing is explicit for pairs. The CLI prints each
+    // receipt verbatim ("published {pair}"), so the receipt itself must name
+    // the product kind, both installed paths and the two byte sizes
+    // separately rather than reporting one combined product.
+    let dir = write_project_source(MAIN, "    builder.pcc.psi = true;\n");
+    let published = compile(compile_request(
+        &dir,
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("terminal compilation")
+    .publish_retained_terminal_artifact(&dir.join("out"))
+    .expect("psi publication");
+    let [pair] = published.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    let framing = pair.to_string();
+    assert_eq!(
+        framing,
+        format!(
+            "psi proof-carrying pair: {} ({} bytes) + {} ({} bytes)",
+            pair.artifact_path.display(),
+            pair.artifact_byte_len,
+            pair.sidecar_path.display(),
+            pair.sidecar_byte_len,
+        )
+    );
+    // Both file sizes are the installed files' own sizes, reported apart.
+    assert_eq!(
+        pair.artifact_byte_len,
+        fs::metadata(&pair.artifact_path)
+            .expect("artifact metadata")
+            .len()
+    );
+    assert_eq!(
+        pair.sidecar_byte_len,
+        fs::metadata(&pair.sidecar_path)
+            .expect("sidecar metadata")
+            .len()
+    );
+    assert_ne!(pair.artifact_byte_len, pair.sidecar_byte_len);
+    assert!(framing.contains(".psi ("), "{framing}");
+    assert!(framing.contains(".psi.proof ("), "{framing}");
+    let _ = fs::remove_dir_all(&dir);
+
+    // A macOS GUI product publishes one `.app` root, so the pair framing is
+    // the only output naming the inner companion files.
+    let gui_dir = write_gui_project();
+    let gui_out = gui_dir.join("out");
+    let gui = compile(compile_request_for(
+        &gui_dir,
+        "macos_arm64",
+        RequestedCompileProduct::NativeArtifact,
+    ))
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("macOS GUI compilation")
+    .publish_retained_native_artifact(&gui_out)
+    .expect("gui publication");
+    let [gui_pair] = gui.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    let macos_dir = gui_out.join("pcc-gui.app").join("Contents").join("MacOS");
+    let gui_framing = gui_pair.to_string();
+    assert_eq!(
+        gui_framing,
+        format!(
+            "psi proof-carrying pair: {} ({} bytes) + {} ({} bytes)",
+            macos_dir.join("pcc-gui.psi").display(),
+            gui_pair.artifact_byte_len,
+            macos_dir.join("pcc-gui.psi.proof").display(),
+            gui_pair.sidecar_byte_len,
+        )
+    );
+    assert_ne!(gui_pair.artifact_byte_len, gui_pair.sidecar_byte_len);
+    let _ = fs::remove_dir_all(&gui_dir);
+}
