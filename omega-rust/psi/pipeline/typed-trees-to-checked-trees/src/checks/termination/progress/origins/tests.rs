@@ -32,6 +32,18 @@ impl Fixture {
         argument: &str,
         helper_call_statements: &[usize],
     ) -> Self {
+        Self::with_machines(statements, argument, helper_call_statements, "")
+    }
+
+    /// `machines` is additional top-level source inserted before `probe`:
+    /// helper machines and data declarations a probe needs beyond the shared
+    /// set.
+    fn with_machines(
+        statements: &str,
+        argument: &str,
+        helper_call_statements: &[usize],
+        machines: &str,
+    ) -> Self {
         let source = format!(
             r#"
             data Main {{}}
@@ -70,6 +82,7 @@ impl Fixture {
             machine keep(handle: SchedulerHandle) -> SchedulerHandle {{ handle }}
             machine forward_constructed(context: &Context) -> SchedulerHandle {{ Context {{ scheduler: pick(context) }}.scheduler }}
             machine forward_operand(context: &Context) -> SchedulerHandle {{ take(Context {{ scheduler: pick(context) }}) }}
+            {machines}
             machine probe(context: &mut Context, replacement: &Context, holder: Holder, dual: &mut Dual) -> u64 {{
                 {statements}
                 transition {{ _ -> observe_scheduler({argument}) }}
@@ -317,14 +330,18 @@ fn constrained_reference_declaration_is_not_an_owned_capture() {
 }
 
 #[test]
-fn holder_copy_does_not_capture_a_readonly_reference_field_referent() {
+fn holder_copy_captures_a_readonly_reference_field_referent() {
+    // With `view` owned, the copy's field value came from `holder.view`. With
+    // `view` a `&`, the copied slot holds the same reference — and `holder` is
+    // an immutable parameter, so its leaf can never rebind — so the demanded
+    // storage is `holder.view`'s referent either way.
     let mut fixture = Fixture::new("let saved: Holder = holder;", "saved.view.scheduler");
     let fields = &[("Holder", "view"), ("Context", "scheduler")];
     let subject = fixture.subject("saved", fields);
     let expected = fixture.subject("holder", fields);
-    assert_eq!(fixture.query(subject.clone()), Some(expected));
+    assert_eq!(fixture.query(subject.clone()), Some(expected.clone()));
     fixture.make_field_reference("Holder", "view");
-    assert_eq!(fixture.query(subject), None);
+    assert_eq!(fixture.query(subject), Some(expected));
 }
 
 #[test]
@@ -882,4 +899,45 @@ fn callee_constructor_operand_derives_the_nested_call_input() {
         fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
         Some(fixture.subject("replacement", &[("Context", "scheduler")]))
     );
+}
+
+/// An indexed carrier local keeps per-element provenance: a load of one
+/// element arrives from that element's own source, a store into the same
+/// index replaces it, and a store into a sibling index leaves it untouched.
+#[test]
+fn indexed_carrier_loads_derive_the_exact_element_source() {
+    for (statements, expected) in [
+        (
+            "let pair: [SchedulerHandle; 2] = [context.scheduler, replacement.scheduler]; let saved: SchedulerHandle = pair[0];",
+            "context",
+        ),
+        (
+            "let mut pair: [SchedulerHandle; 2] = [context.scheduler, context.scheduler]; pair[0] = replacement.scheduler; let saved: SchedulerHandle = pair[0];",
+            "replacement",
+        ),
+        (
+            "let mut pair: [SchedulerHandle; 2] = [context.scheduler, context.scheduler]; pair[1] = replacement.scheduler; let saved: SchedulerHandle = pair[0];",
+            "context",
+        ),
+    ] {
+        let fixture = Fixture::new(statements, "saved");
+        assert_eq!(
+            fixture.query(fixture.subject("saved", &[])),
+            Some(fixture.subject(expected, &[("Context", "scheduler")]))
+        );
+    }
+}
+
+/// A call result whose callee routes through a transition cannot name one
+/// input; the premise stays unproven rather than borrowing a same-shaped
+/// operand.
+#[test]
+fn control_flow_route_helper_result_stays_unproven() {
+    let fixture = Fixture::with_machines(
+        "let saved: SchedulerHandle = choose(replacement, context, true);",
+        "saved",
+        &[],
+        "machine choose(former: &Context, latter: &Context, flag: bool) -> SchedulerHandle { transition flag { true -> former.scheduler false -> latter.scheduler } }",
+    );
+    assert_eq!(fixture.query(fixture.subject("saved", &[])), None);
 }
