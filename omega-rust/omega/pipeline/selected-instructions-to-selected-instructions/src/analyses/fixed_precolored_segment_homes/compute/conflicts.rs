@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 
@@ -20,7 +20,13 @@ type ViewConflict = (
 pub(super) struct Conflicts {
     constrained: BTreeSet<DomainPair>,
     views: BTreeSet<ViewConflict>,
+    /// Forward adjacency over `views`: every `(domain, view)` pair the key
+    /// conflicts with, both directions listed, so removing a committed home
+    /// visits exactly the pairs it invalidates.
+    conflicting: BTreeMap<DomainView, Vec<DomainView>>,
 }
+
+type DomainView = (FixedPrecoloredHomeDomainId, RegisterViewId);
 
 impl Conflicts {
     pub(super) fn domains(
@@ -46,11 +52,34 @@ impl Conflicts {
         ))
     }
 
+    pub(super) fn conflicting(
+        &self,
+        domain: FixedPrecoloredHomeDomainId,
+        view: RegisterViewId,
+    ) -> &[DomainView] {
+        self.conflicting
+            .get(&(domain, view))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
     #[cfg(test)]
     pub(super) fn from_rows(constrained: &[DomainPair], views: &[ViewConflict]) -> Self {
+        let mut conflicting = BTreeMap::<DomainView, Vec<DomainView>>::new();
+        for &(left_domain, left_view, right_domain, right_view) in views {
+            conflicting
+                .entry((left_domain, left_view))
+                .or_default()
+                .push((right_domain, right_view));
+            conflicting
+                .entry((right_domain, right_view))
+                .or_default()
+                .push((left_domain, left_view));
+        }
         Self {
             constrained: constrained.iter().copied().collect(),
             views: views.iter().copied().collect(),
+            conflicting,
         }
     }
 }
@@ -64,6 +93,7 @@ pub(super) fn build(
 ) -> Result<Conflicts, FixedPrecoloredSegmentHomeError> {
     let mut constrained = BTreeSet::new();
     let mut views = BTreeSet::new();
+    let mut conflicting = BTreeMap::<DomainView, Vec<DomainView>>::new();
     for left_index in 0..domains.len() {
         for right_index in left_index + 1..domains.len() {
             work.pair()?;
@@ -81,12 +111,24 @@ pub(super) fn build(
                     let right_view = checked_view(function, right, right_candidate, physical)?;
                     if footprints_overlap(left_view, right_view) {
                         views.insert((left.id, left_candidate, right.id, right_candidate));
+                        conflicting
+                            .entry((left.id, left_candidate))
+                            .or_default()
+                            .push((right.id, right_candidate));
+                        conflicting
+                            .entry((right.id, right_candidate))
+                            .or_default()
+                            .push((left.id, left_candidate));
                     }
                 }
             }
         }
     }
-    Ok(Conflicts { constrained, views })
+    Ok(Conflicts {
+        constrained,
+        views,
+        conflicting,
+    })
 }
 
 fn live_overlap(left: &Domain, right: &Domain) -> bool {

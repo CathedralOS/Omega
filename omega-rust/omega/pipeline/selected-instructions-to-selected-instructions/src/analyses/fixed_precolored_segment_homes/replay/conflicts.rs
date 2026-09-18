@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 
@@ -20,7 +20,13 @@ type ViewConflict = (
 pub(super) struct ConflictIndex {
     domain_pairs: BTreeSet<DomainPair>,
     view_pairs: BTreeSet<ViewConflict>,
+    /// Forward adjacency over `view_pairs`: every `(domain, view)` pair the
+    /// key conflicts with, both directions listed, so removing a committed
+    /// home visits exactly the pairs it invalidates.
+    conflicting: BTreeMap<DomainView, Vec<DomainView>>,
 }
+
+type DomainView = (FixedPrecoloredHomeDomainId, RegisterViewId);
 
 impl ConflictIndex {
     pub(super) fn domains(
@@ -44,6 +50,17 @@ impl ConflictIndex {
             right_view,
         ))
     }
+
+    pub(super) fn conflicting(
+        &self,
+        domain: FixedPrecoloredHomeDomainId,
+        view: RegisterViewId,
+    ) -> &[DomainView] {
+        self.conflicting
+            .get(&(domain, view))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
 }
 
 pub(super) fn reconstruct(
@@ -55,6 +72,7 @@ pub(super) fn reconstruct(
 ) -> Result<ConflictIndex, FixedPrecoloredSegmentHomeError> {
     let mut domain_pairs = BTreeSet::new();
     let mut view_pairs = BTreeSet::new();
+    let mut conflicting = BTreeMap::<DomainView, Vec<DomainView>>::new();
     for (left_position, left) in domains.iter().enumerate() {
         for right in domains.iter().skip(left_position + 1) {
             work.pair()?;
@@ -69,6 +87,14 @@ pub(super) fn reconstruct(
                     let right_view = view(function, right, right_candidate, physical)?;
                     if aliases(left_view, right_view) {
                         view_pairs.insert((left.id, left_candidate, right.id, right_candidate));
+                        conflicting
+                            .entry((left.id, left_candidate))
+                            .or_default()
+                            .push((right.id, right_candidate));
+                        conflicting
+                            .entry((right.id, right_candidate))
+                            .or_default()
+                            .push((left.id, left_candidate));
                     }
                 }
             }
@@ -77,6 +103,7 @@ pub(super) fn reconstruct(
     Ok(ConflictIndex {
         domain_pairs,
         view_pairs,
+        conflicting,
     })
 }
 
