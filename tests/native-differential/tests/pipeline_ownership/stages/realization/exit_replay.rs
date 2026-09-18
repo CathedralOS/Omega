@@ -70,7 +70,12 @@ fn exit_replay_checks_rosters_and_return_fields_after_reauthentication() {
     for (target, relaxation) in [
         (NativeTarget::linux_x64(), false),
         (NativeTarget::linux_x64(), true),
+        (NativeTarget::windows_x64(), false),
+        (NativeTarget::windows_x64(), true),
+        (NativeTarget::uefi_x64(), false),
+        (NativeTarget::uefi_x64(), true),
         (NativeTarget::linux_arm64(), false),
+        (NativeTarget::macos_arm64(), false),
     ] {
         let mut realization = crate::tests::with_allocated_machine(
             allocation(target, relaxation),

@@ -103,6 +103,12 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
             MachineRegister::X86Rax,
         ),
         (
+            NativeTarget::uefi_x64(),
+            CallingPolicy::MicrosoftX64,
+            MachineRegister::X86Rcx,
+            MachineRegister::X86Rax,
+        ),
+        (
             NativeTarget::linux_arm64(),
             CallingPolicy::Aapcs64,
             MachineRegister::Aarch64X(0),
@@ -296,6 +302,12 @@ fn ordinary_callable_entry_replays_target_abi_and_edge_specific_results() {
         ),
         (
             NativeTarget::windows_x64(),
+            CallingPolicy::MicrosoftX64,
+            MachineRegister::X86Rcx,
+            MachineRegister::X86Rax,
+        ),
+        (
+            NativeTarget::uefi_x64(),
             CallingPolicy::MicrosoftX64,
             MachineRegister::X86Rcx,
             MachineRegister::X86Rax,
