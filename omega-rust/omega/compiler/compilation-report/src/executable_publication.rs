@@ -294,8 +294,9 @@ pub struct ExecutablePublicationReceipt {
     /// replayed before this publication receipt can be produced.
     pub(crate) callback_placement_identity_report_fingerprint: u64,
     /// Compact report coordinate; exact final footprint authority is retained
-    /// by the placed-region inventory and certificate digest.
-    boundary_contract_report_fingerprint: Option<u64>,
+    /// by the placed-region inventory and certificate digest. Crate-visible
+    /// like its siblings for report-custody tests.
+    pub(crate) boundary_contract_report_fingerprint: Option<u64>,
     pub(crate) inventory_digest: image::PlacedExecutableRegionInventoryDigest,
     /// Compact report compatibility only. Publication and replay authority is
     /// `inventory_digest`.
