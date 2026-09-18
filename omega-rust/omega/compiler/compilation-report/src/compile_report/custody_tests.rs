@@ -1,8 +1,9 @@
-//! One-field mutation coverage for the flat native executable publication
-//! receipt — the [`ExecutablePublicationReceipt`] family — and its containing
-//! report custody.
+//! One-field mutation coverage for the native publication receipt families —
+//! the flat [`ExecutablePublicationReceipt`] and the macOS package
+//! [`NativePackagePublicationReceipt`] — each with its containing report
+//! custody.
 //!
-//! The receipt's producer is `CompileReport::publish_retained_native_artifact`,
+//! The flat receipt's producer is `CompileReport::publish_retained_native_artifact`,
 //! which mints the containing identity as a three-stage SHA-256 chain from the
 //! retained artifact's outputs, the published container bytes, and the
 //! destination path: the certificate digest commits to the artifact identity,
@@ -33,6 +34,24 @@
 //! The receipt has no wire encoding — construction is its only admitted form —
 //! so every field is representable and the coverage splits between the stale
 //! and honestly recomputed legs above.
+//!
+//! The package receipt's producer is `publish_macos_application_package`,
+//! which mints `package_evidence_digest` over the package root, the authored
+//! application name and identifier, the inner executable's container
+//! commitment, and the ordered member rows — each member's package-relative
+//! path, byte count, and component digest, plus the member count itself. The
+//! retained `executable_byte_count` never enters that digest: its replay
+//! binding is the `Contents/MacOS/<name>` member's own byte count and the flat
+//! receipt's container byte count at the report-level join. The same join
+//! cross-binds the package root through `inner_executable_path`, the
+//! container commitment, and the retained application name and identifier
+//! metadata; member internals sit outside the join, so a member-level
+//! substitution honestly recomputed is a different self-consistent record and
+//! the divergent published identity is the rejection. Substitutions the
+//! executable-member join cannot adopt — a renamed or duplicated
+//! `Contents/MacOS/<name>` member, a count disagreeing with the retained byte
+//! count, a member roster without exactly one inner executable — reject even
+//! under an honestly recomputed containing identity.
 
 use std::path::{Path, PathBuf};
 
@@ -41,7 +60,8 @@ use crate::executable_publication::{
     native_publication_evidence_digest,
 };
 use crate::package::{
-    NativePackagePublicationReceipt, PackageComponentDigest, PackagePublicationComponent,
+    NativePackageEvidenceDigest, NativePackagePublicationReceipt, PackageComponentDigest,
+    PackagePublicationComponent, package_component_digest,
 };
 use crate::{
     CompileOutputKind, CompileReport, ExecutableInstallationEvidenceDigest,
@@ -739,5 +759,563 @@ fn executable_publication_receipt_rejects_every_one_field_substitution() {
     rejects_stale("a substituted installation evidence digest", &|receipt| {
         receipt.installation_evidence_digest =
             ExecutableInstallationEvidenceDigest::from_digest([0x55; 32]);
+    });
+}
+
+/// The inner executable's package-relative coordinate:
+/// `Contents/MacOS/<name>`.
+fn executable_member_path(name: &str) -> PathBuf {
+    Path::new("Contents").join("MacOS").join(name)
+}
+
+/// One honest `window-app` package minted exactly as
+/// `publish_macos_application_package` records it: the plist member first,
+/// the inner executable member bound to the flat receipt's container
+/// custody, then the requested `.psi` companion — each row carrying the
+/// member's package-relative path, byte count, and component digest in the
+/// producer's fixed order.
+fn mint_package(
+    flat: &ExecutablePublicationReceipt,
+    inputs: &PublicationInputs,
+) -> NativePackagePublicationReceipt {
+    let plist = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist/>".as_slice();
+    let psi = inputs.semantic_bytes.as_slice();
+    NativePackagePublicationReceipt::new(
+        PathBuf::from("build/window-app.app"),
+        "window-app".to_owned(),
+        build_evaluation::ApplicationIdentifier::new(b"com.omega.window-app")
+            .expect("valid identifier"),
+        flat.container_digest,
+        flat.container_byte_count,
+        vec![
+            PackagePublicationComponent {
+                relative_path: Path::new("Contents").join("Info.plist"),
+                byte_count: plist.len(),
+                digest: package_component_digest(plist),
+            },
+            PackagePublicationComponent {
+                relative_path: executable_member_path("window-app"),
+                byte_count: flat.container_byte_count,
+                digest: package_component_digest(&inputs.container_bytes),
+            },
+            PackagePublicationComponent {
+                relative_path: executable_member_path("window-app.psi"),
+                byte_count: psi.len(),
+                digest: package_component_digest(psi),
+            },
+        ],
+    )
+}
+
+/// Honestly recompute the package receipt's containing identity after a
+/// substitution. `NativePackagePublicationReceipt::new` is the only mint —
+/// the receipt has no wire form — so rebuilding over the mutated fields is
+/// the honest recomputation.
+fn recomputed_package(
+    receipt: &NativePackagePublicationReceipt,
+) -> NativePackagePublicationReceipt {
+    NativePackagePublicationReceipt::new(
+        receipt.package_root.clone(),
+        receipt.application_name.clone(),
+        receipt.application_identifier.clone(),
+        receipt.executable_container_digest,
+        receipt.executable_byte_count,
+        receipt.components.clone(),
+    )
+}
+
+/// A packaged publication report over an explicit package receipt: the flat
+/// receipt joined to `package`, with the retained application metadata the
+/// authentic build recorded.
+fn packaged_report_with(
+    flat: &ExecutablePublicationReceipt,
+    package: NativePackagePublicationReceipt,
+) -> CompileReport {
+    let mut report = report(
+        true,
+        CompileOutputKind::NativeExecutable,
+        Some(flat.clone()),
+    );
+    report.package_publication = Some(package);
+    report.application_name = Some("window-app".to_owned());
+    report.application_identifier = Some(
+        build_evaluation::ApplicationIdentifier::new(b"com.omega.window-app")
+            .expect("valid identifier"),
+    );
+    report.application_intent = Some(build_evaluation::HostedApplicationIntent::Gui);
+    report
+}
+
+#[test]
+fn native_package_publication_receipt_rejects_every_one_field_substitution() {
+    let inputs = honest_inputs();
+    let flat = mint(&inputs);
+    let authentic = mint_package(&flat, &inputs);
+    assert!(
+        authentic.has_consistent_package_identity(),
+        "the producer mint is self-consistent"
+    );
+    assert_eq!(
+        authentic.inner_executable_path().as_deref(),
+        Some(inputs.output_path.as_path()),
+        "the package receipt names the flat receipt's destination"
+    );
+    let published = packaged_report_with(&flat, authentic.clone());
+    assert!(published.has_consistent_executable_publication_custody());
+    assert_eq!(
+        published.checked_native_package_path(),
+        Some(Path::new("build/window-app.app"))
+    );
+    assert_eq!(
+        published.checked_native_executable_path(),
+        Some(inputs.output_path.as_path())
+    );
+
+    // A substitution that keeps the minted evidence digest is rejected by
+    // the receipt's own recomputation — the digest mismatch, or the
+    // executable-member join for a field the digest does not commit — and by
+    // the report-level custody join that replays the receipt first.
+    let rejects_stale =
+        |name: &'static str, mutate: &dyn Fn(&mut NativePackagePublicationReceipt)| {
+            let mut changed = authentic.clone();
+            mutate(&mut changed);
+            assert_ne!(
+                changed, authentic,
+                "{name}: substitution changes the receipt"
+            );
+            assert!(
+                !changed.has_consistent_package_identity(),
+                "{name}: the receipt's replay rejects a stale containing identity"
+            );
+            let stale = packaged_report_with(&flat, changed);
+            assert!(
+                !stale.has_consistent_executable_publication_custody(),
+                "{name}: report custody rejects"
+            );
+            assert!(
+                stale.checked_native_package_path().is_none(),
+                "{name}: no checked package path escapes"
+            );
+            assert!(
+                stale.checked_native_executable_path().is_none(),
+                "{name}: no checked executable path escapes"
+            );
+        };
+
+    // A substitution whose containing identity is honestly recomputed is a
+    // different self-consistent receipt: the package evidence digest a
+    // deployment journal pins as the published record identity diverges.
+    let recomputed_foreign = |name: &'static str,
+                              mutate: &dyn Fn(&mut NativePackagePublicationReceipt)|
+     -> NativePackagePublicationReceipt {
+        let mut changed = authentic.clone();
+        mutate(&mut changed);
+        assert_ne!(
+            changed, authentic,
+            "{name}: substitution changes the receipt"
+        );
+        let foreign = recomputed_package(&changed);
+        assert!(
+            foreign.has_consistent_package_identity(),
+            "{name}: the honestly recomputed containing identity stays self-consistent"
+        );
+        assert_ne!(
+            foreign.package_evidence_digest, authentic.package_evidence_digest,
+            "{name}: the published record identity a deployment journal replays diverges"
+        );
+        foreign
+    };
+
+    // The report-level join sees the package root, the container commitment
+    // and byte count, and the retained application name and identifier: a
+    // foreign receipt claiming a different value on any of those axes is
+    // rejected outright rather than adopted.
+    let rejects_at_report_join = |name: &'static str, package: &NativePackagePublicationReceipt| {
+        let report = packaged_report_with(&flat, package.clone());
+        assert!(
+            !report.has_consistent_executable_publication_custody(),
+            "{name}: the report-level join rejects"
+        );
+        assert!(
+            report.checked_native_package_path().is_none(),
+            "{name}: no checked package path escapes"
+        );
+    };
+
+    // Member internals sit outside the report join: the foreign receipt is
+    // adopted as a different self-consistent publication, and the divergent
+    // record identity is what a journal replay rejects.
+    let adopted_foreign = |name: &'static str, package: &NativePackagePublicationReceipt| {
+        let report = packaged_report_with(&flat, package.clone());
+        assert!(
+            report.has_consistent_executable_publication_custody(),
+            "{name}: the report join cannot see this member axis — the divergent record identity is the rejection"
+        );
+        assert_eq!(
+            report.checked_native_package_path(),
+            Some(Path::new("build/window-app.app")),
+            "{name}: the foreign receipt's claimed root is adopted verbatim"
+        );
+    };
+
+    // --- the package root: committed, and joined to the flat destination
+    // through `inner_executable_path` ---
+
+    rejects_stale("a substituted package root", &|receipt| {
+        receipt.package_root = "build/foreign.app".into();
+    });
+    let foreign_root = recomputed_foreign("a substituted package root", &|receipt| {
+        receipt.package_root = "build/foreign.app".into();
+    });
+    rejects_at_report_join("a substituted package root", &foreign_root);
+    // A fully coupled move — the flat receipt's destination follows the
+    // foreign root under its own honestly recomputed installation identity —
+    // is a different self-consistent publication: the claimed root is
+    // adopted verbatim and the two divergent record identities are the only
+    // authority over it.
+    let mut moved_flat = flat.clone();
+    moved_flat.output_path = "build/foreign.app/Contents/MacOS/window-app".into();
+    moved_flat.installation_evidence_digest = claimed_installation(&moved_flat);
+    let moved = packaged_report_with(&moved_flat, foreign_root);
+    assert!(moved.has_consistent_executable_publication_custody());
+    assert_eq!(
+        moved.checked_native_package_path(),
+        Some(Path::new("build/foreign.app")),
+        "the claimed package root is adopted verbatim"
+    );
+    assert_eq!(
+        moved.checked_native_executable_path(),
+        Some(Path::new("build/foreign.app/Contents/MacOS/window-app"))
+    );
+
+    // --- the application name: committed, names the executable member's
+    // exact coordinate, and joins the retained application metadata ---
+
+    rejects_stale("a substituted application name", &|receipt| {
+        receipt.application_name = "other-app".to_owned();
+    });
+    // Honest recomputation cannot adopt a renamed application: no
+    // `Contents/MacOS/other-app` member exists, so the executable-member
+    // join still rejects even though the recomputed digest diverges.
+    let mut renamed = authentic.clone();
+    renamed.application_name = "other-app".to_owned();
+    let renamed = recomputed_package(&renamed);
+    assert_ne!(
+        renamed.package_evidence_digest,
+        authentic.package_evidence_digest
+    );
+    assert!(
+        !renamed.has_consistent_package_identity(),
+        "the executable-member join rejects what the recomputed digest cannot see"
+    );
+    rejects_at_report_join("a substituted application name", &renamed);
+    // Coupled with the member's rename the recomputed receipt is
+    // self-consistent again — and both the retained-name join and the
+    // inner-executable path join still reject it.
+    let mut coupled_name = authentic.clone();
+    coupled_name.application_name = "other-app".to_owned();
+    coupled_name.components[1].relative_path = executable_member_path("other-app");
+    let coupled_name = recomputed_package(&coupled_name);
+    assert!(coupled_name.has_consistent_package_identity());
+    assert_ne!(
+        coupled_name.package_evidence_digest,
+        authentic.package_evidence_digest
+    );
+    rejects_at_report_join("a coupled application-name substitution", &coupled_name);
+    // When every joined claim moves together — member path, flat
+    // destination, and retained metadata — the foreign name is adopted
+    // verbatim as a different publication; the divergent record identities
+    // remain the rejection.
+    let mut renamed_flat = flat.clone();
+    renamed_flat.output_path = "build/window-app.app/Contents/MacOS/other-app".into();
+    renamed_flat.installation_evidence_digest = claimed_installation(&renamed_flat);
+    let mut moved = packaged_report_with(&renamed_flat, coupled_name);
+    moved.application_name = Some("other-app".to_owned());
+    assert!(moved.has_consistent_executable_publication_custody());
+    assert_eq!(
+        moved.checked_native_executable_path(),
+        Some(Path::new("build/window-app.app/Contents/MacOS/other-app")),
+        "the coupled foreign name is adopted verbatim"
+    );
+
+    // --- the application identifier: committed, and joined to the retained
+    // metadata ---
+
+    let other_identifier = || {
+        build_evaluation::ApplicationIdentifier::new(b"com.other.app").expect("valid identifier")
+    };
+    rejects_stale("a substituted application identifier", &|receipt| {
+        receipt.application_identifier = other_identifier();
+    });
+    let foreign_identifier =
+        recomputed_foreign("a substituted application identifier", &|receipt| {
+            receipt.application_identifier = other_identifier();
+        });
+    rejects_at_report_join("a substituted application identifier", &foreign_identifier);
+    // The deeper authority is the publication-time three-way join against
+    // the installed plist spelling and the executable's CodeDirectory
+    // identity; `package_publication_rejects_a_substituted_executable_identifier`
+    // in `package::tests` exercises it against real signed bytes.
+
+    // --- the container commitment: committed, and joined to the flat
+    // receipt's container digest ---
+
+    rejects_stale("a substituted container commitment", &|receipt| {
+        receipt.executable_container_digest =
+            crate::ExecutableContainerDigest::from_digest([0x55; 32]);
+    });
+    let foreign_commitment = recomputed_foreign("a substituted container commitment", &|receipt| {
+        receipt.executable_container_digest =
+            crate::ExecutableContainerDigest::from_digest([0x55; 32]);
+    });
+    rejects_at_report_join("a substituted container commitment", &foreign_commitment);
+    // A fully coupled foreign container — flat and package receipts both
+    // claiming it under honestly recomputed identities — is a different
+    // self-consistent publication; the two divergent record identities are
+    // the rejection.
+    let mut foreign_container_flat = flat.clone();
+    foreign_container_flat.container_digest =
+        crate::ExecutableContainerDigest::from_digest([0x55; 32]);
+    foreign_container_flat.publication_evidence_digest = claimed_evidence(&foreign_container_flat);
+    foreign_container_flat.installation_evidence_digest =
+        claimed_installation(&foreign_container_flat);
+    let moved = packaged_report_with(&foreign_container_flat, foreign_commitment);
+    assert!(
+        moved.has_consistent_executable_publication_custody(),
+        "the coupled foreign container is a different self-consistent publication"
+    );
+
+    // --- the retained executable byte count: outside the digest, bound by
+    // the executable member's own byte count ---
+
+    // The digest never commits `executable_byte_count`, so a stale
+    // substitution keeps the authentic containing identity — and the
+    // executable-member join still rejects it. Recomputation is the identity
+    // here: it cannot adopt the drifted count.
+    let mut drifted_count = authentic.clone();
+    drifted_count.executable_byte_count += 1;
+    assert_ne!(drifted_count, authentic);
+    assert!(
+        !drifted_count.has_consistent_package_identity(),
+        "the executable-member byte-count join rejects a drifted retained count"
+    );
+    let recomputed_count = recomputed_package(&drifted_count);
+    assert_eq!(
+        recomputed_count.package_evidence_digest, authentic.package_evidence_digest,
+        "the containing identity never committed the retained byte count"
+    );
+    assert!(
+        !recomputed_count.has_consistent_package_identity(),
+        "recomputation cannot adopt the drifted count"
+    );
+    rejects_at_report_join("a substituted retained byte count", &recomputed_count);
+    // Coupled with the member's own byte count the receipt is self-consistent
+    // again — and the flat receipt's container byte count still rejects it.
+    let mut coupled_count = authentic.clone();
+    coupled_count.executable_byte_count += 1;
+    coupled_count.components[1].byte_count += 1;
+    let coupled_count = recomputed_package(&coupled_count);
+    assert!(coupled_count.has_consistent_package_identity());
+    assert_ne!(
+        coupled_count.package_evidence_digest,
+        authentic.package_evidence_digest
+    );
+    rejects_at_report_join("a coupled byte-count substitution", &coupled_count);
+
+    // --- the ordered member rows: each member's path, byte count, and
+    // component digest is committed, as is the member count and order ---
+
+    // The plist member's fields sit outside every report join.
+    rejects_stale("a substituted plist member path", &|receipt| {
+        receipt.components[0].relative_path = Path::new("Contents").join("Info-foreign.plist");
+    });
+    adopted_foreign(
+        "a substituted plist member path",
+        &recomputed_foreign("a substituted plist member path", &|receipt| {
+            receipt.components[0].relative_path = Path::new("Contents").join("Info-foreign.plist");
+        }),
+    );
+    rejects_stale("a substituted plist member byte count", &|receipt| {
+        receipt.components[0].byte_count += 1;
+    });
+    adopted_foreign(
+        "a substituted plist member byte count",
+        &recomputed_foreign("a substituted plist member byte count", &|receipt| {
+            receipt.components[0].byte_count += 1;
+        }),
+    );
+    rejects_stale("a substituted plist member digest", &|receipt| {
+        receipt.components[0].digest = PackageComponentDigest::from_digest([0x44; 32]);
+    });
+    adopted_foreign(
+        "a substituted plist member digest",
+        &recomputed_foreign("a substituted plist member digest", &|receipt| {
+            receipt.components[0].digest = PackageComponentDigest::from_digest([0x44; 32]);
+        }),
+    );
+
+    // The executable member's path and byte count are replay-bound by the
+    // inner-executable coordinate and the retained count: recomputation
+    // cannot adopt either substitution.
+    rejects_stale("a substituted executable member path", &|receipt| {
+        receipt.components[1].relative_path = executable_member_path("renamed");
+    });
+    let mut renamed_member = authentic.clone();
+    renamed_member.components[1].relative_path = executable_member_path("renamed");
+    let renamed_member = recomputed_package(&renamed_member);
+    assert!(
+        !renamed_member.has_consistent_package_identity(),
+        "no `Contents/MacOS/window-app` member remains to satisfy the inner-executable join"
+    );
+    rejects_at_report_join("a substituted executable member path", &renamed_member);
+    rejects_stale("a substituted executable member byte count", &|receipt| {
+        receipt.components[1].byte_count += 1;
+    });
+    let mut drifted_member = authentic.clone();
+    drifted_member.components[1].byte_count += 1;
+    let drifted_member = recomputed_package(&drifted_member);
+    assert!(
+        !drifted_member.has_consistent_package_identity(),
+        "the member's byte count disagrees with the retained executable byte count"
+    );
+    rejects_at_report_join(
+        "a substituted executable member byte count",
+        &drifted_member,
+    );
+    // The executable member's component digest is committed but not joined
+    // at report level — the divergent record identity is the rejection.
+    rejects_stale("a substituted executable member digest", &|receipt| {
+        receipt.components[1].digest = PackageComponentDigest::from_digest([0x66; 32]);
+    });
+    adopted_foreign(
+        "a substituted executable member digest",
+        &recomputed_foreign("a substituted executable member digest", &|receipt| {
+            receipt.components[1].digest = PackageComponentDigest::from_digest([0x66; 32]);
+        }),
+    );
+
+    // Companion members replay exactly like the plist member.
+    rejects_stale("a substituted companion member path", &|receipt| {
+        receipt.components[2].relative_path = executable_member_path("window-app.proof");
+    });
+    adopted_foreign(
+        "a substituted companion member path",
+        &recomputed_foreign("a substituted companion member path", &|receipt| {
+            receipt.components[2].relative_path = executable_member_path("window-app.proof");
+        }),
+    );
+    rejects_stale("a substituted companion member digest", &|receipt| {
+        receipt.components[2].digest = PackageComponentDigest::from_digest([0x77; 32]);
+    });
+    adopted_foreign(
+        "a substituted companion member digest",
+        &recomputed_foreign("a substituted companion member digest", &|receipt| {
+            receipt.components[2].digest = PackageComponentDigest::from_digest([0x77; 32]);
+        }),
+    );
+
+    // Member-set mutations: the count and order are committed. Member-set
+    // exactness against the installed tree is the publication-time shape
+    // replay's authority; the receipt's binding is its committed identity.
+    rejects_stale("a dropped plist member", &|receipt| {
+        receipt.components.remove(0);
+    });
+    adopted_foreign(
+        "a dropped plist member",
+        &recomputed_foreign("a dropped plist member", &|receipt| {
+            receipt.components.remove(0);
+        }),
+    );
+    rejects_stale("a dropped companion member", &|receipt| {
+        receipt.components.pop();
+    });
+    adopted_foreign(
+        "a dropped companion member",
+        &recomputed_foreign("a dropped companion member", &|receipt| {
+            receipt.components.pop();
+        }),
+    );
+    // A roster without exactly one inner executable member can never be
+    // honestly adopted: `executable_component` requires the coordinate to
+    // appear exactly once.
+    rejects_stale("a dropped executable member", &|receipt| {
+        receipt.components.remove(1);
+    });
+    let mut missing_executable = authentic.clone();
+    missing_executable.components.remove(1);
+    let missing_executable = recomputed_package(&missing_executable);
+    assert!(
+        !missing_executable.has_consistent_package_identity(),
+        "the roster carries no inner executable member"
+    );
+    rejects_at_report_join("a dropped executable member", &missing_executable);
+    rejects_stale("a duplicated plist member", &|receipt| {
+        let row = receipt.components[0].clone();
+        receipt.components.push(row);
+    });
+    adopted_foreign(
+        "a duplicated plist member",
+        &recomputed_foreign("a duplicated plist member", &|receipt| {
+            let row = receipt.components[0].clone();
+            receipt.components.push(row);
+        }),
+    );
+    rejects_stale("a duplicated executable member", &|receipt| {
+        let row = receipt.components[1].clone();
+        receipt.components.push(row);
+    });
+    let mut doubled_executable = authentic.clone();
+    let executable_row = doubled_executable.components[1].clone();
+    doubled_executable.components.push(executable_row);
+    let doubled_executable = recomputed_package(&doubled_executable);
+    assert!(
+        !doubled_executable.has_consistent_package_identity(),
+        "the inner executable coordinate must appear exactly once"
+    );
+    rejects_at_report_join("a duplicated executable member", &doubled_executable);
+    rejects_stale("a reordered member roster", &|receipt| {
+        receipt.components.swap(0, 1);
+    });
+    adopted_foreign(
+        "a reordered member roster",
+        &recomputed_foreign("a reordered member roster", &|receipt| {
+            receipt.components.swap(0, 1);
+        }),
+    );
+    rejects_stale("an appended foreign member", &|receipt| {
+        receipt.components.push(PackagePublicationComponent {
+            relative_path: executable_member_path("window-app.extra"),
+            byte_count: 4,
+            digest: package_component_digest(b"extra"),
+        });
+    });
+    adopted_foreign(
+        "an appended foreign member",
+        &recomputed_foreign("an appended foreign member", &|receipt| {
+            receipt.components.push(PackagePublicationComponent {
+                relative_path: executable_member_path("window-app.extra"),
+                byte_count: 4,
+                digest: package_component_digest(b"extra"),
+            });
+        }),
+    );
+    rejects_stale("an emptied member roster", &|receipt| {
+        receipt.components.clear();
+    });
+    let mut emptied = authentic.clone();
+    emptied.components.clear();
+    let emptied = recomputed_package(&emptied);
+    assert!(
+        !emptied.has_consistent_package_identity(),
+        "the empty roster carries no inner executable member"
+    );
+    rejects_at_report_join("an emptied member roster", &emptied);
+
+    // --- the containing identity itself ---
+
+    // A substituted evidence digest can never be honestly recomputed: the
+    // recomputation is what produces it.
+    rejects_stale("a substituted package evidence digest", &|receipt| {
+        receipt.package_evidence_digest = NativePackageEvidenceDigest::from_digest([0x55; 32]);
     });
 }
