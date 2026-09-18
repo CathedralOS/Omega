@@ -6,11 +6,15 @@
 
 use crate::tests::{
     AllocationEvidence, AllocationReplayError, NativeTarget, Optimization, OptimizationSelections,
-    PostAllocationSelectedTransformation,
+    OptimizedPostAllocationMachinePipelineError, PostAllocationSelectedTransformation,
     stage_leaf_local_fixed_view_register_allocation_composing,
+    stage_optimized_post_allocation_machine_plan,
     stage_shared_entry_fixed_view_register_allocation, staged_composition_pressure_module_legality,
 };
-use selected_instructions_to_register_homes::{AllocationSource, RegisterAllocationError};
+use selected_instructions::LocalStorageSlotId;
+use selected_instructions_to_register_homes::{
+    AllocationSource, RegisterAllocationError, ValidatedSelectedAnalysis,
+};
 
 fn transformations(
     retained: &selected_instructions_to_register_homes::RetainedAllocation,
@@ -153,6 +157,94 @@ fn leaf_local_composition_rejects_a_declared_shared_entry_selection() {
                 ))
             ),
             "{target:?}: a leaf-local prefix must not absorb a declared selection"
+        );
+    }
+}
+
+/// The retained runtime-spill program's `local_storage_slots` are the
+/// frame realization downstream stack demand composes from. A changed
+/// realization — or a changed allocation — must invalidate retained replay
+/// before a post-allocation machine plan, and therefore any demand, can
+/// derive from the stale facts.
+#[test]
+fn changed_spill_frame_realization_invalidates_retained_demand() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut retained = stage_leaf_local_fixed_view_register_allocation_composing(
+            staged_composition_pressure_module_legality(
+                target,
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            ),
+        )
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: leaf-local composition must complete: {error}")
+        });
+        assert!(
+            matches!(
+                retained.current().evidence(),
+                AllocationEvidence::RuntimeSpill(_)
+            ),
+            "{target:?}: residual pressure must publish runtime-spill evidence"
+        );
+        // Demand derivation accepts the retained program as staged: the frame
+        // layout composes the program's declared local storage.
+        retained.replay_allocation().unwrap();
+        let machine = stage_optimized_post_allocation_machine_plan(&retained).unwrap();
+        assert_eq!(
+            machine.machine().plan().selected,
+            retained.current().selected().selected_identity()
+        );
+
+        // Grown realization: the declaration a runtime spill appends —
+        // `{Spill, byte_size: 8, alignment: 8}` — must fail retained replay
+        // and must reject the machine plan before any demand derives.
+        let original = retained.program().clone();
+        let mut grown = original.clone();
+        let caller = std::sync::Arc::make_mut(&mut grown.selected)
+            .functions
+            .iter_mut()
+            .find(|function| !function.virtual_registers.is_empty())
+            .expect("the caller keeps virtual registers");
+        let register = caller.virtual_registers[0].id;
+        caller
+            .local_storage_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: LocalStorageSlotId::Spill { register },
+                byte_size: 8,
+                alignment: 8,
+            });
+        retained.substitute_current_program_for_test(grown);
+        assert!(
+            matches!(
+                retained.replay_allocation(),
+                Err(AllocationReplayError::CurrentProgramMismatch)
+            ),
+            "{target:?}: a grown frame realization must fail retained replay"
+        );
+        assert!(
+            matches!(
+                stage_optimized_post_allocation_machine_plan(&retained),
+                Err(OptimizedPostAllocationMachinePipelineError::Allocation(
+                    AllocationReplayError::CurrentProgramMismatch
+                ))
+            ),
+            "{target:?}: stale demand must reject before post-allocation derivation"
+        );
+
+        // The admission is exact: restoring the recorded program re-admits,
+        // while a changed allocation — the homes alone — rejects identically.
+        retained.substitute_current_program_for_test(original.clone());
+        retained.replay_allocation().unwrap();
+        let mut changed_homes = original;
+        std::sync::Arc::make_mut(&mut changed_homes.homes)
+            .functions
+            .clear();
+        retained.substitute_current_program_for_test(changed_homes);
+        assert!(
+            matches!(
+                retained.replay_allocation(),
+                Err(AllocationReplayError::CurrentProgramMismatch)
+            ),
+            "{target:?}: a changed allocation must fail retained replay"
         );
     }
 }
