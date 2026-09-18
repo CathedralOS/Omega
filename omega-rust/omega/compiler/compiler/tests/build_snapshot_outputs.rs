@@ -1181,3 +1181,405 @@ fn executable_route_accepts_a_companion_required_output() {
     assert_eq!(settlements.len(), 1, "the companion obligation settles");
     assert_eq!(settlements[0].relative_path(), b"companion.txt");
 }
+
+/// The exact application root, declaration role, and requested target a
+/// retained native product publishes under. `linux_x86_64` and
+/// `windows_x86_64` both bind so a same-fixture foreign-target realization can
+/// stand in for target/artifact drift below.
+fn write_native_generated_project(project: &Project) {
+    project.write(
+        "main.omg",
+        "data Main { }\nmachine Main::main(&mut self) { }\n",
+    );
+    project.write("input.txt", "input\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-native-product");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    let input: BuildPath = builder.source.resolve("input.txt");
+    let input_descriptor: i32 = builder.source.open(input, 0);
+    let mut input_bytes: [u8; 6];
+    let input_count: i64 = builder.source.read(input_descriptor, &mut input_bytes, 6);
+    let input_close: i32 = builder.source.close(input_descriptor);
+
+    let generated: BuildPath = builder.output.resolve("generated.omg");
+    let descriptor: i32 = builder.output.create(generated, 438);
+    let written: i64 = builder.output.write(
+        descriptor,
+        "pub data ReplayGenerated { value: u64; }\n"
+    );
+    let closed: i32 = builder.output.close(descriptor);
+    builder.output.include_source(generated);
+
+    let required: RequiredOutput = builder.output.require("artifact.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let artifact_descriptor: i32 = builder.output.create(artifact, 438);
+    let artifact_written: i64 = builder.output.write(artifact_descriptor, "banner\n");
+    let artifact_closed: i32 = builder.output.close(artifact_descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, artifact);
+}
+"#,
+    );
+}
+
+/// The same single-package graph as `package_inputs`, declared with the
+/// authored Application role a retained native product must bind.
+fn application_inputs(root: &Path) -> PackageCompilationInputs {
+    let package = PackageKeyIdentity::from_digest([89; 32]).expect("nonzero package identity");
+    PackageCompilationInputs::new(
+        package,
+        package_compilation::BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(package, "snapshot-outputs", root.to_path_buf())
+                .with_canonical_source_metadata()
+                .expect("capture canonical package source"),
+        ],
+        Vec::<PackageDependencyBinding>::new(),
+    )
+    .expect("single-package application input")
+}
+
+fn checked_native_product(
+    project: &Project,
+    target_name: &'static str,
+    label: &str,
+) -> compiler::CheckedCompilation {
+    let (session, sponsor, build_dir) = bound_build_output_session(label);
+    set_canonical_source_tree_permissions(&project.root, true);
+    let result = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir),
+        package_inputs: Some(application_inputs(&project.root)),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(target_name))
+    });
+    set_canonical_source_tree_permissions(&project.root, false);
+    let _ = std::fs::remove_dir_all(session);
+    result.unwrap_or_else(|diagnostics| {
+        panic!(
+            "the generated-source application compiles for {target_name}: {}",
+            diagnostic_messages(&diagnostics)
+        )
+    })
+}
+
+/// One checked compilation's retained native product, realized but not yet
+/// assembled into a report: the exact production subject and retained artifact
+/// a publishable report must bind, with the proposal's own publication
+/// metadata.
+struct RealizedNativeProduct {
+    root_path: PathBuf,
+    source_file_count: usize,
+    rollback: Option<compiler::OptimizationRollbackReceipt>,
+    subject: Option<compiler::ProductionCompilationSubject>,
+    artifact: compiler::RetainedNativeArtifact,
+    application_name: Option<String>,
+    application_intent: Option<build_evaluation::HostedApplicationIntent>,
+    application_identifier: Option<build_evaluation::ApplicationIdentifier>,
+}
+
+/// Drive the checked product through the same compiler-owned join the package
+/// manager uses: retained Terminal report, proposal-checked native
+/// realization. Nothing here restages output or reopens source custody.
+fn realize_checked_native_product(
+    project: &Project,
+    checked: compiler::CheckedCompilation,
+) -> RealizedNativeProduct {
+    let profile = proof_admission::AdmissionProfile::default();
+    let report = compiler::retained_terminal_report_from_checked_package(
+        project.main(),
+        checked,
+        profile.clone(),
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "the checked product retains its Terminal report: {}",
+            diagnostic_messages(&diagnostics)
+        )
+    });
+    let root_path = report.root_path().to_path_buf();
+    let source_file_count = report.source_file_count;
+    let rollback = report.optimization_rollback_receipt().cloned();
+    let subject = report
+        .production_manifest()
+        .map(|manifest| manifest.subject().clone());
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("the package report retains its Terminal product");
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("the retained Terminal product carries a native proposal");
+    let subsystem = proposal.subsystem();
+    let optimization_selections = proposal.post_terminal_optimizations().selections().clone();
+    let application_name = proposal.application_name().map(str::to_owned);
+    let application_intent = proposal.application_intent();
+    let application_identifier = proposal.application_identifier().cloned();
+    let artifact = compiler::realize_retained_native_artifact(
+        retained,
+        compiler::RetainedNativeRealizationRequest {
+            profile: &profile,
+            optimization_selections: &optimization_selections,
+            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            accepted_package_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
+            imports: &[],
+        },
+    )
+    .unwrap_or_else(|(_, diagnostics)| {
+        panic!(
+            "the retained product realizes natively: {}",
+            diagnostic_messages(&diagnostics)
+        )
+    });
+    let artifact = artifact
+        .into_direct()
+        .unwrap_or_else(|_| panic!("the flat image request keeps direct artifact custody"));
+    RealizedNativeProduct {
+        root_path,
+        source_file_count,
+        rollback,
+        subject,
+        artifact,
+        application_name,
+        application_intent,
+        application_identifier,
+    }
+}
+
+/// Assemble the retained artifact into its production report and publish it.
+/// The report binds the subject/artifact join before any bytes install.
+fn publish_native_product(
+    product: RealizedNativeProduct,
+    build_dir: &Path,
+) -> (compiler::CompileReport, PathBuf) {
+    let report = compiler::CompileReport::from_retained_native_artifact(
+        product.root_path,
+        product.source_file_count,
+        product.artifact,
+        product.rollback,
+        product.subject,
+    )
+    .expect("the retained native artifact assembles its production report")
+    .with_application_metadata(
+        product.application_name,
+        product.application_intent,
+        product.application_identifier,
+    )
+    .expect("the retained publication metadata joins the report");
+    let published = report
+        .publish_retained_native_artifact(build_dir)
+        .expect("the validated retained native product publishes");
+    let executable = published
+        .checked_native_executable_path()
+        .expect("publication retains exact executable custody")
+        .to_path_buf();
+    (published, executable)
+}
+
+/// Acceptance: a serialized replay of the admitted activation reproduces the
+/// retained native product built with generated source — the identical
+/// consumed source commitment, generated-source bundle, production subject,
+/// and published executable bytes.
+#[test]
+fn serialized_replay_reproduces_the_retained_native_product() {
+    let project = Project::new("replay-product");
+    write_native_generated_project(&project);
+    let (session, sponsor, build_dir) = bound_build_output_session("replay-product");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let inputs = application_inputs(&project.root);
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir),
+        package_inputs: Some(inputs.clone()),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some("linux_x86_64"))
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "the generated-source application compiles through admitted build custody: {}",
+            diagnostic_messages(&diagnostics)
+        )
+    });
+    assert!(
+        checked
+            .typed
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.name.as_str() == "ReplayGenerated"),
+        "the build's generated source joins the checked product"
+    );
+    assert!(
+        checked
+            .package_generated_source_bundle()
+            .map(|bundle| !bundle.sources().is_empty())
+            .unwrap_or(false),
+        "the checked product retains the generated-source bundle"
+    );
+
+    // The activation's review-only record is canonical bytes: serialize it,
+    // recover it, and replay the complete activation with no staged output or
+    // sponsor authority. Replay reproduces the identical consumed inputs.
+    let summary = checked
+        .build_observation_summary()
+        .expect("admitted activation retains observation custody");
+    assert!(
+        summary.filesystem_replay_verdict().is_complete(),
+        "primary activation completes its internal verifier replay"
+    );
+    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
+    let record = build_evaluation::capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("capture the verified replay record")
+        .expect("a complete receipted activation issues a replay record");
+    let recovered = build_evaluation::recover_review_only_build_filesystem_replay_record(
+        record.canonical_bytes(),
+        limits,
+    )
+    .expect("serialized replay record recovers");
+    let replayed = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        replay_record: Some(recovered),
+        ..CheckedCompileRequest::new(&project.main(), Some("linux_x86_64"))
+    })
+    .expect("serialized replay reproduces the admitted activation");
+    set_canonical_source_tree_permissions(&project.root, false);
+    let _ = std::fs::remove_dir_all(&session);
+    assert_eq!(
+        replayed.source_consumption_commitment(),
+        checked.source_consumption_commitment(),
+        "the replayed activation consumes identical authored and generated source"
+    );
+    assert_eq!(
+        replayed
+            .package_generated_source_bundle()
+            .expect("replayed activation retains its generated-source bundle")
+            .sources(),
+        checked
+            .package_generated_source_bundle()
+            .expect("primary activation retains its generated-source bundle")
+            .sources(),
+        "replay retains the identical generated-source custody"
+    );
+
+    // Both checked products carry the identical production subject — root,
+    // authored role, target profile, build usage, and observation identity —
+    // and publish byte-identical executables.
+    let primary = realize_checked_native_product(&project, checked);
+    let replayed = realize_checked_native_product(&project, replayed);
+    let subject = primary
+        .subject
+        .as_ref()
+        .expect("the application product carries its production subject");
+    assert_eq!(
+        subject.package().root(),
+        PackageKeyIdentity::from_digest([89; 32]).unwrap()
+    );
+    assert_eq!(
+        subject.package().root_role(),
+        package_compilation::BuildDeclarationKind::Application
+    );
+    assert_eq!(subject.target_profile(), target::TargetProfile::LinuxX64);
+    assert_eq!(
+        replayed.subject.as_ref(),
+        Some(subject),
+        "replay binds the identical production subject"
+    );
+    let publish_root = std::env::temp_dir().join(format!(
+        "omega-snapshot-outputs-publish-replay-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&publish_root);
+    let (_primary_report, primary_executable) =
+        publish_native_product(primary, &publish_root.join("primary"));
+    let (_replayed_report, replayed_executable) =
+        publish_native_product(replayed, &publish_root.join("replayed"));
+    assert_eq!(
+        std::fs::read(&primary_executable).expect("read the primary executable"),
+        std::fs::read(&replayed_executable).expect("read the replayed executable"),
+        "serialized replay reproduces the identical retained native product"
+    );
+    let _ = std::fs::remove_dir_all(&publish_root);
+}
+
+/// The retained-product join is also the publication drift boundary. A checked
+/// compilation whose authored source moved cannot produce its report; a
+/// foreign-target artifact cannot assemble a report under this subject; and a
+/// foreign artifact supplies no physical evidence to this manifest. A report
+/// that never assembles can never publish.
+#[test]
+fn retained_native_product_publication_rejects_source_target_and_artifact_drift() {
+    let project = Project::new("drift-product");
+    write_native_generated_project(&project);
+
+    let checked = checked_native_product(&project, "linux_x86_64", "drift-linux");
+    let product = realize_checked_native_product(&project, checked);
+    let linux_subject = product
+        .subject
+        .clone()
+        .expect("the application product carries its production subject");
+    let publish_root = std::env::temp_dir().join(format!(
+        "omega-snapshot-outputs-publish-drift-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&publish_root);
+    let (published, executable) = publish_native_product(product, &publish_root.join("linux"));
+    assert!(executable.is_file(), "the retained product installed bytes");
+    let manifest = published
+        .production_manifest()
+        .expect("the published report retains its production manifest");
+
+    // Target and artifact drift: the same project's windows realization can
+    // neither join the linux production subject nor supply its physical
+    // evidence.
+    let windows = realize_checked_native_product(
+        &project,
+        checked_native_product(&project, "windows_x86_64", "drift-windows"),
+    );
+    assert!(
+        !manifest.matches_native_artifact(&windows.artifact),
+        "a foreign-target artifact must not match this manifest"
+    );
+    assert!(
+        matches!(
+            manifest.require_native_physical_evidence(&windows.artifact),
+            Err(compiler::FinalRealizationEvidenceError::NativeTargetMismatch)
+        ),
+        "a foreign-target artifact supplies no physical evidence"
+    );
+    let message = compiler::CompileReport::from_retained_native_artifact(
+        windows.root_path,
+        windows.source_file_count,
+        windows.artifact,
+        windows.rollback,
+        Some(linux_subject),
+    )
+    .expect_err("a foreign-target artifact cannot assemble this subject's report");
+    assert!(
+        message.contains("target"),
+        "unexpected report assembly error: {message}"
+    );
+
+    // Source drift: a checked compilation whose authored source moved before
+    // its retained product was cut cannot produce the report publication
+    // needs.
+    let drifted = checked_native_product(&project, "linux_x86_64", "drift-source");
+    project.write(
+        "main.omg",
+        "data Main { }\nmachine Main::main(&mut self) { let drifted: u64 = 0; }\n",
+    );
+    let diagnostics = compiler::retained_terminal_report_from_checked_package(
+        project.main(),
+        drifted,
+        proof_admission::AdmissionProfile::default(),
+    )
+    .expect_err("drifted authored source must reject before the retained product");
+    let messages = diagnostic_messages(&diagnostics);
+    assert!(
+        messages.contains("changed after frontend loading"),
+        "unexpected diagnostics: {messages}"
+    );
+    let _ = std::fs::remove_dir_all(&publish_root);
+}

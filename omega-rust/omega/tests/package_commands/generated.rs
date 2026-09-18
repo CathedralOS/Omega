@@ -84,6 +84,54 @@ fn generated_output_cannot_escape_its_supplied_root() {
     assert!(!fixture.path("dependency/escaped.omg").exists());
 }
 
+/// The shipped binary publishes the retained native product of a project
+/// whose own build generated source, with an installed dependency that did
+/// the same. Both generated inputs are consumed from compiler custody; the
+/// authored/generated boundary keeps them out of either source tree.
+#[test]
+fn generated_sources_publish_the_retained_native_product() {
+    let fixture = generated_fixture();
+    fixture.write(
+        "root/build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("generated-native");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    let generated: BuildPath = builder.output.resolve("own.generated.omg");
+    let descriptor: i32 = builder.output.create(generated, 438);
+    let written: i64 = builder.output.write(
+        descriptor,
+        "pub data OwnGenerated { value: u64; }\n"
+    );
+    let closed: i32 = builder.output.close(descriptor);
+    builder.output.include_source(generated);
+}
+"#,
+    );
+    fixture.write(
+        "root/main.omg",
+        "use generated_table::main;\ndata Main {}\nmachine observed_value() -> u64 { table_size() }\nmachine Main::main(&mut self) { let value: u64 = observed_value(); }\n",
+    );
+    assert_status(
+        &fixture.omega(&["install", "../dependency", "--target", "linux_x86_64"]),
+        0,
+    );
+    assert_status(&fixture.omega(&["--target", "linux_x86_64", "main.omg"]), 0);
+    let executable = fixture.path("root/build/omega-program");
+    assert!(
+        executable.is_file() && executable.metadata().unwrap().len() > 0,
+        "the retained native product published its executable"
+    );
+    assert!(
+        !fixture.path("root/own.generated.omg").exists(),
+        "own generated source stays out of the physical source tree"
+    );
+    assert!(
+        !fixture.path("root/table.generated.omg").exists(),
+        "dependency generated source stays out of the consumer source root"
+    );
+    assert!(!fixture.path("dependency/table.generated.omg").exists());
+}
+
 #[test]
 #[ignore = "requires network and private CathedralOS generated-table repository access over SSH"]
 fn pinned_ssh_generated_dependency_installs_updates_and_imports() {
