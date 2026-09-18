@@ -977,6 +977,29 @@ fn module_constrained_consts_discharge_domain_facts_at_declaration_site() {
 }
 
 #[test]
+fn module_constrained_consts_discharge_closed_indexed_domains() {
+    // The closed index application `u64::Window<8>` selects `mine`'s family
+    // under module-local precedence — never the imported same-leaf sibling,
+    // whose `self > N` fact would refute `3` — binds `N` to `8`, replays
+    // `self < N`, and publishes identity.
+    let syntax = parse(&[
+        "module other; pub domain<const N: u64> u64::Window<N> requires self > N;",
+        "module mine; use other; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<8> = 3;",
+    ]);
+    let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("the module-local family owns and discharges the indexed fact");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::X")
+        .expect("the module constant resolved");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "a discharged indexed constrained const publishes canonical identity"
+    );
+}
+
+#[test]
 fn module_constrained_consts_reject_refuted_or_unproved_domains() {
     for (sources, fragment) in [
         // The module-local owner refutes `0 > 0`.
@@ -993,11 +1016,30 @@ fn module_constrained_consts_reject_refuted_or_unproved_domains() {
             ][..],
             "constrained const declarations require declaration-site proof checking",
         ),
-        // A closed index application on a domain family still owes its
-        // open-template membership proof.
+        // The selected family replays `self < N` with `N` bound to `8` at
+        // `9` — a precise refutation, not the generic fence.
         (
             &[
-                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<8> = 3;",
+                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<8> = 9;",
+            ][..],
+            "is false",
+        ),
+        // A closed index application whose argument cannot bind a concrete
+        // value at declaration site — `K` names no scoped or selected const —
+        // still owes its open-template membership proof.
+        (
+            &[
+                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<K> = 3;",
+            ][..],
+            "constrained const declarations require declaration-site proof checking",
+        ),
+        // Two narrow-imported foreign families contest the bare leaf; the
+        // pool declines rather than bind the index against a guessed owner.
+        (
+            &[
+                "module a; pub domain<const N: u64> u64::Window<N> requires self < N;",
+                "module b; pub domain<const N: u64> u64::Window<N> requires self < N;",
+                "module mine; use a::Window; use b::Window; const X: u64 in Window<8> = 3;",
             ][..],
             "constrained const declarations require declaration-site proof checking",
         ),
