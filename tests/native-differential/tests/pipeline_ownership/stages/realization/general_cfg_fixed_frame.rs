@@ -15,7 +15,13 @@ use machine_code::FunctionFragmentControlProvenance;
 
 #[test]
 fn nonzero_frames_reflow_three_block_returns_through_callable_publication() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (applied, prologue, epilogue, source_displacement, source_byte_count) =
             staged_application(target);
         assert_eq!(applied.receipt().framed_function_count(), 1);
@@ -91,7 +97,13 @@ fn nonzero_frames_reflow_three_block_returns_through_callable_publication() {
 
 #[test]
 fn independent_replay_rejects_reauthenticated_site_and_branch_corruption() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (mut site_corruption, ..) = staged_application(target);
         site_corruption.corrupt_first_epilogue_site_for_test();
         assert_eq!(
@@ -154,7 +166,13 @@ fn frame_application_data_outlives_its_producer_and_replay_rejects_rehashed_chan
             value.fragments.functions[0].blocks.pop();
         }),
     ];
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (applied, ..) = staged_application(target);
         let original = applied.shared_application();
         assert!(std::ptr::eq(original.as_ref(), applied.application()));
