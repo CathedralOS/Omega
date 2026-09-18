@@ -15,22 +15,26 @@
 //! for some integer k. Each hull keeps the lattice covering exactly the values
 //! it summarizes, so the retained evidence is the per-hull intersection of two
 //! overapproximations rather than one join diluted by every arm and operation.
-//! A zero-spanning pair like (-5+4Z)+{4} keeps its own zero-free -1+4Z lattice
-//! when other sign categories join the summary lattice down to 1Z; splitting
-//! that hull at the nearest lattice points on either side of zero still
-//! excludes the pole without storing individual arms. The same intersection
-//! gives division zero-free intervals on which corner bounds are valid; a
-//! nonzero Boolean alone would not justify dividing across a continuous pole.
-//! An integral pair of interval endpoints alone proves neither: joining 1, 1.5,
-//! and 2 must not erase the fractional interior. Division retains lattice
-//! evidence through the admissible divisor values inside each sign interval:
-//! the interval's intersection with the divisor's own lattice is a finite set
-//! of exact points, so a singleton bound is only the one-point case and a
-//! joined same-sign pair like {2, 3} still enumerates its two divisors. A hull
-//! whose lattice intersection is wider declines rather than scanning a range
-//! no finite evidence covers. Integer interval analysis has different division
-//! and width semantics, so only its interval laws apply here; all arithmetic
-//! uses the shared exact rationals.
+//! A zero-spanning pair like (-5+4Z)+{4} keeps its own zero-free -1+4Z lattice:
+//! each contributing interval is split at its own lattice's nearest points
+//! around zero before merging, so a sibling pair's contribution cannot dilute
+//! the gap by joining first. Once merged, a zero-containing hull's lattice
+//! either reaches zero or is absent, and the pole stays excluded without
+//! storing individual arms. The same intersection gives division zero-free
+//! intervals on which corner bounds are valid; a nonzero Boolean alone would
+//! not justify dividing across a continuous pole. An integral pair of
+//! interval endpoints alone proves neither: joining 1, 1.5, and 2 must not
+//! erase the fractional interior. Division retains lattice evidence through
+//! the admissible divisor values inside each sign interval: the interval's
+//! intersection with the divisor's own lattice is a finite set of exact
+//! points, so a singleton bound is only the one-point case and a joined
+//! same-sign pair like {2, 3} still enumerates its two divisors. A hull whose
+//! lattice intersection is wider declines rather than scanning a range no
+//! finite evidence covers. A hull collapsed to one point is its own exact
+//! evidence: the point needs no retained lattice to prove integrality or to
+//! stand as an admissible value. Integer interval analysis has different
+//! division and width semantics, so only its interval laws apply here; all
+//! arithmetic uses the shared exact rationals.
 //!
 //! The caller has validated the complete acyclic scalar graph and checks every
 //! subject, pattern, and arm. This pass visits only anonymous result edges; it
@@ -148,7 +152,6 @@ fn analyze(
                 for _ in 1..count {
                     joined.include(values.pop().ok_or("missing anonymous Match arm bounds")?);
                 }
-                joined.refine_zero_gap();
                 values.push(joined);
             }
         }
@@ -179,13 +182,26 @@ struct RationalCell {
 }
 
 impl RationalCell {
+    /// Lattice evidence for this hull: the retained lattice, or the hull's
+    /// own point when its interval has collapsed to one exact value. A
+    /// singleton needs no retained lattice — it admits only that value — so
+    /// the point itself proves integrality or stands as an admissible
+    /// operand. Explicit retained evidence always takes precedence.
+    fn evidence(&self) -> Option<RationalLattice> {
+        self.lattice
+            .clone()
+            .or_else(|| singleton_lattice(&self.interval))
+    }
+
     fn include(&mut self, interval: RationalInterval, lattice: Option<RationalLattice>) {
-        self.interval.include(interval);
+        // Both sides merge at their own effective evidence so a collapsed
+        // singleton's exact point still joins rather than erasing the hull's
+        // retained lattice. The interval widens only after that read.
         self.lattice = self
-            .lattice
-            .as_ref()
-            .zip(lattice.as_ref())
-            .and_then(|(left, right)| left.join(right));
+            .evidence()
+            .zip(lattice.or_else(|| singleton_lattice(&interval)))
+            .and_then(|(left, right)| left.join(&right));
+        self.interval.include(interval);
     }
 }
 
@@ -210,14 +226,13 @@ impl RationalBounds {
     }
 
     /// Every summarized value is provably integral: at least one hull exists
-    /// and each retained lattice lands on integers.
+    /// and each hull's effective evidence lands on integers. A collapsed
+    /// singleton carries its own point as that evidence.
     fn has_integral_lattice(&self) -> bool {
         self.cells().next().is_some()
-            && self.cells().all(|cell| {
-                cell.lattice
-                    .as_ref()
-                    .is_some_and(RationalLattice::is_integral)
-            })
+            && self
+                .cells()
+                .all(|cell| cell.evidence().is_some_and(|lattice| lattice.is_integral()))
     }
 
     fn cells(&self) -> impl Iterator<Item = &RationalCell> {
@@ -233,8 +248,41 @@ impl RationalBounds {
 
     /// Fold one interval and its covering lattice into the matching sign
     /// hull. The lattice must cover every value the interval contributes;
-    /// without that evidence the merged hull retains interval bounds only.
+    /// without that evidence the merged hull retains interval bounds only. A
+    /// singleton interval is its own exact evidence: one known point proves
+    /// integrality or an admissible value without a retained lattice. A
+    /// zero-spanning contribution whose own lattice excludes zero splits at
+    /// the gap before merging, so a sibling contribution cannot join the
+    /// merged hull's lattice down to a stride that reaches zero. Each clipped
+    /// piece keeps the contribution's own lattice, whose points still cover
+    /// the piece's values; a piece outside the retained bounds contributes
+    /// nothing. A merged zero-containing hull therefore only ever joins
+    /// contributions whose own evidence cannot exclude zero.
     fn include_cell(&mut self, interval: RationalInterval, lattice: Option<RationalLattice>) {
+        if !interval.excludes_zero()
+            && let Some([negative, positive]) =
+                lattice.as_ref().and_then(RationalLattice::zero_neighbors)
+        {
+            if !interval.low.cmp_value(&negative).is_gt() {
+                self.include_cell(
+                    RationalInterval {
+                        low: interval.low.clone(),
+                        high: negative,
+                    },
+                    lattice.clone(),
+                );
+            }
+            if !interval.high.cmp_value(&positive).is_lt() {
+                self.include_cell(
+                    RationalInterval {
+                        low: positive,
+                        high: interval.high,
+                    },
+                    lattice,
+                );
+            }
+            return;
+        }
         let destination = if interval.high.cmp_value(&BigRational::zero()).is_lt() {
             &mut self.negative
         } else if interval.low.cmp_value(&BigRational::zero()).is_gt() {
@@ -259,42 +307,6 @@ impl RationalBounds {
         }
     }
 
-    fn refine_zero_gap(&mut self) {
-        let Some([negative, positive]) = self
-            .containing_zero
-            .as_ref()
-            .and_then(|cell| cell.lattice.as_ref())
-            .and_then(RationalLattice::zero_neighbors)
-        else {
-            return;
-        };
-        let Some(cell) = self.containing_zero.take() else {
-            return;
-        };
-        // Only the open lattice gap is removed. Clip to the original bounds:
-        // extending an endpoint would discard the independent carrier evidence.
-        // Each clipped piece keeps the hull's own lattice: its values still
-        // lie on exactly those lattice points.
-        if !cell.interval.low.cmp_value(&negative).is_gt() {
-            self.include_cell(
-                RationalInterval {
-                    low: cell.interval.low,
-                    high: negative,
-                },
-                cell.lattice.clone(),
-            );
-        }
-        if !cell.interval.high.cmp_value(&positive).is_lt() {
-            self.include_cell(
-                RationalInterval {
-                    low: positive,
-                    high: cell.interval.high,
-                },
-                cell.lattice,
-            );
-        }
-    }
-
     fn apply(&self, operator: BinaryOperator, right: &Self) -> Result<Self, String> {
         let mut result = Self {
             fractional_history: self.fractional_history || right.fractional_history,
@@ -311,27 +323,33 @@ impl RationalBounds {
                 let lattice = match operator {
                     BinaryOperator::Divide => divide_lattice(left_cell, right_cell),
                     _ => left_cell
-                        .lattice
-                        .as_ref()
-                        .zip(right_cell.lattice.as_ref())
-                        .and_then(|(left, right)| left.apply(operator, right)),
+                        .evidence()
+                        .zip(right_cell.evidence())
+                        .and_then(|(left, right)| left.apply(operator, &right)),
                 };
                 result.include_cell(interval, lattice);
             }
         }
-        let unproven_integrality = result.cells().any(|cell| {
-            !cell
-                .lattice
-                .as_ref()
-                .is_some_and(RationalLattice::is_integral)
-        });
+        let unproven_integrality = result
+            .cells()
+            .any(|cell| !cell.evidence().is_some_and(|lattice| lattice.is_integral()));
         result.fractional_history |= unproven_integrality;
-        result.refine_zero_gap();
         if result.intervals().next().is_none() {
             return Err("anonymous rational arithmetic requires nonempty bounds".into());
         }
         Ok(result)
     }
+}
+
+/// A collapsed hull's own point is exact evidence: the interval admits only
+/// that value, so it proves integrality, an admissible divisor, or a lattice
+/// neighbor without a retained lattice. Explicit lattice evidence always
+/// takes precedence; this never widens a hull's claimed value set.
+fn singleton_lattice(interval: &RationalInterval) -> Option<RationalLattice> {
+    (interval.low == interval.high).then(|| RationalLattice {
+        offset: interval.low.clone(),
+        stride: BigRational::zero(),
+    })
 }
 
 /// Quotient lattice covering one operand cell pair under division. For x in
@@ -343,14 +361,8 @@ impl RationalBounds {
 /// be enumerated forfeits only its own result hull's lattice. This inspects
 /// at most three summary cells per operand, never authored arms.
 fn divide_lattice(left: &RationalCell, right: &RationalCell) -> Option<RationalLattice> {
-    let left = left.lattice.as_ref()?;
-    let divisors = match right.lattice.as_ref() {
-        Some(lattice) => lattice.points_within(&right.interval)?,
-        None if right.interval.low == right.interval.high => {
-            vec![right.interval.low.clone()]
-        }
-        None => return None,
-    };
+    let left = left.evidence()?;
+    let divisors = right.evidence()?.points_within(&right.interval)?;
     let mut joined: Option<RationalLattice> = None;
     for divisor in divisors {
         let quotient = RationalLattice {

@@ -39,3 +39,11 @@ machine lattice_divisors(value: SignedIndex<((match true { true -> 24, false -> 
 machine hull_gap_divisor(value: SignedIndex<(840 / ((match true { true -> (match true { true -> -5, false -> -1 }), false -> 2 }) + (match true { true -> 4, false -> -3 })))>) -> SignedIndex<-840> {
     value
 }
+
+machine pair_gap_divisor(value: Flag<(1 / ((match 0u8 { 0 -> -3, 1 -> -1, 2 -> 4, _ -> 8 }) + (match 0u8 { 0 -> -6, 1 -> -2, 2 -> 2, _ -> 4 })) < 0)>) -> Flag<true> {
+    value
+}
+
+machine collapsed_quotient(value: SignedIndex<(0 / (8 / (match true { true -> 2, false -> (match true { true -> 4, false -> 600 }) })))>) -> SignedIndex<0> {
+    value
+}

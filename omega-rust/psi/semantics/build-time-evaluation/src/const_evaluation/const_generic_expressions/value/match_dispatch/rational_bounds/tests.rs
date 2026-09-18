@@ -93,17 +93,16 @@ fn lattice_gap_refinement_retains_every_sampled_point_in_original_bounds() {
                         }
                     }
                     let mut bounds = RationalBounds {
-                        containing_zero: Some(RationalCell {
-                            interval: RationalInterval {
-                                low: low.clone(),
-                                high: high.clone(),
-                            },
-                            lattice: Some(lattice),
-                        }),
                         fractional_history: true,
                         ..RationalBounds::default()
                     };
-                    bounds.refine_zero_gap();
+                    bounds.include_cell(
+                        RationalInterval {
+                            low: low.clone(),
+                            high: high.clone(),
+                        },
+                        Some(lattice),
+                    );
                     assert!(bounds.intervals().count() <= 3);
                     assert!(bounds.fractional_history);
                     for interval in bounds.intervals() {
@@ -141,7 +140,6 @@ fn joining_a_zero_arm_restores_the_nonzero_obligation() {
             .expect("defined difference");
         assert!(difference.excludes_zero(), "arithmetic split the zero gap");
         difference.include(RationalBounds::constant(fraction(0, 1)));
-        difference.refine_zero_gap();
         assert!(!difference.excludes_zero());
         assert!(
             RationalBounds::constant(fraction(1, 1))
@@ -442,6 +440,133 @@ fn each_result_hull_retains_the_gap_of_its_own_operand_pairs() {
     assert!(
         !sum.excludes_zero(),
         "-2+2Z reaches zero inside its own hull"
+    );
+}
+
+#[test]
+fn independent_operand_pairs_keep_their_own_zero_gaps() {
+    // Two operand pairs each span zero on a lattice that skips it:
+    // (-3+2Z)+(-6+4Z) is -9+2Z on [-9,-3] while (-3+2Z)+(2+2Z) is -1+2Z on
+    // [-1,3] and (4+4Z)+(-6+4Z) is -2+4Z on [-2,6]. Joining the two
+    // zero-spanning contributions first would merge -1+2Z with -2+4Z down to
+    // 1Z and reopen the pole; splitting each at its own gap retains the
+    // proof.
+    let mut left = RationalBounds::default();
+    left.include_cell(
+        RationalInterval {
+            low: fraction(-3, 1),
+            high: fraction(-1, 1),
+        },
+        Some(RationalLattice {
+            offset: fraction(-3, 1),
+            stride: fraction(2, 1),
+        }),
+    );
+    left.include_cell(
+        RationalInterval {
+            low: fraction(4, 1),
+            high: fraction(8, 1),
+        },
+        Some(RationalLattice {
+            offset: fraction(4, 1),
+            stride: fraction(4, 1),
+        }),
+    );
+    let mut right = RationalBounds::default();
+    right.include_cell(
+        RationalInterval {
+            low: fraction(-6, 1),
+            high: fraction(-2, 1),
+        },
+        Some(RationalLattice {
+            offset: fraction(-6, 1),
+            stride: fraction(4, 1),
+        }),
+    );
+    right.include_cell(
+        RationalInterval {
+            low: fraction(2, 1),
+            high: fraction(4, 1),
+        },
+        Some(RationalLattice {
+            offset: fraction(2, 1),
+            stride: fraction(2, 1),
+        }),
+    );
+    let sum = left
+        .apply(BinaryOperator::Add, &right)
+        .expect("defined sum");
+    assert!(
+        sum.excludes_zero(),
+        "each zero-spanning pair split at its own lattice gap"
+    );
+    // Every admissible sum still lands inside a retained hull, and none is
+    // zero.
+    for left_value in [-3, -1, 4, 8] {
+        for right_value in [-6, -2, 2, 4] {
+            let actual = fraction(left_value + right_value, 1);
+            assert!(!actual.is_zero());
+            assert!(
+                sum.intervals()
+                    .any(|interval| !interval.low.cmp_value(&actual).is_gt()
+                        && !interval.high.cmp_value(&actual).is_lt()),
+                "{actual:?} escapes every hull"
+            );
+        }
+    }
+}
+
+#[test]
+fn singleton_result_hulls_carry_their_own_exact_evidence() {
+    // A quotient over an unenumerable divisor hull collapses to one exact
+    // point: 0 divided by anything in [1/4, 4] is 0. No lattice survived the
+    // division, but the singleton interval itself is the integrality proof.
+    let divisors = RationalBounds {
+        positive: Some(RationalCell {
+            interval: RationalInterval {
+                low: fraction(1, 4),
+                high: fraction(4, 1),
+            },
+            lattice: None,
+        }),
+        ..RationalBounds::default()
+    };
+    let quotients = RationalBounds::constant(fraction(0, 1))
+        .apply(BinaryOperator::Divide, &divisors)
+        .expect("zero-free divisor hull");
+    assert!(quotients.has_integral_lattice());
+    assert!(!quotients.excludes_zero(), "the only admissible value is 0");
+    assert!(
+        quotients
+            .intervals()
+            .all(|interval| interval.low.is_zero() && interval.high.is_zero())
+    );
+
+    // A fractional singleton keeps its own non-integral evidence too: 1
+    // divided by a hull collapsed to {2} without a retained lattice is
+    // exactly 1/2, which still cannot land on an integer carrier.
+    let numerators = RationalBounds {
+        positive: Some(RationalCell {
+            interval: RationalInterval::constant(fraction(1, 1)),
+            lattice: None,
+        }),
+        ..RationalBounds::default()
+    };
+    let divisors = RationalBounds {
+        positive: Some(RationalCell {
+            interval: RationalInterval::constant(fraction(2, 1)),
+            lattice: None,
+        }),
+        ..RationalBounds::default()
+    };
+    let quotients = numerators
+        .apply(BinaryOperator::Divide, &divisors)
+        .expect("zero-free divisor");
+    assert!(!quotients.has_integral_lattice(), "1/2 is not integral");
+    assert!(
+        quotients
+            .intervals()
+            .all(|interval| interval.low == interval.high && interval.low == fraction(1, 2))
     );
 }
 
