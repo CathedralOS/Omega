@@ -3489,10 +3489,31 @@ Owners include
   parameter, or one projected linear child under an affine root -- with
   residual sibling claims staying live and consumable, and `1016f39c26`
   admits a fresh structural call product as an owned arm. Remaining borrowed
-  joins, in order: a primitive referent
-  (`&u64`) needs the structural pipeline to carry a non-record referent;
-  exclusive (`&mut`) arms have affine custody of their own; case-bearing
-  referents stay outside the record-shaped frontier. The remaining linear
+  joins: all of them are gated in one single place, which was measured rather
+  than inferred. The three the previous slice listed -- a primitive referent
+  (`&u64`), exclusive (`&mut`) arms, and case-bearing referents -- plus a
+  fourth that list never named, a fixed-index projection (`&x.items[0]`), all
+  reject today at `selected_shared_borrow_place` in validation. Forcing that
+  gate true admits all four through checked compilation, but the checked arm
+  planner then builds *zero* `SharedBorrow` argument plans for each (against
+  two for an already admitted record projection) and lowering reports
+  "machine has no source-independent checked scalar control plan". So none of
+  the four is a validation-side widening: each first needs `borrowed_place` /
+  `shared_record_reference` in `typed-trees-to-checked-trees/src/values/
+  scalar/computations/structural_values.rs` to build the carrier. A primitive
+  referent has no data declaration for the referent rule to resolve; a `&mut`
+  result is refused by `reference_result_custody::parts` (which admits only a
+  primitive referee) and has no MutableBorrow arm builder at all; a
+  case-bearing referent is excluded by the variant check; and a fixed-index
+  target fails `expression_is_direct_place_path`, which admits only
+  `Name`/`Member`. Widening that shared predicate is not a way around it: its
+  only other two call sites are both inside that same crate, so it would
+  change that crate's behavior invisibly to its owners. That crate was under
+  four concurrent claims, so this slice pinned the two previously unpinned
+  rejections instead
+  (`shared_borrow_arms_reject_referents_the_checked_arm_planner_cannot_carry`
+  in `validation/src/value_custody/expression_types/match_dispatch/tests.rs`,
+  macOS ARM64) and left the joins themselves undone. The remaining linear
   join -- a whole affine root carrying linear children, moved whole -- is
   blocked on the receipt representation rather than on the admission gate. A
   linear-bearing affine root gets no whole-place claim entry at all:
