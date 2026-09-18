@@ -81,11 +81,17 @@ pub enum AcceptedNativeInput<'input> {
 
 /// Explicit admission evidence and receiving inputs for accepted native production.
 /// Freely constructed receiving policies never substitute for package acceptance.
+///
+/// `receiving_terminal_authority_permission_policy` is the receiver-admission
+/// axis: `None` means this production makes no receiver-admission claim —
+/// accepted package rows stay package evidence only and are never projected
+/// into receiver permissions — while `Some` (including an explicit empty
+/// policy) rejoins every accepted row exactly.
 pub struct AcceptedNativeRealizationRequest<'request> {
     pub evidence: &'request AcceptedOrdinaryClosureEvidence,
     pub profile: &'request proof_admission::AdmissionProfile,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
-    pub receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
+    pub receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     pub imports: &'request [compiler::SourceEvaluatedImportSettlement<'request>],
 }
 

@@ -45,7 +45,7 @@ fn checked_adapter_port_write_requires_exact_physical_and_service_policy() {
         &plan,
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &[],
         std::slice::from_ref(&candidate),
     )
@@ -76,7 +76,7 @@ fn checked_adapter_port_write_requires_exact_physical_and_service_policy() {
                 &plan,
                 &selected,
                 &wrong_policy,
-                &permitted,
+                Some(&permitted),
                 &[],
                 std::slice::from_ref(&candidate),
             )
@@ -93,7 +93,7 @@ fn checked_adapter_port_write_requires_exact_physical_and_service_policy() {
             &plan,
             &selected,
             &physical,
-            &denied,
+            Some(&denied),
             &[],
             &[candidate],
         )
@@ -154,7 +154,7 @@ fn checked_adapter_port_write_rejects_service_target_and_plural_mechanism_drift(
             &plural,
             &selected,
             &physical,
-            &permitted,
+            Some(&permitted),
             &[],
             std::slice::from_ref(&candidate),
         )
@@ -176,7 +176,7 @@ fn checked_adapter_port_write_rejects_service_target_and_plural_mechanism_drift(
             &missing_service,
             &selected,
             &physical,
-            &permitted,
+            Some(&permitted),
             &[],
             std::slice::from_ref(&candidate),
         )
@@ -196,7 +196,7 @@ fn checked_adapter_port_write_rejects_service_target_and_plural_mechanism_drift(
             &one,
             &selected,
             &physical,
-            &permitted,
+            Some(&permitted),
             &[],
             std::slice::from_ref(&candidate),
         )
@@ -220,7 +220,7 @@ fn checked_adapter_port_write_rejects_service_target_and_plural_mechanism_drift(
             &one,
             &arm_selected,
             &arm_physical,
-            &arm_permitted,
+            Some(&arm_permitted),
             &[],
             &[candidate],
         )

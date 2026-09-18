@@ -142,8 +142,9 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
                 image_request: image_emission::ExecutableImageEmissionRequest::direct(3),
                 profile: &profile,
                 terminal_authority_policy: crate::current_terminal_authority_policy(),
-                terminal_authority_permission_policy:
+                terminal_authority_permission_policy: Some(
                     crate::current_terminal_authority_permission_policy(),
+                ),
                 program_entry: crate::NativeProgramEntrySettlement::new(&signature, None, &[]),
                 optimization_selections: &selections,
                 selected_provider_plans: &providers,

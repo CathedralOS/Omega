@@ -125,7 +125,7 @@ fn publish(
         target,
         selected_digest,
         physical_policy.identity(),
-        permission_policy.identity(),
+        Some(permission_policy.identity()),
         Vec::new(),
     )
     .unwrap();
@@ -143,7 +143,7 @@ fn publish(
             selected_provider_plans: Vec::new(),
             provider_executions: Vec::new(),
             terminal_authority_policy_identity: physical_policy.identity(),
-            terminal_authority_permission_policy_identity: permission_policy.identity(),
+            terminal_authority_permission_policy_identity: Some(permission_policy.identity()),
             terminal_authority_closure_review: closure_review,
             boundary_application_coverage: None,
             physical_evidence_scope: native_artifact::NativePhysicalEvidenceScope::Unavailable,

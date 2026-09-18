@@ -142,10 +142,15 @@ impl<'a> Reviewer<'a> {
                     unclassified.mechanism()
                 )
             })?;
+        // The receiver-admission axis is consulted only when a receiving
+        // permission policy was explicitly supplied. Without one the leaf
+        // carries its physical classification and exercised authority with no
+        // adjudicated permission; the leaf cannot claim admission later.
         let permitted = self
             .context
             .permission_policy
-            .permission_for(schema, requirement)
+            .map(|policy| policy.permission_for(schema, requirement))
+            .transpose()
             .map_err(|_| {
                 format!(
                     "receiving terminal-authority permission policy has no exact row for `{requirement}`"

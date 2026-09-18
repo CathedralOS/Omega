@@ -94,7 +94,9 @@ fn request<'request>(
         image_request: image_emission::ExecutableImageEmissionRequest::direct(3),
         profile,
         terminal_authority_policy: crate::current_compiler_intrinsic_terminal_authority_policy(),
-        terminal_authority_permission_policy: crate::current_terminal_authority_permission_policy(),
+        terminal_authority_permission_policy: Some(
+            crate::current_terminal_authority_permission_policy(),
+        ),
         program_entry: NativeProgramEntrySettlement::new(
             signature,
             plans.map(crate::tests::fixtures::hosted::paired_calling_plan_parts),

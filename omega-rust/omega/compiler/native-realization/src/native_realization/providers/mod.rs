@@ -21,8 +21,10 @@ pub(crate) struct AdmittedNativeProviders<'execution> {
     pub(crate) settlements: Vec<AdmittedBoundarySettlement<'execution>>,
     pub(crate) executions: Vec<NativeProviderExecution>,
     pub(crate) terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
+    /// `Some` only when a receiving permission policy was explicitly supplied;
+    /// `None` means the artifact makes no receiver-admission claim.
     pub(crate) terminal_authority_permission_policy_identity:
-        effects::TerminalAuthorityPermissionPolicyIdentity,
+        Option<effects::TerminalAuthorityPermissionPolicyIdentity>,
     pub(crate) terminal_authority_closure_review: effects::TerminalAuthorityClosureReviewReceipt,
     pub(crate) installation: Option<AdmittedProviderInstallation>,
 }
@@ -61,7 +63,7 @@ pub(crate) fn admit_native_providers<'request>(
             input.plan(),
             request.selected_provider_plans,
             &request.terminal_authority_policy,
-            &request.terminal_authority_permission_policy,
+            request.terminal_authority_permission_policy.as_ref(),
             &mechanisms,
             installation
                 .as_ref()
@@ -80,7 +82,8 @@ pub(crate) fn admit_native_providers<'request>(
         terminal_authority_policy_identity: request.terminal_authority_policy.identity(),
         terminal_authority_permission_policy_identity: request
             .terminal_authority_permission_policy
-            .identity(),
+            .as_ref()
+            .map(|policy| policy.identity()),
         terminal_authority_closure_review,
         installation,
     })

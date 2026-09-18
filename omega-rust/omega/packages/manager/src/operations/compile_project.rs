@@ -14,18 +14,21 @@ use crate::review::{
 use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
 use diagnostics::Diagnostic;
 use native_realization::{
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
-    current_terminal_authority_permission_policy, current_terminal_authority_policy,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
 };
 use std::fmt;
 use std::path::PathBuf;
 
 /// Complete policy and output input for one package-aware native production.
 ///
-/// Construction defaults to the toolchain's explicit deny-by-absence
-/// receiving permission policy and empty explicit mechanism rows. Callers may
-/// replace either policy, but package acceptance is checked against the
-/// prepared project's accepted lock target.
+/// Construction defaults to the toolchain's mechanism-classification policy
+/// and no receiving permission policy. An absent receiving policy is not a
+/// deny-all or allow-all policy: production then makes no receiver-admission
+/// claim, never fabricates receiver rows from accepted package evidence, and
+/// the emitted artifact cannot satisfy an explicit admission replay. Callers
+/// may replace the mechanism policy or explicitly supply a receiving policy;
+/// package acceptance is checked against the prepared project's accepted lock
+/// target regardless.
 pub struct PreparedLocalProjectNativeRequest {
     prepared: PreparedLocalProject,
     build_dir: PathBuf,
@@ -34,7 +37,7 @@ pub struct PreparedLocalProjectNativeRequest {
     accepted_trust_admissions: Vec<TrustAdmission>,
     optimization_rollback: OptimizationRollback,
     terminal_authority_policy: TerminalAuthorityPolicy,
-    receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
+    receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
 }
 
 impl PreparedLocalProjectNativeRequest {
@@ -51,8 +54,7 @@ impl PreparedLocalProjectNativeRequest {
             accepted_trust_admissions: Vec::new(),
             optimization_rollback: OptimizationRollback::default(),
             terminal_authority_policy: current_terminal_authority_policy(),
-            receiving_terminal_authority_permission_policy:
-                current_terminal_authority_permission_policy(),
+            receiving_terminal_authority_permission_policy: None,
         }
     }
 
@@ -75,11 +77,14 @@ impl PreparedLocalProjectNativeRequest {
         self
     }
 
+    /// Supply an explicit receiving permission policy. Calling this is the
+    /// only way package production claims receiver admission; the policy is
+    /// adjudicated exactly as supplied, including an explicit empty policy.
     pub fn with_receiving_terminal_authority_permission_policy(
         mut self,
         policy: TerminalAuthorityPermissionPolicy,
     ) -> Self {
-        self.receiving_terminal_authority_permission_policy = policy;
+        self.receiving_terminal_authority_permission_policy = Some(policy);
         self
     }
 }

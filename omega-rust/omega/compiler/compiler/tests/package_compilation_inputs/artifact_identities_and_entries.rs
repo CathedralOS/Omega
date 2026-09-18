@@ -636,7 +636,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 optimization_selections: &optimizations,
                 terminal_authority_policy: native_realization::current_terminal_authority_policy(),
                 accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
-                terminal_authority_permission_policy: accepted_permission_policy(),
+                terminal_authority_permission_policy: Some(accepted_permission_policy()),
                 image_request,
                 imports: &[],
             },
@@ -655,6 +655,64 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             .message
             .contains("differ from the independently accepted package policy")),
         "unexpected omitted-proposal diagnostics: {omitted:#?}",
+    );
+
+    // Retained production without a receiving permission policy emits an
+    // artifact that carries exact package custody but no receiver-admission
+    // claim: the accepted package row is never projected into a receiver row.
+    let unclaimed = {
+        let retained = compile_retained("retained-no-receiving-policy");
+        let image_request = native_realization::ExecutableImageEmissionRequest::direct(
+            retained
+                .native_realization_proposal()
+                .expect("native proposal")
+                .subsystem(),
+        );
+        realize_retained_native_artifact(
+            retained,
+            RetainedNativeRealizationRequest {
+                profile: &profile,
+                optimization_selections: &optimizations,
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
+                terminal_authority_permission_policy: None,
+                image_request,
+                imports: &[],
+            },
+        )
+        .map(|artifact| match artifact {
+            native_realization::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_realization::RequestedNativeArtifact::DynamicElf(_) => {
+                panic!("direct image request returned dynamic ELF custody")
+            }
+        })
+        .map_err(|(_, diagnostics)| diagnostics)
+    }
+    .expect("retained production without a receiving policy emits an artifact");
+    assert_eq!(
+        unclaimed.terminal_authority_permission_policy_identity(),
+        None,
+        "absent receiving policy is not an empty policy and mints no identity",
+    );
+    assert!(
+        unclaimed
+            .terminal_authority_closure_review()
+            .leaves()
+            .iter()
+            .all(|leaf| leaf.permitted().is_none()),
+        "no leaf may carry a receiver-admission verdict without a receiving policy",
+    );
+    let accepted_policy_identity =
+        native_realization::current_terminal_authority_permission_policy().identity();
+    assert!(
+        unclaimed
+            .validate_for_terminal_authority_policies(
+                unclaimed.terminal_authority_policy_identity(),
+                accepted_policy_identity,
+                unclaimed.terminal_authority_closure_review().identity(),
+            )
+            .is_err(),
+        "an artifact with no receiver-admission claim cannot satisfy explicit admission replay",
     );
 
     let widened_permission = effects::ServiceTerminalAuthorityPermission::new(
@@ -681,13 +739,13 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 optimization_selections: &optimizations,
                 terminal_authority_policy: native_realization::current_terminal_authority_policy(),
                 accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
-                terminal_authority_permission_policy: permission_policy(
+                terminal_authority_permission_policy: Some(permission_policy(
                     &[
                         effects::TerminalAuthorityClass::ProcessOutput,
                         effects::TerminalAuthorityClass::ProcessTermination,
                     ],
                     false,
-                ),
+                )),
                 image_request,
                 imports: &[],
             },
@@ -723,8 +781,9 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 optimization_selections: &optimizations,
                 terminal_authority_policy: native_realization::current_terminal_authority_policy(),
                 accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
-                terminal_authority_permission_policy:
+                terminal_authority_permission_policy: Some(
                     native_realization::current_terminal_authority_permission_policy(),
+                ),
                 image_request,
                 imports: &[],
             },
@@ -760,10 +819,10 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 optimization_selections: &optimizations,
                 terminal_authority_policy: native_realization::current_terminal_authority_policy(),
                 accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
-                terminal_authority_permission_policy: permission_policy(
+                terminal_authority_permission_policy: Some(permission_policy(
                     &[effects::TerminalAuthorityClass::ProcessOutput],
                     false,
-                ),
+                )),
                 image_request,
                 imports: &[],
             },
@@ -801,7 +860,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 optimization_selections: &optimizations,
                 terminal_authority_policy: native_realization::current_terminal_authority_policy(),
                 accepted_package_terminal_authority_permission_policy: accepted_permission_policy(),
-                terminal_authority_permission_policy: retained_policy,
+                terminal_authority_permission_policy: Some(retained_policy),
                 image_request,
                 imports: &[],
             },
@@ -817,7 +876,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     .expect("exact retained permission plus an unrelated row should realize");
     assert_eq!(
         retained_native.terminal_authority_permission_policy_identity(),
-        accepted_policy_identity,
+        Some(accepted_policy_identity),
     );
 
     let report = compile(
@@ -848,7 +907,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             .retained_native_artifact()
             .expect("direct native request retains its artifact")
             .terminal_authority_permission_policy_identity(),
-        accepted_policy_identity,
+        Some(accepted_policy_identity),
         "direct and retained native routes must consume the same exact policy identity",
     );
 }

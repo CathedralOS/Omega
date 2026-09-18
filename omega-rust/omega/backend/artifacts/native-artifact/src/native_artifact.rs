@@ -50,7 +50,8 @@ pub struct NativeArtifact {
     selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    terminal_authority_permission_policy_identity:
+        Option<TerminalAuthorityPermissionPolicyIdentity>,
     terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
@@ -69,7 +70,12 @@ pub struct NativeArtifactParts {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    pub terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    /// The exact receiving permission policy this artifact was realized under,
+    /// or `None` when production ran without a receiver-admission claim. `None`
+    /// never means an empty policy and cannot satisfy explicit admission
+    /// replay.
+    pub terminal_authority_permission_policy_identity:
+        Option<TerminalAuthorityPermissionPolicyIdentity>,
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
@@ -90,7 +96,10 @@ pub struct NativeArtifactEmissionParts {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    pub terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    /// The exact receiving permission policy this emission was realized under,
+    /// or `None` when production ran without a receiver-admission claim.
+    pub terminal_authority_permission_policy_identity:
+        Option<TerminalAuthorityPermissionPolicyIdentity>,
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
@@ -441,9 +450,11 @@ impl NativeArtifact {
         self.terminal_authority_policy_identity
     }
 
+    /// The receiving permission-policy identity this artifact was realized
+    /// under, or `None` when production made no receiver-admission claim.
     pub const fn terminal_authority_permission_policy_identity(
         &self,
-    ) -> TerminalAuthorityPermissionPolicyIdentity {
+    ) -> Option<TerminalAuthorityPermissionPolicyIdentity> {
         self.terminal_authority_permission_policy_identity
     }
 
@@ -480,6 +491,10 @@ impl NativeArtifact {
     /// result of the receiver's actual closure review are independently
     /// accepted inputs; structural validation of freely constructible receipt
     /// data cannot confer receiving authority by itself.
+    ///
+    /// An artifact realized without a receiving permission policy carries no
+    /// receiver-admission claim: this explicit admission replay rejects it
+    /// rather than treating absence as an empty or implied policy.
     pub fn validate_for_terminal_authority_policies(
         &self,
         accepted_physical: TerminalAuthorityPolicyIdentity,
@@ -487,7 +502,7 @@ impl NativeArtifact {
         accepted_closure_review: [u8; 32],
     ) -> Result<(), &'static str> {
         self.validate_for_terminal_authority_policy(accepted_physical)?;
-        if self.terminal_authority_permission_policy_identity != accepted_permission {
+        if self.terminal_authority_permission_policy_identity != Some(accepted_permission) {
             return Err("native artifact terminal-authority permission policy is not accepted");
         }
         if self.terminal_authority_closure_review.identity() != accepted_closure_review {

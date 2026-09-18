@@ -93,8 +93,15 @@ pub struct NativeRealizationRequest<'request> {
     pub terminal_authority_policy: crate::native_realization::TerminalAuthorityPolicy,
     /// Independently accepted exact service-schema/requirement permissions.
     /// Physical classification cannot manufacture or widen these rows.
+    ///
+    /// `None` means this realization makes no receiver-admission claim:
+    /// package permissions are not projected into receiver rows, closure
+    /// leaves record classification and exercised authority only, and the
+    /// emitted artifact can never satisfy an explicit admission replay. `None`
+    /// is not deny-all, allow-all, or a policy fabricated from accepted
+    /// package rows; `Some` with zero rows remains an explicit empty policy.
     pub terminal_authority_permission_policy:
-        crate::native_realization::TerminalAuthorityPermissionPolicy,
+        Option<crate::native_realization::TerminalAuthorityPermissionPolicy>,
     pub program_entry: NativeProgramEntrySettlement<'request>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,

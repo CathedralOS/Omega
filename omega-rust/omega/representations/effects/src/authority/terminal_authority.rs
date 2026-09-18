@@ -734,6 +734,12 @@ impl TerminalAuthorityPermissionPolicyIdentity {
 ///
 /// Provider context remains evidence of which selected row was traversed; it
 /// never alters the physical classification or the service permission.
+///
+/// `permitted` carries the exact receiver-admission verdict only when a
+/// receiving permission policy was explicitly supplied for the review. `None`
+/// records that this leaf makes no receiver-admission claim: it is neither an
+/// allow-all nor a deny-all row, and it cannot be replayed as admission
+/// evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityClosureLeaf {
     service_schema: crate::provider_plan::ServiceSchemaDigest,
@@ -741,7 +747,7 @@ pub struct TerminalAuthorityClosureLeaf {
     provider_plan: crate::provider_plan::ProviderPlanDigest,
     mechanism: TerminalMechanismIdentity,
     exercised: TerminalAuthorityDisposition,
-    permitted: TerminalAuthorityDisposition,
+    permitted: Option<TerminalAuthorityDisposition>,
 }
 
 impl TerminalAuthorityClosureLeaf {
@@ -751,12 +757,14 @@ impl TerminalAuthorityClosureLeaf {
         provider_plan: crate::provider_plan::ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
         exercised: TerminalAuthorityDisposition,
-        permitted: TerminalAuthorityDisposition,
+        permitted: Option<TerminalAuthorityDisposition>,
     ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
         if requirement_identity.is_empty() {
             return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
         }
-        if !permitted.contains_all(&exercised) {
+        if let Some(permitted) = &permitted
+            && !permitted.contains_all(&exercised)
+        {
             return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
         }
         Ok(Self {
@@ -789,20 +797,29 @@ impl TerminalAuthorityClosureLeaf {
         &self.exercised
     }
 
-    pub const fn permitted(&self) -> &TerminalAuthorityDisposition {
-        &self.permitted
+    /// The exact permission this leaf was admitted under, or `None` when the
+    /// review ran without a receiving permission policy. `None` is the
+    /// absence of an admission claim, not an explicit empty disposition.
+    pub const fn permitted(&self) -> Option<&TerminalAuthorityDisposition> {
+        self.permitted.as_ref()
     }
 }
 
 /// Canonical receiving-authority receipt for one complete selected-provider
 /// closure over the terminal mechanism roles implemented by this compiler.
+///
+/// `permission_policy` is `Some` only when a receiving permission policy was
+/// explicitly supplied and adjudicated every leaf. `None` means the review
+/// recorded physical classification and exercised authority without making
+/// any receiver-admission claim; such a receipt can never satisfy an explicit
+/// admission replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityClosureReviewReceipt {
     terminal_artifact_identity: [u8; 32],
     target: target::NativeTarget,
     selected_provider_closure: crate::SelectedProviderClosureDigest,
     physical_policy: TerminalAuthorityPolicyIdentity,
-    permission_policy: TerminalAuthorityPermissionPolicyIdentity,
+    permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: Vec<TerminalAuthorityClosureLeaf>,
     identity: [u8; 32],
 }
@@ -817,7 +834,7 @@ impl TerminalAuthorityClosureReviewReceipt {
         target: target::NativeTarget,
         selected_provider_closure: crate::SelectedProviderClosureDigest,
         physical_policy: TerminalAuthorityPolicyIdentity,
-        permission_policy: TerminalAuthorityPermissionPolicyIdentity,
+        permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
         mut leaves: Vec<TerminalAuthorityClosureLeaf>,
     ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
         leaves.sort_by(compare_closure_leaves);
@@ -827,10 +844,20 @@ impl TerminalAuthorityClosureReviewReceipt {
         {
             return Err(TerminalAuthorityClosureReviewBuildError::DuplicateRequirementLeaf);
         }
+        // The receiver-admission axis is all-or-nothing: a receipt that names
+        // a permission policy must show its verdict on every leaf, and a
+        // receipt without one cannot carry an adjudicated leaf.
         if leaves
             .iter()
-            .any(|leaf| !leaf.permitted.contains_all(&leaf.exercised))
+            .any(|leaf| leaf.permitted.is_some() != permission_policy.is_some())
         {
+            return Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent);
+        }
+        if leaves.iter().any(|leaf| {
+            leaf.permitted
+                .as_ref()
+                .is_some_and(|permitted| !permitted.contains_all(&leaf.exercised))
+        }) {
             return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
         }
         let identity = terminal_authority_closure_review_identity(
@@ -868,7 +895,10 @@ impl TerminalAuthorityClosureReviewReceipt {
         self.physical_policy
     }
 
-    pub const fn permission_policy(&self) -> TerminalAuthorityPermissionPolicyIdentity {
+    /// The receiving permission-policy identity this receipt was reviewed
+    /// under, or `None` when no receiving policy was supplied and the review
+    /// therefore made no receiver-admission claim.
+    pub const fn permission_policy(&self) -> Option<TerminalAuthorityPermissionPolicyIdentity> {
         self.permission_policy
     }
 
@@ -897,8 +927,15 @@ impl TerminalAuthorityClosureReviewReceipt {
         if self
             .leaves
             .iter()
-            .any(|leaf| !leaf.permitted.contains_all(&leaf.exercised))
+            .any(|leaf| leaf.permitted.is_some() != self.permission_policy.is_some())
         {
+            return Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent);
+        }
+        if self.leaves.iter().any(|leaf| {
+            leaf.permitted
+                .as_ref()
+                .is_some_and(|permitted| !permitted.contains_all(&leaf.exercised))
+        }) {
             return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
         }
         let expected = terminal_authority_closure_review_identity(
@@ -921,6 +958,10 @@ pub enum TerminalAuthorityClosureReviewBuildError {
     EmptyRequirement,
     DuplicateRequirementLeaf,
     NonCanonicalLeaves,
+    /// A receipt mixing a present permission-policy identity with
+    /// unadjudicated leaves, or naming no policy while carrying adjudicated
+    /// leaves, does not form one consistent receiver-admission axis.
+    AdmissionAxisInconsistent,
     ExercisedAuthorityNotPermitted,
     IdentityMismatch,
 }
@@ -958,11 +999,11 @@ fn terminal_authority_closure_review_identity(
     target: target::NativeTarget,
     selected_provider_closure: crate::SelectedProviderClosureDigest,
     physical_policy: TerminalAuthorityPolicyIdentity,
-    permission_policy: TerminalAuthorityPermissionPolicyIdentity,
+    permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: &[TerminalAuthorityClosureLeaf],
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.terminal-authority.closure-review.v1\0");
+    digest.update(b"omega.terminal-authority.closure-review.v2\0");
     digest.update(terminal_artifact_identity);
     digest.update([match target.architecture {
         target::Architecture::Aarch64 => 0,
@@ -978,8 +1019,16 @@ fn terminal_authority_closure_review_identity(
     digest.update(selected_provider_closure.as_bytes());
     digest.update(physical_policy.version().to_be_bytes());
     digest.update(physical_policy.commitment());
-    digest.update(permission_policy.version().to_be_bytes());
-    digest.update(permission_policy.commitment());
+    // Absence is its own encoding: a receiver-less review never aliases an
+    // explicit empty or populated permission-policy identity.
+    match permission_policy {
+        None => digest.update([0]),
+        Some(permission_policy) => {
+            digest.update([1]);
+            digest.update(permission_policy.version().to_be_bytes());
+            digest.update(permission_policy.commitment());
+        }
+    }
     digest.update((leaves.len() as u64).to_be_bytes());
     for leaf in leaves {
         digest.update(leaf.service_schema.as_bytes());
@@ -990,7 +1039,13 @@ fn terminal_authority_closure_review_identity(
         digest.update((mechanism.len() as u64).to_be_bytes());
         digest.update(mechanism);
         encode_authority_classes(&mut digest, &leaf.exercised);
-        encode_authority_classes(&mut digest, &leaf.permitted);
+        match &leaf.permitted {
+            None => digest.update([0]),
+            Some(permitted) => {
+                digest.update([1]);
+                encode_authority_classes(&mut digest, permitted);
+            }
+        }
     }
     digest.finalize().into()
 }
@@ -1238,5 +1293,84 @@ mod tests {
         assert_eq!(checked_bytes[admitted_bytes.len()], 1);
         assert_eq!(&checked_bytes[admitted_bytes.len() + 1..], &[1; 32]);
         assert_ne!(checked_bytes, other_checked_bytes);
+    }
+
+    fn closure_leaf(
+        permitted: Option<TerminalAuthorityDisposition>,
+    ) -> super::TerminalAuthorityClosureLeaf {
+        super::TerminalAuthorityClosureLeaf::new(
+            crate::provider_plan::ServiceSchemaDigest::from_digest([41; 32]),
+            "test::Console::exit()".to_owned(),
+            crate::provider_plan::ProviderPlanDigest::from_digest([43; 32]),
+            CompilerIntrinsicExecutionIdentity::HostedExitProcessI32.into(),
+            TerminalAuthorityDisposition::from_classes([
+                TerminalAuthorityClass::ProcessTermination,
+            ]),
+            permitted,
+        )
+        .expect("fixture leaf")
+    }
+
+    fn closure_receipt(
+        permission_policy: Option<super::TerminalAuthorityPermissionPolicyIdentity>,
+        leaves: Vec<super::TerminalAuthorityClosureLeaf>,
+    ) -> Result<
+        super::TerminalAuthorityClosureReviewReceipt,
+        super::TerminalAuthorityClosureReviewBuildError,
+    > {
+        super::TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+            [7; 32],
+            target::NativeTarget::linux_x64(),
+            crate::SelectedProviderPlanFacts::default().identity_digest(),
+            super::TerminalAuthorityPolicyIdentity::from_parts(1, [11; 32]),
+            permission_policy,
+            leaves,
+        )
+    }
+
+    #[test]
+    fn closure_review_distinguishes_absent_and_explicit_permission_policies() {
+        let disposition = TerminalAuthorityDisposition::from_classes([
+            TerminalAuthorityClass::ProcessTermination,
+        ]);
+        let unclaimed = closure_receipt(None, vec![closure_leaf(None)])
+            .expect("a receiver-less review is a valid receipt");
+        assert_eq!(unclaimed.permission_policy(), None);
+        unclaimed
+            .validate()
+            .expect("the unclaimed receipt replays its canonical identity");
+
+        let explicit = super::TerminalAuthorityPermissionPolicyIdentity::from_parts(1, [17; 32]);
+        let claimed = closure_receipt(Some(explicit), vec![closure_leaf(Some(disposition))])
+            .expect("an adjudicated receipt is a valid receipt");
+        assert_eq!(claimed.permission_policy(), Some(explicit));
+        claimed.validate().expect("the claimed receipt replays");
+
+        // Absence is its own identity input, never an alias for any supplied
+        // policy — including an explicit empty policy, which still mints a
+        // Some(identity) marker.
+        assert_ne!(unclaimed.identity(), claimed.identity());
+        assert_ne!(
+            unclaimed.leaves()[0].permitted(),
+            claimed.leaves()[0].permitted()
+        );
+    }
+
+    #[test]
+    fn closure_review_rejects_a_mixed_receiver_admission_axis() {
+        let explicit = super::TerminalAuthorityPermissionPolicyIdentity::from_parts(1, [17; 32]);
+        let disposition = TerminalAuthorityDisposition::from_classes([
+            TerminalAuthorityClass::ProcessTermination,
+        ]);
+        // A named policy cannot cover an unadjudicated leaf.
+        assert_eq!(
+            closure_receipt(Some(explicit), vec![closure_leaf(None)]),
+            Err(super::TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent),
+        );
+        // A receiver-less receipt cannot carry an adjudicated leaf.
+        assert_eq!(
+            closure_receipt(None, vec![closure_leaf(Some(disposition))]),
+            Err(super::TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent),
+        );
     }
 }

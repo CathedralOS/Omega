@@ -866,7 +866,7 @@ fn realize_linux_dynamic(
             terminal_authority_policy: policy,
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy: permission_policy,
+            terminal_authority_permission_policy: Some(permission_policy),
             image_request: native::ExecutableImageEmissionRequest::dynamic_elf(interpreter),
             imports: &[SourceEvaluatedImportSettlement::new(
                 &admission.execution,

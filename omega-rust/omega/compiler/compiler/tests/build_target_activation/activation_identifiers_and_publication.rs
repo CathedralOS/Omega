@@ -201,8 +201,9 @@ fn retained_native_realization_binds_the_image_request_to_the_proposal_subsystem
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy:
+            terminal_authority_permission_policy: Some(
                 native_realization::current_terminal_authority_permission_policy(),
+            ),
             image_request: native_realization::ExecutableImageEmissionRequest::direct(
                 retained_subsystem + 1,
             ),
@@ -259,8 +260,9 @@ fn retained_native_realization_binds_the_retained_identifier_into_signed_bytes()
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy:
+            terminal_authority_permission_policy: Some(
                 native_realization::current_terminal_authority_permission_policy(),
+            ),
             image_request: native_realization::ExecutableImageEmissionRequest::direct(
                 retained_subsystem,
             ),
@@ -320,8 +322,9 @@ fn retained_native_realization_rejects_a_conflicting_request_identifier() {
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy:
+            terminal_authority_permission_policy: Some(
                 native_realization::current_terminal_authority_permission_policy(),
+            ),
             image_request: native_realization::ExecutableImageEmissionRequest::direct(
                 retained_subsystem,
             )
@@ -376,8 +379,9 @@ fn macos_gui_image_emission_requires_the_authored_identifier() {
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy:
+            terminal_authority_permission_policy: Some(
                 native_realization::current_terminal_authority_permission_policy(),
+            ),
             image_request: native_realization::ExecutableImageEmissionRequest::direct(
                 retained_subsystem,
             ),
@@ -426,8 +430,9 @@ fn macos_gui_image_emission_requires_the_authored_identifier() {
             terminal_authority_policy: native_realization::current_terminal_authority_policy(),
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy:
+            terminal_authority_permission_policy: Some(
                 native_realization::current_terminal_authority_permission_policy(),
+            ),
             image_request: native_realization::ExecutableImageEmissionRequest::direct(
                 retained_subsystem,
             )

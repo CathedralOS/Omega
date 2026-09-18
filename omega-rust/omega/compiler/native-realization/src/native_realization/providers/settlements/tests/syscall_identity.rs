@@ -516,7 +516,7 @@ fn settlement_derives_the_exact_checked_syscall_mechanism_and_rejects_substituti
             &plan,
             &selected,
             &policy,
-            &permission,
+            Some(&permission),
             &admitted,
             &[],
         )

@@ -24,7 +24,9 @@ fn native_realization_returns_exact_ordered_callback_custody_on_success() {
             image_request: image_emission::ExecutableImageEmissionRequest::direct(3),
             profile: &profile,
             terminal_authority_policy: current_compiler_intrinsic_terminal_authority_policy(),
-            terminal_authority_permission_policy: current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: Some(
+                current_terminal_authority_permission_policy(),
+            ),
             program_entry: NativeProgramEntrySettlement::new(
                 &source,
                 Some(paired_calling_plan_parts(&plans)),
@@ -79,7 +81,9 @@ fn native_realization_rejection_returns_callback_custody_without_reordering() {
             ),
             profile: &profile,
             terminal_authority_policy: current_compiler_intrinsic_terminal_authority_policy(),
-            terminal_authority_permission_policy: current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: Some(
+                current_terminal_authority_permission_policy(),
+            ),
             program_entry: NativeProgramEntrySettlement::new(
                 &source,
                 Some(paired_calling_plan_parts(&plans)),

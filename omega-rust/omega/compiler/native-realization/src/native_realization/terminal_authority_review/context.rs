@@ -49,7 +49,11 @@ pub(super) struct ReviewContext<'a> {
         BTreeMap<BoundaryMachineId, &'a terminal_psi::BoundaryMachineDeclaration>,
     pub(super) selected: &'a SelectedProviderPlanFacts,
     pub(super) physical_policy: &'a TerminalAuthorityPolicy,
-    pub(super) permission_policy: &'a TerminalAuthorityPermissionPolicy,
+    /// The explicitly supplied receiving permission policy, or `None` when the
+    /// review makes no receiver-admission claim. `None` is not deny-all or
+    /// allow-all: leaves then record classification and exercised authority
+    /// with no adjudicated permission.
+    pub(super) permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
     pub(super) mechanisms: BTreeMap<BoundaryMachineId, TerminalMechanismIdentity>,
     pub(super) installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     target_profile: target::TargetProfile,
@@ -61,7 +65,7 @@ impl<'a> ReviewContext<'a> {
         plan: &'a AbstractOperationPlan,
         selected: &'a SelectedProviderPlanFacts,
         physical_policy: &'a TerminalAuthorityPolicy,
-        permission_policy: &'a TerminalAuthorityPermissionPolicy,
+        permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
         mechanisms: &[AdmittedTerminalMechanism],
         installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     ) -> Result<Self, String> {

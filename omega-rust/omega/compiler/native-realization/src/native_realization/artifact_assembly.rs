@@ -17,8 +17,9 @@ pub(crate) fn assemble_requested_native_artifact(
     object: image_emission::ObjectArtifact,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
-    terminal_authority_permission_policy_identity:
+    terminal_authority_permission_policy_identity: Option<
         effects::TerminalAuthorityPermissionPolicyIdentity,
+    >,
     terminal_authority_closure_review: effects::TerminalAuthorityClosureReviewReceipt,
     boundary_application_coverage: Option<
         boundary_applications::TerminalBoundaryApplicationCoverage,

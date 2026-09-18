@@ -334,7 +334,7 @@ fn intrinsic_leaf_requires_exact_service_permission() {
         &plan,
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &[intrinsic_mechanism(1)],
         &[],
     )
@@ -354,7 +354,7 @@ fn intrinsic_leaf_requires_exact_service_permission() {
             &plan,
             &selected,
             &physical,
-            &denied,
+            Some(&denied),
             &[intrinsic_mechanism(1)],
             &[],
         )
@@ -368,13 +368,79 @@ fn intrinsic_leaf_requires_exact_service_permission() {
                 &plan,
                 &selected,
                 &physical,
-                &super::super::terminal_authority_permission_policy::current_terminal_authority_permission_policy(),
+                Some(&super::super::terminal_authority_permission_policy::current_terminal_authority_permission_policy()),
                 &[intrinsic_mechanism(1)],
                 &[],
             )
             .expect_err("missing exact permission rejects")
             .contains("no exact row")
         );
+}
+
+#[test]
+fn absent_permission_policy_records_no_receiver_admission_claim() {
+    let leaf = selected_plan(
+        "leaf",
+        "LeafProvider",
+        LEAF_REQUIREMENT,
+        ProviderBinding::CompilerIntrinsic {
+            machine: "test::hosted_exit_process_i32".to_owned(),
+        },
+    );
+    let selected =
+        SelectedProviderPlanFacts::from_selected_plans(vec![leaf.clone()]).expect("selected leaf");
+    let plan = abstract_plan(
+        vec![boundary(1, LEAF_REQUIREMENT)],
+        Vec::new(),
+        vec![function(1, &[1])],
+    );
+    let physical = super::super::terminal_authority_policy::current_terminal_authority_policy();
+
+    // `None` is not deny-all: physical classification and exercised authority
+    // still review normally, but no leaf carries an adjudicated permission.
+    let unclaimed = review_terminal_authority_closure(
+        [7; 32],
+        target::TargetProfile::LinuxX64,
+        &plan,
+        &selected,
+        &physical,
+        None,
+        &[intrinsic_mechanism(1)],
+        &[],
+    )
+    .expect("ordinary production reviews without a receiving policy");
+    assert_eq!(unclaimed.leaves().len(), 1);
+    assert_eq!(
+        unclaimed.leaves()[0].exercised().classes(),
+        &[TerminalAuthorityClass::ProcessTermination]
+    );
+    assert_eq!(unclaimed.leaves()[0].permitted(), None);
+    assert_eq!(unclaimed.permission_policy(), None);
+    unclaimed
+        .validate()
+        .expect("unclaimed receipt replays its canonical identity");
+
+    // `None` is also not allow-all: it cannot alias any explicit admission.
+    let disposition =
+        TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::ProcessTermination]);
+    let permitted = permission_policy(&[&leaf], disposition.clone());
+    let claimed = review_terminal_authority_closure(
+        [7; 32],
+        target::TargetProfile::LinuxX64,
+        &plan,
+        &selected,
+        &physical,
+        Some(&permitted),
+        &[intrinsic_mechanism(1)],
+        &[],
+    )
+    .expect("explicit admission reviews the same closure");
+    assert_eq!(claimed.leaves()[0].permitted(), Some(&disposition));
+    assert_ne!(
+        unclaimed.identity(),
+        claimed.identity(),
+        "absent and present receiver policies mint distinct review identities",
+    );
 }
 
 #[test]
@@ -419,7 +485,7 @@ fn portable_filesystem_facets_cover_their_exact_selected_closure_rows() {
             &plan,
             &selected,
             &physical,
-            &permitted,
+            Some(&permitted),
             &[AdmittedTerminalMechanism {
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 mechanism,
@@ -428,7 +494,7 @@ fn portable_filesystem_facets_cover_their_exact_selected_closure_rows() {
         )
         .expect("the exact selected row covers its explicitly supplied filesystem facet");
         assert_eq!(receipt.leaves()[0].exercised(), &disposition);
-        assert_eq!(receipt.leaves()[0].permitted(), &disposition);
+        assert_eq!(receipt.leaves()[0].permitted(), Some(&disposition));
     }
 }
 
@@ -480,7 +546,7 @@ fn checked_adapter_expands_to_selected_terminal_leaf() {
         &plan,
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &[intrinsic_mechanism(2)],
         &[candidate],
     )
@@ -530,7 +596,7 @@ fn internal_call_edges_are_part_of_the_reviewed_closure() {
         &plan,
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &[intrinsic_mechanism(1)],
         &[],
     )
@@ -555,7 +621,7 @@ fn root_checked_physical_operation_has_no_provider_permission_context() {
                 &plan,
                 &selected,
                 &super::super::terminal_authority_policy::current_terminal_authority_policy(),
-                &super::super::terminal_authority_permission_policy::current_terminal_authority_permission_policy(),
+                Some(&super::super::terminal_authority_permission_policy::current_terminal_authority_permission_policy()),
                 &[],
                 &[],
             )
@@ -616,7 +682,7 @@ fn checked_adapter_cycles_and_unsupported_roles_fail_closed() {
                 &plan,
                 &selected,
                 &super::super::terminal_authority_policy::current_terminal_authority_policy(),
-                &super::super::terminal_authority_permission_policy::current_terminal_authority_permission_policy(),
+                Some(&super::super::terminal_authority_permission_policy::current_terminal_authority_permission_policy()),
                 &[],
                 &[first_candidate, second_candidate],
             )
@@ -665,7 +731,7 @@ fn checked_adapter_cycles_and_unsupported_roles_fail_closed() {
         &syscall_plan,
         &syscall_selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &admitted,
         &[],
     )
@@ -683,7 +749,7 @@ fn checked_adapter_cycles_and_unsupported_roles_fail_closed() {
             &syscall_plan,
             &substituted,
             &physical,
-            &permitted,
+            Some(&permitted),
             &admitted,
             &[],
         )
@@ -715,7 +781,7 @@ fn checked_adapter_cycles_and_unsupported_roles_fail_closed() {
             &syscall_plan,
             &syscall_selected,
             &wrong_policy,
-            &permitted,
+            Some(&permitted),
             &admitted,
             &[],
         )
@@ -839,7 +905,7 @@ fn filesystem_cohort_closure_admits_settled_rows_and_refuses_generic_release() {
         ),
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &mechanisms,
         &[],
     )
@@ -853,7 +919,7 @@ fn filesystem_cohort_closure_admits_settled_rows_and_refuses_generic_release() {
         &abstract_plan(boundaries, Vec::new(), vec![function(1, &[1, 2, 3])]),
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &mechanisms[..3],
         &[],
     )
@@ -865,7 +931,11 @@ fn filesystem_cohort_closure_admits_settled_rows_and_refuses_generic_release() {
         .find(|leaf| leaf.requirement_identity() == "test::FilesystemHost::sync()")
         .expect("the explicit empty leaf retains its exact review identity");
     assert!(leaf.exercised().is_authority_class_empty());
-    assert!(leaf.permitted().is_authority_class_empty());
+    assert!(
+        leaf.permitted()
+            .expect("adjudicated leaf")
+            .is_authority_class_empty()
+    );
     let leaf = receipt
         .leaves()
         .iter()
@@ -985,7 +1055,7 @@ fn filesystem_cohort_closure_admits_constrained_release_occurrence() {
         ),
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &mechanisms,
         &[],
     )
@@ -997,7 +1067,11 @@ fn filesystem_cohort_closure_admits_constrained_release_occurrence() {
         .find(|leaf| leaf.requirement_identity() == "test::FilesystemHost::close()")
         .expect("the release leaf retains its exact review identity");
     assert!(leaf.exercised().is_authority_class_empty());
-    assert!(leaf.permitted().is_authority_class_empty());
+    assert!(
+        leaf.permitted()
+            .expect("adjudicated leaf")
+            .is_authority_class_empty()
+    );
     receipt.validate().expect("canonical receipt replays");
 
     // An unconstrained close mechanism under the same number does not inherit
@@ -1015,7 +1089,7 @@ fn filesystem_cohort_closure_admits_constrained_release_occurrence() {
         &abstract_plan(boundaries, Vec::new(), vec![function(1, &[1, 2, 3, 4])]),
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &substituted,
         &[],
     )
@@ -1102,7 +1176,7 @@ fn filesystem_release_occurrence_review_binds_the_retained_record() {
         ),
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &mechanisms,
         &[],
     )
@@ -1112,7 +1186,11 @@ fn filesystem_release_occurrence_review_binds_the_retained_record() {
     };
     assert_eq!(leaf.requirement_identity(), requirement);
     assert!(leaf.exercised().is_authority_class_empty());
-    assert!(leaf.permitted().is_authority_class_empty());
+    assert!(
+        leaf.permitted()
+            .expect("adjudicated leaf")
+            .is_authority_class_empty()
+    );
     receipt.validate().expect("canonical receipt replays");
 
     // A mechanism minted from a different record's occurrence is a stale or
@@ -1152,7 +1230,7 @@ fn filesystem_release_occurrence_review_binds_the_retained_record() {
         ),
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &substituted,
         &[],
     )
@@ -1256,7 +1334,7 @@ fn foreign_release_occurrence_review_binds_the_retained_record() {
         &plan,
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &mechanisms,
         &[],
     )
@@ -1267,7 +1345,11 @@ fn foreign_release_occurrence_review_binds_the_retained_record() {
     assert_eq!(leaf.requirement_identity(), requirement);
     assert_eq!(leaf.mechanism(), bound);
     assert!(leaf.exercised().is_authority_class_empty());
-    assert!(leaf.permitted().is_authority_class_empty());
+    assert!(
+        leaf.permitted()
+            .expect("adjudicated leaf")
+            .is_authority_class_empty()
+    );
     receipt.validate().expect("canonical receipt replays");
 
     // The unconstrained import of the same symbol under the same admitted
@@ -1283,7 +1365,7 @@ fn foreign_release_occurrence_review_binds_the_retained_record() {
         &plan,
         &selected,
         &physical,
-        &permitted,
+        Some(&permitted),
         &substituted,
         &[],
     )

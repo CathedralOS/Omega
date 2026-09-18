@@ -79,7 +79,7 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
             terminal_authority_policy: policy,
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy: permission_policy,
+            terminal_authority_permission_policy: Some(permission_policy),
             image_request: native::ExecutableImageEmissionRequest::direct(rejected_subsystem),
             imports: &[SourceEvaluatedImportSettlement::new(
                 &admission.execution,
@@ -121,7 +121,7 @@ fn rejected_native_reentry_returns_the_exact_dynamic_interpreter() {
             terminal_authority_policy: policy,
             accepted_package_terminal_authority_permission_policy:
                 native_realization::current_terminal_authority_permission_policy(),
-            terminal_authority_permission_policy: permission_policy,
+            terminal_authority_permission_policy: Some(permission_policy),
             image_request: native::ExecutableImageEmissionRequest::dynamic_elf(interpreter),
             imports: &[],
         },

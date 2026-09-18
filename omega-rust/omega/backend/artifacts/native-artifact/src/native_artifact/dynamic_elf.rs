@@ -67,7 +67,8 @@ pub struct DynamicElfNativeArtifact {
     selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    terminal_authority_permission_policy_identity:
+        Option<TerminalAuthorityPermissionPolicyIdentity>,
     terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
@@ -87,7 +88,10 @@ pub struct DynamicElfNativeArtifactParts {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    pub terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    /// The exact receiving permission policy this artifact was realized under,
+    /// or `None` when production ran without a receiver-admission claim.
+    pub terminal_authority_permission_policy_identity:
+        Option<TerminalAuthorityPermissionPolicyIdentity>,
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
@@ -108,7 +112,10 @@ pub struct DynamicElfNativeArtifactEmissionParts {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    pub terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    /// The exact receiving permission policy this artifact was realized under,
+    /// or `None` when production ran without a receiver-admission claim.
+    pub terminal_authority_permission_policy_identity:
+        Option<TerminalAuthorityPermissionPolicyIdentity>,
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,

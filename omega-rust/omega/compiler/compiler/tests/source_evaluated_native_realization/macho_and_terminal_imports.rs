@@ -35,7 +35,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
                 terminal_authority_policy: missing_policy,
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy: missing_permission_policy,
+                terminal_authority_permission_policy: Some(missing_permission_policy),
                 image_request,
                 imports: &[],
             },
@@ -80,7 +80,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy: permission_policy,
+                terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
                 imports: &[SourceEvaluatedImportSettlement::new(
                     &admission.execution,
@@ -804,7 +804,7 @@ fn retained_terminal_import_rejects_optimization_selection_substitution() {
                     terminal_authority_policy: policy,
                     accepted_package_terminal_authority_permission_policy:
                         native_realization::current_terminal_authority_permission_policy(),
-                    terminal_authority_permission_policy: permission_policy,
+                    terminal_authority_permission_policy: Some(permission_policy),
                     image_request,
                     imports: &[SourceEvaluatedImportSettlement::new(
                         &admission.execution,
@@ -859,7 +859,7 @@ fn retained_source_evaluated_fixed_u32_import_requires_complete_d32_custody() {
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy: permission_policy,
+                terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
                 imports: &[SourceEvaluatedImportSettlement::new(
                     &admission.execution,
@@ -1094,7 +1094,7 @@ fn retained_source_evaluated_fixed_i32_result_requires_complete_d32_custody() {
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
                     native_realization::current_terminal_authority_permission_policy(),
-                terminal_authority_permission_policy: permission_policy,
+                terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
                 imports: &[SourceEvaluatedImportSettlement::new(
                     &admission.execution,

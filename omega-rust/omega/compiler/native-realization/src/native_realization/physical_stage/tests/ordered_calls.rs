@@ -66,8 +66,9 @@ fn source_ordered_calls_reach_executable_publication() {
                 target,
                 profile: &profile,
                 terminal_authority_policy: crate::current_terminal_authority_policy(),
-                terminal_authority_permission_policy:
+                terminal_authority_permission_policy: Some(
                     crate::current_terminal_authority_permission_policy(),
+                ),
                 program_entry: crate::NativeProgramEntrySettlement::new(&signature, None, &[]),
                 optimization_selections: selections.selections(),
                 selected_provider_plans: &providers,
@@ -156,8 +157,9 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
                 target,
                 profile: &profile,
                 terminal_authority_policy: crate::current_terminal_authority_policy(),
-                terminal_authority_permission_policy:
+                terminal_authority_permission_policy: Some(
                     crate::current_terminal_authority_permission_policy(),
+                ),
                 program_entry: crate::NativeProgramEntrySettlement::new(&signature, None, &[]),
                 optimization_selections: selections.selections(),
                 selected_provider_plans: &providers,
@@ -200,8 +202,9 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
                 target,
                 profile: &profile,
                 terminal_authority_policy: crate::current_terminal_authority_policy(),
-                terminal_authority_permission_policy:
+                terminal_authority_permission_policy: Some(
                     crate::current_terminal_authority_permission_policy(),
+                ),
                 program_entry: crate::NativeProgramEntrySettlement::new(&signature, None, &[]),
                 optimization_selections: selections.selections(),
                 selected_provider_plans: &providers,
