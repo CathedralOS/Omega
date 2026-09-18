@@ -1070,11 +1070,17 @@ Owners include
   canonical encoding, independent reconstruction, verification,
   interpretation, resource analysis, native lowering, artifact custody, and
   installation. [Terminal specification subjects](wiki/README.md#current-specification-subjects)
-  own the vocabulary; complete operation/proof-node byte tables remain required
-  by the [encoding contract](wiki/spec/terminal-psi/encoding.md).
+  own the vocabulary. The [encoding contract](wiki/spec/terminal-psi/encoding.md)
+  still owes complete operation and proof-node byte tables: it gives a
+  physical layout for 3 operation tags (65, 66, 68), while
+  `terminal-codec/src/sections/semantic_module/block_wire/operation_tags.rs`
+  defines 72 and `sections/proof_bundle/proof_node_codec.rs` owns the proof
+  nodes. The implementation's codec is not a substitute for those tables.
+
   Acceptance: source and producer state can be discarded before an
   independent verifier reconstructs every obligation and executes or lowers
-  the same artifact.
+  the same artifact, and the encoding contract specifies every operation and
+  proof-node form the codec accepts.
 
   Native/external execution, ABI, fixed native resource, and final-code replay
   claims additionally require exact final-realization evidence. Preserve
