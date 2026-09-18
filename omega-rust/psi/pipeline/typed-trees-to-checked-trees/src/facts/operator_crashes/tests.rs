@@ -317,10 +317,10 @@ fn named_call_discharges_a_receiver_field_route_in_a_non_entry_state() {
 }
 
 #[test]
-fn named_call_keeps_a_route_whose_receiver_is_mutable() {
-    // `&mut self` can write `self.count` between entry and the read, so the
-    // operand carries no entry identity and the route cannot borrow the
-    // statement-entry fact.
+fn named_call_discharges_a_route_through_a_mutable_receiver_field() {
+    // `&mut self` is bound once at the invocation and never rebound; with no
+    // statement anywhere in the machine able to write `self.count`, the read
+    // still names the entry field, so the statement-entry fact covers it.
     let source = "pub data Main { count: i32; }
          boundary operator Ns::probe(value: i32) -> bool
          crashes Trap !(value >= 0);
@@ -328,7 +328,58 @@ fn named_call_keeps_a_route_whose_receiver_is_mutable() {
          requires self.count >= 0 {
              Ns::probe(self.count)
          }";
-    let diagnostics = check(source).expect_err("a mutable receiver operand keeps its route");
+    check(source).expect("the entry fact covers an unwritten mutable-receiver field");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_mutable_receiver_field_discharge_is_per_field() {
+    // Writes to `self.other` and a `&mut self` call on `self.inner`'s own
+    // machine never reach `self.count`; a later state still reads the entry
+    // field even when `run` itself never writes.
+    let source = "pub data Inner { n: i32; }
+         pub machine Inner::bump(&mut self) { self.n = 1; }
+         pub data Main { count: i32; other: i32; inner: Inner; }
+         boundary operator Ns::probe(value: i32) -> bool
+         crashes Trap !(value >= 0);
+         pub machine Main::check(&mut self) -> bool
+         requires self.count >= 0 {
+             self.other = 1;
+             self.inner.bump();
+             transition true { true -> work() false -> true }
+             state work(&mut self) -> bool
+             requires self.count >= 0 {
+                 Ns::probe(self.count)
+             }
+         }";
+    check(source).expect("sibling writes do not escape the read field's entry identity");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_mutable_receiver_field_is_written() {
+    // `self.count = -1` reaches the exact projection the guard reads, so the
+    // operand carries no entry identity and the route survives widened to
+    // `Truth` rather than borrowing the statement-entry fact.
+    let source = "pub data Main { count: i32; }
+         boundary operator Ns::probe(value: i32) -> bool
+         crashes Trap !(value >= 0);
+         pub machine Main::check(&mut self) -> bool
+         requires self.count >= 0 {
+             self.count = -1;
+             Ns::probe(self.count)
+         }";
+    let diagnostics = check(source).expect_err("a written receiver field keeps its route");
     assert!(
         diagnostics
             .iter()
@@ -340,7 +391,48 @@ fn named_call_keeps_a_route_whose_receiver_is_mutable() {
     let [site] = sites.as_slice() else {
         panic!("one named operator crash site")
     };
-    assert_eq!(site.surviving.len(), 1);
+    let [bucket] = site.surviving.as_slice() else {
+        panic!("one surviving bucket: {:?}", site.surviving)
+    };
+    assert_eq!(
+        bucket.alternative_guards(),
+        &[checked_trees::CrashRouteGuard::Truth],
+    );
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_mutable_receiver_escapes() {
+    // A `&mut self` receiver call and an exclusive `&mut self` loan can each
+    // write any receiver field, so neither lets the read borrow the entry
+    // fact — no matter where in the machine the escape sits.
+    for body in [
+        "self.recompute(); Ns::probe(self.count)",
+        "let loan: &mut Main = &mut self; Ns::probe(self.count)",
+    ] {
+        let source = &format!(
+            "pub data Main {{ count: i32; }}
+             boundary operator Ns::probe(value: i32) -> bool
+             crashes Trap !(value >= 0);
+             pub machine Main::recompute(&mut self) {{ }}
+             pub machine Main::check(&mut self) -> bool
+             requires self.count >= 0 {{
+                 {body}
+             }}",
+        );
+        let diagnostics = check(source).expect_err("a receiver escape keeps the route");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("uncovered")),
+            "{diagnostics:#?}"
+        );
+        let checked = inspect(source);
+        let sites = named_sites(&checked);
+        let [site] = sites.as_slice() else {
+            panic!("one named operator crash site")
+        };
+        assert_eq!(site.surviving.len(), 1, "{body}");
+    }
 }
 
 #[test]
