@@ -106,6 +106,50 @@ fn requested_entry_is_checked_and_reported_instead_of_main() {
 }
 
 #[test]
+fn check_rejects_proof_product_requests_it_cannot_publish() {
+    // A check-only stop publishes no artifact pair, so a build that declared
+    // either optional proof product must reject rather than report a success
+    // that silently dropped the request — the same admission fence the
+    // standalone compiler's `RequestedCompileProduct::Check` arm applies.
+    for pcc_line in [
+        "builder.pcc.psi = true;",
+        "builder.pcc.native = true;",
+        "builder.pcc.psi = true; builder.pcc.native = true;",
+    ] {
+        let project = Project::new();
+        project.write(
+            "source/build.omg",
+            &format!(
+                "machine build(builder: &mut Build) {{ builder.application(\"pcc-check\"); {pcc_line} }}\n"
+            ),
+        );
+        project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
+        let result = check_prepared_local_project(project.request("source/main.omg", "rejected"));
+        let Err(CheckPreparedLocalProjectError::ProofProduct(diagnostics)) = result else {
+            panic!("check-only stop must reject `{pcc_line}`: {result:?}");
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.to_string().contains("check-only stop")),
+            "expected a check-stop conflict diagnostic for `{pcc_line}`: {diagnostics:?}"
+        );
+        assert_empty_directory(&project.0.join("rejected"));
+    }
+
+    let project = Project::new();
+    project.write(
+        "source/build.omg",
+        "machine build(builder: &mut Build) { builder.application(\"pcc-check\"); }\n",
+    );
+    project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
+    let report = check_prepared_local_project(project.request("source/main.omg", "checked"))
+        .expect("a build without proof-product requests still checks");
+    assert_check_only(&report);
+    assert!(!report.pcc_requests().any());
+}
+
+#[test]
 fn package_check_does_not_relax_native_application_gate() {
     let project = Project::new();
     project.write(
