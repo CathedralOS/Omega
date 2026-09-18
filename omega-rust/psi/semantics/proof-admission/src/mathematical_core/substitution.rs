@@ -208,6 +208,90 @@ pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) 
                 tree: shifted_tree,
             })
         }
+        Term::EmptyElim { ty, scrutinee } => {
+            let shifted_ty = shift(arena, ty, cutoff, amount);
+            let shifted_scrutinee = shift(arena, scrutinee, cutoff, amount);
+            if shifted_ty == ty && shifted_scrutinee == scrutinee {
+                return term;
+            }
+            arena.insert(Term::EmptyElim {
+                ty: shifted_ty,
+                scrutinee: shifted_scrutinee,
+            })
+        }
+        Term::Squash { ty } => {
+            let shifted_ty = shift(arena, ty, cutoff, amount);
+            if shifted_ty == ty {
+                return term;
+            }
+            arena.insert(Term::Squash { ty: shifted_ty })
+        }
+        Term::SquashIntro { ty, value } => {
+            let shifted_ty = shift(arena, ty, cutoff, amount);
+            let shifted_value = shift(arena, value, cutoff, amount);
+            if shifted_ty == ty && shifted_value == value {
+                return term;
+            }
+            arena.insert(Term::SquashIntro {
+                ty: shifted_ty,
+                value: shifted_value,
+            })
+        }
+        Term::SquashElim {
+            proposition,
+            function,
+            scrutinee,
+        } => {
+            let shifted_proposition = shift(arena, proposition, cutoff, amount);
+            let shifted_function = shift(arena, function, cutoff, amount);
+            let shifted_scrutinee = shift(arena, scrutinee, cutoff, amount);
+            if shifted_proposition == proposition
+                && shifted_function == function
+                && shifted_scrutinee == scrutinee
+            {
+                return term;
+            }
+            arena.insert(Term::SquashElim {
+                proposition: shifted_proposition,
+                function: shifted_function,
+                scrutinee: shifted_scrutinee,
+            })
+        }
+        Term::Box { ty } => {
+            let shifted_ty = shift(arena, ty, cutoff, amount);
+            if shifted_ty == ty {
+                return term;
+            }
+            arena.insert(Term::Box { ty: shifted_ty })
+        }
+        Term::BoxIntro { ty, value } => {
+            let shifted_ty = shift(arena, ty, cutoff, amount);
+            let shifted_value = shift(arena, value, cutoff, amount);
+            if shifted_ty == ty && shifted_value == value {
+                return term;
+            }
+            arena.insert(Term::BoxIntro {
+                ty: shifted_ty,
+                value: shifted_value,
+            })
+        }
+        Term::BoxElim {
+            motive,
+            body,
+            scrutinee,
+        } => {
+            let shifted_motive = shift(arena, motive, cutoff, amount);
+            let shifted_body = shift(arena, body, cutoff, amount);
+            let shifted_scrutinee = shift(arena, scrutinee, cutoff, amount);
+            if shifted_motive == motive && shifted_body == body && shifted_scrutinee == scrutinee {
+                return term;
+            }
+            arena.insert(Term::BoxElim {
+                motive: shifted_motive,
+                body: shifted_body,
+                scrutinee: shifted_scrutinee,
+            })
+        }
         // A constant's level arguments are judgment-scope level
         // expressions, not terms: binders never bind them, so a term
         // shift leaves a constant untouched.
@@ -215,6 +299,7 @@ pub fn shift(arena: &mut TermArena, term: TermHandle, cutoff: u32, amount: u32) 
         | Term::Two
         | Term::TwoZero
         | Term::TwoOne
+        | Term::Empty
         | Term::Dummy
         | Term::Constant { .. } => term,
     }
@@ -431,12 +516,97 @@ fn substitute_at(
                 tree: new_tree,
             })
         }
+        Term::EmptyElim { ty, scrutinee } => {
+            let new_ty = substitute_at(arena, ty, argument, depth);
+            let new_scrutinee = substitute_at(arena, scrutinee, argument, depth);
+            if new_ty == ty && new_scrutinee == scrutinee {
+                return term;
+            }
+            arena.insert(Term::EmptyElim {
+                ty: new_ty,
+                scrutinee: new_scrutinee,
+            })
+        }
+        Term::Squash { ty } => {
+            let new_ty = substitute_at(arena, ty, argument, depth);
+            if new_ty == ty {
+                return term;
+            }
+            arena.insert(Term::Squash { ty: new_ty })
+        }
+        Term::SquashIntro { ty, value } => {
+            let new_ty = substitute_at(arena, ty, argument, depth);
+            let new_value = substitute_at(arena, value, argument, depth);
+            if new_ty == ty && new_value == value {
+                return term;
+            }
+            arena.insert(Term::SquashIntro {
+                ty: new_ty,
+                value: new_value,
+            })
+        }
+        Term::SquashElim {
+            proposition,
+            function,
+            scrutinee,
+        } => {
+            let new_proposition = substitute_at(arena, proposition, argument, depth);
+            let new_function = substitute_at(arena, function, argument, depth);
+            let new_scrutinee = substitute_at(arena, scrutinee, argument, depth);
+            if new_proposition == proposition
+                && new_function == function
+                && new_scrutinee == scrutinee
+            {
+                return term;
+            }
+            arena.insert(Term::SquashElim {
+                proposition: new_proposition,
+                function: new_function,
+                scrutinee: new_scrutinee,
+            })
+        }
+        Term::Box { ty } => {
+            let new_ty = substitute_at(arena, ty, argument, depth);
+            if new_ty == ty {
+                return term;
+            }
+            arena.insert(Term::Box { ty: new_ty })
+        }
+        Term::BoxIntro { ty, value } => {
+            let new_ty = substitute_at(arena, ty, argument, depth);
+            let new_value = substitute_at(arena, value, argument, depth);
+            if new_ty == ty && new_value == value {
+                return term;
+            }
+            arena.insert(Term::BoxIntro {
+                ty: new_ty,
+                value: new_value,
+            })
+        }
+        Term::BoxElim {
+            motive,
+            body,
+            scrutinee,
+        } => {
+            let new_motive = substitute_at(arena, motive, argument, depth);
+            let new_body = substitute_at(arena, body, argument, depth);
+            let new_scrutinee = substitute_at(arena, scrutinee, argument, depth);
+            if new_motive == motive && new_body == body && new_scrutinee == scrutinee {
+                return term;
+            }
+            arena.insert(Term::BoxElim {
+                motive: new_motive,
+                body: new_body,
+                scrutinee: new_scrutinee,
+            })
+        }
         // Level arguments are not de Bruijn terms — term substitution
         // never reaches them.
         Term::Sort(_)
         | Term::Two
         | Term::TwoZero
         | Term::TwoOne
+        | Term::Empty
         | Term::Dummy
         | Term::Constant { .. } => term,
     }
@@ -670,7 +840,96 @@ pub fn instantiate_levels(
                 tree: new_tree,
             }))
         }
+        Term::EmptyElim { ty, scrutinee } => {
+            let new_ty = instantiate_levels(arena, ty, arguments)?;
+            let new_scrutinee = instantiate_levels(arena, scrutinee, arguments)?;
+            if new_ty == ty && new_scrutinee == scrutinee {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::EmptyElim {
+                ty: new_ty,
+                scrutinee: new_scrutinee,
+            }))
+        }
+        Term::Squash { ty } => {
+            let new_ty = instantiate_levels(arena, ty, arguments)?;
+            if new_ty == ty {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Squash { ty: new_ty }))
+        }
+        Term::SquashIntro { ty, value } => {
+            let new_ty = instantiate_levels(arena, ty, arguments)?;
+            let new_value = instantiate_levels(arena, value, arguments)?;
+            if new_ty == ty && new_value == value {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::SquashIntro {
+                ty: new_ty,
+                value: new_value,
+            }))
+        }
+        Term::SquashElim {
+            proposition,
+            function,
+            scrutinee,
+        } => {
+            let new_proposition = instantiate_levels(arena, proposition, arguments)?;
+            let new_function = instantiate_levels(arena, function, arguments)?;
+            let new_scrutinee = instantiate_levels(arena, scrutinee, arguments)?;
+            if new_proposition == proposition
+                && new_function == function
+                && new_scrutinee == scrutinee
+            {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::SquashElim {
+                proposition: new_proposition,
+                function: new_function,
+                scrutinee: new_scrutinee,
+            }))
+        }
+        Term::Box { ty } => {
+            let new_ty = instantiate_levels(arena, ty, arguments)?;
+            if new_ty == ty {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::Box { ty: new_ty }))
+        }
+        Term::BoxIntro { ty, value } => {
+            let new_ty = instantiate_levels(arena, ty, arguments)?;
+            let new_value = instantiate_levels(arena, value, arguments)?;
+            if new_ty == ty && new_value == value {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::BoxIntro {
+                ty: new_ty,
+                value: new_value,
+            }))
+        }
+        Term::BoxElim {
+            motive,
+            body,
+            scrutinee,
+        } => {
+            let new_motive = instantiate_levels(arena, motive, arguments)?;
+            let new_body = instantiate_levels(arena, body, arguments)?;
+            let new_scrutinee = instantiate_levels(arena, scrutinee, arguments)?;
+            if new_motive == motive && new_body == body && new_scrutinee == scrutinee {
+                return Ok(term);
+            }
+            Ok(arena.insert(Term::BoxElim {
+                motive: new_motive,
+                body: new_body,
+                scrutinee: new_scrutinee,
+            }))
+        }
         // No remaining node can mention a level parameter.
-        Term::Dummy | Term::Variable(_) | Term::Two | Term::TwoZero | Term::TwoOne => Ok(term),
+        Term::Dummy
+        | Term::Variable(_)
+        | Term::Two
+        | Term::TwoZero
+        | Term::TwoOne
+        | Term::Empty => Ok(term),
     }
 }

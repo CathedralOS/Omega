@@ -315,6 +315,83 @@ pub enum Term {
         step: TermHandle,
         tree: TermHandle,
     },
+    /// The reference core's strict empty proposition `sEmpty : Strict 0`
+    /// (foundation §3.3). Fixed at level 0 like `Two`: it carries no
+    /// data, so a single level suffices for ex falso into every
+    /// universe. The strict unit is derived, not primitive: `sUnit :=
+    /// Π(_ : sEmpty). sEmpty` with `tt := λx. x`, unique up to strict
+    /// irrelevance.
+    Empty,
+    /// Strict empty elimination `sEmpty_rect A e : A` for `e : sEmpty`.
+    /// `ty` is the target type `A` itself, checked to be a type at
+    /// *either* sort — the reference core eliminates the empty
+    /// proposition into any universe, relevant or strict, since no
+    /// closed `e` exists for the result to depend on. The eliminator
+    /// never computes: `sEmpty` has no constructors, so a well-typed
+    /// `e` is always neutral. No child lives under a binder.
+    EmptyElim {
+        ty: TermHandle,
+        scrutinee: TermHandle,
+    },
+    /// The squash (bracket) type `Squash A : Strict u` for `A : Type u`
+    /// (foundation §3.4) — existence without witness access. The
+    /// carrier must be a *relevant* type: squashing is the map from
+    /// `Type` into `Strict`, and a strict `A` is already a proposition.
+    Squash {
+        ty: TermHandle,
+    },
+    /// Squash introduction `sq_A x : Squash A` for `x : A`. The `ty`
+    /// field is a checked annotation like `Refl`'s — it must be a
+    /// relevant type and `value` must check at it, so a dependent-pair
+    /// witness still checks componentwise.
+    SquashIntro {
+        ty: TermHandle,
+        value: TermHandle,
+    },
+    /// Squash elimination `unsq P f x : P` for `P : Strict v`,
+    /// `f : Π(_ : A). P` and `x : Squash A` — the paper's non-dependent
+    /// eliminator into a strict proposition only: squashed existence
+    /// never extracts a witness into relevant data. The dependent
+    /// eliminator is derivable through irrelevance (its motive
+    /// `Π(_ : Squash A). Strict v` applied pointwise is a strict
+    /// function type, so `unsq` at that Π yields the dependent
+    /// landing). Computes `unsq P f (sq a) → f a` as a budgeted step;
+    /// a neutral `x` stays stuck. No child lives under a binder.
+    SquashElim {
+        proposition: TermHandle,
+        function: TermHandle,
+        scrutinee: TermHandle,
+    },
+    /// Boxing `Box A : Type v` for `A : Strict v` (foundation §3.5) —
+    /// the converse embedding: a strict proposition wrapped as a
+    /// *relevant* type, so its neutral inhabitants do not collapse
+    /// under irrelevance. `A` must be a strict proposition; boxing a
+    /// relevant type would re-wrap data that was never squashed.
+    Box {
+        ty: TermHandle,
+    },
+    /// Box introduction `box_A x : Box A` for `x : A`. The `ty` field is
+    /// a checked annotation: it must be a strict proposition and `value`
+    /// must check at it. Two boxed proofs `box a`, `box b` convert
+    /// componentwise — `a ≡ b : A` already holds by strictness — but a
+    /// *neutral* `x : Box A` is not forced to be a `box`, which is
+    /// exactly how boxing keeps irrelevance from escaping.
+    BoxIntro {
+        ty: TermHandle,
+        value: TermHandle,
+    },
+    /// Box elimination `unbox P f x : P x` for `x : Box A`,
+    /// `P : Π(_ : Box A). s_v` at *either* sort (the reference core's
+    /// eliminator targets `Ty_j` or `P_j` alike), and
+    /// `f : Π(a : A). P (box a)`. Computes `unbox P f (box a) → f a` as
+    /// a budgeted step; a neutral `x` stays stuck. The plain projection
+    /// `Box A → A` is the strict-motive non-dependent instance
+    /// `P := λ_. A`. No child lives under a binder.
+    BoxElim {
+        motive: TermHandle,
+        body: TermHandle,
+        scrutinee: TermHandle,
+    },
     /// A reference to declaration `declaration` of the ambient
     /// signature, instantiated at `levels` — one level argument per
     /// universe parameter the declaration is polymorphic over. This is
@@ -542,6 +619,84 @@ impl TermArena {
                 self.structurally_equal(left_motive, right_motive)
                     && self.structurally_equal(left_step, right_step)
                     && self.structurally_equal(left_tree, right_tree)
+            }
+            (Term::Empty, Term::Empty) => true,
+            (
+                Term::EmptyElim {
+                    ty: left_ty,
+                    scrutinee: left_scrutinee,
+                },
+                Term::EmptyElim {
+                    ty: right_ty,
+                    scrutinee: right_scrutinee,
+                },
+            ) => {
+                self.structurally_equal(left_ty, right_ty)
+                    && self.structurally_equal(left_scrutinee, right_scrutinee)
+            }
+            (Term::Squash { ty: left_ty }, Term::Squash { ty: right_ty }) => {
+                self.structurally_equal(left_ty, right_ty)
+            }
+            (
+                Term::SquashIntro {
+                    ty: left_ty,
+                    value: left_value,
+                },
+                Term::SquashIntro {
+                    ty: right_ty,
+                    value: right_value,
+                },
+            ) => {
+                self.structurally_equal(left_ty, right_ty)
+                    && self.structurally_equal(left_value, right_value)
+            }
+            (
+                Term::SquashElim {
+                    proposition: left_proposition,
+                    function: left_function,
+                    scrutinee: left_scrutinee,
+                },
+                Term::SquashElim {
+                    proposition: right_proposition,
+                    function: right_function,
+                    scrutinee: right_scrutinee,
+                },
+            ) => {
+                self.structurally_equal(left_proposition, right_proposition)
+                    && self.structurally_equal(left_function, right_function)
+                    && self.structurally_equal(left_scrutinee, right_scrutinee)
+            }
+            (Term::Box { ty: left_ty }, Term::Box { ty: right_ty }) => {
+                self.structurally_equal(left_ty, right_ty)
+            }
+            (
+                Term::BoxIntro {
+                    ty: left_ty,
+                    value: left_value,
+                },
+                Term::BoxIntro {
+                    ty: right_ty,
+                    value: right_value,
+                },
+            ) => {
+                self.structurally_equal(left_ty, right_ty)
+                    && self.structurally_equal(left_value, right_value)
+            }
+            (
+                Term::BoxElim {
+                    motive: left_motive,
+                    body: left_body,
+                    scrutinee: left_scrutinee,
+                },
+                Term::BoxElim {
+                    motive: right_motive,
+                    body: right_body,
+                    scrutinee: right_scrutinee,
+                },
+            ) => {
+                self.structurally_equal(left_motive, right_motive)
+                    && self.structurally_equal(left_body, right_body)
+                    && self.structurally_equal(left_scrutinee, right_scrutinee)
             }
             (
                 Term::Constant {

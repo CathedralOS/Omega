@@ -213,6 +213,43 @@ pub enum CoreError {
     InductionMotiveCodomainNotAUniverse {
         codomain: TermHandle,
     },
+    /// `Squash A` and `sq` require `A : Type u`: squashing is the map
+    /// from relevant types into strict propositions. A strict domain is
+    /// already a proposition — there is nothing left to forget.
+    StrictSquashDomain {
+        domain: TermHandle,
+    },
+    /// An `unsq` scrutinee must inhabit a squash type `Squash A`;
+    /// anything else leaves the elimination without a carrier.
+    NotASquash {
+        scrutinee: TermHandle,
+        actual_type: TermHandle,
+    },
+    /// `unsq P f x` requires `P : Strict v`: squashed existence may
+    /// flow into a strict proposition, never back into relevant data.
+    SquashTargetNotStrict {
+        proposition: TermHandle,
+    },
+    /// `Box A` and `box` require `A : Strict v`: boxing wraps a strict
+    /// proposition as a relevant type. A relevant domain was never
+    /// squashed, and boxing it would only re-wrap live data.
+    NonStrictBoxDomain {
+        domain: TermHandle,
+    },
+    /// An `unbox` scrutinee must inhabit a boxed type `Box A`;
+    /// anything else leaves the elimination without a proposition to
+    /// open.
+    NotABox {
+        scrutinee: TermHandle,
+        actual_type: TermHandle,
+    },
+    /// An `unbox` motive whose codomain is not a universe leaves
+    /// `P x` without a type to check the body or the result against.
+    /// The reference core admits motive codomains at either sort —
+    /// `Ty_j` or `P_j` — so only a non-sort rejects.
+    BoxMotiveCodomainNotAUniverse {
+        codomain: TermHandle,
+    },
     /// A `Constant` names a declaration position the ambient signature
     /// does not have — a forward reference, a self-reference (the
     /// signature only holds the checked prefix), or a reference into an
@@ -700,6 +737,171 @@ pub fn infer_type(
                 argument: tree,
             }))
         }
+        Term::Empty => {
+            // `sEmpty : Strict 0` — the strict empty proposition sits at
+            // level 0 like `Two` sits at `Type 0`: it carries no data,
+            // and its eliminator reaches into every universe.
+            Ok(arena.insert(Term::Sort(Sort::Strict(Level::Constant(0)))))
+        }
+        Term::EmptyElim { ty, scrutinee } => {
+            // `sEmpty_rect A e : A` for `e : sEmpty`. The target is
+            // checked to be a type at either sort — the reference core
+            // eliminates the empty proposition into `Ty` and `P`
+            // alike, since no closed scrutinee exists for the result
+            // to depend on.
+            infer_sort(arena, context, ty, budget)?;
+            let empty = arena.insert(Term::Empty);
+            check_type(arena, context, scrutinee, empty, budget)?;
+            Ok(ty)
+        }
+        Term::Squash { ty } => {
+            // `Squash A : Strict u` for `A : Type u`. The carrier must
+            // be a relevant type: a strict `A` is already a
+            // proposition, and squash adds nothing.
+            let domain_sort = infer_sort(arena, context, ty, budget)?;
+            match domain_sort {
+                Sort::Type(level) => Ok(arena.insert(Term::Sort(Sort::Strict(level)))),
+                Sort::Strict(_) => Err(CoreError::StrictSquashDomain { domain: ty }),
+            }
+        }
+        Term::SquashIntro { ty, value } => {
+            // `sq_A x : Squash A` for `x : A`. The annotation re-runs
+            // the formation requirement — `A` must be a relevant type —
+            // and the value checks at `A` through `check_type`, so a
+            // dependent-pair witness still checks componentwise.
+            let domain_sort = infer_sort(arena, context, ty, budget)?;
+            if domain_sort.is_strict() {
+                return Err(CoreError::StrictSquashDomain { domain: ty });
+            }
+            check_type(arena, context, value, ty, budget)?;
+            Ok(arena.insert(Term::Squash { ty }))
+        }
+        Term::SquashElim {
+            proposition,
+            function,
+            scrutinee,
+        } => {
+            // `unsq P f x : P` for `x : Squash A`, `P : Strict v` and
+            // `f : Π(_ : A). P`. The scrutinee's inferred squash type
+            // supplies the carrier `A` — an elimination never relocates
+            // to a different squash. The target must be a strict
+            // proposition: squashed existence proves propositions, and
+            // the reference core's dependent eliminator is derived
+            // through irrelevance rather than primitive.
+            let scrutinee_type = infer_type(arena, context, scrutinee, budget)?;
+            let scrutinee_head =
+                weak_head_normalize(arena, context.signature(), scrutinee_type, budget)?;
+            let carrier = match arena.get(scrutinee_head) {
+                Term::Squash { ty } => ty,
+                _ => {
+                    return Err(CoreError::NotASquash {
+                        scrutinee,
+                        actual_type: scrutinee_head,
+                    });
+                }
+            };
+            match infer_sort(arena, context, proposition, budget)? {
+                Sort::Strict(_) => {}
+                Sort::Type(_) => {
+                    return Err(CoreError::SquashTargetNotStrict { proposition });
+                }
+            }
+            let codomain = shift(arena, proposition, 0, 1);
+            let function_type = arena.insert(Term::Pi {
+                domain: carrier,
+                codomain,
+            });
+            check_type(arena, context, function, function_type, budget)?;
+            Ok(proposition)
+        }
+        Term::Box { ty } => {
+            // `Box A : Type v` for `A : Strict v`. The payload must be a
+            // strict proposition: boxing wraps a proof-irrelevant type
+            // as relevant data, and a relevant `A` was never squashed.
+            let domain_sort = infer_sort(arena, context, ty, budget)?;
+            match domain_sort {
+                Sort::Strict(level) => Ok(arena.insert(Term::Sort(Sort::Type(level)))),
+                Sort::Type(_) => Err(CoreError::NonStrictBoxDomain { domain: ty }),
+            }
+        }
+        Term::BoxIntro { ty, value } => {
+            // `box_A x : Box A` for `x : A`. The annotation re-runs the
+            // formation requirement — `A` must be a strict proposition —
+            // and the value checks at `A` through `check_type`.
+            let domain_sort = infer_sort(arena, context, ty, budget)?;
+            if !domain_sort.is_strict() {
+                return Err(CoreError::NonStrictBoxDomain { domain: ty });
+            }
+            check_type(arena, context, value, ty, budget)?;
+            Ok(arena.insert(Term::Box { ty }))
+        }
+        Term::BoxElim {
+            motive,
+            body,
+            scrutinee,
+        } => {
+            // `unbox P f x : P x` for `x : Box A`,
+            // `P : Π(_ : Box A). s_v` at either sort — the reference
+            // core's eliminator lands in `Ty_j` or `P_j` alike — and
+            // `f : Π(a : A). P (box a)`. The scrutinee's inferred box
+            // supplies the payload `A`; the motive's domain must
+            // convert to exactly that `Box A`.
+            let scrutinee_type = infer_type(arena, context, scrutinee, budget)?;
+            let scrutinee_head =
+                weak_head_normalize(arena, context.signature(), scrutinee_type, budget)?;
+            let payload = match arena.get(scrutinee_head) {
+                Term::Box { ty } => ty,
+                _ => {
+                    return Err(CoreError::NotABox {
+                        scrutinee,
+                        actual_type: scrutinee_head,
+                    });
+                }
+            };
+            let motive_type = infer_type(arena, context, motive, budget)?;
+            let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
+            let codomain = match arena.get(motive_head) {
+                Term::Pi { domain, codomain } => {
+                    let domain_sort = infer_sort(arena, context, domain, budget)?;
+                    let shared_domain = arena.insert(Term::Sort(domain_sort));
+                    if !convertible(
+                        arena,
+                        context,
+                        domain,
+                        scrutinee_head,
+                        shared_domain,
+                        budget,
+                    )? {
+                        return Err(CoreError::TypeMismatch {
+                            expected: scrutinee_head,
+                            actual: domain,
+                        });
+                    }
+                    codomain
+                }
+                _ => {
+                    return Err(CoreError::NotAFunction {
+                        function: motive,
+                        actual_type: motive_head,
+                    });
+                }
+            };
+            let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
+            match arena.get(codomain_head) {
+                Term::Sort(_) => {}
+                _ => {
+                    return Err(CoreError::BoxMotiveCodomainNotAUniverse { codomain });
+                }
+            }
+            // The body sees `P` instantiated at the boxed canonical
+            // inhabitant: `f : Π(a : A). P (box a)`.
+            let body_type = box_body_type(arena, payload, motive);
+            check_type(arena, context, body, body_type, budget)?;
+            Ok(arena.insert(Term::Apply {
+                function: motive,
+                argument: scrutinee,
+            }))
+        }
         Term::Constant {
             declaration: index,
             levels,
@@ -893,9 +1095,39 @@ pub(super) fn w_step_type(
     })
 }
 
-/// Check `term` against `expected`. Both types live at the sort of
-/// `expected`, which is always relevant (`Type`), so strict collapse can
-/// never fire for the types themselves.
+/// The checked type of an `unbox` body:
+/// `Π(a : A). motive (box_A a)` — the motive instantiated at the boxed
+/// canonical inhabitant of the bound payload.
+///
+/// `payload` and `motive` are terms in the ambient context; the builder
+/// shifts each under the `a` binder it introduces.
+pub(super) fn box_body_type(
+    arena: &mut TermArena,
+    payload: TermHandle,
+    motive: TermHandle,
+) -> TermHandle {
+    let shifted_motive = shift(arena, motive, 0, 1);
+    let shifted_payload = shift(arena, payload, 0, 1);
+    let bound = arena.insert(Term::Variable(0));
+    let boxed = arena.insert(Term::BoxIntro {
+        ty: shifted_payload,
+        value: bound,
+    });
+    let body_codomain = arena.insert(Term::Apply {
+        function: shifted_motive,
+        argument: boxed,
+    });
+    arena.insert(Term::Pi {
+        domain: payload,
+        codomain: body_codomain,
+    })
+}
+
+/// Check `term` against `expected`. The two types are compared at
+/// `Sort(s)` where `s` is `expected`'s own sort — a universe, whose own
+/// sort is always `Type`, so strict collapse can never fire for the
+/// *types* themselves even when `expected` is a strict proposition such
+/// as `sEmpty` or a squash's payload.
 pub fn check_type(
     arena: &mut TermArena,
     context: &Context,

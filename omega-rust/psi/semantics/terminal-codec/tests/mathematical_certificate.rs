@@ -1524,3 +1524,301 @@ fn a_level_polymorphic_indexed_certificate_round_trips_and_re_verifies() {
         Err(CoreError::UnboundLevelParameter { index: 0, arity: 0 })
     );
 }
+
+fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
+    arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
+}
+
+fn empty(arena: &mut TermArena) -> TermHandle {
+    arena.insert(Term::Empty)
+}
+
+fn empty_elim(arena: &mut TermArena, ty: TermHandle, scrutinee: TermHandle) -> TermHandle {
+    arena.insert(Term::EmptyElim { ty, scrutinee })
+}
+
+fn squash(arena: &mut TermArena, ty: TermHandle) -> TermHandle {
+    arena.insert(Term::Squash { ty })
+}
+
+fn squash_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
+    arena.insert(Term::SquashIntro { ty, value })
+}
+
+fn squash_elim(
+    arena: &mut TermArena,
+    proposition: TermHandle,
+    function: TermHandle,
+    scrutinee: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::SquashElim {
+        proposition,
+        function,
+        scrutinee,
+    })
+}
+
+fn boxed(arena: &mut TermArena, ty: TermHandle) -> TermHandle {
+    arena.insert(Term::Box { ty })
+}
+
+fn box_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
+    arena.insert(Term::BoxIntro { ty, value })
+}
+
+fn box_elim(
+    arena: &mut TermArena,
+    motive: TermHandle,
+    body: TermHandle,
+    scrutinee: TermHandle,
+) -> TermHandle {
+    arena.insert(Term::BoxElim {
+        motive,
+        body,
+        scrutinee,
+    })
+}
+
+#[test]
+fn strict_layer_certificates_round_trip_and_re_verify() {
+    // Squashed existence itself: Γ = A : Type 0, a : A proves
+    // `sq_A a : Squash A` — tags 23–24.
+    let mut arena = TermArena::new();
+    let type_zero = type_sort(&mut arena, 0);
+    let a_binding = variable(&mut arena, 0);
+    let term = {
+        let carrier = variable(&mut arena, 1);
+        let value = variable(&mut arena, 0);
+        squash_intro(&mut arena, carrier, value)
+    };
+    let expected = {
+        let carrier = variable(&mut arena, 1);
+        squash(&mut arena, carrier)
+    };
+    let certificate = MathematicalCertificate {
+        signature: Vec::new(),
+        level_arity: 0,
+        context: vec![type_zero, a_binding],
+        term,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify(&mut decoded).expect("squash introduction must re-check");
+    let repacked =
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode");
+    assert_eq!(repacked, bytes);
+
+    // Squashed elimination: Γ = A : Type 0, a : A, P : Strict 0,
+    // f : Π(_ : A). P proves `unsq P f (sq_A a) : P` — tag 25 plus the
+    // `Strict` sort on the wire.
+    let mut arena = TermArena::new();
+    let type_zero = type_sort(&mut arena, 0);
+    let a_binding = variable(&mut arena, 0);
+    let strict_zero = strict_sort(&mut arena, 0);
+    let f_binding = {
+        // Π(_ : A). P under prefix [A, a, P]: A is 2, P is 0; under the
+        // binder P is 1.
+        let domain = variable(&mut arena, 2);
+        let codomain = variable(&mut arena, 1);
+        pi(&mut arena, domain, codomain)
+    };
+    let term = {
+        // Under Γ: f is 0, P is 1, a is 2, A is 3.
+        let proposition = variable(&mut arena, 1);
+        let function = variable(&mut arena, 0);
+        let carrier = variable(&mut arena, 3);
+        let value = variable(&mut arena, 2);
+        let witness = squash_intro(&mut arena, carrier, value);
+        squash_elim(&mut arena, proposition, function, witness)
+    };
+    let expected = variable(&mut arena, 1);
+    let certificate = MathematicalCertificate {
+        signature: Vec::new(),
+        level_arity: 0,
+        context: vec![type_zero, a_binding, strict_zero, f_binding],
+        term,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify(&mut decoded).expect("squash elimination must re-check");
+    let repacked =
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode");
+    assert_eq!(repacked, bytes);
+
+    // The receiver re-decides: claiming the relevant `A` instead of
+    // `P` — asking the squash to leak a witness — decodes fine but the
+    // kernel refuses it.
+    let mut arena = TermArena::new();
+    let type_zero = type_sort(&mut arena, 0);
+    let a_binding = variable(&mut arena, 0);
+    let strict_zero = strict_sort(&mut arena, 0);
+    let f_binding = {
+        let domain = variable(&mut arena, 2);
+        let codomain = variable(&mut arena, 1);
+        pi(&mut arena, domain, codomain)
+    };
+    let term = {
+        let proposition = variable(&mut arena, 1);
+        let function = variable(&mut arena, 0);
+        let carrier = variable(&mut arena, 3);
+        let value = variable(&mut arena, 2);
+        let witness = squash_intro(&mut arena, carrier, value);
+        squash_elim(&mut arena, proposition, function, witness)
+    };
+    let wrong_claim = variable(&mut arena, 3);
+    let certificate = MathematicalCertificate {
+        signature: Vec::new(),
+        level_arity: 0,
+        context: vec![type_zero, a_binding, strict_zero, f_binding],
+        term,
+        expected: wrong_claim,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert!(matches!(
+        verify(&mut decoded),
+        Err(CoreError::TypeMismatch { .. })
+    ));
+
+    // Ex falso: Γ = A : Type 0, e : sEmpty proves
+    // `sEmpty_rect A e : A` — tags 21–22.
+    let mut arena = TermArena::new();
+    let type_zero = type_sort(&mut arena, 0);
+    let empty_binding = empty(&mut arena);
+    let term = {
+        let target = variable(&mut arena, 1);
+        let scrutinee = variable(&mut arena, 0);
+        empty_elim(&mut arena, target, scrutinee)
+    };
+    let expected = variable(&mut arena, 1);
+    let certificate = MathematicalCertificate {
+        signature: Vec::new(),
+        level_arity: 0,
+        context: vec![type_zero, empty_binding],
+        term,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify(&mut decoded).expect("empty elimination must re-check");
+    let repacked =
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode");
+    assert_eq!(repacked, bytes);
+}
+
+#[test]
+fn a_box_elimination_certificate_round_trips_and_re_verifies() {
+    // Γ = P : Strict 0, p : P, C : Π(_ : Box P). Type 0,
+    // g : Π(a : P). C (box_P a), b : Box P proves `unbox C g b : C b` —
+    // tags 26–28.
+    let mut arena = TermArena::new();
+    let strict_zero = strict_sort(&mut arena, 0);
+    let p_binding = variable(&mut arena, 0);
+    let c_binding = {
+        // Π(_ : Box P). Type 0 under prefix [P, p]: P is 1.
+        let payload = variable(&mut arena, 1);
+        let domain = boxed(&mut arena, payload);
+        let codomain = type_sort(&mut arena, 0);
+        pi(&mut arena, domain, codomain)
+    };
+    let g_binding = {
+        // Π(a : P). C (box_P a) under prefix [P, p, C]: P is 2, C is 1;
+        // under the a binder C is index 1, P is index 3, a is index 0.
+        let domain = variable(&mut arena, 2);
+        let codomain = {
+            let payload = variable(&mut arena, 3);
+            let bound = variable(&mut arena, 0);
+            let boxed_a = box_intro(&mut arena, payload, bound);
+            let family = variable(&mut arena, 1);
+            apply(&mut arena, family, boxed_a)
+        };
+        pi(&mut arena, domain, codomain)
+    };
+    let b_binding = {
+        // Under prefix [P, p, C, g]: P is 3.
+        let payload = variable(&mut arena, 3);
+        boxed(&mut arena, payload)
+    };
+    let term = {
+        // Under Γ: b is 0, g is 1, C is 2.
+        let motive = variable(&mut arena, 2);
+        let body = variable(&mut arena, 1);
+        let scrutinee = variable(&mut arena, 0);
+        box_elim(&mut arena, motive, body, scrutinee)
+    };
+    let expected = {
+        let family = variable(&mut arena, 2);
+        let argument = variable(&mut arena, 0);
+        apply(&mut arena, family, argument)
+    };
+    let certificate = MathematicalCertificate {
+        signature: Vec::new(),
+        level_arity: 0,
+        context: vec![strict_zero, p_binding, c_binding, g_binding, b_binding],
+        term,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify(&mut decoded).expect("box elimination must re-check");
+    let repacked =
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode");
+    assert_eq!(repacked, bytes);
+
+    // `unbox C g b` cannot be claimed at `C (box_P p)`: the neutral
+    // `b` stays distinct from the canonical `box_P p` at the relevant
+    // `Box P`, so the producer cannot smuggle in a different landing.
+    let mut arena = TermArena::new();
+    let strict_zero = strict_sort(&mut arena, 0);
+    let p_binding = variable(&mut arena, 0);
+    let c_binding = {
+        let payload = variable(&mut arena, 1);
+        let domain = boxed(&mut arena, payload);
+        let codomain = type_sort(&mut arena, 0);
+        pi(&mut arena, domain, codomain)
+    };
+    let g_binding = {
+        let domain = variable(&mut arena, 2);
+        let codomain = {
+            let payload = variable(&mut arena, 3);
+            let bound = variable(&mut arena, 0);
+            let boxed_a = box_intro(&mut arena, payload, bound);
+            let family = variable(&mut arena, 1);
+            apply(&mut arena, family, boxed_a)
+        };
+        pi(&mut arena, domain, codomain)
+    };
+    let b_binding = {
+        let payload = variable(&mut arena, 3);
+        boxed(&mut arena, payload)
+    };
+    let term = {
+        let motive = variable(&mut arena, 2);
+        let body = variable(&mut arena, 1);
+        let scrutinee = variable(&mut arena, 0);
+        box_elim(&mut arena, motive, body, scrutinee)
+    };
+    let wrong_claim = {
+        // `C (box_P p)` — under Γ: p is 3, P is 4.
+        let payload = variable(&mut arena, 4);
+        let value = variable(&mut arena, 3);
+        let boxed_p = box_intro(&mut arena, payload, value);
+        let family = variable(&mut arena, 2);
+        apply(&mut arena, family, boxed_p)
+    };
+    let certificate = MathematicalCertificate {
+        signature: Vec::new(),
+        level_arity: 0,
+        context: vec![strict_zero, p_binding, c_binding, g_binding, b_binding],
+        term,
+        expected: wrong_claim,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert!(matches!(
+        verify(&mut decoded),
+        Err(CoreError::TypeMismatch { .. })
+    ));
+}

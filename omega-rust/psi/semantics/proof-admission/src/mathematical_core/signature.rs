@@ -185,7 +185,8 @@ fn collect_references(arena: &TermArena, term: TermHandle, out: &mut BTreeSet<u3
         | Term::Sort(_)
         | Term::Two
         | Term::TwoZero
-        | Term::TwoOne => {}
+        | Term::TwoOne
+        | Term::Empty => {}
         Term::Constant { declaration, .. } => {
             out.insert(declaration);
         }
@@ -259,6 +260,31 @@ fn collect_references(arena: &TermArena, term: TermHandle, out: &mut BTreeSet<u3
             collect_references(arena, motive, out);
             collect_references(arena, step, out);
             collect_references(arena, tree, out);
+        }
+        Term::EmptyElim { ty, scrutinee } => {
+            collect_references(arena, ty, out);
+            collect_references(arena, scrutinee, out);
+        }
+        Term::Squash { ty } | Term::Box { ty } => {
+            collect_references(arena, ty, out);
+        }
+        Term::SquashIntro { ty, value } | Term::BoxIntro { ty, value } => {
+            collect_references(arena, ty, out);
+            collect_references(arena, value, out);
+        }
+        Term::SquashElim {
+            proposition,
+            function,
+            scrutinee,
+        }
+        | Term::BoxElim {
+            motive: proposition,
+            body: function,
+            scrutinee,
+        } => {
+            collect_references(arena, proposition, out);
+            collect_references(arena, function, out);
+            collect_references(arena, scrutinee, out);
         }
     }
 }
