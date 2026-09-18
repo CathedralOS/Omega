@@ -4218,3 +4218,5 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   path.
 - Keep unavailable hosts structurally tested and report the missing runtime leg
   explicitly.
+- Windows AArch64 has no `NativeTarget` constructor, so that ABI combination
+  stays unwitnessable until the target vocabulary grows one.
