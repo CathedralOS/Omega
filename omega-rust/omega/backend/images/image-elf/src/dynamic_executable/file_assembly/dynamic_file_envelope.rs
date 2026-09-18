@@ -12,6 +12,7 @@
 //! grant loader, publication, or runnable-image authority.
 
 use crate::bytes::{write_u16, write_u32, write_u64};
+use crate::dynamic_executable::checked::{checked_product, checked_sum, read_u64, require};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ValidatedElfDynamicLoadLayout,
 };
@@ -547,34 +548,9 @@ fn read_u32(bytes: &[u8], offset: usize, context: &'static str) -> Result<u32, D
     Ok(u32::from_le_bytes(value))
 }
 
-fn read_u64(bytes: &[u8], offset: usize, context: &'static str) -> Result<u64, Diagnostic> {
-    let end = checked_sum(offset, 8, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|bytes| bytes.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u64::from_le_bytes(value))
-}
-
-fn checked_product(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_mul(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
-fn checked_sum(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
 fn checked_sum_u64(left: u64, right: u64, context: &'static str) -> Result<u64, Diagnostic> {
     left.checked_add(right)
         .ok_or_else(|| Diagnostic::error(format!("{context} overflows Elf64_Off")))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_envelope_compatibility_fingerprint(

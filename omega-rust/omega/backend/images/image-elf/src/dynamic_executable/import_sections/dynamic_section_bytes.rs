@@ -14,6 +14,7 @@
 //! [symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
 use crate::bytes::{write_u16, write_u32, write_u64};
+use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::import_sections::dynamic_sections::{
     ElfDynamicSectionContents, ElfDynamicSymbol, ElfGnuHash, ElfSysvHash, ElfVersionNeed,
     ElfVersionNeedAuxiliary, ValidatedElfDynamicSectionPlan,
@@ -740,12 +741,6 @@ fn checked_product(left: usize, right: usize, context: &'static str) -> Result<u
 fn checked_add(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
     left.checked_add(right)
         .ok_or_else(|| Diagnostic::error(format!("{context} overflow")))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_payload_compatibility_fingerprint(

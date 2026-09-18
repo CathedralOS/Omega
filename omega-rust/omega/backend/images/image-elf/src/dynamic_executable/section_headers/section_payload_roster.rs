@@ -5,6 +5,7 @@
 //! fixups. It does not place bytes, resolve a fixup, emit program headers, or
 //! mutate the image.
 
+use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
     ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
 };
@@ -506,21 +507,6 @@ fn read_field(bytes: &[u8], offset: usize, width: u8) -> Result<u64, Diagnostic>
         })?)),
         _ => Err(Diagnostic::error("unsupported indexed fixup width")),
     }
-}
-
-fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
-}
-
-fn checked_sum(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_payload_roster_compatibility_fingerprint(

@@ -27,6 +27,7 @@
 //! stage N-1 can construct. The crate root re-exports every stage's entry
 //! function, carrier and error.
 
+mod checked;
 pub(crate) mod dynamic_table;
 pub(crate) mod file_assembly;
 pub(crate) mod import_sections;

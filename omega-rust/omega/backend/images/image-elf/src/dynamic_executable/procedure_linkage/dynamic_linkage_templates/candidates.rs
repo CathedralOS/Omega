@@ -1,13 +1,24 @@
 //! Template candidates: derived contents, encoded bytes, fixups and
 //! constraints.
 
-use crate::bytes::{write_u64};
-use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::{ElfProcedureLinkageRelocationContents, ValidatedElfProcedureLinkageRelocationPlan};
-use diagnostics::{Diagnostic};
-use target::{TargetProfile};
-use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{AARCH64_PLT_ENTRY, AARCH64_PLT_ENTRY_SIZE, AARCH64_PLT_HEADER, AARCH64_PLT_HEADER_SIZE, ELF64_GOT_WORD_SIZE, ELF64_RELA_SIZE, GOT_PLT_HEADER_WORDS, X86_PLT_ENTRY_SIZE, X86_PLT_HEADER, X86_PLT_HEADER_SIZE};
-use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{ElfProcedureLinkageFixup, ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage, ElfProcedureLinkagePlacementConstraint, ElfProcedureLinkagePlacementConstraintKind, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplateBytes, ElfProcedureLinkageTemplateContents, ElfProcedureLinkageTemplatePolicy};
-use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::{checked_product, checked_sum, checked_u32};
+use crate::bytes::write_u64;
+use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32};
+use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::{
+    ElfProcedureLinkageRelocationContents, ValidatedElfProcedureLinkageRelocationPlan,
+};
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{
+    ElfProcedureLinkageFixup, ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
+    ElfProcedureLinkagePlacementConstraint, ElfProcedureLinkagePlacementConstraintKind,
+    ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplateBytes,
+    ElfProcedureLinkageTemplateContents, ElfProcedureLinkageTemplatePolicy,
+};
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
+    AARCH64_PLT_ENTRY, AARCH64_PLT_ENTRY_SIZE, AARCH64_PLT_HEADER, AARCH64_PLT_HEADER_SIZE,
+    ELF64_GOT_WORD_SIZE, ELF64_RELA_SIZE, GOT_PLT_HEADER_WORDS, X86_PLT_ENTRY_SIZE, X86_PLT_HEADER,
+    X86_PLT_HEADER_SIZE,
+};
+use diagnostics::Diagnostic;
+use target::TargetProfile;
 
 pub(crate) struct Candidate {
     pub(super) linkage: ValidatedElfProcedureLinkageRelocationPlan,

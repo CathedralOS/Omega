@@ -12,6 +12,7 @@
 //! [LSB symbol-version ABI]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 //! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
+use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionKind, ValidatedElfProcedureLinkageSectionDescriptorPlan,
 };
@@ -682,28 +683,8 @@ fn dynamic_string(bytes: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
     Ok(&tail[..terminator])
 }
 
-fn checked_sum(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
-fn checked_product(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_mul(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
-fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
-}
-
 fn checked_u64(value: usize, context: &'static str) -> Result<u64, Diagnostic> {
     u64::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Xword")))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_tag_compatibility_fingerprint(

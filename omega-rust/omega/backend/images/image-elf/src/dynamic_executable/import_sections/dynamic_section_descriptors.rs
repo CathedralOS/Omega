@@ -13,6 +13,7 @@
 //! [GNU section types]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html
 //! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
+use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use diagnostics::Diagnostic;
 
@@ -577,12 +578,6 @@ fn read_u32(bytes: &[u8], offset: usize, context: &'static str) -> Result<u32, D
         .and_then(|slice| slice.try_into().ok())
         .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
     Ok(u32::from_le_bytes(value))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_descriptor_compatibility_fingerprint(

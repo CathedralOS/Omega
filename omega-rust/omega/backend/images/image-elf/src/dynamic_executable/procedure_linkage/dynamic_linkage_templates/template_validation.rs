@@ -8,6 +8,7 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{Va
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, CandidateValidationError, derive_constraints, derive_fixups, fixup_field, target};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::{non_authoritative_template_compatibility_fingerprint};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{ElfProcedureLinkageFixup, ElfProcedureLinkageFixupStorage, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplateBytes, ElfProcedureLinkageTemplateContents, ElfProcedureLinkageTemplatePolicy};
+use crate::dynamic_executable::checked::{require};
 
 pub(crate) fn validate_candidate(
     candidate: Candidate,
@@ -342,14 +343,4 @@ pub(crate) fn checked_sum(
 ) -> Result<usize, Diagnostic> {
     left.checked_add(right)
         .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
-pub(crate) fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
-}
-
-pub(crate) fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }

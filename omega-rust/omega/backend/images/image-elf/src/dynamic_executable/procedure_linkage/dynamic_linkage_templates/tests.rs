@@ -16,8 +16,9 @@ use target::{
     ForeignLocatorCandidate, normalize_elf_interpreter_plan, normalize_foreign_locator,
 };
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, derive_contents};
-use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::{checked_product, checked_sum, checked_u32, read_field, read_u32, read_u64, validate_candidate, validate_contents, validate_fixup_coverage};
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::{read_field, read_u32, validate_candidate, validate_contents, validate_fixup_coverage};
 use target::TargetProfile;
+use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, read_u64};
 
 #[derive(Clone, Copy)]
 struct ImportFixture {
