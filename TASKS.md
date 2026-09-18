@@ -2393,13 +2393,51 @@ Owners include
   QEMU tick/halt surface, which are Cathedral-owned package code over the
   installed-root and table custody above, not compiler types.
 
-- **BOUNDED-INSTALLATION-REACH-ROWS.** Finish unresolved-requirement fences for
-  component contracts and the final carrier-owned invocation route. Concrete
-  reach and conservative bounds remain separate; selected provider execution
-  and token era, not row equality, authorize invocation. Selected rows now
-  reject a realization that still retains an unresolved installation-bound
-  requirement (`provider-planning` `plans.rs`); the component-contract fence
-  waits on the `COMPONENT-SUBSTRATE` carrier.
+- **BOUNDED-INSTALLATION-REACH-ROWS.** Finish
+  [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
+  for component contracts and for the completion route an opaque carrier owns.
+  Concrete reach and conservative bounds stay separate; selected provider
+  execution and token era, not row equality, authorize invocation. Parsing and
+  checking of `reaches <= Bound`, the package-review fence on ordinary public
+  callables, selected-row resolution
+  (`provider-planning/src/provider_planning/installation_reach.rs`) and
+  root-closure substitution (`external-roots/src/root_entry/root_validation.rs`)
+  exist. A selected realization that itself retains an unresolved
+  installation-bound requirement rejects there; no nested substitution step
+  exists, so keep that rejection.
+
+  Remaining work:
+
+  - Completion route. `InterruptAcknowledgement::complete` in
+    `source/library/core/interrupt.omg` still declares `reaches PortIo`, and
+    `compiler/tests/calling_policy_plans/opaque_boundaries.rs` pins it as not
+    installation-bound.
+    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
+    requires a bounded row beneath `MachineControl + PortIo`, and
+    `InstalledInterruptCompletionRoute` in `external-roots` rejects a completion
+    requirement that has no installed resolution. Provider-planning tests
+    resolve the bounded spelling only for a test-local `[copy]` lookalike.
+    Migrate the shipped requirement and join its invocation to the carrier's
+    exact provider execution, policy and token lineage; an x2APIC provider must
+    not receive `PortIo`. Receiver-bearing requirement selection is
+    `TOP-LEVEL-BOUNDARY-REQUIREMENTS`' work.
+  - Component contracts. `component-description` publishes one
+    `service_ceiling` that unions the module's concrete root reach with every
+    installation dependency's upper bound (`derive_component_inventory`).
+    Neither `verify_component`/`realizes_selected_plan` nor
+    `provider_planning/independent_components.rs` checks unresolved rows. Keep
+    concrete reach and bounds separate in the description and apply the
+    selected-row rejection to `Independent` joins. The `COMPONENT-SUBSTRATE`
+    description carrier this waited on now exists.
+
+  Acceptance: from the shipped core requirement, PIC completion resolves to
+  `PortIo` and LAPIC/x2APIC completion to `MachineControl` through checked
+  source, Terminal Psi and the installed route. Cross-provider settlement with
+  equal rows, a replayed token or era, an `Independent` component exporting an
+  unresolved row, and final admission with any unresolved row reject.
+
+  The board-hygiene question in `OWNER_QUESTIONS.md` covers whether this item
+  folds into `COMPONENT-SUBSTRATE`.
 
 ## Parallel language and compiler lanes
 
