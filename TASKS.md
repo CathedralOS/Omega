@@ -3881,49 +3881,40 @@ Owners include
   committed output set and required-output settlement at publication.
 
 - **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish the compiler/library migration
-  to explicit ordinary std dependency edges. Std may be replaced, split, or
-  absent; only core and compiler-injected vocabulary remain toolchain-owned.
-  Migrate package-aware fixtures, keep freestanding UEFI roots dependency-free,
-  and retain standalone compatibility only until fixtures acquire package
-  roots. Replace std/alloc `Toolchain` classification when compiler consumers
-  have exact source-byte catalog entries or explicit semantic bindings.
+  to explicit ordinary std dependency edges under the
+  [toolchain/library contract](wiki/spec/packages/toolchain.md). Std may be
+  replaced, split, or absent; only core and compiler-injected vocabulary
+  remain toolchain-owned. Migrate package-aware fixtures, keep freestanding
+  UEFI roots dependency-free, and retain standalone compatibility only until
+  fixtures acquire package roots. Replace std/alloc `Toolchain` classification
+  when compiler consumers have exact source-byte catalog entries or explicit
+  semantic bindings; the current narrow roles and standalone limits are listed
+  [beside package compilation](omega-rust/omega/build/package-compilation/semantic_bindings.md).
 
   Complete composed-Unit plans for trait-default, float, wire, arithmetic-helper,
   guarded-call, and looping-cast canaries and the target-correct non-Linux
   Console catalog entry. Structural writeback shares the blocker recorded in
   `WRITE-ONLY-BORROW`. Feed consumer-scoped Console, Filesystem, and UEFI
-  bindings through normal package-aware compilation. Acceptance: removing a
-  dependency rejects its imports/provider selections; name, alias, path, or
-  same-spelled declarations cannot restore it, and stale or substituted
-  semantic bindings reject without relying on accepted-lock replay.
-  `repository_build_declarations.rs` pins that every wire, arithmetic, calls,
-  traits, and float pass root declares exactly the std edge its sources
-  import, with no standalone compatibility roster left.
-  `standard_library_package_resolution.rs` pins that removing a Console
-  consumer's std path dependency rejects it and that re-declaring std under
-  another alias or path spelling does not restore the `omega_language_std`
-  import. The rejection names the missing dependency edge rather than an
-  unresolvable root-relative source path: the `omega_language_std` alias the
-  import spelled, the `omega-language-std` package it names (bundled or in
-  the closure), the importing `main.omg`, and the root
-  `builder.depend(...)`/`depend_as("omega_language_std", ...)` declaration
-  that would add the edge (witnessed by
-  `removing_the_standard_library_dependency_rejects_the_console_consumer` on
-  macOS ARM64). Remaining gap: the Console provider selection has no
-  diagnostic of its own because source assembly stops at the import (a
-  selection without the import is not a checkable shape). The
-  console-semantic acceptance is met on current main: both
-  `standard_library_package_resolution.rs` standard-library targets pass, and
-  the rejection names the missing dependency edge rather than an unresolvable
-  root-relative source path. Letting source assembly continue past the missing
-  edge so build evaluation could name the selection regresses
+  bindings through normal package-aware compilation.
+
+  Acceptance: removing a dependency rejects its imports/provider selections;
+  name, alias, path, or same-spelled declarations cannot restore it, and stale
+  or substituted semantic bindings reject without relying on accepted-lock
+  replay. `packages/manager/tests/repository_build_declarations.rs` checks each
+  packaged canary group's std edge against its imports; extend it as groups
+  migrate. `packages/manager/tests/standard_library_package_resolution.rs`
+  already holds the Console case: removing the std path dependency rejects the
+  consumer with a diagnostic naming the missing `omega_language_std` edge, and
+  another alias or path spelling does not restore the import.
+
+  The Console provider selection has no diagnostic of its own, because source
+  assembly stops at the import and a selection without the import is not a
+  checkable shape. Letting source assembly continue past the missing edge so
+  build evaluation could name the selection regresses
   `standard_library_alias_has_no_undeclared_bundled_fallback`: the imported
-  type is left undefined in the assembled tree and the rejection shifts to a
-  later stage that drops the missing-edge diagnostic. The provider selection
-  rides on the import edge and is not independently checkable, so the
-  missing-edge diagnostic is the complete rejection for the selection; a
-  separate selection diagnostic is an architectural follow-up beyond this
-  shape.
+  type is left undefined in the assembled tree and the rejection moves to a
+  later stage that drops the missing-edge diagnostic. A separate selection
+  diagnostic is an architectural follow-up, not a change to this shape.
 
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
   under the [component publication contract](wiki/spec/build/component_publication.md),
