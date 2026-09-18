@@ -1264,9 +1264,11 @@ mod missing_dependency_edge_tests {
                 .discover("use nonexistent::missing;\n", &inputs)
                 .expect_err("an unknown local path must not resolve"),
         );
+        // The report shows the host path; Windows spells it with backslashes.
+        let portable = message.replace('\\', "/");
         assert!(
             message.starts_with("failed to resolve")
-                && message.contains("/consumer/nonexistent/missing.omg")
+                && portable.contains("/consumer/nonexistent/missing.omg")
                 && !message.contains("declares no"),
             "{message}"
         );
