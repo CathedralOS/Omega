@@ -4,19 +4,16 @@
 //!
 //! `SourceFile` and `SourceText` hold what was loaded and where it came from;
 //! `SourceId` and `SourceSpan` are the coordinates every token and diagnostic
-//! carries; `SourceMap` resolves them back to files and positions. Past
-//! resolution, source text is diagnostic and debug payload, never identity.
+//! carries; start at `source_map.rs`, where `SourceMap` resolves them back to
+//! files and positions. Past resolution, source text is diagnostic and debug
+//! payload, never identity.
 
 mod source_file;
-mod source_id;
 mod source_map;
-mod source_span;
 mod source_text;
 
 pub use source_file::{SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum};
-pub use source_id::SourceId;
 pub use source_map::SourceMap;
-pub use source_span::SourceSpan;
 pub use source_text::SourceText;
 
 /// Render exact literal bytes without assuming UTF-8. This is diagnostic text,
@@ -48,5 +45,23 @@ pub struct Span {
 impl Span {
     pub fn new(start: usize, end: usize) -> Self {
         Self { start, end }
+    }
+}
+
+/// Identity of one loaded source within a `SourceMap`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct SourceId(pub usize);
+
+/// A span inside one loaded source: the coordinate every token and diagnostic
+/// carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SourceSpan {
+    pub source_id: SourceId,
+    pub span: Span,
+}
+
+impl SourceSpan {
+    pub fn new(source_id: SourceId, span: Span) -> Self {
+        Self { source_id, span }
     }
 }
