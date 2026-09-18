@@ -3073,166 +3073,84 @@ Owners include
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
   and [canonical ranges](wiki/spec/language/generics.md#canonical-integer-range-matching)
   for bounded containers deriving static backing from a declared length type.
-  Psi parser/type-role resolution, generic-data substitution, machine inference,
-  canonical type identity, and checked branch facts own the route; static
-  evaluation/layout and artifact readers must use the same normalizer. Inference in
-  `typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs` must extend
-  to named computations, owner-sensitive typed operations and open symbolic
-  endpoints through shared semantic evaluation; do not use the i64 compatibility
-  interval evaluator as canonical type identity.
-  Keep `tests/omega/pass/generics/declared_range_endpoint_inference/main.omg`
-  as the checked/Terminal call regression; the source pipeline map retains its CLI command.
-  Closed free and type-qualified endpoints (`u64[0..=limit()]`
-  and `u64[0..=Limits::capacity(256)]`) fold by resolved machine identity
-  before checking in `build-time-evaluation/src/range_endpoints.rs` through the
-  shared admission plan. Resolved calls admit closed integer arguments into
-  exact builtin integer parameters with closed range refinements, preserving
-  carrier checks, selection authority and fractional warnings. Nested calls and surrounding
-  integer arithmetic retain exact result carriers and original call selections;
-  failed evaluation restores temporary substitutions. Input/result range checks
-  use exact concrete values; computed signature bounds are invocation dependencies.
-  Named endpoint calls also admit declared argument-free integer domains on
-  parameters and results by proving the concrete value through the shared
-  domain-fact evaluator (`range_endpoints/integer_type.rs`,
-  `const_domain_facts/membership.rs`; canaries
-  `generics/declared_range_endpoint_domain_qualified_calls` and
-  `fail/generics/declared_range_endpoint_domain_argument_rejected`, not yet
-  in the harness roster); authored `requires` clauses and nested-callee
-  premises keep the closure fence. Typed operators in endpoint arguments
-  and narrow carriers already fold. Boolean literals, `&&`/`||` and
-  `bool`-returning helpers fold in endpoint-call argument position through
-  the shared scalar evaluator at a49ab393fe
-  (`generics/declared_range_endpoint_boolean_arguments`,
-  `fail/generics/declared_range_endpoint_boolean_result_rejected`); the
-  bound position, bound arithmetic and signature bounds keep the integer
-  carrier, and comparisons/negation in Boolean arguments stay outside.
-  Fully supplied static generic applications fold at e081667381
-  (`u64[0..=identity<256>()]`, const-declaration and Boolean arguments)
-  through the prepared program's existing type-position specialization;
-  partial applications reject with the monomorphizer's "cannot be derived"
-  and inference-needing calls stay outside
-  (`generics/declared_range_endpoint_static_applications`,
-  `fail/generics/declared_range_endpoint_partial_static_application_rejected`).
-  Named endpoint evaluation runs in rounds at 29443ddc65: a round
-  prepares the execution program from the current working tree and folds
-  what closes, and the driver re-prepares only when a static application
-  failed after progress, so templates whose own signature bounds carry
-  endpoint calls close under explicit application
-  (`generics/declared_range_endpoint_template_bound_calls`; controls
-  `fail/generics/declared_range_endpoint_template_bound_{out_of_range,
-  unclosable_rejected}`, the latter a parameter-dependent bound no round
-  can close). A round without progress restores every published fold.
-  Nominal/policy qualifications, trait-operator owners, applications with
-  type/machine/evidence binders, and open symbolic endpoints remain. Omitted
-  trailing data binders recover from data-level `where Binder == <range
-  shell>` equations against the supplied argument's retained
-  `IntegerRangeNormalization` (`preparation/generic_data/equations.rs`;
-  exclusive ends bind the proof-integer successor; verified equations are
-  discharged from the instance; `generics/omitted_data_binder_*` canaries
-  pin the selection and each distinct rejection). An omitted *type* binder is
-  now built from its own range-shell equation once that equation's endpoints
-  are closed integers, so `Bytes<const Capacity: u64, Length> where Length ==
-  u64[0..=Capacity]` applied as `Bytes<256>` binds Length to `u64[0..=256]`
-  (`equations.rs`, `construct_range_shell`). The constructed node is an
-  ordinary constrained type reference carrying the same canonical
-  `IntegerRangeNormalization` the authored spelling carries, so the omitted,
-  explicit and exclusive spellings share one instance and every later
-  equation, repeat occurrence and closed identity compares one shape; the
-  endpoint evaluation shared with verification lives in
-  `expression_endpoint_value`. Pinned by `omitted_data_binders::{an_omitted_type_binder_is_built_from_its_range_shell_equation,
-  a_constructed_shell_normalizes_an_exclusive_equation_end,
-  a_constructed_shell_evaluates_a_closed_endpoint_expression,
-  constructing_a_type_binder_keeps_every_rejection}` (macOS ARM64), the last
-  holding the undetermined-endpoint, occurs-cycle, both kind-mismatch,
-  explicit-conflict and repeat-conflict rejections in the constructed
-  direction. Omitted-binder applications nested inside another application and
-  inside another template's body need no rule of their own now that the parser
-  hands each application its own arguments; pinned by
-  `omitted_data_binders::{an_omitted_binder_application_nested_in_another_application_recovers,
-  an_omitted_binder_application_inside_a_template_body_recovers}` (macOS
-  ARM64). Still open there: runtime `Value` binders, a shell whose carrier or
-  endpoints never close (those binders still reject asking for an explicit
-  argument), and `tests/omega` canaries for the constructed direction, whose
-  roster was another owner's live claim. Several child-owning arguments to one
-  generic no longer panic ("arena span append must be contiguous"):
-  `lowering/type_reference.rs` and `lowering/domain.rs` lower every argument or
-  constraint before placing it, so each span reaches the arena as one
-  contiguous run (`tests/generic_range_arguments.rs`, macOS ARM64). The
-  parser-stage defect recorded beside it is closed: `tokens-to-syntax-trees`
-  no longer appends generic argument or bracket constraint handles one at a
-  time. `type_syntax/parse_type.rs` collects each run and inserts the span
-  once, so a nested application's arguments stop interleaving with the
-  enclosing list (`Pair<u64[0..=3], Pair<u64[0..=7], u64[0..=15]>>` handed the
-  outer application the nested application's first argument as its own
-  second). Pinned in `type_syntax/nested_application_tests.rs` by
-  `a_nested_application_keeps_the_enclosing_applications_authored_arguments`
-  and `a_nested_applications_argument_span_is_disjoint_from_the_enclosing_span`,
-  and downstream by
-  `generic_range_arguments::a_nested_application_argument_keeps_its_own_arguments`
-  (macOS ARM64). No append-as-you-go type-reference or constraint span remains
-  in that parser.
-  Record and case-payload endpoint calls resolve in
-  their declaration scope before folding; local bounded record construction and
-  field reads retain range obligations through canonical Terminal execution.
-  Generic-data range arguments retain structured interval observations from
-  `build-time-evaluation/src/range_arguments.rs` and independently replay equality
-  after complete typing; substitution retains the original constrained argument.
-  Finish open/template-dependent and machine-computed argument ranges, type
-  equations and omitted data binders without a source-display identity key.
-  Connect borrowed-local mutation calls and transfer-bearing state-transition storage joins;
-  `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
-  retains the nongeneric borrowed-call reproduction of a missing checked scalar
-  control plan. Direct local scalar-field writes compose with copies and moves
-  through canonical Terminal execution in `owned_scalar_graphs/record_stores.rs`.
-  Bounded leaf stores still need exact range obligations; native owned/local
-  field stores still need their physical storage realization.
-  Fresh record locals, unrestricted whole/nested copies and affine local moves
-  retain guard/argument reads through the scalar graph's ordered statements.
-  Copies bind independent block homes; moves retire their source and preserve
-  child provenance through wrappers. Selected-edge cleanup normalizes final live
-  local homes in declaration order and disposes them in reverse order, after
-  selected reads. Parameter-origin moves into locals still need the formal/local
-  custody join; supporting an untouched affine formal beside local moves does
-  not close that transfer. Reuse ordinary owned edges and the Unit record emitter
-  without aliasing copy storage or dropping a moved source.
-  Cyclic record establishment still reaches Terminal's `ControlCycle` admission
-  fence in `terminal-verifier/src/validation/control_flow/unranked_cycles.rs`;
-  close repeated establishment, per-iteration disposal and independent cycle
-  replay before admitting it. `owned_scalar_graphs/record_locals.rs` retains that
-  boundary beside executing acyclic ownership and evaluation-order controls.
-  Ordinary calls and whole local copies/moves already share the storage route;
-  do not invent generic-specific plans.
+  Three Psi pieces exist, each keyed by the retained
+  `IntegerRangeNormalization` and not by a rendered spelling: declared-range
+  call inference
+  (`typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`),
+  build-time folding of closed endpoint calls
+  (`build-time-evaluation/src/const_evaluation/range_endpoints.rs`), and
+  data-level `where Binder == <range shell>` equations that recover an omitted
+  const or type binder in either direction
+  (`syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/equations.rs`).
+  They do not establish the general contract. `equations.rs` matches only a
+  range shell or a single name (`Structure::{RangeShell, Name}`), equations
+  exist on data templates only, and `T == i32` is decided only as a case
+  `where` fact on a closed data instance.
 
-  Extend remaining named computations through build-time admission, using
-  `typed-trees/src/typed_trees/type_system/closed_numeric.rs` and its existing
-  identity/substitution consumers for the resulting endpoints. Preserve
-  authored endpoint landing, exact binder identity and proof-integer exclusive
-  normalization; do not introduce another arithmetic evaluator or infer layout
-  from flow bounds. The source
-  pipeline map records the maintained scalar-inference customer and remaining
-  native record boundary. Native scalar field reads still need local record-root
-  custody and bounded leaf identity retained through abstract operations, layout,
-  instruction selection and independent replay. The primitive-read lowerer in
-  `terminal-psi-to-abstract-operations/src/lowering/machine/operation/primitive_storage.rs`
-  admits primitive locals or eligible structural parameters, not arbitrary local
-  record roots; projected parameter paths are no longer a blanket rejection.
-  Extend native coverage to the fixture's `generic_forwarded_bound` and
-  `field_bound` calls through its real hosted entry; the existing scalar-only
-  entry does not establish local record-field execution. Keep the local
-  copy/move/store and bounded-field controls in `owned_scalar_graphs` while
-  closing that path.
+  Remaining work:
 
-  Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from
-  its supplied type before layout; inclusive/exclusive equivalent intervals
-  select identical static capacity without runtime arithmetic overflow. Primitive
-  equality and its static branches check all admitted alternatives. Repeat and
-  explicit binder conflicts, absent/ambiguous endpoints, occurs cycles, and
-  type/value-kind mismatch reject. Extend the existing declared range-only call
-  inference while keeping explicit larger compatible bounds distinct from exact
-  type equations. Local flow narrowing cannot alter inferred
-  layout; arbitrary domain predicates do not collapse nominal identity. Preserve
-  const staging, initialization, stack supply, and artifact replay. Runtime endpoint
-  applications depend on RUNTIME-VALUE-GENERICS; static matching can proceed first.
+  - Static type equality in Psi type-role resolution and checking: `where`
+    disjunctions such as `T == u16 || T == u32` on machines and requirements,
+    rejection of type/value mixtures, the unspecialized body checked under
+    every admitted alternative, and a static branch's equality fact dropped
+    at its join. No machine-level customer or control exists.
+  - Structural matching by exact constructor and parameter position for fixed
+    arrays and declared generic applications, and the same equations on
+    machine applications combined with existing argument/result inference.
+    An open endpoint binds as one whole expression (`0..=N` may bind
+    `Limit + 1`); solving `N * 2 == 256` stays outside.
+  - Endpoint folding for the forms `range_endpoints.rs` still leaves authored:
+    nominal/policy-qualified parameters, trait-operator owners
+    (owner-sensitive typed operations), applications that need inference or
+    carry type/machine/evidence binders, and comparisons or negation in
+    Boolean arguments. Use the shared admission plan and
+    `typed-trees/src/typed_trees/type_system/closed_numeric.rs`. Do not add an
+    arithmetic evaluator, infer layout from flow bounds, or use the i64
+    compatibility interval in `validation` as type identity.
+  - Runtime `Value` binders in data equations, which reject today as not
+    statically recoverable. They depend on RUNTIME-VALUE-GENERICS; static
+    matching proceeds first.
+  - One normalizer for source equality, generic matching, canonical type
+    identity, static evaluation/layout and artifact readers. Synthesized
+    instances deduplicate by `ClosedArgumentIdentity`; their display name
+    stays diagnostic-only.
+  - `tests/omega` canaries for the constructed direction (`Bytes<256>`
+    binding `Length`). Only the `omitted_data_binders.rs` unit tests cover it.
+
+  Flag: endpoint folding grows by one admitted expression form per slice.
+  `require_closed_boolean_argument`
+  (`build-time-evaluation/src/machine_execution/admission/selection_authority.rs`)
+  admits Boolean literals, `&&`/`||` and calls and rejects comparisons and
+  negation; integer arguments pass only the context-free
+  `closed_integer_value_in` query. The last four slices (domain-qualified
+  parameters, Boolean arguments, static applications, template-bound rounds)
+  each added one form with its own pass/fail canary pair, and each form in
+  the third bullet would be another. The general mechanism is one evaluation
+  of the whole endpoint expression as a constant position through the shared
+  evaluator, with one selection-custody walk over every expression form, so
+  endpoint coverage equals the evaluator's coverage.
+
+  Acceptance: `generics/omitted_data_binder_range_equation` (TinyBytes binds
+  omitted Capacity before layout; `u64[0..257]` and `u64[0..=256]` select one
+  instance) and `generics/declared_range_endpoint_inference` (checked,
+  Terminal and hosted native entry) stay as regressions. New customers:
+  primitive type equality and its static branches check all admitted
+  alternatives; an array- or application-structured equation binds an omitted
+  binder on a data template and on a machine application. Repeat and explicit
+  binder conflicts, absent/ambiguous endpoints, occurs cycles and
+  type/value-kind mismatch reject in each new structure. Explicit larger
+  compatible bounds stay distinct from exact type equations. Local flow
+  narrowing cannot alter inferred layout, and arbitrary domain predicates do
+  not collapse nominal identity. Preserve const staging, initialization,
+  stack supply and artifact replay.
+
+  The range fixture's remaining Terminal and native stops are ordinary storage
+  work, not generic matching: borrowed-local mutation calls
+  (`declared_range_inference_local_effects_retain_pending_terminal_boundaries`),
+  parameter-origin moves into locals and bounded leaf stores on local records
+  follow STATE-LOCAL-VALUE-FRONTIER; cyclic record establishment
+  (`owned_scalar_graphs/record_locals.rs`) follows GENERAL-CYCLIC-EXECUTION.
+  Do not add generic-specific storage plans.
 
 - **FINITE-GENERIC-DISPATCH.** Implement the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
