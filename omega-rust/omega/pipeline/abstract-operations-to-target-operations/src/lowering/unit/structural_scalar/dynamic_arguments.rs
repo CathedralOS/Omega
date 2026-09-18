@@ -10,6 +10,7 @@ use super::{
     CallPlan, CallSignature, CallingPolicy, KnownUnitInteger, LoweringError, MachineId,
     NativeTarget, OperationId, PlaceId, ScalarType, StructuralPathSegment, StructuralTypeId,
     TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
+    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarHomeRequirement,
     TerminalPsiProvenance, ValueId, ValueShape, evaluate_call_plan, insert_known_unit_integer,
     resolve_structural_field_path, scalar_shape,
@@ -23,6 +24,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    caller_dynamic_parameters: &[TargetDynamicDescriptorParameterAbi],
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
@@ -46,7 +48,16 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
         machine: function.machine,
         operation: *psi_operation,
     };
-    if function.attachment.is_none()
+    // A non-entry helper may forward its own borrowed descriptor parameters
+    // without an attachment; projected or rebound sources still require the
+    // attached structural-parameter lane they read from.
+    if (function.attachment.is_none()
+        && dynamic_arguments.iter().any(|argument| {
+            !matches!(
+                argument.source,
+                AbstractDynamicDescriptorSource::Parameter(_)
+            )
+        }))
         || !structural_arguments.is_empty()
         || dynamic_arguments.is_empty()
     {
@@ -120,6 +131,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
         dynamic_arguments,
         &call_plan,
         parameters_by_place,
+        caller_dynamic_parameters,
         structural_types,
         shape_cache,
         active,
@@ -163,6 +175,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    caller_dynamic_parameters: &[TargetDynamicDescriptorParameterAbi],
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -184,7 +197,15 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
         machine: function.machine,
         operation: *psi_operation,
     };
-    if function.attachment.is_none()
+    // Same forwarding rule as the scalar form: unattached callers may only
+    // pass their own descriptor parameters through.
+    if (function.attachment.is_none()
+        && dynamic_arguments.iter().any(|argument| {
+            !matches!(
+                argument.source,
+                AbstractDynamicDescriptorSource::Parameter(_)
+            )
+        }))
         || !structural_arguments.is_empty()
         || dynamic_arguments.is_empty()
     {
@@ -246,6 +267,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
         dynamic_arguments,
         &call_plan,
         parameters_by_place,
+        caller_dynamic_parameters,
         structural_types,
         shape_cache,
         active,
@@ -273,6 +295,7 @@ fn prepare_dynamic_arguments(
     dynamic_arguments: &[AbstractDynamicDescriptorArgument],
     call_plan: &CallPlan,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    caller_dynamic_parameters: &[TargetDynamicDescriptorParameterAbi],
     structural_types: &StructuralTypeLookup<'_>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -285,10 +308,36 @@ fn prepare_dynamic_arguments(
         .iter()
         .enumerate()
         .map(|(ordinal, custody)| {
+            let instance_index = ordinal.checked_mul(2).ok_or_else(invalid)?;
+            let (Some(instance_destination), Some(table_destination)) = (
+                call_plan.parameters.get(instance_index),
+                call_plan.parameters.get(instance_index + 1),
+            ) else {
+                return Err(invalid());
+            };
+            // A caller's own borrowed descriptor parameter passes both words
+            // through unchanged: its signature-bound placements are the
+            // argument sources, and the callee plan supplies the destinations.
+            if let AbstractDynamicDescriptorSource::Parameter(parameter) = &custody.source {
+                let parameter = caller_dynamic_parameters
+                    .iter()
+                    .find(|abi| abi.parameter == *parameter)
+                    .ok_or_else(invalid)?;
+                return Ok(TargetDynamicDescriptorArgument {
+                    custody: custody.clone(),
+                    instance: TargetDynamicDescriptorInstanceSource::Parameter {
+                        parameter: parameter.clone(),
+                        destination: instance_destination.clone(),
+                    },
+                    table_destination: table_destination.clone(),
+                });
+            }
             let selection = match &custody.source {
                 AbstractDynamicDescriptorSource::Selection { selection, .. } => selection,
                 AbstractDynamicDescriptorSource::Rebound { rebound, .. } => rebound,
-                AbstractDynamicDescriptorSource::Parameter(_) => return Err(invalid()),
+                AbstractDynamicDescriptorSource::Parameter(_) => {
+                    unreachable!("parameter sources return before projection")
+                }
             };
             let root = parameters_by_place
                 .get(&selection.source.place)
@@ -319,21 +368,22 @@ fn prepare_dynamic_arguments(
             {
                 return Err(invalid());
             }
-            let instance_index = ordinal.checked_mul(2).ok_or_else(invalid)?;
             Ok(TargetDynamicDescriptorArgument {
                 custody: custody.clone(),
-                instance: TargetDynamicDescriptorInstanceArgument {
-                    place: selection.source.place,
-                    access: selection.source.access,
-                    path: selection.source.path.clone(),
-                    root_structural_type: root.structural_type,
-                    structural_type: projected_type,
-                    shape: projected_shape,
-                    source_byte_offset,
-                    source: root.placement.clone(),
-                    destination: call_plan.parameters[instance_index].clone(),
-                },
-                table_destination: call_plan.parameters[instance_index + 1].clone(),
+                instance: TargetDynamicDescriptorInstanceSource::Projection(
+                    TargetDynamicDescriptorInstanceArgument {
+                        place: selection.source.place,
+                        access: selection.source.access,
+                        path: selection.source.path.clone(),
+                        root_structural_type: root.structural_type,
+                        structural_type: projected_type,
+                        shape: projected_shape,
+                        source_byte_offset,
+                        source: root.placement.clone(),
+                        destination: instance_destination.clone(),
+                    },
+                ),
+                table_destination: table_destination.clone(),
             })
         })
         .collect()

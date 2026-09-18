@@ -317,6 +317,54 @@ pub(in crate::lowering) fn lower_dynamic_scalar_call(
     Ok(result_home)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(in crate::lowering) fn lower_dynamic_unit_call(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &StructuralTypeLookup<'_>,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let AbstractOperation::CallDynamicUnit {
+        psi_operation,
+        dynamic_dispatch,
+        requirement_obligations,
+        crash_continuations,
+    } = operation
+    else {
+        unreachable!("dynamic Unit lowering receives only dynamic calls")
+    };
+    let lowered = lower_dynamic_call(
+        function,
+        target,
+        functions,
+        structural_types,
+        parameters_by_place,
+        shape_cache,
+        active,
+        *psi_operation,
+        dynamic_dispatch,
+        None,
+        None,
+    )?;
+    operations.push(TargetUnitOperation::DynamicUnitCall {
+        psi_operation: *psi_operation,
+        dynamic_dispatch: dynamic_dispatch.clone(),
+        call_plan: lowered.call_plan,
+        initial_argument: lowered.initial_argument,
+        rebound_argument: lowered.rebound_argument,
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
 struct LoweredDynamicCall {
     call_plan: CallPlan,
     initial_argument: TargetStructuralArgument,

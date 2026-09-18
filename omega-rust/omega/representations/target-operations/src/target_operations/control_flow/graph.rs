@@ -1,6 +1,7 @@
 //! Ordinary control retains block identity and exact result-bearing exits.
 use crate::{
-    ScalarAbiValue, TargetBooleanExpression, TargetStructuralParameter, TargetUnitOperation,
+    ScalarAbiValue, TargetBooleanExpression, TargetDynamicDescriptorParameterAbi,
+    TargetStructuralParameter, TargetUnitOperation,
 };
 use abstract_operations::ValueBinding;
 use calling_conventions::CallPlan;
@@ -13,6 +14,11 @@ pub struct TargetControlGraph {
     pub call_plan: CallPlan,
     pub scalar_parameters: Vec<ScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,
+    /// The function's borrowed existential descriptor parameters in declared
+    /// order. Each row binds one complete `TerminalDynamicDescriptorParameter`
+    /// to its two trailing call-plan placements; the roster is empty unless
+    /// the authored signature ends in `&dyn`/`&mut dyn` parameters.
+    pub dynamic_parameters: Vec<TargetDynamicDescriptorParameterAbi>,
     pub entry: BlockId,
     pub blocks: Vec<TargetControlBlock>,
 }

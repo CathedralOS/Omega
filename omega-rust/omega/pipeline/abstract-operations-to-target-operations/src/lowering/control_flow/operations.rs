@@ -82,6 +82,9 @@ pub(super) fn lower_operation(
         } => structural_arguments.as_slice(),
         AbstractOperation::CallDynamicScalar {
             dynamic_dispatch, ..
+        }
+        | AbstractOperation::CallDynamicUnit {
+            dynamic_dispatch, ..
         } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
         _ => &[],
     };
@@ -155,6 +158,20 @@ pub(super) fn lower_operation(
             }
             Ok(())
         }
+        AbstractOperation::CallDynamicUnit { .. } => {
+            crate::lowering::unit::dynamic::lower_dynamic_unit_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                parameters_by_place,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
             let home = crate::lowering::unit::lower_dynamic_argument_scalar_call(
                 operation,
@@ -163,6 +180,7 @@ pub(super) fn lower_operation(
                 functions,
                 structural_types,
                 parameters_by_place,
+                &prepared.dynamic_parameters,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 &mut live.integers,
@@ -182,8 +200,51 @@ pub(super) fn lower_operation(
                 functions,
                 structural_types,
                 parameters_by_place,
+                &prepared.dynamic_parameters,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
+                operations,
+                provenance,
+            )
+        }
+        // Descriptor parameters are interface declarations: they produce no
+        // graph operation, but the declared row must be the same one the
+        // signature lane bound at this ordinal.
+        AbstractOperation::DynamicDescriptorParameter { parameter } => {
+            if prepared
+                .dynamic_parameters
+                .get(usize::try_from(parameter.ordinal).unwrap_or(usize::MAX))
+                .is_none_or(|abi| abi.parameter != *parameter)
+            {
+                return Err(LoweringError::InvalidDynamicDescriptorParameter {
+                    machine: function.machine,
+                    ordinal: parameter.ordinal,
+                });
+            }
+            Ok(())
+        }
+        AbstractOperation::CallDynamicParameterScalar { .. } => {
+            let home =
+                crate::lowering::unit::parameter_dynamic::lower_parameter_dynamic_scalar_call(
+                    operation,
+                    function,
+                    target,
+                    &prepared.dynamic_parameters,
+                    &mut live.integers,
+                    operations,
+                    provenance,
+                )?;
+            if home.scalar_type == ScalarType::Boolean {
+                live.scalar_homes.insert(home.source_value, home);
+            }
+            Ok(())
+        }
+        AbstractOperation::CallDynamicParameterUnit { .. } => {
+            crate::lowering::unit::parameter_dynamic::lower_parameter_dynamic_unit_call(
+                operation,
+                function,
+                target,
+                &prepared.dynamic_parameters,
                 operations,
                 provenance,
             )

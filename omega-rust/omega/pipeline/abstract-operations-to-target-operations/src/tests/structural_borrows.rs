@@ -20,7 +20,7 @@ use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
-fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
+pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");

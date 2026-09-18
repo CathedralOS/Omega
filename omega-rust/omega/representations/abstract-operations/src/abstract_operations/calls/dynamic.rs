@@ -291,6 +291,33 @@ pub struct AbstractParameterDynamicDispatch {
     pub dispatch: TerminalParameterDynamicDispatch,
 }
 
+impl AbstractParameterDynamicDispatch {
+    /// Replay the caller-side join between the dispatch row and the exact
+    /// descriptor parameter it consumes: same owner, the call operation that
+    /// produced the dispatch, the named parameter ordinal, and exactly one
+    /// interface requirement carrying the selected slot. The borrowed access
+    /// stays part of the join so an owned or fabricated descriptor row cannot
+    /// stand in for the parameter ABI.
+    pub fn has_complete_custody(&self, owner: MachineId, operation: OperationId) -> bool {
+        self.parameter.owner == owner
+            && self.dispatch.owner == owner
+            && self.dispatch.operation == operation
+            && self.dispatch.parameter_ordinal == self.parameter.ordinal
+            && matches!(
+                self.parameter.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            )
+            && self
+                .parameter
+                .requirements
+                .iter()
+                .filter(|requirement| requirement.slot == self.dispatch.requirement_slot)
+                .count()
+                == 1
+    }
+}
+
 impl AbstractReboundDynamicDispatch {
     /// Replay the complete selected-table join without trusting the repeated
     /// call-site row or compact report coordinate as authority.

@@ -7,10 +7,12 @@ use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, ev
 use semantic_vocabulary::{IntegerCarrier, IntegerType, ScalarType};
 use target::NativeTarget;
 use target_operations::{
-    MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetFunction,
-    TargetStructuralParameter,
+    MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi,
+    TargetDynamicDescriptorParameterAbi, TargetFunction, TargetStructuralParameter,
 };
-use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::{
+    StructuralAccess, StructuralTypeDeclaration, TerminalDynamicDescriptorParameter,
+};
 
 pub(super) fn validate(
     source: &AbstractFunction,
@@ -18,7 +20,7 @@ pub(super) fn validate(
     native_target: NativeTarget,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<()> {
-    let signature = signature(source, declarations)?;
+    let signature = signature(source, declarations, native_target)?;
     let expected_plan =
         evaluate_call_plan(CallingPolicy::native_for_target(native_target), &signature).ok()?;
     entrance(
@@ -28,6 +30,7 @@ pub(super) fn validate(
         &target.graph.call_plan,
         &target.graph.scalar_parameters,
         &target.graph.parameters,
+        &target.graph.dynamic_parameters,
     )?;
     // Standalone receiving entrances: a caller outside this plan — native
     // entry, emitted fragments, installation records — observes only the
@@ -45,15 +48,72 @@ pub(super) fn validate(
     Some(())
 }
 
+/// A function's declared borrowed descriptor parameters: the leading run of
+/// `DynamicDescriptorParameter` interface declarations, each bound to the
+/// dense trailing lane position and authored source position the producer's
+/// signature preparation admits. A stray declaration after the leading run,
+/// or a row whose ordinal, owner, source position, or borrowed access does
+/// not match the lane contract, has no honest signature.
+pub(super) fn declared_dynamic_parameters(
+    source: &AbstractFunction,
+) -> Option<Vec<&TerminalDynamicDescriptorParameter>> {
+    let declared = source
+        .operations
+        .iter()
+        .take_while(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        })
+        .filter_map(|operation| match operation {
+            AbstractOperation::DynamicDescriptorParameter { parameter } => Some(parameter),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let nonself_structural_count = source
+        .structural_parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+    if source
+        .operations
+        .iter()
+        .skip(declared.len())
+        .any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        })
+        || declared.iter().enumerate().any(|(index, parameter)| {
+            parameter.owner != source.machine
+                || parameter.ordinal != u32::try_from(index).unwrap_or(u32::MAX)
+                || parameter.source_position
+                    != u32::try_from(source.parameters.len() + nonself_structural_count + index)
+                        .unwrap_or(u32::MAX)
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+        })
+    {
+        return None;
+    }
+    Some(declared)
+}
+
 /// The complete call signature one source function's declarations determine:
 /// scalar parameters first in declared order, then each structural parameter's
-/// access-selected shape, then the result. Every producer of an ABI plan for
-/// this function — its own entrance, any caller's embedded call plan, or a
+/// access-selected shape, then each descriptor parameter's `{instance, table}`
+/// pointer pair, then the result. Every producer of an ABI plan for this
+/// function — its own entrance, any caller's embedded call plan, or a
 /// published standalone receiving ABI — must reconstruct this same signature;
 /// the physical shape alone is not authority.
 pub(super) fn signature(
     source: &AbstractFunction,
     declarations: &[StructuralTypeDeclaration],
+    native_target: NativeTarget,
 ) -> Option<CallSignature> {
     let structural_shapes = source
         .structural_parameters
@@ -67,12 +127,20 @@ pub(super) fn signature(
             ))
         })
         .collect::<Option<Vec<_>>>()?;
+    let dynamic_parameters = declared_dynamic_parameters(source)?;
+    let pointer_size = u16::try_from(native_target.pointer_size).ok()?;
+    let pointer_alignment = u16::try_from(native_target.pointer_alignment).ok()?;
+    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
     Some(CallSignature {
         parameters: source
             .parameters
             .iter()
             .map(|parameter| structural_shapes::scalar_shape(parameter.scalar_type))
             .chain(structural_shapes.iter().copied())
+            .chain(std::iter::repeat_n(
+                pointer_shape,
+                dynamic_parameters.len() * 2,
+            ))
             .collect(),
         result: match &source.result {
             AbstractFunctionResult::Unit => None,
@@ -90,6 +158,7 @@ pub(super) fn signature(
 /// the anonymous placements bind back to the declared scalar and structural
 /// parameter identities, so a substituted value, type, or placement row
 /// cannot share the physical shape of the honest entrance.
+#[allow(clippy::too_many_arguments)]
 fn entrance(
     source: &AbstractFunction,
     signature: &CallSignature,
@@ -97,9 +166,15 @@ fn entrance(
     actual_plan: &CallPlan,
     actual_scalar_parameters: &[ScalarAbiValue],
     actual_parameters: &[TargetStructuralParameter],
+    actual_dynamic_parameters: &[TargetDynamicDescriptorParameterAbi],
 ) -> Option<()> {
+    let declared_dynamic_parameters = declared_dynamic_parameters(source)?;
     if actual_parameters.len() != source.structural_parameters.len()
-        || actual_plan.parameters.len() != source.parameters.len() + actual_parameters.len()
+        || actual_dynamic_parameters.len() != declared_dynamic_parameters.len()
+        || actual_plan.parameters.len()
+            != source.parameters.len()
+                + actual_parameters.len()
+                + declared_dynamic_parameters.len() * 2
         || actual_plan != expected_plan
     {
         return None;
@@ -124,6 +199,28 @@ fn entrance(
             || actual.projected_qualifications != declared.projected_qualifications
             || actual.shape != *shape
             || &actual.placement != placement
+        {
+            return None;
+        }
+    }
+    // Each retained descriptor row must carry its declared parameter verbatim
+    // and bind the exact `{instance, table}` placements the independently
+    // evaluated plan assigns the dense trailing lane.
+    let descriptor_base = source.parameters.len() + source.structural_parameters.len();
+    for (index, (declared, actual)) in declared_dynamic_parameters
+        .iter()
+        .zip(actual_dynamic_parameters)
+        .enumerate()
+    {
+        let (Some(instance), Some(table)) = (
+            expected_plan.parameters.get(descriptor_base + index * 2),
+            expected_plan
+                .parameters
+                .get(descriptor_base + index * 2 + 1),
+        ) else {
+            return None;
+        };
+        if actual.parameter != **declared || actual.instance != *instance || actual.table != *table
         {
             return None;
         }
@@ -204,6 +301,7 @@ fn mixed_entrance(
         &abi.call_plan,
         &abi.scalar_parameters,
         &abi.structural_parameters,
+        &[],
     )?;
     if abi.result.value != result.value
         || abi.result.scalar_type != result.scalar_type

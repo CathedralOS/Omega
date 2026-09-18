@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group.
 
+mod dynamic_parameters;
 mod native_boundaries;
 mod native_callback_arguments;
 mod prelude;

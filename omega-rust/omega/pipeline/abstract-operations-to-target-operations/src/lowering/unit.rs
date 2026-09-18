@@ -1,6 +1,7 @@
 //! Operation-level call, storage, and scalar lowering shared by control graphs.
 pub(super) mod boundary_call;
 pub(super) mod dynamic;
+pub(super) mod parameter_dynamic;
 mod projected_argument;
 mod projected_result;
 pub(super) mod scalar_call;

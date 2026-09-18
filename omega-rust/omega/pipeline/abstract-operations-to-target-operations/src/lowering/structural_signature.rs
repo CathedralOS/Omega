@@ -43,6 +43,17 @@ impl StructuralCallSignature {
         &self.signature.parameters[self.scalar_parameter_count..]
     }
 
+    /// Append `pairs` trailing `{instance, table}` pointer words — one pair
+    /// per declared dynamic descriptor parameter — before the plan is
+    /// evaluated. `function_signature` owns the semantic rows that bind these
+    /// placements back to their parameter identities.
+    pub(crate) fn push_dynamic_parameter_words(&mut self, pairs: usize, pointer_shape: ValueShape) {
+        for _ in 0..pairs {
+            self.signature.parameters.push(pointer_shape);
+            self.signature.parameters.push(pointer_shape);
+        }
+    }
+
     pub(crate) fn plan(&self, target: NativeTarget) -> Result<CallPlan, LoweringError> {
         evaluate_call_plan(CallingPolicy::native_for_target(target), &self.signature)
             .map_err(LoweringError::AbiPlan)
