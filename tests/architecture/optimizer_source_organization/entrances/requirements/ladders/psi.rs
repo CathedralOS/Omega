@@ -47,7 +47,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/model.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/compute.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/replay.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/replay/region.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/region.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction/validate.rs",
         ],
     },
