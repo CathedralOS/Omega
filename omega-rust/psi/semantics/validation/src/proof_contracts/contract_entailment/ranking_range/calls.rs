@@ -940,7 +940,7 @@ fn admit_member(
 /// produced rank, plus carrier formation for a computed rank. The floor side
 /// of `Nat::IncreasingTo` membership is a disjunction (`max(0, d) >= floor`),
 /// which no single comparison states, so only its ceiling facts are consumed.
-fn arrival_invariant(
+pub(super) fn arrival_invariant(
     measure: RankingRangeMeasure,
     rank: &Polynomial,
     floor: &Polynomial,
@@ -1203,7 +1203,7 @@ fn forms_in_carrier(engine: &Engine<'_>, measure: RankingRangeMeasure, rank: &Po
     })
 }
 
-fn rank_coordinate(
+pub(super) fn rank_coordinate(
     program: &TypedTrees,
     machine: &Machine,
     engine: &mut Engine<'_>,
@@ -1236,7 +1236,7 @@ fn rank_coordinate(
 /// arrival forwarded a bare name — a contested computed claim demotes before
 /// reaching this judgment — so the extra carriers hold that same value and
 /// contribute an explicit equality hypothesis rather than a second binding.
-fn telescoped_bindings(
+pub(super) fn telescoped_bindings(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
@@ -1305,7 +1305,7 @@ fn telescoped_bindings(
 /// atom, and the remaining carriers contribute equalities between their length
 /// coordinates. A copied collection keeps the same produced length; a windowed
 /// or diverging claimant was already demoted by discovery.
-fn telescoped_length_bindings(
+pub(super) fn telescoped_length_bindings(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,

@@ -1,8 +1,9 @@
 //! Ordinary call requirements share exact arithmetic coordinates, not rank facts.
 use super::{
-    BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, Machine, Polynomial, ProofFact,
-    SignatureContractKind, State, StrictArithmeticBindingValue, TypedTrees, collect_guard,
-    comparison_proven, field_coordinates, inductive_judgment, integer_bindings, lengths, meanings,
+    BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
+    Polynomial, ProofFact, RankingRangeMeasure, SignatureContractKind, State,
+    StrictArithmeticBindingValue, TypedTrees, calls, collect_guard, comparison_proven,
+    field_coordinates, inductive_judgment, integer_bindings, lengths, meanings,
 };
 use field_coordinates::FieldCoordinates;
 
@@ -107,7 +108,28 @@ fn prove(
 
     let caller_bindings = integer_bindings(program, caller_state)?;
     let goal_bindings = integer_bindings(program, target)?;
-    let mut source_engine = Engine::strict_with_symbol_bindings(program, caller, &caller_bindings);
+    // A ranged caller member's own authored range is proven site evidence at
+    // an internal call site: the member's state-edge judgment re-establishes
+    // the produced rank's membership and endpoint pinning on every internal
+    // arrival, and the carried-entry correspondence that judgment resolved
+    // binds the site formals the carrier names denote. Requires facts stay
+    // entry-site evidence and are never installed here.
+    let site_invariant =
+        crate::machine_calls::call_cycles::runtime_ranking::ranged_member_site_invariant(
+            program,
+            caller,
+            caller_state,
+        );
+    let mut carrier_equalities = Vec::new();
+    let mut engine_bindings = caller_bindings.clone();
+    if let Some((_, _, entry_parameters)) = &site_invariant
+        && let Some((bindings, equalities)) =
+            calls::telescoped_bindings(program, caller, caller_state, entry_parameters)
+    {
+        carrier_equalities = equalities;
+        engine_bindings = bindings;
+    }
+    let mut source_engine = Engine::strict_with_symbol_bindings(program, caller, &engine_bindings);
     let mut goal_engine = Engine::strict_with_symbol_bindings(program, callee, &goal_bindings);
     if !source_engine.strict_symbol_bindings_are_valid()
         || !goal_engine.strict_symbol_bindings_are_valid()
@@ -226,6 +248,49 @@ fn prove(
     }
     for (expression, holds) in hypotheses {
         collect_guard(&mut source_engine, expression, holds, &mut comparisons, 0)?;
+    }
+    // The duplicated-carrier equalities and the member's proven rank-range
+    // membership are established site hypotheses: the member's own
+    // state-edge judgment proves them on every internal arrival, and an
+    // arrival that judgment cannot prove fails there rather than being
+    // assumed here.
+    comparisons.extend(carrier_equalities);
+    if let Some((measure, range_handle, entry_parameters)) = &site_invariant
+        && let ExpressionNode::Range(range) = program.expression_table.expression(*range_handle)
+    {
+        let rank = if let RankingRangeMeasure::SliceLength(subject) = measure {
+            // A carried collection's produced length is the rank; the
+            // telescope's length bindings name the slice formal, or the
+            // record-carried slice leaf, that holds its role at this site.
+            let (length_roles, length_equalities) =
+                calls::telescoped_length_bindings(program, caller, caller_state, entry_parameters);
+            comparisons.extend(length_equalities);
+            program
+                .machine_states(caller)
+                .first()
+                .and_then(|root| lengths::parameter(program, root, *subject))
+                .and_then(|parameter| {
+                    length_roles
+                        .iter()
+                        .find(|(symbol, _)| *symbol == parameter.symbol)
+                        .map(|(_, identity)| Polynomial::atom(identity.clone()))
+                })
+        } else {
+            calls::rank_coordinate(program, caller, &mut source_engine, *measure)
+        };
+        if let (Some(rank), Some(floor), Some(ceiling)) = (
+            rank,
+            source_engine.normalize(range.start),
+            source_engine.normalize(range.end),
+        ) {
+            comparisons.extend(calls::arrival_invariant(
+                *measure,
+                &rank,
+                &floor,
+                &ceiling,
+                range.end_inclusive,
+            ));
+        }
     }
     if !source_engine.install_hypotheses(comparisons) {
         return None;

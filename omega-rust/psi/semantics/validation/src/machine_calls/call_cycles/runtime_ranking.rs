@@ -14,13 +14,15 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::proof_only::ProofOnlyClassification;
+use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    RankingRangePremises, call_member_premise_symbols, discover_state_entry_mappings_preferring,
-    mixed_call_endpoints_are_pinned, positive_step_amount, prove_ranking_range_call,
-    prove_ranking_range_call_entry, ranking_range_required_symbols,
+    RankingRangeMeasure, RankingRangePremises, call_member_premise_symbols,
+    discover_state_entry_mappings_preferring, mixed_call_endpoints_are_pinned,
+    positive_step_amount, prove_ranking_range_call, prove_ranking_range_call_entry,
+    ranking_range_required_symbols,
 };
 use comparison::Comparison;
 use projection::{RankOrder, RankProjection};
@@ -514,6 +516,68 @@ fn weak_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
     super::strongly_connected_components(adjacency)
         .iter()
         .all(|component| component.len() == 1 && !adjacency[component[0]].contains(&component[0]))
+}
+
+/// The ranged member's consumable invariant at one internal call site: the
+/// scalar measure its own ranking judgment selected, the authored range
+/// handle, and the discovered telescope for `state`. The ordinary
+/// callee-requirement check consumes the membership facts those inputs name
+/// -- the same arrival invariant the component-edge judgment installs for a
+/// call the coordinator checks -- never a requires fact, which stays
+/// entry-site evidence. `None` at the entry state (entry facts already
+/// apply there), when the member authors no supported scalar range, or when
+/// the two premise modes the member's own state-edge judgment may have run
+/// under discover different correspondences: then no single telescope is
+/// known proven at this site and the site abstains.
+pub(crate) fn ranged_member_site_invariant(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &State,
+) -> Option<(RankingRangeMeasure, ExpressionHandle, Vec<SymbolHandle>)> {
+    let rank = RankProjection::resolve(program, machine)?;
+    let measure = rank.measure?;
+    if !rank.range.is_valid() {
+        return None;
+    }
+    let states = program.machine_states(machine);
+    let position = states
+        .iter()
+        .position(|candidate| candidate.symbol == state.symbol)?;
+    if position == 0 {
+        return None;
+    }
+    // The preferred carriers mirror `check_component`: the formals the
+    // produced rank reads for this measure's order.
+    let preferred = match &rank.order {
+        RankOrder::BoundedDistance(_) => [rank.parameter, rank.paired_parameter]
+            .into_iter()
+            .filter(|symbol| symbol.is_valid())
+            .collect::<Vec<_>>(),
+        RankOrder::SliceLength => [rank.record_subject]
+            .into_iter()
+            .filter(|symbol| symbol.is_valid())
+            .collect(),
+        _ => [rank.parameter]
+            .into_iter()
+            .filter(|symbol| symbol.is_valid())
+            .collect(),
+    };
+    let discover = |premises| {
+        let required =
+            ranking_range_required_symbols(program, machine, rank.range, measure, premises)?;
+        discover_state_entry_mappings_preferring(
+            program,
+            machine,
+            &preferred,
+            rank.record_subject,
+            &required,
+        )
+    };
+    let mappings = discover(RankingRangePremises::RankInvariant)?;
+    if discover(RankingRangePremises::EntryInvariant)? != mappings {
+        return None;
+    }
+    Some((measure, rank.range, mappings.get(position)?.clone()))
 }
 
 /// How a slot's arrival value may relate to its recorded entry role while the

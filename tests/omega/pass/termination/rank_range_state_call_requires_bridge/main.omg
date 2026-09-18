@@ -1,0 +1,39 @@
+// PASS CANARY. A ranged member's own proven range invariant is established
+// site evidence at a subordinate call: `outer`'s judgment re-proves
+// `0 <= pending <= bound` on every `hold` arrival through the discovered
+// `pending -> remaining, bound -> cap` telescope, so `inner`'s public
+// `requires n <= limit` is discharged without a respelled guard. The
+// invariant never leaks the callee's own requires or the caller's entry
+// premise -- it is the membership fact the member already proved.
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(6, 4) }
+}
+
+machine Main::outer(&mut self, cap: u64, remaining: u64)
+requires remaining <= cap;
+terminates by remaining in 0..=cap;
+-> u64 {
+    transition remaining > 0 {
+        true -> hold(remaining, cap)
+        false -> remaining
+    }
+    state hold(pending: u64, bound: u64) {
+        transition pending > 0 {
+            true -> self.inner(pending, bound)
+            false -> pending
+        }
+    }
+}
+
+machine Main::inner(&mut self, n: u64, limit: u64)
+requires n <= limit;
+terminates by n;
+-> u64 {
+    transition n > 0 && n <= limit {
+        true -> self.outer(limit, n - 1)
+        false -> n
+    }
+}
