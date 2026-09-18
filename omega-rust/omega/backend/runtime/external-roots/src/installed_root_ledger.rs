@@ -365,6 +365,52 @@ impl InstalledRootLedger {
             );
         }
 
+        // The retained execution evidence is replayed against the validated
+        // root it claims, not trusted because an admission carries it: every
+        // root-bound coordinate, the honestly recomputed compact report
+        // identity, and the opaque exit assurance's own validation all run
+        // again here.
+        if !admission.provider_execution_evidence.matches_root(&root)
+            || !admission
+                .provider_execution_evidence
+                .replays_root_report_identity(&root)
+            || !admission
+                .provider_execution_evidence
+                .replays_exit_assurance(&root)
+        {
+            return reject(
+                ExternalRootDiagnostic(
+                    "external-root admission's retained provider execution does not replay the exact validated root, its report identity, or its exit assurance"
+                        .into(),
+                ),
+                root,
+                slot,
+                admission,
+            );
+        }
+
+        // The record publishes the admission's reportable copies of the
+        // execution's plan and exit assurance; both must equal the retained
+        // evidence's values rather than merely claim them.
+        if admission.provider_execution_evidence.provider_plan() != admission.provider_plan
+            || admission.provider_execution_evidence.exit_assurance()
+                != admission.provider_exit_assurance
+            || admission
+                .provider_execution_evidence
+                .exit_assurance_report_fingerprint()
+                != admission.provider_exit_assurance_report_fingerprint
+        {
+            return reject(
+                ExternalRootDiagnostic(
+                    "external-root admission does not carry the admitted provider execution's exact provider plan and exit assurance"
+                        .into(),
+                ),
+                root,
+                slot,
+                admission,
+            );
+        }
+
         let installed_root_evidence = InstalledRootEvidence {
             root: root.clone(),
             provider_execution: admission.provider_execution_evidence.clone(),

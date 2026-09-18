@@ -1050,6 +1050,29 @@ impl ProviderExecution {
         self.exit_assurance_report_fingerprint
     }
 
+    /// Recompute this execution's compact report identity from the exact
+    /// validated root it claims to bind. The carried value is derived state,
+    /// so admission replay recomputes it over the retained evidence — the
+    /// execution identity, every root-bound coordinate, and the retained
+    /// exit assurance's honest fingerprint — rather than trusting the
+    /// record's copy.
+    pub(crate) fn replays_root_report_identity(&self, root: &ValidatedExternalRoot) -> bool {
+        self.normalized_report_identity
+            == provider_execution_report_fingerprint(
+                self.identity,
+                root,
+                self.exit_assurance.report_fingerprint(),
+            )
+    }
+
+    /// Replay the retained opaque exit assurance against the exact validated
+    /// root it claims: the trust-receipt membership and boundary realization
+    /// checks provider admission minted. The ledger re-runs them rather than
+    /// carrying a claim no retained evidence validates.
+    pub(crate) fn replays_exit_assurance(&self, root: &ValidatedExternalRoot) -> bool {
+        self.exit_assurance.validate(root).is_ok()
+    }
+
     pub(crate) fn matches_root(&self, root: &ValidatedExternalRoot) -> bool {
         let candidate = root.candidate();
         self.root_evidence == *root

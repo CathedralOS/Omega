@@ -450,7 +450,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   enum tags, invalid UTF-8 and boolean encodings, roster over- and
   under-counts, row and route-alternative orderings, qualification
   and path-segment orderings, and trailing or truncated bytes are
-  rejected at canonical encoding or decoding.
+  rejected at canonical encoding or decoding. Landed: installed
+  external-root admission custody
+  (`external-roots/src/tests/root_admission_custody.rs`,
+  `installed_root_admission_rejects_every_one_field_substitution`) —
+  every `RootAdmission` field is mutated independently and rejected by
+  the installed-root ledger's install replay: the copied root evidence,
+  root report identity, execution identity and report fingerprint,
+  installed-code identity, receipt context, artifact, slot, owner, and
+  the trust-receipt roster bind against the retained arguments; the
+  retained provider-execution evidence is replayed against the exact
+  validated root through `matches_root`, its compact report identity is
+  honestly recomputed, and its opaque exit assurance revalidates, so
+  evidence-internal plan, identity, fingerprint, and foreign-root
+  substitutions reject; the record's reportable provider-plan,
+  exit-assurance, and exit-assurance-fingerprint copies must equal the
+  retained evidence's values; coupled honest recomputations, wholesale
+  foreign executions, duplicate root identities, and occupied slots
+  reject; the admission's own minted identity is adopted verbatim and
+  still moves the ledger's containing fingerprint honestly; admission
+  construction is the family's encoding leg and rejects an execution
+  minted for another root.
 
 ## Psi optimization and loops
 
