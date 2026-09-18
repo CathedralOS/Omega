@@ -24,6 +24,7 @@ use selected_instructions::{
 
 use super::CopyRemovalError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::{block_instructions, terminator_successors};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -49,27 +50,6 @@ pub(super) struct CopyUse {
     pub operand: usize,
 }
 
-/// Every instruction of `block`, including the one its terminator carries:
-/// a use or definition there counts for ordering and substitution exactly
-/// like a body instruction.
-fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(terminator_instruction(&block.terminator)))
-}
-
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
-}
-
 fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut SelectedInstruction {
     match terminator {
         SelectedTerminator::HostedExitProcess { instruction, .. }
@@ -91,32 +71,6 @@ fn block_instruction_mut(
         Some(terminator_instruction_mut(&mut block.terminator))
     } else {
         block.instructions.get_mut(position)
-    }
-}
-
-/// Every successor edge of `block`'s terminator; register transports on them
-/// read or define registers on the edge, outside any instruction operand.
-fn successors(block: &SelectedBlock) -> impl Iterator<Item = &SelectedSuccessor> {
-    match &block.terminator {
-        SelectedTerminator::Jump { successor, .. } => [Some(successor), None].into_iter().flatten(),
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        } => [Some(when_nonzero), Some(when_zero)].into_iter().flatten(),
-        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
-            [None, None].into_iter().flatten()
-        }
     }
 }
 
@@ -397,7 +351,10 @@ pub(super) fn admit<'source>(
                 });
             }
         }
-        if successors(current).any(|successor| successor_mentions(successor, output)) {
+        if terminator_successors(&current.terminator)
+            .into_iter()
+            .any(|successor| successor_mentions(successor, output))
+        {
             return Err(CopyRemovalError::UnsupportedUse);
         }
     }
@@ -442,7 +399,8 @@ pub(super) fn admit<'source>(
                     .checked_add(block.instructions.len())?
                     .checked_add(1)?
                     .checked_add(
-                        successors(block)
+                        terminator_successors(&block.terminator)
+                            .into_iter()
                             .map(|successor| {
                                 successor.bindings.len()
                                     + successor.structural_bindings.len()

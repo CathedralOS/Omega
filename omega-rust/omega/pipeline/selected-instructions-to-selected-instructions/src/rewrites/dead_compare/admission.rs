@@ -17,67 +17,18 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use register_model::RegisterUnitId;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
+    SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionKind,
 };
 
 use super::DeadCompareError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::{block_instructions, terminator_successors};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
     pub block_index: usize,
     pub block: SelectedBlockId,
     pub compare_index: usize,
-}
-
-/// Every instruction of `block`, including the one its terminator carries:
-/// a flag read there still observes the compare's definitions, and a flag
-/// event there still ends a unit's live range.
-fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(terminator_instruction(&block.terminator)))
-}
-
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
-}
-
-/// Every successor edge of `block`'s terminator. A flag unit still live at
-/// the terminator's end can be observed by a reader at the head of any of
-/// them; the edge's own transports move registers and storage slots, never
-/// condition-state units.
-pub(super) fn successors(block: &SelectedBlock) -> impl Iterator<Item = &SelectedSuccessor> {
-    match &block.terminator {
-        SelectedTerminator::Jump { successor, .. } => [Some(successor), None].into_iter().flatten(),
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        } => [Some(when_nonzero), Some(when_zero)].into_iter().flatten(),
-        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
-            [None, None].into_iter().flatten()
-        }
-    }
 }
 
 /// Whether `kind` is one of the three flag publishers whose whole effect is
@@ -129,7 +80,7 @@ fn audit_dead_unit(
         if killed {
             continue;
         }
-        for successor in successors(block) {
+        for successor in terminator_successors(&block.terminator) {
             let target = function
                 .blocks
                 .iter()
@@ -267,7 +218,7 @@ pub(super) fn admit<'source>(
     let edge_count = function
         .blocks
         .iter()
-        .map(|block| successors(block).count())
+        .map(|block| terminator_successors(&block.terminator).len())
         .sum::<usize>();
     let dead_audit = units
         .len()

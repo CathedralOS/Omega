@@ -10,14 +10,14 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
-    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
-    VirtualRegisterId,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, VirtualRegisterId,
 };
 use semantic_vocabulary::IntegerValue;
 
 use super::LiteralMinuendError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::{block_instructions, terminator_successors};
 
 /// The unsigned bound both target encoders enforce for
 /// `CompareI64Immediate`: each `u12` gate admits `Unsigned(v)` only for
@@ -39,54 +39,6 @@ pub(super) struct Admission<'source> {
     pub kind: SelectedInstructionKind,
     /// The selected form's own constraint row.
     pub row: &'source RegisterInstructionConstraint,
-}
-
-/// Every instruction of `block`, including the one its terminator carries:
-/// a register definition there still counts toward the unique-producer
-/// rule, and a flag read there still observes the compare's definitions.
-fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(terminator_instruction(&block.terminator)))
-}
-
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
-}
-
-/// Every successor edge of `block`'s terminator. A flag unit still live at
-/// the terminator's end can be observed by a reader at the head of any of
-/// them.
-fn successors(block: &SelectedBlock) -> impl Iterator<Item = &SelectedSuccessor> {
-    match &block.terminator {
-        SelectedTerminator::Jump { successor, .. } => [Some(successor), None].into_iter().flatten(),
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        } => [Some(when_nonzero), Some(when_zero)].into_iter().flatten(),
-        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
-            [None, None].into_iter().flatten()
-        }
-    }
 }
 
 /// The bit pattern a `MaterializeI64` publishes, admitted only when it fits
@@ -151,7 +103,7 @@ fn audit_flag_unit(
         if killed {
             continue;
         }
-        for successor in successors(block) {
+        for successor in terminator_successors(&block.terminator) {
             let target = function
                 .blocks
                 .iter()
@@ -341,7 +293,7 @@ pub(super) fn admit<'source>(
     let edge_count = function
         .blocks
         .iter()
-        .map(|block| successors(block).count())
+        .map(|block| terminator_successors(&block.terminator).len())
         .sum::<usize>();
     let flag_audit = compare_instruction
         .implicit_defs

@@ -81,7 +81,7 @@ pub(super) fn coupled(earlier: &SelectedInstruction, later: &SelectedInstruction
 /// can observe or expose reachable state regardless of roster rows, and a
 /// terminator kind never belongs in a block body. Same boundary the
 /// memory-motion rules enforce.
-fn is_barrier(instruction: &SelectedInstruction) -> bool {
+pub(super) fn is_barrier(instruction: &SelectedInstruction) -> bool {
     use SelectedInstructionKind::*;
     matches!(
         instruction.kind,

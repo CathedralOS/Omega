@@ -32,12 +32,14 @@ use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedTerminator, SelectedValueTransport, VirtualRegisterId,
+    SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::PlaceId;
 
 use super::StoreMutationMotionError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::window_hazards::is_barrier;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -192,7 +194,7 @@ pub(super) fn admit<'source>(
             let insert = if cursor == block_index { end - 1 } else { end };
             break (cursor, insert);
         }
-        let edges = successors(&current.terminator);
+        let edges = terminator_successors(&current.terminator);
         let land_at_end = |insert: usize| (cursor, insert);
         let Some(first) = edges.first() else {
             // A terminator without successors leaves no later position; the
@@ -362,29 +364,6 @@ fn instruction_stops(
         || (!has_row && unaccounted_kind(candidate))
 }
 
-/// Calls, hosted effects, and terminator kinds are always barriers: they can
-/// observe or expose reachable storage regardless of their roster rows, and a
-/// terminator kind never belongs in a block body.
-fn is_barrier(instruction: &SelectedInstruction) -> bool {
-    use SelectedInstructionKind::*;
-    matches!(
-        instruction.kind,
-        CallUnit { .. }
-            | CallScalar { .. }
-            | CallAggregate { .. }
-            | HostedReadByte { .. }
-            | HostedWriteByteI32 { .. }
-            | HostedExitProcessI32
-            | ReturnScalar
-            | ReturnAggregate { .. }
-            | ReturnUnit
-            | Jump
-            | ConditionalBranchNonZero
-            | ConditionalBranchU64LessThan
-            | ConditionalBranchI64LessThan
-    )
-}
-
 /// An interval instruction without a roster row must be unable to reach any
 /// semantic or place-backed storage: private-slot frame accesses touch
 /// compiler-owned spill/boundary slots that no referent place aliases, and
@@ -464,46 +443,6 @@ fn settlement_before(function: &SelectedFunction, block: SelectedBlockId, positi
     })
 }
 
-/// The successor edges a terminator can take: a jump's single edge or a
-/// conditional's two legs. Returns and hosted exits have none.
-fn successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
-    match terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
-            Vec::new()
-        }
-    }
-}
-
-/// The instruction a terminator positions at the end of its block. Its roster
-/// rows and register definitions sit between the block's body and any crossed
-/// edge.
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
-}
-
 /// Whether `block`'s only predecessor block is `expected`: every other
 /// block's terminator is scanned for an edge naming it, so a second incoming
 /// edge or a self-loop keeps the join visible.
@@ -513,7 +452,7 @@ fn sole_predecessor(function: &SelectedFunction, block: usize, expected: usize) 
         .iter()
         .enumerate()
         .filter_map(|(index, candidate)| {
-            successors(&candidate.terminator)
+            terminator_successors(&candidate.terminator)
                 .iter()
                 .any(|edge| edge.block == function.blocks[block].id)
                 .then_some(index)
@@ -536,7 +475,7 @@ fn reaches_visited(function: &SelectedFunction, start: usize, visited: &[bool]) 
             continue;
         }
         seen[index] = true;
-        for edge in successors(&function.blocks[index].terminator) {
+        for edge in terminator_successors(&function.blocks[index].terminator) {
             if let Some(target) = function
                 .blocks
                 .iter()

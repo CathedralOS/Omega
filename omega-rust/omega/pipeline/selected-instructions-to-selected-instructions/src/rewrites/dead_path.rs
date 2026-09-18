@@ -45,11 +45,11 @@ use std::collections::{BTreeSet, VecDeque};
 
 use register_model::RegisterUnitId;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction,
-    SelectedInstruction, SelectedStructuralTransport, SelectedSuccessor, SelectedTerminator,
-    SelectedValueTransport, VirtualRegisterId,
+    SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId,
 };
 
+use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::rewrites::window_hazards::{register_reads, register_writes};
 
 /// How the moved member occupies its landing position on the paths the
@@ -126,45 +126,6 @@ fn member_locations(member: &SelectedInstruction) -> LiveLocations {
             .chain(member.clobbers.iter())
             .copied()
             .collect(),
-    }
-}
-
-/// Every successor edge of `terminator`, whatever its role: the dead-path
-/// audit reads the physical successor record a traversal would take.
-fn successor_edges(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
-    match terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less: when_nonzero,
-            when_not_less: when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
-            Vec::new()
-        }
-    }
-}
-
-/// The instruction a terminator carries — a position every traversal of
-/// its block observes.
-fn terminator_instruction(block: &SelectedBlock) -> &SelectedInstruction {
-    match &block.terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }
 
@@ -329,7 +290,7 @@ pub(super) fn dead(
         {
             land(&mut live, &relocation.landing, &locations);
         }
-        let terminator = terminator_instruction(block);
+        let terminator = terminator_instruction(&block.terminator);
         if reads_live(terminator, &live) {
             return false;
         }
@@ -337,7 +298,7 @@ pub(super) fn dead(
         if live.is_empty() {
             continue;
         }
-        for edge in successor_edges(&block.terminator) {
+        for edge in terminator_successors(&block.terminator) {
             let Some(out) = cross_edge(&live, edge) else {
                 return false;
             };

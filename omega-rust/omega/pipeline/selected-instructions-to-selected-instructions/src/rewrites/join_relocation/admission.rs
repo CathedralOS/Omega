@@ -22,17 +22,17 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
-    SelectedValueTransport,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedSuccessor, SelectedTerminator,
 };
 
 use super::JoinRelocationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, has_memory_rows, register_reads, register_writes, schedulable,
-    surface,
+use crate::rewrites::block_edges::{
+    all_edges, edge_accounted, plain_edge, terminator_instruction, terminator_successors,
+    transport_conflict,
 };
+use crate::rewrites::window_hazards::{coupled, has_call_contract, schedulable, surface};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -47,103 +47,6 @@ pub(super) struct Admission<'source> {
     /// instruction lands the member at the body end, index
     /// `target.instructions.len()`.
     pub landing_index: usize,
-}
-
-/// Every successor edge a terminator names; `HostedExitProcess` and
-/// `Return` name none.
-fn terminator_successors(block: &SelectedBlock) -> Vec<&SelectedSuccessor> {
-    match &block.terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
-            Vec::new()
-        }
-    }
-}
-
-/// The instruction a terminator carries. The branch and jump instructions
-/// the window's edges ride on are positions the move crosses; every form
-/// is returned so predecessor scans see a uniform surface.
-fn terminator_instruction(block: &SelectedBlock) -> &SelectedInstruction {
-    match &block.terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
-}
-
-/// Every successor edge in the function paired with the block it leaves,
-/// for predecessor-count audits.
-fn all_edges(
-    function: &SelectedFunction,
-) -> impl Iterator<Item = (SelectedBlockId, &SelectedSuccessor)> {
-    function.blocks.iter().flat_map(|block| {
-        terminator_successors(block)
-            .into_iter()
-            .map(move |edge| (block.id, edge))
-    })
-}
-
-/// A plain semantic successor edge: case dispatch, continuation,
-/// structural transfer, and per-edge fuel all carry boundary effects this
-/// step does not cross. Structural bindings may remain only while every
-/// transport is `Unused`, which moves nothing.
-fn plain_edge(successor: &SelectedSuccessor) -> bool {
-    successor.role == SelectedSuccessorRole::Semantic
-        && successor.structural_case.is_none()
-        && successor.fuel.is_empty()
-        && successor.structural_bindings.iter().all(|binding| {
-            binding.transport == selected_instructions::SelectedStructuralTransport::Unused
-        })
-}
-
-/// The member must not interfere with one crossed edge's register
-/// transports: a member defining the transported argument would hand the
-/// binding a value it never carried before the move, a member defining
-/// the parameter would be overwritten by it, and a member reading the
-/// parameter would observe the transported value only on one side of the
-/// move. Reading the argument is harmless — the binding never writes it.
-fn transport_conflict(member: &SelectedInstruction, successor: &SelectedSuccessor) -> bool {
-    successor.bindings.iter().any(|binding| {
-        matches!(
-            binding.transport,
-            SelectedValueTransport::Registers { argument, parameter }
-                if register_writes(member)
-                    .any(|register| register == argument || register == parameter)
-                    || register_reads(member).any(|register| register == parameter))
-    })
-}
-
-/// The roster surface one crossed edge position carries: rows the
-/// terminator instruction itself records plus any rows the roster logs
-/// with the edge's own origin.
-fn edge_accounted(
-    function: &SelectedFunction,
-    terminator: &SelectedInstruction,
-    successor: &SelectedSuccessor,
-) -> bool {
-    has_memory_rows(function, terminator.id)
-        || function.memory_accesses.iter().any(|access| {
-            access.origin
-                == selected_instructions::SelectedMemoryAccessOrigin::Edge(successor.psi_edge)
-        })
 }
 
 pub(super) fn admit<'source>(
@@ -295,7 +198,7 @@ pub(super) fn admit<'source>(
             return Err(JoinRelocationError::UnsupportedPair);
         }
     }
-    let terminator = terminator_instruction(target);
+    let terminator = terminator_instruction(&target.terminator);
     // The destination names a position in the head body — the member lands
     // at its index — or the head's terminator-carried instruction,
     // landing the member at the body end.
@@ -402,7 +305,7 @@ pub(super) fn admit<'source>(
                 .instructions
                 .iter()
                 .chain(std::iter::once(terminator_instruction(
-                    &function.blocks[arm],
+                    &function.blocks[arm].terminator,
                 )))
         }))
         .chain(target.instructions[landing_index..].iter())
@@ -426,13 +329,15 @@ pub(super) fn admit<'source>(
                 candidate
                     .instructions
                     .iter()
-                    .chain(std::iter::once(terminator_instruction(candidate)))
+                    .chain(std::iter::once(terminator_instruction(
+                        &candidate.terminator,
+                    )))
                     .try_fold(total, |total, _| total.checked_add(1))
             })
         })
         .and_then(|total| {
             function.blocks.iter().try_fold(total, |total, candidate| {
-                terminator_successors(candidate)
+                terminator_successors(&candidate.terminator)
                     .iter()
                     .try_fold(total, |total, _| total.checked_add(1))
             })

@@ -3,6 +3,7 @@
 mod address_fold;
 mod allocation_recovery;
 mod arm_relocation;
+mod block_edges;
 mod bypass_relocation;
 mod condition_state;
 mod confluence_relocation;
@@ -23,6 +24,7 @@ mod literal_minuend;
 mod load_forwarding;
 mod local_relocation;
 mod local_schedule;
+mod place_storage;
 mod predecessor_relocation;
 mod redundant_extension;
 mod run_relocation;
