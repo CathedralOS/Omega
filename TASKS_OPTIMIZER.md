@@ -310,13 +310,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     relocation evidence and falls to the scalar-result fallthrough in the
     verifier's `unranked_cycles::eligible`. `CallStructural` relocates only in
     its affine claim-free form bound to the same block's `StructuralCase` or
-    `ReturnStructural` terminator: an unrestricted place result would leave
-    later traversals dispatching a disposed place, and a call carrying a
-    structural argument would let the callee observe a caller place the
-    containment bound does not freeze. The remaining establishments still need
-    an admitted cyclic source shape — scalar-graph arrays only emit as call
-    arguments — so that work starts upstream in psi. Synthetic fixtures cannot
-    bypass the fence: optimizer admission replays
+    `ReturnStructural` terminator — an unrestricted place result would leave
+    later traversals dispatching a disposed place — and its structural
+    arguments admit only the non-owned borrows under the same
+    place-custody bound and root-landing rule `CallUnit` and
+    `CallStructuralScalar` replay, run with the relocating confined results
+    tolerated: an `Owned` argument would move the caller's place into the
+    callee, custody this boundary cannot re-express. The remaining
+    establishments still need an admitted cyclic source shape — scalar-graph
+    arrays only emit as call arguments — so that work starts upstream in psi.
+    Synthetic fixtures cannot bypass the fence: optimizer admission replays
     `verify_module_for_optimization`.
   - Profitability has no bounded leg. Every operation and terminator costs one
     fuel unit, so no zero-cost speculation exists beyond the constant-leaf
