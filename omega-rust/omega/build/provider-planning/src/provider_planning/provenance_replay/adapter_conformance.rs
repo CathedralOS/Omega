@@ -472,8 +472,7 @@ pub(crate) fn exact_top_level_external_realization<'typed>(
                         binding,
                         &plan.provider_type,
                         &realization_machine_identity(typed, machine.name.as_str()),
-                    )
-                    .is_ok_and(|binding| binding == row.binding)
+                    ) == row.binding
                 })
         })
         .collect::<Vec<_>>();

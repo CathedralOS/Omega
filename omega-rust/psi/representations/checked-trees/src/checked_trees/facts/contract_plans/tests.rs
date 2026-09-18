@@ -567,7 +567,7 @@ fn external_binding_mechanism_participates_in_contract_identity() {
 
     assert_ne!(
         fingerprint(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
-        fingerprint(language_semantics::ExternalBindingMechanism::Import),
+        fingerprint(language_semantics::ExternalBindingMechanism::Syscall),
         "one per-program binding ordinal must not collapse distinct mechanisms"
     );
 }

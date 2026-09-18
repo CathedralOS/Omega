@@ -4528,42 +4528,27 @@ Owners include
   authored `via` span retained as invocation custody
   (`omega-rust/psi/semantics/build-time-evaluation/src/admission/const_evaluable.rs`,
   `omega-rust/omega/build/provider-planning/src/evaluated_via_bindings.rs`).
-  The string-backed bootstrap is retired on the Omega side: no production
-  code constructs `ProviderBinding::StringBackedImportBootstrap` (its payload
-  is an empty `RetiredStringBackedImportBootstrap`), the calling-plan,
-  trust-report, review-policy, and executable-scope carriers dropped their
-  variants, provider derivation and review capture reject a typed
-  `ExternalBindingIdentity::Import` with "declare a typed locator through an
-  evaluated `via` binding producer", and review recovery reports the old tag
-  as `RetiredVocabulary` without a version bump (no producible encoding
-  changed). The Psi syntax `ExternalBinding::DllImport` variant, its
-  snapshot row, its lowering arm, and the two `source_imports.rs` arms are
-  gone. The review vocabulary rows that mirrored the typed identity are
-  retired (macOS ARM64, 2026-09-17): `PackageReviewExternalBinding::Import`
-  and `PackagePolicyExternalBinding::Import` no longer exist, capture
-  projects a typed identity through one fallible
-  `project_external_binding` that rejects `ExternalBindingIdentity::Import`
-  with the evaluated-`via` diagnostic, the review-record and policy
-  encoders no longer spell tag 0, and external-supply policy recovery
-  reports tag 0 as `RetiredVocabulary` without a version bump
-  (`packages/review/evidence/src/{capture/callables/external_supply.rs,
-  record/signatures/external_{supply,policy}.rs,
-  encoding/recovery/policy/external.rs}`). Remaining deletions, each
-  blocked by a live claim on its owning crate at the time of the retirement:
-  the uninhabited `ProviderBinding::StringBackedImportBootstrap` variant and
-  its vacuous `match *retired {}` arms (effects, package-evidence,
-  trust-model, provider-planning — the last claimed by
-  TOP-LEVEL-BOUNDARY-REQUIREMENTS), whose last arm is
-  `native-realization/src/native_realization/terminal_authority_review/reviewer.rs`
-  (crate `src` claimed by WRITE-ONLY-BORROW); and
+  The string-backed bootstrap is retired (macOS ARM64, 2026-09-17): the Psi
+  syntax `ExternalBinding::DllImport` variant, the review and policy
+  vocabulary rows that mirrored it, and the typed
   `language_semantics::ExternalBindingIdentity::Import` with
-  `ExternalBindingMechanism::Import` (crate claimed by
-  OPERATOR-MACHINE-SUPPLY/ranking-catalog), whose remaining consumers are
-  the typed-trees `ExternalBindingValueSnapshot::Import` snapshot arm, the
-  provider-planning `reject_string_backed_import_identities` /
-  `external_provider_binding` rejections, the package-evidence
-  `project_external_binding` rejection, and the tests that pin those
-  rejections. Open after that: the wider acceptance replay.
+  `ExternalBindingMechanism::Import` no longer exist. The parser's
+  `Binding::DllImport` rejection is the only remaining source diagnostic; the
+  type system now enforces what the provider-planning
+  `reject_string_backed_import_identities` / `external_provider_binding` and
+  package-evidence `project_external_binding` rejections used to check, so
+  those rejections and the tests pinning them are gone and
+  `external_provider_binding` is infallible. No decoder rebuilds a typed
+  identity: review recovery still reports the old encoded tags as
+  `RetiredVocabulary` without a version bump, no producible encoding changed,
+  and `ExternalBindingMechanism::identity_tag` keeps its numbering gap at 1 so
+  every surviving contract fingerprint stays byte-identical. Remaining
+  deletion, still fenced by a live claim on its owning crate: the uninhabited
+  `ProviderBinding::StringBackedImportBootstrap` variant and its vacuous
+  `match *retired {}` arms (effects, package-evidence, trust-model,
+  provider-planning), whose last arm is
+  `native-realization/src/native_realization/terminal_authority_review/reviewer.rs`.
+  Open after that: the wider acceptance replay.
 
   Extend [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement)
   from fixed-width scalar calls to a

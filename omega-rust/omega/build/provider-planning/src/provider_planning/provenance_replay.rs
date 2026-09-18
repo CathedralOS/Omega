@@ -101,7 +101,6 @@ impl<'a> ProviderPlanDerivation<'a> {
         evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        reject_string_backed_import_identities(typed)?;
         evaluated_bindings.validate_against_typed(typed)?;
         let retained_target = evaluated_bindings
             .target()
@@ -118,31 +117,6 @@ impl<'a> ProviderPlanDerivation<'a> {
             evaluated_bindings: Some(evaluated_bindings),
             target_machine_origins,
         })
-    }
-}
-
-/// The typed `ExternalBindingIdentity::Import` is the retired string-backed
-/// import bootstrap: no provider binding, calling-plan row, review row or
-/// trust realization carries it any more. Reject it once, where typed
-/// external identities enter provider planning, with the diagnostic that
-/// names the replacement; the derivation walks below then never see one.
-fn reject_string_backed_import_identities(
-    typed: &TypedTrees,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let diagnostics = typed
-        .external_bindings
-        .identities()
-        .filter_map(|(_, identity)| match identity {
-            language_semantics::ExternalBindingIdentity::Import { library, symbol } => Some(
-                requirement_identities::retired_string_backed_import_diagnostic(library, symbol),
-            ),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
     }
 }
 

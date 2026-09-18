@@ -8,7 +8,6 @@ use crate::ExternalBindingId;
 /// consumers never classify a rendered `Binding::Case(...)` string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExternalBindingMechanism {
-    Import,
     Syscall,
     CompilerIntrinsic,
     VtableSlot,
@@ -19,7 +18,6 @@ pub enum ExternalBindingMechanism {
 impl ExternalBindingMechanism {
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Import => "import",
             Self::Syscall => "syscall",
             Self::CompilerIntrinsic => "compiler_intrinsic",
             Self::VtableSlot => "vtable_slot",
@@ -28,9 +26,11 @@ impl ExternalBindingMechanism {
         }
     }
 
+    /// Tag 1 belonged to the retired string-backed import mechanism and stays
+    /// unused. These tags fold into contract identity, so renumbering the
+    /// survivors would change every external realization's fingerprint.
     pub const fn identity_tag(self) -> u8 {
         match self {
-            Self::Import => 1,
             Self::Syscall => 2,
             Self::CompilerIntrinsic => 3,
             Self::VtableSlot => 4,
@@ -42,11 +42,10 @@ impl ExternalBindingMechanism {
 
 /// Closed, structural identity for one irreducible external binding. These
 /// values are interned directly; no display rendering is parsed or compared.
-/// Foreign library/symbol fields remain bootstrap strings until their nominal
-/// ids move into the target package.
+/// An import has no spelling here: a foreign locator is evaluated as a typed
+/// `Binding` value through a `via` producer, never as authored strings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExternalBindingIdentity {
-    Import { library: String, symbol: String },
     Syscall { number: i64 },
     CompilerIntrinsic,
     VtableSlot { index: i64 },
@@ -57,7 +56,6 @@ pub enum ExternalBindingIdentity {
 impl ExternalBindingIdentity {
     pub const fn mechanism(&self) -> ExternalBindingMechanism {
         match self {
-            Self::Import { .. } => ExternalBindingMechanism::Import,
             Self::Syscall { .. } => ExternalBindingMechanism::Syscall,
             Self::CompilerIntrinsic => ExternalBindingMechanism::CompilerIntrinsic,
             Self::VtableSlot { .. } => ExternalBindingMechanism::VtableSlot,
