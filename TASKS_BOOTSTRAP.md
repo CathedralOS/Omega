@@ -294,55 +294,62 @@ prerequisite to every lower-rung milestone.
 
 - **EPSILON-EVALUATOR.** Complete the closure selected by
   `bootstrap/4_epsilon/epsilon_compiler.delta.sources` against the
-  [Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md). Grammar-level execution
-  forms already have staging implementations; do not treat an unspecified
-  missing construct as authorization for another implementation layer.
-  Remaining obligations are witnessed checking/runtime conformance gaps,
-  resource-contained fixed-storage realization and evaluator entry, complete
-  D composition, and independent `RunEpsilon` refinement. For the entry, derive
-  one explicit resource/request/observation profile against the selected lower
-  chain and test exact/adjacent refusals without publishing an Epsilon
-  observation. The private diagnostic adapter is not that boundary.
-  Account for actual evaluator storage, including cumulative immutable Gamma
-  allocation, under [section 10](bootstrap/4_epsilon/LANGUAGE.md#10-resource-classification).
-  Do not add a hypothetical dense-storage sizing pass. Cover a large sparse
-  array with few updates and a small array with repeated updates: declared
-  bounds and value semantics remain exact, while actual resource exhaustion
-  refuses without publishing a successful observation. Sparse diagnostic success
-  is not final-profile admission; do not restore the retired Epsilon Alpha backend.
-  Justify retained features by the Epsilon-written D source.
-  Use concrete existing D slices for intermediate acceptance; do not invent
-  speculative language facilities while D is incomplete.
-  The [whole-member D customers](tests/epsilon/interpreted-omega-experiment/README.md)
-  include actual tape construction and target execution: at base `497e21fb9a`
-  with the customer identity pinned in that gate, on macOS arm64,
-  `sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D Alpha tape buffers'`
-  checks D's fixed-up 79-byte echo/count tape and runs its exact emitted bytes
-  with the selected Alpha seed. This covers a concrete D dependency, not the
-  complete source or final resource envelope; the remaining acceptance below
-  must not be replaced by further emitter-only controls.
-  At base `564b45e205`, the unchanged 92,229-byte D lexer took 145.273 seconds
-  on macOS arm64; exact-current-callable checking reduces the measured run to
-  120.518 seconds without a new index or profile. Run
-  `sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D lexer'`.
-  Retain `sh tests/bootstrap/omega-parser/run.sh` as the complete-source parser
-  regression. Its [recorded time/allocation comparison](tests/bootstrap/omega-parser/README.md#field-identity-comparison)
-  passed, but does not close final checking, resource/entry conformance, or
-  whole-D compilation. Do not replace those remaining requirements with more
-  parser-only controls.
-  Checking-side reason coverage is now complete: `sh tests/epsilon/checking/run.sh`
-  runs 97 judgments, of which eleven added controls execute the ten previously
-  uncovered closed rejection reasons — `InvalidToken`, `InvalidCharacterLiteral`,
-  both `IntegerLiteralOutOfRange` boundaries, `UnexpectedToken`, `MissingEntry`,
-  `InvalidBoundary`, `InvalidDataShape`, `InvalidArrayLength`,
-  `UseBeforeInitialization`, and `EscapingView` — each at its contract anchor
-  under the unchanged 716,212-byte checker receipt `a6d49f0f7b2eca2c66e985daeb9380d0285a160ce468803ee5ce74dce9ac690c`
-  on macOS arm64. No evaluator defect was witnessed; runtime conformance,
-  resource containment, evaluator entry, complete D composition, and
-  `RunEpsilon` refinement remain.
-  Final acceptance depends on complete D: that exact source executes through
-  the selected lower chain and refines `RunEpsilon`, with no Epsilon-owned
-  Alpha backend or hidden host implementation.
+  [Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md). Justify retained
+  features by the Epsilon-written D source and use concrete existing D slices
+  for intermediate acceptance. An unspecified missing construct does not
+  authorize another implementation layer or a speculative language facility
+  while D is incomplete.
+
+  Every grammar-level execution form executes in the staging evaluator,
+  checking covers every closed rejection reason, and the
+  [evaluator edge profile](bootstrap/4_epsilon/EVALUATOR_PROFILE.md) derives
+  one resource/request/observation profile with exact/adjacent refusals and
+  the large-sparse and repeated-update array workloads. That profile covers
+  the private diagnostic adapter only. It is not the
+  [section 11](bootstrap/4_epsilon/LANGUAGE.md#11-evaluator-application-and-observation-boundary)
+  envelope, and its refusals are raw lower-chain statuses with empty stdout,
+  not [section 10](bootstrap/4_epsilon/LANGUAGE.md#10-resource-classification)'s
+  outer `Incomplete(resource, limit, requested, coordinate?)`.
+
+  Remaining work:
+
+  - The final request/observation envelope and evaluator `main`: bind the
+    evaluator artifact, exact source closure, sealed stdin, resource profile,
+    and complete `RunEpsilon` observation without host parsing.
+  - Carry lower-chain refusals (Gamma statuses 250, 252, 253, 254) to the
+    outer `Incomplete`. Add an evaluator-internal budget only if the envelope
+    cannot classify them, and no hypothetical dense-storage sizing pass. The
+    profile records one pending pin, a direct evaluator-level status-252
+    witness.
+  - Complete D composition: check and execute the whole D closure through the
+    selected lower chain. The six
+    [whole-member D customers](tests/epsilon/interpreted-omega-experiment/README.md)
+    (`run.sh --customer '<name>'`) and the complete-source parser regression
+    `sh tests/bootstrap/omega-parser/run.sh` cover concrete D dependencies,
+    not final checking, resource/entry conformance, or whole-D compilation.
+    Do not replace those requirements with more emitter-only or parser-only
+    controls.
+  - Independent `RunEpsilon` refinement with source, stdin, profile, and
+    observation mutations, per
+    [section 12](bootstrap/4_epsilon/LANGUAGE.md#12-conformance-and-change-control).
+  - Fix checking/runtime conformance defects when a D slice or contract
+    control witnesses one; none is recorded now.
+
+  Acceptance depends on complete D: that exact source executes through the
+  selected lower chain and refines `RunEpsilon`, with no Epsilon-owned Alpha
+  backend or hidden host implementation. Sparse diagnostic success is not
+  final-profile admission; do not restore the retired Epsilon Alpha backend.
+
+  Flag: the only recorded whole-D allocation measurement
+  ([parser comparison](tests/bootstrap/omega-parser/README.md#field-identity-comparison))
+  checked the then 470,766-byte customer and made twelve short `parse_view`
+  calls in 2,951 seconds, using 80.05% of the 40,265,318-pair arena, which
+  Gamma never reclaims. D is now 509,267 bytes and compiles only nullary
+  literal-returning machines. No record separates checking from execution
+  allocation or projects a complete D compiling the C closure against that
+  arena. Measure that before adding evaluator or D machinery; an overrun is
+  the first [owner-escalation](bootstrap/MINIMIZATION.md#owner-escalation)
+  finding, not an optimization task.
 
 ## P4 - Epsilon to Omega and self-hosting
 
