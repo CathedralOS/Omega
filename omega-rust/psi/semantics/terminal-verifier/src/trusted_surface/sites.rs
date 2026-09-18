@@ -90,6 +90,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         module: "quotient_derived",
     },
     TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients/quotient_receiver_policies.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients.rs",
+        module: "quotient_receiver_policies",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients/quotient_schemes.rs",
         parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients.rs",
         module: "quotient_schemes",
