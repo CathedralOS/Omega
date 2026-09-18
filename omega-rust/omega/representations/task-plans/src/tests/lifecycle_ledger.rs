@@ -1,13 +1,13 @@
-use super::{candidate, id, invocation_receipt, runtime};
+use super::{candidate, id, invocation_receipt, moved_arguments, runtime, stack_lease, wcsu_plan};
 use crate::{
     ActivationInstanceId, TaskLifecycleLedger, TaskRuntimeInstanceId, TaskStartOperation,
-    TaskStorageBinding, TaskStorageLeaseId, TaskStorageOwnerId, TaskStorageProvenance,
-    validate_activation_plan,
+    TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId, TaskStorageOwnerId,
+    TaskStorageProvenance, validate_activation_plan,
 };
 
 #[test]
 fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
-    let plan = validate_activation_plan(candidate()).expect("activation plan");
+    let plan = wcsu_plan(31);
     let instance = id(100, TaskRuntimeInstanceId::from_normalized_identity);
     let activation = id(101, ActivationInstanceId::from_normalized_identity);
     let storage = TaskStorageProvenance {
@@ -20,7 +20,8 @@ fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
         .accept_invocation(
             &receipt,
             activation,
-            TaskStorageBinding::Persistent(storage),
+            moved_arguments(&plan, 106),
+            TaskStartStorage::Persistent(stack_lease(&plan, 102, 103)),
         )
         .expect("accepted activation");
 
@@ -44,6 +45,14 @@ fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
         settled.released_storage(),
         TaskStorageBinding::Persistent(storage)
     );
+    assert_eq!(
+        settled
+            .into_released_lease()
+            .expect("persistent activation held a stack lease")
+            .provenance(),
+        storage,
+        "settlement releases the exact retained lease authority"
+    );
     ledger
         .validate_storage_reclaim(storage)
         .expect("settlement releases storage");
@@ -52,25 +61,18 @@ fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
 
 #[test]
 fn lifecycle_rejects_replayed_activation_and_storage_eras() {
-    let plan = validate_activation_plan(candidate()).expect("activation plan");
+    let plan = wcsu_plan(33);
     let instance = id(110, TaskRuntimeInstanceId::from_normalized_identity);
     let first_activation = id(111, ActivationInstanceId::from_normalized_identity);
     let second_activation = id(112, ActivationInstanceId::from_normalized_identity);
-    let storage = TaskStorageProvenance {
-        owner: id(113, TaskStorageOwnerId::from_normalized_identity),
-        lease: id(114, TaskStorageLeaseId::from_normalized_identity),
-    };
-    let alternate_storage = TaskStorageProvenance {
-        owner: storage.owner,
-        lease: id(115, TaskStorageLeaseId::from_normalized_identity),
-    };
     let receipt = invocation_receipt(&plan, instance, 116, 117);
     let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
     let claim = ledger
         .accept_invocation(
             &receipt,
             first_activation,
-            TaskStorageBinding::Persistent(storage),
+            moved_arguments(&plan, 125),
+            TaskStartStorage::Persistent(stack_lease(&plan, 113, 114)),
         )
         .expect("first activation");
 
@@ -80,9 +82,11 @@ fn lifecycle_rejects_replayed_activation_and_storage_eras() {
             .accept_invocation(
                 &replayed_activation_receipt,
                 first_activation,
-                TaskStorageBinding::Persistent(alternate_storage),
+                moved_arguments(&plan, 126),
+                TaskStartStorage::Persistent(stack_lease(&plan, 113, 115)),
             )
             .expect_err("activation replay")
+            .diagnostic()
             .0
             .contains("already been accepted")
     );
@@ -92,9 +96,11 @@ fn lifecycle_rejects_replayed_activation_and_storage_eras() {
             .accept_invocation(
                 &replayed_storage_receipt,
                 second_activation,
-                TaskStorageBinding::Persistent(storage),
+                moved_arguments(&plan, 127),
+                TaskStartStorage::Persistent(stack_lease(&plan, 113, 114)),
             )
             .expect_err("lease replay")
+            .diagnostic()
             .0
             .contains("new lease era")
     );
@@ -105,7 +111,8 @@ fn lifecycle_rejects_replayed_activation_and_storage_eras() {
             .accept_invocation(
                 &post_settlement_receipt,
                 second_activation,
-                TaskStorageBinding::Persistent(storage),
+                moved_arguments(&plan, 128),
+                TaskStartStorage::Persistent(stack_lease(&plan, 113, 114)),
             )
             .is_err()
     );
@@ -121,7 +128,8 @@ fn lifecycle_rejects_replayed_invocations_and_provider_receipts() {
         .accept_invocation(
             &first,
             id(133, ActivationInstanceId::from_normalized_identity),
-            TaskStorageBinding::InlineCompletion,
+            moved_arguments(&plan, 139),
+            TaskStartStorage::InlineCompletion,
         )
         .expect("first invocation");
 
@@ -130,9 +138,11 @@ fn lifecycle_rejects_replayed_invocations_and_provider_receipts() {
             .accept_invocation(
                 &first,
                 id(134, ActivationInstanceId::from_normalized_identity),
-                TaskStorageBinding::InlineCompletion,
+                moved_arguments(&plan, 140),
+                TaskStartStorage::InlineCompletion,
             )
             .expect_err("invocation replay")
+            .diagnostic()
             .0
             .contains("invocation identity has already been accepted")
     );
@@ -144,9 +154,11 @@ fn lifecycle_rejects_replayed_invocations_and_provider_receipts() {
             .accept_invocation(
                 &repeated_receipt,
                 id(137, ActivationInstanceId::from_normalized_identity),
-                TaskStorageBinding::InlineCompletion,
+                moved_arguments(&plan, 141),
+                TaskStartStorage::InlineCompletion,
             )
             .expect_err("provider receipt replay")
+            .diagnostic()
             .0
             .contains("invocation receipt has already been accepted")
     );
@@ -157,7 +169,8 @@ fn lifecycle_rejects_replayed_invocations_and_provider_receipts() {
             .accept_invocation(
                 &first,
                 id(138, ActivationInstanceId::from_normalized_identity),
-                TaskStorageBinding::InlineCompletion,
+                moved_arguments(&plan, 142),
+                TaskStartStorage::InlineCompletion,
             )
             .is_err(),
         "settlement does not make a provider invocation receipt replayable"
@@ -178,7 +191,8 @@ fn failed_cross_runtime_settlement_returns_the_linear_claim() {
         .accept_invocation(
             &receipt,
             id(122, ActivationInstanceId::from_normalized_identity),
-            TaskStorageBinding::InlineCompletion,
+            moved_arguments(&plan, 126),
+            TaskStartStorage::InlineCompletion,
         )
         .expect("accepted activation");
     let error = wrong_instance

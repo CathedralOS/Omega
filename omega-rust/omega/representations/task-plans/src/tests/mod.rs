@@ -5,19 +5,22 @@ mod activation_plans;
 mod executor_selection;
 mod lifecycle_ledger;
 mod runtime_invocation;
+mod start_transaction;
 
 use crate::{
     ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
     CanonicalSuspensionCrossing, ExecutorPreservationAxis, ExecutorPreservationEvidence,
-    ExecutorPreservationEvidenceId, MachineContractId, MachineEntryId,
-    SelectedTaskRuntimeProviderFact, StackPlan, StackRepresentationId, SuspensionCrossingId,
-    TaskActivationPlanFact, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptCandidate, TaskRuntimeInvocationReceiptId,
+    ExecutorPreservationEvidenceId, MachineContractId, MachineEntryId, MovedTaskArguments,
+    SelectedTaskRuntimeProviderFact, StackLease, StackLeaseBacking, StackPlan,
+    StackRepresentationId, SuspensionCrossingId, TaskActivationPlanFact, TaskArgumentCustodyId,
+    TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationId,
+    TaskRuntimeInvocationReceiptCandidate, TaskRuntimeInvocationReceiptId,
     TaskSpecializationCommitment, TaskStackFrameId, TaskStackFrameSummary,
-    TaskStackFrameValidationId, TaskStartOperation, ValidatedActivationPlan,
-    ValidatedTaskRuntimeInvocationReceipt, ValueLayoutId, WcsuStackPlanProjection,
-    compose_task_stack_demand, project_wcsu_stack_plan, validate_task_runtime_invocation_receipt,
-    validate_task_stack_frame_summary,
+    TaskStackFrameValidationId, TaskStartOperation, TaskStorageLeaseId, TaskStorageOwnerId,
+    TaskStorageProvenance, ValidatedActivationPlan, ValidatedTaskRuntimeInvocationReceipt,
+    ValueLayoutId, WcsuStackPlanProjection, compose_task_stack_demand, establish_stack_lease,
+    project_wcsu_stack_plan, validate_task_runtime_invocation_receipt,
+    validate_task_stack_frame_summary, validate_wcsu_activation_plan,
 };
 
 fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, TaskPlanDiagnostic>) -> T {
@@ -74,6 +77,37 @@ fn wcsu_projection(validation_identity: u64) -> WcsuStackPlanProjection {
 
 fn runtime() -> TaskRuntimeId {
     id(80, TaskRuntimeId::from_normalized_identity)
+}
+
+/// An activation plan whose stack shape carries sealed whole-call-graph WCSU
+/// evidence — the only kind a `StackLease` can be established against.
+fn wcsu_plan(validation_identity: u64) -> ValidatedActivationPlan {
+    let projection = wcsu_projection(validation_identity);
+    let mut candidate = candidate();
+    candidate.stack_plan = projection.stack_plan();
+    validate_wcsu_activation_plan(candidate, projection).expect("WCSU-backed activation plan")
+}
+
+/// A stack lease backed by exactly the plan's demanded shape.
+fn stack_lease(plan: &ValidatedActivationPlan, owner: u64, lease: u64) -> StackLease {
+    establish_stack_lease(
+        plan,
+        StackLeaseBacking {
+            provenance: TaskStorageProvenance {
+                owner: id(owner, TaskStorageOwnerId::from_normalized_identity),
+                lease: id(lease, TaskStorageLeaseId::from_normalized_identity),
+            },
+            backing: plan.candidate().stack_plan,
+        },
+    )
+    .expect("backing satisfies the plan")
+}
+
+fn moved_arguments(plan: &ValidatedActivationPlan, custody: u64) -> MovedTaskArguments {
+    MovedTaskArguments::new(
+        plan.candidate().argument_layout,
+        id(custody, TaskArgumentCustodyId::from_normalized_identity),
+    )
 }
 
 fn activation_fact(plan: &ValidatedActivationPlan) -> TaskActivationPlanFact {

@@ -4,9 +4,9 @@
 use crate::stack_composition::WcsuStackPlanProjection;
 use crate::{
     ActivationInstanceId, ActivationPlanCandidate, ExecutorPreservationAxis,
-    ExecutorSelectionCandidate, TaskActivationPlanFact, TaskRuntimeInvocationReceiptCandidate,
-    TaskStartOperation, TaskStorageBinding, ValidatedActivationPlan, ValidatedExecutorSelection,
-    ValidatedTaskRuntimeInvocationReceipt,
+    ExecutorSelectionCandidate, TaskActivationPlanFact, TaskArgumentCustodyId,
+    TaskRuntimeInvocationReceiptCandidate, TaskStartOperation, TaskStorageBinding,
+    ValidatedActivationPlan, ValidatedExecutorSelection, ValidatedTaskRuntimeInvocationReceipt,
 };
 
 pub(crate) fn activation_plan_report_fingerprint(
@@ -63,6 +63,7 @@ pub(crate) fn executor_selection_report_fingerprint(
 pub(crate) fn task_claim_report_fingerprint(
     invocation: &ValidatedTaskRuntimeInvocationReceipt,
     activation: ActivationInstanceId,
+    arguments: TaskArgumentCustodyId,
     storage: TaskStorageBinding,
 ) -> u64 {
     let mut fingerprint = Fingerprint::new();
@@ -70,6 +71,7 @@ pub(crate) fn task_claim_report_fingerprint(
     fingerprint.word(invocation.candidate().invocation.normalized_identity());
     fingerprint.word(invocation.candidate().receipt.normalized_identity());
     fingerprint.word(activation.normalized_identity());
+    fingerprint.word(arguments.normalized_identity());
     match storage {
         TaskStorageBinding::Persistent(provenance) => {
             fingerprint.byte(1);
