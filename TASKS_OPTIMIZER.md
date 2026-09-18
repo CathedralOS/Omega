@@ -1044,371 +1044,81 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   catalog row and not a new variant, policy bit, validator shape and
   vocabulary tag.
 
-- **EXACT-MACHINE-SIMPLIFICATIONS.** Add copy removal, redundant extension
-  removal, address folding, compare/test selection, and scheduling only where
-  each transformation is independently verifiable. Existing narrow same-view
-  and compare-adjacent cases do not imply general authority. Landed:
-  `rewrites/redundant_extension` rewrites an extension whose input's unique
-  producer already guarantees the normalized bits to `CopyI64` — the
-  producer table spans the fixed normalizations and the partial carriers
-  `ZeroExtendU32`, `LoadPacked`, and `Float32ToBits`, whose contracts fix
-  nothing above their meaningful width and so witness only `ZeroExtendU32`,
-  the one extension whose own result leaves those bits unmeaningful, and
-  only when the meaningful width already fits in 32 bits; wider packed
-  loads genuinely narrow rather than witness, and admission resolves the
-  defining operand so a packed load's undocumented scratch shares none of
-  the assembled result's guarantee — and `rewrites/literal_compare`
-  rewrites a `CompareI64` whose right operand's
-  unique producer is a `MaterializeI64` inside the shared twelve-bit
-  unsigned immediate bound to `CompareI64Immediate` — or `CompareI64Zero`
-  for a literal of zero — keeping the compare's identity, position, and
-  published flag surface while retaining the materialization for other
-  readers — and `rewrites/copy_removal` removes a `CopyI64` whose
-  destination's only mentions are plain `Use` operands later in the same
-  block, rebinding each to the source and dropping the destination roster
-  row, admitting a source redefinition on the last use's own instruction
-  but none inside the open interval, each under replayed
-  restore-by-content validation — and `rewrites/address_fold` rebinds the
-  base operand of a `Load8`/`Load16`/`Load32`/`Load64`, referent `Store`,
-  or `AddressOffset` whose last in-block definition of it is an
-  `AddressOffset` to that producer's own base, carrying the combined
-  displacement at the scaled unsigned bound every target encoder shares
-  while nothing inside the open interval redefines the base and the
-  semantic access roster stays untouched (crate `nextest`: 354 pass)
-  — and `rewrites/literal_minuend` rewrites a `CompareI64` whose left
-  operand's unique producer is a `MaterializeI64` inside the same
-  twelve-bit unsigned immediate bound to `CompareI64Immediate` — or
-  `CompareI64Zero` for a literal of zero — which fixes the literal as the
-  subtrahend and so computes the swapped subtraction: the zero condition
-  survives but ordering predicates invert, so admission walks every
-  condition-state unit the compare defines through successor edges until
-  a redefinition or clobber ends it and admits only when every reached
-  reader is `MaterializeBooleanEqual` or `ConditionalBranchNonZero`,
-  under the same replayed restore-by-content validation (crate `nextest`:
-  431 pass) — and `rewrites/local_schedule` interchanges two named
-  body instructions in one selected block across the bounded window
-  they span — the distance-one case is the adjacent pair — when no
-  register or condition-state hazard runs between either member and
-  any crossed position in either direction, no call, hosted effect,
-  barrier kind, or call-roster entry sits anywhere in the window, no
-  boundary settlement falls inside the window's span, and the
-  validated memory roster accounts for every access a memory-capable
-  member can reach — at most one window member may carry rows, so
-  row-less members observe nothing and no recorded access changes
-  order while an interior accounted access keeps its position between
-  two memory-inert members — under the same replayed
-  restore-by-content validation (crate `nextest`: 487 pass)
-  — and `rewrites/local_relocation` relocates one named body
-  instruction to a named destination's position in its block — the
-  window between them rotates one slot toward the member's vacated
-  index rather than trading two endpoints, so it admits windows the
-  interchange refuses: a row-less member cannot observe memory and
-  crosses any run of roster-carrying positions while every recorded
-  access keeps its relative order, and a roster-carrying member
-  crosses only row-less positions — when no register or
-  condition-state hazard runs between the member and any crossed
-  position in either direction, no call, hosted effect, barrier
-  kind, or call-roster entry sits anywhere in the window, and no
-  boundary settlement falls inside the window's span, under the
-  same replayed restore-by-content validation (crate `nextest`:
-  528 pass) — and `rewrites/run_relocation` relocates the
-  contiguous run two named members bound in one body block to a
-  named destination instruction's position as a single body — the
-  window the move crosses rotates so the run lands on the
-  destination's edge while every crossed position keeps its
-  relative order, letting internally coupled members move together
-  through a window neither could cross alone — when no register
-  or condition-state hazard runs between any member and any
-  crossed position, no call, hosted effect, barrier kind, or
-  call-roster entry sits anywhere in the window, no boundary
-  settlement falls inside the window's span, and the validated
-  memory roster accounts for every access a memory-capable member
-  can reach — a roster-carrying run crosses only row-less
-  positions while a row-less run crosses any accounted mix —
-  under the same replayed restore-by-content validation (crate
-  `nextest`: 571 pass) — and `rewrites/edge_relocation`
-  relocates one named body instruction across its block's unique
-  semantic `Jump` edge onto a named position in the edge's
-  sole-predecessor target — the member leaves its block's body,
-  every crossed position keeps its order, and it lands on the
-  destination's index while both terminators, the edge's
-  transports, and every roster stay untouched — when no register
-  or condition-state hazard runs between the member and any
-  crossed position in either direction, the `Jump` terminator's
-  own operand and implicit surface included, when no register
-  transport would hand a binding a stale or overwritten value,
-  when no call, hosted effect, barrier kind, or call-roster
-  entry sits anywhere in the window, when the validated memory
-  roster accounts for every access a memory-capable member can
-  reach — a roster-carrying member crosses only row-less
-  positions, the terminator and the edge's own access rows
-  counting as accounted positions — and when no boundary
-  settlement in either block would observe the member inside a
-  changed executed prefix, under the same replayed
-  restore-by-content validation (crate `nextest`: 592 pass)
-  — and `rewrites/diamond_relocation` relocates one named
-  body instruction out of a block ending in a two-successor
-  conditional branch, across each distinct arm and its
-  unconditional `Jump`, onto a named position in the one join
-  block the arms alone feed — each arm a plain source block
-  reached by that branch's edges alone, every edge into the
-  join leaving an arm, so each traversal executes exactly one
-  arm and the member keeps its execution count of one — when
-  no register or condition-state hazard runs between the
-  member and any crossed position, the branch terminator and
-  arm `Jump`s included, when no crossed edge's register
-  transports would hand a binding a stale or overwritten
-  value, when no call, hosted effect, barrier kind, or
-  call-roster entry sits inside the window, when the validated
-  memory roster accounts for every access a memory-capable
-  member can reach — a roster-carrying member crosses only
-  row-less positions, each terminator and the edge-origin rows
-  counting as accounted boundary positions — and when no
-  boundary settlement past the member's index in its own block
-  or past the landing index in the join would observe a
-  changed executed prefix, under the same replayed
-  restore-by-content validation (crate `nextest`: 636 pass)
-  — and `rewrites/constant_boolean` rewrites a
-  `MaterializeBooleanEqual`, `MaterializeBooleanU64LessThan`,
-  `MaterializeBooleanI64LessThan`,
-  `MaterializeBooleanU64LessOrEqual`, or
-  `MaterializeBooleanI64LessOrEqual` whose every implicit
-  condition-state use resolves to one compare — the last flag
-  event on every path reaching the materialization, found
-  in-block or by the least-fixpoint entry-event walk over the
-  backward-reachable predecessor cone, where edge transports
-  carry registers, storage payloads, case fields, and fuel but
-  no condition-state units so edges pass flag state through
-  unchanged — when that compare's operands are compile-time
-  constant, replacing the reader with the target's own
-  `MaterializeI64` of the decided predicate while the compare
-  keeps publishing flag state for other readers and branch
-  terminators — a clobber, a different definition, unknown
-  entry state, an eventless path, or paths that disagree all
-  refuse — under the same replayed restore-by-content
-  validation (crate `nextest`: 642 pass)
-  — and `rewrites/constant_branch` rewrites a
-  `ConditionalBranch`, `ConditionalBranchU64LessThan`, or
-  `ConditionalBranchI64LessThan` terminator whose implicit
-  uses partition under the flag universe the target's three
-  compare rows publish — flag units must resolve to one
-  compare through the same least-fixpoint entry-event walk
-  read at the terminator position, non-flag units must lie in
-  the jump row's implicit surface, and the jump row must
-  republish the branch's implicit definitions and clobbers
-  exactly — when that compare's operands are compile-time
-  constant, replacing the terminator with the target's own
-  `Jump` carrying the decided `SelectedSuccessor` record
-  verbatim while the compare keeps publishing flag state for
-  other readers — a clobber, a different definition, unknown
-  entry state, an eventless path, disagreeing paths, or a
-  non-flag observation the jump surface cannot carry all
-  refuse — under the same replayed restore-by-content
-  validation (crate `nextest`: 685 pass). The flag walk and
-  constant-operand audit both folds share now live in
-  `rewrites/condition_state`. Also landed:
-  `rewrites/fork_relocation` sinks one named body
-  instruction out of its branching block through the one
-  plain branch edge the pair selects onto a named position
-  in that arm's body — the member becomes conditional on
-  the edge, and a forward dead-path fixpoint proves every
-  location it writes unread until rewritten on each path
-  the move removes — and `rewrites/join_relocation`
-  hoists one named body instruction out of a converging
-  join back through the branch diamond that feeds it onto
-  a named position in the one fork head the arms descend
-  from — the reverse burden being total supply rather
-  than partial death: every edge into the join leaves an
-  arm the head alone feeds and every edge the head names
-  reaches an arm, so each traversal into the join crossed
-  the member's new position and each traversal of the
-  head reaches the join — under the same replayed
-  restore-by-content validation (crate `nextest`: 734
-  pass) — and `rewrites/arm_relocation` hoists one
-  named body instruction out of a conditional branch
-  arm back into the one fork head whose edges alone
-  reach it — the member becomes unconditional and so
-  speculates onto every traversal leaving the head's
-  other edges, which reverses the sink family's burden:
-  only pure register and condition-state work may rise
-  (no barrier kind, call roster, rostered or unaccounted
-  memory access, or potentially-faulting kind may newly
-  run where it never ran), and a forward dead-path
-  fixpoint proves every location the member writes
-  unread until rewritten on each path the execution is
-  new on, with the member's own new position republishing
-  foreign rather than familiar values on those paths —
-  under the same replayed restore-by-content validation
-  (crate `nextest`: 797 pass) — and
-  `rewrites/bypass_relocation` sinks one named body
-  instruction out of a block ending in a two-successor
-  conditional branch, across the bypassed triangle it
-  heads, onto a named position in the one join the branch
-  itself names on at least one edge — every other distinct
-  edge target a plain source arm the branch alone reaches
-  that ends in a plain `Jump` back to the join and every
-  edge into the join leaving the head or an arm, so each
-  traversal of the head reaches the join exactly once
-  whether it bypassed the arm or ran it and the member
-  keeps its execution count of one — when no register or
-  condition-state hazard runs between the member and any
-  crossed position — the head tail, the branch terminator,
-  both branch edges, the arm's body, `Jump`, and edge, and
-  the join's prefix — when no crossed edge's register
-  transports would hand a binding a stale or overwritten
-  value, when no call, hosted effect, barrier kind, or
-  call-roster entry sits inside the window, when the
-  validated memory roster accounts for every access a
-  memory-capable member can reach, and when no boundary
-  settlement past the member's index in the head or the
-  landing index in the join would observe a changed
-  executed prefix, under the same replayed
-  restore-by-content validation (crate `nextest`: 865
-  pass). Also landed without a board record:
-  `rewrites/predecessor_relocation` hoists one named
-  body instruction into its block's sole predecessor,
-  `rewrites/confluence_relocation` sinks one named body
-  instruction through its block's lone `Jump` into a
-  multi-inflow join under a forward dead-path proof on
-  the shared continuations, and
-  `rewrites/triangle_relocation` hoists one named body
-  instruction out of a converging join back through the
-  bypassed triangle onto the fork head — and
-  `rewrites/run_interchange` interchanges two disjoint
-  runs of body instructions in one selected block — each
-  the contiguous span its named first and last members
-  bound, of at least two members — while the interior
-  between them keeps its relative order shifted by the
-  length difference: every member meets the schedulable
-  bar and trades order only with positions outside its
-  own run inside the window, so a roster-carrying run
-  crosses only row-less positions while roster-carrying
-  members inside one run keep their recorded order, no
-  call, hosted effect, barrier kind, or call-roster
-  entry sits anywhere in the window, and no boundary
-  settlement inside the window's span observes a changed
-  executed prefix, under the same replayed
-  restore-by-content validation (crate `nextest`: 999
-  pass). Also landed earlier without a board record:
-  `rewrites/member_run_interchange` interchanges one
-  named member against the contiguous run two named
-  members bound inside one block — and
-  `rewrites/commuting_interchange` interchanges two
-  named body instructions in one selected block — the
-  pair interchange's own geometry — when every roster
-  row that newly trades order commutes with every row
-  of the position it crosses: two non-writing rows
-  always commute, and a writer commutes only when the
-  rows reach provably disjoint bytes — distinct places,
-  distinct slots, a place against a slot that is not
-  its storage or any outgoing slot, or disjoint fixed
-  extents of shared storage — so the memory roster
-  itself follows the new execution order, the window's
-  rows rewritten in place, under the same replayed
-  restore-by-content validation that re-derives the
-  permutation from the source rather than the
-  proposal's own grouping (crate `nextest`: 1105
-  pass). Also landed: `rewrites/commuting_run_interchange`
-  interchanges two disjoint runs of body instructions
-  in one selected block — the run interchange's own
-  geometry, each run the contiguous span its named
-  first and last members bound, of at least two
-  members — when every roster row that newly trades
-  order commutes with every row of the position it
-  crosses, so the memory roster itself follows the new
-  execution order, the window's rows rewritten in
-  place. The commutation audit the commuting families
-  share now lives in `rewrites/commuting_accesses`.
-  A window whose trading pairs carry no rowed-vs-rowed
-  pair stays with the plain run interchange, and a
-  one-member run stays with the pair and
-  member-against-run families, under the same replayed
-  restore-by-content validation (crate `nextest`: 1117
-  pass). Also landed:
-  `rewrites/commuting_member_run_interchange`
-  interchanges one named body instruction against the
-  contiguous run two named members bound in one block —
-  the member-against-run interchange's own geometry,
-  the member strictly on one side of the run's span of
-  at least two members — when every roster row that
-  newly trades order commutes with every row of the
-  position it crosses, so the memory roster itself
-  follows the new execution order, the window's rows
-  rewritten in place. A window whose trading pairs
-  carry no rowed-vs-rowed pair stays with the plain
-  member-against-run interchange, and a one-member run
-  stays with the commuting pair, under the same
-  replayed restore-by-content validation (crate
-  `nextest`: 1132 pass). Also landed:
-  `rewrites/commuting_run_relocation` relocates the
-  contiguous run two named members bound in one block
-  onto a named destination instruction's position —
-  the run relocation's own geometry, the window
-  rotating one run-width toward the vacated span with
-  every crossed position keeping its relative order —
-  when every roster row that newly trades order
-  commutes with every row of the position it crosses,
-  so the memory roster itself follows the new
-  execution order, the window's rows rewritten in
-  place. A window whose trading pairs carry no
-  rowed-vs-rowed pair stays with the plain run
-  relocation, and a one-member run stays with the
-  commuting member relocation, under the same replayed
-  restore-by-content validation (crate `nextest`: 1152
-  pass). Also landed: `rewrites/boundary_branch`
-  rewrites a `ConditionalBranchU64LessThan` or
-  `ConditionalBranchI64LessThan` terminator whose
-  implicit uses partition under the flag universe the
-  target's three compare rows publish — flag units
-  must resolve to one compare through the same
-  least-fixpoint entry-event walk read at the
-  terminator position and must be among that
-  compare's published definitions, and every other
-  observed unit must lie in the jump row's implicit
-  surface when the fold lands on `Jump` — when that
-  compare carries one operand at its carrier
-  domain's pole while the other side stays
-  unresolved: a far pole (`x < 0` unsigned, `x <
-  i64::MIN` signed, or a strict less-than issued
-  from the domain maximum) or two known operands
-  decides the predicate outright and the terminator
-  becomes the target's own `Jump` carrying the
-  decided `SelectedSuccessor` record verbatim, while
-  a near pole (`0 < x` unsigned, `x < u64::MAX`,
-  `i64::MIN < x`, `x < i64::MAX` signed) collapses
-  the ordering to the nonzero condition on the
-  identical published flag state — the terminator
-  becomes `ConditionalBranch` carrying
-  `ConditionalBranchNonZero` on the one constraint
-  row the conditional-branch kinds share, the
-  branch's instruction identity, implicit surface,
-  and provenance retained and `when_less`
-  republished as `when_nonzero` — admitted only
-  when every flag-universe unit, not only the ones
-  the source branch declared, resolves to that
-  compare, since the collapsed reader can observe
-  any unit its kind's encoding implies. A
-  `ConditionalBranch`/`ConditionalBranchNonZero`
-  pair reads the equality condition no single pole
-  decides, and the identity
-  `register - register` compare stays with the
-  constant family; a clobber, a different
-  definition, unknown entry state, an eventless
-  path, disagreeing paths, or a non-flag
-  observation the jump surface cannot carry all
-  refuse — under the same replayed
-  restore-by-content validation (crate `nextest`:
-  1171 pass).
-  Remaining: scheduling past the proven bounded window,
-  run, member-against-run, commuting-pair,
-  commuting-run, and commuting-member-against-run
-  interchanges and the commuting member and run
-  relocations — relocation through further converging
-  or branching control flow, and compare/test
-  selection past the landed literal folds, the
-  constant-flag boolean materialization and
-  conditional-branch folds, and the boundary-pole
-  branch folds.
+- **EXACT-MACHINE-SIMPLIFICATIONS.** Execute copy removal, redundant-extension
+  removal, address folding, compare/test selection, and scheduling on
+  compiler-produced selected programs, each as an
+  [atomic candidate with independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation).
+  Owner: `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/`.
+  `src/rewrites/` already holds 37 modules for these transformations:
+  `copy_removal`, `redundant_extension`, `address_fold`, `literal_arithmetic`,
+  seven compare and flag rewrites (`literal_*`, `constant_*`, `boundary_*`,
+  `dead_compare`), and 26 interchange and relocation families. Each entrance
+  takes caller-named instruction identities and replays by
+  restore-by-content. None is an `Optimization` member, has a catalog row or
+  candidate discovery, or has a caller outside its own tests, which
+  hand-build `SelectedInstructionPlan` fixtures. `src/selected_optimization.rs`
+  runs only the identity route or the selected-lowering literal folds, so
+  none of them has changed a compiled program.
+
+  Remaining work:
+
+  - Give the stage an execution route under
+    [catalogs and independent replay](omega-rust/optimization.md#catalogs-and-independent-replay):
+    exact selection names, one ordered catalog whose descriptors retain rule,
+    validator, policy, analyses, invalidations, budgets and applicability,
+    candidate discovery that binds source and selection identities, and the
+    call from `optimize_analyzed_selected_instructions`. Empty and nonempty
+    selections stay on one physical route. Decision rows and receipts must
+    survive replay through allocation and emission.
+  - Separate validation from proposal. Every module's `validation.rs` calls
+    the same `admission::admit` as its `rewrite.rs`, then checks that undoing
+    the edit restores the source. That detects a wrong edit, not a wrong
+    legality decision. The validator must reconstruct the preconditions
+    without the producer's admission routine.
+  - Scheduling refuses any window containing a call, hosted effect, barrier
+    kind or call-roster entry, any cross-block move through a block that is
+    not a plain `Source` block, and any control-flow shape without its own
+    family. Replace the per-shape families with one relocation admission
+    before covering more shapes (see Flag).
+  - Compare/test selection: `SelectedInstructionKind` has three compare kinds
+    and no bit-test kind, and `literal_minuend` admits only equality readers
+    because no reversed ordering predicate exists. `copy_removal` substitutes
+    within one block only. `address_fold` needs the `AddressOffset` producer
+    in the consumer's block and applies the AArch64 scaled 12-bit
+    displacement bound on every target, although x86-64 encodes disp32; the
+    wider form needs target applicability in the descriptor.
+
+  Acceptance: source-produced programs select each rule by exact name through
+  `optimize_selected_instructions`, execute natively on a supported host, and
+  replay independently after publication. The empty selection and each
+  disabled rule reproduce identity output. Include one valid window that no
+  current shape enumerates, and rejections for a register or condition-state
+  hazard, a crossed call or hosted effect, a non-commuting memory access, a
+  boundary settlement inside the window, a stale candidate, an exhausted
+  budget, and a legality error the producer accepts but the validator must
+  refuse. A hand-built plan passing its own module's test is not the customer.
+
+  Flag: scheduling has grown one family per window shape: five in-block
+  moves, each repeated as a commuting variant, ten cross-block shapes
+  (`edge`, `predecessor`, `diamond`, `join`, `fork`, `arm`, `bypass`,
+  `triangle`, `confluence`, `inflow`), and six of those repeated for runs.
+  That is about 64,000 lines, 49,000 of them tests, and the product of shape,
+  member or run, and plain or commuting is still open. The families share
+  `window_hazards.rs`, `block_edges.rs`, `dead_path.rs` and
+  `commuting_accesses.rs` and differ only in how they locate the window. The
+  general mechanism is one relocation rule over a member run and a
+  destination point that derives the crossed positions and edges on every
+  path between them and the traversals that gain or lose the run, then
+  applies the hazard, dead-path and commutation audits once. Separately,
+  `literal_compare` and `literal_arithmetic` re-implement folds the cataloged
+  pair rules already produce; widen candidate nomination for those
+  descriptors under DECLARATIVE-PEEPHOLES instead of keeping a second
+  producer.
+
+  EXACT-SELECTION-FAMILIES and DECLARATIVE-PEEPHOLES own the cataloged
+  pair-rule folds. ALIAS-AWARE-MEMORY owns the load, store and mutation
+  rewrites in the same directory. PER-RULE-COVERAGE owns the disabled and
+  downstream-replay legs once these rules are selectable.
 
 ## Proof-, ownership-, and state-aware optimization
 
