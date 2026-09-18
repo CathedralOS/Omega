@@ -8,14 +8,15 @@ use crate::{
     ValidatedBoundaryBranch, ValidatedBypassRelocation, ValidatedBypassRunRelocation,
     ValidatedCommutingInterchange, ValidatedCommutingMemberRunInterchange,
     ValidatedCommutingRelocation, ValidatedCommutingRunInterchange,
-    ValidatedCommutingRunRelocation, ValidatedConfluenceRelocation, ValidatedConstantBoolean,
-    ValidatedConstantBranch, ValidatedCopyRemoval, ValidatedDeadCompare,
-    ValidatedDeadStoreElimination, ValidatedDiamondRelocation, ValidatedDiamondRunRelocation,
-    ValidatedEdgeRelocation, ValidatedEdgeRunRelocation, ValidatedEquivalentCompare,
-    ValidatedFixedViewCopies, ValidatedForkRelocation, ValidatedInflowRelocation,
-    ValidatedJoinRelocation, ValidatedLiteralArithmetic, ValidatedLiteralCompare,
-    ValidatedLiteralFold, ValidatedLiteralMinuend, ValidatedLocalRelocation,
-    ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
+    ValidatedCommutingRunRelocation, ValidatedConfluenceRelocation,
+    ValidatedConfluenceRunRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
+    ValidatedCopyRemoval, ValidatedDeadCompare, ValidatedDeadStoreElimination,
+    ValidatedDiamondRelocation, ValidatedDiamondRunRelocation, ValidatedEdgeRelocation,
+    ValidatedEdgeRunRelocation, ValidatedEquivalentCompare, ValidatedFixedViewCopies,
+    ValidatedForkRelocation, ValidatedInflowRelocation, ValidatedJoinRelocation,
+    ValidatedLiteralArithmetic, ValidatedLiteralCompare, ValidatedLiteralFold,
+    ValidatedLiteralMinuend, ValidatedLocalRelocation, ValidatedLocalSchedule,
+    ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
     ValidatedPredecessorRunRelocation, ValidatedPressureRematerialization,
     ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedRunInterchange,
     ValidatedRunRelocation, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
@@ -289,6 +290,26 @@ impl ValidatedSelectedAnalysis for ValidatedCommutingRunRelocation {
 impl sealed::Sealed for ValidatedConfluenceRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedConfluenceRelocation {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedConfluenceRunRelocation {}
+
+impl ValidatedSelectedAnalysis for ValidatedConfluenceRunRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

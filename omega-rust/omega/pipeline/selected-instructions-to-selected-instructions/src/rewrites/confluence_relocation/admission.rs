@@ -224,9 +224,10 @@ pub(super) fn admit<'source>(
     if !dead_path::dead(
         function,
         dead_path::Relocation {
-            member: member_instruction,
+            members: &[member_instruction],
             vacated_block: block_index,
-            vacated_index: member_index,
+            vacated_first: member_index,
+            vacated_last: member_index,
             landing_block: target_index,
             landing_index,
             landing: dead_path::Landing::Speculated,
