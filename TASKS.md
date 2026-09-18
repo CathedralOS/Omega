@@ -4476,10 +4476,17 @@ Owners include
   `(BoundaryMachineResult::Scalar, TerminalMachineResult::Scalar)` pairs with
   the structural arm's closure (`validation/foundation/provider_result.rs`),
   so codec representation validation and artifact admission accept scalar
-  provider rows. Open: kernel discharge and the remaining artifact-aware
-  proof sources — the checked `DirectOperationResult`/`DirectCallResult`
-  float source classes and their producer rejoin; the Terminal source
-  identities and verifier rejoins already exist.
+  provider rows. Open: kernel discharge. The remaining artifact-aware proof
+  sources are owner-blocked on `float-meaning-use-site-source-identity`
+  (`OWNER_QUESTIONS.md`): Terminal carries the
+  `DirectOperationResult`/`DirectCallResult` identities with codec tags 6/8 and
+  independent verifier rejoins, but no checked source class can name either,
+  since every checked class is signature-relative and the only artifact carrier
+  that matches is the use site of a transported contract, which has no per-use
+  canonical proof value. Measured at `a2c6676c37` (macOS ARM64): a caller of a
+  float machine yields two `DirectMachineResult` projections and two equalities,
+  no call-site row; `DirectOperationResult` has zero producers in the checked
+  and lowered crates.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
