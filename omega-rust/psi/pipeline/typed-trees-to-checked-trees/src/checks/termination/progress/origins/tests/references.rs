@@ -155,3 +155,236 @@ fn record_construction_without_the_selected_field_has_no_origin() {
         None
     );
 }
+
+/// A shared `&` leaf stored inside an owned carrier names the referent the
+/// slot's latest store supplied, not the carrier's own declaration. The
+/// demanded storage keeps every projection past the leaf.
+#[test]
+fn shared_reference_leaf_loads_through_its_stored_referent() {
+    for (statements, argument, subject, expected) in [
+        // The leaf's initializer referent.
+        (
+            "let boxed: RefBox = RefBox { view: &context };",
+            "boxed.view.scheduler",
+            ("boxed", &[("RefBox", "view"), ("Context", "scheduler")][..]),
+            ("context", &[("Context", "scheduler")][..]),
+        ),
+        // The same leaf reached through a later load of the carrier field.
+        (
+            "let boxed: RefBox = RefBox { view: &context }; let saved: SchedulerHandle = boxed.view.scheduler;",
+            "saved",
+            ("saved", &[][..]),
+            ("context", &[("Context", "scheduler")][..]),
+        ),
+        // A reference-typed binding to the carrier resolves first, then the
+        // leaf inside the referent.
+        (
+            "let boxed: RefBox = RefBox { view: &context }; let borrowed: &RefBox = &boxed;",
+            "borrowed.view.scheduler",
+            (
+                "borrowed",
+                &[("RefBox", "view"), ("Context", "scheduler")][..],
+            ),
+            ("context", &[("Context", "scheduler")][..]),
+        ),
+    ] {
+        let fixture =
+            Fixture::with_machines(statements, argument, &[], "data RefBox { view: &Context; }");
+        assert_eq!(
+            fixture.query(fixture.subject(subject.0, subject.1)),
+            Some(fixture.subject(expected.0, expected.1))
+        );
+    }
+}
+
+/// The referent is resolved at the store nearest the demand, so a write to
+/// the referent between the slot store and the demand is answered through the
+/// ordinary write scan — the latest value source, not the store snapshot.
+#[test]
+fn shared_reference_leaf_observes_the_current_value_not_its_store_snapshot() {
+    let fixture = Fixture::with_machines(
+        "let boxed: RefBox = RefBox { view: &context }; context.scheduler = replacement.scheduler; let saved: SchedulerHandle = boxed.view.scheduler;",
+        "saved",
+        &[],
+        "data RefBox { view: &Context; }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+/// Rebinding the leaf slot itself makes the newest stored referent the
+/// origin.
+#[test]
+fn shared_reference_leaf_rebind_tracks_the_latest_slot_store() {
+    let fixture = Fixture::with_machines(
+        "let mut boxed: RefBox = RefBox { view: &context }; boxed.view = &holder.view; let saved: SchedulerHandle = boxed.view.scheduler;",
+        "saved",
+        &[],
+        "data RefBox { view: &Context; }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("holder", &[("Holder", "view"), ("Context", "scheduler")]))
+    );
+}
+
+/// A slot rebind spelled through a `&mut` alias of the carrier cannot be
+/// matched to the slot: the exact reference query has no origin for an
+/// exclusive binding, so the leaf stays unproven rather than guessing that
+/// the alias still names the carrier.
+#[test]
+fn shared_reference_leaf_rebind_through_an_unresolved_mutable_alias_stays_unproven() {
+    let fixture = Fixture::with_machines(
+        "let mut boxed: RefBox = RefBox { view: &context }; let mb: &mut RefBox = &mut boxed; mb.view = &holder.view; let saved: SchedulerHandle = boxed.view.scheduler;",
+        "saved",
+        &[],
+        "data RefBox { view: &Context; }",
+    );
+    assert_eq!(fixture.query(fixture.subject("saved", &[])), None);
+}
+
+/// A store into an enclosing slot replaces the whole carrier: the leaf's
+/// contents come from the replacement value's own leaf projection.
+#[test]
+fn shared_reference_leaf_carrier_replacement_tracks_the_new_carrier() {
+    for (statements, expected) in [
+        // Replaced with a literal carrying a fresh borrow.
+        (
+            "let mut boxed: RefBox = RefBox { view: &context }; boxed = RefBox { view: &holder.view }; let saved: SchedulerHandle = boxed.view.scheduler;",
+            (
+                "holder",
+                &[("Holder", "view"), ("Context", "scheduler")][..],
+            ),
+        ),
+        // Replaced wholesale by another carrier: the scan relocates to that
+        // carrier's leaf and resolves its own latest store.
+        (
+            "let first: RefBox = RefBox { view: &context }; let mut boxed: RefBox = RefBox { view: &holder.view }; boxed = first; let saved: SchedulerHandle = boxed.view.scheduler;",
+            ("context", &[("Context", "scheduler")][..]),
+        ),
+        // The carrier's own declaration moves through a binding; the leaf's
+        // referent stays the one the moved carrier's store supplied.
+        (
+            "let first: RefBox = RefBox { view: &context }; let boxed: RefBox = first; let saved: SchedulerHandle = boxed.view.scheduler;",
+            ("context", &[("Context", "scheduler")][..]),
+        ),
+    ] {
+        let fixture =
+            Fixture::with_machines(statements, "saved", &[], "data RefBox { view: &Context; }");
+        assert_eq!(
+            fixture.query(fixture.subject("saved", &[])),
+            Some(fixture.subject(expected.0, expected.1))
+        );
+    }
+}
+
+/// A leaf rebind whose right-hand side is a checked helper's `&` result
+/// resolves through that callee's returned expression — the same producer as
+/// an ordinary call-result store.
+#[test]
+fn shared_reference_leaf_rebind_from_a_helper_result() {
+    let fixture = Fixture::with_machines(
+        "let mut boxed: RefBox = RefBox { view: &context }; boxed.view = lend(holder); let saved: SchedulerHandle = boxed.view.scheduler;",
+        "saved",
+        &[],
+        "data RefBox { view: &Context; } machine lend(holder: &Holder) -> &Context { &holder.view }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("holder", &[("Holder", "view"), ("Context", "scheduler")]))
+    );
+}
+
+/// A leaf supplied by a helper whose result picks between inputs through a
+/// transition cannot name one referent; the premise stays unproven rather
+/// than borrowing either same-shaped candidate.
+#[test]
+fn shared_reference_leaf_from_an_unproven_route_stays_unproven() {
+    let fixture = Fixture::with_machines(
+        "let mut boxed: RefBox = RefBox { view: &context }; boxed.view = choose(&holder, context, true); let saved: SchedulerHandle = boxed.view.scheduler;",
+        "saved",
+        &[],
+        "data RefBox { view: &Context; } machine choose(former: &Holder, latter: &Context, flag: bool) -> &Context { transition flag { true -> &former.view false -> latter } }",
+    );
+    assert_eq!(fixture.query(fixture.subject("saved", &[])), None);
+}
+
+/// A call that may write the carrier between the store and the demand leaves
+/// the leaf's contents unproven — an opaque or overlapping frame never mints
+/// a referent.
+#[test]
+fn shared_reference_leaf_unknown_call_write_stays_unproven() {
+    let fixture = Fixture::with_machines(
+        "let mut boxed: RefBox = RefBox { view: &context }; clobber(&mut boxed, &holder.view); let saved: SchedulerHandle = boxed.view.scheduler;",
+        "saved",
+        &[],
+        "data RefBox { view: &Context; } machine clobber(boxed: &mut RefBox, fresh: &Context) { boxed.view = fresh; }",
+    );
+    assert_eq!(fixture.query(fixture.subject("saved", &[])), None);
+}
+
+/// A `&mut` leaf is write-capable: the prefix's stored origins rebase it to
+/// its exact referent, and a write through the leaf is then an ordinary store
+/// into that referent.
+#[test]
+fn exclusive_reference_leaf_loads_through_stored_origins() {
+    let fixture = Fixture::with_machines(
+        "let boxed: MutBox = MutBox { view: context }; let saved: SchedulerHandle = boxed.view.scheduler;",
+        "saved",
+        &[],
+        "data MutBox { view: &mut Context; }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn exclusive_reference_leaf_write_through_arrives_at_the_write_source() {
+    let fixture = Fixture::with_machines(
+        "let mut boxed: MutBox = MutBox { view: context }; boxed.view.scheduler = replacement.scheduler; let saved: SchedulerHandle = boxed.view.scheduler;",
+        "saved",
+        &[],
+        "data MutBox { view: &mut Context; }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+/// A `&` result from a checked helper binds the referent its returned
+/// expression proves — here the parameter's own field.
+#[test]
+fn reference_result_helper_binding_derives_the_parameter_leaf() {
+    let fixture = Fixture::with_machines(
+        "let borrowed: &Context = lend(holder);",
+        "borrowed.scheduler",
+        &[],
+        "machine lend(holder: &Holder) -> &Context { &holder.view }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
+        Some(fixture.subject("holder", &[("Holder", "view"), ("Context", "scheduler")]))
+    );
+}
+
+/// A `&mut` result whose callee writes nothing through the demanded path
+/// still carries the exact input projection: `borrowed` names `context`'s
+/// referent storage.
+#[test]
+fn mutable_reference_result_arrives_from_its_readonly_input() {
+    let fixture = Fixture::with_machines(
+        "let borrowed: &mut Context = lend_mut(context);",
+        "borrowed.scheduler",
+        &[],
+        "machine lend_mut(context: &mut Context) -> &mut Context { context }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
+    );
+}

@@ -29,15 +29,22 @@ pub(crate) fn value_origin_at_call(
         place,
         call_frames,
         |_, _, _, _| None,
+        |_, _, _| None,
     )
 }
 
-/// The shared backward origin trace with one extra producer a domain may
-/// prove: a decisive store whose captured value is an owned call result. The
+/// The shared backward origin trace with two extra producers a domain may
+/// prove: a decisive store whose captured value is an owned call result — the
 /// resolver receives the result-position call, the store's statement index,
-/// and the projection into the result value; it returns the exact caller-side
-/// place the result arrived from, or None to keep the call opaque.
-pub(crate) fn value_origin_at_call_resolving<Resolve>(
+/// and the projection into the result value and returns the exact caller-side
+/// place the result arrived from, or None to keep the call opaque — and a
+/// demanded place that still names storage through a reference leaf carried
+/// inside an owned local. The rebase receives the frontier bound (one past
+/// the statement under examination, so it sees every store the frontier
+/// already passed) and the demanded place; it returns the exact place the
+/// demanded storage occupies, or None to keep the literal spelling for the
+/// ordinary scan.
+pub(crate) fn value_origin_at_call_resolving<Resolve, Rebase>(
     program: &TypedTrees,
     flow: &FlowFacts,
     machine: &Machine,
@@ -46,10 +53,12 @@ pub(crate) fn value_origin_at_call_resolving<Resolve>(
     mut place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     resolve: Resolve,
+    rebase: Rebase,
 ) -> Option<CanonicalPlace>
 where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
+    Rebase: Fn(&FlowStateFact, usize, &CanonicalPlace) -> Option<CanonicalPlace>,
 {
     let mut owned_frames = None;
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
@@ -65,6 +74,16 @@ where
         .enumerate()
         .rev()
     {
+        // The demanded place may still name storage through a reference leaf
+        // an ordinary arm cannot resolve — `boxed.view.scheduler` where `view`
+        // is a `&` slot inside an owned local. Rebase it to the referent the
+        // leaf holds at this frontier before the statement replays; a leaf
+        // slot the frontier already passed was either resolved by this rebase
+        // or refused by the overlap checks, so `index + 1` is the exact
+        // prefix the leaf's contents came from.
+        if let Some(rebased) = rebase(state, index + 1, &place) {
+            place = rebased;
+        }
         match statement {
             StatementNode::Assignment(assignment) => {
                 if frames.assignment_replaces_local_reference_binding(machine, statement)? {
@@ -89,7 +108,24 @@ where
                 let target = flow::local_reference_storage_before_statement(
                     program, frames, machine, state, index, target,
                 )?;
-                if let Some(suffix) = exact_suffix(&place, &target) {
+                // A write spelled through a write-capable leaf or a mutable
+                // reference binding still lands in the referent's storage.
+                // Match the demanded place against both spellings so the
+                // exact store can be captured whichever spelling it carries.
+                let storage_target = flow::rebase_exact_local_place(
+                    program,
+                    state.state_symbol,
+                    index,
+                    target.clone(),
+                    Some(frames),
+                )
+                .filter(|storage_target| *storage_target != target);
+                let suffix = exact_suffix(&place, &target).or_else(|| {
+                    storage_target
+                        .as_ref()
+                        .and_then(|storage_target| exact_suffix(&place, storage_target))
+                });
+                if let Some(suffix) = suffix {
                     let stored_type = validation::declared_place_type_raw(
                         program,
                         machine,
