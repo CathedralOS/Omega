@@ -12,6 +12,16 @@
 // this conversion only; each result is an ordinary Exact integer. Callers that
 // want later arithmetic to wrap, saturate, or trap qualify the returned value
 // separately.
+//
+// An unsigned widening machine publishes its source carrier's range on the
+// result type (`widen_u8_to_i32(value: u8) -> i32 [0..=255]`). The body is one
+// value-preserving `as`, so the result is exactly the source's own interval,
+// never the wider target's. Without that published range a caller's Exact
+// arithmetic on the result has no bound to reason from and owes an
+// undischargeable decision-17 representability proof; with it, `result << 8`
+// folds to 65280 and stays Exact. The range refines the result, it does not
+// change its carrier, so a caller storing into the plain target type is
+// unaffected.
 
 machine numeric_conversion_trap_if(invalid: bool) {
     let invalid_value: u32 in Wrapping = invalid as u32 in Wrapping;
@@ -46,15 +56,15 @@ pub machine narrow_u16_to_u8_trapping(value: u16) -> u8 {
     (value as u8 in Trapping) as u8
 }
 
-pub machine widen_u8_to_u16(value: u8) -> u16 {
+pub machine widen_u8_to_u16(value: u8) -> u16 [0..=255] {
     value as u16
 }
 
-pub machine widen_u8_to_u32(value: u8) -> u32 {
+pub machine widen_u8_to_u32(value: u8) -> u32 [0..=255] {
     value as u32
 }
 
-pub machine widen_u8_to_u64(value: u8) -> u64 {
+pub machine widen_u8_to_u64(value: u8) -> u64 [0..=255] {
     value as u64
 }
 
@@ -108,11 +118,11 @@ pub machine narrow_u32_to_u16_trapping(value: u32) -> u16 {
     (value as u16 in Trapping) as u16
 }
 
-pub machine widen_u16_to_u32(value: u16) -> u32 {
+pub machine widen_u16_to_u32(value: u16) -> u32 [0..=65535] {
     value as u32
 }
 
-pub machine widen_u16_to_u64(value: u16) -> u64 {
+pub machine widen_u16_to_u64(value: u16) -> u64 [0..=65535] {
     value as u64
 }
 
@@ -190,7 +200,7 @@ pub machine narrow_u64_to_u32_trapping(value: u64) -> u32 {
     (value as u32 in Trapping) as u32
 }
 
-pub machine widen_u32_to_u64(value: u32) -> u64 {
+pub machine widen_u32_to_u64(value: u32) -> u64 [0..=4294967295] {
     value as u64
 }
 
@@ -429,15 +439,15 @@ pub machine narrow_u8_to_i8_trapping(value: u8) -> i8 {
     (value as i8 in Trapping) as i8
 }
 
-pub machine widen_u8_to_i16(value: u8) -> i16 {
+pub machine widen_u8_to_i16(value: u8) -> i16 [0..=255] {
     value as i16
 }
 
-pub machine widen_u8_to_i32(value: u8) -> i32 {
+pub machine widen_u8_to_i32(value: u8) -> i32 [0..=255] {
     value as i32
 }
 
-pub machine widen_u8_to_i64(value: u8) -> i64 {
+pub machine widen_u8_to_i64(value: u8) -> i64 [0..=255] {
     value as i64
 }
 
@@ -485,11 +495,11 @@ pub machine narrow_u16_to_i16_trapping(value: u16) -> i16 {
     (value as i16 in Trapping) as i16
 }
 
-pub machine widen_u16_to_i32(value: u16) -> i32 {
+pub machine widen_u16_to_i32(value: u16) -> i32 [0..=65535] {
     value as i32
 }
 
-pub machine widen_u16_to_i64(value: u16) -> i64 {
+pub machine widen_u16_to_i64(value: u16) -> i64 [0..=65535] {
     value as i64
 }
 
@@ -559,7 +569,7 @@ pub machine narrow_u32_to_i32_trapping(value: u32) -> i32 {
     (value as i32 in Trapping) as i32
 }
 
-pub machine widen_u32_to_i64(value: u32) -> i64 {
+pub machine widen_u32_to_i64(value: u32) -> i64 [0..=4294967295] {
     value as i64
 }
 
