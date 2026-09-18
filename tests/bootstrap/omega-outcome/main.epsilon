@@ -132,6 +132,23 @@ machine Main::emit_tuple(&mut self) {
     return;
 }
 
+// Publishes the compiler's recorded tuple through the canonical encoder and
+// emits the resulting frame, asserting the expected canonical extent. Only
+// tuples carrying assigned codes reach this helper; unassigned-inventory
+// tuples are asserted unencodable at their recording sites.
+machine Main::encode_outcome(&mut self, length: i32) {
+    assert self.frame.encode(
+        self.compiler.outcome_tag, self.compiler.outcome_space,
+        self.compiler.outcome_code, self.compiler.outcome_coordinate,
+        self.compiler.outcome_package_ordinal,
+        self.compiler.outcome_unit_ordinal,
+        self.compiler.outcome_limit,
+        self.compiler.outcome_requested) == 1;
+    assert self.frame.length == length;
+    self.emit_frame();
+    return;
+}
+
 machine Main::main(&mut self) {
     // Embedded scalar-resource projection: every assigned code pairs its
     // selected limit with its fixed coordinate space.
@@ -180,10 +197,42 @@ machine Main::main(&mut self) {
     assert omega_parser_resource_code(OmegaParserResource::Expressions) == 11;
     assert omega_parser_resource_code(OmegaParserResource::None) == 0;
 
-    // Assigned non-resource codes.
+    // Assigned non-resource codes: malformed_request anchors in the request,
+    // the lexical refusals and duplicate_name/integer_literal_out_of_range
+    // anchor in canonical source, and missing_entry carries no coordinate.
     assert omega_reject_code_space(1) == 1;
+    assert omega_reject_code_space(2) == 4;
+    assert omega_reject_code_space(3) == 4;
+    assert omega_reject_code_space(4) == 4;
+    assert omega_reject_code_space(5) == 4;
+    assert omega_reject_code_space(6) == 4;
+    assert omega_reject_code_space(7) == 4;
+    assert omega_reject_code_space(8) == 4;
+    assert omega_reject_code_space(9) == 4;
+    assert omega_reject_code_space(10) == 4;
+    assert omega_reject_code_space(11) == 0;
+    assert omega_reject_code_space(12) == 4;
     assert omega_reject_code_space(0) == -1;
-    assert omega_reject_code_space(2) == -1;
+    assert omega_reject_code_space(13) == -1;
+
+    // The retained lexical diagnostic projects onto Reject codes 2..9.
+    assert omega_lexical_reject_code(
+        OmegaLexDiagnosticCode::InvalidUtf8) == 2;
+    assert omega_lexical_reject_code(
+        OmegaLexDiagnosticCode::OutsideLexicalProfile) == 3;
+    assert omega_lexical_reject_code(
+        OmegaLexDiagnosticCode::UnterminatedBlockComment) == 4;
+    assert omega_lexical_reject_code(
+        OmegaLexDiagnosticCode::UnterminatedStringLiteral) == 5;
+    assert omega_lexical_reject_code(
+        OmegaLexDiagnosticCode::UnterminatedStringEscape) == 6;
+    assert omega_lexical_reject_code(
+        OmegaLexDiagnosticCode::UnsupportedEscape) == 7;
+    assert omega_lexical_reject_code(
+        OmegaLexDiagnosticCode::UnterminatedHexEscape) == 8;
+    assert omega_lexical_reject_code(
+        OmegaLexDiagnosticCode::InvalidHexEscapeDigit) == 9;
+
     assert omega_internal_code_space(1) == 3;
     assert omega_internal_code_space(0) == -1;
     assert omega_internal_code_space(2) == -1;
@@ -230,6 +279,11 @@ machine Main::main(&mut self) {
     assert self.frame.encode(2, 4, 3, 0, 0, -1, 4096, 1) == 0;
     assert self.frame.encode(1, 3, 1, 0, 0, 0, 0, 0) == 0;
     assert self.frame.encode(1, 1, -1, 0, 0, 0, 0, 0) == 0;
+    // Assigned codes still refuse the wrong space, a noncanonical coordinate,
+    // and the first unassigned Reject code.
+    assert self.frame.encode(1, 1, 5, 0, 0, 0, 0, 0) == 0;
+    assert self.frame.encode(1, 0, 11, 5, 0, 0, 0, 0) == 0;
+    assert self.frame.encode(1, 4, 13, 0, 0, 0, 0, 0) == 0;
     assert self.frame.encoded == 0;
     assert self.frame.length == 0;
 
@@ -258,6 +312,22 @@ machine Main::main(&mut self) {
 
     state duplicate_tuple() {
         self.emit_tuple();
+        self.encode_outcome(48);
+        transition true { true -> out_of_range() }
+    }
+
+    // An out-of-range literal refuses at the refused literal's first byte.
+    state out_of_range() {
+        self.compiler.compile("machine answer() -> u8 { 256 }", "answer");
+        transition self.compiler.status {
+            OmegaScalarCompilationStatus::Reject -> out_of_range_tuple()
+            _ -> self.console.exit_process(5)
+        }
+    }
+
+    state out_of_range_tuple() {
+        self.emit_tuple();
+        self.encode_outcome(48);
         transition true { true -> missing_entry() }
     }
 
@@ -272,6 +342,7 @@ machine Main::main(&mut self) {
 
     state missing_tuple() {
         self.emit_tuple();
+        self.encode_outcome(40);
         transition true { true -> unsupported() }
     }
 
@@ -284,8 +355,48 @@ machine Main::main(&mut self) {
         }
     }
 
+    // The coverage provisions are still unassigned, so this tuple cannot
+    // publish a frame.
     state unsupported_tuple() {
         self.emit_tuple();
+        assert self.frame.encode(
+            self.compiler.outcome_tag, self.compiler.outcome_space,
+            self.compiler.outcome_code, self.compiler.outcome_coordinate,
+            self.compiler.outcome_package_ordinal,
+            self.compiler.outcome_unit_ordinal,
+            self.compiler.outcome_limit,
+            self.compiler.outcome_requested) == 0;
+        transition true { true -> lexical() }
+    }
+
+    // An unterminated string publishes unterminated_string_literal at the
+    // opening quote.
+    state lexical() {
+        self.compiler.compile("machine a() -> u8 { \"x }", "answer");
+        transition self.compiler.status {
+            OmegaScalarCompilationStatus::Reject -> lexical_tuple()
+            _ -> self.console.exit_process(6)
+        }
+    }
+
+    state lexical_tuple() {
+        self.emit_tuple();
+        self.encode_outcome(48);
+        transition true { true -> invalid_utf8() }
+    }
+
+    // A malformed UTF-8 scalar publishes invalid_utf8 at its first byte.
+    state invalid_utf8() {
+        self.compiler.compile("\xFF", "answer");
+        transition self.compiler.status {
+            OmegaScalarCompilationStatus::Reject -> utf8_tuple()
+            _ -> self.console.exit_process(7)
+        }
+    }
+
+    state utf8_tuple() {
+        self.emit_tuple();
+        self.encode_outcome(48);
         transition true { true -> completed() }
     }
 
