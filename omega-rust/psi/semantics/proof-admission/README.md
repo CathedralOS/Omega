@@ -36,7 +36,14 @@ term shape. It also owns the first primitive of the selected
 the `Two` type with `zero`/`one` and dependent `caseTwo` elimination computing
 on each constructor, restricted to motives landing in relevant `Type`. It is the
 `PROOF-KERNEL-CORE` model; the bounded `Proposition` kernel above is a producer
-surface, not a second truth representation.
+surface, not a second truth representation. `accept_certificate` connects the
+two: every bounded certificate it accepts is also denoted into the core
+(`mathematical_core/bounded_denotation.rs`) and judged by the kernel when the
+denotation covers its rule families, so a shipped certificate discharging a
+theorem machine's `ensures` obligation is checked as the judgment
+`Γ ⊢ t : ⟦goal⟧` at admission. The acceptance records `Judged` with the
+judgment's measurements or `Refused` naming the uncovered family; a covered
+certificate the kernel rejects is rejected.
 
 ## Normalization is not authority
 

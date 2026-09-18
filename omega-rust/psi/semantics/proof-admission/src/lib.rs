@@ -11,10 +11,12 @@
 
 #![forbid(unsafe_code)]
 //!
-//! `proof.rs` checks explicit proof nodes and `kernel.rs` re-decides closed
-//! primitive judgments over the `mathematical_core.rs` term model and
-//! `predicate_denotation.rs`; `integer_rules/` holds the checked integer
-//! normalizations and `admission/` the evidence routes.
+//! `proof.rs` checks explicit proof nodes — and, on every acceptance,
+//! denotes the certificate into the `mathematical_core.rs` term model so
+//! the kernel re-decides the judgment — while `kernel.rs` re-decides closed
+//! primitive judgments over that model and `predicate_denotation.rs`;
+//! `integer_rules/` holds the checked integer normalizations and
+//! `admission/` the evidence routes.
 
 mod admission;
 mod integer_rules;
@@ -85,8 +87,9 @@ pub use predicate_denotation::{
     check_value_equality_denotation,
 };
 pub use proof::{
-    AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,
-    accept_certificate, accept_certificate_with_machine_parameters, check_certificate,
+    AcceptedPremise, AcceptedProofRule, CertificateAcceptance, MathematicalCoreDecision,
+    MathematicalJudgmentReceipt, ProofError, ProofNode, ProofRule, accept_certificate,
+    accept_certificate_with_machine_parameters, check_certificate,
     check_certificate_with_machine_parameters, lift_fixed_integer_relation,
     lower_integer_math_relation,
 };
