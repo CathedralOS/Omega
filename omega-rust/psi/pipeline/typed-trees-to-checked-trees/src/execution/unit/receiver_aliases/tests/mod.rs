@@ -6,7 +6,6 @@ use super::{
 use crate::execution::terminal_unit::receiver_aliases::ReceiverAlias;
 use crate::execution::terminal_unit::receiver_aliases::prefix;
 
-#[path = "mutable.rs"]
 mod mutable;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {

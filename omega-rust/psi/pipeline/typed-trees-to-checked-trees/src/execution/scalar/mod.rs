@@ -70,26 +70,17 @@ use typed_trees::{
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
 };
 
-#[path = "constructions.rs"]
 mod constructions;
-#[path = "guarded_exits.rs"]
 mod guarded_exits;
-#[path = "guards/build_guards.rs"]
 mod guards;
-#[path = "owned_parameters/build_owned_parameters.rs"]
 mod owned_parameters;
-#[path = "primitive_locals.rs"]
 pub(super) mod primitive_locals;
-#[path = "unit_operations.rs"]
 mod unit_operations;
 pub(crate) use unit_operations::finalize as finalize_scalar_unit_operations;
-#[path = "ranking.rs"]
 mod ranking;
-#[path = "successors.rs"]
 mod successors;
 
 #[cfg(test)]
-#[path = "tests/coverage.rs"]
 mod tests;
 
 #[cfg(test)]

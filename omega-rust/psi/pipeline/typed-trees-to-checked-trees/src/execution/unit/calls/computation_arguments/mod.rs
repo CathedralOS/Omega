@@ -23,7 +23,6 @@ use crate::execution::terminal_unit::parameter_qualifications;
 use crate::execution::terminal_unit::structural_access_for_type_reference;
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 pub(crate) fn structural_computation_argument(

@@ -16,19 +16,12 @@
 //! dynamic scalar call and `realization_bodies.rs` checks realization
 //! scalar bodies; `join.rs` and `unit.rs` carry joins and Unit calls.
 
-#[path = "forwarded_calls.rs"]
 mod forwarded_calls;
-#[path = "join.rs"]
 mod join;
-#[path = "realization_bodies.rs"]
 mod realization_bodies;
-#[path = "receivers.rs"]
 mod receivers;
-#[path = "scalar_call_plans.rs"]
 mod scalar_call_plans;
-#[path = "scalar_call_transactions.rs"]
 mod scalar_call_transactions;
-#[path = "unit.rs"]
 mod unit;
 
 use super::{

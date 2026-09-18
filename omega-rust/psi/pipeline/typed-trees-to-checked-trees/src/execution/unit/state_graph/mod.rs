@@ -20,15 +20,11 @@ use crate::execution::terminal_unit::{
     return_unit_affine_discards, state_flow, structural_scalar_signature_traced,
 };
 
-#[path = "closed_sum.rs"]
 mod closed_sum;
-#[path = "local_results.rs"]
 mod local_results;
-#[path = "returns.rs"]
 pub(super) mod returns;
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 /// Test convenience: the traced builder without a trace.

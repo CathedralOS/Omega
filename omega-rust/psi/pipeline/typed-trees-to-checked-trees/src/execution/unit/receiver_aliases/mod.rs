@@ -12,12 +12,9 @@ use checked_trees::{
 };
 use typed_trees::expression::ExpressionHandle;
 
-#[path = "nested.rs"]
 mod nested;
-#[path = "projection.rs"]
 mod projection;
 #[cfg(test)]
-#[path = "tests/coverage.rs"]
 mod tests;
 
 pub(super) struct ReceiverAlias {

@@ -11,10 +11,8 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::terminal_field_identity;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
-#[path = "frame.rs"]
 mod frame;
 #[cfg(test)]
-#[path = "tests/coverage.rs"]
 mod tests;
 
 /// Local storage uses the same ordered scalar effect as borrowed parameters.

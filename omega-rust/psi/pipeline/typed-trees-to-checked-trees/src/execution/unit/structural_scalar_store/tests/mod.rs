@@ -3,15 +3,10 @@ use super::{build_structural_scalar_field_store_sequence, frame};
 use crate::execution::terminal_unit::control::build_checked_machine;
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
-#[path = "arithmetic_policies.rs"]
 mod arithmetic_policies;
-#[path = "borrowed_arrays.rs"]
 mod borrowed_arrays;
-#[path = "borrowed_records.rs"]
 mod borrowed_records;
-#[path = "closed_generic_records.rs"]
 mod closed_generic_records;
-#[path = "computations.rs"]
 mod computations;
 
 #[test]

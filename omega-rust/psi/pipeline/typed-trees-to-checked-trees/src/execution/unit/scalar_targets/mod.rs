@@ -21,7 +21,6 @@ use crate::execution::terminal_unit::structural_scalar_signature;
 use crate::execution::terminal_unit::structural_signature;
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 /// Rejoin owned and borrowed graph signatures before ordinary Unit calls use them.

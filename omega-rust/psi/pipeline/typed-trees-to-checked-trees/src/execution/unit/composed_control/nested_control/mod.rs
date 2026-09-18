@@ -5,11 +5,8 @@ use super::super::{
 
 use crate::execution::terminal_unit::ShapeCollector;
 
-#[path = "assembly.rs"]
 mod assembly;
-#[path = "operations.rs"]
 mod operations;
-#[path = "topology.rs"]
 mod topology;
 
 pub(super) fn build(

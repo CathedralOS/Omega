@@ -9,7 +9,6 @@ use crate::execution::terminal_unit::scalar_targets;
 use checked_trees::{CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage};
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 struct CandidateClosure {

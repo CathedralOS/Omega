@@ -240,5 +240,4 @@ pub(super) fn build(
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

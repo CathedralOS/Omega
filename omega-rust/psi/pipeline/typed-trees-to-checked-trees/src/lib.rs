@@ -19,9 +19,9 @@ mod execution {
     pub(crate) mod terminal_cleanup;
     #[path = "debug_metadata.rs"]
     pub(crate) mod terminal_debug;
-    #[path = "scalar/plan_scalar.rs"]
+    #[path = "scalar/mod.rs"]
     pub(crate) mod terminal_scalar;
-    #[path = "unit/plan_unit.rs"]
+    #[path = "unit/mod.rs"]
     pub(crate) mod terminal_unit;
     #[cfg(test)]
     pub(crate) fn exact_two_field_record_projection_for_test(

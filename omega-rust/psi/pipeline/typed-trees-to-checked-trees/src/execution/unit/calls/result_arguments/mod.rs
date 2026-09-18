@@ -23,7 +23,6 @@ use crate::execution::terminal_unit::shared_plain_affine_referent;
 use crate::execution::terminal_unit::state_flow;
 use crate::execution::terminal_unit::structural_access_for_type_reference;
 
-#[path = "anonymous_shared.rs"]
 mod anonymous_shared;
 
 #[allow(clippy::too_many_arguments)]
