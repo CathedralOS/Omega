@@ -200,6 +200,41 @@ pub(super) fn projected_field(
         .ok_or(InvalidStructuralShape)
 }
 
+/// The array transport metadata one indexed projection retains: the referent
+/// root's own `FixedArray` extent and aligned element stride, or nothing when
+/// the root is not an array. The producer derives the same pair from this
+/// declaration walk; the retained fields are evidence, never indexing
+/// authority.
+pub(super) fn root_array_transport(
+    root: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<(Option<u64>, Option<u32>), InvalidStructuralShape> {
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    let Some(declaration) = indexed.get(&root).copied() else {
+        return Err(InvalidStructuralShape);
+    };
+    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+        return Ok((None, None));
+    };
+    let element_shape = shape(
+        element,
+        &indexed,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    let stride = align(
+        u32::from(element_shape.byte_size),
+        u32::from(element_shape.alignment),
+    )?;
+    Ok((Some(length), Some(stride)))
+}
+
 /// A bounded inline byte field has no projected carrier identity: the path's
 /// last segment names a record field carrying `ByteSequence(BoundedOwned)`
 /// storage. Reconstruct the field's offset and declared capacity so an argument
