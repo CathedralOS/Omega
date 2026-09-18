@@ -668,22 +668,19 @@ pub(super) fn emit(
         })
         .transpose()?;
     let edge = edge_id(allocate_dense(&mut next_edge)?);
-    let crash_routes = if let Some(contract_plan) =
-        checked.facts.contract_plans.for_machine(plan.machine)
-    {
+    let crash_routes = {
+        let effective = crate::unit::effective_crash_routes(checked, plan.machine)?;
         if parameters.is_empty() {
-            lower_checked_crash_route_buckets(contract_plan.crash.published(), &scalar_parameters)?
+            lower_checked_crash_route_buckets(&effective, &scalar_parameters)?
         } else {
             lower_structural_crash_route_buckets(
-                contract_plan.crash.published(),
+                &effective,
                 &scalar_parameters,
                 &signature.predicate_parameters,
                 structural_types,
                 runtime_requirements,
             )?
         }
-    } else {
-        Vec::new()
     };
     evaluation.remap_transported_call_operands(&mut operations);
     evaluation.blocks.push(Block {

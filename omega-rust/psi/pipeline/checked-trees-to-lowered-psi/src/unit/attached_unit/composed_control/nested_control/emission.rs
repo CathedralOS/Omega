@@ -5,8 +5,9 @@ use super::super::super::super::{
 use super::super::super::{
     Block, MachineContract, ScalarType, TerminalMachine, TerminalMachineResult, Terminator,
     ValueDeclaration, allocate_dense, contract_id, edge_id, emit_direct_expression, lookup_type_id,
-    lower_checked_scalar_expression, lower_installation_machine_service_ceiling, machine_id,
-    unsupported, validate_direct_parameter_types, value_id,
+    lower_checked_crash_route_buckets, lower_checked_scalar_expression,
+    lower_installation_machine_service_ceiling, machine_id, unsupported,
+    validate_direct_parameter_types, value_id,
 };
 
 use super::{CheckedTrees, LoweringError, SourceMappedLowered};
@@ -215,7 +216,10 @@ pub(super) fn emit(
         blocks,
         contract: MachineContract {
             id: contract_id(1),
-            crash_routes: Vec::new(),
+            crash_routes: lower_checked_crash_route_buckets(
+                &catalogs.root_crash_routes,
+                &control_parameters[0],
+            )?,
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),

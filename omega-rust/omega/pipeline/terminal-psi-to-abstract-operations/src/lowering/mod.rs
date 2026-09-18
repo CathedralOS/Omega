@@ -30,16 +30,10 @@ pub(crate) fn lower_decoded_optimizable_module(
 }
 
 fn lower_decoded_module(module: &TerminalModule) -> Result<AbstractOperationPlan, LoweringError> {
-    // Terminal replay now retains the opaque requirement's crash contract.
-    // Omega's boundary outcome/effect projections do not yet consume it; an
-    // ordinary BoundaryCall shape must not silently erase the new permission.
-    if let Some(boundary) = module
-        .boundary_machines
-        .iter()
-        .find(|boundary| !boundary.crash_routes.is_empty())
-    {
-        return Err(LoweringError::UnsupportedBoundaryCrashContract(boundary.id));
-    }
+    // Boundary crash contracts ride through `boundary_machines` unchanged.
+    // Terminal verification already covered every caller continuation against
+    // them; the realized provider body or builtin settlement commits the trap
+    // natively, so no abstract operation needs a separate continuation lane.
     block_bindings::validate_structural_block_bindings(module)?;
     if !module
         .machines

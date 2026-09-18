@@ -154,8 +154,9 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     assert_eq!(arguments, &[byte.id, boolean.id]);
 
     // Verification retains the opaque requirement even when no executable
-    // provider exists. Native projection still rejects its unsupported route;
-    // interpreter admission retains the declaration and checks host outcomes.
+    // provider exists. Native projection retains the crash contract on the
+    // boundary declaration: terminal verification already covered the caller's
+    // continuation, and the realized settlement commits the trap natively.
     let mut crashing = module.clone();
     let crash = terminal_psi::CrashRouteBucket {
         cause: terminal_psi::CrashCause::Trap,
@@ -172,12 +173,20 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     let crashing_semantic = encode_module(&crashing).unwrap();
     let crashing_proof = encode_proof_section(&crashing, &ProofBundle::default())
         .expect("empty proof bundle encodes for the crashing module");
-    assert!(matches!(
-        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &crashing_semantic, proof_bytes: &crashing_proof, obligation_ledger_bytes: None }, &AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
-            terminal_psi_to_abstract_operations::LoweringError::UnsupportedBoundaryCrashContract(id)
-        )) if id == boundary
-    ));
+    let crashing_plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &crashing_semantic,
+            proof_bytes: &crashing_proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified boundary crash contract lowers into Omega");
+    assert_eq!(
+        crashing_plan.boundary_machines[0].crash_routes, crashing.boundary_machines[0].crash_routes,
+        "the boundary crash contract survives lowering for settlement realization",
+    );
     let execution = terminal_interpreter::TerminalExecution::start_artifact(
         &crashing_semantic,
         &crashing_proof,

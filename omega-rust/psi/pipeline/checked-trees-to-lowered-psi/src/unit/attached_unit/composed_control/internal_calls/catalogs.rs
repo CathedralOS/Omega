@@ -1,5 +1,5 @@
 //! Composed roots and callable Unit bodies share one selected catalog.
-use super::super::super::super::{ServiceReachPlan, lower_checked_crash_routes};
+use super::super::super::super::ServiceReachPlan;
 use super::super::super::{
     CheckedBoundaryMachinePlan, CheckedUnitEffectOperationPlan, ServiceReachSummary,
     collect_installation_machine_contract_services, collect_service_summary, lookup_machine_id,
@@ -151,7 +151,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                     .iter()
                     .map(|parameter| parameter.scalar_type)
                     .collect(),
-                parameter_relative_crash_routes: lower_checked_crash_routes(
+                parameter_relative_crash_routes: crate::unit::effective_crash_routes(
                     checked,
                     entry.machine,
                 )?,
@@ -189,7 +189,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
         service_ids: shared.service_ids.into(),
         next_place: shared.next_place,
         scalar_calls,
-        root_crash_routes: lower_checked_crash_routes(checked, machine)?,
+        root_crash_routes: crate::unit::effective_crash_routes(checked, machine)?,
         shared_units: Some(shared.lowered),
         next_value: shared.next_value,
         next_block: shared.next_block,

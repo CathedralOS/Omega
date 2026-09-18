@@ -143,25 +143,20 @@ pub(super) fn prepare(
             Ok(requirement)
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut crash_continuations =
-        if let Some(target_contract) = checked.facts.contract_plans.for_machine(*target_machine) {
-            if target.parameters.is_empty() {
-                lower_checked_crash_route_buckets(
-                    target_contract.crash.published(),
-                    &terminal_scalar_values,
-                )?
-            } else {
-                lower_structural_crash_route_buckets(
-                    target_contract.crash.published(),
-                    &terminal_scalar_values,
-                    target.predicate_parameters,
-                    structural_types,
-                    &target_runtime_requirements,
-                )?
-            }
+    let mut crash_continuations = {
+        let target_routes = crate::unit::effective_crash_routes(checked, *target_machine)?;
+        if target.parameters.is_empty() {
+            lower_checked_crash_route_buckets(&target_routes, &terminal_scalar_values)?
         } else {
-            Vec::new()
-        };
+            lower_structural_crash_route_buckets(
+                &target_routes,
+                &terminal_scalar_values,
+                target.predicate_parameters,
+                structural_types,
+                &target_runtime_requirements,
+            )?
+        }
+    };
     if !crash_continuations.is_empty() {
         let substitutions = target
             .parameters

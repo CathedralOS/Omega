@@ -193,26 +193,31 @@ fn native_route_shares_the_exclusion_verdict() {
         "{text}"
     );
 
-    // The no-op composition passes the exclusion; what stops its native
-    // product today is the boundary requirement's own `crashes Trap`
-    // contract, which terminal-psi-to-abstract-operations does not yet
-    // consume. That is an explicit realization limit, not an exclusion
-    // verdict, and this assertion flips when native lowering admits it.
+    // The no-op composition passes the exclusion, and its boundary
+    // requirement's `crashes Trap` contract now lowers into Omega: terminal
+    // verification already covered the caller's continuation. What still
+    // fences this fixture's native product is a deeper target-lowering limit
+    // on one of its machine shapes (`UnsupportedControlFlow`), not the
+    // boundary contract and never the exclusion verdict.
     let diagnostics = compile_one(
         "no-op-app",
         RequestedCompileProduct::NativeArtifact,
         OptimizationRollback::default(),
         "no-op-native",
     )
-    .expect_err("native lowering still refuses a boundary crash contract");
+    .expect_err("native target lowering still fences a machine shape in this fixture");
     let text = messages(&diagnostics);
     assert!(
         !text.contains("behavior exclusion"),
         "the no-op composition must not be rejected by the exclusion: {text}"
     );
     assert!(
-        text.contains("UnsupportedBoundaryCrashContract"),
-        "the recorded limit is the boundary crash contract: {text}"
+        !text.contains("UnsupportedBoundaryCrashContract"),
+        "a verified boundary crash contract now lowers: {text}"
+    );
+    assert!(
+        text.contains("UnsupportedControlFlow"),
+        "the recorded limit is the remaining control-flow fence: {text}"
     );
 }
 

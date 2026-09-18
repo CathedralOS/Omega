@@ -1,7 +1,7 @@
 //! Selected type, boundary, and service catalogs for composed Unit control.
 use super::super::super::{
     BoundaryMachineId, MachineId, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachPlan,
-    StructuralTypeDeclaration, lower_checked_crash_routes,
+    StructuralTypeDeclaration,
 };
 use super::super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
@@ -330,7 +330,7 @@ fn lower_catalogs(
         });
     }
     let scalar_calls = scalar_calls::prepare(checked, machine, states, &internal_targets)?;
-    let root_crash_routes = lower_checked_crash_routes(checked, machine)?;
+    let root_crash_routes = crate::unit::effective_crash_routes(checked, machine)?;
     Ok(ComposedCatalogs {
         structural_types: structural_types.into(),
         type_ids: type_ids.into(),

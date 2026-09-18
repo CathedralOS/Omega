@@ -2,7 +2,6 @@
 use super::super::super::{
     BoundaryMachineId, LoweredSourceCallOccurrence, MachineId, ServiceDeclaration, ServiceId,
     ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    lower_checked_crash_routes,
 };
 use super::super::{
     BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, ScalarType, SemanticDomainId,
@@ -125,7 +124,7 @@ pub(in crate::unit::attached_unit) fn emit(
                     .iter()
                     .map(|parameter| parameter.scalar_type)
                     .collect(),
-                parameter_relative_crash_routes: lower_checked_crash_routes(
+                parameter_relative_crash_routes: crate::unit::effective_crash_routes(
                     checked,
                     target.machine,
                 )?,
@@ -149,7 +148,7 @@ pub(in crate::unit::attached_unit) fn emit(
             shared.scalar_requirement_counts.to_vec(),
             *counters.call_obligation,
         ),
-        root_crash_routes: lower_checked_crash_routes(checked, plan.machine)?,
+        root_crash_routes: crate::unit::effective_crash_routes(checked, plan.machine)?,
         shared_units: None,
         next_place: *counters.place,
         next_value: *counters.value,
