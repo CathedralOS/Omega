@@ -266,9 +266,10 @@ fn shared_nominal_argument(
         base_type_identity(program, *referee, &[])?
     };
     let parameters = program.state_parameters(state);
-    let (reference, source) = if let Some(position) = parameters.iter().position(|parameter| {
-        parameter.symbol == symbol || (parameter.is_self && symbol == machine)
-    }) {
+    let (reference, source_carrier, source) = if let Some(position) =
+        parameters.iter().position(|parameter| {
+            parameter.symbol == symbol || (parameter.is_self && symbol == machine)
+        }) {
         let parameter = &parameters[position];
         if parameter.is_const {
             return None;
@@ -318,6 +319,12 @@ fn shared_nominal_argument(
             .count();
         (
             reference,
+            matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Reference { .. }
+            ),
             CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(ordinal).ok()?,
             },
@@ -345,7 +352,7 @@ fn shared_nominal_argument(
         // exactly as a shared-borrow parameter would. The retained symbol and
         // recorded access stay the local's own — nothing unwraps or copies the
         // referent into a fabricated place.
-        let reference = match program
+        let (reference, carrier) = match program
             .type_reference_table
             .type_reference(local.type_reference)
         {
@@ -355,12 +362,13 @@ fn shared_nominal_argument(
                     | language_semantics::ReferenceAccess::Mutable,
                 referee,
                 ..
-            } => *referee,
-            TypeReferenceNode::Named { .. } => local.type_reference,
+            } => (*referee, true),
+            TypeReferenceNode::Named { .. } => (local.type_reference, false),
             _ => return None,
         };
         (
             reference,
+            carrier,
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         )
     };
@@ -412,9 +420,26 @@ fn shared_nominal_argument(
                 if !cases.is_empty() && cases.iter().all(|case| case.fields.iter().all(|field|
                     !field.relevance.is_erased() && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)))))
         });
+    // A whole primitive referent observes the same existing storage when the
+    // forwarded source is itself a `&T` carrier. The loan names the carrier's
+    // place and access rows directly; nothing materializes an owned scalar
+    // copy of the referent into a fabricated place. A `&scratch` borrow of a
+    // primitive storage local or scalar parameter stays on its dedicated
+    // primitive source plan instead.
+    let whole_primitive_scalar = source_carrier
+        && path.is_empty()
+        && shapes.types.len() == 1
+        && program.type_multiplicity(reference) == Multiplicity::Unrestricted
+        && shapes.types.get(&identity).is_some_and(|shape| {
+            matches!(
+                shape.shape,
+                CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+            )
+        });
     if identity != target_identity
         || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
         || (!whole_scalar_sum
+            && !whole_primitive_scalar
             && !shapes.types.values().all(|shape| {
                 matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
                 if fields.iter().all(|field| !field.relevance.is_erased()

@@ -6,7 +6,7 @@ use terminal_fuel::FuelChargeSite;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalExecutionResult, TerminalScalarValue,
-    TerminalStructuralScalarFieldValue, TerminalStructuralValue,
+    TerminalStructuralPrimitiveValue, TerminalStructuralScalarFieldValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured,
 };
 use terminal_psi::{OperationKind, TerminalModule};
@@ -360,7 +360,7 @@ fn execute_machine(
     arguments: &[TerminalScalarValue],
 ) -> (TerminalModule, MeasuredTerminalExecution) {
     execute_machine_with_structural_inputs(source, machine_name, arguments, |_| {
-        (Vec::new(), Vec::new())
+        (Vec::new(), Vec::new(), Vec::new())
     })
 }
 
@@ -376,6 +376,7 @@ fn execute_machine_with_structural_inputs(
     ) -> (
         Vec<TerminalStructuralValue>,
         Vec<TerminalStructuralScalarFieldValue>,
+        Vec<TerminalStructuralPrimitiveValue>,
     ),
 ) -> (TerminalModule, MeasuredTerminalExecution) {
     let checked =
@@ -401,7 +402,7 @@ fn execute_machine_with_structural_inputs(
         .expect("independent dispatch verification");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
-    let (structural_arguments, scalar_fields) = inputs(&module);
+    let (structural_arguments, scalar_fields, primitive_values) = inputs(&module);
     let execution = interpret_terminal_artifact_measured(
         &semantic_bytes,
         &proof_bytes,
@@ -410,6 +411,7 @@ fn execute_machine_with_structural_inputs(
         TerminalStructuralInputs {
             arguments: &structural_arguments,
             scalar_fields: &scalar_fields,
+            primitive_values: &primitive_values,
             ..Default::default()
         },
         &mut AcceptTerminalEffects,
