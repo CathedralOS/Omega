@@ -820,6 +820,58 @@ fn named_call_discharge_follows_the_leafs_nested_projection() {
     );
 }
 
+#[test]
+fn named_call_discharges_a_route_whose_stable_record_operand_was_copied_before_a_write() {
+    // `rec` binds to `left` by value, so the operand-time `rec.count >= 0`
+    // describes what the operator received even though `reset` then rewrote
+    // the source field — a detached stable copy carries its snapshot the way
+    // a copied scalar does, not by intersecting with invocation-live facts.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(left: Rec, right: i32) -> bool
+         crashes Trap !(left.count >= 0);
+         machine reset(rec: &mut Rec) -> i32 { rec.count = -1; 0 }
+         pub machine safe(mut rec: Rec) -> bool
+         requires rec.count >= 0 {
+             Ns::probe(rec, reset(&mut rec))
+         }";
+    check(source).expect("the copied record's operand-time premise discharges the route");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_copied_record_predates_the_proving_write() {
+    // `prepare` establishes `rec.count >= 0` on the source storage after the
+    // `left` copy was taken; the guarantee describes current storage, never
+    // the bound operand, so the route survives.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(left: Rec, right: i32) -> bool
+         crashes Trap !(left.count >= 0);
+         machine prepare(rec: &mut Rec) -> i32 ensures rec.count >= 0 { rec.count = 1; 0 }
+         pub machine drifted(mut rec: Rec) -> bool {
+             Ns::probe(rec, prepare(&mut rec))
+         }";
+    let diagnostics =
+        check(source).expect_err("a guarantee newer than the copy cannot discharge the route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
 /// The surviving guard for `crashes Trap !(cell.count >= 0)` over a caller
 /// whose parameter `rec` is operand 0: the entry operand is the caller's
 /// `rec` snapshot, and the leaf's `count` projection rides its own `Member`

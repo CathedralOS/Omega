@@ -114,6 +114,59 @@ fn named_call_requires_cannot_give_an_earlier_copy_a_later_storage_guarantee() {
 }
 
 #[test]
+fn named_call_requires_keep_a_copied_stable_record_after_a_right_operand_write() {
+    check(
+        "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(left: Rec, right: i32) -> bool
+         requires left.count >= 0;
+         machine reset(rec: &mut Rec) -> i32 { rec.count = -1; 0 }
+         machine compare(mut rec: Rec) -> bool requires rec.count >= 0 {
+             Ns::probe(rec, reset(&mut rec))
+         }",
+    )
+    .expect("a later write cannot revoke facts about the already-copied left record");
+}
+
+#[test]
+fn named_call_requires_keep_a_copied_generic_record_after_a_right_operand_write() {
+    // A generic instantiation is the same detached copy: `h`'s bound snapshot
+    // for `left` predates `reset`'s write to the source storage.
+    check(
+        "pub data Holder<T> { value: T; other: i32; }
+         boundary operator Ns::probe(left: Holder<i32>, right: i32) -> bool
+         requires left.value >= 0;
+         machine reset(h: &mut Holder<i32>) -> i32 { h.value = -1; 0 }
+         machine compare(mut h: Holder<i32>) -> bool requires h.value >= 0 {
+             Ns::probe(h, reset(&mut h))
+         }",
+    )
+    .expect("a later write cannot revoke facts about the already-copied generic record");
+}
+
+#[test]
+fn named_call_requires_cannot_give_a_copied_record_a_later_storage_guarantee() {
+    // `prepare` establishes `rec.count >= 0` on the source storage after the
+    // `left` copy was already taken — the newer guarantee describes current
+    // storage, never the bound operand.
+    let diagnostics = check(
+        "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(left: Rec, right: i32) -> bool
+         requires left.count >= 0;
+         machine prepare(rec: &mut Rec) -> i32 ensures rec.count >= 0 { rec.count = 1; 0 }
+         machine compare(mut rec: Rec) -> bool {
+             Ns::probe(rec, prepare(&mut rec))
+         }",
+    )
+    .expect_err("a guarantee newer than the copy cannot discharge its clause");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn named_call_requires_read_the_referent_under_a_reference_formal() {
     // `left: &i32` used as a predicate value reads its referent, so the
     // instantiated clause names `value`, not `&value`. Without referent

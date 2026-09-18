@@ -4,9 +4,10 @@
 //! pass captures its operand-time evidence under a `FlowOperatorInvocationFact`
 //! keyed by the `named_use` handle rather than a `uses` row, so the
 //! operand-time `InvocationContexts` discharge in checks/operators applies
-//! unchanged: short-circuit premises, per-operand scalar snapshots,
-//! non-scalar carrier live-intersection, and multi-operand per-context
-//! intersection all behave exactly as they do for `1 == value`.
+//! unchanged: short-circuit premises, per-operand snapshots for copied scalars
+//! and stable by-value carriers, live-intersection for view carriers such as
+//! references and slices, and multi-operand per-context intersection all
+//! behave exactly as they do for `1 == value`.
 //!
 //! A named use whose position emitted no capture row — one inside a statement
 //! the expression scheduler never evaluates, or a row the operator-resolution
@@ -46,8 +47,9 @@ use crate::labels::{
 /// one named call. When the call's evaluation emitted an operand-time
 /// capture row, discharge goes through `checks::named_operator_route_is_false`
 /// with exactly the spelled use's selection rules — operand expressions must
-/// match, scalar carriers keep operand-time snapshots, other carriers
-/// intersect capture with invocation-live facts, and several referenced
+/// match, detached-copy carriers (copied scalars and stable by-value formals)
+/// keep operand-time snapshots, view carriers intersect capture with
+/// invocation-live facts, and several referenced
 /// operands intersect by exact context identity. Present-but-ambiguous or
 /// substituted custody fails closed: duplicated or mismatched rows select no
 /// contexts. A call with no capture row at all falls back to the containing

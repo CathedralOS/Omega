@@ -1,9 +1,14 @@
 //! A copied scalar's contract refers to its operand-time value, whereas a
 //! reference still denotes its captured referent's live storage at invocation.
-//! Non-scalar carriers require the same facts at capture and invocation until
-//! exact payload/referent custody supports transporting newer facts. In
-//! particular, rebinding a source reference must not retarget an earlier copy.
-//! Select facts per clause
+//! A by-value formal whose type has stable observable contents is an equally
+//! detached carrier: the bound operand is a copy no loan or interior authority
+//! can retarget, so its operand-time facts describe the invocation value
+//! outright and need no invocation-time liveness. Reference and slice formals
+//! are views onto shared storage, and carriers the contents classifier cannot
+//! prove stable keep requiring the same facts at capture and invocation until
+//! exact referent custody supports transporting them — including newer facts.
+//! In particular, rebinding a source reference must not retarget an earlier
+//! copy. Select facts per clause
 //! leaf, intersecting exact context identities when a relation uses several
 //! operands. Unioning their snapshots could combine facts about different
 //! versions of the same source place. Conjunctions are proved leaf by leaf by
@@ -121,7 +126,7 @@ impl<'facts> InvocationContexts<'facts> {
                 .flow
                 .semantic_constraint_contexts(operand.constraints)
                 .collect();
-            if !is_copied_scalar(program, parameter.type_reference) {
+            if !operand_binds_stable_copy(program, parameter.type_reference) {
                 operand_contexts.retain(|candidate| {
                     self.flow
                         .semantic_constraint_contexts(invocation.requires_constraints)
@@ -157,12 +162,26 @@ fn operand_expressions_match(
         .eq(operands.iter().copied())
 }
 
-fn is_copied_scalar(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+/// Whether the operand bound to this formal is a detached copy of stable
+/// contents, so its operand-time facts describe the invocation value outright.
+/// A copied scalar is the narrow case; a by-value record, sum, or fixed array
+/// with stable observable contents is equally detached — a later operand's
+/// write to the source storage cannot reach the copy, and no loan or interior
+/// authority inside it can retarget what the operator received. Reference and
+/// slice formals are views onto shared storage whose referent facts still need
+/// the capture ∩ invocation intersection until exact referent custody
+/// transports them; anything the contents classifier cannot prove stable stays
+/// intersected the same way.
+fn operand_binds_stable_copy(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
     loop {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { .. } => {
-                return program.primitive_type_reference(reference).is_some();
+                return program.primitive_type_reference(reference).is_some()
+                    || validation::has_stable_observable_contents(program, reference);
+            }
+            TypeReferenceNode::Generic { .. } | TypeReferenceNode::FixedArray { .. } => {
+                return validation::has_stable_observable_contents(program, reference);
             }
             _ => return false,
         }
