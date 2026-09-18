@@ -48,6 +48,13 @@ impl Fixture {
             machine forward(context: &Context) -> SchedulerHandle {{ pick(context) }}
             machine forward_cached(context: &Context) -> SchedulerHandle {{ let s: SchedulerHandle = pick(context); s }}
             machine forward_mut(context: &mut Context) -> SchedulerHandle {{ pick_mut(context) }}
+            machine rebuild(context: &Context) -> Context {{ Context {{ scheduler: context.scheduler }} }}
+            machine rebuild_second(former: &Context, latter: &Context) -> Context {{ Context {{ scheduler: latter.scheduler }} }}
+            machine rebuild_fresh(context: &Context) -> Context {{ Context {{ scheduler: SchedulerHandle {{}} }} }}
+            machine rebuild_mut(context: &mut Context) -> Context {{ Context {{ scheduler: context.scheduler }} }}
+            machine rebuild_cached(context: &Context) -> Context {{ let c: Context = Context {{ scheduler: context.scheduler }}; c }}
+            machine wrap_pick(context: &Context) -> Holder {{ Holder {{ view: Context {{ scheduler: pick(context) }} }} }}
+            machine rebuild_pair(context: &Context) -> [SchedulerHandle; 2] {{ [context.scheduler, context.scheduler] }}
             machine probe(context: &mut Context, replacement: &Context, holder: Holder) -> u64 {{
                 {statements}
                 transition {{ _ -> observe_scheduler({argument}) }}
@@ -493,6 +500,170 @@ fn nested_call_result_keeps_a_per_field_projection() {
 fn nested_call_through_a_mutable_input_has_no_exact_origin() {
     let fixture = Fixture::with_helper_calls(
         "context.scheduler = forward_mut(context);",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        None
+    );
+}
+
+#[test]
+fn owned_load_through_a_reference_derives_the_referent() {
+    let fixture = Fixture::new(
+        "let borrowed: &Context = &context; let saved: SchedulerHandle = borrowed.scheduler;",
+        "saved",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn owned_load_through_reference_after_a_disjoint_store() {
+    let fixture = Fixture::new(
+        "let borrowed: &Context = &context; let mut tmp: SchedulerHandle = context.scheduler; tmp = replacement.scheduler; let saved: SchedulerHandle = borrowed.scheduler;",
+        "saved",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn owned_load_through_reference_observes_the_current_value() {
+    let fixture = Fixture::new(
+        "let borrowed: &Context = &context; context.scheduler = replacement.scheduler; let saved: SchedulerHandle = borrowed.scheduler;",
+        "saved",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn owned_load_through_a_reference_bound_field() {
+    let fixture = Fixture::new(
+        "let borrowed: &Context = &holder.view; let saved: SchedulerHandle = borrowed.scheduler;",
+        "saved",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("holder", &[("Holder", "view"), ("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn owned_load_through_chained_reference_locals() {
+    let fixture = Fixture::new(
+        "let first: &Context = &context; let second: &Context = first; let saved: SchedulerHandle = second.scheduler;",
+        "saved",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn constructed_result_field_derives_the_input_projection() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = rebuild(replacement).scheduler;",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn constructed_result_local_capture_derives_the_input_projection() {
+    let fixture = Fixture::with_helper_calls(
+        "let rebuilt: Context = rebuild(replacement); context.scheduler = rebuilt.scheduler;",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn constructed_result_follows_the_selected_operand() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = rebuild_second(context, replacement).scheduler;",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn constructed_result_through_a_local_initializer() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = rebuild_cached(replacement).scheduler;",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn nested_call_inside_a_constructed_result() {
+    let fixture = Fixture::with_helper_calls(
+        "let wrapped: Holder = wrap_pick(replacement); context.scheduler = wrapped.view.scheduler;",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn constructed_array_result_derives_the_element_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = rebuild_pair(replacement)[0];",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+#[test]
+fn fresh_constructor_result_has_no_input_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = rebuild_fresh(replacement).scheduler;",
+        "context.scheduler",
+        &[0],
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
+        None
+    );
+}
+
+#[test]
+fn mutable_input_constructor_result_has_no_exact_origin() {
+    let fixture = Fixture::with_helper_calls(
+        "context.scheduler = rebuild_mut(context).scheduler;",
         "context.scheduler",
         &[0],
     );
