@@ -76,7 +76,9 @@ pub(crate) fn prove_ranking_range_call_entry(
         }
         // A field-view rank is the exact coordinate atom; authored member
         // projections inside endpoints and requires facts bind to it before
-        // any hypothesis normalizes them.
+        // any hypothesis normalizes them. A member-chain scalar subject reads
+        // the same kind of coordinate: its chain resolves against the carrier
+        // formal's own declaration and binds here as the produced rank atom.
         let field_rank = if let RankingRangeMeasure::Field { subject, measure } = measure {
             let coordinate = fields::FieldCoordinate::resolve(program, state, subject, measure)?;
             let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
@@ -88,6 +90,45 @@ pub(crate) fn prove_ranking_range_call_entry(
             ));
             coordinates.install(program, state, state, None, &mut engine, &expressions)?;
             Some(coordinates)
+        } else {
+            let subjects = scalar_subjects(&member, measure);
+            let mut coordinates =
+                member_subject_coordinates(program, state, state, None, &subjects)?;
+            let mut expressions = vec![range.start, range.end];
+            expressions.extend(subjects.iter().copied());
+            expressions.extend(projections::entry_expressions(
+                program,
+                member.machine,
+                state,
+            ));
+            coordinates.install(program, state, state, None, &mut engine, &expressions)?;
+            Some(coordinates)
+        };
+        // A slice over projected storage produces its length from the member
+        // chain's exact leaf coordinate, as at a named-state edge.
+        let slice_rank = if let RankingRangeMeasure::SliceLength(subject) = measure {
+            match lengths::SliceCoordinate::resolve(program, state, subject) {
+                Some(coordinate) => {
+                    let mut coordinates = lengths::SliceCoordinates::new(coordinate);
+                    let mut expressions = vec![range.start, range.end, subject];
+                    expressions.extend(projections::entry_expressions(
+                        program,
+                        member.machine,
+                        state,
+                    ));
+                    coordinates.install(
+                        program,
+                        member.machine,
+                        state,
+                        state,
+                        None,
+                        &mut engine,
+                        &expressions,
+                    )?;
+                    Some(coordinates)
+                }
+                None => None,
+            }
         } else {
             None
         };
@@ -121,6 +162,9 @@ pub(crate) fn prove_ranking_range_call_entry(
         if let Some(coordinates) = &field_rank {
             comparisons.extend(coordinates.comparisons(program));
         }
+        if let Some(coordinates) = &slice_rank {
+            comparisons.extend(coordinates.comparisons());
+        }
         comparisons.extend(length_bindings.iter().map(|(_, identity)| {
             (
                 BinaryOperator::GreaterOrEqual,
@@ -129,9 +173,10 @@ pub(crate) fn prove_ranking_range_call_entry(
             )
         }));
         let coordinate = match measure {
-            RankingRangeMeasure::SliceLength(subject) => {
-                length_coordinate(program, state, subject, &length_bindings)?
-            }
+            RankingRangeMeasure::SliceLength(subject) => match &slice_rank {
+                Some(slice) => slice.value()?,
+                None => length_coordinate(program, state, subject, &length_bindings)?,
+            },
             RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
             _ => rank_coordinate(program, member.machine, &mut engine, measure)?,
         };
@@ -376,6 +421,90 @@ pub(crate) fn prove_ranking_range_call(
         )?;
         Some(coordinates)
     } else {
+        // A member-chain scalar subject produces its rank from projected
+        // storage: the chain resolves against the entry formal's own
+        // declaration, then re-resolves through this site's telescope onto
+        // the formal actually carrying the record role. Guards, actuals, and
+        // endpoints spelling the same member chain bind to the same atom.
+        let subjects = scalar_subjects(&caller, source_measure);
+        let mut coordinates = member_subject_coordinates(
+            program,
+            entry,
+            source,
+            (!at_entry).then_some(caller_site.entry_parameters),
+            &subjects,
+        )?;
+        let mut expressions = subjects.clone();
+        if caller.range.is_valid()
+            && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
+        {
+            expressions.extend([range.start, range.end]);
+        }
+        expressions.extend(arguments.iter().copied());
+        expressions.extend(guards.iter().map(|(guard, _)| *guard));
+        expressions.extend(projections::entry_expressions(
+            program,
+            caller.machine,
+            source,
+        ));
+        coordinates.install(
+            program,
+            source,
+            entry,
+            (!at_entry).then_some(caller_site.entry_parameters),
+            &mut engine,
+            &expressions,
+        )?;
+        Some(coordinates)
+    };
+    // A member-chain slice subject produces its length from the exact
+    // projected coordinate of the carrier formal's record, resolved at the
+    // entry scope and re-resolved onto the site's carrier. Bare slice
+    // formals keep the `length_bindings` coordinate installed above.
+    let slice_ranks = if let RankingRangeMeasure::SliceLength(subject) = source_measure {
+        match lengths::SliceCoordinate::resolve(program, entry, subject) {
+            Some(coordinate) => {
+                let coordinate = if at_entry {
+                    coordinate
+                } else {
+                    coordinate.at_arrival(
+                        program,
+                        RankingRangeState {
+                            state: source,
+                            entry_parameters: caller_site.entry_parameters,
+                        },
+                        coordinate.parameter.symbol,
+                    )?
+                };
+                let mut coordinates = lengths::SliceCoordinates::new(coordinate);
+                let mut expressions = vec![subject];
+                if caller.range.is_valid()
+                    && let ExpressionNode::Range(range) =
+                        program.expression_table.expression(caller.range)
+                {
+                    expressions.extend([range.start, range.end]);
+                }
+                expressions.extend(arguments.iter().copied());
+                expressions.extend(guards.iter().map(|(guard, _)| *guard));
+                expressions.extend(projections::entry_expressions(
+                    program,
+                    caller.machine,
+                    source,
+                ));
+                coordinates.install(
+                    program,
+                    caller.machine,
+                    source,
+                    entry,
+                    (!at_entry).then_some(caller_site.entry_parameters),
+                    &mut engine,
+                    &expressions,
+                )?;
+                Some(coordinates)
+            }
+            None => None,
+        }
+    } else {
         None
     };
     let mut comparisons = if at_entry {
@@ -401,13 +530,17 @@ pub(crate) fn prove_ranking_range_call(
         // constraints are hypotheses, as at a named-state edge.
         comparisons.extend(coordinates.comparisons(program));
     }
+    if let Some(coordinates) = &slice_ranks {
+        comparisons.extend(coordinates.comparisons());
+    }
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
     let rank = match source_measure {
-        RankingRangeMeasure::SliceLength(subject) => {
-            length_coordinate(program, entry, subject, &length_bindings)?
-        }
+        RankingRangeMeasure::SliceLength(subject) => match &slice_ranks {
+            Some(slice) => slice.value()?,
+            None => length_coordinate(program, entry, subject, &length_bindings)?,
+        },
         RankingRangeMeasure::Field { .. } => field_ranks.as_ref()?.value()?,
         _ => rank_coordinate(program, caller.machine, &mut engine, source_measure)?,
     };
@@ -501,45 +634,83 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.bind_strict_arguments(&actuals) {
         return None;
     }
-    // A field-view callee's authored range may read fields of its record
-    // formals; each member projection binds to the value its exact actual
-    // installs there, so `pending.limit` denotes the same atom a forward,
-    // borrow, or rebuilt literal supplied. A member the coordinate cannot
-    // read stays unbound and fails endpoint normalization below.
-    if matches!(destination_measure, RankingRangeMeasure::Field { .. })
-        && callee.range.is_valid()
+    // Authored member projections in the callee's entry scope bind to the
+    // value the exact actual installs: a member-chain subject, a view bound,
+    // or an endpoint names the coordinate its own declaration resolves,
+    // walked over the actual. A member the coordinate cannot read stays
+    // unbound and fails normalization below.
+    let mut destination_expressions = vec![callee.subject];
+    if callee.paired_subject.is_valid() {
+        destination_expressions.push(callee.paired_subject);
+    }
+    if let RankingRangeMeasure::IncreasingTo { limit, .. } = destination_measure {
+        destination_expressions.push(limit);
+    }
+    if callee.range.is_valid()
         && let ExpressionNode::Range(range) = program.expression_table.expression(callee.range)
     {
-        for endpoint in [range.start, range.end] {
-            bind_destination_fields(
-                program,
-                destination,
-                source,
-                &mut engine,
-                arguments,
-                endpoint,
-            )?;
-        }
+        destination_expressions.extend([range.start, range.end]);
+    }
+    for expression in destination_expressions {
+        bind_destination_fields(
+            program,
+            destination,
+            source,
+            &mut engine,
+            arguments,
+            expression,
+        )?;
+        bind_destination_lengths(
+            program,
+            caller.machine,
+            destination,
+            source,
+            &mut engine,
+            arguments,
+            &length_bindings,
+            expression,
+        )?;
     }
     let next_rank = match destination_measure {
         // The callee's ranked slice formal arrives as this call's exact
         // actual; its produced length is the actual's own coordinate, not a
-        // forwarded caller parameter.
+        // forwarded caller parameter. A member-chain subject reads the
+        // projected coordinate its carrier formal's declaration names, walked
+        // over the actual's forward or rebuilt literal.
         RankingRangeMeasure::SliceLength(subject) => {
-            let formal = lengths::parameter(program, destination, subject)?;
-            let position = program
-                .state_parameters(destination)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .position(|parameter| parameter.symbol == formal.symbol)?;
-            lengths::actual(
-                program,
-                caller.machine,
-                source,
-                arguments[position],
-                &length_bindings,
-                &mut engine,
-            )?
+            if let Some(coordinate) =
+                lengths::SliceCoordinate::resolve(program, destination, subject)
+            {
+                let position = program
+                    .state_parameters(destination)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .position(|parameter| parameter.symbol == coordinate.parameter.symbol)?;
+                coordinate.arrived(
+                    program,
+                    caller.machine,
+                    source,
+                    &mut engine,
+                    arguments[position],
+                    coordinate.borrowed,
+                    &length_bindings,
+                )?
+            } else {
+                let formal = lengths::parameter(program, destination, subject)?;
+                let position = program
+                    .state_parameters(destination)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .position(|parameter| parameter.symbol == formal.symbol)?;
+                lengths::actual(
+                    program,
+                    caller.machine,
+                    source,
+                    arguments[position],
+                    &length_bindings,
+                    &mut engine,
+                )?
+            }
         }
         // The callee's ranked record formal arrives as this call's exact
         // actual; its produced coordinate is the shared measure's chain
@@ -852,6 +1023,80 @@ fn bind_destination_fields(
     Some(())
 }
 
+/// Bind every authored `.len` spelling inside `expression` whose receiver is
+/// an exact member chain of a `destination` record formal to the produced
+/// length its call actual installs: the projected slice coordinate walked
+/// over the actual's forward, borrow, or rebuilt literal. A `.len` whose
+/// receiver resolves no projected coordinate -- or whose actual the
+/// coordinate cannot read -- stays unbound, so an opaque endpoint still
+/// fails `normalize` rather than naming a guessed length.
+fn bind_destination_lengths(
+    program: &TypedTrees,
+    machine: &Machine,
+    destination: &State,
+    source: &State,
+    engine: &mut Engine<'_>,
+    arguments: &[ExpressionHandle],
+    bindings: &[(SymbolHandle, String)],
+    expression: ExpressionHandle,
+) -> Option<()> {
+    let mut pending = vec![(expression, 0usize)];
+    while let Some((expression, depth)) = pending.pop() {
+        if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => {
+                if member.case_variant.is_none()
+                    && let Some(receiver) = crate::value_custody::places::collection_length_receiver(
+                        program,
+                        machine,
+                        Some(destination),
+                        expression,
+                    )
+                    && let Some(coordinate) =
+                        lengths::SliceCoordinate::resolve(program, destination, receiver)
+                    && let Some(position) = program
+                        .state_parameters(destination)
+                        .iter()
+                        .filter(|parameter| !parameter.is_self)
+                        .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
+                    && let Some(actual) = coordinate.arrived(
+                        program,
+                        machine,
+                        source,
+                        engine,
+                        arguments[position],
+                        coordinate.borrowed,
+                        bindings,
+                    )
+                    && !engine.bind_strict_projection(expression, actual)
+                {
+                    return None;
+                }
+                pending.push((member.receiver, depth + 1));
+            }
+            ExpressionNode::Borrow(borrow) => pending.push((borrow.target, depth + 1)),
+            ExpressionNode::Binary(binary) => {
+                pending.push((binary.left, depth + 1));
+                pending.push((binary.right, depth + 1));
+            }
+            ExpressionNode::Unary(unary) => pending.push((unary.operand, depth + 1)),
+            ExpressionNode::Atomic(atomic) => pending.push((atomic.value, depth + 1)),
+            ExpressionNode::Indexed(indexed) => {
+                pending.push((indexed.collection, depth + 1));
+                pending.push((indexed.index, depth + 1));
+            }
+            ExpressionNode::Range(range) => {
+                pending.push((range.start, depth + 1));
+                pending.push((range.end, depth + 1));
+            }
+            _ => {}
+        }
+    }
+    Some(())
+}
+
 /// The produced length coordinate of a slice-typed entry parameter: the
 /// metadata atom shared with `.len` projections, never the collection value.
 fn length_coordinate(
@@ -1010,6 +1255,59 @@ fn telescoped_length_bindings(
     (roles, equalities)
 }
 
+/// The scalar expressions whose member chains may carry a produced rank or
+/// bound: the subject, a paired distance subject, and an `IncreasingTo`
+/// view's authored limit.
+fn scalar_subjects(
+    member: &RankingRangeCallMember<'_>,
+    measure: RankingRangeMeasure,
+) -> Vec<ExpressionHandle> {
+    let mut subjects = vec![member.subject];
+    if member.paired_subject.is_valid() {
+        subjects.push(member.paired_subject);
+    }
+    if let RankingRangeMeasure::IncreasingTo { limit, .. } = measure {
+        subjects.push(limit);
+    }
+    subjects
+}
+
+/// The natural coordinates scalar subjects read through member chains: each
+/// `record.field` subject resolves against the `authored` scope's formals,
+/// then re-resolves onto `site`'s unique carrier of that role. `site` equals
+/// `authored` at an entry judgment. A bare subject resolves no coordinate; a
+/// resolved chain that cannot arrive fails the judgment rather than naming a
+/// guessed carrier.
+fn member_subject_coordinates<'program>(
+    program: &'program TypedTrees,
+    authored: &'program State,
+    site: &'program State,
+    entry_parameters: Option<&[SymbolHandle]>,
+    subjects: &[ExpressionHandle],
+) -> Option<field_coordinates::FieldCoordinates<'program>> {
+    let mut coordinates = field_coordinates::FieldCoordinates::empty();
+    for subject in subjects {
+        let Some(coordinate) =
+            fields::FieldCoordinate::resolve_projection(program, authored, *subject)
+        else {
+            continue;
+        };
+        let coordinate = match entry_parameters {
+            Some(entries) => coordinate.at_arrival(
+                program,
+                RankingRangeState {
+                    state: site,
+                    entry_parameters: entries,
+                },
+                coordinate.parameter.symbol,
+            )?,
+            None => coordinate,
+        };
+        coordinates.include(coordinate);
+    }
+    Some(coordinates)
+}
+
 fn scalar_entry<'program>(
     program: &'program TypedTrees,
     member: &RankingRangeCallMember<'_>,
@@ -1155,10 +1453,14 @@ fn scalar_entry<'program>(
         .filter(|subject| subject.is_valid())
     {
         if matches!(measure, RankingRangeMeasure::SliceLength(_)) {
-            // The ranked subject is the exact slice-typed entry parameter;
-            // its produced length coordinate, not the collection value,
-            // carries the rank.
-            lengths::parameter(program, state, subject)?;
+            // The ranked subject is the exact slice-typed entry parameter or
+            // a projected slice leaf of an entry record formal; its produced
+            // length coordinate, not the collection value, carries the rank.
+            if lengths::parameter(program, state, subject).is_none()
+                && lengths::SliceCoordinate::resolve(program, state, subject).is_none()
+            {
+                return None;
+            }
         } else {
             entry_scalar_parameter(program, state, subject)?;
         }
@@ -1167,8 +1469,9 @@ fn scalar_entry<'program>(
 }
 
 /// A scalar view subject must arrive as the machine's own exact unsigned
-/// entry parameter: a bare (possibly atomically wrapped) name bound to a
-/// non-self, non-const `u8..=u64` formal.
+/// entry input: a bare (possibly atomically wrapped) name bound to a
+/// non-self, non-const `u8..=u64` formal, or an exact member chain rooted at
+/// such a formal whose declared leaf is unsigned.
 fn entry_scalar_parameter(
     program: &TypedTrees,
     state: &State,
@@ -1182,6 +1485,17 @@ fn entry_scalar_parameter(
         }
         visited.push(subject);
         subject = atomic.value;
+    }
+    if let ExpressionNode::Member(_) = program.expression_table.expression(subject) {
+        // The projected leaf's declared type is the subject's carrier; every
+        // step is an exact declared field of a non-self, non-const entry
+        // formal's record.
+        let reference = fields::projected_type(program, state, subject)?;
+        return matches!(
+            exact_integer_parameter(program, reference),
+            Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)
+        )
+        .then_some(());
     }
     let ExpressionNode::Name(path) = program.expression_table.expression(subject) else {
         return None;

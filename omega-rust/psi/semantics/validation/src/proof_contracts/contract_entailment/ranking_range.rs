@@ -251,6 +251,41 @@ pub fn prove_ranking_range_entry(
     .is_some_and(|proof| proof.membership_and_pinning)
 }
 
+/// The natural coordinates builtin scalar subjects read through member
+/// chains: each `record.field` subject resolves against its carrier formal's
+/// own declaration, then re-resolves onto the unique formal carrying that
+/// role at this state. A bare subject names no coordinate; an authored chain
+/// that resolves but cannot arrive -- a duplicated or role-less record slot --
+/// fails the edge rather than borrowing a foreign record's lineage.
+fn subject_field_coordinates<'program>(
+    program: &'program TypedTrees,
+    root: &'program State,
+    state: &'program State,
+    entry_parameters: Option<&[symbols::SymbolHandle]>,
+    subjects: &[ExpressionHandle],
+) -> Option<field_coordinates::FieldCoordinates<'program>> {
+    let mut coordinates = field_coordinates::FieldCoordinates::empty();
+    for subject in subjects {
+        let Some(coordinate) = fields::FieldCoordinate::resolve_projection(program, root, *subject)
+        else {
+            continue;
+        };
+        let coordinate = match entry_parameters {
+            Some(entries) => coordinate.at_arrival(
+                program,
+                RankingRangeState {
+                    state,
+                    entry_parameters: entries,
+                },
+                coordinate.parameter.symbol,
+            )?,
+            None => coordinate,
+        };
+        coordinates.include(coordinate);
+    }
+    Some(coordinates)
+}
+
 fn prove_edge(
     program: &TypedTrees,
     machine: &Machine,
@@ -337,6 +372,33 @@ fn prove_edge(
                 None => None,
             }
         }
+        // A builtin scalar rank may read projected storage directly:
+        // `bag.count` names the exact unsigned coordinate rooted at its
+        // carrier formal, of whatever unsigned width the declaration gives
+        // the leaf. Bare subjects resolve to no coordinate and keep the
+        // symbol-binding path; an unresolvable chain stays an unbound
+        // spelling and fails normalization below.
+        RankingRangeMeasure::Single(subject) => Some(subject_field_coordinates(
+            program,
+            root,
+            state,
+            entry_parameters,
+            &[subject],
+        )?),
+        RankingRangeMeasure::IncreasingTo { subject, limit } => Some(subject_field_coordinates(
+            program,
+            root,
+            state,
+            entry_parameters,
+            &[subject, limit],
+        )?),
+        RankingRangeMeasure::Distance { lower, upper } => Some(subject_field_coordinates(
+            program,
+            root,
+            state,
+            entry_parameters,
+            &[lower, upper],
+        )?),
         _ => None,
     };
     // A slice over projected storage produces its length from the member

@@ -15,6 +15,7 @@ mod field_relations;
 mod field_steps;
 mod identity_measures;
 mod increasing_calls;
+mod member_subjects;
 mod named_states;
 mod payloads;
 mod projected_relations;

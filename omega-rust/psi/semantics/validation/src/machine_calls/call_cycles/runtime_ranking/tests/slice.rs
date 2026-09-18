@@ -1,4 +1,5 @@
 use super::super::RankingRangeCallProgress;
+use super::super::projection::RankOrder;
 use super::ranges::progress;
 use super::{RankProjection, admitted, typed_source};
 
@@ -299,6 +300,46 @@ fn a_ranged_slice_member_calls_from_a_subordinate_state_under_its_own_invariant(
     assert!(admitted(&typed_source(&written)).is_empty());
     let missing_entry = source.replace("requires items.len <= capacity;", "");
     assert!(admitted(&typed_source(&missing_entry)).is_empty());
+}
+
+const PROJECTED: &str = "data Bag { items: &[u64]; }
+data Main {}
+machine Main::scan_a(&mut self, bag: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition bag.items.len > 0 {
+        true -> self.scan_b(Bag { items: bag.items[1..] }, capacity)
+        false -> 0
+    }
+}
+machine Main::scan_b(&mut self, bag: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition bag.items.len > 0 {
+        true -> self.scan_a(Bag { items: bag.items[1..] }, capacity)
+        false -> 0
+    }
+}";
+
+#[test]
+fn projected_slice_member_component_admits_exact_tail_arrival() {
+    let program = typed_source(PROJECTED);
+    for machine in program.machines() {
+        let rank = RankProjection::resolve(&program, machine).expect("slice projection");
+        assert!(matches!(rank.order, RankOrder::SliceLength));
+        assert!(rank.record_subject.is_valid());
+    }
+    assert_eq!(
+        progress(&program, 0),
+        Some(RankingRangeCallProgress::Strict)
+    );
+    assert_eq!(
+        progress(&program, 1),
+        Some(RankingRangeCallProgress::Strict)
+    );
+    assert_eq!(admitted(&program).len(), 1);
 }
 
 #[test]

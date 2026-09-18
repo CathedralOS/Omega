@@ -142,16 +142,19 @@ pub(super) fn check_component(
                     .into_iter()
                     .filter(|symbol| symbol.is_valid())
                     .collect::<Vec<_>>(),
-                RankOrder::SliceLength => Vec::new(),
+                // A bare slice slot prefers no role; a member-chain slice
+                // subject is read off the record formal carrying it, so that
+                // formal is the preferred carrier.
+                RankOrder::SliceLength => [rank.record_subject]
+                    .into_iter()
+                    .filter(|symbol| symbol.is_valid())
+                    .collect(),
                 _ => [rank.parameter]
                     .into_iter()
                     .filter(|symbol| symbol.is_valid())
                     .collect(),
             };
-            let record_subject = match &rank.order {
-                RankOrder::CustomStructView { .. } => rank.parameter,
-                _ => SymbolHandle::default(),
-            };
+            let record_subject = rank.record_subject;
             let required = if rank.range.is_valid() {
                 rank.measure.and_then(|measure| {
                     ranking_range_required_symbols(
@@ -563,16 +566,26 @@ fn bound_allows(rank: &RankProjection, role: SymbolHandle, bound: CarrierBound) 
 /// through a moved slot names a different fact.
 fn carrier_direction(rank: &RankProjection, role: SymbolHandle) -> CarrierBound {
     if role == rank.parameter {
+        // A record role names WHICH record the slot holds, never a moved
+        // scalar: `carrier - positive` cannot typecheck on a record, and a
+        // rebuilt literal still denotes the rank coordinate exactly. That
+        // covers a field view's subject formal and a member-chain subject's
+        // carrier formal alike.
+        if rank.record_subject.is_valid() {
+            return CarrierBound::Equal;
+        }
         match &rank.order {
             RankOrder::IncreasingTo(_) | RankOrder::BoundedDistance(_) => CarrierBound::AtLeast,
-            // A record role names WHICH record the slot holds, never a moved
-            // scalar: `carrier - positive` cannot typecheck on a record, and
-            // a rebuilt literal still denotes the rank coordinate exactly.
-            RankOrder::CustomStructView { .. } => CarrierBound::Equal,
             _ => CarrierBound::AtMost,
         }
     } else if role == rank.paired_parameter && matches!(rank.order, RankOrder::BoundedDistance(_)) {
-        CarrierBound::AtMost
+        // A member-chain upper subject's record role is exact-or-nothing
+        // like any other record carrier.
+        if rank.paired_record_subject.is_valid() {
+            CarrierBound::Equal
+        } else {
+            CarrierBound::AtMost
+        }
     } else {
         CarrierBound::Equal
     }
@@ -675,14 +688,18 @@ fn carrier_arrival_bound(
         }
         _ => None,
     };
-    if role == rank.parameter && matches!(rank.order, RankOrder::CustomStructView { .. }) {
-        // The record role tracks WHICH record the slot holds, not a scalar
-        // bound. Every arrival shape a field-view member's own edge judgment
-        // can prove -- a forward of the slot still carrying the role, a
-        // borrow of one, a rebuild literal, or a prefix projection of the
-        // coordinate's chain -- keeps the slot's claim exact. An operand
-        // call or an index read is a record only through a shape no field
-        // coordinate walks, so it strips the role as always.
+    // A record role tracks WHICH record the slot holds, not a scalar bound.
+    // Every arrival shape the member's own edge judgment can prove for a
+    // projected coordinate -- a forward of the slot still carrying the role,
+    // a borrow of one, a rebuild literal, or a prefix projection of the
+    // coordinate's chain -- keeps the slot's claim exact. An operand call or
+    // an index read is a record only through a shape no coordinate walks, so
+    // it strips the role as always. The same arm covers a field view's
+    // subject formal, a member-chain subject's carrier formal, and a
+    // bounded distance's member-chain upper formal.
+    let record_role = (role == rank.parameter && rank.record_subject.is_valid())
+        || (role == rank.paired_parameter && rank.paired_record_subject.is_valid());
+    if record_role {
         return match program
             .expression_table
             .expression(projection::unwrapped(program, argument))
