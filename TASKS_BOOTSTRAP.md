@@ -265,6 +265,19 @@ prerequisite to every lower-rung milestone.
   control, not a bootstrap-chain timing. The reproducible gate selection is
   `sh tests/delta/resource-boundary/run.sh --reconstructed-wide`; that new shell
   selection was syntax-checked, not separately rerun after the direct fixture run.
+  A second measured family — one 65,000-field constructor, seven functions
+  whose matches each bind all fields, and a 10,000-parameter function, a 3,837,573-byte
+  admitted request (SHA-256
+  `acbf6908b5cac63c7dc6ba2852f125a7cbd2f8c3aba6eb4a3b8094ed4cb0c7e4`) — ended
+  status 2 in 650.7 seconds under packed closure
+  `fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929` and the
+  unchanged evaluator tape: canonical DCOUT `Incomplete` resource 7 at
+  Delta-source coordinate 76,595 (the 19,147th field-type atom), limit
+  114,294,752, requested 114,294,760, empty stderr. The refusal fires in the
+  retained-syntax ledger before census, typing, lowering, normalization, or
+  emission, so it is a second measured path to an already-modeled row and does
+  not exercise the open pair-arena allocation question; recorded under
+  [wide-constructor allocation probe](bootstrap/3_delta/implementation/boundary/README.md#wide-constructor-allocation-probe).
 
   Next acceptance: close remaining compiler-execution allocation containment
   against the selected profile, not another isolated capture fast path.
