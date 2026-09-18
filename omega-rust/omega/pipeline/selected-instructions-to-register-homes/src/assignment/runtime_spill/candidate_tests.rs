@@ -1,4 +1,4 @@
-use super::{candidate_position, candidates, split_domain_pressure};
+use super::{candidate_position, candidates, member_relief, split_domain_pressure};
 use crate::RegisterHomeError;
 use legalized_operations::LegalizedStructuralContract;
 use optimization_unit::ValueDefinitionSite;
@@ -213,7 +213,7 @@ fn roster_covers_every_entry_live_in_origin() {
 fn failed_original_register_precedes_lower_numbered_interfering_values() {
     let roster = [(2, VirtualRegisterId(3)), (2, VirtualRegisterId(9))];
     assert_eq!(
-        candidate_position(&pressure(2, 9), &roster, |_| true),
+        candidate_position(&pressure(2, 9), &roster, |_| true, |_| 0),
         Some(1)
     );
 }
@@ -226,12 +226,15 @@ fn rejected_failed_register_restores_original_order_and_is_not_retried() {
         (2, VirtualRegisterId(9)),
     ];
     let failure = pressure(2, 9);
-    let selected = candidate_position(&failure, &roster, |_| true).unwrap();
+    let selected = candidate_position(&failure, &roster, |_| true, |_| 0).unwrap();
     assert_eq!(roster.remove(selected), (2, VirtualRegisterId(9)));
     // This is the existing removal-before-admission path for unsupported values.
-    let selected = candidate_position(&failure, &roster, |_| true).unwrap();
+    let selected = candidate_position(&failure, &roster, |_| true, |_| 0).unwrap();
     assert_eq!(roster.remove(selected), (2, VirtualRegisterId(3)));
-    assert_eq!(candidate_position(&failure, &roster, |_| true), Some(0));
+    assert_eq!(
+        candidate_position(&failure, &roster, |_| true, |_| 0),
+        Some(0)
+    );
     assert_eq!(roster[0], (2, VirtualRegisterId(5)));
 }
 
@@ -243,12 +246,21 @@ fn failed_identity_in_another_function_does_not_gain_priority() {
         (2, VirtualRegisterId(9)),
     ];
     assert_eq!(
-        candidate_position(&pressure(2, 9), &roster, |(function, _)| *function == 2),
+        candidate_position(
+            &pressure(2, 9),
+            &roster,
+            |(function, _)| *function == 2,
+            |_| 0
+        ),
         Some(2)
     );
     assert_eq!(
-        candidate_position(&pressure(2, 9), &roster[..2], |(function, _)| *function
-            == 2),
+        candidate_position(
+            &pressure(2, 9),
+            &roster[..2],
+            |(function, _)| *function == 2,
+            |_| 0
+        ),
         Some(1)
     );
 }
@@ -262,15 +274,64 @@ fn absent_or_generated_failed_value_uses_only_overlapping_original_candidates() 
     ];
     // A generated reload or spill address never enlarges the original roster.
     assert_eq!(
-        candidate_position(&pressure(2, 100), &roster, |(_, register)| *register
-            == VirtualRegisterId(5)),
+        candidate_position(
+            &pressure(2, 100),
+            &roster,
+            |(_, register)| *register == VirtualRegisterId(5),
+            |_| 0
+        ),
         Some(1)
     );
     assert_eq!(
-        candidate_position(&pressure(2, 100), &roster, |_| false),
+        candidate_position(&pressure(2, 100), &roster, |_| false, |_| 0),
         None
     );
-    assert_eq!(candidate_position(&pressure(2, 100), &[], |_| true), None);
+    assert_eq!(
+        candidate_position(&pressure(2, 100), &[], |_| true, |_| 0),
+        None
+    );
+}
+
+#[test]
+fn a_victim_covering_more_split_fragments_relieves_first() {
+    // The failed leader is absent, so the choice falls to relief: register 8
+    // blocks two member fragments while earlier-listed register 3 covers one.
+    let roster = [
+        (2, VirtualRegisterId(3)),
+        (2, VirtualRegisterId(8)),
+        (2, VirtualRegisterId(5)),
+    ];
+    let relief = |(_, register): &(usize, VirtualRegisterId)| match *register {
+        VirtualRegisterId(3) => 1,
+        VirtualRegisterId(8) => 2,
+        _ => 1,
+    };
+    assert_eq!(
+        candidate_position(&pressure(2, 9), &roster, |_| true, relief),
+        Some(1)
+    );
+}
+
+#[test]
+fn equal_relief_keeps_roster_order() {
+    let roster = [
+        (2, VirtualRegisterId(3)),
+        (2, VirtualRegisterId(8)),
+        (2, VirtualRegisterId(5)),
+    ];
+    assert_eq!(
+        candidate_position(
+            &pressure(2, 9),
+            &roster,
+            |(_, register)| *register != VirtualRegisterId(3),
+            |_| 0
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        candidate_position(&pressure(2, 9), &roster, |_| true, |_| 7),
+        Some(0)
+    );
 }
 
 #[test]
@@ -283,7 +344,8 @@ fn nonpressure_failures_do_not_choose_a_runtime_spill() {
                 register: 9
             },
             &roster,
-            |_| true
+            |_| true,
+            |_| 0
         ),
         None
     );
@@ -410,4 +472,59 @@ fn a_member_fragment_is_itself_a_pressure_victim() {
         VirtualRegisterId(1),
         VirtualRegisterId(0)
     ));
+}
+
+#[test]
+fn relief_counts_the_member_fragments_a_victim_covers() {
+    // Domain {0, 1} split at a tie: victim 8 interferes with both fragments,
+    // victim 7 touches only the sibling, and victim 5 covers nothing.
+    let ranges = split_ranges(&[(0, 1)], &[], &[(0, 7), (0, 8), (1, 8)]);
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(8)),
+        2
+    );
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(7)),
+        1
+    );
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(5)),
+        0
+    );
+}
+
+#[test]
+fn relief_counts_membership_alongside_covered_siblings() {
+    // A member covers itself; an outsider covering the whole transitive chain
+    // {0, 1, 2} scores higher than any single member's own split.
+    let ranges = split_ranges(&[(0, 1)], &[(1, 2)], &[(0, 9), (1, 9), (2, 9)]);
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(9)),
+        3
+    );
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(1)),
+        1
+    );
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(2)),
+        1
+    );
+}
+
+#[test]
+fn an_untied_domain_scores_one_for_the_leader_and_its_interferers() {
+    let ranges = split_ranges(&[], &[], &[(0, 7)]);
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(0)),
+        1
+    );
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(7)),
+        1
+    );
+    assert_eq!(
+        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(4)),
+        0
+    );
 }
