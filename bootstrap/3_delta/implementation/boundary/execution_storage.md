@@ -7,8 +7,8 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 146,901 bytes, SHA-256
-`5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25`.
+closure: 147,840 bytes, SHA-256
+`fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
@@ -33,7 +33,7 @@ the selected Gamma evaluator validates and executes the grouped syntax directly.
 
 ## Fixed source and call inventory
 
-The compiler contains 376 Gamma definitions. Inspecting every body gives these
+The compiler contains 377 Gamma definitions. Inspecting every body gives these
 maxima, including bodies not reached from the canonical `main`:
 
 | Fixed-source quantity | Maximum | Owning body |
@@ -57,9 +57,10 @@ The evaluator releases that tail context before reusing the current activation.
 
 Weight each caller-to-callee edge by the pending enclosing user calls plus one
 for a non-tail callee activation. Include each call's temporary argument context
-as a local peak. The complete inventory has 66 recursive components. Only three
+as a local peak. The complete inventory has 67 recursive components. Only three
 call sites on recursive cycles have positive weight: two in `capture_sort` and
-one in `emit_decimal`. The support-member loops (`support_sum_region`,
+one in `emit_decimal`. The capture merge passes (`capture_merge_all`,
+`capture_merge_pass`) and the support-member loops (`support_sum_region`,
 `support_check_members`, `emit_support_bytes`) are zero-weight tail edges.
 
 | Non-tail recursive owner | Decreasing quantity | Conservative additional contexts |
@@ -137,7 +138,7 @@ per-occurrence charge derived in the same style:
   is bounded below the pair arena by the admitted payload extent.
 - The [normalizer's frames and rebuilt nodes](../normalization/README.md#traversal-and-rebuild-pairs)
   are charged per plan-node occurrence with capture merges bounded per
-  collection by `(2d + 1) * (k + 1) + 2E`.
+  collection by `(2T + 2) * ceil(log2(k + 1)) + 2 * (k + 1) + 1`.
 - The [checking audit](../checking/README.md#traversal-and-rebuild-pairs)
   charges census metadata, resolution rows, typing continuations, and
   environment binds per source occurrence — at most `39*S + 36` site pairs —
@@ -156,7 +157,9 @@ lowering, and shared-name envelope is at most `295*S + 34*N + 149` pairs
 — before the normalizer's own `45*G + 7*F + 1` term — no longer dominated by
 sibling-row copies in name rebuilds, though it can still exceed the arena at
 maximum source extents.
-The capture `k*d` merge product carries the same open status. This audit
+The capture merge term is now logarithmic in batch count per collection; its
+aggregate `sum(T)` over nested helper captures carries the same open status.
+This audit
 neither supplies a DCOUT heap refusal nor converts an outer Gamma failure
 into one.
 

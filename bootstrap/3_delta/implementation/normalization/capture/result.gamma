@@ -5,21 +5,42 @@
         (retained Int (second state))
         (owned Int (first retained))
         (batches Int (second retained))
-        (merged Int (capture_merge_batches (first batches) (second batches)
-            (capture_sort (first references) (second references)))))
+        (inputs Int (capture_prepend
+            (capture_sort (first references) (second references)) batches))
+        (merged Int (capture_merge_all (first inputs) (second inputs))))
     (if (eq (first owned) 0)
       merged
       (let sorted_owned Int (capture_sort (first owned) (second owned))
         (capture_difference (first merged) (second merged)
           (first sorted_owned) (second sorted_owned) 0 0)))))
 
-(def capture_merge_batches ((remaining Int) (batches Int) (merged Int)) Int
-  (if (eq remaining 0)
-    merged
-    (let batch Int (first batches)
-      (capture_merge_batches (- remaining 1) (second batches)
-        (capture_union (first merged) (second merged)
-          (first batch) (second batch) 0 0)))))
+; Sorted union is associative, so pairing adjacent batches once per tail pass
+; yields the same sorted unique result the earlier fold produced. Each entry
+; occurrence is emitted at most once per pass instead of once per batch.
+(def capture_merge_all ((count Int) (batches Int)) Int
+  (if (lt count 2)
+    (if (eq count 0)
+      (pair 0 0)
+      (first batches))
+    (let pass Int (capture_merge_pass count batches 0 0)
+      (capture_merge_all (first pass) (second pass)))))
+
+; One pass unions adjacent sorted lists in order; a lone trailing batch carries
+; forward untouched. The count halves each pass, so the repeated tail calls
+; number at most the binary logarithm of the input count.
+(def capture_merge_pass
+  ((remaining Int) (batches Int) (count Int) (merged Int)) Int
+  (if (lt remaining 2)
+    (if (eq remaining 0)
+      (pair count merged)
+      (pair (+ count 1) (pair (first batches) merged)))
+    (let ((left Int (first batches))
+        (rest Int (second batches))
+        (right Int (first rest)))
+      (capture_merge_pass (- remaining 2) (second rest) (+ count 1)
+        (pair (capture_union (first left) (second left)
+            (first right) (second right) 0 0)
+          merged)))))
 
 (def capture_count ((result Int)) Int (first result))
 (def capture_bindings ((result Int)) Int (second result))

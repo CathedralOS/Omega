@@ -211,7 +211,7 @@ do
     "$OMEGA_REPO_ROOT/tests/delta/staged-compiler/README.md" ||
     fail "staged-compiler README lacks bound driver record $needle"
 done
-for needle in "146668" "f93392a3a1ca68fb08f98e41ba52a2df8e80ed18dedcaf736a8d8df6595442f4"
+for needle in "147607" "63948ee46d4bed10344cd8b3adbadda274370fe169cb141f485b8accc71c60a3"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/delta/staged-compiler/run.sh" ||
     fail "staged-compiler gate lacks packed development record $needle"

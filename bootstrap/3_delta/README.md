@@ -50,10 +50,10 @@ against every materialization and by `tests/bootstrap/delta-identity.sh`:
 | Subject | Bytes | SHA-256 |
 | --- | ---: | --- |
 | `delta_compiler.gamma` request entry | 813 | `f12836610a7d8cb7da7f1288c20d870423cde4497aa8d1a2cf2962e8b24a20f9` |
-| `implementation/implementation.gamma.sources` manifest | 11,137 | `0091090d6bb3f22ced94d7274eb6bf601d5c97ba0589a5b098c5c71ec19d732a` |
+| `implementation/implementation.gamma.sources` manifest | 11,137 | `653486437acef2b97fdd0e54a28a77af68fe77485a6816248928b547b7a48bf3` |
 | `support/support.gamma.sources` manifest | 490 | `cf20f4a6331c3af516dbed8bc206298d1d1205b4fb4801d025ad4256a5a6d9f3` |
-| `delta_compiler.composed` record | 298 | `55a580f4884ca43bd8b1128ae3405fa03806f03ae8eff66838727e068e266df7` |
-| Packed canonical closure | 146,901 | `5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25` |
+| `delta_compiler.composed` record | 298 | `225e025ed0fb0cd8b01c78815f38fd4c5a371b3b71a414d9dbfbc00af4331979` |
+| Packed canonical closure | 147,840 | `fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929` |
 | Packed support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
 
 A digest is an identity check on the bytes being compiled, not a proof of the
@@ -430,7 +430,7 @@ Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution
 ## Measurements
 
 ```text
-3,460-line / 159,044-byte canonical entry plus shared Gamma implementation
+3,350-line / 147,840-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

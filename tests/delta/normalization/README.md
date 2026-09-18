@@ -4,7 +4,7 @@ Run `sh tests/delta/normalization/run.sh` from the repository root. It uses the
 complete canonical compiler and a separate private diagnostic prefix over the
 same source closure, both pinned in `compiler.tsv`.
 
-Twenty-one authored programs check normalized execution under
+Twenty-two authored programs check normalized execution under
 `ConformanceBytesV1`. Each canonical compilation must succeed twice with
 identical bytes. Its generated Gamma must parse and execute with the selected
 evaluator, preserving `41 00 80 FF`, except the repeated-reference control,
@@ -27,7 +27,11 @@ last `Bytes` field, rather than only exercising the tail case.
 Two 600-level controls require outer capture to forward original bindings
 correctly to already-extracted inner helpers. Repeated free references must use exactly one
 parameter per helper. A same-spelling binder inside an outer let's initializer
-retains its independent scope across extraction.
+retains its independent scope across extraction. One control places three
+completed sibling helpers inside one extracted fragment, so its collection
+merges references plus three batches — {x}, {y}, {x} — through the balanced
+pairwise union passes into the two-parameter capture `(x y)`; its complete
+receipt is pinned by SHA-256.
 Two controls reach the admitted Delta expression depth of 1,024: repeated
 captures must remain singular, and 1,023 nested checked additions must produce
 1,024 before returning the unchanged binary input. These exercise successful

@@ -81,8 +81,8 @@ epsilon_source = Path(os.environ["EPSILON_SOURCE"]).read_bytes()
 support = Path(os.environ["SUPPORT"]).read_bytes()
 
 for name, data, lines, size, digest in (
-    ("development compiler", compiler, 3322, 146668, "f93392a3a1ca68fb08f98e41ba52a2df8e80ed18dedcaf736a8d8df6595442f4"),
-    ("canonical compiler", canonical_compiler, 3329, 146901, "5bbd0911c98bb9058ae41d71f49b0f019676cc62c2ccba1829fcaabc8cf2fe25"),
+    ("development compiler", compiler, 3343, 147607, "63948ee46d4bed10344cd8b3adbadda274370fe169cb141f485b8accc71c60a3"),
+    ("canonical compiler", canonical_compiler, 3350, 147840, "fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929"),
     ("support section", support, 105, 2998, "cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255"),
     ("source", source, 7, 195, "3fb6a3ef60b54c8b77b066edeec32a4c77fd9fb5ede8a64c997cbc8b7a9a1fec"),
     ("receipt", expected, 3, 165, "23cbae7abf00860445e72b9075d189adb841cf165bf8103f7f7bcd5c81aed74f"),

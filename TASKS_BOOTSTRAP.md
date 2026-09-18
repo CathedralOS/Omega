@@ -273,8 +273,7 @@ prerequisite to every lower-rung milestone.
   checked refinement certificate. Serialization's publication traversal pairs
   are now charged to distinct emitted bytes and bounded below the selected
   pair arena (`8a49b3e011`), and the normalizer machine's frames and rebuilds
-  are charged per plan-node occurrence while each capture collection's merges
-  are bounded by `(2*d + 1) * (k + 1) + 2*E` (`ffd4560e82`). Checking and
+  are charged per plan-node occurrence (`ffd4560e82`). Checking and
   lowering pairs are now charged per source occurrence — census metadata,
   resolution rows, typing/lowering continuations, plan construction, and the
   shared name-trie/cursor rebuilds — bounding the produced plan
@@ -282,9 +281,13 @@ prerequisite to every lower-rung milestone.
   Name-trie branch replacement now prepends the fresh row at five pairs per
   rebuilt level instead of copying up to 63 sibling rows, so the name audit's
   dominant product is reduced to `34*N` and its recursion weight is removed
-  from the call-context bound. Whether every admitted shape keeps the
-  per-occurrence products — now dominated by the capture `k*d` merge term and
-  the residual name-event envelope — below the selected pair arena remains the
+  from the call-context bound. Capture merging now unions adjacent sorted
+  batches pairwise in tail passes, so each collection's merge pairs are
+  bounded by `(2*T + 2)*ceil(log2(k + 1)) + 2*(k + 1) + 1` instead of the
+  fold's `k*d` product of accumulated size times batch count. Whether every
+  admitted shape keeps the per-occurrence products — now dominated by the
+  capture `sum(T)` aggregate over nested helper captures and the residual
+  name-event envelope — below the selected pair arena remains the
   open part of that allocation argument.
   The [canonical compiler execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md)
   bounds its call contexts, lexical rows, and temporary values separately;
