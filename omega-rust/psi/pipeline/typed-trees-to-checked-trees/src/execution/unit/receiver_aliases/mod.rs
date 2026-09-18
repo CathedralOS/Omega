@@ -301,6 +301,7 @@ pub(super) fn prefix(
             machine.symbol,
             state.symbol,
             &site,
+            statement_index,
         );
         if let Some(receiver) = receiver
             && let Some(position) = aliases

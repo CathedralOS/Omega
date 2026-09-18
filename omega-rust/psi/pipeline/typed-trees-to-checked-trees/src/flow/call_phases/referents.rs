@@ -103,6 +103,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
                 machine.symbol,
                 state.symbol,
                 &site,
+                borrow_call.statement_index,
             )
         } else {
             argument.and_then(|argument| {

@@ -157,6 +157,7 @@ pub(super) fn check_receiver_conflicts(
             state_flow.machine_symbol,
             state_flow.state_symbol,
             &site,
+            call.statement_index,
         )
     });
     let Some(crate::flow::CanonicalPlace {

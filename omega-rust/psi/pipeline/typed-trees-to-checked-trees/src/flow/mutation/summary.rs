@@ -459,6 +459,7 @@ fn instantiate_call_relative_places(
                 caller_machine_symbol,
                 caller_state_symbol,
                 &call_site,
+                borrow_call.statement_index,
             )
         } else {
             let argument = call_site_argument_expressions(program, &call_site)

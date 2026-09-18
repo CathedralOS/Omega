@@ -527,6 +527,7 @@ fn linear_source_use_conflicts(
             machine.symbol,
             state.symbol,
             &crate::semantic_calls::CallSite::Statement(call),
+            statement_index,
         ) {
             Some(place) if place.root == facts::PlaceRoot::Symbol(source_symbol) => {
                 used_paths.push(place.segments)

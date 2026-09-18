@@ -74,6 +74,7 @@ pub(super) fn signature_ceiling_places(
                 machine.symbol,
                 state.symbol,
                 &site,
+                borrow_call.statement_index,
             )?
         } else {
             let argument = arguments[argument_index];

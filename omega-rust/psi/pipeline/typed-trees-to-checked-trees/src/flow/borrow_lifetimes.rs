@@ -19,10 +19,24 @@ pub(super) fn filter_expired_borrow_loans(
         source,
         |constraint_ref| match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
-                let keep = borrow.loans.get(loan).last_use_statement_index >= statement_index;
+                let loan_fact = borrow.loans.get(loan);
+                let keep = loan_fact.last_use_statement_index >= statement_index;
                 if !keep {
+                    // The weakening boundary is a recorded coordinate — one
+                    // statement past the loan's recorded last use — never the
+                    // position this traversal happened to filter at. In the
+                    // ordinary per-statement walk the two coincide (the filter
+                    // fires at `last_use + 1`, and the state-exit pass reaches
+                    // only loans whose boundary is the statement count), but
+                    // stamping the recorded boundary keeps the emitted fact a
+                    // function of the loan row alone, so a replayed derivation
+                    // — `receiver_aliases` re-derives exactly
+                    // `last_use_statement_index + 1` — reaches the same
+                    // evidence under any filtering cadence.
                     borrow_weakenings.append(FlowBorrowWeakeningFact {
-                        source: FlowInvalidationSource::Statement { statement_index },
+                        source: FlowInvalidationSource::Statement {
+                            statement_index: loan_fact.last_use_statement_index + 1,
+                        },
                         loan,
                         reason,
                     });
@@ -152,3 +166,6 @@ fn borrow_owner_path_overlaps_place(
                 _ => false,
             })
 }
+
+#[cfg(test)]
+mod tests;

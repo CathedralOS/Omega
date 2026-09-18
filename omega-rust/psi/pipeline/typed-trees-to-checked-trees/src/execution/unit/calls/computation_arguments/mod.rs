@@ -418,6 +418,7 @@ fn shared_nominal_argument(
             machine,
             state.symbol,
             &site,
+            call.statement_index,
         )?;
         crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut receiver);
         // Captured self retains the machine namespace; contextual expression

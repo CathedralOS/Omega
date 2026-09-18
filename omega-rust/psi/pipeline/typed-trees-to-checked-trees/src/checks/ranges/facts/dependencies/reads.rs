@@ -190,6 +190,7 @@ pub(super) fn collect_reads(
                     machine.symbol,
                     state.symbol,
                     &site,
+                    statement_index,
                 ) else {
                     return false;
                 };
