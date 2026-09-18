@@ -561,11 +561,34 @@ fn substitute_checked_scalar_expression(
         }
         CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::StorageRead { .. }
-        | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
+        // A standalone integer field leaf is the same frozen structural leaf
+        // the Boolean channel carries: the callee position binds the actual's
+        // caller parameter and member spine, and the leaf path appends below
+        // it. The lowering rechecks the re-rooted path ends at a retained
+        // integer field of the declared type before emitting the scalar term,
+        // so a redirected leaf stays fail-closed downstream.
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            primitive_type,
+        } => {
+            let leaf = substitute_structural_parameter_field(
+                &checked_trees::CheckedStructuralParameterField {
+                    parameter_position: *parameter_position,
+                    path: path.clone(),
+                },
+                fields,
+            )?;
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position: leaf.parameter_position,
+                path: leaf.path,
+                primitive_type: *primitive_type,
+            }
+        }
         CheckedScalarExpression::IntegerLiteral { literal } => {
             CheckedScalarExpression::IntegerLiteral {
                 literal: literal.clone(),
