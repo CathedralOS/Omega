@@ -1705,13 +1705,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   the row's one-byte count, and the single row pin the route while
   the packed widths never encode one byte and the direct slot store
   names a slot, so neither carries a sequence row (crate `nextest`:
-  1192 pass on macOS x86-64). Remaining: staging `Structural` slots
-  still cannot die, cover, source, or move — a `Structural` slot the
-  place's declaration does not charge to its producer only stages
-  bytes that name the place — dynamic-extent rows still cannot serve
-  as the removed dead store, the covering write, or the forwarding
-  source, and legs whose paths resolve to different writers or never
-  resolve stay unproven.
+  1192 pass on macOS x86-64). Dead-store elimination admits the
+  byte-sequence route for the removed store as well: a `Store
+  { 0, 1 }` carrying exactly one `WriteByteSequence` row writes the
+  dead byte at `byte_offset + index`, so the dead extent is
+  unbounded upward from the row's fixed offset and the interference
+  directions mirror the moved-extent rule — an exact or local row
+  still reaches the dead byte once its own extent ends past the
+  row's fixed offset, and a dynamic-extent row on the dead place
+  always meets it. Coverage stays byte-exact rather than extent
+  containment: only a later `Store { 0, 1 }` whose single
+  `WriteByteSequence` row names the same payload base and the same
+  index value provably rewrites the dead byte — an exact or local
+  range cannot contain a runtime-placed byte, and a sequence row at
+  another offset or index may land on a different byte entirely
+  (crate `nextest`: 1221 pass on macOS x86-64). Remaining: staging
+  `Structural` slots still cannot die, cover, source, or move — a
+  `Structural` slot the place's declaration does not charge to its
+  producer only stages bytes that name the place — dynamic-extent
+  rows still cannot cover an exact dead range or serve as the
+  forwarding source, and legs whose paths resolve to different
+  writers or never resolve stay unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
