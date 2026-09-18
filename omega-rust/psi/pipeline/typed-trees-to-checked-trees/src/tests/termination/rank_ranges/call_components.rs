@@ -800,6 +800,95 @@ fn ranged_slice_member_calls_from_a_subordinate_state_under_its_own_invariant() 
     prove(&public.replace("pending.len > 0", "pending.len > 0 && pending.len <= bound"));
 }
 
+const FIELD_SUBORDINATE_REQUIRES: &str = r#"
+data Countdown {
+    remaining: u64 [0..=9];
+    limit: u64 [0..=9];
+}
+
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(Countdown { remaining: 4, limit: 6 }) }
+}
+
+machine Main::outer(&mut self, countdown: Countdown)
+requires countdown.remaining <= countdown.limit;
+terminates by countdown -> Countdown::Remaining in 0..=countdown.limit;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> hold(countdown)
+        false -> countdown.remaining
+    }
+    state hold(pending: Countdown) {
+        transition pending.remaining > 0 {
+            true -> self.inner(pending)
+            false -> pending.remaining
+        }
+    }
+}
+
+machine Main::inner(&mut self, current: Countdown)
+requires current.remaining <= current.limit;
+terminates by current -> Countdown::Remaining in 0..=current.limit;
+-> u64 {
+    transition current.remaining > 0 {
+        true -> self.outer(Countdown { remaining: current.remaining - 1, limit: current.limit })
+        false -> current.remaining
+    }
+}
+"#;
+
+#[test]
+fn field_measure_member_reads_its_proven_invariant_at_a_subordinate_call() {
+    // `hold(countdown)` carries the ranked record whole: the site reads
+    // `outer`'s proven invariant `pending.remaining <= pending.limit` through
+    // the telescoped field coordinate, discharging `inner`'s public requires
+    // without a respelled guard.
+    prove(FIELD_SUBORDINATE_REQUIRES);
+    prove(&FIELD_SUBORDINATE_REQUIRES.replace(
+        "pending.remaining > 0",
+        "pending.remaining > 0 && pending.remaining <= pending.limit",
+    ));
+    // The invariant supplies exactly the membership it proves: a strictly
+    // stronger requires, or a conjunct the carried facts do not establish,
+    // still has no site evidence.
+    reject_requires(&FIELD_SUBORDINATE_REQUIRES.replace(
+        "requires current.remaining <= current.limit;",
+        "requires current.remaining < current.limit;",
+    ));
+    reject_requires(&FIELD_SUBORDINATE_REQUIRES.replace(
+        "requires current.remaining <= current.limit;",
+        "requires current.remaining <= current.limit && current.limit <= 5;",
+    ));
+    // A decreasing internal arrival keeps the endpoint pinned, so the
+    // re-established invariant still discharges the same requires.
+    prove(&FIELD_SUBORDINATE_REQUIRES.replace(
+        "true -> hold(countdown)",
+        "true -> hold(Countdown { remaining: countdown.remaining - 1, limit: countdown.limit })",
+    ));
+    // An intervening write to the record carrier invalidates the premise the
+    // invariant was read from.
+    reject(
+        &FIELD_SUBORDINATE_REQUIRES
+            .replace("state hold(pending: Countdown)", "state hold(mut pending: Countdown)")
+            .replace(
+                "        transition pending.remaining > 0",
+                "        pending = Countdown { remaining: 0, limit: 0 }; transition pending.remaining > 0",
+            ),
+    );
+    // An arrival whose rebuilt record moves the authored endpoint fails the
+    // member's own state-edge judgment rather than feeding a stale premise:
+    // `pending.limit` there is `countdown.remaining - 1`, not the pinned
+    // `countdown.limit`.
+    reject(&FIELD_SUBORDINATE_REQUIRES.replace(
+        "true -> hold(countdown)",
+        "true -> hold(Countdown { remaining: countdown.remaining, limit: countdown.remaining - 1 })",
+    ));
+}
+
 #[test]
 fn mixed_endpoint_arithmetic_equality_uses_only_live_caller_premises() {
     let source = PAIR
