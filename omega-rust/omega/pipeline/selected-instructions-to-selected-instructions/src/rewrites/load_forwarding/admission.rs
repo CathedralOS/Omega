@@ -27,7 +27,16 @@
 //! value — forwarding to `ZeroExtendU8` of the stored register. An exact
 //! or local range cannot contain a runtime-placed byte, and a sequence
 //! write at another offset or index may land on a different byte entirely,
-//! so both still reject as the source while remaining interference.
+//! so both still reject as the source while remaining interference. When
+//! the load's own `index` resolves to a clean `MaterializeI64` — the same
+//! carrier audit the dead-store covering routes run — the read byte's
+//! position is fixed and `admit` collapses the extent to that one byte
+//! before the walk: an exact `Store` of one byte at the resolved position
+//! or a sequence write whose index lands on it then sources the forward,
+//! and interference decides on the fixed position. A read index staying
+//! runtime keeps the dynamic extent, but a writer whose own index resolves
+//! to the same `byte_offset + index` sum still spells the read byte —
+//! distinct index values do when both are constants.
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! forwarded place blocks on any overlapping write and on
@@ -35,11 +44,16 @@
 //! dynamic-extent write reaches only upward from its fixed offset — a span
 //! covers `length` bytes there and a sequence row touches
 //! `offset + index` — so it still blocks while that offset starts below the
-//! read's end, and walks past once it begins at or after it. When the read
+//! read's end, and walks past once it begins at or after it. A sequence
+//! write whose `index` resolves to a clean `MaterializeI64` touches exactly
+//! the byte `byte_offset + index` instead, so it blocks only by landing
+//! inside the read's extent — a landing anywhere off it walks past. When
+//! the read
 //! itself is dynamic the directions mirror the byte-sequence dead store's:
 //! an exact or local row still reaches the read byte once its own extent
 //! ends past the payload base, and a dynamic-extent row on the place
-//! always meets it. A `WriteLocal`
+//! always meets it — unless the load's `index` resolved the same way,
+//! collapsing the extent to that one byte before the walk. A `WriteLocal`
 //! row names an exact range on a slot: when the slot is the place's own
 //! storage — its parameter or block-parameter home, or the producing
 //! operation's `Structural` home — an intersecting row still has to be the
@@ -86,6 +100,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::place_storage::{local_slot_is_place_storage, structural_place_declarations};
 
 pub(super) struct Admission<'source> {
@@ -112,13 +127,19 @@ pub(super) struct Admission<'source> {
 /// dynamic extent when the load is the indexed byte load — its single read
 /// byte sits at `byte_offset + index` for the runtime `index` the
 /// `ReadByteSequence` row carries, so every position it can touch lies at or
-/// after `byte_offset` with no static upper bound.
+/// after `byte_offset` with no static upper bound. When that `index` itself
+/// resolves to a clean materialized constant, `admit` collapses the extent
+/// to the one byte `byte_offset + index` before the walk: the read byte's
+/// position is then fixed, and every interference and source check below
+/// decides on it.
 struct Forwarded {
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
     /// The indexed byte load's runtime index, deciding the read byte's
-    /// position: `byte_offset + index`. `None` for an exact load.
+    /// position: `byte_offset + index`. `None` for an exact load, and for
+    /// an indexed load whose index resolved — its read byte is the
+    /// collapsed `byte_offset` then.
     sequence_index: Option<semantic_vocabulary::ValueId>,
 }
 
@@ -144,10 +165,25 @@ impl Forwarded {
     /// can touch lies at or after `byte_offset`. It still reaches an exact
     /// range exactly while its fixed offset starts below the range's end; an
     /// offset at or past the end is provably disjoint however far the reach
-    /// extends. When the read extent is itself dynamic the row can always
-    /// meet it — two runtime-placed reaches on one place share no provable
-    /// disjointness — so it always interferes.
-    fn reached_by(&self, access: &SelectedMemoryAccess) -> bool {
+    /// extends. A sequence row whose `index` resolves to a clean
+    /// `MaterializeI64` — the same carrier audit the dead-store covering
+    /// routes run — touches exactly that one byte wherever its payload base
+    /// sits, so it reaches this range only by landing inside it. When the
+    /// read extent is itself dynamic — its own index unresolved — an
+    /// unresolved row always meets it, and a resolved landing byte meets it
+    /// only at or past the payload base the read starts at.
+    fn reached_by(&self, access: &SelectedMemoryAccess, function: &SelectedFunction) -> bool {
+        if let SelectedMemoryAccessRole::WriteByteSequence { index, .. } = access.role
+            && let Ok(landed) = constant_index(function, index)
+            && let Some(position) = u64::from(access.byte_offset).checked_add(landed)
+        {
+            let start = u64::from(self.byte_offset);
+            return if self.sequence_index.is_some() {
+                position >= start
+            } else {
+                position >= start && position < start + u64::from(self.byte_count)
+            };
+        }
         if self.sequence_index.is_some() {
             return true;
         }
@@ -155,9 +191,31 @@ impl Forwarded {
     }
 }
 
+/// A function fixture with no registers and no blocks: every sequence
+/// `index` it is asked about stays unresolved, so `interferes` exercises
+/// the dynamic-extent decisions alone.
+#[cfg(test)]
+fn bare_function() -> SelectedFunction {
+    SelectedFunction {
+        machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+        attachment: None,
+        provenance: Default::default(),
+        structural: None,
+        local_storage_slots: Vec::new(),
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
+        entry_block: selected_instructions::SelectedBlockId(0),
+        virtual_registers: Vec::new(),
+        blocks: Vec::new(),
+    }
+}
+
 #[test]
 fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
     let place = PlaceId::new(1).unwrap();
+    let function = bare_function();
     let forwarded = Forwarded {
         place,
         byte_offset: 8,
@@ -181,24 +239,24 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
             accepted_fact,
         },
     };
-    assert!(interferes(&forwarded, &access, &[]));
+    assert!(interferes(&forwarded, &access, &[], &function));
     access.role = SelectedMemoryAccessRole::ReadByteSpan {
         length,
         obligation,
         accepted_fact,
     };
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
     access.role = SelectedMemoryAccessRole::WriteByteSpan {
         length,
         obligation,
         accepted_fact,
     };
     access.place = PlaceId::new(2).unwrap();
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
     access.place = place;
     access.role = SelectedMemoryAccessRole::WritePlace;
     assert!(
-        !interferes(&forwarded, &access, &[]),
+        !interferes(&forwarded, &access, &[], &function),
         "fixed zero-byte rows are not dynamic spans"
     );
     // A dynamic write's reach is unbounded only upward from its fixed
@@ -210,9 +268,9 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
         accepted_fact,
     };
     access.byte_offset = 16;
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
     access.byte_offset = 15;
-    assert!(interferes(&forwarded, &access, &[]));
+    assert!(interferes(&forwarded, &access, &[], &function));
     access.role = SelectedMemoryAccessRole::WriteByteSequence {
         index: length,
         value: length,
@@ -222,14 +280,15 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
     };
     access.byte_count = 1;
     access.byte_offset = 16;
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
     access.byte_offset = 15;
-    assert!(interferes(&forwarded, &access, &[]));
+    assert!(interferes(&forwarded, &access, &[], &function));
 }
 
 #[test]
 fn dynamic_read_extent_reverses_the_interference_directions() {
     let place = PlaceId::new(1).unwrap();
+    let function = bare_function();
     // The indexed byte load reads one byte at `8 + index`: unbounded upward
     // from the payload base, so an exact row reaches it only while its own
     // extent ends past 8 and a dynamic-extent row on the place always meets
@@ -254,13 +313,13 @@ fn dynamic_read_extent_reverses_the_interference_directions() {
     };
     // An exact write ending one byte past the payload base can touch the
     // runtime byte; ending at or below it cannot.
-    assert!(interferes(&forwarded, &access, &[]));
+    assert!(interferes(&forwarded, &access, &[], &function));
     access.byte_count = 8;
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
     access.byte_count = 7;
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
     access.byte_count = 0;
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
     // Dynamic-extent rows on the place always interfere however far below
     // their fixed offset starts.
     access.byte_count = 1;
@@ -272,14 +331,14 @@ fn dynamic_read_extent_reverses_the_interference_directions() {
         obligation,
         accepted_fact,
     };
-    assert!(interferes(&forwarded, &access, &[]));
+    assert!(interferes(&forwarded, &access, &[], &function));
     access.role = SelectedMemoryAccessRole::WriteByteSpan {
         length: semantic_vocabulary::ValueId::new(8).unwrap(),
         obligation,
         accepted_fact,
     };
     access.byte_count = 0;
-    assert!(interferes(&forwarded, &access, &[]));
+    assert!(interferes(&forwarded, &access, &[], &function));
     // A read or a different place still walks past.
     access.role = SelectedMemoryAccessRole::ReadByteSequence {
         index: semantic_vocabulary::ValueId::new(6).unwrap(),
@@ -287,7 +346,7 @@ fn dynamic_read_extent_reverses_the_interference_directions() {
         obligation,
         accepted_fact,
     };
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
     access.role = SelectedMemoryAccessRole::WriteByteSequence {
         index: semantic_vocabulary::ValueId::new(6).unwrap(),
         value: semantic_vocabulary::ValueId::new(7).unwrap(),
@@ -297,7 +356,7 @@ fn dynamic_read_extent_reverses_the_interference_directions() {
     };
     access.byte_count = 1;
     access.place = PlaceId::new(2).unwrap();
-    assert!(!interferes(&forwarded, &access, &[]));
+    assert!(!interferes(&forwarded, &access, &[], &function));
 }
 
 pub(super) fn admit<'source>(
@@ -369,12 +428,30 @@ pub(super) fn admit<'source>(
         }
         _ => return Err(StoredLoadForwardingError::UnsupportedPair),
     };
-    let forwarded = Forwarded {
+    let mut forwarded = Forwarded {
         place: read.place,
         byte_offset: read.byte_offset,
         byte_count: width,
         sequence_index,
     };
+    // An indexed byte load whose own `index` resolves through the same
+    // carrier audit the dead-store covering routes run — sole
+    // `InstructionResult` carrier, clean `MaterializeI64` definition, no
+    // edge-transport or case-payload redefinition — reads one fixed byte at
+    // `byte_offset + index`: the read extent collapses to that exact byte.
+    // Every check below then decides on a fixed position — a row that
+    // cannot contain or land on the read byte walks past, and a write that
+    // does is a candidate source — while an unresolved index, or a position
+    // no u32 names, leaves the extent unbounded upward from `byte_offset`.
+    if let Some(index) = forwarded.sequence_index
+        && let Ok(landed) = constant_index(function, index)
+        && let Some(position) = u64::from(forwarded.byte_offset).checked_add(landed)
+        && let Ok(position) = u32::try_from(position)
+    {
+        forwarded.byte_offset = position;
+        forwarded.byte_count = 1;
+        forwarded.sequence_index = None;
+    }
     // The load's result must be defined only here; the copy keeps the register.
     let output = single_def(forwarded_load)?;
     let output_register = function
@@ -463,7 +540,7 @@ pub(super) fn admit<'source>(
                 .filter(|access| access.instruction == candidate.id)
             {
                 has_row = true;
-                interfered |= interferes(&forwarded, access, structural_places);
+                interfered |= interferes(&forwarded, access, structural_places, function);
             }
             if interfered {
                 found = Some(forwarding_source(
@@ -506,7 +583,7 @@ pub(super) fn admit<'source>(
             let terminator = terminator_instruction(&predecessor.terminator);
             if function.memory_accesses.iter().any(|access| {
                 access.instruction == terminator.id
-                    && interferes(&forwarded, access, structural_places)
+                    && interferes(&forwarded, access, structural_places, function)
             }) {
                 return Err(StoredLoadForwardingError::AliasingWrite);
             }
@@ -661,7 +738,7 @@ pub(super) fn admit<'source>(
                 .filter(|access| access.instruction == candidate.id)
             {
                 has_row = true;
-                interfered |= interferes(&forwarded, access, structural_places);
+                interfered |= interferes(&forwarded, access, structural_places, function);
             }
             if interfered {
                 // The interfering instruction is the last writer on the
@@ -807,7 +884,9 @@ fn single_def(
 /// addresses always block. A dynamic-extent write on the forwarded place
 /// reaches only upward from its fixed offset, so it blocks exactly while
 /// that offset starts below the read's end — a write beginning at or past
-/// the end is provably disjoint and walks past like a disjoint `WritePlace`.
+/// the end is provably disjoint and walks past like a disjoint `WritePlace`,
+/// as is a byte-sequence write whose resolved index lands it outside the
+/// read's extent entirely, wherever its payload base sits.
 /// When the read itself is a dynamic extent the directions reverse: an
 /// exact-range write still reaches the runtime-placed byte once its own
 /// extent ends past the payload base, while every dynamic-extent row on the
@@ -824,6 +903,7 @@ fn interferes(
     forwarded: &Forwarded,
     access: &SelectedMemoryAccess,
     structural_places: &[StructuralPlaceDeclaration],
+    function: &SelectedFunction,
 ) -> bool {
     match access.role {
         SelectedMemoryAccessRole::WritePlace => {
@@ -831,7 +911,7 @@ fn interferes(
         }
         SelectedMemoryAccessRole::WriteByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. } => {
-            access.place == forwarded.place && forwarded.reached_by(access)
+            access.place == forwarded.place && forwarded.reached_by(access, function)
         }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
             local_slot_is_place_storage(slot, forwarded.place, structural_places)
@@ -858,12 +938,11 @@ fn interferes(
 /// - a `Store64` into `Local(slot)` carrying `WriteLocal` on that same
 ///   slot — directly into the place's own parameter storage. The slot store
 ///   is always eight bytes, so only `Load64` pairs with it;
-/// - for the indexed byte load's dynamic read, only the byte-exact writer:
-///   a `Store { 0, 1 }` through a fully computed view address carrying
-///   `WriteByteSequence` — equal payload base and equal index value place
-///   the same byte, while an exact or local range cannot contain a
-///   runtime-placed byte and a sequence write at another offset or index
-///   may land on a different byte entirely.
+/// - a `Store { 0, 1 }` through a fully computed view address carrying
+///   `WriteByteSequence` — the byte-exact writer for a one-byte read. Its
+///   row's `byte_offset` is the payload base the `index` extends, not the
+///   written position, so the route decides on the byte it lands:
+///   `sequence_source` below.
 ///
 /// A wider, narrower, or shifted writer cannot produce the read's bytes from
 /// one register without an extract the selected vocabulary does not carry. A
@@ -881,8 +960,9 @@ fn forwarding_source(
     let structural_places = structural_place_declarations(function);
     // The writer's semantic identity: exactly one roster row on the
     // forwarded place naming the read's byte range — the exact range for a
-    // fixed-offset read, the payload base and one-byte count for the
-    // indexed load's dynamic read.
+    // fixed-offset read, the one fixed read byte for a resolved indexed
+    // load. A `WriteByteSequence` row names a payload base instead, so its
+    // route dispatches on the byte the write lands before the range check.
     let mut rows = function
         .memory_accesses
         .iter()
@@ -890,11 +970,13 @@ fn forwarding_source(
     let Some(row) = rows.next() else {
         return Err(reject());
     };
-    if rows.next().is_some()
-        || row.place != forwarded.place
-        || row.byte_offset != forwarded.byte_offset
-        || row.byte_count != forwarded.byte_count
-    {
+    if rows.next().is_some() || row.place != forwarded.place {
+        return Err(reject());
+    }
+    if let SelectedMemoryAccessRole::WriteByteSequence { index, .. } = row.role {
+        return sequence_source(instruction, forwarded, row, index, function, environment);
+    }
+    if row.byte_offset != forwarded.byte_offset || row.byte_count != forwarded.byte_count {
         return Err(reject());
     }
     match instruction.kind {
@@ -912,15 +994,6 @@ fn forwarding_source(
                         && u32::from(byte_size) == forwarded.byte_count
                         && local_slot_is_place_storage(slot, forwarded.place, structural_places)
                 }
-                // The dynamic read's byte-exact writer: the sequence
-                // store's encoded `Store { 0, 1 }` writes through a fully
-                // computed view address, so its row's payload base — not
-                // the encoded offset — plus an equal index value place the
-                // same byte the read observes.
-                (
-                    Some(index),
-                    SelectedMemoryAccessRole::WriteByteSequence { index: written, .. },
-                ) => byte_offset == 0 && byte_size == 1 && written == index,
                 _ => false,
             };
             if !place_route {
@@ -986,6 +1059,155 @@ fn forwarding_source(
         }
         _ => Err(reject()),
     }
+}
+
+/// The `WriteByteSequence` source route: the row claims the one byte at
+/// `byte_offset + index`, so the write sources the read only when it lands
+/// on the read's byte. The encoded shape is the one-byte store through a
+/// fully computed view address on the plain `[use pointer, use value]` row,
+/// and the sequence row's contractual one-byte count. The landing decision
+/// mirrors the dead-store covering route's:
+/// - a read byte whose own `index` resolved — the extent collapsed to a
+///   fixed position, and a fixed-offset `Load8` reads the same fixed way —
+///   is sourced exactly when the write's resolved `byte_offset + index`
+///   names that one byte: a resolved index landing anywhere else writes a
+///   byte the read never observes, and a runtime index lands the write
+///   anywhere at or past the payload base, so it can never provably spell
+///   the one fixed byte;
+/// - a read byte still placed at runtime is sourced by equal payload base
+///   and equal `index` value — the same position at runtime — or by
+///   distinct index values when both resolve to constants whose
+///   `byte_offset + index` sums agree. Anything else may land on a
+///   different byte entirely.
+///
+/// The operand audit is the `Store` route's own: the target's two-use place
+/// store row, and the stored register at operand 1 is the forwarded value.
+fn sequence_source(
+    instruction: &SelectedInstruction,
+    forwarded: &Forwarded,
+    row: &SelectedMemoryAccess,
+    written: semantic_vocabulary::ValueId,
+    function: &SelectedFunction,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<VirtualRegisterId, StoredLoadForwardingError> {
+    let reject = || StoredLoadForwardingError::AliasingWrite;
+    if !matches!(
+        instruction.kind,
+        SelectedInstructionKind::Store {
+            byte_offset: 0,
+            byte_size: 1
+        }
+    ) || row.byte_count != 1
+    {
+        return Err(reject());
+    }
+    let lands_on_read = match forwarded.sequence_index {
+        None => {
+            forwarded.byte_count == 1
+                && constant_index(function, written)
+                    .ok()
+                    .and_then(|landed| u64::from(row.byte_offset).checked_add(landed))
+                    == Some(u64::from(forwarded.byte_offset))
+        }
+        Some(index) if written == index => row.byte_offset == forwarded.byte_offset,
+        Some(index) => match (
+            constant_index(function, written),
+            constant_index(function, index),
+        ) {
+            (Ok(written), Ok(read)) => {
+                u64::from(row.byte_offset).checked_add(written)
+                    == u64::from(forwarded.byte_offset).checked_add(read)
+            }
+            _ => false,
+        },
+    };
+    if !lands_on_read {
+        return Err(reject());
+    }
+    let row_constraint = environment
+        .constraint(instruction.constraint)
+        .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
+    if row_constraint.operands.len() != 2
+        || row_constraint.operands[0].operand != 0
+        || row_constraint.operands[0].access != RegisterOperandAccess::Use
+        || row_constraint.operands[1].operand != 1
+        || row_constraint.operands[1].access != RegisterOperandAccess::Use
+    {
+        return Err(StoredLoadForwardingError::ConstraintMismatch);
+    }
+    let mut uses = instruction
+        .operands
+        .iter()
+        .filter(|operand| operand.access == RegisterOperandAccess::Use);
+    let pointer = uses.next().ok_or_else(reject)?;
+    let value = uses.next().ok_or_else(reject)?;
+    if uses.next().is_some() || pointer.operand != 0 || value.operand != 1 {
+        return Err(reject());
+    }
+    Ok(value.virtual_register)
+}
+
+/// The compile-time constant a byte-sequence row's `index` resolves to, when
+/// it does — the same carrier audit the dead-store covering routes run. The
+/// register carrying the `index` value is its sole `InstructionResult`
+/// carrier, so an `index` no instruction result carries (an entry or block
+/// parameter) has no producer to resolve, and two instruction results
+/// claiming one value make the constant ambiguous; both stay unproven. The
+/// carrier must then hold the function's one clean `MaterializeI64`
+/// definition and never be redefined by an edge transport or case payload
+/// the instruction audit cannot see — only then does `byte_offset + index`
+/// name a fixed position rather than a runtime-placed byte.
+fn constant_index(
+    function: &SelectedFunction,
+    index: semantic_vocabulary::ValueId,
+) -> Result<u64, StoredLoadForwardingError> {
+    let reject = || StoredLoadForwardingError::AliasingWrite;
+    let mut carriers = function.virtual_registers.iter().filter(|register| {
+        matches!(
+            register.origin,
+            VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == index
+        )
+    });
+    let carrier = carriers.next().ok_or_else(reject)?;
+    if carriers.next().is_some() {
+        return Err(reject());
+    }
+    let landed = materialized_bits(function, carrier.id).map_err(|_| reject())?;
+    if transport_defines(function, carrier.id) {
+        return Err(reject());
+    }
+    Ok(landed)
+}
+
+/// Whether an edge transport or case payload defines `register` — a
+/// definition the instruction-operand audit in `materialized_bits` cannot
+/// see, which would falsify the constant it reports for the index.
+fn transport_defines(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
+    for block in &function.blocks {
+        for successor in terminator_successors(&block.terminator) {
+            if successor.bindings.iter().any(|binding| {
+                matches!(
+                    binding.transport,
+                    SelectedValueTransport::Registers { parameter, .. } if parameter == register
+                )
+            }) {
+                return true;
+            }
+            if let Some(case) = &successor.structural_case
+                && case.payloads.iter().any(|payload| {
+                    matches!(
+                        payload.transport,
+                        SelectedCasePayloadTransport::Unmaterialized { parameter }
+                            | SelectedCasePayloadTransport::Registers { parameter, .. }
+                            if parameter == register
+                    )
+                })
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// A crossed edge must perform no work the roster cannot see. `Unused`

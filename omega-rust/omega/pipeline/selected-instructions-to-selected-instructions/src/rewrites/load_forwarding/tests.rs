@@ -20,8 +20,8 @@ use selected_instructions::{
     VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
-    PlaceId, ScalarType, ValueId,
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -382,6 +382,136 @@ fn sequence_pair(
         length: ValueId::new(7).unwrap(),
         obligation: semantic_vocabulary::ObligationId::new(2).unwrap(),
         accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([4; 32]),
+    };
+}
+
+/// The byte-sequence writer's index register — the register whose
+/// `InstructionResult` origin carries the row's `index` value: its sole
+/// clean `MaterializeI64` definition makes `byte_offset + index` a fixed
+/// position, so the write lands on one known byte.
+const SEQUENCE_INDEX: VirtualRegisterId = VirtualRegisterId(5);
+
+/// The indexed byte load's own index register: when a sequence writer names
+/// a different `index` value, both must resolve to materialized constants
+/// whose `byte_offset + index` sums name one byte — and when the read's own
+/// index resolves, the read extent collapses to that fixed byte.
+const READ_INDEX: VirtualRegisterId = VirtualRegisterId(6);
+
+/// The materialize instruction defining a sequence write's index register.
+const MATERIALIZE_INDEX: SelectedInstructionId = SelectedInstructionId(7);
+
+/// The materialize instruction defining the load's index register —
+/// distinct from `MATERIALIZE_INDEX` so two clean definitions can coexist
+/// in one fixture.
+const MATERIALIZE_READ_INDEX: SelectedInstructionId = SelectedInstructionId(8);
+
+/// Insert a clean `MaterializeI64` at `position` in `block` defining
+/// `register` as `bits`, with the register's origin naming `source_value` —
+/// the sole clean definition `materialized_bits` resolves, so a sequence
+/// row's `index` becomes the compile-time `bits`.
+#[allow(clippy::too_many_arguments)]
+fn define_index_as(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    block: usize,
+    position: usize,
+    id: SelectedInstructionId,
+    register: VirtualRegisterId,
+    source_value: ValueId,
+    bits: u64,
+) {
+    let materialize = environment
+        .constraint(environment.selected_keys().materialize_i64)
+        .unwrap();
+    function.virtual_registers.push(VirtualRegister {
+        id: register,
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        class: materialize.operands[0].class,
+        origin: VirtualRegisterOrigin::InstructionResult {
+            instruction: id,
+            source_value,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    function.blocks[block].instructions.insert(
+        position,
+        instruction(
+            id,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(u128::from(bits)),
+            },
+            materialize,
+            &[register],
+        ),
+    );
+}
+
+/// `define_index_as` under the sequence write's materialize id, for fixtures
+/// resolving only the writer's index.
+fn define_index(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    block: usize,
+    position: usize,
+    register: VirtualRegisterId,
+    source_value: ValueId,
+    bits: u64,
+) {
+    define_index_as(
+        function,
+        environment,
+        block,
+        position,
+        MATERIALIZE_INDEX,
+        register,
+        source_value,
+        bits,
+    );
+}
+
+/// Rewrite the roster row at `row` into the `WriteByteSequence` carrying
+/// payload base `offset` and index value `index`, and its instruction `id`
+/// into the byte-sequence `Store { 0, 1 }` — the intervening sequence write
+/// the constant-index tests place between the source and the load.
+fn sequence_write(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    id: SelectedInstructionId,
+    row: usize,
+    offset: u32,
+    index: u64,
+    value: VirtualRegisterId,
+) {
+    let store = environment
+        .constraint(environment.selected_keys().store.unwrap())
+        .unwrap();
+    for block in &mut function.blocks {
+        if let Some(position) = block
+            .instructions
+            .iter()
+            .position(|instruction| instruction.id == id)
+        {
+            block.instructions[position] = instruction(
+                id,
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 1,
+                },
+                store,
+                &[POINTER, value],
+            );
+        }
+    }
+    let access = &mut function.memory_accesses[row];
+    access.byte_offset = offset;
+    access.byte_count = 1;
+    access.role = SelectedMemoryAccessRole::WriteByteSequence {
+        index: ValueId::new(index).unwrap(),
+        value: ValueId::new(6).unwrap(),
+        length: ValueId::new(7).unwrap(),
+        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
     };
 }
 
