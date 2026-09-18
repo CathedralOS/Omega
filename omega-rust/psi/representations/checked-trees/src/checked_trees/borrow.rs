@@ -168,6 +168,32 @@ pub struct CheckedBorrowCompatibilityCertificate {
     pub derivation: BorrowCompatibilityDerivation,
 }
 
+/// Checked-only certificate for one automatically admitted
+/// statement-mutation/active-loan pair.
+///
+/// The formation statement's write target is never trusted: replay re-derives
+/// the canonical mutated place from the typed statement and re-roots it
+/// against `active_loan` exactly as admission did, so `mutated_place` names
+/// the judged place rather than the raw write. The active side rejoins the
+/// exact state-owned loan row and its frozen place. `premises` holds the
+/// exact stated requires tokens a `Premised` derivation consumed, in consult
+/// order; a `Structural` row retains none. This row neither creates borrow
+/// authority nor changes admission semantics: the only verdict it may record
+/// is `non_interfering`, since a mutation carries no provenance edge.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedBorrowMutationCertificate {
+    pub formation: BorrowCompatibilityFormation,
+    /// The write target as judged: the statement's canonical mutated place
+    /// re-rooted against `active_loan` exactly as admission compared it.
+    pub mutated_place: CapturedPlace,
+    pub active_loan: Handle<BorrowLoanFact>,
+    pub active_place: CapturedPlace,
+    pub selector_snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
+    pub premises: Vec<BorrowCompatibilityPremise>,
+    pub conclusion: BorrowCompatibilityConclusion,
+    pub derivation: BorrowCompatibilityDerivation,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum BorrowRootKind {
     #[default]
@@ -636,6 +662,11 @@ pub struct BorrowFacts {
     /// Zero-premise structural certificates retained by checked borrow
     /// admission. This is a separate proof ledger from the loan resource rows.
     pub compatibility_certificates: Arena<CheckedBorrowCompatibilityCertificate>,
+    /// Certificates retained by checked borrow admission for statement
+    /// mutations admitted beside a still-active loan. The same replay
+    /// discipline as `compatibility_certificates` applies; the forming side
+    /// is the statement's write access, not a loan.
+    pub mutation_certificates: Arena<CheckedBorrowMutationCertificate>,
     /// Non-authorizing direct-root resource closures reconstructed from the
     /// exact loan activation/weakening ledger. Reborrow parent identity is
     /// retained separately.
@@ -678,6 +709,7 @@ impl BorrowFacts {
             loans,
             states,
             compatibility_certificates: Arena::new(),
+            mutation_certificates: Arena::new(),
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),
             reborrow_disposition_events: Arena::new(),
@@ -750,6 +782,54 @@ impl BorrowFacts {
             self.certificate_loan_access(certificate.forming_loan, forming_loan)?,
             self.certificate_loan_access(certificate.active_loan, active_loan)?,
         ))
+    }
+
+    /// Rejoins a retained mutation certificate to its exact state-owned
+    /// active loan and frozen active place. The mutated place is checked
+    /// separately by replay, which re-derives it from the typed statement.
+    pub fn mutation_certificate_matches_resources(
+        &self,
+        certificate: &CheckedBorrowMutationCertificate,
+    ) -> bool {
+        if !self.loans.is_valid(certificate.active_loan)
+            || !certificate.formation.machine_symbol.is_valid()
+            || !certificate.formation.state_symbol.is_valid()
+        {
+            return false;
+        }
+
+        let Some(state) = self.states.iter().find_map(|(_, state)| {
+            (state.machine_symbol == certificate.formation.machine_symbol
+                && state.state_symbol == certificate.formation.state_symbol)
+                .then_some(state)
+        }) else {
+            return false;
+        };
+        if !handle_span_contains(state.loans, certificate.active_loan) {
+            return false;
+        }
+
+        let active_loan = self.loans.get(certificate.active_loan);
+        self.certificate_place_matches_resource(
+            state,
+            certificate.active_loan,
+            active_loan,
+            &certificate.active_place,
+        )
+    }
+
+    /// Returns the exact access polarity that an independently replayed
+    /// mutation certificate must consume for its active loan side. The
+    /// mutated side is always a `Mutable` write.
+    pub fn mutation_certificate_resource_access(
+        &self,
+        certificate: &CheckedBorrowMutationCertificate,
+    ) -> Option<&BorrowAccessKind> {
+        if !self.mutation_certificate_matches_resources(certificate) {
+            return None;
+        }
+        let active_loan = self.loans.get(certificate.active_loan);
+        self.certificate_loan_access(certificate.active_loan, active_loan)
     }
 
     fn certificate_place_matches_resource(
@@ -879,6 +959,7 @@ mod tests {
         assert_eq!(facts.loans, loans);
         assert_eq!(facts.states, states);
         assert!(facts.compatibility_certificates.is_empty());
+        assert!(facts.mutation_certificates.is_empty());
         assert!(facts.direct_loan_resources.is_empty());
         assert!(facts.reborrow_loan_resources.is_empty());
         assert!(facts.reborrow_disposition_events.is_empty());

@@ -24,6 +24,9 @@ pub(crate) fn check_flow_call_borrows(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut retained_diagnostics =
         validate_checked_borrow_compatibility_certificates(program, facts);
+    retained_diagnostics.extend(validate_checked_borrow_mutation_certificates(
+        program, facts,
+    ));
     if retained_diagnostics.is_empty() {
         resources::replay_checked_direct_borrow_resources(program, facts, mutation_summaries)?;
     } else {
@@ -52,6 +55,15 @@ pub(crate) fn check_flow_call_borrows(
         .collect::<Vec<_>>();
     let mut retained_compatibility_certificates_consumed =
         vec![false; retained_compatibility_certificates.len()];
+    let mut mutation_certificates = Vec::new();
+    let retained_mutation_certificates = facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate.clone())
+        .collect::<Vec<_>>();
+    let mut retained_mutation_certificates_consumed =
+        vec![false; retained_mutation_certificates.len()];
 
     check_view_return_elision(program, &mut diagnostics);
     check_view_return_escape(program, facts, &mut diagnostics);
@@ -99,6 +111,9 @@ pub(crate) fn check_flow_call_borrows(
             &mut compatibility_certificates,
             &retained_compatibility_certificates,
             &mut retained_compatibility_certificates_consumed,
+            &mut mutation_certificates,
+            &retained_mutation_certificates,
+            &mut retained_mutation_certificates_consumed,
             mutation_summaries,
         );
     }
@@ -129,6 +144,32 @@ pub(crate) fn check_flow_call_borrows(
         }
     }
 
+    for (certificate, consumed) in retained_mutation_certificates
+        .iter()
+        .zip(&retained_mutation_certificates_consumed)
+    {
+        if !consumed {
+            diagnostics.push(Diagnostic::error(format!(
+                "checked borrow mutation certificate at statement {} was not consumed by its exact formation mutation pair",
+                certificate.formation.statement_index,
+            )));
+        }
+    }
+    for (index, certificate) in mutation_certificates.iter().enumerate() {
+        if mutation_certificates[..index]
+            .iter()
+            .any(|prior| mutation_certificate_key_matches(prior, certificate))
+        {
+            diagnostics.push(duplicate_mutation_certificate_diagnostic(certificate));
+            continue;
+        }
+        if let Err(diagnostic) =
+            replay_checked_borrow_mutation_certificate(program, facts, certificate)
+        {
+            diagnostics.push(diagnostic);
+        }
+    }
+
     if diagnostics.is_empty() {
         // Settlement is transactional: publish the rebuilt proof ledger only
         // after every retained formation was consumed exactly once and every
@@ -141,6 +182,11 @@ pub(crate) fn check_flow_call_borrows(
             .borrow
             .compatibility_certificates
             .insert_many(compatibility_certificates);
+        facts.borrow.mutation_certificates.reset_retain_capacity();
+        facts
+            .borrow
+            .mutation_certificates
+            .insert_many(mutation_certificates);
         Ok(())
     } else {
         Err(diagnostics)
@@ -304,6 +350,215 @@ fn replay_checked_borrow_compatibility_certificate(
     {
         return Err(Diagnostic::error(
             "checked borrow compatibility certificate records an interfering loan pair without carried authority",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_checked_borrow_mutation_certificates(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+) -> Vec<Diagnostic> {
+    let certificates = facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .collect::<Vec<_>>();
+    let mut diagnostics = Vec::new();
+    for (index, certificate) in certificates.iter().enumerate() {
+        if certificates[..index]
+            .iter()
+            .any(|prior| mutation_certificate_key_matches(prior, certificate))
+        {
+            diagnostics.push(duplicate_mutation_certificate_diagnostic(certificate));
+            continue;
+        }
+        if let Err(diagnostic) =
+            replay_checked_borrow_mutation_certificate(program, facts, certificate)
+        {
+            diagnostics.push(diagnostic);
+        }
+    }
+    diagnostics
+}
+
+fn duplicate_mutation_certificate_diagnostic(
+    certificate: &checked_trees::CheckedBorrowMutationCertificate,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "checked borrow mutation certificate duplicates the formation mutation-loan key at statement {}",
+        certificate.formation.statement_index,
+    ))
+}
+
+fn mutation_certificate_key_matches(
+    left: &checked_trees::CheckedBorrowMutationCertificate,
+    right: &checked_trees::CheckedBorrowMutationCertificate,
+) -> bool {
+    left.formation == right.formation && left.active_loan == right.active_loan
+}
+
+fn replay_checked_borrow_mutation_certificate(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    certificate: &checked_trees::CheckedBorrowMutationCertificate,
+) -> Result<(), Diagnostic> {
+    if !facts
+        .borrow
+        .mutation_certificate_matches_resources(certificate)
+    {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate does not rejoin its exact state-owned loan",
+        ));
+    }
+    // The derivation class must agree with the recorded premise ledger: a
+    // premised conclusion must name at least one exact requires token, and a
+    // structural conclusion must have consulted none.
+    match certificate.derivation {
+        checked_trees::BorrowCompatibilityDerivation::Structural
+            if certificate.premises.is_empty() => {}
+        checked_trees::BorrowCompatibilityDerivation::Premised
+            if !certificate.premises.is_empty() => {}
+        _ => {
+            return Err(Diagnostic::error(
+                "checked borrow mutation certificate derivation drifted from its recorded premise ledger",
+            ));
+        }
+    }
+
+    let Some(active_access) = facts
+        .borrow
+        .mutation_certificate_resource_access(certificate)
+    else {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate does not rejoin its exact state-owned loan",
+        ));
+    };
+    let active_loan = facts.borrow.loans.get(certificate.active_loan);
+
+    // The mutated place is re-derived from the typed formation statement, not
+    // trusted from the row: the certificate only stands when the statement's
+    // write target re-roots to the exact place the row judges.
+    let Some(state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        certificate.formation.machine_symbol,
+        certificate.formation.state_symbol,
+    ) else {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate does not rejoin its exact formation state",
+        ));
+    };
+    let Some(statement_node) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(certificate.formation.statement_index)
+    else {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate does not rejoin its exact formation statement",
+        ));
+    };
+    let Some(mutated_place) = crate::flow::statement_mutated_place(
+        program,
+        certificate.formation.machine_symbol,
+        certificate.formation.state_symbol,
+        certificate.formation.statement_index,
+        statement_node,
+    ) else {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate formation statement has no mutated place",
+        ));
+    };
+    if overlap::canonical_place_for_loan(&mutated_place, active_loan)
+        != Some(certificate.mutated_place.clone())
+    {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate mutated place drifted from the statement's write target",
+        ));
+    }
+
+    // The pair relation is replayed too: the named active loan must have been
+    // live at the formation statement's own entry constraints.
+    let loan_live_at_formation = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find(|(_, state)| {
+            state.machine_symbol == certificate.formation.machine_symbol
+                && state.state_symbol == certificate.formation.state_symbol
+        })
+        .and_then(|(_, state)| {
+            facts
+                .flow
+                .control
+                .statements
+                .span_or_empty(state.statements)
+                .iter()
+                .find(|statement| {
+                    statement.statement_index == certificate.formation.statement_index
+                })
+        })
+        .is_some_and(|statement| {
+            facts
+                .flow
+                .borrow_loan_constraints(statement.entry_constraints)
+                .any(|loan| loan == certificate.active_loan)
+        });
+    if !loan_live_at_formation {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate active loan was not live at its formation statement",
+        ));
+    }
+
+    // The premise set is re-derived from the formation scope's stated
+    // contracts, not trusted from the certificate. An unresolvable formation
+    // scope offers no premises, so a recorded premised token cannot replay.
+    let stated_premises =
+        crate::lookup::machine_by_symbol(program, certificate.formation.machine_symbol)
+            .map(|machine| overlap::stated_ordering_premises(program, facts, machine, state))
+            .unwrap_or_default();
+    let replayed = match overlap::captured_place_loan_compatibility_from_selector_snapshot(
+        program,
+        &certificate.mutated_place,
+        &checked_trees::BorrowAccessKind::Mutable,
+        active_loan,
+        active_access,
+        &facts.borrow,
+        &certificate.selector_snapshot,
+        &stated_premises,
+        &certificate.premises,
+    ) {
+        Ok(replayed) => replayed,
+        Err(overlap::CompatibilityReplayDrift::Premise) => {
+            return Err(Diagnostic::error(
+                "checked borrow mutation certificate premise tokens drifted from their stated requires evidence",
+            ));
+        }
+        Err(overlap::CompatibilityReplayDrift::SelectorSnapshot) => {
+            return Err(Diagnostic::error(
+                "checked borrow mutation certificate selector snapshot drifted from its captured-place shape",
+            ));
+        }
+    };
+    let replayed_conclusion = checked_trees::BorrowCompatibilityConclusion {
+        disjoint: replayed.disjoint,
+        containment: replayed.containment,
+        non_interfering: replayed.non_interfering,
+    };
+    if replayed.left != certificate.mutated_place
+        || replayed.right != certificate.active_place
+        || replayed_conclusion != certificate.conclusion
+    {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate conclusion drifted from independent structural replay",
+        ));
+    }
+    // A mutation carries no provenance edge: the only verdict this row may
+    // record is replayed non-interference.
+    if !certificate.conclusion.non_interfering {
+        return Err(Diagnostic::error(
+            "checked borrow mutation certificate records an interfering mutation pair with no admission basis",
         ));
     }
     Ok(())

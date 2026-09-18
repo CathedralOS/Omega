@@ -9,7 +9,8 @@ use checked_trees::{
     BorrowAccessKind, BorrowCompatibilityConclusion, BorrowCompatibilityDerivation,
     BorrowCompatibilityFormation, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment,
     CapturedPlace, CapturedPlaceContainment, CheckFacts, CheckedBorrowCompatibilityCertificate,
-    FlowConstraintKind, FlowConstraintRef, FlowStateFact, FlowStatementFact, StateBorrowFact,
+    CheckedBorrowMutationCertificate, FlowConstraintKind, FlowConstraintRef, FlowStateFact,
+    FlowStatementFact, StateBorrowFact,
 };
 use numerics::literals::IntegerLiteral;
 use symbols::SymbolHandle;
@@ -212,6 +213,110 @@ fn check(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let summaries = crate::flow::StateMutationSummaryCache::default();
     super::check_flow_call_borrows(program, facts, &summaries, None)
+}
+
+/// One machine with one state whose body is `let p = 0; x = 0`; the
+/// assignment's entry constraints carry the already-active loans installed
+/// separately by `mutation_facts`.
+fn mutation_program() -> typed_trees::TypedTrees {
+    let mut program = typed_trees::TypedTrees::default();
+    let type_reference =
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated_static("u64"),
+            });
+    let initial_value = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
+    let target = program.expression_table.insert(ExpressionNode::Name(
+        typed_trees::expression::TableNamePath {
+            members: arena::HandleSpan::empty(),
+            member_symbols: arena::HandleSpan::empty(),
+            head_symbol: symbol(X_LOCAL),
+            symbol: symbol(X_LOCAL),
+        },
+    ));
+    let mut machine = Machine {
+        symbol: symbol(MACHINE),
+        name: Identifier::generated_static("m"),
+        ..Default::default()
+    };
+    let mut state = State {
+        symbol: symbol(STATE),
+        name: Identifier::generated_static("s"),
+        return_type: type_reference,
+        ..Default::default()
+    };
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
+        StatementNode::LocalData(TableLocalData {
+            symbol: symbol(TARGET_LOCAL),
+            name: Identifier::generated_static("p"),
+            type_reference,
+            initial_value,
+            is_mutable: false,
+            ..Default::default()
+        }),
+    );
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
+        StatementNode::Assignment(typed_trees::statement::TableAssignment {
+            target,
+            value: initial_value,
+        }),
+    );
+    program.push_machine_state(&mut machine, state);
+    program.push_machine(machine);
+    program
+}
+
+/// Facts for the mutation program: one active loan owned by `p` whose captured
+/// place is `root.place`, live across the assignment at statement index 1.
+fn mutation_facts(root: u32, place: &[u32]) -> (CheckFacts, arena::Handle<BorrowLoanFact>) {
+    let mut facts = CheckFacts::default();
+    let active_loan = install_loan(
+        &mut facts,
+        LoanSpec {
+            statement_index: 0,
+            owner: TARGET_LOCAL,
+            owner_path: &[],
+            source_owner: TARGET_LOCAL,
+            root,
+            place,
+            kind: BorrowAccessKind::Mutable,
+            lineage: BorrowLoanLineage::UnretainedDerived,
+        },
+    );
+    let mut loans = arena::HandleSpan::empty();
+    loans.push_contiguous(active_loan);
+    facts.borrow.states.insert(StateBorrowFact {
+        machine_symbol: symbol(MACHINE),
+        state_symbol: symbol(STATE),
+        loans,
+        ..Default::default()
+    });
+
+    let entry_constraints = facts
+        .flow
+        .contexts
+        .constraint_refs
+        .insert_many([FlowConstraintRef {
+            kind: FlowConstraintKind::BorrowLoan { loan: active_loan },
+        }]);
+    let statement = facts.flow.control.statements.insert(FlowStatementFact {
+        statement_index: 1,
+        entry_semantic_contexts: arena::HandleSpan::empty(),
+        entry_constraints,
+    });
+    facts.flow.control.states.insert(FlowStateFact {
+        machine_symbol: symbol(MACHINE),
+        state_symbol: symbol(STATE),
+        statements: arena::HandleSpan::from_parts(statement, 1),
+        ..Default::default()
+    });
+    (facts, active_loan)
 }
 
 /// `&mut *d.b` while `d`'s carried `d.a`/`d.b` loans stay active. The `d.b`
@@ -462,4 +567,281 @@ fn carried_authority_requires_the_exact_recorded_edge() {
         CapturedPlaceContainment::Same,
         &BorrowAccessKind::Mutable
     ));
+}
+
+/// `x = 0` beside the still-active borrow of `y` is admitted because the roots
+/// are disjoint. The admission retains one mutation certificate naming the
+/// exact formation statement, the judged places, and the honest verdict; a
+/// second pass replays the retained row and rebuilds it identically.
+#[test]
+fn statement_mutation_admission_retains_replayable_certificate() {
+    let program = mutation_program();
+    let (mut facts, active_loan) = mutation_facts(Y_LOCAL, &[]);
+
+    check(&program, &mut facts).expect("disjoint mutation stays admitted");
+
+    let certificates = facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate.clone())
+        .collect::<Vec<_>>();
+    let [certificate] = certificates.as_slice() else {
+        panic!("the admitted mutation/loan pair must retain exactly one certificate")
+    };
+    assert_eq!(certificate.formation.machine_symbol, symbol(MACHINE));
+    assert_eq!(certificate.formation.state_symbol, symbol(STATE));
+    assert_eq!(certificate.formation.statement_index, 1);
+    assert_eq!(certificate.active_loan, active_loan);
+    assert_eq!(
+        certificate.mutated_place,
+        CapturedPlace {
+            root_symbol: symbol(X_LOCAL),
+            segments: Vec::new(),
+        }
+    );
+    assert_eq!(
+        certificate.active_place,
+        CapturedPlace {
+            root_symbol: symbol(Y_LOCAL),
+            segments: Vec::new(),
+        }
+    );
+    assert!(certificate.conclusion.non_interfering);
+    assert!(certificate.conclusion.disjoint);
+    assert_eq!(
+        certificate.derivation,
+        BorrowCompatibilityDerivation::Structural
+    );
+    assert!(certificate.premises.is_empty());
+
+    check(&program, &mut facts).expect("retained mutation certificate replays");
+    let replayed = facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(replayed, certificates);
+}
+
+/// `x = 0` beside a still-active borrow of `x` stays rejected: the verdict is
+/// interfering and no certificate is retained.
+#[test]
+fn overlapping_statement_mutation_is_rejected() {
+    let program = mutation_program();
+    let (mut facts, _active_loan) = mutation_facts(X_LOCAL, &[]);
+
+    let diagnostics = check(&program, &mut facts)
+        .expect_err("a live borrow of the mutated place blocks the write");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("still active")),
+        "expected an overlapping-borrow diagnostic, got {diagnostics:?}"
+    );
+    assert!(facts.borrow.mutation_certificates.is_empty());
+}
+
+/// A retained mutation certificate whose recorded write target no longer
+/// re-derives from the formation statement cannot replay.
+#[test]
+fn drifted_mutation_certificate_is_rejected() {
+    let program = mutation_program();
+    let (mut facts, _active_loan) = mutation_facts(Y_LOCAL, &[]);
+    check(&program, &mut facts).expect("disjoint mutation stays admitted");
+    let handle = facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(handle, _)| handle)
+        .next()
+        .expect("one retained certificate");
+    facts
+        .borrow
+        .mutation_certificates
+        .get_mut(handle)
+        .mutated_place
+        .segments
+        .push(field(Z_FIELD));
+
+    let diagnostics =
+        check(&program, &mut facts).expect_err("a drifted write target must not replay");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("mutated place drifted")),
+        "expected a mutated-place drift diagnostic, got {diagnostics:?}"
+    );
+}
+
+/// A mutation certificate only stands while its named active loan was actually
+/// live at the formation statement: a row pairing the write with a loan that
+/// was not in the statement's entry constraints cannot replay.
+#[test]
+fn mutation_certificate_replay_rejects_a_not_live_loan() {
+    let program = mutation_program();
+    let (mut facts, active_loan) = mutation_facts(Y_LOCAL, &[]);
+    // A second, never-live loan owned by the same state.
+    let dormant_loan = install_loan(
+        &mut facts,
+        LoanSpec {
+            statement_index: 0,
+            owner: TARGET_LOCAL,
+            owner_path: &[],
+            source_owner: TARGET_LOCAL,
+            root: UNRELATED_LOCAL,
+            place: &[],
+            kind: BorrowAccessKind::Mutable,
+            lineage: BorrowLoanLineage::UnretainedDerived,
+        },
+    );
+    let state_handle = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(handle, _)| handle)
+        .next()
+        .expect("borrow state");
+    facts
+        .borrow
+        .states
+        .get_mut(state_handle)
+        .loans
+        .push_contiguous(dormant_loan);
+    let certificate = CheckedBorrowMutationCertificate {
+        formation: BorrowCompatibilityFormation {
+            machine_symbol: symbol(MACHINE),
+            state_symbol: symbol(STATE),
+            statement_index: 1,
+        },
+        mutated_place: CapturedPlace {
+            root_symbol: symbol(X_LOCAL),
+            segments: Vec::new(),
+        },
+        active_loan: dormant_loan,
+        active_place: CapturedPlace {
+            root_symbol: symbol(UNRELATED_LOCAL),
+            segments: Vec::new(),
+        },
+        selector_snapshot: Vec::new(),
+        premises: Vec::new(),
+        derivation: BorrowCompatibilityDerivation::Structural,
+        conclusion: BorrowCompatibilityConclusion {
+            disjoint: true,
+            containment: CapturedPlaceContainment::None,
+            non_interfering: true,
+        },
+    };
+    assert_ne!(dormant_loan, active_loan);
+    facts.borrow.mutation_certificates.insert(certificate);
+
+    let diagnostics = check(&program, &mut facts)
+        .expect_err("a mutation certificate naming a not-live loan must not replay");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("was not live")),
+        "expected a liveness diagnostic, got {diagnostics:?}"
+    );
+}
+
+/// End-to-end witness: a real source program writing a local beside a live
+/// borrowed view retains mutation certificates naming exact statements.
+#[test]
+fn real_source_mutation_retains_mutation_certificates() {
+    let source = r#"
+        data Main { items: [i32; 4]; }
+
+        machine Main::bump(&mut self) -> u64 {
+            let view: &mut [i32] = self.items[0..4];
+            let mut total: u64 = 0;
+            total = 1;
+            view.len
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut checked = crate::lower_typed_trees(typed)
+        .expect("a disjoint write beside a live borrow stays admitted");
+
+    let certificates = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate.clone())
+        .collect::<Vec<_>>();
+    assert!(
+        !certificates.is_empty(),
+        "the disjoint `total = 1` write beside the live `view` borrow must retain evidence"
+    );
+    for certificate in &certificates {
+        assert!(
+            certificate.conclusion.non_interfering,
+            "every retained mutation certificate records only a non-interfering verdict"
+        );
+    }
+
+    // Re-checking the retained facts replays each certificate and republishes
+    // the same rows.
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("retained mutation certificates replay");
+    let replayed = checked
+        .facts
+        .borrow
+        .mutation_certificates
+        .iter()
+        .map(|(_, certificate)| certificate.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(replayed, certificates);
+}
+
+/// A mutation certificate may only record the replayed non-interfering
+/// verdict: a row claiming an actually-overlapping pair has no admission
+/// basis, even when its recorded conclusion is honest.
+#[test]
+fn interfering_mutation_certificate_has_no_admission_basis() {
+    let program = mutation_program();
+    let (facts, active_loan) = mutation_facts(X_LOCAL, &[]);
+    let certificate = CheckedBorrowMutationCertificate {
+        formation: BorrowCompatibilityFormation {
+            machine_symbol: symbol(MACHINE),
+            state_symbol: symbol(STATE),
+            statement_index: 1,
+        },
+        mutated_place: CapturedPlace {
+            root_symbol: symbol(X_LOCAL),
+            segments: Vec::new(),
+        },
+        active_loan,
+        active_place: CapturedPlace {
+            root_symbol: symbol(X_LOCAL),
+            segments: Vec::new(),
+        },
+        selector_snapshot: Vec::new(),
+        premises: Vec::new(),
+        derivation: BorrowCompatibilityDerivation::Structural,
+        conclusion: BorrowCompatibilityConclusion {
+            disjoint: false,
+            containment: CapturedPlaceContainment::Same,
+            non_interfering: false,
+        },
+    };
+
+    let diagnostic =
+        super::replay_checked_borrow_mutation_certificate(&program, &facts, &certificate)
+            .expect_err("an interfering mutation verdict has no admission basis");
+    assert!(
+        diagnostic.message.contains("no admission basis"),
+        "unexpected diagnostic: {diagnostic:?}"
+    );
 }
