@@ -324,6 +324,7 @@ fn installed_root_teardown_preflight_rejects_incomplete_ambiguous_and_stale_stat
             crate::interrupts::interrupt_entries::ActiveInterruptEntry {
                 arrival_context: calling_conventions::ArrivalContextId::new(1)
                     .expect("arrival context"),
+                stage: calling_conventions::EntryStackStage::Body,
                 depth: 1,
                 interrupted: None,
             },

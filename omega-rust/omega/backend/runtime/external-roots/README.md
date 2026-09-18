@@ -62,6 +62,15 @@ entry obligations only for an arrival whose gate actually reached hardware.
 Arrivals before publication, on unarmed vectors, or against a foreign
 installed realization reject with the receipt returned.
 
+The ledger retains each live interrupt invocation's epoch stage: a fresh
+activation realizes at its admitted context's first epoch stage, and
+`turn_interrupt_epoch_stage` is the only edge that advances it — to exactly
+the next stage the context's canonical enter/body/exit order realizes, and
+only while the invocation is the innermost live entry. A nested arrival's
+reported preempted stage must rejoin that retained stage, so a stale or
+cross-context report rejects instead of choosing which sibling epochs the
+finite-depth check consults.
+
 Byte materialization keeps the same writer/consumer split: the ledger derives
 the checked post-handoff writer program whose fragments resolve each member's
 sealed entry target into the produced gate's offset fields, while the

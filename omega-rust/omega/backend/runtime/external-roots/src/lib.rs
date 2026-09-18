@@ -69,7 +69,8 @@ pub use interrupts::interrupt_entries::{
     CompletedInterruptAcknowledgement, CompletedInterruptEntry, InstalledInterruptCompletionRoute,
     InterruptAcknowledgement, InterruptAcknowledgementError, InterruptAcknowledgementReceipt,
     InterruptEntryFinishError, InterruptEntryObligations, InterruptEntryReceipt,
-    InterruptEntryStartError, InterruptPreemptionReport, PendingInterruptExit,
+    InterruptEntryStartError, InterruptEpochTurnError, InterruptEpochTurnReport,
+    InterruptPreemptionReport, PendingInterruptExit,
 };
 pub use interrupts::interrupt_masks::{
     InterruptMaskControl, InterruptMaskGuard, InterruptMaskRestoreError,

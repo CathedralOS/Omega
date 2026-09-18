@@ -162,7 +162,8 @@ pub struct InstalledRootLedger {
     slots: BTreeSet<RootSlotId>,
     /// Live interrupt entries keyed by their exact (root, invocation)
     /// identity. Each entry retains the admitted arrival context, the live
-    /// nesting depth, and the invocation it preempted so a later nested
+    /// epoch stage that only `turn_interrupt_epoch_stage` may advance, the
+    /// live nesting depth, and the invocation it preempted so a later nested
     /// arrival rejoins the declared relation instead of a bare root pair.
     pub(crate) active_interrupts:
         BTreeMap<(ExternalRootId, InterruptInvocationId), ActiveInterruptEntry>,

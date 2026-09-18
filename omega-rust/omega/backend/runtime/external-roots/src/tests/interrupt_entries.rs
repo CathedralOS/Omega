@@ -9,7 +9,7 @@ use crate::{
     AcknowledgementPolicyId, AdmittedEntrySubject, AdmittedResultQualification,
     AdmittedResultSubject, ExternalRootCandidate, InstalledExternalRoot, InstalledRootLedger,
     InterruptAcknowledgementId, InterruptAcknowledgementReceipt, InterruptAcknowledgementReceiptId,
-    InterruptEntryReceiptId, InterruptInvocationId, InterruptMaskGuardId,
+    InterruptEntryReceiptId, InterruptEpochTurnReport, InterruptInvocationId, InterruptMaskGuardId,
     InterruptMaskRestoreReceipt, InterruptMaskSaveReceipt, InterruptMaskStateId,
     InterruptMaskTransitionReceiptId, InterruptPreemptionReport, ProviderExecutionId,
     ProviderPlanId, RootAdmission, RootAdmissionId, RootRemovalReceipt, RootRemovalReceiptId,
@@ -1196,7 +1196,8 @@ fn nested_interrupt_entry_rejoins_declared_edge_and_finite_depth() {
         .expect_err("a preempted invocation that is not live rejects");
     assert!(stale.diagnostic().0.contains("innermost"));
 
-    // The parent's Enter epoch is masked: preempting at that stage rejects.
+    // The parent's fresh activation realized at Enter. Its Enter epoch is
+    // masked: preempting at the retained stage rejects.
     let masked_stage = ledger
         .begin_interrupt_entry(
             &middle,
@@ -1216,8 +1217,45 @@ fn nested_interrupt_entry_rejoins_declared_edge_and_finite_depth() {
         .expect_err("preempting a masked epoch rejects");
     assert!(masked_stage.diagnostic().0.contains("finite nesting bound"));
 
+    // A report naming Body while the ledger retains Enter is a stale
+    // disposition, even though the context's Body epoch would permit the
+    // depth.
+    let stale_stage = ledger
+        .begin_interrupt_entry(
+            &middle,
+            interrupt_entry_receipt_in_context(
+                &middle,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    parent_invocation,
+                    EntryStackStage::Body,
+                )),
+                91,
+                None,
+                None,
+            ),
+        )
+        .expect_err("a stage the ledger never admitted rejects");
+    assert!(
+        stale_stage
+            .diagnostic()
+            .0
+            .contains("does not rejoin the retained live stage")
+    );
+
+    // The parent turns Enter to Body through the ledger's epoch-turn edge;
+    // the retained stage is now the report a nested arrival must name.
+    let turned = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Body),
+        )
+        .expect("the innermost invocation turns to the next realized stage");
+    assert_eq!(turned, EntryStackStage::Body);
+
     // The parent's context realizes no Exit epoch: the reported stage is an
-    // unresolved disposition.
+    // unresolved disposition that cannot rejoin the retained stage.
     let unknown_stage = ledger
         .begin_interrupt_entry(
             &middle,
@@ -1239,7 +1277,7 @@ fn nested_interrupt_entry_rejoins_declared_edge_and_finite_depth() {
         unknown_stage
             .diagnostic()
             .0
-            .contains("finite nesting bound")
+            .contains("does not rejoin the retained live stage")
     );
 
     // The parent has no declared self-nesting edge: a second invocation of the
@@ -1361,4 +1399,254 @@ fn nested_interrupt_entry_rejoins_declared_edge_and_finite_depth() {
     ledger
         .finish_interrupt_entry(leaf_pending, leaf_control, None)
         .expect("leaf exit settles");
+}
+
+#[test]
+fn interrupt_epoch_turns_advance_the_retained_live_stage() {
+    // Parent context 1 realizes the full enter/body/exit progression (Enter
+    // Masked, Body Nestable{2}, Exit Masked); child context 1 realizes its
+    // body epoch alone. The relation declares parent→child.
+    let entry = entry_id(1001);
+    let mut code = installed_code(1, entry);
+    let parent_boundary = interrupt_boundary_shaped(
+        EntryStack::Dedicated { class: 1 },
+        Preemption::Nestable { maximum_depth: 2 },
+    );
+    let child_boundary = interrupt_boundary_on(EntryStack::Dedicated { class: 2 });
+    let parent_candidate = interrupt_candidate_shaped(entry, &code, 1, false);
+    let child_candidate = interrupt_candidate_shaped(entry, &code, 101, false);
+    let provider = parent_candidate.provider;
+    let parent_input = stack_epoch_input(
+        parent_candidate.identity,
+        provider,
+        &parent_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 1 },
+        1024,
+        &[(
+            1,
+            &[
+                (EntryStackStage::Enter, Preemption::Masked),
+                (
+                    EntryStackStage::Body,
+                    Preemption::Nestable { maximum_depth: 2 },
+                ),
+                (EntryStackStage::Exit, Preemption::Masked),
+            ] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let child_input = stack_epoch_input(
+        child_candidate.identity,
+        provider,
+        &child_boundary,
+        &code,
+        entry,
+        EntryStack::Dedicated { class: 2 },
+        1024,
+        &[(
+            1,
+            &[(EntryStackStage::Body, Preemption::Masked)] as &[(EntryStackStage, Preemption)],
+        )],
+    );
+    let relation = StackNestingRelation {
+        identity: parent_candidate.nesting_relation,
+        edges: BTreeSet::from([StackNestingEdge {
+            interrupted: parent_candidate.identity,
+            preemptor: child_candidate.identity,
+        }]),
+    };
+    let composition = compose_bound_entry_stack_epochs(&relation, [&parent_input, &child_input])
+        .expect("shared two-root composition");
+    let mut parent_candidate = parent_candidate;
+    parent_candidate.stack.realization = composition.clone();
+    let mut child_candidate = child_candidate;
+    child_candidate.stack.realization = composition;
+
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
+    let parent = install_interrupt_root(
+        &mut ledger,
+        &code,
+        parent_candidate,
+        &parent_boundary,
+        20,
+        21,
+        54,
+        22,
+    );
+    let child = install_interrupt_root(
+        &mut ledger,
+        &code,
+        child_candidate,
+        &child_boundary,
+        120,
+        121,
+        154,
+        122,
+    );
+
+    let context = ArrivalContextId::new(1).expect("arrival context");
+    let parent_invocation = root_id(90, InterruptInvocationId::from_normalized_identity);
+    let child_invocation = root_id(91, InterruptInvocationId::from_normalized_identity);
+
+    // A turn for an invocation that was never admitted rejects.
+    let not_live = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Body),
+        )
+        .expect_err("a turn for an invocation that is not live rejects");
+    assert!(not_live.diagnostic().0.contains("not live"));
+    let _ = not_live.into_report();
+
+    let parent_obligations = ledger
+        .begin_interrupt_entry(
+            &parent,
+            interrupt_entry_receipt_in_context(&parent, context, None, 90, None, None),
+        )
+        .expect("top-level parent entry");
+    let (parent_pending, parent_control, _) = parent_obligations.into_parts();
+
+    // A report naming a different root than the exact handle rejects.
+    let foreign_root = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(child.root(), parent_invocation, EntryStackStage::Body),
+        )
+        .expect_err("a turn reporting a different root than the handle rejects");
+    assert!(
+        foreign_root
+            .diagnostic()
+            .0
+            .contains("exact installed interrupt root")
+    );
+
+    // The fresh activation realized at Enter: skipping to Exit or reporting
+    // the retained stage itself are both unresolved dispositions.
+    let skipped = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Exit),
+        )
+        .expect_err("a turn skipping the next realized stage rejects");
+    assert!(skipped.diagnostic().0.contains("next realized stage"));
+    let repeated = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Enter),
+        )
+        .expect_err("reporting the retained stage as a turn rejects");
+    assert!(repeated.diagnostic().0.contains("next realized stage"));
+
+    // The constructive turn advances the retained stage Enter to Body.
+    let turned = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Body),
+        )
+        .expect("the innermost invocation turns to Body");
+    assert_eq!(turned, EntryStackStage::Body);
+
+    // The child preempts the parent at its retained Body stage.
+    let child_obligations = ledger
+        .begin_interrupt_entry(
+            &child,
+            interrupt_entry_receipt_in_context(
+                &child,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    parent_invocation,
+                    EntryStackStage::Body,
+                )),
+                91,
+                None,
+                None,
+            ),
+        )
+        .expect("the declared edge admits the nested entry at the retained stage");
+    let (child_pending, child_control, _) = child_obligations.into_parts();
+
+    // A preempted invocation's epoch is frozen while its nested entry is
+    // live: only the innermost entry can turn.
+    let frozen = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Exit),
+        )
+        .expect_err("a preempted invocation cannot turn under a live child");
+    assert!(frozen.diagnostic().0.contains("preempted invocation"));
+
+    // The child's single-body-epoch context realizes no later stage.
+    let child_no_later = ledger
+        .turn_interrupt_epoch_stage(
+            &child,
+            InterruptEpochTurnReport::new(child.root(), child_invocation, EntryStackStage::Exit),
+        )
+        .expect_err("a context realizing only its body epoch has no later stage");
+    assert!(
+        child_no_later
+            .diagnostic()
+            .0
+            .contains("no epoch stage beyond")
+    );
+
+    ledger
+        .finish_interrupt_entry(child_pending, child_control, None)
+        .expect("the nested entry settles first");
+
+    // Innermost again, the parent turns Body to Exit; a nested arrival
+    // reporting Body afterward is stale.
+    let turned = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Exit),
+        )
+        .expect("the innermost invocation turns to Exit");
+    assert_eq!(turned, EntryStackStage::Exit);
+    let stale_stage = ledger
+        .begin_interrupt_entry(
+            &child,
+            interrupt_entry_receipt_in_context(
+                &child,
+                context,
+                Some(InterruptPreemptionReport::new(
+                    parent.root(),
+                    parent_invocation,
+                    EntryStackStage::Body,
+                )),
+                92,
+                None,
+                None,
+            ),
+        )
+        .expect_err("a preemption report behind the retained stage rejects");
+    assert!(
+        stale_stage
+            .diagnostic()
+            .0
+            .contains("does not rejoin the retained live stage")
+    );
+
+    // Exit is the last realized stage: no further turn exists.
+    let exhausted = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Enter),
+        )
+        .expect_err("the last realized stage has no later turn");
+    assert!(exhausted.diagnostic().0.contains("no epoch stage beyond"));
+
+    ledger
+        .finish_interrupt_entry(parent_pending, parent_control, None)
+        .expect("the parent settles after its exit epoch");
+
+    // A settled invocation cannot turn again.
+    let settled = ledger
+        .turn_interrupt_epoch_stage(
+            &parent,
+            InterruptEpochTurnReport::new(parent.root(), parent_invocation, EntryStackStage::Body),
+        )
+        .expect_err("a settled invocation is not live");
+    assert!(settled.diagnostic().0.contains("not live"));
 }
