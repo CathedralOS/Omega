@@ -13,7 +13,8 @@ use target::TargetProfile;
 #[derive(Debug, Clone)]
 pub struct PackageInspectionOptions {
     pub project_root: PathBuf,
-    /// Empty selects every accepted target, or the host for an unlocked project.
+    /// Empty selects every accepted target, or the host for an unlocked
+    /// project; a host with no catalogued profile declines with a diagnostic.
     pub targets: Vec<TargetProfile>,
     /// Include full compiler-owned normalized policy after the readable summary.
     pub details: bool,
