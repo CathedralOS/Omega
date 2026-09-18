@@ -1,9 +1,10 @@
 //! Eligibility for cyclic scalar work, owned inputs, locals, views, receivers,
-//! and unrestricted record establishments.
+//! unrestricted record establishments, and entry claims pinned on owned
+//! machine parameters for the machine's whole cyclic lifetime.
 
 use super::super::{
-    OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceKind,
+    BTreeSet, ClaimId, OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction,
 };
 use super::super::{block_views, byte_sequence_subslice, primitive_storage, scalar_array};
 use super::{
@@ -14,6 +15,17 @@ use super::{
 /// Eligibility carries no proof or dominance authority. The caller runs the
 /// ordinary operand, view, successor, and frontier checks after this fence.
 pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bool {
+    let claim_roots = machine
+        .entry_claims
+        .iter()
+        .map(|claim| claim.input)
+        .chain(
+            machine
+                .content_entry_claims
+                .iter()
+                .map(|claim| claim.input.root),
+        )
+        .collect::<BTreeSet<PlaceId>>();
     let scalar_case_result = machine.result.structural().is_some_and(|result| {
         matches!(
             result.multiplicity,
@@ -23,8 +35,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             && super::super::scalar_case::plain_type(module, result.structural_type)
     });
     if (machine.result.structural().is_some() && !scalar_case_result)
-        || !machine.entry_claims.is_empty()
-        || !machine.content_entry_claims.is_empty()
+        || !claims_pinned_at_entry(machine, &claim_roots)
         || !machine.content_identity_reshuffles.is_empty()
         || !machine.content_partition_compositions.is_empty()
         || machine.contract.requires.iter().any(|requirement| {
@@ -40,6 +51,8 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
         })
         || machine.structural_parameters.iter().any(|parameter| {
             !plain_owned(parameter)
+                && !(parameter.access == StructuralAccess::Owned
+                    && claim_roots.contains(&parameter.place))
                 && (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
@@ -95,6 +108,222 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             });
         terminator_eligible && operations_eligible
     })
+}
+
+/// Claim custody around a cycle is pinned when every claim root is an owned
+/// machine entry parameter and no block parameter, operation, or terminator
+/// anywhere in the machine names a root or moves a claim identity. Nothing
+/// can then rebind, borrow, consume, discard, or transfer the claimed places
+/// during the machine's cyclic lifetime, so each loop arrival presents the
+/// identical claim frontier; the traversal's per-arrival snapshot comparison
+/// remains the actual custody proof. A machine carrying claims that are not
+/// pinned keeps this fence closed.
+fn claims_pinned_at_entry(machine: &TerminalMachine, roots: &BTreeSet<PlaceId>) -> bool {
+    let identities = machine
+        .entry_claims
+        .iter()
+        .map(|claim| claim.claim)
+        .chain(machine.content_entry_claims.iter().map(|claim| claim.claim))
+        .collect::<BTreeSet<ClaimId>>();
+    roots.iter().all(|root| {
+        machine.structural_parameters.iter().any(|parameter| {
+            parameter.place == *root && parameter.access == StructuralAccess::Owned
+        })
+    }) && machine.blocks.iter().all(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .all(|parameter| !roots.contains(&parameter.place))
+            && block
+                .operations
+                .iter()
+                .all(|operation| operation_leaves_custody(operation, roots, &identities))
+            && terminator_leaves_custody(&block.terminator, roots, &identities)
+    })
+}
+
+/// Any mention of a pinned root place by an operation — read, write, borrow,
+/// move, or establishment — disturbs the anchor, as does binding or
+/// transferring a pinned claim identity.
+fn operation_leaves_custody(
+    operation: &terminal_psi::Operation,
+    roots: &BTreeSet<PlaceId>,
+    identities: &BTreeSet<ClaimId>,
+) -> bool {
+    let clears = |place: PlaceId| !roots.contains(&place);
+    let retains = |claim: ClaimId| !identities.contains(&claim);
+    if let OperationResult::Structural(result) = &operation.result {
+        if !clears(result.place) || result.claims.iter().any(|binding| !retains(binding.claim)) {
+            return false;
+        }
+    }
+    match &operation.kind {
+        OperationKind::EstablishReference { source } => clears(source.place),
+        OperationKind::ReleaseReference { source }
+        | OperationKind::PrimitiveScalarRead { source, .. }
+        | OperationKind::StructuralByteSequenceFieldLength { source, .. }
+        | OperationKind::StructuralCaseMembership { source, .. }
+        | OperationKind::ByteSequenceLength { source }
+        | OperationKind::ByteSequenceRead { source, .. }
+        | OperationKind::ByteSequenceSubslice { source, .. }
+        | OperationKind::BooleanStructuralField { source, .. }
+        | OperationKind::IntegerStructuralField { source, .. } => clears(*source),
+        OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
+        | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. }
+        | OperationKind::StructuralScalarFieldStore { destination, .. }
+        | OperationKind::EstablishByteSequenceLiteral { destination, .. }
+        | OperationKind::ByteSequenceWrite { destination, .. }
+        | OperationKind::EstablishTrivialAffineLocal { destination } => clears(*destination),
+        OperationKind::StructuralByteSequenceFieldStore {
+            destination,
+            source,
+            ..
+        } => clears(*destination) && clears(*source),
+        OperationKind::EstablishRecord { fields } => {
+            fields.iter().all(|field| match &field.value {
+                terminal_psi::RecordFieldValue::Structural(argument) => clears(argument.place),
+                _ => true,
+            })
+        }
+        OperationKind::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => {
+            structural_arguments
+                .iter()
+                .all(|argument| clears(argument.place))
+                && claim_transfers
+                    .iter()
+                    .all(|transfer| retains(transfer.claim))
+        }
+        OperationKind::CallStructural {
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            ..
+        } => {
+            structural_arguments
+                .iter()
+                .all(|argument| clears(argument.place))
+                && claim_transfers
+                    .iter()
+                    .all(|transfer| retains(transfer.claim))
+                && returned_claim_transfers
+                    .iter()
+                    .all(|transfer| retains(transfer.caller_claim))
+        }
+        OperationKind::BoundaryCall {
+            structural_arguments,
+            completion_receipts,
+            ..
+        } => {
+            structural_arguments
+                .iter()
+                .all(|argument| clears(argument.place))
+                && completion_receipts
+                    .iter()
+                    .all(|receipt| retains(receipt.claim))
+        }
+        _ => true,
+    }
+}
+
+/// An edge's structural bindings, affine discards, and cleanup actions must
+/// not name a pinned root, and a structural return must not hand back a
+/// pinned claim. A crash's lower bound only asserts that pinned claims are
+/// still live at the site, which ordinary crash-frontier validation checks.
+fn terminator_leaves_custody(
+    terminator: &Terminator,
+    roots: &BTreeSet<PlaceId>,
+    identities: &BTreeSet<ClaimId>,
+) -> bool {
+    let clears = |place: &PlaceId| !roots.contains(place);
+    let edge_leaves_custody =
+        |structural_arguments: &[StructuralArgument],
+         trivial_affine_discards: &[PlaceId],
+         residual_affine_discards: &[terminal_psi::StructuralAffineDiscard]| {
+            structural_arguments
+                .iter()
+                .all(|argument| clears(&argument.place))
+                && trivial_affine_discards.iter().all(clears)
+                && residual_affine_discards
+                    .iter()
+                    .all(|discard| clears(&discard.place))
+        };
+    match terminator {
+        Terminator::Jump {
+            structural_arguments,
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } => edge_leaves_custody(
+            structural_arguments,
+            trivial_affine_discards,
+            residual_affine_discards,
+        ),
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => [when_true, when_false].iter().all(|edge| {
+            edge_leaves_custody(
+                &edge.structural_arguments,
+                &edge.trivial_affine_discards,
+                &[],
+            )
+        }),
+        Terminator::StructuralCase { source, cases } => {
+            clears(source)
+                && cases
+                    .iter()
+                    .all(|case| case.trivial_affine_discards.iter().all(clears))
+        }
+        Terminator::Return {
+            cleanup_actions, ..
+        } => cleanup_actions.iter().all(|action| match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => clears(place),
+            TerminalAffineCleanupAction::DiscardResidual(discard) => clears(&discard.place),
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => clears(&cleanup.place),
+        }),
+        Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } => trivial_affine_discards.iter().all(clears),
+        Terminator::ReturnUnitPartialAffine {
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } => edge_leaves_custody(&[], trivial_affine_discards, residual_affine_discards),
+        Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
+            cleanups.iter().all(|cleanup| clears(&cleanup.place))
+        }
+        Terminator::ReturnStructural {
+            source,
+            returned_claims,
+            trivial_affine_discards,
+            ..
+        } => {
+            clears(source)
+                && trivial_affine_discards.iter().all(clears)
+                && returned_claims
+                    .iter()
+                    .all(|claim| !identities.contains(claim))
+        }
+        Terminator::Crash { .. } => true,
+    }
 }
 
 fn cycle_operation_eligible(
