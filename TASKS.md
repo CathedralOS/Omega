@@ -3325,30 +3325,50 @@ Owners include
   implementation scope pause, not a language-design blocker.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
-  for unresolved receivers, boundary-result origins, conditional helper-body
-  case refinement, mutable case-state transfer, graph-level aggregate result
-  routes, type-generic carrier substitution,
-  computed reference arguments outside proven helper-result relations, and
-  other unsupported expression shapes.
-  Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
+  in `validation/src/machine_calls/calls/write_frames/`. The inference returns
+  complete caller-visible paths or fails closed as opaque. It carries finite
+  candidate origin sets through transparent call results, alias bindings and
+  divergent exclusive-alias locals, solves transition cycles by permuted frame
+  equations, and does not count a reference-free by-value state parameter as
+  a write-capable cycle root
+  (`type_capabilities.rs::parameter_may_carry_write`). Precision still depends
+  on which source shape mentions a reference: a mention outside the admitted
+  shapes sinks the whole frame.
+
+  Remaining work:
+
+  - Converge the categories that still sink: unresolved receivers,
+    boundary-result origins, conditional helper-body case refinement, mutable
+    case-state transfer, graph-level aggregate result routes, type-generic
+    carrier substitution (trait-level applications such as `Device<Cell>`
+    select no inspectable signature), computed reference arguments outside
+    proven helper-result relations, and other unsupported expression shapes.
+    Each has landed slices; rerun its `write_frame_*` tests in
+    `typed-trees-to-checked-trees/src/tests/termination/` to find the residue.
+    Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
+  - A divergent exclusive-alias local keeps its candidate set only for writes
+    and proven rebinds. A reborrow, call argument, transport into another
+    binding, reference-typed interior write or unproven rebind still makes
+    the summary opaque (`state_write_walk.rs`).
+  - `type_may_carry_write` counts every `Named`, generic, array and slice type
+    as write-capable; only state parameters get the reference-free test.
+  - `permuted_cycle_frames.rs` hands statement calls a fresh summary memo
+    while the prefix walk shares `complete_state_summaries`. Unifying them
+    changes the solve-versus-walk route for a cyclic state calling a cached
+    callee that calls back; settle that route before sharing the memo.
+
+  Flag: precision is added one source shape at a time. `write_frames/` is 51
+  files and about 17,000 lines, its checked-stage tests are 23 `write_frame_*`
+  modules named after shapes, and most of its 19 commits since 2026-09-15
+  admit one more mention kind and leave the rest failing closed. The general
+  mechanism is the candidate-origin relation that now exists, applied
+  uniformly to every reference-valued expression, binding, argument and
+  result through one fixpoint, so a new mention kind needs no new rule.
+
   Acceptance: all supported finite source shapes converge without widening
-  permissions, and unsupported recursion fails explicitly. Since
-  a3b3ecd8c4 `parameter_may_carry_write` is `type_may_carry_write &&
-  !type_is_reference_free_value` (`write_frames/type_capabilities.rs`):
-  a state parameter whose type contains no exclusive reference anywhere
-  in its transitive structure and reaches no opaque boundary data is the
-  state's own storage and no longer a write-capable cycle root
-  (ownership.md, "Borrows and aliases"), so copy enums such as
-  `KeywordKind`, `RootItem` and `DataItem` crossing cycle edges let the
-  parser and harness components permute and solve;
-  `omega --check source/psi/gates/parser/main.omg` went from a 3340.6 s
-  kill to 174.4 s, with cli_mvp and nqueens frames byte-identical.
-  `type_may_carry_write` itself still counts every `Named` local or
-  reference referent as write-capable, and the walk is unmemoized (one
-  bounded traversal per query). The equation builder also hands statement
-  calls a fresh memo while the prefix walk shares one; unifying them
-  changes the solve-versus-walk route for a cyclic state calling a cached
-  callee that calls back, so it stays separate.
+  permissions, and unsupported recursion fails explicitly. Keep
+  `omega --check source/psi/gates/parser/main.omg` completing its cycle solves,
+  with `cli_mvp` and `nqueens` frames unchanged.
 
 - **TPR6.** Finish subject-bearing progress-premise normalization through
   exported bodies, provider plans, recursive calls, and artifact evidence.
