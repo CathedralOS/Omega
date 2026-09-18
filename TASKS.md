@@ -1593,82 +1593,61 @@ Owners include
   reject. A mathematical theorem alone does not establish native refinement.
 
 - **PROOF-RELEVANCE-MIGRATION.** Finish `[erased]` noninterference and
-  erased-stripped layout across remaining carriers. Erased terms remain in
-  semantic/proof identity but contribute no runtime storage, tags, ABI
-  transfer, or execution. Runtime use and any layout-dependent erasure reject.
-  Resume: `[erased]` parses only on data fields and case payload fields
-  (`tokens-to-syntax-trees/src/declarations/data.rs`); every runtime use of those
-  two carriers rejects in `validation/src/relevance/`, layout strips them, and
-  synthesized `Equatable` now skips them. The spec's binding-occurrence
-  wording does cover parameters and `let` locals; the bracket grammar is now
-  shared across all `name [properties]: Type` bindings and `[erased]` at
-  those two sites fails closed with a targeted diagnostic rather than
-  parse-and-dropping the marker. At 85f37369d3 `[erased]` is retained on
-  signature parameters and `let` locals through the syntax, resolved and
-  typed trees, `proof_only_faces` and `is_proof_machine` exempt them,
-  `proof_contracts/relevance/runtime_uses.rs` rejects runtime reads and
-  treats erased-position arguments and initializers as erased initializers
-  (`pass/relevance/erased_parameter_proof_only`,
-  `fail/relevance/erased_{parameter,local}_runtime_read`, on the
-  checked-only rosters). At 59011569a5 the checked calling plan strips
-  erased parameters on both call sides (`strips_erased_parameter`,
-  `abi_parameter_count`; `source_position` stays the sparse authored
-  index because every consumer rejoins by that index, while caller
-  argument ordinals are dense over retained positions; canary_suite
-  `layouts_and_pending::erased_parameter_*` pin `keep` -> `[0]`/`[70]`
-  and `first`/`second` -> `[0, 2]`/`[7, 20]`); erased `self`/`const`/
-  `mut` bindings refuse a plan. At a5353861bb Terminal lowering
-  reconstructs every erased-stripped scalar and structural namespace
-  independently from the typed relevance (`attached_unit/parameters.rs`,
-  `qualifications.rs`, the `source_custody` replay/argument/successor
-  readers, `direct_calls.rs` checking the producer's retained
-  `argument_count` against its own retained count, `scalar_computations/
-  calls.rs`, state-graph admission arity, `scalar_graph_lowering/cycles.rs`),
-  and the producer's dense scalar value namespace excludes erased
-  positions (`values::scalar::occupies_scalar_position`, name lookups
-  that resolve to an erased parameter fail closed), so
-  `pass/relevance/erased_parameter_between_runtime_values_exit` and
-  `erased_proof_only_typed_parameter_exit` compile natively and exit 70
-  on macOS ARM64 on the ROOTED_BACKEND/ACTIVE rosters.
-  `erased_parameter_proof_only` stays checked-only because its
-  `requires n < bound` names the erased binding and Terminal contract
-  propositions (`scalar_contracts.rs`, `crash_routes/scalar_terms.rs`)
-  carry no proof-only value term for it ("crash predicate value position
-  is outside the selected scalar namespace"). At 0f162ee0b3 named
-  transition arguments follow the call rule, so an erased machine
-  parameter forwards into an erased state parameter through
-  `transition { _ -> store(n, bound) }`
-  (`pass/relevance/erased_parameter_named_transition_forward`,
-  `fail/relevance/erased_state_parameter_runtime_read`, checked-only).
-  Next acceptance: a proof-only scalar term for erased formals in
-  Terminal contracts as one vertical slice: `ScalarTerm::ErasedParameter`
-  in `semantic-vocabulary`, a contract erased-formal roster and per-call
-  `erased_arguments` in `terminal-psi` (both in the contract commitment),
-  one codec tag with old bytes rejecting per the encoding contract,
-  verifier substitution of erased formals by the caller's erased actual
-  term in `call_composition.rs`, and the producer mapping in
-  `values/scalar/contract_entry.rs` and `scalar_contracts.rs`. A
-  `requires` naming an erased binding is verifier-only (an erased
-  binding cannot determine runtime data or control, so it never becomes a
-  crash route), and an erased actual is limited to the existing
-  `ScalarTerm` closure over literals, caller values, field reads and
-  caller erased formals, with anything else rejecting at the initializer.
-  The interpreter and native lowering need no evaluation path because
-  `requires` is verifier-only today. Resume: that slice is built as
-  per-machine `erased_scalar_formals`/`erased_call_arguments` rosters with
-  proof-only `ScalarTerm::Value` identities from the top of the identity
-  stride (no new term variant), a checked contract namespace of retained,
-  then erased, then result positions, `ErasedCallArgument` rows, a
-  `proofs/erased_call_arguments` pass, the spec entries and an
-  `erased_argument_runtime_call` fail control; the unclaimed halves are
-  parked on the local branch `work/terminal-erased-term-parked`
-  (def0c1be67 on bdf2b1665a, does not compile alone) with the apply
-  scripts and recipe under `.codex-parked/`, waiting on the
-  MATCH-SELECTIVE-LOWERING claim over terminal-psi/codec/verifier/
-  interpreter. Two limits stay fail-closed: composed-route state
-  contracts carry no `requires`, so `erased_parameter_named_transition_forward`
-  stays checked-only, and a caller's own erased formal forwarded through
-  a call has no row.
+  erased-stripped layout under
+  [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
+  An erased binding stays in semantic and proof identity and contributes no
+  runtime storage, tag, ABI transfer or execution; runtime use and
+  layout-dependent erasure reject. Data fields, case payload fields, signature
+  and state parameters and `let` locals carry the marker through checking:
+  `validation/src/proof_contracts/relevance/` rejects runtime reads and
+  receivers, layout and the checked calling plan strip erased positions, and
+  Terminal lowering rebuilds the stripped scalar and structural namespaces from
+  the typed relevance, so an erased parameter that no contract names executes
+  natively. No Terminal contract can name an erased binding:
+  `checked-trees-to-lowered-psi/src/proofs/crash_routes/scalar_terms.rs`
+  rejects it with "crash predicate value position is outside the selected
+  scalar namespace".
+
+  Remaining work:
+
+  - Give Terminal contracts a proof-only scalar term for erased formals, as one
+    vertical slice: a contract erased-formal roster and per-call erased
+    arguments in `terminal-psi`, both inside the contract commitment; one codec
+    tag, with old bytes rejecting under the
+    [encoding contract](wiki/spec/terminal-psi/encoding.md); substitution of
+    the caller's erased actual for the erased formal in
+    `terminal-verifier/src/verification/call_composition.rs`; and the producer
+    mapping in `typed-trees-to-checked-trees/src/values/scalar/contract_entry.rs`
+    and `checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs`.
+    A `requires` naming an erased binding is verifier-only: an erased binding
+    cannot determine runtime data or control, so it never becomes a crash
+    route, and the interpreter and native lowering need no evaluation path. An
+    erased actual is limited to the existing `ScalarTerm` closure over
+    literals, caller values, field reads and the caller's own erased formals;
+    anything else rejects at the initializer.
+  - Give a caller's own erased formal, forwarded through a call, its erased
+    argument row.
+  - Carry `requires` on composed-route state contracts, so an erased state
+    parameter reached through a named transition has a contract term.
+  - Erased `self`, `const` and `mut` bindings refuse a checked calling plan
+    (`execution/unit/types/mod.rs::strips_erased_parameter`). Keep the refusal
+    unless the specification gives them a meaning.
+
+  Acceptance: `pass/relevance/erased_parameter_proof_only` and
+  `erased_parameter_named_transition_forward` leave
+  `CHECKED_ONLY_PASS_CANARIES` and run natively (the first exits 70). A call
+  whose erased actual violates the callee's `requires` rejects in source-free
+  verification. An erased actual outside the admitted closure, a missing or
+  substituted erased-argument row, and pre-change codec bytes reject. The
+  `fail/relevance/` runtime-read and receiver controls keep rejecting.
+
+  A partial build of the first slice was parked on the unpublished local branch
+  `work/terminal-erased-term-parked` (def0c1be67): per-machine
+  `erased_scalar_formals`/`erased_call_arguments` rosters with proof-only
+  `ScalarTerm::Value` identities and no new term variant. It is not on
+  `origin`; use it if reachable, otherwise build from the description above.
+  Erased-field cleanup belongs to
+  **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
 
 ## P4 - ABI, borrowing, and callbacks
 
