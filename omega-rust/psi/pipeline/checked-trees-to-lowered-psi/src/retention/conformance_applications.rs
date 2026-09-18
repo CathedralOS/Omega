@@ -217,20 +217,39 @@ fn collect_closed_conformance_applications(
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             realization_callables.sort();
             realization_callables.dedup();
-            let rows = application
-                .rows
-                .iter()
-                .map(|row| {
-                    let selected_row = selected_rows
-                        .iter()
-                        .find(|candidate| {
-                            candidate.declaring_trait == row.declaring_trait
-                                && candidate.requirement == row.requirement
-                                && candidate.realization_state == row.realization_state
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "closed conformance application row no longer matches its declaration",
-                        ))?;
+            let mut rows = Vec::new();
+            for row in &application.rows {
+                let selected_row = selected_rows
+                    .iter()
+                    .find(|candidate| {
+                        candidate.declaring_trait == row.declaring_trait
+                            && candidate.requirement == row.requirement
+                            && candidate.realization_state == row.realization_state
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "closed conformance application row no longer matches its declaration",
+                    ))?;
+                let declaring_trait_identity = checked
+                    .symbols
+                    .display_path(selected_row.declaring_trait, "::");
+                let public_requirement_identity =
+                    super::evidence_lowering::checked_evidence_requirement_identity(
+                        checked,
+                        selected_row.declaring_trait,
+                        selected_row.requirement,
+                    )?;
+                let requirement_identity =
+                    checked.symbols.display_path(selected_row.requirement, "::");
+                // A finite generic requirement contributes one row per
+                // declared roster tuple, each naming the exact specialization
+                // instance that tuple selects.
+                for family_row in super::evidence_lowering::checked_requirement_family_rows(
+                    checked,
+                    selected_row.declaring_trait,
+                    selected_row.requirement,
+                    selected_row.realization_machine,
+                    selected_row.realization_state,
+                )? {
                     let selected_by_static_dispatch = checked
                         .facts
                         .proof
@@ -246,16 +265,15 @@ fn collect_closed_conformance_applications(
                                 && dispatch.application_commitment == application.commitment
                                 && dispatch.declaring_trait == selected_row.declaring_trait
                                 && dispatch.requirement == selected_row.requirement
-                                && dispatch.realization_machine
-                                    == selected_row.realization_machine
-                                && dispatch.realization_state == selected_row.realization_state
+                                && dispatch.realization_machine == family_row.realization_machine
+                                && dispatch.realization_state == family_row.realization_state
                         });
                     let realization_callable_identity = selected_by_static_dispatch
                         .then(|| {
                             let machine = owners
                                 .iter()
                                 .find_map(|(source, terminal)| {
-                                    (*source == selected_row.realization_machine)
+                                    (*source == family_row.realization_machine)
                                         .then_some(*terminal)
                                 })
                                 .ok_or(LoweringError::Unsupported(
@@ -264,7 +282,7 @@ fn collect_closed_conformance_applications(
                             let identity =
                                 super::evidence_lowering::checked_evidence_machine_identity(
                                     checked,
-                                    selected_row.realization_machine,
+                                    family_row.realization_machine,
                                 )?;
                             realization_callables
                                 .iter()
@@ -278,31 +296,18 @@ fn collect_closed_conformance_applications(
                                 ))
                         })
                         .transpose()?;
-                    Ok(ClosedConformanceRow {
-                        declaring_trait_identity: checked
-                            .symbols
-                            .display_path(selected_row.declaring_trait, "::"),
-                        public_requirement_identity:
-                            super::evidence_lowering::checked_evidence_requirement_identity(
-                                checked,
-                                selected_row.declaring_trait,
-                                selected_row.requirement,
-                            )?,
-                        family_tuple: super::evidence_lowering::checked_requirement_family_tuple(
-                            checked,
-                            selected_row.declaring_trait,
-                            selected_row.requirement,
-                        )?,
-                        requirement_identity: checked
-                            .symbols
-                            .display_path(selected_row.requirement, "::"),
+                    rows.push(ClosedConformanceRow {
+                        declaring_trait_identity: declaring_trait_identity.clone(),
+                        public_requirement_identity: public_requirement_identity.clone(),
+                        family_tuple: family_row.family_tuple,
+                        requirement_identity: requirement_identity.clone(),
                         realization_identity: checked
                             .symbols
-                            .display_path(selected_row.realization_state, "::"),
+                            .display_path(family_row.realization_state, "::"),
                         realization_callable_identity,
-                    })
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?;
+                    });
+                }
+            }
             if selected.lifetime_parameters.len() != application.lifetime_arguments.len() {
                 return Err(LoweringError::Unsupported(
                     "closed conformance application has an open lifetime telescope",

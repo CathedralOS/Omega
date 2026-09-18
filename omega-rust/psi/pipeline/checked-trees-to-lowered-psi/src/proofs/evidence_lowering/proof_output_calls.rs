@@ -3,7 +3,7 @@
 use crate::proofs::evidence_lowering::evidence_terms::lower_evidence_interface;
 use crate::proofs::evidence_lowering::{
     checked_evidence_machine_identity, checked_evidence_requirement_identity,
-    checked_requirement_family_tuple,
+    checked_requirement_family_rows,
 };
 use crate::proofs::{
     CheckedPropositionBinderArgumentKind, CheckedTrees, EvidenceProjectionIdentity, EvidenceTermId,
@@ -244,28 +244,31 @@ fn lower_static_requirement_dispatch(
     let trait_identity = checked
         .symbols
         .display_path(checked_application.trait_definition, "::");
-    let expected_rows = checked_application
-        .rows
-        .iter()
-        .map(|row| {
-            Ok(terminal_psi::ClosedConformanceRow {
-                declaring_trait_identity: checked.symbols.display_path(row.declaring_trait, "::"),
-                public_requirement_identity: checked_evidence_requirement_identity(
-                    checked,
-                    row.declaring_trait,
-                    row.requirement,
-                )?,
-                family_tuple: checked_requirement_family_tuple(
-                    checked,
-                    row.declaring_trait,
-                    row.requirement,
-                )?,
-                requirement_identity: checked.symbols.display_path(row.requirement, "::"),
-                realization_identity: checked.symbols.display_path(row.realization_state, "::"),
+    let mut expected_rows = Vec::new();
+    for row in &checked_application.rows {
+        let declaring_trait_identity = checked.symbols.display_path(row.declaring_trait, "::");
+        let public_requirement_identity =
+            checked_evidence_requirement_identity(checked, row.declaring_trait, row.requirement)?;
+        let requirement_identity = checked.symbols.display_path(row.requirement, "::");
+        for family_row in checked_requirement_family_rows(
+            checked,
+            row.declaring_trait,
+            row.requirement,
+            row.realization_machine,
+            row.realization_state,
+        )? {
+            expected_rows.push(terminal_psi::ClosedConformanceRow {
+                declaring_trait_identity: declaring_trait_identity.clone(),
+                public_requirement_identity: public_requirement_identity.clone(),
+                family_tuple: family_row.family_tuple,
+                requirement_identity: requirement_identity.clone(),
+                realization_identity: checked
+                    .symbols
+                    .display_path(family_row.realization_state, "::"),
                 realization_callable_identity: None,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+            });
+        }
+    }
     let terminal_applications = semantic_module
         .closed_conformance_applications
         .iter()
@@ -285,6 +288,7 @@ fn lower_static_requirement_dispatch(
                         actual.declaring_trait_identity == expected.declaring_trait_identity
                             && actual.public_requirement_identity
                                 == expected.public_requirement_identity
+                            && actual.family_tuple == expected.family_tuple
                             && actual.requirement_identity == expected.requirement_identity
                             && actual.realization_identity == expected.realization_identity
                     })
@@ -305,9 +309,12 @@ fn lower_static_requirement_dispatch(
             "static requirement proof output selected a different conformance trait",
         );
     }
+    // A static requirement dispatch carries no tuple coordinate, so it joins
+    // the application's nongeneric row for the requirement.
     let mut rows = application.rows.iter().filter(|row| {
         row.declaring_trait_identity == declaring_trait_identity
             && row.public_requirement_identity == public_requirement_identity
+            && row.family_tuple.is_empty()
             && row.requirement_identity == requirement_identity
             && row.realization_identity == realization_identity
     });
@@ -321,6 +328,7 @@ fn lower_static_requirement_dispatch(
     let mut bound_rows = application.rows.iter().filter(|row| {
         row.declaring_trait_identity == declaring_trait_identity
             && row.public_requirement_identity == public_requirement_identity
+            && row.family_tuple.is_empty()
             && row.requirement_identity == requirement_identity
             && row.realization_identity == realization_identity
             && row.realization_callable_identity.as_deref()
