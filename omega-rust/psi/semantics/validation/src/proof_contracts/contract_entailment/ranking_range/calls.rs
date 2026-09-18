@@ -974,9 +974,7 @@ fn scalar_entry<'program>(
             .split("::")
             .filter(|member| !member.is_empty())
             .collect::<Vec<_>>();
-        let Some(measure) = find_declared_measure(program, &path) else {
-            return None;
-        };
+        let measure = find_declared_measure(program, &path)?;
         if measure.lexicographic
             || !matches!(
                 measure_body_shape(program, measure),
