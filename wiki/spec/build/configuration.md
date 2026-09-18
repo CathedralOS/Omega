@@ -107,6 +107,22 @@ target and does not imply target-neutral identity. Target
 semantics, ABI/layout, resources, and reach must validate. This is mechanical
 closure, not a claim of human testing. Target assumptions must be checked facts.
 
+### Target recognition and implementation availability
+
+Recognizing a profile and its slot identities does not require implementing its
+checking or artifact backend. An inactive binding to a recognized profile does
+not require that profile's backend; unknown profile names still reject rather
+than silently becoming inactive. Selected requests require the implementation
+of the requested operation. An unavailable operation reports a target/product
+not-implemented diagnostic, not successful checking or a fallback artifact.
+
+This applies to `alpha_bootstrap`: the Rust reference compiler recognizes its
+inactive bindings when compiling the Omega-written compiler for a native target,
+but may report Alpha compilation as not implemented when selected. The bootstrap
+does not require a Rust Alpha backend. Profile and slot identity remain
+target-package facts; do not create a parallel bootstrap selection mechanism or
+infer support from the mere presence of those declarations.
+
 ## Staged multi-target execution
 
 Share acquisition, immutable source, parsing, and syntax-projectable project

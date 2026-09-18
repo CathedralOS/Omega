@@ -89,53 +89,7 @@ must be surfaced before relying on them.
      entrypoints. Keep the item; decide whether that split is spec (add the
      clause) or an owner architecture decision recorded here.
 
-2. **Is `alpha_bootstrap` an ordinary target profile of the differential
-   compiler, and what happens to a root row owned by a profile the comparator
-   does not catalogue?** (named decision: `alpha-bootstrap-target-profile`).
-   The [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain)
-   says interpreted D compiles the Omega compiler source closure C "given the
-   package-resolved Omega compiler source closure C and ordinary target
-   `alpha_bootstrap`", so `source/omega/build.omg` binds
-   `builder.roots.bind(alpha_bootstrap::ProgramEntry, Main::main)` beside the
-   four native rows, and the
-   [compiler request](wiki/spec/build/compiler_request.md) already tags an
-   `alpha_bootstrap_tape` product. But no std target package declares
-   `alpha_bootstrap::ProgramEntry`, the Rust comparator's profile catalog
-   (`omega/representations/target/src/lib.rs`) knows only the native, UEFI,
-   `cross_platform_cli` and `local_unchecked` profiles, and the
-   [entry-roots contract](wiki/spec/build/entry_roots.md) says "only rows
-   owned by the selected profile enter the durable child projection" while
-   listing as rejections only a row "misattributing its slot to another
-   profile", duplicates and missing required slots; it does not say whether a
-   row owned by a profile the toolchain does not catalogue is merely
-   unselected or rejects. Today `build-evaluation/src/admission/selection.rs`
-   rejects it (`root slot alpha_bootstrap::ProgramEntry belongs to unknown
-   target profile alpha_bootstrap`), which is the next stop of
-   `omega --check source/omega/main.omg` after the std calling-policy
-   admission bug (OMEGA-PRODUCT-COMPILER-SOURCE at 18a391f660). Options:
-
-   - (a) Catalogue `alpha_bootstrap` as an ordinary profile with a std target
-     package (`std/targets/alpha_bootstrap/entry.omg` declaring
-     `ProgramEntry` and its calling policy) whose only realization is the
-     `alpha_bootstrap_tape` product; native realization of that profile
-     rejects explicitly. Unknown-profile rows keep rejecting. This keeps the
-     contract's "ordinary target" wording literal and the fail-closed row
-     rule intact. Recommended default.
-   - (b) Keep the comparator's catalog as is and make a row owned by an
-     uncatalogued profile unselected rather than rejected (the spec sentence
-     "only rows owned by the selected profile enter" read permissively). Cheap,
-     but a misspelled profile would then pass silently, which the entry-roots
-     rejection list otherwise guards against.
-   - (c) Remove the `alpha_bootstrap` row from `source/omega/build.omg` until
-     the bootstrap boards need it, and let the bootstrap toolchain supply the
-     row by its own invocation. Unblocks the product check immediately but
-     contradicts the bootstrap contract's "same C for the same target"
-     requirement.
-
-   Until answered, the product check stops on this row once the calling-policy
-   admission bug is fixed; everything before that stop is engineering.
-
-3. **Which route admits the complete Beta-encoding certificate, or does the
+2. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:
     `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
     acceptance requires the produced
@@ -187,7 +141,7 @@ must be surfaced before relying on them.
     certificate measured but inadmissible, and the chain retains its
     explicit assumption that the selected evaluator implements Gamma.
 
-4. **Does a transported contract instantiate its `FloatMeaning` projections
+3. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,
@@ -245,7 +199,7 @@ must be surfaced before relying on them.
     open with the Terminal identities, codec tags and verifier rejoins landed
     and unreachable from any producer.
 
-5. **May the compiler-owned build vocabulary offer a constrained
+4. **May the compiler-owned build vocabulary offer a constrained
    filesystem open/query/close chain?** The two-axis review's remaining
    acceptance is a witness that an ordinary compile earns the evidence-bound
    explicit-empty release row. No authored source can produce the retained

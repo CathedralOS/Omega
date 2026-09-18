@@ -27,6 +27,14 @@ to produce `omega_compiler_bytecode.tape`. There is no compiled D tape or Epsilo
 evaluator tape. Alpha serialization at this edge belongs to the Omega target,
 not Epsilon or its Delta implementation. Below Omega, Beta alone encodes Alpha.
 
+These Alpha compilation obligations belong to D and C, not the Rust reference
+compiler. Rust may report a selected `alpha_bootstrap` operation as not
+implemented. Native compilation of C must still recognize and leave its Alpha
+root binding inactive under ordinary
+[target selection](../wiki/spec/build/configuration.md#target-recognition-and-implementation-availability).
+Neither a Rust Alpha backend nor removal or host injection of that binding is a
+bootstrap prerequisite.
+
 Each language implementation accepts only its own language; an older rung does
 not parse its successor's successor. Canonical lower-language receipts and
 their selected evaluator composition are explicit semantic dependencies, not
