@@ -2,8 +2,10 @@
 
 //! Target-neutral source-language vocabulary shared across Psi frontend stages.
 //!
-//! Atomic orderings, cast forms, inline-assembly spelling, operator spellings,
-//! and the source-semantics tables that resolution and typing consult. The crate
+//! Start at `source_semantics.rs`, the source-semantics tables that resolution
+//! and typing consult; `atomic`, `cast_form`, `inline_assembly` and
+//! `operator_spelling` hold the orderings, cast forms, inline-assembly
+//! spelling and operator spellings the stages share. The crate
 //! defines vocabulary that several stages must agree on; it neither parses nor
 //! judges a program, and it depends on no representation crate.
 
