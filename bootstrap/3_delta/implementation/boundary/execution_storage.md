@@ -138,7 +138,9 @@ per-occurrence charge derived in the same style:
   is bounded below the pair arena by the admitted payload extent.
 - The [normalizer's frames and rebuilt nodes](../normalization/README.md#traversal-and-rebuild-pairs)
   are charged per plan-node occurrence with capture merges bounded per
-  collection by `(2T + 2) * ceil(log2(k + 1)) + 2 * (k + 1) + 1`.
+  collection by `(2T + 2) * ceil(log2(k + 1)) + 2 * (k + 1) + 1`, the
+  owned-binder sort and difference adding one further pass at most
+  `2 * T + 1` plus the owned sort.
 - The [checking audit](../checking/README.md#traversal-and-rebuild-pairs)
   charges census metadata, resolution rows, typing continuations, and
   environment binds per source occurrence — at most `39*S + 36` site pairs —
@@ -157,9 +159,15 @@ lowering, and shared-name envelope is at most `295*S + 34*N + 149` pairs
 — before the normalizer's own `45*G + 7*F + 1` term — no longer dominated by
 sibling-row copies in name rebuilds, though it can still exceed the arena at
 maximum source extents.
-The capture merge term is now logarithmic in batch count per collection; its
-aggregate `sum(T)` over nested helper captures carries the same open status.
-This audit
+The capture merge term is now logarithmic in batch count per collection, and
+its aggregate is closed by the emission audit's injective
+`(origin, ancestor cut)` charge: `sum(T) <= 32*N + 512*N*N`, giving
+program-wide capture allocation below
+`60,672*N*N + 5,680*N + 2,980*S + 1,118` pairs. Every producer term is now a
+closed function of the admitted extents, so the remaining question is whether
+the resulting closed envelope — still able to exceed the arena at maximum
+source extents — can be sharpened to the arena, or whether measured evidence
+settles it. This audit
 neither supplies a DCOUT heap refusal nor converts an outer Gamma failure
 into one.
 

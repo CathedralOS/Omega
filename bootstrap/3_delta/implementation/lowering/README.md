@@ -159,8 +159,8 @@ G <= 40*S + 15
 ```
 
 so the normalizer machine's `45*G + 7*F + 1` reduces to an admitted-source
-term. That reduction does not bound the capture `k*d` merge term, which the
-normalization audit still flags separately.
+term. That reduction does not itself bound capture merges, which the
+normalization audit closes separately through its incidence charge.
 
 ## Remaining boundaries
 
