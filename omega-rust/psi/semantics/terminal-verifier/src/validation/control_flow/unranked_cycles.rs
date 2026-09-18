@@ -1,6 +1,7 @@
 //! Eligibility for cyclic scalar work, owned inputs, locals, views, receivers,
-//! unrestricted record establishments, and entry claims pinned on owned
-//! machine parameters for the machine's whole cyclic lifetime.
+//! unrestricted record establishments, affine empty-record establishments, and
+//! entry claims pinned on owned machine parameters for the machine's whole
+//! cyclic lifetime.
 
 use super::super::{
     BTreeSet, ClaimId, OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
@@ -363,15 +364,25 @@ fn cycle_operation_eligible(
         // result, while the unrestricted result never carries a per-iteration
         // disposal obligation — scalar fields read values and structural
         // fields copy unrestricted sources, so re-establishing the same place
-        // each iteration moves no custody. An affine or claim-bearing result
-        // keeps the fence closed; the ordinary operand, liveness, and
+        // each iteration moves no custody. An empty-field affine
+        // establishment is the composed-control spelling of a trivial affine
+        // local: it carries no field custody, and its only disposal
+        // obligation is the affine result place. The frontier replay
+        // enforces that lifecycle exactly — the place enters `owned_places`
+        // at the establishment, leaves it only through an edge's discard
+        // roster, an owned-argument move, or a return's ordered cleanup, the
+        // result insert refuses to produce an already-owned place, and the
+        // fixed-point join demands identical custody on every arrival — so a
+        // member-block establishment re-arms once per traversal while an
+        // entry-block establishment can stay live for the whole cyclic
+        // lifetime. An affine record with fields and any claim-bearing
+        // result keep the fence closed; the ordinary operand, liveness, and
         // frontier checks still run after eligibility.
-        OperationKind::EstablishRecord { .. } => {
-            operation
-                .result
-                .structural()
-                .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
-                && super::super::record::fields(module, machine, operation).is_ok()
+        OperationKind::EstablishRecord { fields } => {
+            operation.result.structural().is_some_and(|result| {
+                result.multiplicity == StructuralMultiplicity::Unrestricted
+                    || (result.multiplicity == StructuralMultiplicity::Affine && fields.is_empty())
+            }) && super::super::record::fields(module, machine, operation).is_ok()
         }
         // A complete unrestricted scalar-array establishment is the record
         // arm's primitive-leaf sibling: `scalar_array::shape` proves the fresh
