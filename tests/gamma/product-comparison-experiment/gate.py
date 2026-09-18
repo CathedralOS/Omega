@@ -5,6 +5,16 @@
 # TAPE paths). Pins exit code and published output. Reference mode also
 # reports Alpha instruction counts and pair allocations per fixture; those are
 # diagnostics for the comparison, not evaluator acceptance.
+#
+# Selected mode additionally runs every delta_fixtures.tsv row: the Delta
+# source is admitted through the canonical selected Delta compiler (DCREQ
+# profile 1) under the same evaluator, which is the customer's own static
+# nominal-typing implementation. Compile status and output pin exactly
+# (sha256 for receipts, exact bytes for DCOUT failure frames); an accepted
+# receipt is then executed and its published bytes pinned. Reference mode
+# skips that leg: the compiler is far too large for the untrusted
+# instruction-counting interpreter.
+import hashlib
 import os
 import signal
 import struct
@@ -16,6 +26,7 @@ GATE_DIR = Path(os.environ["GATE_DIR"])
 MODE = os.environ["MODE"]
 PAIR_RECORD = 0x28
 PAIR_HEAP_BASE = 0x10000000
+DCOUT_MAGIC = b"\xffDCOUT\x01\x00"
 
 
 def load_fixtures():
@@ -28,22 +39,62 @@ def load_fixtures():
     return rows
 
 
-def request(source):
-    return struct.pack("<I", len(source)) + source
+def load_delta_fixtures():
+    path = GATE_DIR / "delta_fixtures.tsv"
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        rows.append(line.split("\t"))
+    return rows
 
 
-def run_selected(source):
+def request(program, sealed=b""):
+    return struct.pack("<I", len(program)) + program + sealed
+
+
+def run_selected(program, sealed=b"", timeout=20):
     process = subprocess.Popen(
         [os.environ["EVALUATOR"]], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, start_new_session=True,
     )
     try:
-        output, _ = process.communicate(request(source), timeout=20)
+        output, _ = process.communicate(request(program, sealed), timeout=timeout)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.wait()
         raise SystemExit("Gamma evaluation timed out")
     return process.returncode, output, None
+
+
+def dcreq(profile, delta_source, support):
+    return (
+        b"DCREQ\x01\x00\x00"
+        + struct.pack("<I", profile)
+        + struct.pack("<I", len(delta_source))
+        + delta_source
+        + support
+    )
+
+
+def output_matches(spec, output):
+    if spec.startswith("hex:"):
+        return output.hex() == spec[4:]
+    if spec.startswith("sha256:"):
+        return hashlib.sha256(output).hexdigest() == spec[7:]
+    raise SystemExit(f"delta_fixtures.tsv: unknown output spec {spec!r}")
+
+
+def describe_output(output):
+    if output.startswith(DCOUT_MAGIC) and len(output) == 40:
+        return (
+            f"DCOUT tag={output[8]} space={output[9]} "
+            f"code={int.from_bytes(output[12:16], 'little')} "
+            f"coordinate={int.from_bytes(output[16:24], 'little')}"
+        )
+    return f"{len(output)} bytes sha256={hashlib.sha256(output).hexdigest()}"
 
 
 def run_reference(source):
@@ -77,6 +128,41 @@ namespace["main"]()
 """
 
 
+def run_delta_fixtures():
+    rows = load_delta_fixtures()
+    if not rows:
+        return 0
+    if MODE != "selected":
+        print("delta fixtures skipped: canonical Delta compilation needs the "
+              "selected evaluator; reference mode is a diagnostic interpreter")
+        return 0
+    compiler = Path(os.environ["DELTA_COMPILER"]).read_bytes()
+    support = Path(os.environ["DELTA_SUPPORT"]).read_bytes()
+    failures = 0
+    for name, compile_exit, compile_spec, run_exit, run_spec in rows:
+        source = (GATE_DIR / name).read_bytes()
+        status, output, _ = run_selected(
+            compiler, dcreq(1, source, support), timeout=30
+        )
+        detail = f"{len(source)} bytes source, {describe_output(output)}"
+        verdict = "ok" if (
+            status == int(compile_exit) and output_matches(compile_spec, output)
+        ) else "FAIL"
+        if verdict == "ok" and run_spec != "-":
+            run_status, run_output, _ = run_selected(output)
+            detail += f", receipt publishes {run_output.hex()}"
+            if (run_status, run_output) != (int(run_exit), bytes.fromhex(run_spec[4:])):
+                verdict = "FAIL"
+                detail += f" (expected exit {run_exit} output {run_spec[4:]})"
+        if verdict == "FAIL":
+            failures += 1
+            detail += (
+                f", wanted compile exit {compile_exit} output {compile_spec}"
+            )
+        print(f"{verdict} {name}: {detail}")
+    return failures
+
+
 def main():
     runner = run_selected if MODE == "selected" else run_reference
     failures = 0
@@ -97,6 +183,7 @@ def main():
             failures += 1
             detail += f", got exit {exit_code} output {output.hex()}"
         print(f"{verdict} {name}: exit {expected_exit}, output {expected_output.hex()}; {detail}")
+    failures += run_delta_fixtures()
     if failures:
         raise SystemExit(f"Gamma product comparison: {failures} fixture(s) disagreed")
     print("Gamma product comparison: all fixtures agree")
