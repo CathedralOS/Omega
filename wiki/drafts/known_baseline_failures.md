@@ -130,8 +130,10 @@ freshly measured distribution **CANARY-CORPUS** asks for rather than the
 older reading:
 
 - 19 report `Lowering(InvalidUnitMachinePlan { .. })` from native-artifact
-  Terminal production, the missing transitive Unit plan class
-  (**GENERAL-CYCLIC-EXECUTION** and the state-graph route): the
+  Terminal production. The six `core/numeric_*` rows are
+  **ARITHMETIC-POLICY-REALIZATION**, not a control-builder gap; the rest are
+  the missing transitive Unit plan class (**GENERAL-CYCLIC-EXECUTION** and
+  the state-graph route). The families:
   `core/numeric_*` conversion surfaces (6), `float/float_trapping_*` (5),
   `expressions/arithmetic_domain_trapping_*` (3),
   `control_flow/runtime_*_literal_dispatch_exit` (2),

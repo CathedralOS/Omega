@@ -566,6 +566,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   receiver root fails state-relative visibility; the codec route is now closed
   as recorded above.
 
+  The six `core/numeric_*` members are not a control-builder gap: every one
+  calls a library machine ending in a Trapping conversion, and four cross a
+  sign boundary under Wrapping, so they belong to
+  **ARITHMETIC-POLICY-REALIZATION**. Reading their omission trace stops at
+  the statement whose value fact is missing rather than the reason, so
+  continue into the value facts before attributing a row to a builder.
+
   One decision-17 member was decided on 2026-09-18 and the finding
   generalizes: `proofs/proof_inductive_climbing_sum` was an unsound fixture,
   not a checker regression. Its recursive transition argument `acc + 1`
@@ -2050,6 +2057,49 @@ Owners include
   form (`CheckedBooleanExpression` has no IEEE ordering over scalar float
   formals), and `wrapper`'s direct-call continuation is the separate
   checked-scalar-term gap.
+
+- **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Give the executable
+  arithmetic policies their Terminal form. Psi checks and accepts them, but
+  production stops at four explicit limits, so no program using them reaches
+  a native artifact: `checked-trees-to-lowered-psi/src/expression_preparation/
+  prepare_expression.rs` refuses `IntegerTrappingCast` and every sign-crossing
+  `IntegerWrappingCast` with "requires runtime policy realization" (with
+  parallel refusals in `scalar_graph/scalar_contracts/namespace.rs`),
+  `CheckedScalarExpression` carries no Boolean-to-integer conversion although
+  checking admits the surface and retains its `0..=1` range, and
+  `values/scalar/expression_facts.rs::checked_integer_binary_kind` pairs
+  shifts with Exact and Wrapping only, while
+  [numeric values](wiki/spec/language/numeric_values.md) makes an
+  out-of-range Trapping shift count an executable trap condition and gives
+  Trapping "the primitive's exact crash predicate".
+
+  A producer may not expand a Trapping operation into a guard and a `Crash`
+  terminator: [structural predicates](wiki/spec/terminal-psi/structural_predicates.md)
+  requires executable Trapping operations to "carry their primitive
+  denotation and path-conditioned crash site, checked against the published
+  same-cause ceiling", and Terminal Psi attaches crash continuations only to
+  call operations. So this needs a Terminal operation family with its
+  verifier rule, interpreter case, and Omega realization, which crosses the
+  firewall and is why it is its own item rather than a lowering patch.
+  Expression-level composition is ruled out and should not be retried:
+  truncation toward zero is not the modular image for a negative dividend, a
+  same-width sign reinterpretation needs a value-level select that Lowered
+  Psi has no operation for, and masking plus an exact cast would need a
+  bitwise range the spec denies ("evaluating interval endpoints alone is not
+  a sound bound for AND, OR, or XOR").
+
+  Customers: the six `core/numeric_*` pass canaries, every
+  `source/library/core/numeric_conversion.omg` machine ending in a Trapping
+  conversion, and the `float/float_trapping_*` and
+  `expressions/arithmetic_domain_trapping_*` canary families.
+  `checked-trees-to-lowered-psi/tests/integer_policy_realization.rs` pins all
+  four boundaries with sub-second repros, each paired with the admitted
+  neighbour differing in one coordinate (exact narrowing including a u8 to
+  i8 sign crossing, unsigned-to-unsigned wrapping, transition-based
+  saturating, and widening all lower today). Acceptance: those canaries
+  compile and execute their trap routes, an independent verifier replays the
+  crash site against the published ceiling, and no policy is silently
+  weakened into another.
 
 - **PROOF-KERNEL-CORE.** Build the common mathematical term/declaration model
   and independent checker in Psi, under the
