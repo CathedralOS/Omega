@@ -332,22 +332,30 @@ pub(crate) fn lower_child_type_references(
     syntax_trees: &SyntaxTrees,
     arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
 ) -> Result<HandleSpan<TypeReference>, Diagnostic> {
-    let mut span = HandleSpan::empty();
+    // An argument's own children (its base type, a nested application's
+    // arguments) land in this same arena. Lowering an argument directly into an
+    // open span therefore interleaves the next argument's children with the
+    // span, and the arena refuses the discontiguous append. Lower every
+    // argument first, then place the finished run as one contiguous block.
+    let mut lowered = Vec::with_capacity(arguments.len());
 
     for argument in syntax_trees
         .type_references
         .type_reference_handles(arguments)
     {
-        let argument = lower_type_reference_handle(lowerer, syntax_trees, *argument)?;
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .child_type_references
-            .append_to_span(&mut span, argument);
+        lowered.push(lower_type_reference_handle(
+            lowerer,
+            syntax_trees,
+            *argument,
+        )?);
     }
 
-    Ok(span)
+    Ok(lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .child_type_references
+        .insert_many(lowered))
 }
 
 pub(crate) fn lower_type_constraint_handles(
@@ -355,19 +363,25 @@ pub(crate) fn lower_type_constraint_handles(
     syntax_trees: &SyntaxTrees,
     constraints: HandleSpan<syntax::types::TypeConstraintNode>,
 ) -> Result<HandleSpan<TypeConstraint>, Diagnostic> {
-    let mut span = HandleSpan::empty();
+    // A domain constraint's arguments may themselves be constrained types, so
+    // lowering one constraint can append to this same constraint arena. Collect
+    // the whole list before placing it, exactly as the child type references do.
+    let mut lowered = Vec::with_capacity(constraints.len());
 
     for constraint in syntax_trees.type_references.constraints(constraints) {
-        let constraint = lower_type_constraint_handle(lowerer, syntax_trees, constraint)?;
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .types
-            .constraints
-            .append_to_span(&mut span, constraint);
+        lowered.push(lower_type_constraint_handle(
+            lowerer,
+            syntax_trees,
+            constraint,
+        )?);
     }
 
-    Ok(span)
+    Ok(lowerer
+        .symbol_resolved_trees
+        .tables
+        .types
+        .constraints
+        .insert_many(lowered))
 }
 
 fn lower_type_constraint_handle(
@@ -381,19 +395,7 @@ fn lower_type_constraint_handle(
         )),
         syntax::types::TypeConstraintNode::Domain(domain) => {
             let selection_start = lowerer.pending_const_argument_selections.len();
-            let mut arguments = HandleSpan::empty();
-            for argument in syntax_trees
-                .type_references
-                .type_reference_handles(domain.arguments)
-            {
-                let argument = lower_type_reference_handle(lowerer, syntax_trees, *argument)?;
-                lowerer
-                    .symbol_resolved_trees
-                    .tables
-                    .declarations
-                    .child_type_references
-                    .append_to_span(&mut arguments, argument);
-            }
+            let arguments = lower_child_type_references(lowerer, syntax_trees, domain.arguments)?;
             retain_const_argument_slots(
                 lowerer,
                 syntax_trees,

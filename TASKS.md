@@ -3706,10 +3706,18 @@ Owners include
   pin the selection and each distinct rejection). Still open there:
   recovering a type binder from a range-shell equation (rejects asking for
   an explicit argument), omitted-binder applications nested inside other
-  templates, runtime `Value` binders, and one defect beside the route:
-  `lowering/type_reference.rs::lower_child_type_references` panics ("arena
-  span append must be contiguous") on two range-shell arguments to one
-  generic. Record and case-payload endpoint calls resolve in
+  templates, and runtime `Value` binders. Several child-owning arguments to one
+  generic no longer panic ("arena span append must be contiguous"):
+  `lowering/type_reference.rs` and `lowering/domain.rs` lower every argument or
+  constraint before placing it, so each span reaches the arena as one
+  contiguous run (`tests/generic_range_arguments.rs`, macOS ARM64). One defect
+  remains a stage earlier: `tokens-to-syntax-trees` appends each generic
+  argument handle to the shared table as it parses, so a nested application's
+  arguments interleave with the enclosing list and the authored spans overlap
+  (`Pair<u64[0..=3], Pair<u64[0..=7], u64[0..=15]>>` hands the outer
+  application the nested shell as its second argument). Collect the argument
+  handles and insert the span once, as the domain argument pack already does.
+  Record and case-payload endpoint calls resolve in
   their declaration scope before folding; local bounded record construction and
   field reads retain range obligations through canonical Terminal execution.
   Generic-data range arguments retain structured interval observations from
