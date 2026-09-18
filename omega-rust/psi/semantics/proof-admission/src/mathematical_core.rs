@@ -197,11 +197,13 @@ mod tests;
 mod theorems;
 mod typing;
 
+pub(crate) use bounded_denotation::verify_bounded_certificate_on_current_thread;
 pub use bounded_denotation::{
     BoundedDenotation, BoundedDenotationError, denote_bounded_certificate,
     denote_bounded_certificate_with_machine_parameters, verify_bounded_certificate,
     verify_bounded_certificate_with_machine_parameters,
 };
+pub(crate) use certificate::run_on_verification_stack;
 pub use certificate::{
     MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
 };

@@ -57,6 +57,29 @@ pub struct MathematicalCertificate {
     pub expected: TermHandle,
 }
 
+/// Stack reserved for one certificate verification or judgment traversal.
+/// The checkers recurse over the certificate's term structure — elaborated
+/// judgments from real programs nest far deeper than the default thread
+/// stack admits — so the public verification entries run on a dedicated
+/// stack rather than trusting the caller's, exactly as the checked
+/// interpreter runs its tree-walker. The reservation is virtual: pages
+/// commit only as recursion actually descends.
+const VERIFICATION_STACK_SIZE: usize = 256 * 1024 * 1024;
+
+/// Run `f` on a scoped worker thread with [`VERIFICATION_STACK_SIZE`].
+/// A panic on the worker is re-thrown on the caller's stack unchanged:
+/// the wide stack absorbs depth, it never decides a different answer.
+pub(crate) fn run_on_verification_stack<T: Send>(f: impl FnOnce() -> T + Send) -> T {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(VERIFICATION_STACK_SIZE)
+            .spawn_scoped(scope, f)
+            .expect("spawn certificate verification worker thread")
+            .join()
+            .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+    })
+}
+
 /// Re-decide a certificate's claimed judgment `Σ; Δ; Γ ⊢ t : T`.
 ///
 /// The signature is checked first: every declaration must hold under the
@@ -69,6 +92,19 @@ pub struct MathematicalCertificate {
 /// context. Resource exhaustion surfaces as `CoreError::StepCeiling`,
 /// never as a false judgment.
 pub fn verify_mathematical_certificate(
+    arena: &mut TermArena,
+    certificate: &MathematicalCertificate,
+    budget: &mut Budget,
+) -> Result<(), CoreError> {
+    run_on_verification_stack(|| {
+        verify_mathematical_certificate_on_current_thread(arena, certificate, budget)
+    })
+}
+
+/// [`verify_mathematical_certificate`] on the caller's stack: used by the
+/// bounded-certificate route, which already runs its whole elaboration and
+/// verification inside [`run_on_verification_stack`].
+pub(crate) fn verify_mathematical_certificate_on_current_thread(
     arena: &mut TermArena,
     certificate: &MathematicalCertificate,
     budget: &mut Budget,
@@ -99,6 +135,17 @@ pub fn verify_mathematical_certificate(
 /// judgment actually commits to. See `foundation.md`'s
 /// assumptions-and-calculus-identity section.
 pub fn certificate_assumption_closure(
+    arena: &TermArena,
+    certificate: &MathematicalCertificate,
+) -> BTreeSet<u32> {
+    run_on_verification_stack(|| {
+        certificate_assumption_closure_on_current_thread(arena, certificate)
+    })
+}
+
+/// [`certificate_assumption_closure`] on the caller's stack, for callers
+/// already inside [`run_on_verification_stack`].
+pub(crate) fn certificate_assumption_closure_on_current_thread(
     arena: &TermArena,
     certificate: &MathematicalCertificate,
 ) -> BTreeSet<u32> {

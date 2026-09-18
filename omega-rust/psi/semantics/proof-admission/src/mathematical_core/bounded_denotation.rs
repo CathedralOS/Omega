@@ -79,7 +79,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
 
 use super::certificate::{
-    MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
+    MathematicalCertificate, certificate_assumption_closure, run_on_verification_stack,
+    verify_mathematical_certificate_on_current_thread,
 };
 use super::conversion::Budget;
 use super::signature::Declaration;
@@ -227,6 +228,29 @@ pub fn denote_bounded_certificate_with_machine_parameters(
     machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
+    run_on_verification_stack(|| {
+        denote_bounded_certificate_on_current_thread(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            machine_parameter_values,
+            proof,
+        )
+    })
+}
+
+/// [`denote_bounded_certificate_with_machine_parameters`] on the caller's
+/// stack, for the verification route that already reserves
+/// [`run_on_verification_stack`]'s depth.
+fn denote_bounded_certificate_on_current_thread(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+    proof: &ProofNode,
+) -> Result<BoundedDenotation, BoundedDenotationError> {
     context.validate(goal).map_err(|error| {
         BoundedDenotationError::Certificate(ProofError::MalformedProposition(error))
     })?;
@@ -286,7 +310,35 @@ pub fn verify_bounded_certificate_with_machine_parameters(
     proof: &ProofNode,
     budget: &mut Budget,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
-    let mut denoted = denote_bounded_certificate_with_machine_parameters(
+    run_on_verification_stack(|| {
+        verify_bounded_certificate_on_current_thread(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            machine_parameter_values,
+            proof,
+            budget,
+        )
+    })
+}
+
+/// [`verify_bounded_certificate_with_machine_parameters`] on the caller's
+/// stack. Elaboration recurses over the certificate's proof tree and the
+/// kernel recurses over the elaborated term, so the public entry runs the
+/// whole route inside [`run_on_verification_stack`] — one deep stack for
+/// both stages. `accept_certificate` calls this directly because it
+/// already reserves the same stack for its bounded traversal.
+pub(crate) fn verify_bounded_certificate_on_current_thread(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+    proof: &ProofNode,
+    budget: &mut Budget,
+) -> Result<BoundedDenotation, BoundedDenotationError> {
+    let mut denoted = denote_bounded_certificate_on_current_thread(
         context,
         goal,
         assumptions,
@@ -294,8 +346,12 @@ pub fn verify_bounded_certificate_with_machine_parameters(
         machine_parameter_values,
         proof,
     )?;
-    verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, budget)
-        .map_err(BoundedDenotationError::Kernel)?;
+    verify_mathematical_certificate_on_current_thread(
+        &mut denoted.arena,
+        &denoted.certificate,
+        budget,
+    )
+    .map_err(BoundedDenotationError::Kernel)?;
     Ok(denoted)
 }
 

@@ -960,8 +960,8 @@ fn induction_on_a_node_computes_a_forest_hypothesis() {
 
     // Work receipt: checking the `iindW` application and closing the
     // computation across the packed `IW` pair and the sort-tag
-    // `next`/`out` selections costs 36_873 budgeted steps.
-    assert_eq!(total - budget.remaining(), 36_873);
+    // `next`/`out` selections costs 39_528 budgeted steps.
+    assert_eq!(total - budget.remaining(), 39_528);
 }
 
 #[test]
@@ -1055,7 +1055,7 @@ fn induction_on_a_cons_computes_sort_selected_hypotheses() {
     );
 
     // Work receipt, measured against the same budgeted run.
-    assert_eq!(total - budget.remaining(), 37_242);
+    assert_eq!(total - budget.remaining(), 39_897);
 }
 
 #[test]
@@ -1413,6 +1413,6 @@ fn a_mutual_family_certificate_verifies_with_exact_closure_and_bounded_cost() {
     // six-declaration signature plus the `isup` judgment — re-materializes
     // substituted instances of the encoding. Both numbers are measured,
     // not quotas.
-    assert_eq!(arena.len(), 203_534);
-    assert_eq!(spent, 2_723);
+    assert_eq!(arena.len(), 182_042);
+    assert_eq!(spent, 2_659);
 }

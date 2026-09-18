@@ -21,7 +21,8 @@ pub use terminal_psi::{ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
 
 use crate::mathematical_core::{
-    BoundedDenotationError, Budget, verify_bounded_certificate_with_machine_parameters,
+    BoundedDenotationError, Budget, run_on_verification_stack,
+    verify_bounded_certificate_on_current_thread,
 };
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitnessError, IntegerCastBoundConversionError,
@@ -215,6 +216,32 @@ pub fn accept_certificate_with_machine_parameters(
     machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<CertificateAcceptance, ProofError> {
+    // The bounded traversal recurses over the certificate's proof tree and
+    // the mathematical-core route recurses over the elaborated judgment;
+    // producer certificates nest far deeper than the default thread stack
+    // admits. Run the whole admission on the verification stack so depth
+    // is a resource limit, never a crash.
+    run_on_verification_stack(|| {
+        accept_certificate_on_current_thread(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            machine_parameter_values,
+            proof,
+        )
+    })
+}
+
+/// [`accept_certificate_with_machine_parameters`] on the caller's stack.
+fn accept_certificate_on_current_thread(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+    proof: &ProofNode,
+) -> Result<CertificateAcceptance, ProofError> {
     context
         .validate(goal)
         .map_err(ProofError::MalformedProposition)?;
@@ -275,7 +302,7 @@ fn re_decide_in_mathematical_core(
     machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<MathematicalCoreDecision, ProofError> {
-    match verify_bounded_certificate_with_machine_parameters(
+    match verify_bounded_certificate_on_current_thread(
         context,
         goal,
         assumptions,
