@@ -307,63 +307,46 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
 ## Automatic service reach
 
-Carry [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies)
-through Terminal evidence/replay. Preserve the original generic dependency and
-exported binder telescope across the portable boundary. Use the finite union in
-`flow-effects::ServiceReachInferencePlan` and checked service-reach facts; reuse
-retained static-call contracts and exact specialization commitments rather than
-introducing another selection identity. Closed applications must independently
-replay exact substitutions from selected public contracts, including nested
-generic/private helpers and recursive call components. Preserve direct boundary
-declarations, pinned requirement bounds, and independent suspension/blocking
-checks. No forwarding syntax, closure machinery, reach-prohibition syntax, or
-backend effect inference.
+Finish portable coverage of
+[static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies).
+The source-side finite-union inference, closed application retention, selected
+contract bounds, and two-sided emitted-call replay already exist. Remaining:
 
-Acceptance: the same named traversal with no-reach and Console callbacks publishes
-empty and Console rows to ordinary callers and evaluation admission respectively;
-the former evaluates when its other obligations hold. Missing direct boundary
-declarations and selections exceeding requirement bounds reject. Cover nested
-generic/private helpers, recursive call components, opaque/dynamic conservatism,
-and unchanged summaries after call reordering/helper extraction. Adding Console
-in a private helper or selected contract changes interface identity and invalidates
-stale evidence; a no-reach requirement/evaluation context rejects it. Transitive
-reach cannot be hidden by omission or a memberless clause. Fixed operational
-markers and suspending-call positions remain enforced for every selection.
-Keep `tests/omega/pass/effects/nominal_callback_const_reach/main.omg` checking
-through the CLI and its structural/Console negative controls rejecting; constant
-evaluation must not consume the source program's generic declarations.
-Keep the source-to-canonical-policy regression in
-`tests/omega/pass/effects/nominal_callback_dependency/README.md` passing when a
-public generic also has closed applications; original interface identity must
-not depend on which applications are present. Its private closed-application and
-unused-generic controls establish template preservation, not Terminal custody.
-Its `service_reach_contracts` command covers publication, reload and interpretation,
-including inert declared reach, private helpers, and interleaved binder positions.
-Run the README's Cargo/nextest commands on macOS ARM64 for full closed telescopes,
-finite substitution, selected public rows, and two-sided emitted-call joins after
-source discard.
-Producer ownership is `checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`;
-reload checks are `terminal-verifier/src/validation/reach_applications.rs`.
-Selected generic schemas use per-call closed tuples and exact callee application
-joins; exercise source-free execution and hostile controls with
-`tests/omega/pass/effects/generic_callback_schema_reach/README.md`.
-The same projection covers fixed-only type/const applications, isolated identity
-callbacks, and unused selected ordinary or generic contracts without emitted bodies.
-Keep the [linear structural callback regression](tests/omega/pass/effects/structural_callback_reach/README.md)
-publishing and executing after source discard while rejecting stale call and claim
-custody independently of its retained reach application.
-Unresolved installation selections keep their closed applications: provider
-bounds ride inside the conservative selected and owner rows while the
-requirement axis stays in the separate installation dependencies, so
-substitution replay and stale-row controls need no new representation.
-Broader portable coverage for inlined/missing callees and independently
-checkable original-contract projection openings
-remains required. Template/specialization commitments identify provenance;
-they do not authenticate the structured projection. Original finite dependencies
-replay against the retained source graph
-in `validation/src/static_machine_call_contracts.rs`, but the remaining template
-encoding contains frontend-local identities. Full source-contract reconstruction
-and generic PCC remain open; ordinary relational replay does not establish them.
+- Retain the original dependency and full binder telescope when callees are
+  inlined or absent from the emitted machine set. The current
+  `prune_incomplete_closed_reach_applications` drops incomplete annotations
+  and their dependents; preserving ordinary executable semantics this way is
+  not completion of dependency coverage or proof of source correspondence.
+- Replace frontend-local template identities with independently checkable
+  original-contract projection evidence. Producer-side replay against the
+  retained source graph is not source-free verification, and commitment hashes
+  identify a projection rather than authenticate its derivation. Reuse exact
+  specialization/contract identities and the PCC ledger/bridge work; do not
+  invent a parallel selection identity or a second proof system.
+
+Owners: `checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`,
+`validation/src/machine_calls/static_machine_call_contracts.rs`, and
+`terminal-verifier/src/validation/reach_applications.rs`. Keep ordinary semantic
+replay distinct from optional producer-correspondence certification; neither
+test coverage nor matching hashes justify a full generic-PCC claim.
+
+Acceptance: publish, discard source/producer state, reload, and independently
+check the same named traversal with pure and Console callbacks, nested/private
+helpers, recursive components, selected generic schemas, and unused selections.
+Inlined/missing callees must not silently remove requested evidence coverage.
+Reordered calls and equivalent helper extraction preserve interface identity;
+adding helper reach changes it and invalidates stale evidence. Reject changed
+projections, redirected same-shaped calls, incomplete telescopes, missing direct
+boundary declarations, and selections exceeding requirement bounds. Opaque
+calls retain conservative contracts; suspension/blocking remain separate.
+
+Keep the existing `service_reach_contracts` lowerer and codec regressions as
+controls, with the
+[nominal callback](tests/omega/pass/effects/nominal_callback_dependency/README.md),
+[generic schema](tests/omega/pass/effects/generic_callback_schema_reach/README.md),
+and [linear structural callback](tests/omega/pass/effects/structural_callback_reach/README.md)
+customers. The pure callback's ordinary callers and hermetic evaluation must
+see its specialized empty row without consuming the original generic definition.
 
 ## Semantic reflection
 
