@@ -103,13 +103,35 @@ pub(super) fn collect_state_argument_facts_from_statement(
                     symbol,
                     name,
                 );
-            } else if matches!(
-                program.expression_table.expression(assignment.target),
-                ExpressionNode::Member(_)
-            ) {
-                // A field store carries the same exit-proven bound on its
-                // display label, matching the member-target seeding in the
-                // checking pass (`self.slot = pick()` then `-> load(self.slot)`).
+                // A rebound name to a subslice (`w = base[a..b]`) shrinks
+                // the same window the checking pass records; without the
+                // mirrored window parent and shrunk floor a later
+                // `-> load(w)` loses the base's extent.
+                crate::checks::ranges::statements::aliases::seed_subslice_window_facts(
+                    program,
+                    facts,
+                    assignment.value,
+                    name,
+                );
+            } else if let Some((symbol, name)) =
+                crate::checks::ranges::statements::expression_member_name(
+                    program,
+                    assignment.target,
+                )
+            {
+                // A member store carries the same seeds the checking pass
+                // records: the folded field integer (`self.slot = 2`), the
+                // offset index bound (`self.jp = self.i + 1`), and the
+                // ensured call result bound on its display label — so
+                // `-> load(self.slot)` transports all three into the
+                // destination parameter's merged facts.
+                facts.assign_field_integer(symbol, name, next_integer);
+                crate::checks::ranges::statements::seed_offset_index_bound(
+                    program,
+                    facts,
+                    assignment.target,
+                    assignment.value,
+                );
                 crate::checks::ranges::statements::aliases::seed_ensured_call_result_bounds(
                     program,
                     facts,
@@ -215,6 +237,16 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 facts,
                 local.initial_value,
                 local.symbol,
+                Some(local.name.as_str()),
+            );
+            // A subslice initializer (`let w = base[a..b]`) records the same
+            // window parent and shrunk floor the checking pass keeps; a
+            // later `-> load(w)` merges the base's extent minus the offset
+            // into the destination slice's minimum length.
+            crate::checks::ranges::statements::aliases::seed_subslice_window_facts(
+                program,
+                facts,
+                local.initial_value,
                 Some(local.name.as_str()),
             );
         }

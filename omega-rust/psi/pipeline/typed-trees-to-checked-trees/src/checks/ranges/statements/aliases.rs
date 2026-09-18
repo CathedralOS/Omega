@@ -124,7 +124,7 @@ fn alias_source_label(
 /// a local length by the caller's `expression_indexable_length` path; seeding it
 /// here additionally exposes it under the window's display label for proofs that
 /// resolve by label rather than by symbol.
-pub(super) fn seed_subslice_window_facts(
+pub(in crate::checks::ranges) fn seed_subslice_window_facts(
     program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     value: ExpressionHandle,
