@@ -762,6 +762,125 @@ fn sign_partitioned_bounds_preserve_all_category_pairs() {
 }
 
 #[test]
+fn exact_points_answer_proofs_the_hull_lattice_cannot() {
+    // {1,3,4} - 2 is {-1,1,2}: the merged lattice 1+Z reaches zero, but the
+    // retained point list excludes it, and no arm produces a pole.
+    let mut arms = RationalBounds::constant(fraction(1, 1));
+    arms.include(RationalBounds::constant(fraction(3, 1)));
+    arms.include(RationalBounds::constant(fraction(4, 1)));
+    let difference = arms
+        .apply(
+            BinaryOperator::Subtract,
+            &RationalBounds::constant(fraction(2, 1)),
+        )
+        .expect("defined difference");
+    assert!(difference.containing_zero.is_some(), "the hull spans zero");
+    assert!(
+        difference.excludes_zero(),
+        "exact points name no zero divisor"
+    );
+    RationalBounds::constant(fraction(1, 1))
+        .apply(BinaryOperator::Divide, &difference)
+        .expect("zero-free exact divisors");
+
+    // A listed zero is a genuine pole, not a lattice artifact.
+    let mut arms = RationalBounds::constant(fraction(1, 1));
+    arms.include(RationalBounds::constant(fraction(3, 1)));
+    arms.include(RationalBounds::constant(fraction(2, 1)));
+    let difference = arms
+        .apply(
+            BinaryOperator::Subtract,
+            &RationalBounds::constant(fraction(2, 1)),
+        )
+        .expect("defined difference");
+    assert!(!difference.excludes_zero());
+    assert!(
+        RationalBounds::constant(fraction(1, 1))
+            .apply(BinaryOperator::Divide, &difference)
+            .is_err()
+    );
+}
+
+#[test]
+fn exact_divisor_points_skip_phantom_lattice_values() {
+    // {2,3} * {2,4} products are {4,6,8,12}; the hull's 4+2Z lattice on
+    // [4,12] also admits 10, which no arm produces. Exact points keep the
+    // integrality proof lattice enumeration must decline.
+    let mut left = RationalBounds::constant(fraction(2, 1));
+    left.include(RationalBounds::constant(fraction(3, 1)));
+    let mut right = RationalBounds::constant(fraction(2, 1));
+    right.include(RationalBounds::constant(fraction(4, 1)));
+    let product = left
+        .apply(BinaryOperator::Multiply, &right)
+        .expect("defined product");
+    assert_eq!(
+        product.points.as_ref().map(Vec::len),
+        Some(4),
+        "products are exactly {{4,6,8,12}}"
+    );
+    let quotient = RationalBounds::constant(fraction(48, 1))
+        .apply(BinaryOperator::Divide, &product)
+        .expect("all admissible divisors nonzero");
+    assert!(
+        quotient.has_integral_lattice(),
+        "{{4,6,8,12}} all divide 48"
+    );
+
+    // A genuine phantom-free divisor that does not divide still rejects.
+    let mut right = RationalBounds::constant(fraction(2, 1));
+    right.include(RationalBounds::constant(fraction(5, 1)));
+    let product = left
+        .apply(BinaryOperator::Multiply, &right)
+        .expect("defined product");
+    let quotient = RationalBounds::constant(fraction(48, 1))
+        .apply(BinaryOperator::Divide, &product)
+        .expect("nonzero divisors");
+    assert!(
+        !quotient.has_integral_lattice(),
+        "48/10 is fractional and 10 is a real product"
+    );
+}
+
+#[test]
+fn exact_points_drop_past_their_bounds() {
+    // A pairwise product beyond the bound forfeits only the exact overlay;
+    // the hull cells still carry interval and lattice evidence.
+    let mut wide = RationalBounds::constant(fraction(1, 1));
+    for point in 2..=65 {
+        wide.include(RationalBounds::constant(fraction(point, 1)));
+    }
+    assert!(
+        wide.points
+            .as_ref()
+            .is_some_and(|points| points.len() == 65)
+    );
+    let product = wide
+        .apply(BinaryOperator::Multiply, &wide)
+        .expect("defined product");
+    assert!(product.points.is_none(), "65x65 exceeds the product bound");
+    assert!(product.excludes_zero());
+    let sum = wide
+        .apply(
+            BinaryOperator::Add,
+            &RationalBounds::constant(fraction(1, 1)),
+        )
+        .expect("defined sum");
+    assert!(
+        sum.points.as_ref().is_some_and(|points| points.len() == 65),
+        "a bounded operand product still tracks its set"
+    );
+
+    // Joins past the point cap drop the overlay without losing the hulls.
+    let mut over = wide.clone();
+    for point in 66..=300 {
+        over.include(RationalBounds::constant(fraction(point, 1)));
+    }
+    assert!(over.points.is_none());
+    assert!(over.excludes_zero());
+    assert!(over.has_integral_lattice());
+}
+
+#[test]
 fn rational_bounds_visit_result_operations_once_without_subject_execution() {
     use source_files_to_tokens::Lexer;
     use typed_trees::statement::StatementNode;
