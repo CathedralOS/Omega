@@ -32,7 +32,7 @@ impl Project {
         let mut request = CompileProjectRequest::new(CompileOptions {
             root_path: self.0.join("main.omg"),
             build_dir: Some(self.0.join("build")),
-            target_name: None,
+            target_name: declared_target_when_host_is_unprofiled(),
         });
         request.product = ProjectProduct::Check;
 
@@ -63,6 +63,15 @@ impl Drop for Project {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
     }
+}
+
+/// The targetless route resolves the compiler host's catalogued profile; a
+/// host that owns none (macOS x86-64) pins an exact declared target for the
+/// same coverage instead.
+fn declared_target_when_host_is_unprofiled() -> Option<String> {
+    target::TargetProfile::host_if_supported()
+        .is_none()
+        .then(|| "linux_x86_64".to_owned())
 }
 
 // Same provision as the CLI until recursive compiler paths have bounded stack use.
@@ -137,7 +146,7 @@ fn inspection_returns_verified_data_not_console_text() {
         let mut request = InspectTerminalRequest {
             root_path: project.0.join("main.omg"),
             machine: "Root::missing".into(),
-            target_name: None,
+            target_name: declared_target_when_host_is_unprofiled(),
         };
         assert!(inspect_terminal(&request).is_err());
         request.machine = "Root::forward".into();
@@ -152,7 +161,13 @@ fn inspection_returns_verified_data_not_console_text() {
 
 #[test]
 fn run_returns_host_output_and_comparison_then_cross_target_without_execution() {
-    on_compiler_stack(|| {
+    // The first leg executes a host artifact, which is only possible when the
+    // host owns a catalogued deployment profile.
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping: this host admits no catalogued Omega deployment profile");
+        return;
+    };
+    on_compiler_stack(move || {
         let project = Project::new();
         project.application();
         // The reusable run operation must not bypass ordinary project acceptance.
@@ -175,10 +190,7 @@ fn run_returns_host_output_and_comparison_then_cross_target_without_execution() 
             },
             PackageCommandOptions {
                 project_root: project.0.clone(),
-                targets: vec![
-                    target::TargetProfile::host(),
-                    target::TargetProfile::LinuxX64,
-                ],
+                targets: vec![host, target::TargetProfile::LinuxX64],
                 offline: true,
             },
             None,

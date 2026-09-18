@@ -321,7 +321,15 @@ fn targets(
         }
     }
     if requested.is_empty() {
-        requested.push(TargetProfile::host());
+        match TargetProfile::host_if_supported() {
+            Some(host) => requested.push(host),
+            None => {
+                return Err(failure(
+                    "no package target was requested and this host has no catalogued \
+                     Omega deployment profile; name an exact target with --target",
+                ));
+            }
+        }
     }
     requested.sort_by_key(|target| target.target_name());
     Ok(requested)

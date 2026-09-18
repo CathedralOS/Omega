@@ -26,15 +26,20 @@ fn temporary_source(name: &str, source: &str) -> PathBuf {
 }
 
 fn inspect(machine: &str, source: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args([
-            "inspect-terminal",
-            "--machine",
-            machine,
-            source.to_str().expect("UTF-8 temporary source path"),
-        ])
-        .output()
-        .expect("run omega inspect-terminal")
+    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+    command.args([
+        "inspect-terminal",
+        "--machine",
+        machine,
+        source.to_str().expect("UTF-8 temporary source path"),
+    ]);
+    // The targetless route resolves the compiler host's catalogued profile;
+    // a host that owns none (macOS x86-64) runs the same coverage through an
+    // exact declared target instead.
+    if target::TargetProfile::host_if_supported().is_none() {
+        command.args(["--target", "linux_x86_64"]);
+    }
+    command.output().expect("run omega inspect-terminal")
 }
 
 /// `inspect` with an explicit target and extra child environment. Package

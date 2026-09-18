@@ -126,7 +126,7 @@ pub fn compile_project(
         None => options.retain_build_dir(),
     };
     let policy_root_path = options.root_path.clone();
-    let target = target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
+    let target = crate::invocation_target_profile(options.target_name.as_deref())
         .map_err(|diagnostic| CompileProjectError::Diagnostics(vec![diagnostic]))?;
     let prepared = timings
         .record_result(
