@@ -1371,6 +1371,256 @@ fn cross_block_byte_sequence_dead_store_covers_under_equal_constants() {
     }
 }
 
+/// The resolved-landing walk crosses edges the same way: a byte-sequence
+/// row opening the crossed block resolves its index through the carrier
+/// audit — defined in that same block, defined on the store's side of the
+/// edge, or defined on the crossed block — and lands off the collapsed
+/// dead byte, so the walk steps over it to the covering write behind it.
+/// An index the audit leaves unresolved, or a carrier an edge transport
+/// redefines, keeps the row's reach unbounded upward from its payload
+/// base: the walk still decides against the pair there.
+#[test]
+fn cross_block_constant_index_rows_landing_off_the_dead_byte_walk_past() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Dead byte at `8 + 3` = 11 in block 0. A byte-sequence write
+        // opens the crossed block — its own index materializes to 2
+        // against payload base 4, landing on byte 6 — and the covering
+        // write behind it lands on the dead byte through the dead index's
+        // own value.
+        let covered = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            define_count_as(
+                function,
+                environment,
+                0,
+                1,
+                MATERIALIZE_INDEX,
+                DEAD_SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                3,
+            );
+            let store = environment
+                .constraint(environment.selected_keys().store.unwrap())
+                .unwrap();
+            function.blocks[1].instructions.insert(
+                0,
+                instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Store {
+                        byte_offset: 0,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, SCRATCH],
+                ),
+            );
+            function.memory_accesses.insert(
+                1,
+                access(
+                    SelectedInstructionId(8),
+                    3,
+                    place(),
+                    4,
+                    SelectedMemoryAccessRole::WritePlace,
+                ),
+            );
+            sequence_store(
+                function,
+                environment,
+                SelectedInstructionId(8),
+                1,
+                4,
+                9,
+                SCRATCH,
+            );
+            define_count(
+                function,
+                environment,
+                1,
+                0,
+                SEQUENCE_INDEX,
+                ValueId::new(9).unwrap(),
+                2,
+            );
+        });
+        let result = eliminate(&covered, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        assert_eq!(
+            function.blocks[0]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![SelectedInstructionId(1), MATERIALIZE_INDEX, BETWEEN]
+        );
+        assert_eq!(
+            function.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![MATERIALIZE_COUNT, SelectedInstructionId(8), KILLER]
+        );
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.byte_offset))
+                .collect::<Vec<_>>(),
+            vec![(SelectedInstructionId(8), 4), (KILLER, 8)]
+        );
+        validate_dead_store_elimination(
+            &covered,
+            0,
+            STORE,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // The intervening index's carrier never materializes: the row's
+        // reach is unbounded upward from payload base 4, so it still meets
+        // the fixed dead byte at 11.
+        let unresolved = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            define_count_as(
+                function,
+                environment,
+                0,
+                1,
+                MATERIALIZE_INDEX,
+                DEAD_SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                3,
+            );
+            let store = environment
+                .constraint(environment.selected_keys().store.unwrap())
+                .unwrap();
+            function.blocks[1].instructions.insert(
+                0,
+                instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Store {
+                        byte_offset: 0,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, SCRATCH],
+                ),
+            );
+            function.memory_accesses.insert(
+                1,
+                access(
+                    SelectedInstructionId(8),
+                    3,
+                    place(),
+                    4,
+                    SelectedMemoryAccessRole::WritePlace,
+                ),
+            );
+            sequence_store(
+                function,
+                environment,
+                SelectedInstructionId(8),
+                1,
+                4,
+                9,
+                SCRATCH,
+            );
+        });
+        assert_eq!(
+            eliminate(&unresolved, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+        // An edge transport redefining the intervening index's carrier is
+        // a second definition the operand audit cannot see: the constant
+        // no longer pins the landing, so the row's unbounded reach still
+        // interferes.
+        let transported = mutated_chained(target, |function, environment| {
+            sequence_store(function, environment, STORE, 0, 8, 5, VALUE);
+            sequence_store(function, environment, KILLER, 1, 8, 5, SCRATCH);
+            define_count_as(
+                function,
+                environment,
+                0,
+                1,
+                MATERIALIZE_INDEX,
+                DEAD_SEQUENCE_INDEX,
+                ValueId::new(5).unwrap(),
+                3,
+            );
+            let store = environment
+                .constraint(environment.selected_keys().store.unwrap())
+                .unwrap();
+            function.blocks[1].instructions.insert(
+                0,
+                instruction(
+                    SelectedInstructionId(8),
+                    SelectedInstructionKind::Store {
+                        byte_offset: 0,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, SCRATCH],
+                ),
+            );
+            function.memory_accesses.insert(
+                1,
+                access(
+                    SelectedInstructionId(8),
+                    3,
+                    place(),
+                    4,
+                    SelectedMemoryAccessRole::WritePlace,
+                ),
+            );
+            sequence_store(
+                function,
+                environment,
+                SelectedInstructionId(8),
+                1,
+                4,
+                9,
+                SCRATCH,
+            );
+            define_count(
+                function,
+                environment,
+                1,
+                0,
+                SEQUENCE_INDEX,
+                ValueId::new(9).unwrap(),
+                2,
+            );
+            crossed_edge(function).bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(9).unwrap(),
+                    argument: ValueId::new(1).unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: SCRATCH,
+                    parameter: SEQUENCE_INDEX,
+                },
+            });
+        });
+        assert_eq!(
+            eliminate(&transported, &environment).unwrap_err(),
+            DeadStoreEliminationError::InterveningAccess
+        );
+    }
+}
+
 #[test]
 fn cross_block_intervening_accesses_reject() {
     let target = NativeTarget::linux_x64();
