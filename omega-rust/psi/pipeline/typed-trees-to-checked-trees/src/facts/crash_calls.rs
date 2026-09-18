@@ -110,6 +110,25 @@ pub(super) fn crash_predicate_from_expression(
             )),
             member: member.member.as_str().to_owned(),
         },
+        // A `collection[index]` read keeps both children structured: either
+        // may carry a formal, and substitution must reach each rather than
+        // hide it inside a flattened `Opaque` display. A range `start..end`
+        // index has no structured variant yet — it stays `Opaque`, which
+        // keeps refusing substitution.
+        ExpressionNode::Indexed(indexed) => CrashPredicateExpression::Indexed {
+            collection: Box::new(crash_predicate_from_expression(
+                program,
+                indexed.collection,
+                parameter_names,
+                content_conservation,
+            )),
+            index: Box::new(crash_predicate_from_expression(
+                program,
+                indexed.index,
+                parameter_names,
+                content_conservation,
+            )),
+        },
         ExpressionNode::Call(call) => CrashPredicateExpression::Call {
             target: call.target.as_str().to_owned(),
             receiver: Box::new(crash_predicate_from_expression(

@@ -292,6 +292,14 @@ fn encode_expression_canonical(
             out.extend(member.member.as_str().as_bytes());
             out.push(0);
         }
+        // A `collection[index]` read keeps both children explicit — the same
+        // tag `CrashPredicateExpression::Indexed` writes, so checked
+        // identities and canonical route bytes stay equal.
+        ExpressionNode::Indexed(indexed) => {
+            out.push(0x0b);
+            encode_expression_canonical(program, indexed.collection, parameter_names, out);
+            encode_expression_canonical(program, indexed.index, parameter_names, out);
+        }
         ExpressionNode::Call(call) => {
             out.push(7);
             out.extend(call.target.as_str().as_bytes());

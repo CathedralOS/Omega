@@ -1764,15 +1764,69 @@ fn spelled_use_keeps_a_route_whose_guard_call_has_a_namespace_receiver() {
     assert_eq!(surviving_guard_expressions(site), [&expected]);
 }
 
-/// The transport boundary stays conservative: an `Opaque` leaf can hide a
-/// formal inside its flattened display — `left[0u64]` mentions `left` — so
-/// the route still widens to `Truth` rather than leaking a callee spelling
-/// into caller coordinates.
+/// A `crashes` guard may read a formal through `collection[index]` — the
+/// `Indexed` leaf keeps both children explicit, so entry substitution
+/// transports `left[0u64]` into the caller's `items[0u64]` read instead of
+/// hiding `left` inside a flattened `Opaque` display. Before `Indexed`
+/// existed this same guard widened the route to `Truth`, which a caller
+/// could only cover by publishing an unconditional `crashes Trap`.
 #[test]
-fn spelled_use_still_widens_a_route_whose_opaque_leaf_hides_a_formal() {
+fn named_call_keeps_a_route_whose_guard_indexes_a_formal() {
+    use checked_trees::CrashPredicateExpression;
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
     let source = "boundary operator Ns::probe(left: [i32; 4], right: i32) -> bool
          crashes Trap !(right >= left[0u64]);
          machine keep(items: [i32; 4], value: i32) -> bool {
+             Ns::probe(items, value)
+         }";
+    check(source).expect("an indexed guard leaf keeps its route structured");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    // `left` binds the caller's `items` (entry parameter 0) and `right`
+    // binds `value` (entry parameter 1), so the surviving predicate is
+    // `!(value >= items[0u64])` in caller coordinates.
+    let expected = CrashPredicateExpression::Unary {
+        operator: UnaryOperator::LogicalNot as u8,
+        operand: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::GreaterOrEqual as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(1)),
+            right: Box::new(CrashPredicateExpression::Indexed {
+                collection: Box::new(CrashPredicateExpression::Parameter(0)),
+                index: Box::new(CrashPredicateExpression::Integer("0".to_owned())),
+            }),
+        }),
+    };
+    assert_eq!(surviving_guard_expressions(site), [&expected]);
+}
+
+/// A published-ceiling caller republishing `!(value >= items[0u64])` covers
+/// the surviving route exactly: the transported `Indexed` leaf gives the
+/// caller a route it can spell again, so the invocation checks clean without
+/// over-publishing an unconditional ceiling.
+#[test]
+fn caller_republication_covers_a_route_whose_guard_indexes_a_formal() {
+    let source = "boundary operator Ns::probe(left: [i32; 4], right: i32) -> bool
+         crashes Trap !(right >= left[0u64]);
+         pub machine keep(items: [i32; 4], value: i32) -> bool
+         crashes Trap !(value >= items[0u64]) {
+             Ns::probe(items, value)
+         }";
+    check(source).expect("the caller's matching published route covers the indexed route");
+}
+
+/// The transport boundary stays conservative outside `Indexed`: a cast leaf
+/// still flattens to `Opaque`, whose display can hide a formal —
+/// `left[0u64] as i32 in Wrapping` mentions `left` — so the route still
+/// widens to `Truth` rather than leaking a callee spelling into caller
+/// coordinates.
+#[test]
+fn named_call_still_widens_a_route_whose_opaque_leaf_hides_a_formal() {
+    let source = "boundary operator Ns::probe(left: [i64; 4], right: i32) -> bool
+         crashes Trap !(right >= (left[0u64] as i32 in Wrapping));
+         machine keep(items: [i64; 4], value: i32) -> bool {
              Ns::probe(items, value)
          }";
     check(source).expect("an internal caller retains the widened route");

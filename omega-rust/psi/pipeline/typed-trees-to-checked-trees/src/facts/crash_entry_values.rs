@@ -473,6 +473,35 @@ fn entry_operand_at(
                 }
             }))
         }
+        ExpressionNode::Indexed(indexed) => {
+            // An indexed read is a value projection like `Member`: the
+            // operand's entry identity is the collection's entry storage
+            // read at the index's entry value. The collection resolves at
+            // its whole root — element writes cannot be separated below it
+            // (`PlaceSegment::Opaque`), so a mutable collection's bound
+            // snapshot must hold across its entire storage. The domain-free
+            // reducers cannot fold an `Indexed` node, so transporting it
+            // cannot substitute builtin meaning for a caller-authored `[]`
+            // selection, the same reason arithmetic crosses unconditionally.
+            Some(CrashPredicateExpression::Indexed {
+                collection: Box::new(entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    indexed.collection,
+                    depth + 1,
+                )?),
+                index: Box::new(entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    indexed.index,
+                    depth + 1,
+                )?),
+            })
+        }
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -983,6 +1012,16 @@ pub(super) fn substitute_entry(
             receiver: Box::new(substitute_entry(receiver, operands)?),
             member: member.clone(),
         },
+        // An indexed read substitutes inside both children: `left[0]` keeps
+        // its exact route with `left`'s actual, and an opaque child — a
+        // `start..end` range or flattened projection — keeps refusing
+        // because its display may hide formals.
+        CrashPredicateExpression::Indexed { collection, index } => {
+            CrashPredicateExpression::Indexed {
+                collection: Box::new(substitute_entry(collection, operands)?),
+                index: Box::new(substitute_entry(index, operands)?),
+            }
+        }
         // A call leaf transports its authored target and substitutes inside
         // its receiver and arguments: `floor()` keeps its parameter-free
         // shape while `offset(left)` still requires `left`'s actual. The
@@ -1063,6 +1102,17 @@ pub(super) fn substitute_entry_projected(
             operator: *operator,
             operand: Box::new(substitute_entry_projected(operand, resolve)?),
         },
+        // An indexed read's `Parameter` collection resolves at the whole
+        // operand: element writes cannot be separated below the binding root
+        // (`PlaceSegment::Opaque`), so the bound snapshot must hold across
+        // the collection's entire storage, exactly as
+        // `operand_entry_provenance` already treats the same leaf.
+        CrashPredicateExpression::Indexed { collection, index } => {
+            CrashPredicateExpression::Indexed {
+                collection: Box::new(substitute_entry_projected(collection, resolve)?),
+                index: Box::new(substitute_entry_projected(index, resolve)?),
+            }
+        }
         CrashPredicateExpression::Call {
             target,
             receiver,

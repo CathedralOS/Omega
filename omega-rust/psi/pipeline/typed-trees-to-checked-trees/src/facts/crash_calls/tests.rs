@@ -902,3 +902,156 @@ fn a_case_payload_actual_below_rewritten_storage_widens_to_truth() {
         "a rebound scrutinee keeps the unconditional route: {buckets:?}"
     );
 }
+
+/// A `collection[index]` guard leaf keeps both children structured: each may
+/// carry a formal, so extraction produces `Indexed` rather than hiding them
+/// inside a flattened `Opaque` display. The identity's canonical bytes match
+/// the source-route encoder exactly — the same equality
+/// `build_published_crash_plan`'s `debug_assert_eq!` replays.
+#[test]
+fn indexed_guard_leaves_extract_both_children() {
+    use typed_trees::expression::BinaryOperator;
+    let source = "machine value(items: [i32; 4]) -> bool crashes Trap items[0u64] == 0 { true }";
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let fact = program
+        .machine_contracts(machine)
+        .iter()
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .next()
+        .expect("one contract fact");
+    let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+        panic!("the crash route is an expression fact")
+    };
+    let predicate = crash_predicate_from_expression(&program, *expression, &["items".into()], None);
+    let expected = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Indexed {
+            collection: Box::new(CrashPredicateExpression::Parameter(0)),
+            index: Box::new(CrashPredicateExpression::Integer("0".into())),
+        }),
+        right: Box::new(CrashPredicateExpression::Integer("0".into())),
+    };
+    assert_eq!(predicate, expected);
+    // `0x0b` is the indexed tag: [fact-expr, binary, ==, 0x0b, param, ...].
+    let mut route = Vec::new();
+    crate::facts::canonical_encoding::encode_contract_fact_canonical(
+        &program,
+        fact,
+        &["items".into()],
+        &[],
+        false,
+        &mut route,
+    );
+    assert_eq!(
+        checked_trees::CrashPredicateIdentity::from_expression(predicate.clone()).canonical_bytes(),
+        route.as_slice(),
+        "typed and checked canonical encoders agree on the indexed tag"
+    );
+    assert!(route.contains(&0x0b));
+    // An indexed read is not a closed proof literal: the domain-free reducer
+    // cannot fold it, so it never invents builtin `[]` meaning.
+    assert_eq!(summary_boolean_value(&predicate), None);
+}
+
+/// The private-summary path substitutes both `Indexed` children: `items` and
+/// `index` bind the caller's `items`/`position` entry parameters, so the
+/// surviving route keeps `items[position] == 0` in caller coordinates.
+#[test]
+fn an_indexed_actual_guard_substitutes_both_children() {
+    let buckets = call_site_buckets(
+        "machine inner(items: &[i32], index: u64) -> bool
+         requires index < items.len
+         crashes Trap !(items[index] == 0) { true }
+         machine outer(items: &[i32], position: u64) -> bool
+         requires position < items.len
+         crashes Trap { inner(items, position) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the indexed guard keeps its guarded route: {buckets:?}")
+    };
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Unary {
+            operator: UnaryOperator::LogicalNot as u8,
+            operand: Box::new(CrashPredicateExpression::Binary {
+                operator: BinaryOperator::Equal as u8,
+                left: Box::new(CrashPredicateExpression::Indexed {
+                    collection: Box::new(CrashPredicateExpression::Parameter(0)),
+                    index: Box::new(CrashPredicateExpression::Parameter(1)),
+                }),
+                right: Box::new(CrashPredicateExpression::Integer("0".into())),
+            }),
+        }),
+    );
+}
+
+/// `substitute` reaches inside an `Indexed` leaf from either child: the
+/// collection's formal binds the actual, while an `Opaque` child — a
+/// `start..end` range or flattened projection — still refuses because its
+/// display may hide formals.
+#[test]
+fn indexed_predicates_substitute_through_summary_buckets() {
+    use typed_trees::expression::BinaryOperator;
+    let indexed = |collection, index| CrashPredicateExpression::Indexed {
+        collection: Box::new(collection),
+        index: Box::new(index),
+    };
+    let route = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![predicate(indexed(
+            CrashPredicateExpression::Parameter(0),
+            CrashPredicateExpression::Parameter(1),
+        ))],
+    };
+    let substituted = route.substitute(&identity_substitution(vec![
+        Some(CrashPredicateExpression::Integer("4".into())),
+        Some(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Add as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(2)),
+            right: Box::new(CrashPredicateExpression::Integer("1".into())),
+        }),
+    ]));
+    assert_eq!(
+        substituted.alternative_guards,
+        vec![predicate(indexed(
+            CrashPredicateExpression::Integer("4".into()),
+            CrashPredicateExpression::Binary {
+                operator: BinaryOperator::Add as u8,
+                left: Box::new(CrashPredicateExpression::Parameter(2)),
+                right: Box::new(CrashPredicateExpression::Integer("1".into())),
+            },
+        ))],
+    );
+    let opaque_index = SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![predicate(indexed(
+            CrashPredicateExpression::Parameter(0),
+            CrashPredicateExpression::Opaque("0..bound".into()),
+        ))],
+    };
+    assert_eq!(
+        opaque_index.substitute(&identity_substitution(vec![
+            Some(CrashPredicateExpression::Parameter(2)),
+            Some(CrashPredicateExpression::Parameter(3)),
+        ])),
+        SummaryCrashBucket::unconditional(checked_trees::CrashCause::Trap),
+        "an opaque index child still widens instead of leaking a callee display",
+    );
+}

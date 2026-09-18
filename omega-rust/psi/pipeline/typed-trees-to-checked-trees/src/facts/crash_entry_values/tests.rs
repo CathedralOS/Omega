@@ -1530,3 +1530,57 @@ fn a_leaf_read_below_a_case_payload_operand_keeps_entry_provenance() {
         "the payload operand's `item` read still names the entry actual",
     );
 }
+
+#[test]
+fn indexed_read_transports_collection_and_index_entry_operands() {
+    // `items[index]` is a structured operand: the collection contributes its
+    // whole-storage entry identity and the index its own, so the call
+    // argument keeps the exact `Parameter(0)[Parameter(1)]` read rather than
+    // dropping to no provenance.
+    let program = typed_program(
+        "machine sink(input: i32) -> i32 { input }
+         machine value(items: [i32; 4], index: u64) -> i32
+         requires index < 4 {
+             sink(items[index]); items[index]
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, argument) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, argument),
+        Some(CrashPredicateExpression::Indexed {
+            collection: Box::new(CrashPredicateExpression::Parameter(0)),
+            index: Box::new(CrashPredicateExpression::Parameter(1)),
+        }),
+    );
+}
+
+#[test]
+fn indexed_read_below_rewritten_collection_storage_widens() {
+    // `items[0] = 9` ends the collection's whole-storage bound snapshot —
+    // element writes cannot be separated below the binding root — so the
+    // indexed read keeps no entry operand even though the index is pristine.
+    let program = typed_program(
+        "machine sink(input: i32) -> i32 { input }
+         machine value(mut items: [i32; 4]) -> i32 {
+             items[0u64] = 9; sink(items[1u64]); items[1u64]
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, argument) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, argument),
+        None,
+        "an element write retires the whole collection's entry snapshot",
+    );
+}
