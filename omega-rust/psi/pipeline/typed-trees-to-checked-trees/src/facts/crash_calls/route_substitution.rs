@@ -409,8 +409,8 @@ pub(crate) fn substitute_checked_boolean_expression(
         // Each leaf re-roots through the caller's frozen structural channel:
         // the callee position binds the actual's own caller parameter and
         // member spine, and the leaf path appends below it. The remaining
-        // structural terms still refuse — standalone field and
-        // case-membership leaves keep their own transport gaps.
+        // structural terms still refuse — the standalone field leaf keeps
+        // its own transport gap.
         CheckedBooleanExpression::IeeeFloatComparison {
             kind,
             primitive_type,
@@ -448,8 +448,20 @@ pub(crate) fn substitute_checked_boolean_expression(
                 right: substitute_structural_parameter_field(right, fields)?,
             }
         }
-        CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::StructuralCaseMembership { .. } => return None,
+        // A sum case-membership test is atomic over the same structural
+        // leaves: the subject re-roots through the caller's frozen
+        // structural channel while the case identity names the resolved
+        // sum's declared case — a type-level fact the re-root cannot
+        // change, and one the lowering rechecks against the resolved
+        // subject's declared cases before emitting the atomic
+        // proposition.
+        CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
+            CheckedBooleanExpression::StructuralCaseMembership {
+                subject: substitute_structural_parameter_field(subject, fields)?,
+                case: case.clone(),
+            }
+        }
+        CheckedBooleanExpression::StructuralParameterField { .. } => return None,
         CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
             substitute_checked_boolean_expression(operand, arguments, fields)?,
         )),
