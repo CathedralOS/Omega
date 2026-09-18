@@ -137,6 +137,109 @@ fn distance_named_state_arrivals_claim_both_ranked_roles() {
     reject(&DISTANCE.replace("step(left + 1, right)", "step(left, left + 1)"));
 }
 
+const NESTED_RECORD: &str = r#"
+data Inner { remaining: u64 [0..=5]; }
+data Countdown { label: u64; inner: Inner; }
+data Pair { left: Countdown; tag: u64; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown, ceiling: u64 [0..=5])
+requires countdown.inner.remaining <= ceiling;
+terminates by countdown -> Countdown::Remaining in 0..=ceiling;
+-> u64 {
+    transition { _ -> iterate(ceiling, Pair { left: countdown, tag: 0 }) }
+    state iterate(limit: u64 [0..=5], pending: Pair) {
+        transition pending.left.inner.remaining > 0 {
+            true -> iterate(limit, Pair { left: Countdown { label: pending.left.label, inner: Inner { remaining: pending.left.inner.remaining - 1 } }, tag: pending.tag })
+            false -> pending.left.inner.remaining
+        }
+    }
+}
+"#;
+
+#[test]
+fn named_state_record_role_arrives_nested_in_a_unique_carrier_field() {
+    // `pending.left` is the only `Countdown` path inside `Pair`, so `pending`
+    // carries `countdown`'s role and the coordinate reads the nested chain.
+    prove(NESTED_RECORD);
+    // The same carriage behind the destination formal's own `&` unwraps one
+    // borrow and reads the same nested chain. The leaf keeps no declared
+    // field range there: construction-range proof does not read a declared
+    // field bound through a `&` member chain, so an unconstrained `u64`
+    // leaves the range judgment to the transported invariant alone.
+    prove(
+        &NESTED_RECORD
+            .replace("remaining: u64 [0..=5];", "remaining: u64;")
+            .replace("pending: Pair", "pending: &Pair")
+            .replace("Pair { left: countdown", "&Pair { left: countdown")
+            .replace("Pair { left: Countdown {", "&Pair { left: Countdown {"),
+    );
+    // A store into the carried record's path before the transition
+    // invalidates the arrival premise.
+    reject(&NESTED_RECORD.replace(
+        "transition pending.left.inner.remaining > 0",
+        "pending.left.inner.remaining = 2; transition pending.left.inner.remaining > 0",
+    ));
+    // The loop must actually descend the nested coordinate.
+    reject(&NESTED_RECORD.replace(
+        "pending.left.inner.remaining - 1",
+        "pending.left.inner.remaining",
+    ));
+}
+
+#[test]
+fn named_state_record_role_rejects_ambiguous_nested_carriers() {
+    // Two `Countdown` fields leave the carriage a guess: `pending.left` and
+    // `pending.right` are equally valid readings, so the slot keeps no role
+    // even though this arrival happens to use `left`.
+    let source = r#"
+    data Inner { remaining: u64 [0..=5]; }
+    data Countdown { label: u64; inner: Inner; }
+    data Pair { left: Countdown; right: Countdown; }
+    measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+    machine walk(countdown: Countdown, ceiling: u64 [0..=5])
+    requires countdown.inner.remaining <= ceiling;
+    terminates by countdown -> Countdown::Remaining in 0..=ceiling;
+    -> u64 {
+        transition { _ -> iterate(ceiling, Pair { left: countdown, right: Countdown { label: 0, inner: Inner { remaining: 0 } } }) }
+        state iterate(limit: u64 [0..=5], pending: Pair) {
+            transition pending.left.inner.remaining > 0 {
+                true -> iterate(limit, Pair { left: Countdown { label: pending.left.label, inner: Inner { remaining: pending.left.inner.remaining - 1 } }, right: pending.right })
+                false -> pending.left.inner.remaining
+            }
+        }
+    }
+    "#;
+    reject(source);
+}
+
+#[test]
+fn named_state_record_role_arrives_as_the_chain_mid_record() {
+    // `pending` IS the `inner` record the authored chain descends partway:
+    // the coordinate reads `pending.remaining`, the residual leaf.
+    let source = r#"
+    data Inner { remaining: u64 [0..=5]; }
+    data Countdown { label: u64; inner: Inner; }
+    measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+    machine walk(countdown: Countdown, ceiling: u64 [0..=5])
+    requires countdown.inner.remaining <= ceiling;
+    terminates by countdown -> Countdown::Remaining in 0..=ceiling;
+    -> u64 {
+        transition { _ -> iterate(ceiling, countdown.inner) }
+        state iterate(limit: u64 [0..=5], pending: Inner) {
+            transition pending.remaining > 0 {
+                true -> iterate(limit, Inner { remaining: pending.remaining - 1 })
+                false -> pending.remaining
+            }
+        }
+    }
+    "#;
+    prove(source);
+    reject(&source.replace("pending.remaining - 1", "pending.remaining"));
+}
+
 #[test]
 fn named_state_cannot_reuse_a_non_inductive_machine_requirement() {
     let source = r#"
