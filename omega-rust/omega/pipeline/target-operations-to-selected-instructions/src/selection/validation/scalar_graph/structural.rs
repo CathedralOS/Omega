@@ -238,6 +238,47 @@ pub(super) fn operation(
         subslice::create(source, replay, node)?;
         return Ok(true);
     }
+    // Reference custody is compile-time metadata: the rows carry operation
+    // provenance and ordering but emit no executable instruction and no
+    // physical result home. The carrier's zero-byte shape and non-owned
+    // source are the only admission checks here; the referent never exists
+    // as pointer bits at this stage.
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::EstablishReference { .. }
+            | LegalizedScalarInstructionKind::ReleaseReference { .. }
+    ) {
+        if node.result.is_some() {
+            return Err(replay.invalid());
+        }
+        if let LegalizedScalarInstructionKind::EstablishReference {
+            result,
+            source: argument,
+            shape,
+        } = &node.kind
+        {
+            let valid = source.structural.as_ref().is_some_and(|signature| {
+                signature
+                    .structural_places
+                    .iter()
+                    .any(|declaration| declaration.id == result.place)
+                    && signature.structural_types.iter().any(|declaration| {
+                        declaration.id == result.structural_type
+                            && matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::Reference { .. }
+                            )
+                    })
+            });
+            if !valid
+                || *shape != calling_conventions::ValueShape::integer(0, 1)
+                || argument.access == StructuralAccess::Owned
+            {
+                return Err(replay.invalid());
+            }
+        }
+        return Ok(true);
+    }
     if let LegalizedScalarInstructionKind::BoundarySettlement(settlement) = &node.kind {
         if node.result.is_some()
             || node.operation != settlement.operation

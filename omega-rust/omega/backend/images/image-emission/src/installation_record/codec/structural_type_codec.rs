@@ -2,6 +2,7 @@
 //! record rows.
 
 use super::boundary_result_scalar_codec;
+use super::structural_scalar_codec::{access_tag, decode_access};
 use crate::installation_record::{
     InstallationError, Reader, StructuralTypeId, decode_identity, decode_structural_cases,
     decode_structural_fields, encode_identity, encode_structural_cases, encode_structural_fields,
@@ -19,8 +20,14 @@ pub(crate) fn encode_structural_types(
         push_u64(bytes, declaration.id.get());
         encode_identity(bytes, &declaration.identity)?;
         match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { .. } => {
-                return Err(InstallationError::UnsupportedStructuralReturnShape);
+            // A reference is semantic custody, not native pointer layout:
+            // the wire row preserves referent identity and access mode and
+            // no placement bytes accompany the declaration.
+            terminal_psi::StructuralTypeShape::Reference { referent, access } => {
+                bytes.extend_from_slice(&[7, 0, 0, 0]);
+                push_u64(bytes, referent.get());
+                bytes.push(access_tag(*access));
+                bytes.extend_from_slice(&[0; 3]);
             }
             terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 bytes.extend_from_slice(&[6, 0, 0, 0]);
@@ -117,6 +124,16 @@ pub(crate) fn decode_structural_types(
             6 => terminal_psi::StructuralTypeShape::PrimitiveScalar(
                 boundary_result_scalar_codec::decode_boundary_result_scalar_type(reader)?,
             ),
+            7 => {
+                let referent = StructuralTypeId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralReturnIdentity("reference referent type"),
+                )?;
+                let access = decode_access(reader.u8()?)?;
+                if reader.take(3)? != [0; 3] {
+                    return Err(InstallationError::NonzeroReservedField);
+                }
+                terminal_psi::StructuralTypeShape::Reference { referent, access }
+            }
             tag => {
                 return Err(InstallationError::InvalidStructuralTypeShapeTag(tag));
             }

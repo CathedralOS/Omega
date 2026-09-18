@@ -129,6 +129,8 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::IeeeFloatCompare { left, right, .. }
         | Instruction::Compare { left, right, .. } => [*left, *right].contains(&value),
         Instruction::Constant(_)
+        | Instruction::EstablishReference { .. }
+        | Instruction::ReleaseReference { .. }
         | Instruction::HostedReadByte { .. }
         | Instruction::PrimitiveScalarRead { .. }
         | Instruction::StructuralScalarFieldRead { .. }

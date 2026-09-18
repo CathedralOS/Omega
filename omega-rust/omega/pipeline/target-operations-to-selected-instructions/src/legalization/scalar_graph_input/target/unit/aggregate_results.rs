@@ -10,6 +10,7 @@ pub(super) fn validate(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
     sources: &[(ValueId, Source)],
+    custody: &scalar_graph_input::reference_custody::Custody,
     optimized: &PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
@@ -178,6 +179,7 @@ pub(super) fn validate(
                 returned_claim_transfers,
                 requirement_obligations,
                 crash_continuations,
+                reference_results,
             },
             AbstractOperation::CallStructural {
                 psi_operation: expected_operation,
@@ -198,18 +200,41 @@ pub(super) fn validate(
                 .find(|function| function.machine == *callee)
                 .ok_or(invalid.clone())?;
             let expected_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
+            // A bare reference result is custody only: no physical result
+            // home is established. The declared leaf roster is independently
+            // replayed against pre-call custody.
+            let reference_only = plan.structural_types.iter().any(|declaration| {
+                declaration.id == result.structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Reference { .. }
+                    )
+            });
+            let expected_home = if reference_only {
+                None
+            } else {
+                Some(scalar_graph_input::aggregate_results::result_home(
+                    optimized,
+                    result.place,
+                    plan,
+                )?)
+            };
+            let expected_references = scalar_graph_input::reference_custody::reference_results(
+                optimized,
+                called,
+                structural_arguments,
+                result.structural_type,
+                custody,
+                &plan.structural_types,
+            )?;
             if psi_operation != expected_operation
                 || result != expected_result
                 || callee != expected_callee
                 || called.result.structural() != Some(callee_result)
                 || result.structural_type != callee_result.structural_type
                 || result.multiplicity != callee_result.multiplicity
-                || result_home.as_ref()
-                    != Some(&scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?)
+                || *result_home != expected_home
+                || *reference_results != expected_references
                 || *call_plan != expected_plan
                 || !claim_transfers.is_empty()
                 || !expected_claims.is_empty()
@@ -256,6 +281,7 @@ pub(super) fn validate(
                         &expected_plan,
                         native,
                         plan,
+                        custody,
                     )?
                 {
                     return Err(invalid);

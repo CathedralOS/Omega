@@ -41,6 +41,16 @@ pub struct TargetStructuralArgument {
     pub destination: ValuePlacement,
 }
 
+/// One reference leaf inside a structural call result, resolved through
+/// compile-time custody. `path` names the leaf within the result carrier and
+/// `root` names the referent's root place. This is source-identity metadata:
+/// the referent is never located by reading a stored pointer or descriptor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetReferenceResult {
+    pub path: Vec<StructuralPathSegment>,
+    pub root: PlaceId,
+}
+
 /// An incoming value placement and an established local descriptor have
 /// different storage origins, even when the callee receives the same pointer ABI.
 #[derive(Debug, Clone, PartialEq, Eq)]

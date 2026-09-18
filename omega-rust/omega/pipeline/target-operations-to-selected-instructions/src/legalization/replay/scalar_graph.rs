@@ -45,6 +45,10 @@ pub(super) fn replay(
     {
         return Err(invalid);
     }
+    // Replay reference custody block by block; each row's structural
+    // arguments rejoin against the custody state its position suspends.
+    let custody_entries =
+        scalar_graph_input::reference_custody::block_entry_states(optimized, plan, unit)?;
     for (block, source) in proposed.blocks.iter().zip(&optimized.blocks) {
         let (last, body) = source.nodes.split_last().ok_or(invalid.clone())?;
         if block.id != source.id
@@ -54,10 +58,38 @@ pub(super) fn replay(
         {
             return Err(invalid);
         }
+        let mut custody = custody_entries
+            .get(&block.id)
+            .cloned()
+            .ok_or(invalid.clone())?;
         for (actual, node) in block.instructions.iter().zip(body) {
-            instruction::validate(actual, node, optimized, native, plan, unit, proposed_plan)?;
+            instruction::validate(
+                actual,
+                node,
+                optimized,
+                native,
+                plan,
+                unit,
+                proposed_plan,
+                &custody,
+            )?;
+            scalar_graph_input::reference_custody::apply(
+                &mut custody,
+                &node.operation,
+                optimized,
+                plan,
+                unit,
+            )?;
         }
-        terminator::validate(&block.terminator, last, optimized, plan)?;
+        // Edge-local discards move custody before the terminator's return
+        // roster is rejoined, mirroring the lowering's cleanup-first order.
+        scalar_graph_input::reference_custody::apply_terminator(
+            &mut custody,
+            &last.operation,
+            optimized,
+            plan,
+        )?;
+        terminator::validate(&block.terminator, last, optimized, plan, &custody)?;
     }
     Ok(())
 }

@@ -21,13 +21,14 @@ pub(super) fn project(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstruction, LegalizationError> {
     if let Some((operation, origin)) =
         scalar_graph_input::call_origin::installed_operation(node, optimized, native, plan)?
     {
         let mut call_node = node.clone();
         call_node.operation = operation;
-        let mut instruction = project(&call_node, optimized, native, plan, unit)?;
+        let mut instruction = project(&call_node, optimized, native, plan, unit, custody)?;
         let LegalizedScalarInstructionKind::Call(call) = &mut instruction.kind else {
             return Err(Error::SourceCustodyMismatch);
         };
@@ -83,8 +84,18 @@ pub(super) fn project(
             right: *right,
         },
         AbstractOperation::CallStructural { .. } => call_instructions::project_call_structural(
-            node, optimized, native, plan, unit, operation,
+            node, optimized, native, plan, unit, operation, custody,
         )?,
+        AbstractOperation::EstablishReference { result, source, .. } => {
+            LegalizedScalarInstructionKind::EstablishReference {
+                result: result.clone(),
+                source: source.clone(),
+                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
+            }
+        }
+        AbstractOperation::ReleaseReference { source, .. } => {
+            LegalizedScalarInstructionKind::ReleaseReference { source: *source }
+        }
         AbstractOperation::EstablishRecord { result, fields, .. } => {
             LegalizedScalarInstructionKind::EstablishRecord {
                 result: result.clone(),
@@ -171,7 +182,9 @@ pub(super) fn project(
             storage_instructions::project_byte_sequence_subslice(node, optimized, unit)?
         }
         AbstractOperation::CallUnit { .. } | AbstractOperation::CallStructuralScalar { .. } => {
-            call_instructions::project_call_unit(node, optimized, native, plan, unit, operation)?
+            call_instructions::project_call_unit(
+                node, optimized, native, plan, unit, operation, custody,
+            )?
         }
         AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_byte_store(

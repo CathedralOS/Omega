@@ -378,14 +378,12 @@ pub(crate) fn validate_structural_root_operations(
                     // Whole-carrier establishment: the result is an affine
                     // `ref mut` over a primitive referent and the source must
                     // name exactly that referent under mutable authority.
-                    let expected =
-                        crate::unit_validation::references::referent(
-                            structural_types,
-                            result.structural_type,
-                        );
+                    let expected = crate::unit_validation::references::referent(
+                        structural_types,
+                        result.structural_type,
+                    );
                     let valid = expected.is_some()
-                        && result.multiplicity
-                            == terminal_psi::StructuralMultiplicity::Affine
+                        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && result.qualifications.is_empty()
                         && result.projected_qualifications.is_empty()
                         && result.claims.is_empty()
@@ -404,11 +402,9 @@ pub(crate) fn validate_structural_root_operations(
                             source,
                         ) == expected;
                     if !valid {
-                        return Err(
-                            OptimizationUnitValidationError::StructuralCatalogMismatch {
-                                machine: Some(function.machine),
-                            },
-                        );
+                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                            machine: Some(function.machine),
+                        });
                     }
                 }
                 O::ReleaseReference { source, .. } => {
@@ -423,11 +419,9 @@ pub(crate) fn validate_structural_root_operations(
                         .is_some()
                     });
                     if !valid {
-                        return Err(
-                            OptimizationUnitValidationError::StructuralCatalogMismatch {
-                                machine: Some(function.machine),
-                            },
-                        );
+                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                            machine: Some(function.machine),
+                        });
                     }
                 }
                 O::ReturnStructural { source, .. } => {

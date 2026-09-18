@@ -12,6 +12,7 @@ mod operations;
 mod owned_arguments;
 mod primitive_storage;
 mod records;
+mod references;
 pub(super) mod scalar_arrays;
 mod scalar_sources;
 mod structural_case;
@@ -36,6 +37,10 @@ struct LiveDefinitions {
     block_views: BTreeSet<PlaceId>,
     owned_arrivals: BTreeSet<PlaceId>,
     lengths: BTreeMap<ValueId, PlaceId>,
+    /// Live reference loans keyed by current carrier location. The map is the
+    /// lowering-time mirror of the verified ownership replay: carriers own
+    /// loan permission, never referent storage.
+    references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceCustody>,
 }
 
 pub(super) fn lower(
@@ -169,6 +174,7 @@ pub(super) fn lower(
     if places.len() != function.structural_parameters.len() {
         return Err(invalid());
     }
+    let entry_references = references::entry(function, structural_types)?;
     for entry in &function.block_entries {
         for (position, parameter) in entry.structural_parameters.iter().enumerate() {
             if entry.block == function.entry
@@ -188,6 +194,7 @@ pub(super) fn lower(
             | AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishScalarCase { result, .. }
+            | AbstractOperation::EstablishReference { result, .. }
             | AbstractOperation::CallStructural { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }
             | AbstractOperation::BoundaryCall {
@@ -300,6 +307,7 @@ pub(super) fn lower(
         block_views: BTreeSet::new(),
         owned_arrivals: BTreeSet::new(),
         lengths: BTreeMap::new(),
+        references: entry_references.clone(),
     };
     for (position, dominator) in schedule {
         let mut live = match dominator {
@@ -371,12 +379,17 @@ pub(super) fn lower(
                 provenance,
             )?;
         }
-        transfers::validate_successors(&function.operations[range.end - 1], function, &live)?;
+        transfers::validate_successors(
+            &function.operations[range.end - 1],
+            function,
+            &live,
+            structural_types,
+        )?;
         let terminator = lower_terminator(
             &function.operations[range.end - 1],
             function,
             &prepared,
-            &live,
+            &mut live,
             structural_types,
             provenance,
         )?;

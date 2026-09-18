@@ -196,6 +196,21 @@ pub enum TargetUnitOperation {
         result_home: crate::TargetStructuralHomeRequirement,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
+    /// Establish one verified reference carrier. `result_home` is the
+    /// carrier's canonical zero-byte metadata home — a custody identity, not
+    /// storage; the referent is located only through `source`, never through
+    /// pointer bits.
+    EstablishReference {
+        psi_operation: OperationId,
+        result_home: crate::TargetStructuralHomeRequirement,
+        source: StructuralArgument,
+    },
+    /// Close the loan on the carrier at `source`. Referent storage is
+    /// unaffected; this row carries custody metadata only.
+    ReleaseReference {
+        psi_operation: OperationId,
+        source: PlaceId,
+    },
     /// One direct Unit-result call. Scalar arguments occupy the prefix of the
     /// complete ABI plan; structural arguments retain the remaining placements.
     Call {
@@ -246,6 +261,10 @@ pub enum TargetUnitOperation {
         callee: MachineId,
         callee_result: StructuralResultDeclaration,
         result_home: Option<TargetStructuralHomeRequirement>,
+        /// Reference leaves the callee's declared result roster hands back,
+        /// each resolved to its referent root place through caller custody.
+        /// Empty unless the result carrier is reference-bearing.
+        reference_results: Vec<crate::TargetReferenceResult>,
         call_plan: CallPlan,
         scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<TargetStructuralArgument>,

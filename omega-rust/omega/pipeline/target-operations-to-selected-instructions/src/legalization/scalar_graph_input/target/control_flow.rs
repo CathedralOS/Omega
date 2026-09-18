@@ -90,6 +90,11 @@ pub(super) fn validate(
         }
         _ => return Err(invalid),
     }
+    // Reference custody is replayed independently alongside the row checks:
+    // each block enters with its dominator's exit state (ingress seeding at
+    // the entry block), and every operation row validates against the custody
+    // state it leaves suspended.
+    let block_entries = super::super::reference_custody::block_entry_states(optimized, plan, unit)?;
     for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
         if block.block != source.id
             || block.structural_parameters != source.structural_parameters
@@ -107,6 +112,10 @@ pub(super) fn validate(
             return Err(invalid);
         }
         let mut available = sources::available(graph, optimized, block.block);
+        let mut custody = block_entries
+            .get(&block.block)
+            .cloned()
+            .ok_or(invalid.clone())?;
         for (operation, node) in block.operations.iter().zip(&source.nodes) {
             // Returns belong only to the terminator, never an ordinary row.
             if matches!(operation, TargetUnitOperation::Return { .. }) {
@@ -119,13 +128,29 @@ pub(super) fn validate(
                 &graph.scalar_parameters,
                 &graph.parameters,
                 &mut available,
+                &custody,
                 optimized,
                 native,
                 plan,
                 unit,
             )?;
+            super::super::reference_custody::apply(
+                &mut custody,
+                &node.operation,
+                optimized,
+                plan,
+                unit,
+            )?;
         }
         let source_terminator = &source.nodes.last().ok_or(invalid.clone())?.operation;
+        // The terminator's edge-local discards move custody after every row,
+        // in the same order the lowering's cleanup pass commits them.
+        super::super::reference_custody::apply_terminator(
+            &mut custody,
+            source_terminator,
+            optimized,
+            plan,
+        )?;
         let matches = match (&block.terminator, source_terminator) {
             (
                 TargetControlTerminator::ReturnStructural {
@@ -147,6 +172,21 @@ pub(super) fn validate(
                     && edge_cleanup_matches(optimized, cleanup_actions, trivial_affine_discards)
                     && returned_claims.is_empty()
                     && trivial_affine_locals.is_empty()
+                    // A reference-bearing result must still sit at its declared
+                    // carrier paths with each leaf rooted at a formal origin.
+                    && optimized.result.structural().is_none_or(|result| {
+                        !super::super::reference_custody::contains_reference(
+                            &plan.structural_types,
+                            result.structural_type,
+                        ) || super::super::reference_custody::return_custody(
+                            &custody,
+                            optimized,
+                            &plan.structural_types,
+                            *expected_source,
+                            result,
+                        )
+                        .is_ok()
+                    })
                     && match source {
                         target_operations::TargetStructuralReturnSource::Parameter(parameter) => {
                             optimized.structural_parameters.iter().any(|semantic| {

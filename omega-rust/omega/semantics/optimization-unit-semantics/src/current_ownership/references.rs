@@ -156,7 +156,12 @@ fn normalized_source(
                 reference.carrier == source.place && reference.carrier_path == carrier_path
             })
             .ok_or_else(|| {
-                invalid(function, block, Some(node), "reference carrier is no longer live")
+                invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "reference carrier is no longer live",
+                )
             })?;
         if live
             .iter()
@@ -245,14 +250,15 @@ pub(super) fn discard_owned(
     let Some(signature) = structural_source_contract(function, source, false) else {
         return Ok(());
     };
-    let paths = leaf_paths(structural_types, signature.structural_type, live.len()).ok_or_else(|| {
-        invalid(
-            function,
-            block,
-            None,
-            "discard type requires more reference leaves than are live",
-        )
-    })?;
+    let paths =
+        leaf_paths(structural_types, signature.structural_type, live.len()).ok_or_else(|| {
+            invalid(
+                function,
+                block,
+                None,
+                "discard type requires more reference leaves than are live",
+            )
+        })?;
     let mut released = BTreeSet::new();
     for path in paths.iter().rev() {
         let reference = live
@@ -344,16 +350,15 @@ fn establish_record(
         let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
             continue;
         };
-        let signature = structural_source_contract(function, argument.place, false).ok_or_else(
-            || {
+        let signature =
+            structural_source_contract(function, argument.place, false).ok_or_else(|| {
                 invalid(
                     function,
                     block,
                     Some(node),
                     "record operand has no structural source",
                 )
-            },
-        )?;
+            })?;
         let paths = leaf_paths(structural_types, signature.structural_type, live.len())
             .ok_or_else(|| {
                 invalid(
@@ -385,10 +390,9 @@ fn establish_record(
                     "record cannot duplicate reference custody",
                 ));
             }
-            let mut destination =
-                vec![terminal_psi::StructuralPathSegment::Field(
-                    declaration.identity.clone(),
-                )];
+            let mut destination = vec![terminal_psi::StructuralPathSegment::Field(
+                declaration.identity.clone(),
+            )];
             destination.extend(path);
             relocations.push((position, destination));
         }
@@ -599,7 +603,12 @@ pub(super) fn apply_operation(
             ..
         } if contains_reference(structural_types, result.structural_type) => {
             let callee = functions.get(callee).ok_or_else(|| {
-                invalid(function, block, Some(node), "reference call target is absent")
+                invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "reference call target is absent",
+                )
             })?;
             let declaration = callee.result.structural().ok_or_else(|| {
                 invalid(
@@ -762,9 +771,10 @@ pub(super) fn transfer_return(
     if !contains_reference(structural_types, signature.structural_type) {
         return Ok(false);
     }
-    let result = function.result.structural().ok_or_else(|| {
-        invalid(function, block, None, "reference return has no declaration")
-    })?;
+    let result = function
+        .result
+        .structural()
+        .ok_or_else(|| invalid(function, block, None, "reference return has no declaration"))?;
     if signature.structural_type != result.structural_type
         || live
             .iter()

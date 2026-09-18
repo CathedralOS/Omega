@@ -1,6 +1,7 @@
 //! Exact scalar telescopes and simultaneous edge inputs for ordinary Unit blocks.
-use super::{KnownUnitInteger, LiveDefinitions};
+use super::{KnownUnitInteger, LiveDefinitions, references};
 use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractBlockEntry, AbstractFunction, AbstractOperation, ValueBinding};
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::BTreeSet;
@@ -63,6 +64,7 @@ pub(super) fn validate_successors(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     live: &LiveDefinitions,
+    structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<(), LoweringError> {
     let validate =
         |target: BlockId,
@@ -81,6 +83,12 @@ pub(super) fn validate_successors(
                 return Err(invalid());
             }
             for (binding, parameter) in structural.iter().zip(&block.structural_parameters) {
+                // Binding a reference-bearing subtree would need partial-move
+                // custody across an edge; the verified contract rejects it and
+                // this layer keeps the same boundary.
+                if references::contains_reference(structural_types, parameter.structural_type) {
+                    return Err(invalid());
+                }
                 let place = binding.argument.place;
                 let source_type = function
                     .structural_parameters

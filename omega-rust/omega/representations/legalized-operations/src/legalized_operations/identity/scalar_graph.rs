@@ -145,6 +145,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     }
                     super::read_byte::encode_layout(bytes, layout);
                 }
+                LegalizedScalarInstructionKind::EstablishReference {
+                    result,
+                    source,
+                    shape,
+                } => {
+                    bytes.push(29);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    super::calling::encode_shape(bytes, *shape);
+                }
+                LegalizedScalarInstructionKind::ReleaseReference { source } => {
+                    bytes.push(30);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
                     result,
                     value,

@@ -28,6 +28,12 @@ pub(super) fn derive(
             })
         })
         .collect::<Result<Vec<_>, LegalizationError>>()?;
+    // Reference custody is replayed block by block so `.., Referent` call
+    // arguments rejoin through the exact state their position suspends. The
+    // input match above already proved the same schedule; this reconstruction
+    // supplies only the argument-resolution snapshot.
+    let custody_entries =
+        scalar_graph_input::reference_custody::block_entry_states(optimized, plan, unit)?;
     let blocks = optimized
         .blocks
         .iter()
@@ -36,14 +42,28 @@ pub(super) fn derive(
                 .nodes
                 .split_last()
                 .ok_or(Error::SourceCustodyMismatch)?;
+            let mut custody = custody_entries
+                .get(&block.id)
+                .cloned()
+                .ok_or(Error::SourceCustodyMismatch)?;
+            let mut instructions = Vec::with_capacity(body.len());
+            for node in body {
+                instructions.push(instruction::project(
+                    node, optimized, native, plan, unit, &custody,
+                )?);
+                scalar_graph_input::reference_custody::apply(
+                    &mut custody,
+                    &node.operation,
+                    optimized,
+                    plan,
+                    unit,
+                )?;
+            }
             Ok(LegalizedScalarBlock {
                 id: block.id,
                 parameters: block.parameters.clone(),
                 structural_parameters: block.structural_parameters.clone(),
-                instructions: body
-                    .iter()
-                    .map(|node| instruction::project(node, optimized, native, plan, unit))
-                    .collect::<Result<Vec<_>, LegalizationError>>()?,
+                instructions,
                 terminator: terminator::project(last, optimized, plan)?,
             })
         })

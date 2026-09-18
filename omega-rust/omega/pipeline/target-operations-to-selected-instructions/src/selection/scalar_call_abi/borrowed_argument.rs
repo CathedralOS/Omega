@@ -19,6 +19,22 @@ pub(super) fn validate_borrowed_argument(
     else {
         return None;
     };
+    // A `.., Referent` argument transports its referent root's pointer; the
+    // carrier place names loan custody only and is never a pointer source.
+    if matches!(
+        semantic.path.last(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        return validate_referent_argument(
+            source,
+            call,
+            operation,
+            argument_index,
+            semantic,
+            target,
+            signature,
+        );
+    }
     // Only incoming structural parameters participate in the caller's ABI.
     // Local literal descriptors are established in the activation instead.
     if source
@@ -186,17 +202,12 @@ pub(super) fn validate_borrowed_argument(
                     }
                 })
                 .collect::<Option<Vec<_>>>()?,
-            result: if call.structural_result.is_some() {
-                Some(
-                    crate::selection::aggregate_result_input::call_result(source, call)?
-                        .1
-                        .shape,
-                )
-            } else {
-                call.result_placement
-                    .as_ref()
-                    .map(|placement| placement.shape)
-            },
+            // The placement shape is the ABI input; reference-bearing
+            // structural results have no physical home to rejoin here.
+            result: call
+                .result_placement
+                .as_ref()
+                .map(|placement| placement.shape),
         },
     )
     .ok()?;
@@ -335,4 +346,121 @@ fn exclusive_projection_shape(
             shape.byte_size,
             shape.alignment,
         ))
+}
+
+/// A `.., Referent` argument transports its referent root's pointer; the
+/// carrier place names loan custody only. Legalization's custody replay
+/// resolved the root; this join re-derives the same ABI identity from the
+/// retained argument metadata alone.
+fn validate_referent_argument(
+    source: &LegalizedScalarFunction,
+    call: &LegalizedScalarCall,
+    operation: semantic_vocabulary::OperationId,
+    argument_index: usize,
+    semantic: &terminal_psi::StructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
+    signature: &legalized_operations::LegalizedStructuralContract,
+) -> Option<()> {
+    let (last, carrier_path) = semantic.path.split_last()?;
+    if !matches!(last, terminal_psi::StructuralPathSegment::Referent)
+        || !carrier_path
+            .iter()
+            .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
+        || semantic.access == StructuralAccess::Owned
+        || target.access != semantic.access
+        || target.path != semantic.path
+        || target.source_byte_offset != 0
+        || target.fixed_array_length.is_some()
+        || target.element_stride.is_some()
+        || target.root_structural_type != target.structural_type
+    {
+        return None;
+    }
+    let scalar = signature
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == target.structural_type)
+        .and_then(|declaration| match declaration.shape {
+            terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+            _ => None,
+        })?;
+    let referent = scalar_shape(scalar)?;
+    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+    if target.shape != shape || target.destination.shape != shape {
+        return None;
+    }
+    match &target.source {
+        target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+            psi_operation,
+        } => {
+            let (producer, result, local_scalar, _) =
+                crate::selection::primitive_local_input::local(source, target.place)?;
+            if *psi_operation != producer
+                || producer == operation
+                || result.structural_type != target.structural_type
+                || local_scalar != scalar
+            {
+                return None;
+            }
+        }
+        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+            let parameter = signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == target.place)?;
+            let allowed = match parameter.semantic.access {
+                StructuralAccess::MutableBorrow => true,
+                StructuralAccess::SharedBorrow => semantic.access == StructuralAccess::SharedBorrow,
+                StructuralAccess::WriteOnlyBorrow => {
+                    semantic.access == StructuralAccess::WriteOnlyBorrow
+                }
+                StructuralAccess::Owned => false,
+            };
+            if !allowed
+                || parameter.semantic.structural_type != target.structural_type
+                || parameter.semantic.is_self
+                || *placement != parameter.target.placement
+            {
+                return None;
+            }
+        }
+        _ => return None,
+    }
+    let expected = evaluate_call_plan(
+        source.call_plan.policy,
+        &CallSignature {
+            parameters: call
+                .arguments
+                .iter()
+                .enumerate()
+                .map(|(position, argument)| match argument {
+                    LegalizedScalarArgument::Scalar {
+                        source: value,
+                        placement,
+                    } => {
+                        let shape = scalar_shape(scalar_value_type(source, *value)?)?;
+                        (placement.shape == shape).then_some(shape)
+                    }
+                    LegalizedScalarArgument::Structural { target, .. } => {
+                        Some(if position == argument_index {
+                            shape
+                        } else {
+                            target.shape
+                        })
+                    }
+                })
+                .collect::<Option<Vec<_>>>()?,
+            result: call
+                .result_placement
+                .as_ref()
+                .map(|placement| placement.shape),
+        },
+    )
+    .ok()?;
+    if call.call_plan != expected
+        || Some(&target.destination) != expected.parameters.get(argument_index)
+    {
+        return None;
+    }
+    Some(())
 }

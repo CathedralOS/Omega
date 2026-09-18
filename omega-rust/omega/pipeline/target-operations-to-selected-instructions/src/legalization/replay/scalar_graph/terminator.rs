@@ -9,6 +9,7 @@ pub(super) fn validate(
     node: &optimization_unit::OptimizationNode,
     function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;
     match (actual, &node.operation) {
@@ -25,6 +26,23 @@ pub(super) fn validate(
             {
                 return Err(invalid);
             }
+            // A reference-bearing result must still sit at its declared
+            // carrier paths with each leaf rooted at a formal origin.
+            let return_custody = |source: &semantic_vocabulary::PlaceId| {
+                function.result.structural().is_none_or(|result| {
+                    !scalar_graph_input::reference_custody::contains_reference(
+                        &plan.structural_types,
+                        result.structural_type,
+                    ) || scalar_graph_input::reference_custody::return_custody(
+                        custody,
+                        function,
+                        &plan.structural_types,
+                        *source,
+                        result,
+                    )
+                    .is_ok()
+                })
+            };
             match (&returned.value, source) {
                 (
                     LegalizedScalarReturnValue::StructuralParameter { place },
@@ -33,6 +51,7 @@ pub(super) fn validate(
                     },
                 ) if returned.edge == *psi_edge
                     && place == source
+                    && return_custody(source)
                     && function
                         .structural_parameters
                         .iter()
@@ -47,7 +66,10 @@ pub(super) fn validate(
                 ) => {
                     let expected =
                         scalar_graph_input::structural_case::source_owner(function, *source)?;
-                    if returned.edge != *psi_edge || *actual_source != expected {
+                    if returned.edge != *psi_edge
+                        || *actual_source != expected
+                        || !return_custody(source)
+                    {
                         return Err(invalid);
                     }
                 }

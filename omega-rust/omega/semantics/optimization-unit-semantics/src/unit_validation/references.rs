@@ -77,9 +77,7 @@ pub(crate) fn contains_reference(
                     push_fields(&case.fields);
                 }
             }
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
-                pending.push(*element)
-            }
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
         }
@@ -122,8 +120,9 @@ pub(crate) fn leaf_paths(
                             return None;
                         }
                         let mut child_path = path.clone();
-                        child_path
-                            .push(terminal_psi::StructuralPathSegment::Field(field.identity.clone()));
+                        child_path.push(terminal_psi::StructuralPathSegment::Field(
+                            field.identity.clone(),
+                        ));
                         pending.push((child, child_path));
                     }
                 }
@@ -193,8 +192,7 @@ pub(crate) fn projected_carrier_type(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     source: &terminal_psi::StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    let (terminal_psi::StructuralPathSegment::Referent, fields) = source.path.split_last()?
-    else {
+    let (terminal_psi::StructuralPathSegment::Referent, fields) = source.path.split_last()? else {
         return None;
     };
     let current = structural_source_contract(function, source.place, false)?.structural_type;
@@ -260,7 +258,9 @@ fn primitive_scalar_type(
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
     matches!(
-        types.get(&structural_type).map(|declaration| &declaration.shape),
+        types
+            .get(&structural_type)
+            .map(|declaration| &declaration.shape),
         Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))
     )
     .then_some(structural_type)
@@ -320,9 +320,7 @@ pub(crate) fn formal_origin(
 /// The structural result row an operation publishes, when it publishes one.
 /// Reference custody cares only about the structural contract; scalar and
 /// Unit results carry no loans.
-fn operation_structural_result(
-    operation: &O,
-) -> Option<&terminal_psi::StructuralOperationResult> {
+fn operation_structural_result(operation: &O) -> Option<&terminal_psi::StructuralOperationResult> {
     match operation {
         O::EstablishPrimitiveLocal { result, .. }
         | O::ByteSequenceSubslice { result, .. }
@@ -449,8 +447,12 @@ pub(crate) fn validate_function_references(
     {
         return Err(invalid());
     }
-    let mut paths = leaf_paths(types, result.structural_type, result.reference_sources.len())
-        .ok_or_else(invalid)?;
+    let mut paths = leaf_paths(
+        types,
+        result.structural_type,
+        result.reference_sources.len(),
+    )
+    .ok_or_else(invalid)?;
     // Result sources are a canonical map, not a lifecycle schedule. Constructors
     // and cleanup keep declaration order; only this interface comparison sorts.
     paths.sort();
@@ -459,8 +461,8 @@ pub(crate) fn validate_function_references(
     }
     let mut sources = BTreeSet::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
-        let expected_referent = leaf_referent(types, result.structural_type, path)
-            .ok_or_else(invalid)?;
+        let expected_referent =
+            leaf_referent(types, result.structural_type, path).ok_or_else(invalid)?;
         if mapping.path != *path
             || mapping.source.access != terminal_psi::StructuralAccess::MutableBorrow
             || !sources.insert((mapping.source.place, mapping.source.path.clone()))

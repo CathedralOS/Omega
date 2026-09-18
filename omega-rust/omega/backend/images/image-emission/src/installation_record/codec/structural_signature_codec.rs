@@ -3,6 +3,9 @@
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralParameterDeclaration, StructuralResultDeclaration};
 
+use super::structural_argument_codec::{
+    decode_path, decode_structural_argument, encode_path, encode_structural_argument,
+};
 use super::structural_scalar_codec::{
     access_tag, decode_access, decode_domains, decode_multiplicity, encode_domains,
     multiplicity_tag,
@@ -23,20 +26,29 @@ pub(crate) fn encode_structural_parameter(
     encode_domains(bytes, &parameter.qualifications)
 }
 
+/// Reference-bearing results preserve their declared source roster on the
+/// wire: each row binds a result-carrier path to the exact callee argument
+/// whose referent the caller inherits. Erasing the roster would describe an
+/// apparently ordinary owned result.
 pub(crate) fn encode_structural_result(
     bytes: &mut Vec<u8>,
     result: &StructuralResultDeclaration,
 ) -> Result<(), InstallationError> {
-    if !result.reference_sources.is_empty() {
-        // This native format has no reference custody rows. Do not erase
-        // source correspondence into an apparently ordinary owned result.
-        return Err(InstallationError::UnsupportedStructuralReturnShape);
-    }
     push_u64(bytes, result.place.get());
     push_u64(bytes, result.structural_type.get());
     bytes.push(multiplicity_tag(result.multiplicity));
     bytes.extend_from_slice(&[0; 3]);
-    encode_domains(bytes, &result.qualifications)
+    encode_domains(bytes, &result.qualifications)?;
+    push_u32(
+        bytes,
+        u32::try_from(result.reference_sources.len())
+            .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?,
+    );
+    for source in &result.reference_sources {
+        encode_path(bytes, &source.path)?;
+        encode_structural_argument(bytes, &source.source)?;
+    }
+    Ok(())
 }
 
 pub(crate) fn decode_structural_parameter(
@@ -80,12 +92,24 @@ pub(crate) fn decode_structural_result(
     if reader.take(3)? != [0; 3] {
         return Err(InstallationError::NonzeroReservedField);
     }
+    let qualifications = decode_domains(reader)?;
+    let source_count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?;
+    if source_count > reader.remaining() / 4 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut reference_sources = Vec::with_capacity(source_count);
+    for _ in 0..source_count {
+        let path = decode_path(reader)?;
+        let source = decode_structural_argument(reader)?;
+        reference_sources.push(terminal_psi::StructuralReferenceResultSource { path, source });
+    }
     Ok(StructuralResultDeclaration {
-        reference_sources: Vec::new(),
+        reference_sources,
         place,
         structural_type,
         multiplicity,
-        qualifications: decode_domains(reader)?,
+        qualifications,
         projected_qualifications: Vec::new(),
     })
 }
@@ -93,8 +117,8 @@ pub(crate) fn decode_structural_result(
 #[cfg(test)]
 mod tests {
     use super::{
-        InstallationError, PlaceId, Reader, StructuralResultDeclaration, StructuralTypeId,
-        decode_structural_result, encode_structural_result,
+        PlaceId, Reader, StructuralResultDeclaration, StructuralTypeId, decode_structural_result,
+        encode_structural_result,
     };
     use terminal_psi::{
         StructuralAccess, StructuralArgument, StructuralMultiplicity,
@@ -102,7 +126,7 @@ mod tests {
     };
 
     #[test]
-    fn native_result_wire_preserves_owned_identity_and_rejects_reference_sources() {
+    fn native_result_wire_preserves_owned_identity_and_reference_sources() {
         let mut result = StructuralResultDeclaration {
             place: PlaceId::new(3).unwrap(),
             structural_type: StructuralTypeId::new(7).unwrap(),
@@ -123,18 +147,23 @@ mod tests {
         result
             .reference_sources
             .push(StructuralReferenceResultSource {
-                path: Vec::new(),
+                path: vec![terminal_psi::StructuralPathSegment::Field("held".into())],
                 source: StructuralArgument {
                     place: PlaceId::new(1).unwrap(),
-                    path: Vec::new(),
+                    path: vec![
+                        terminal_psi::StructuralPathSegment::Field("body".into()),
+                        terminal_psi::StructuralPathSegment::Referent,
+                    ],
                     access: StructuralAccess::MutableBorrow,
                 },
             });
-        let mut rejected = Vec::new();
-        assert_eq!(
-            encode_structural_result(&mut rejected, &result),
-            Err(InstallationError::UnsupportedStructuralReturnShape)
-        );
-        assert!(rejected.is_empty());
+        let mut bytes = Vec::new();
+        encode_structural_result(&mut bytes, &result).unwrap();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_result(&mut reader).unwrap(), result);
+        assert_eq!(reader.remaining(), 0);
+        let mut reencoded = Vec::new();
+        encode_structural_result(&mut reencoded, &result).unwrap();
+        assert_eq!(bytes, reencoded);
     }
 }

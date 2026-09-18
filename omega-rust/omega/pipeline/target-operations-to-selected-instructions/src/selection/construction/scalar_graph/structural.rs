@@ -231,6 +231,19 @@ pub(super) fn operation(
         subslice::create(source, builder, row)?;
         return Ok(true);
     }
+    // Reference custody is compile-time metadata: the rows carry operation
+    // provenance and ordering but emit no executable instruction and no
+    // physical result home.
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::EstablishReference { .. }
+            | LegalizedScalarInstructionKind::ReleaseReference { .. }
+    ) {
+        if row.result.is_some() {
+            return Err(invalid());
+        }
+        return Ok(true);
+    }
     if let LegalizedScalarInstructionKind::BoundarySettlement(settlement) = &row.kind {
         if row.result.is_some()
             || row.operation != settlement.operation

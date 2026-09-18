@@ -79,6 +79,10 @@ pub(super) fn lower(
         return Err(invalid());
     }
     let signature = prepare_function_signature(callee_function, target, types)?;
+    // Validate the structural argument roster under reference custody before
+    // any per-argument lowering runs; moved carrier leaves commit only after
+    // every argument row is emitted.
+    let moved = super::references::call_arguments(function, types, live, arguments)?;
     let scalar_arguments = values
         .iter()
         .zip(&signature.scalar_parameters)
@@ -142,6 +146,7 @@ pub(super) fn lower(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    super::references::commit_argument_moves(live, &moved);
     if let Some(result) = result {
         super::primitive_storage::retain_result(psi_operation, result, live)?;
         operations.push(TargetUnitOperation::StructuralScalarCall {
@@ -174,6 +179,8 @@ pub(super) fn lower(
 }
 
 /// Retain the same primitive referent custody independently of the call result.
+/// A `.., Referent` argument resolves through live reference custody instead
+/// of an owned or borrowed place.
 pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
@@ -181,9 +188,21 @@ pub(super) fn argument(
     function: &AbstractFunction,
     prepared: &PreparedFunctionSignature,
     live: &LiveDefinitions,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    if matches!(argument.path.last(), Some(StructuralPathSegment::Referent)) {
+        return super::references::referent_argument(
+            argument,
+            declaration,
+            destination,
+            function,
+            prepared,
+            live,
+            types,
+        )?
+        .ok_or_else(invalid);
+    }
     if !argument.path.is_empty()
         || argument.access != declaration.access
         || !super::primitive_storage::is_primitive_reference(declaration, types)

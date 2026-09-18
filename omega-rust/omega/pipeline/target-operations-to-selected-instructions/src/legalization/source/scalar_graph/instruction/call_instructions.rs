@@ -16,6 +16,7 @@ pub(super) fn project_call_structural(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::CallStructural {
         result,
@@ -50,6 +51,7 @@ pub(super) fn project_call_structural(
                 semantic: semantic.clone(),
                 target: scalar_graph_input::aggregate_results::call_argument(
                     semantic, position, operation, optimized, called, &call_plan, native, plan,
+                    custody,
                 )?,
             });
         }
@@ -112,6 +114,7 @@ pub(super) fn project_call_unit(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let (AbstractOperation::CallUnit {
         callee,
@@ -157,7 +160,7 @@ pub(super) fn project_call_unit(
             .collect::<Vec<_>>();
         for (position, semantic) in structural_arguments.iter().enumerate() {
             let target = scalar_graph_input::structural_call::argument_at(
-                semantic, position, operation, optimized, called, &call_plan, native, plan,
+                semantic, position, operation, optimized, called, &call_plan, native, plan, custody,
             )?;
             arguments.push(LegalizedScalarArgument::Structural {
                 semantic: semantic.clone(),

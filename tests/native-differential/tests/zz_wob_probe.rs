@@ -1,7 +1,12 @@
-//! Scratch probe: which candidate write-only-borrow shapes produce artifacts,
-//! and where does Omega admission reject them?
+//! Candidate write-only-borrow shapes pushed through artifact production,
+//! optimization, and the full installation-publication leg. Reference carriers
+//! and the witnessed borrow lanes must publish; the remaining candidates stay
+//! exploratory and only contribute to the failure report.
 
-fn artifact(source: &str, entry: &str) -> Result<terminal_codec::CanonicalTerminalArtifact, String> {
+fn artifact(
+    source: &str,
+    entry: &str,
+) -> Result<terminal_codec::CanonicalTerminalArtifact, String> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .map_err(|e| format!("lex: {e:?}"))?;
@@ -61,8 +66,8 @@ fn publish(
     );
     let object = image_emission::build_function_fragment_object_artifact(source)
         .map_err(|e| format!("object: {e:?}"))?;
-    let image = image_emission::emit_executable_image(&object, 3)
-        .map_err(|e| format!("image: {e:?}"))?;
+    let image =
+        image_emission::emit_executable_image(&object, 3).map_err(|e| format!("image: {e:?}"))?;
     let installed = image_emission::build_installation_record(
         &image,
         semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
@@ -273,42 +278,42 @@ fn probe_candidate_shapes() {
             }",
         ),
     ];
+    let mut report = Vec::new();
     for (name, entry, source) in candidates {
-        match artifact(source, entry) {
-            Ok(artifact) => {
-                let module =
-                    terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-                for machine in &module.machines {
-                    for block in &machine.blocks {
-                        for op in &block.operations {
-                            eprintln!("PROBE {name} OP: {:?}", op.kind);
-                        }
-                        eprintln!("PROBE {name} TERM: {:?}", block.terminator);
-                    }
-                }
-                for machine in &module.machines {
-                    eprintln!(
-                        "PROBE {name} machine params={:?} result={:?} places={:?}",
-                        machine.structural_parameters, machine.result, machine.structural_places
-                    );
-                }
-                eprintln!(
-                    "PROBE {name} structural_types={:?}",
-                    module.structural_types
-                );
-                match optimize(&artifact) {
-                    Ok(optimized) => match publish(optimized) {
-                        Ok(()) => eprintln!("PROBE {name}: artifact OK, optimize OK, publish OK"),
-                        Err(error) => {
-                            eprintln!("PROBE {name}: artifact OK, optimize OK, PUBLISH FAIL: {error}")
-                        }
-                    },
-                    Err(error) => {
-                        eprintln!("PROBE {name}: artifact OK, OPTIMIZE FAIL: {error}")
-                    }
-                }
-            }
-            Err(error) => eprintln!("PROBE {name}: NO ARTIFACT: {error}"),
-        }
+        let outcome = match artifact(source, entry) {
+            Ok(artifact) => match optimize(&artifact) {
+                Ok(optimized) => match publish(optimized) {
+                    Ok(()) => "publish OK".to_string(),
+                    Err(error) => format!("PUBLISH FAIL: {error}"),
+                },
+                Err(error) => format!("OPTIMIZE FAIL: {error}"),
+            },
+            Err(error) => format!("NO ARTIFACT: {error}"),
+        };
+        report.push((*name, outcome));
+    }
+    let outcome_of = |wanted: &str| -> &str {
+        report
+            .iter()
+            .find(|(name, _)| *name == wanted)
+            .map(|(_, outcome)| outcome.as_str())
+            .unwrap_or("missing from candidate list")
+    };
+    for required in [
+        "reference_result_relay",
+        "local_reference_record",
+        "let_mut_borrow_receiver_call",
+        "write_self_on_borrowed_parent_with_live_subloan",
+    ] {
+        assert_eq!(
+            outcome_of(required),
+            "publish OK",
+            "{required} regressed; full sweep:\n{}",
+            report
+                .iter()
+                .map(|(name, outcome)| format!("{name}: {outcome}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
     }
 }

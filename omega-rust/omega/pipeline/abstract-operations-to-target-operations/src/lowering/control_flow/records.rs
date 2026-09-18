@@ -33,6 +33,8 @@ pub(super) fn establish(
         return Err(invalid());
     }
     let mut consumed = BTreeSet::new();
+    let mut relocations = Vec::new();
+    let mut moved_leaves = BTreeSet::new();
     for (field, declaration) in fields.iter().zip(declarations) {
         if field.field != declaration.id || declaration.relevance.is_erased() {
             return Err(invalid());
@@ -56,13 +58,30 @@ pub(super) fn establish(
                 let StructuralFieldType::Structural(nested) = declaration.field_type else {
                     return Err(invalid());
                 };
+                let reference_bearing = super::references::contains_reference(types, nested);
                 if !matches!(
                     types.get(&nested).map(|declaration| &declaration.shape),
                     Some(StructuralTypeShape::Record { .. })
-                ) {
+                ) && !reference_bearing
+                {
                     return Err(invalid());
                 }
-                let multiplicity = if let Some(home) = live.structural_homes.get(&argument.place) {
+                // A bare carrier field contributes custody, not storage: its
+                // operand contract comes from the live reference map, not a
+                // structural home or signature parameter.
+                let bare_carrier = reference_bearing
+                    && matches!(
+                        types.get(&nested).map(|declaration| &declaration.shape),
+                        Some(StructuralTypeShape::Reference { .. })
+                    );
+                let multiplicity = if bare_carrier {
+                    live.references
+                        .get(&(argument.place, Vec::new()))
+                        .filter(|leaf| leaf.result.structural_type == nested)
+                        .ok_or_else(invalid)?
+                        .result
+                        .multiplicity
+                } else if let Some(home) = live.structural_homes.get(&argument.place) {
                     if home.structural_type() != nested
                         || home.has_claims()
                         || !home.qualifications().is_empty()
@@ -95,12 +114,36 @@ pub(super) fn establish(
                 {
                     return Err(invalid());
                 }
+                if reference_bearing {
+                    super::references::record_field_leaves(
+                        function,
+                        types,
+                        live,
+                        &declaration.identity,
+                        nested,
+                        argument,
+                        &mut relocations,
+                        &mut moved_leaves,
+                    )?;
+                }
             }
         }
+    }
+    if live
+        .references
+        .keys()
+        .any(|(carrier, _)| *carrier == result.place)
+        || live
+            .references
+            .values()
+            .any(|leaf| leaf.identity.0 == result.place)
+    {
+        return Err(invalid());
     }
     for place in consumed {
         live.structural_homes.remove(&place);
     }
+    super::references::relocate_record_leaves(live, result.place, relocations);
     live.structural_homes
         .insert(result.place, result_home.clone());
     operations.push(TargetUnitOperation::EstablishRecord {

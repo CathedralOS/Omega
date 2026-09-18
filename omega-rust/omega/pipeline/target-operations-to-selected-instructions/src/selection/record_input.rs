@@ -66,9 +66,15 @@ pub(super) fn fields(
                 super::scalar_call_abi::scalar_shape(kind.scalar_type()?)?
             }
             (RecordFieldValue::Structural(argument), StructuralFieldType::Structural(nested)) => {
+                // A nested record copies bytes; a reference child is a
+                // zero-byte custody leaf with no payload of its own.
                 if !declarations.iter().any(|declaration| {
                     declaration.id == *nested
-                        && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::Record { .. }
+                                | StructuralTypeShape::Reference { .. }
+                        )
                 }) {
                     return None;
                 }
@@ -108,6 +114,10 @@ pub(super) fn fields(
                             .filter_map(|row| {
                                 let result = match &row.kind {
                                     LegalizedScalarInstructionKind::EstablishRecord {
+                                        result,
+                                        ..
+                                    }
+                                    | LegalizedScalarInstructionKind::EstablishReference {
                                         result,
                                         ..
                                     } => result,

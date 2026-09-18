@@ -45,6 +45,52 @@ pub(super) fn lower_operation(
     let operation = resolved
         .as_ref()
         .map_or(operation, |(operation, _)| operation);
+    // Reference custody: reads, writes and establishments cannot touch a
+    // suspended referent, and a live carrier is never owned data. Call-shaped
+    // operations route through the custody-aware argument lowering below.
+    let accessed_root = match operation {
+        AbstractOperation::PrimitiveScalarRead { source, .. }
+        | AbstractOperation::StructuralCaseMembership { source, .. }
+        | AbstractOperation::StructuralCase { source, .. }
+        | AbstractOperation::IntegerStructuralField { source, .. }
+        | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
+        AbstractOperation::PrimitiveLocalStore { destination, .. } => Some(*destination),
+        AbstractOperation::WriteOnlyPrimitiveStore { destination, .. }
+        | AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
+            Some(destination.place)
+        }
+        AbstractOperation::EstablishPrimitiveLocal { result, .. } => Some(result.place),
+        _ => None,
+    };
+    if accessed_root.is_some_and(|place| super::references::check_root_access(live, place)) {
+        return Err(LoweringError::UnsupportedControlFlow(function.machine));
+    }
+    // Call paths that do not lower reference-aware arguments reject any
+    // structural argument that touches live custody outright.
+    let blind_arguments: &[terminal_psi::StructuralArgument] = match operation {
+        AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::CallUnitWithDynamicArguments {
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments.as_slice(),
+        AbstractOperation::CallDynamicScalar {
+            dynamic_dispatch, ..
+        } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
+        _ => &[],
+    };
+    if blind_arguments
+        .iter()
+        .any(|argument| super::references::touches(function, structural_types, live, argument))
+    {
+        return Err(LoweringError::UnsupportedControlFlow(function.machine));
+    }
     let first_output = operations.len();
     match operation {
         AbstractOperation::StoreDynamicDescriptor { psi_operation, .. } => {
@@ -190,6 +236,17 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::EstablishReference { .. } => super::references::establish(
+            operation,
+            function,
+            structural_types,
+            live,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::ReleaseReference { .. } => {
+            super::references::release(operation, function, live, operations, provenance)
+        }
         AbstractOperation::EstablishScalarCase { .. } => {
             super::aggregate_results::establish_scalar_case(
                 operation,
@@ -250,6 +307,7 @@ pub(super) fn lower_operation(
             ..
         } if structural_arguments.iter().any(|argument| {
             live.structural_homes.contains_key(&argument.place)
+                || super::references::touches(function, structural_types, live, argument)
                 || (argument.access == StructuralAccess::Owned
                     && function.structural_parameters.iter().any(|parameter| {
                         parameter.place == argument.place

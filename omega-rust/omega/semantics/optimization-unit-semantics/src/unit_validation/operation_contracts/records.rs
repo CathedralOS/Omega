@@ -262,7 +262,8 @@ fn record_type(
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)
                     if references
-                        && crate::unit_validation::references::referent(types, child).is_some() => {}
+                        && crate::unit_validation::references::referent(types, child).is_some() => {
+                }
                 StructuralFieldType::Structural(child) => pending.push((child, false)),
                 _ => return false,
             }

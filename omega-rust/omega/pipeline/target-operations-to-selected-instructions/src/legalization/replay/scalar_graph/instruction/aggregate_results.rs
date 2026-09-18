@@ -15,6 +15,7 @@ pub(super) fn validate(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;
     match (&actual.kind, &node.operation) {
@@ -111,6 +112,7 @@ pub(super) fn validate(
                     &expected,
                     native,
                     plan,
+                    custody,
                 )?;
                 if call.arguments[arguments.len() + position]
                     != (LegalizedScalarArgument::Structural {

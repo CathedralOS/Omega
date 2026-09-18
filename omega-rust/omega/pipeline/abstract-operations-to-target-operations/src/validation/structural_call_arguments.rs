@@ -227,6 +227,7 @@ pub(super) fn validate(
                     callee,
                     callee_result,
                     result_home,
+                    reference_results: _,
                     call_plan,
                     scalar_arguments,
                     arguments,
@@ -1607,7 +1608,17 @@ impl Replay<'_> {
         declared: &StructuralParameterDeclaration,
         expected_plan: &CallPlan,
     ) -> Result<(), OperationId> {
-        if !matches_argument_identity(actual, semantic, declared) {
+        // A `.., Referent` argument transports the referent root's
+        // pointer: `place` names the root whose canonical storage
+        // `source` must identify (replayed by argument-source custody),
+        // while `path` retains the carrier-relative custody projection
+        // verbatim. The carrier place itself is loan custody, not a
+        // pointer source.
+        if matches!(semantic.path.last(), Some(StructuralPathSegment::Referent)) {
+            if !matches_referent_argument(actual, semantic, declared, self.declarations) {
+                return Err(psi_operation);
+            }
+        } else if !matches_argument_identity(actual, semantic, declared) {
             return Err(psi_operation);
         }
         let Some(referent) =
@@ -1717,14 +1728,32 @@ impl Replay<'_> {
                 {
                     return Err(psi_operation);
                 }
-                let expected_home = structural_shapes::structural_result_home(
-                    psi_operation,
-                    expected,
-                    self.declarations,
-                )
-                .map_err(|_| psi_operation)?;
-                if *result_home != Some(&expected_home) {
-                    return Err(psi_operation);
+                // A bare reference result is custody only: the producer
+                // establishes no physical result home for a `Reference`-shaped
+                // carrier, so the honest row retains `None` and the call's
+                // `reference_results` rows carry the leaf custody. Aggregate
+                // and sum results still replay the exact durable home.
+                let reference_only = self.declarations.iter().any(|declaration| {
+                    declaration.id == expected.structural_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::Reference { .. }
+                        )
+                });
+                if reference_only {
+                    if result_home.is_some() {
+                        return Err(psi_operation);
+                    }
+                } else {
+                    let expected_home = structural_shapes::structural_result_home(
+                        psi_operation,
+                        expected,
+                        self.declarations,
+                    )
+                    .map_err(|_| psi_operation)?;
+                    if *result_home != Some(&expected_home) {
+                        return Err(psi_operation);
+                    }
                 }
                 Ok(())
             }
@@ -1824,6 +1853,48 @@ fn matches_argument_identity(
         && actual.access == semantic.access
         && actual.access == declared.access
         && actual.structural_type == declared.structural_type
+}
+
+/// A `.., Referent` argument carries the referent root's pointer, so the
+/// compositional `place` + `path` reading does not apply: `place` names the
+/// root place whose canonical storage `source` must identify (replayed by
+/// `structural_argument_sources`), `path` retains the carrier-relative custody
+/// projection verbatim, and the declared parameter must be a primitive
+/// borrowed reference. No projection offset or array descriptor is
+/// transported.
+fn matches_referent_argument(
+    actual: &TargetStructuralArgument,
+    semantic: &StructuralArgument,
+    declared: &StructuralParameterDeclaration,
+    declarations: &[StructuralTypeDeclaration],
+) -> bool {
+    let Some((StructuralPathSegment::Referent, carrier_path)) = semantic.path.split_last() else {
+        return false;
+    };
+    carrier_path
+        .iter()
+        .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+        && semantic.access != StructuralAccess::Owned
+        && !declared.is_self
+        && declared.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && declared.access != StructuralAccess::Owned
+        && declared.qualifications.is_empty()
+        && declared.projected_qualifications.is_empty()
+        && matches!(
+            declarations
+                .iter()
+                .find(|declaration| declaration.id == declared.structural_type)
+                .map(|declaration| &declaration.shape),
+            Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))
+        )
+        && actual.access == semantic.access
+        && actual.access == declared.access
+        && actual.path == semantic.path
+        && actual.structural_type == declared.structural_type
+        && actual.root_structural_type == declared.structural_type
+        && actual.source_byte_offset == 0
+        && actual.fixed_array_length.is_none()
+        && actual.element_stride.is_none()
 }
 
 /// Reconstruct each argument place's referent declaration in the same

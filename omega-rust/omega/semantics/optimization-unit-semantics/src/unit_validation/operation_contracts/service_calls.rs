@@ -244,16 +244,12 @@ pub(crate) fn operation_structural_call_contract_matches(
             // A call returning reference custody has its own complete rule:
             // the caller instantiates the callee's exact source roster, and
             // claim traffic stays empty because carriers carry no claims.
-            if callee
-                .result
-                .structural()
-                .is_some_and(|signature| {
-                    crate::unit_validation::references::contains_reference(
-                        types,
-                        signature.structural_type,
-                    )
-                })
-            {
+            if callee.result.structural().is_some_and(|signature| {
+                crate::unit_validation::references::contains_reference(
+                    types,
+                    signature.structural_type,
+                )
+            }) {
                 return reference_call_matches(caller, operation, callee, types);
             }
             structural_arguments_match(
@@ -338,16 +334,9 @@ fn reference_call_matches(
     else {
         return false;
     };
-    let Some(signature) = callee
-        .result
-        .structural()
-        .filter(|signature| {
-            crate::unit_validation::references::contains_reference(
-                types,
-                signature.structural_type,
-            )
-        })
-    else {
+    let Some(signature) = callee.result.structural().filter(|signature| {
+        crate::unit_validation::references::contains_reference(types, signature.structural_type)
+    }) else {
         return false;
     };
     let Some(contract) = callee.verified_contract.as_ref() else {

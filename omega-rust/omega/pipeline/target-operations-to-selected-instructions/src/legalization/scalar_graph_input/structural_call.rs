@@ -18,6 +18,7 @@ pub(in crate::legalization) fn argument_at(
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
+    custody: &super::reference_custody::Custody,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
     let invalid = LegalizationError::SourceCustodyMismatch;
@@ -30,6 +31,27 @@ pub(in crate::legalization) fn argument_at(
         .len()
         .checked_add(position)
         .ok_or(invalid.clone())?;
+    // `.., Referent` spellings resolve through replayed reference custody;
+    // the transported value names the referent root, never the carrier.
+    if matches!(
+        semantic.path.last(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        let target_caller = native
+            .functions
+            .iter()
+            .find(|function| function.machine == caller.machine)
+            .ok_or(invalid.clone())?;
+        return super::reference_custody::referent_argument(
+            semantic,
+            destination_parameter,
+            call.parameters.get(parameter_ordinal).ok_or(invalid)?,
+            caller,
+            target_caller,
+            custody,
+            &plan.structural_types,
+        );
+    }
     if semantic.access == StructuralAccess::Owned
         || plan.structural_types.iter().any(|declaration| {
             declaration.id == destination_parameter.structural_type
@@ -49,6 +71,7 @@ pub(in crate::legalization) fn argument_at(
             call,
             native,
             plan,
+            custody,
         );
     }
     if super::primitive_locals::producer(caller, semantic.place).is_some()

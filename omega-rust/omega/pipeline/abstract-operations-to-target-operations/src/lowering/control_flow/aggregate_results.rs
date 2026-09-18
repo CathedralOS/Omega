@@ -73,7 +73,11 @@ pub(in crate::lowering) fn result_home_layout(
         types
             .get(&result.structural_type)
             .map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. })
+        Some(
+            StructuralTypeShape::Record { .. }
+                | StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::Reference { .. },
+        )
     ) {
         // Whole aggregate transport needs recursive size/alignment, not scalar
         // leaves. Array construction still checks its element operations, while
@@ -233,6 +237,10 @@ pub(super) fn call(
         target,
         types,
     )?;
+    // Validate the whole structural argument roster under reference custody
+    // before any per-argument lowering runs; moved leaves commit only after
+    // every other check on this call succeeds.
+    let moved = super::references::call_arguments(function, types, live, structural_arguments)?;
     let scalar_arguments = arguments
         .iter()
         .zip(&signature.scalar_parameters)
@@ -358,10 +366,32 @@ pub(super) fn call(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if live
-        .structural_homes
-        .insert(result.place, result_home.clone())
-        .is_some()
+    // Arguments validated and emitted: moved carrier leaves transfer to the
+    // callee, then the declared result roster lands as live custody.
+    super::references::commit_argument_moves(live, &moved);
+    let reference_results = super::references::call_results(
+        function,
+        callee_function,
+        types,
+        result,
+        *psi_operation,
+        structural_arguments,
+        live,
+        &moved,
+    )?;
+    // A bare reference result is custody only: no physical result home is
+    // established, so downstream sees a zero-sized result placement.
+    let reference_only = matches!(
+        types
+            .get(&result.structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::Reference { .. })
+    );
+    if !reference_only
+        && live
+            .structural_homes
+            .insert(result.place, result_home.clone())
+            .is_some()
     {
         return Err(invalid());
     }
@@ -371,7 +401,8 @@ pub(super) fn call(
         result: result.clone(),
         callee: *callee,
         callee_result: callee_result.clone(),
-        result_home: Some(result_home),
+        result_home: (!reference_only).then_some(result_home),
+        reference_results,
         call_plan: signature.call_plan,
         scalar_arguments,
         arguments: target_arguments,

@@ -74,6 +74,8 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::IeeeFloatCompare { left, right, .. }
                 | Instruction::Compare { left, right, .. } => pending.extend([*left, *right]),
                 Instruction::Constant(_)
+                | Instruction::EstablishReference { .. }
+                | Instruction::ReleaseReference { .. }
                 | Instruction::HostedReadByte { .. }
                 | Instruction::PrimitiveScalarRead { .. }
                 | Instruction::StructuralScalarFieldRead { .. }
