@@ -35,6 +35,12 @@ pub(crate) fn collect_statement_borrow_calls(
     match statement {
         StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
+            // The authored target precedes the value. An indexed store such as
+            // `self.cells[pick()] = value` evaluates its call-valued index like
+            // any other operand: without collecting it here the call has no
+            // ordinal, no borrow call fact, and no flow call even though the
+            // statement scheduler executes it.
+            expression::collect_expression_borrow_calls(&mut collection, assignment.target);
             expression::collect_expression_borrow_calls(&mut collection, assignment.value)
         }
         StatementNode::Call(call) => {
