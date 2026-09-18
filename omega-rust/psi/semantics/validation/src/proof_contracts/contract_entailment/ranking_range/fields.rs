@@ -461,7 +461,7 @@ pub(super) fn projected_type(
 
 /// The member chain of `expression` from its root formal outward, each step
 /// as `(resolved field symbol, spelling)`. Case projections are not fields.
-fn member_chain<'program>(
+pub(super) fn member_chain<'program>(
     program: &'program TypedTrees,
     state: &State,
     expression: ExpressionHandle,
@@ -488,7 +488,7 @@ fn member_chain<'program>(
 /// The formal `expression` is rooted at plus its resolved member chain: `x`
 /// is `(x, [])`, `x.a.b` is `(x, [a, b])`. Any other shape is a computed
 /// value with no carrier root.
-fn rooted_carrier<'program>(
+pub(super) fn rooted_carrier<'program>(
     program: &'program TypedTrees,
     state: &State,
     expression: ExpressionHandle,
@@ -554,7 +554,7 @@ fn parameter<'program>(
 }
 
 /// The unique field `symbol` declared by the exact record `owner`.
-fn declared_field(
+pub(super) fn declared_field(
     program: &TypedTrees,
     owner: SymbolHandle,
     symbol: SymbolHandle,
@@ -579,7 +579,7 @@ fn declared_field(
 }
 
 /// The value of the unique `field` entry of a plain literal of exactly `owner`.
-fn unique_literal_field(
+pub(super) fn unique_literal_field(
     program: &TypedTrees,
     literal: ExpressionHandle,
     owner: SymbolHandle,

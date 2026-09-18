@@ -34,22 +34,41 @@ pub(super) fn prove<'program>(
     // never carry a scalar slot — the destination's type validation rejects
     // the claim — while the slice slot itself selects its sole collection
     // dependency without any preference.
-    let ranked_symbol = |subject: ExpressionHandle| match program
-        .expression_table
-        .expression(subject)
-    {
-        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
-            Some(name.symbol)
+    let ranked_symbol = |subject: ExpressionHandle| {
+        // A member chain names the formal it is rooted at: `record.field`
+        // ranks that record formal's storage. Case projections and computed
+        // receivers stay opaque — the edge judgment resolves the exact chain.
+        let mut cursor = subject;
+        while let ExpressionNode::Member(member) = program.expression_table.expression(cursor) {
+            cursor = member.receiver;
         }
-        _ => None,
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Name(name)
+                if name.symbol.is_valid() && name.head_symbol == name.symbol =>
+            {
+                Some(name.symbol)
+            }
+            _ => None,
+        }
     };
     let mut preferred = Vec::new();
     let mut record_subject = SymbolHandle::default();
     match measure {
         validation::RankingRangeMeasure::Single(subject)
-        | validation::RankingRangeMeasure::Computed { subject, .. }
         | validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
             preferred.extend(ranked_symbol(subject));
+        }
+        validation::RankingRangeMeasure::Computed { subject, .. } => {
+            preferred.extend(ranked_symbol(subject));
+            // A scalar view over a member chain reads its root formal's
+            // record; the telescope's fresh-literal claim needs that nominal
+            // root to locate a dependency-free record arrival.
+            if matches!(
+                program.expression_table.expression(subject),
+                ExpressionNode::Member(_)
+            ) {
+                record_subject = preferred.last().copied().unwrap_or_default();
+            }
         }
         validation::RankingRangeMeasure::Field { subject, .. } => {
             preferred.extend(ranked_symbol(subject));
@@ -59,7 +78,18 @@ pub(super) fn prove<'program>(
             preferred.extend(ranked_symbol(lower));
             preferred.extend(ranked_symbol(upper));
         }
-        validation::RankingRangeMeasure::SliceLength(_) => {}
+        // A slice over projected storage ranks its root formal's record
+        // slot: computed and literal arrivals of that record still claim
+        // the role through the same carriers a field subject uses.
+        validation::RankingRangeMeasure::SliceLength(subject) => {
+            if matches!(
+                program.expression_table.expression(subject),
+                ExpressionNode::Member(_)
+            ) {
+                preferred.extend(ranked_symbol(subject));
+                record_subject = preferred.last().copied().unwrap_or_default();
+            }
+        }
     }
     // The telescope is shared with the runtime call-component judgment: a
     // call issued from a subordinate state must read the same entry roles as

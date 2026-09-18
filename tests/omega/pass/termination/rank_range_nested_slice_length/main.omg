@@ -1,0 +1,19 @@
+// PASS CANARY. The projected slice coordinate resolves through a nested
+// member chain: `outer.inner.items` names the leaf slice under the exact
+// `inner` record step, the requires fact and guard spell that same chain,
+// and every arrival rebuilds both declarations down to the ranked leaf.
+data Inner { items: &[u32]; }
+data Outer { inner: Inner; }
+
+machine walk(outer: Outer, capacity: u64)
+requires outer.inner.items.len <= capacity;
+terminates by outer.inner.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(outer, capacity) }
+    state step(current: Outer, bound: u64) {
+        transition current.inner.items.len > 0 {
+            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } }, bound)
+            false -> 0
+        }
+    }
+}

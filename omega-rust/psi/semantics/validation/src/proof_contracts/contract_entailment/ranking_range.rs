@@ -312,6 +312,57 @@ fn prove_edge(
             };
             Some(field_coordinates::FieldCoordinates::new(coordinate))
         }
+        // A declared scalar view may read projected storage: the subject's
+        // member chain resolves to the exact `u64` coordinate the view body
+        // consumes, so `computed_rank` and arrival substitution share the
+        // atom a field view would use. A subject that resolves to no
+        // coordinate keeps the bare-name path: its symbol binding or an
+        // unbound member spelling decides normalization.
+        RankingRangeMeasure::Computed { subject, .. } => {
+            match fields::FieldCoordinate::resolve_projection(program, root, subject) {
+                Some(coordinate) => {
+                    let coordinate = match entry_parameters {
+                        Some(entries) => coordinate.at_arrival(
+                            program,
+                            RankingRangeState {
+                                state,
+                                entry_parameters: entries,
+                            },
+                            coordinate.parameter.symbol,
+                        )?,
+                        None => coordinate,
+                    };
+                    Some(field_coordinates::FieldCoordinates::new(coordinate))
+                }
+                None => None,
+            }
+        }
+        _ => None,
+    };
+    // A slice over projected storage produces its length from the member
+    // chain's exact leaf: `record.field` names one slice coordinate whose
+    // produced length the range reads. Bare slice formals keep the
+    // `length_bindings` coordinate below.
+    let mut slice_rank = match measure {
+        RankingRangeMeasure::SliceLength(subject) => {
+            match lengths::SliceCoordinate::resolve(program, root, subject) {
+                Some(coordinate) => {
+                    let coordinate = match entry_parameters {
+                        Some(entries) => coordinate.at_arrival(
+                            program,
+                            RankingRangeState {
+                                state,
+                                entry_parameters: entries,
+                            },
+                            coordinate.parameter.symbol,
+                        )?,
+                        None => coordinate,
+                    };
+                    Some(lengths::SliceCoordinates::new(coordinate))
+                }
+                None => None,
+            }
+        }
         _ => None,
     };
     let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
@@ -454,7 +505,7 @@ fn prove_edge(
         return None;
     }
     let length_bindings = lengths::bindings(program, state, entry_parameters);
-    if !length_bindings.is_empty() || field_rank.is_some() {
+    if !length_bindings.is_empty() || field_rank.is_some() || slice_rank.is_some() {
         let expressions = projections::expressions(
             program,
             machine,
@@ -485,6 +536,17 @@ fn prove_edge(
                 &expressions,
             )?;
         }
+        if let Some(slice) = &mut slice_rank {
+            slice.install(
+                program,
+                machine,
+                state,
+                root,
+                entry_parameters,
+                &mut engine,
+                &expressions,
+            )?;
+        }
     }
     let auxiliary =
         if arguments.is_none() || !matches!(premises, RankingRangePremises::RankInvariant) {
@@ -495,6 +557,11 @@ fn prove_edge(
     let mut comparisons = auxiliary.clone();
     if let Some(field) = &field_rank {
         comparisons.extend(field.comparisons(program));
+    }
+    if let Some(slice) = &slice_rank {
+        // A produced length is a natural coordinate: the projected slice's
+        // `>= 0` fact is exactly what the bare-formal length bindings add.
+        comparisons.extend(slice.comparisons());
     }
     comparisons.extend(alias_comparisons);
     comparisons.extend(length_bindings.iter().map(|(_, identity)| {
@@ -519,13 +586,18 @@ fn prove_edge(
             ..
         } => computed_rank(program, machine, &mut engine, subject, parameter, body)?,
         RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
-        RankingRangeMeasure::SliceLength(subject) => {
-            let parameter = lengths::parameter(program, root, subject)?;
-            let (_, identity) = length_bindings
-                .iter()
-                .find(|(symbol, _)| *symbol == parameter.symbol)?;
-            Polynomial::atom(identity.clone())
-        }
+        RankingRangeMeasure::SliceLength(subject) => match &slice_rank {
+            // A slice reached through a member chain reads its projected
+            // coordinate; a bare slice formal reads its parameter binding.
+            Some(slice) => slice.value()?,
+            None => {
+                let parameter = lengths::parameter(program, root, subject)?;
+                let (_, identity) = length_bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter.symbol)?;
+                Polynomial::atom(identity.clone())
+            }
+        },
         RankingRangeMeasure::Distance { lower, upper }
         | RankingRangeMeasure::IncreasingTo {
             subject: lower,
@@ -624,6 +696,22 @@ fn prove_edge(
                 &mut engine,
                 source_symbol,
                 *argument,
+                &mut substitutions,
+            )?
+        {
+            continue;
+        }
+        if let Some(slice) = &slice_rank
+            && slice.substitute(
+                program,
+                machine,
+                state,
+                entry_parameters,
+                destination,
+                &mut engine,
+                source_symbol,
+                *argument,
+                &length_bindings,
                 &mut substitutions,
             )?
         {

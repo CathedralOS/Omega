@@ -1,0 +1,19 @@
+// FAIL CANARY. The prefix stores into `current.items`, a path of the
+// premise carrier `current`: the write invalidates the entry-relative
+// ranking no matter that the stored value respells the same slice, so the
+// preserved-prefix requirement fails before the edge can be judged.
+data Bag { items: &[u32]; }
+
+machine walk(bag: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(bag, capacity) }
+    state step(mut current: Bag, bound: u64) {
+        current.items = current.items;
+        transition current.items.len > 0 {
+            true -> step(Bag { items: current.items[1..] }, bound)
+            false -> 0
+        }
+    }
+}

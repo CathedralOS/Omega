@@ -1,0 +1,20 @@
+// PASS CANARY. A `Slice::Length` subject over projected storage: `bag.items`
+// resolves to the one exact produced length coordinate rooted at the `bag`
+// record formal. The discovered telescope keeps that role on the rebuilt
+// literal's carrier, so `current.items[1..]` descends from `current.items`'s
+// own length while the pinned ceiling and the requires fact transport through
+// the same member-chain coordinate.
+data Bag { items: &[u32]; }
+
+machine walk(bag: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(bag, capacity) }
+    state step(current: Bag, bound: u64) {
+        transition current.items.len > 0 {
+            true -> step(Bag { items: current.items[1..] }, bound)
+            false -> 0
+        }
+    }
+}

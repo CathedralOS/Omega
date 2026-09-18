@@ -47,7 +47,13 @@ pub(super) fn builtin(
                 Some(state),
                 expression,
             )?;
-            lengths::parameter(program, state, receiver)?;
+            // A `.len` receiver is a slice formal or an exact projected slice
+            // leaf; either names a produced length coordinate.
+            if lengths::parameter(program, state, receiver).is_none()
+                && lengths::SliceCoordinate::resolve(program, state, receiver).is_none()
+            {
+                return None;
+            }
             // Builtin collection metadata is a natural numeric coordinate;
             // it has no authored nominal operator implementation.
             Some(None)
@@ -68,7 +74,16 @@ pub(super) fn builtin(
             ))
         }
         ExpressionNode::Indexed(indexed) => {
-            lengths::parameter(program, state, indexed.collection)?;
+            // A builtin subslice's collection is a slice formal or an exact
+            // projected slice leaf reached through a member chain.
+            let collection_type = match lengths::parameter(program, state, indexed.collection) {
+                Some(parameter) => parameter.type_reference,
+                None => {
+                    lengths::SliceCoordinate::resolve(program, state, indexed.collection)?
+                        .field
+                        .type_reference
+                }
+            };
             if !crate::value_custody::places::has_builtin_subslice_meaning(
                 program,
                 machine,
@@ -86,9 +101,7 @@ pub(super) fn builtin(
                     builtin(program, machine, state, endpoint, depth + 1)?;
                 }
             }
-            Some(Some(
-                lengths::parameter(program, state, indexed.collection)?.type_reference,
-            ))
+            Some(Some(collection_type))
         }
         ExpressionNode::Borrow(borrow) => {
             // A borrow performs no operation of its own; the referent's

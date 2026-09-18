@@ -1,0 +1,19 @@
+// FAIL CANARY. The shortened slice arrives in `spare`, which carries the
+// `other` role, while the ranked `current` slot forwards its record
+// unchanged: the produced length at the destination equals the source rank,
+// so the cyclic edge cannot prove descent. A rebuilt sibling slice is a
+// distinct coordinate, never the ranked copy.
+data Bag { items: &[u32]; }
+
+machine walk(bag: Bag, other: Bag, capacity: u64)
+requires bag.items.len <= capacity && other.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(bag, other, capacity) }
+    state step(current: Bag, spare: Bag, bound: u64) {
+        transition current.items.len > 0 && spare.items.len > 0 {
+            true -> step(current, Bag { items: spare.items[1..] }, bound)
+            false -> 0
+        }
+    }
+}
