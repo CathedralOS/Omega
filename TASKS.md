@@ -1676,29 +1676,61 @@ Owners include
 
 - **NORMALIZED-ABI-LOWERING.** Finish target-independent signature
   normalization and target-owned calling/layout realization for aggregates,
-  dynamic values, callbacks, and foreign boundaries. Acceptance: the ABI is
-  independently reconstructible and no target placement leaks back into
-  Terminal Psi.
+  dynamic values, callbacks, and foreign boundaries. `&dyn Trait` boundary
+  parameters normalize to the two-word `{instance, table}` descriptor shape
+  (`provider-planning/src/calling_policy_plans/value_shapes.rs::value_shape_from_type`),
+  and `TargetUnitOperation::NormalizedForeignCall` lowers, replays against the
+  boundary declaration and legalizes with its provider custody. None of it
+  emits: `target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs`
+  rejects the legalized kind, no target declares a normalized-foreign
+  constraint row, both ISAs reject the selected form, and machine emission
+  reports an unsupported relocation shape.
 
-  Resume: `&dyn Trait` boundary parameters now normalize to the two-word
-  `{instance, table}` descriptor shape (`Reference`, 2*pointer_size) in
-  `provider-planning/src/calling_policy_plans.rs::value_shape_from_type`,
-  witnessed by
-  `compiler/tests/calling_policy_plans.rs::borrowed_dynamic_trait_parameter_materializes_fat_descriptor_shape`.
-  Next dependency: `TargetUnitOperation::NormalizedForeignCall` and the
-  dynamic/installed-provider op carriers are produced upstream but have no
-  consumer in `target-operations-to-selected-instructions` (currently a
-  custody-mismatch catch-all), and the common native route rejects callback
-  transport in `native-realization/src/native_realization/object.rs`. The emission
-  chain (selection -> register homes -> machine emission -> object import
-  plans -> image custody -> physical derivation) is the next bounded slice.
-  Normalized foreign lowering, machine-code custody, image replay, and artifact
-  derivation still bound foreign arguments/results to fixed-width integers;
-  widening them needs a coordinated lane once emission exists. Preserve agreement
-  between stored dynamic-reference layouts and normalized calling-policy shapes;
-  `calling_policy_plans::borrowed_dynamic_trait_record_fields_retain_both_descriptor_words`
-  checks neighboring fields and thin sized-reference controls across the four
-  hosted target layouts. Layout agreement alone does not close native transport.
+  Remaining work:
+
+  - Emit normalized foreign calls as one bounded slice, in order: selection,
+    register homes, machine emission, object import plans, image custody,
+    physical derivation. `compiler/tests/efb3_flat_record_probe.rs` pins the
+    Terminal precondition; **EVALUATED-FOREIGN-BINDINGS** owns locators and
+    import evidence.
+  - Widen foreign arguments and results. The scalar lane admits fixed-width
+    integers only. The structural lane admits one source-rooted borrowed flat
+    record, and only while the scalar lane is empty, because the Terminal
+    machine declaration does not retain the authored order of scalar and
+    structural formals
+    (`abstract-operations-to-target-operations/src/lowering/unit/boundary_call/normalized_foreign.rs`).
+    Retain the authored parameter position so a mixed signature rejoins its
+    plan rows, then add owned aggregates and dynamic descriptors.
+  - Dynamic descriptor calls. Target lowering produces
+    `StoreDynamicDescriptor`, the stored, rebound and parameter dynamic calls
+    and the `...WithDynamicArguments` calls, and
+    `target-operations-to-selected-instructions/src/legalization` consumes none
+    of them. **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns the ordinary
+    indirect-call operand they need.
+  - Callback transport. The common route rejects every request carrying a
+    callback in `native-realization/src/native_realization/object_emission.rs`;
+    **CALLBACK-PRIVATE-MATERIALIZATION** owns that route.
+
+  Acceptance: every call's ABI is independently reconstructible from its
+  declaration and the selected calling policy, and no target placement appears
+  in Terminal Psi. A source-produced foreign call with mixed scalar and record
+  arguments executes on a matching host; substituted plan rows, placements and
+  provider bindings reject at each stage that retains them. Stored
+  dynamic-reference layouts stay equal to the normalized calling-policy shapes
+  (`calling_policy_plans::borrowed_dynamic_trait_record_fields_retain_both_descriptor_words`);
+  layout agreement alone does not close native transport.
+
+  Flag: `TargetUnitOperation`
+  (`target-operations/src/target_operations/operations/unit.rs`) has 12 call
+  variants split by result kind, argument kind and dispatch source (`Call`,
+  `ScalarCall`, `StructuralScalarCall`, `StructuralResultCall`,
+  `Structural{Scalar,Unit}CallWithDynamicArguments`, `StoredDynamicScalarCall`,
+  `Dynamic{Scalar,Unit}Call`, `DynamicParameter{Scalar,Unit}Call`,
+  `NormalizedForeignCall`), and the foreign call adds separate scalar and
+  structural lanes that cannot mix. That is one producer family per signature
+  permutation, not a normalized signature. The general form is one call
+  operation carrying an ordered per-position parameter class, a result class
+  and a callee source, realized by the target's calling policy.
 
 - **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete [representation agreement](wiki/spec/build/opaque_representations.md) at
   independently compiled by-value exchanges. Dependency-first review compilation
