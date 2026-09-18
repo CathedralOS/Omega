@@ -1,13 +1,24 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::semantic_calls::find_state;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::ExpressionHandle;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 #[cfg(test)]
 mod tests;
 
+/// The declared type an expression's value carries. The canonical place walk
+/// roots the expression at its storage — a symbol for names and their
+/// projections, the expression itself for value-producing leaves — then the
+/// place type replays the root's stored evidence through the retained
+/// segments. Because an expression root defers to `expression_type_position`,
+/// every leaf the position walk proves answers here too: a call resumes at
+/// its declared return type, a cast or zero value at its stored reference,
+/// an array or match leaf at its joined position projected through the
+/// segments. Leaves whose values own no declaration identity — scalar
+/// literals, unary and binary results, range operands — keep no reference
+/// rather than borrowing a same-shaped row.
 pub(crate) fn expression_type_reference_in_state(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
@@ -18,36 +29,13 @@ pub(crate) fn expression_type_reference_in_state(
         return None;
     }
 
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            expression_type_reference_in_state(program, state_symbol, statement_index, atomic.value)
-        }
-        ExpressionNode::Borrow(inner) => {
-            expression_type_reference_in_state(program, state_symbol, statement_index, inner.target)
-        }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            let place = canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                expression,
-            )?;
-            canonical_place_type_reference(program, state_symbol, statement_index, &place)
-        }
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Match(_)
-        | ExpressionNode::Binary(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Call(_)
-        | ExpressionNode::Cast(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Range(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Unary(_)
-        | ExpressionNode::ZeroValue(_) => None,
-    }
+    let place = canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )?;
+    canonical_place_type_reference(program, state_symbol, statement_index, &place)
 }
 
 pub(crate) fn canonical_place_type_reference(
@@ -56,11 +44,12 @@ pub(crate) fn canonical_place_type_reference(
     statement_index: usize,
     place: &CanonicalPlace,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    if let facts::PlaceRoot::Expression(expression) = place.root
-        && let ExpressionNode::Call(call) = program.expression_table.expression(expression)
-    {
-        let result = super::super::calls::call_target_return_type(program, call.target_symbol)?;
-        return project_type_reference_from_segments(program, result, &place.segments);
+    // An expression root resumes wherever the position walk's leaf evidence
+    // places it — a call at its declared return type, a stored-type leaf at
+    // its own reference, a window at its element — then replays the retained
+    // segments through the same hop rules member resolution commits to.
+    if let facts::PlaceRoot::Expression(expression) = place.root {
+        return crate::flow::expression_place_type_reference(program, expression, &place.segments);
     }
     // A type-reference root names the place's own stored type: its declared
     // type is that reference replayed through the retained segments.

@@ -4,9 +4,11 @@
 //! a duplicated symbol row or two same-named definitions — the projection can
 //! no longer be re-derived for the exact subject and must refuse the premise
 //! rather than letting the first same-shaped row mint a field type.
-use super::canonical_place_type_reference;
+use super::{canonical_place_type_reference, expression_type_reference_in_state};
 use crate::flow::CanonicalPlace;
+use crate::flow::canonical_place_from_expression;
 use crate::flow::ownership::discover_state_move_events;
+use checked_trees::expression::ExpressionNode;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -277,6 +279,331 @@ fn attached_declaration_duplicates_cannot_mint_field_type_evidence() {
                 }]
         }),
         "ambiguous attached provenance must retain the move, not mint a copy"
+    );
+}
+
+/// `observe` returns a member read whose receiver is a value-producing
+/// expression rather than a named place: the canonical place roots at the
+/// expression itself and the member type must be reconstructed from the
+/// position walk's leaf evidence.
+struct RootedFixture {
+    program: typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    member: checked_trees::expression::ExpressionHandle,
+    place: CanonicalPlace,
+    statement_count: usize,
+}
+
+impl RootedFixture {
+    fn project(&self) -> Option<TypeReferenceHandle> {
+        canonical_place_type_reference(
+            &self.program,
+            self.state_symbol,
+            self.statement_count,
+            &self.place,
+        )
+    }
+
+    fn move_events(&self) -> Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
+        let machine = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == self.machine_symbol)
+            .expect("fixture machine");
+        let state = self
+            .program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == self.state_symbol)
+            .expect("fixture state");
+        let borrow = checked_trees::BorrowFacts::default();
+        let operators = checked_trees::CheckedOperatorFacts::default();
+        let mut segments = arena::Arena::default();
+        discover_state_move_events(
+            &self.program,
+            &borrow,
+            &operators,
+            machine,
+            state,
+            &mut segments,
+        )
+        .into_iter()
+        .map(|event| (event.root, segments.span_or_empty(event.segments).to_vec()))
+        .collect()
+    }
+}
+
+/// The body's single member expression names `member_name`; its canonical
+/// place roots at whatever expression produces the receiver — a dispatch, a
+/// literal, an indexed window, or a call.
+fn rooted_fixture(source: &str, machine_name: &str, member_name: &str) -> RootedFixture {
+    let program = typed_source(source);
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+        .expect("fixture machine");
+    let state = &program.machine_states(machine)[0];
+    let member = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            (member.member.as_str() == member_name).then_some(handle)
+        })
+        .expect("fixture member expression");
+    let place = canonical_place_from_expression(&program, member)
+        .expect("a member read must form a canonical place");
+    RootedFixture {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        statement_count: program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
+        member,
+        place,
+        program,
+    }
+}
+
+fn declared_field_type(
+    program: &typed_trees::TypedTrees,
+    type_name: &str,
+    field_name: &str,
+) -> TypeReferenceHandle {
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == type_name)
+        .and_then(|data| {
+            program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Field(field) if field.name.as_str() == field_name => {
+                        Some(field.type_reference)
+                    }
+                    _ => None,
+                })
+        })
+        .expect("declared field type")
+}
+
+/// The dispatch produces a fresh `Context` whose `scheduler` is read
+/// directly off the match expression. The place roots at the dispatch
+/// itself: its declared type is the arms' common position replayed through
+/// the retained field segment, not an opaque temporary.
+#[test]
+fn match_rooted_place_projects_through_the_arms_common_position() {
+    let fixture = rooted_fixture(
+        "data Main {}
+         machine Main::run(&mut self) {}
+         pub data SchedulerHandle [copy] {}
+         pub data Context [copy] { scheduler: SchedulerHandle; }
+         machine observe(flag: bool, context: Context) -> SchedulerHandle {
+             match flag { true -> context _ -> context }.scheduler
+         }",
+        "observe",
+        "scheduler",
+    );
+    assert_eq!(
+        fixture.place.root,
+        facts::PlaceRoot::Expression(program_member_receiver(&fixture)),
+        "the member read must root at the match expression, not a symbol"
+    );
+    assert_eq!(
+        fixture.project(),
+        Some(declared_field_type(
+            &fixture.program,
+            "Context",
+            "scheduler"
+        )),
+        "the rooted dispatch must project the field's declared type"
+    );
+
+    // The proven copy type retires the conservative move the read recorded
+    // while the expression root was opaque: nothing owned leaves the
+    // dispatch place, so no ownership event may name it.
+    let ExpressionNode::Member(member) =
+        fixture.program.expression_table.expression(fixture.member)
+    else {
+        unreachable!()
+    };
+    assert!(
+        fixture
+            .move_events()
+            .iter()
+            .all(|(root, _)| *root != facts::PlaceRoot::Expression(member.receiver)),
+        "a proven copy read off the dispatch must not record a move"
+    );
+}
+
+fn program_member_receiver(fixture: &RootedFixture) -> checked_trees::expression::ExpressionHandle {
+    let ExpressionNode::Member(member) =
+        fixture.program.expression_table.expression(fixture.member)
+    else {
+        unreachable!()
+    };
+    member.receiver
+}
+
+/// A record literal's own type owns no stored reference row, but its fields
+/// still carry declared types: `Context { .. }.scheduler` projects through
+/// the literal's declaration position to the field's declared type.
+#[test]
+fn struct_literal_rooted_place_projects_the_declared_field_type() {
+    let fixture = rooted_fixture(
+        "data Main {}
+         machine Main::run(&mut self) {}
+         pub data SchedulerHandle [copy] {}
+         pub data Context [copy] { scheduler: SchedulerHandle; }
+         machine observe(seed: SchedulerHandle) -> SchedulerHandle {
+             Context { scheduler: seed }.scheduler
+         }",
+        "observe",
+        "scheduler",
+    );
+    assert_eq!(
+        fixture.project(),
+        Some(declared_field_type(
+            &fixture.program,
+            "Context",
+            "scheduler"
+        )),
+        "the literal's declaration position must answer its field's declared type"
+    );
+}
+
+/// `[context, context][0].scheduler` roots at the literal, which the
+/// position walk proves is a window over the element: the index hop resumes
+/// at the element and the field segment projects its declared type.
+#[test]
+fn array_literal_rooted_place_resumes_at_the_element_through_the_index() {
+    let fixture = rooted_fixture(
+        "data Main {}
+         machine Main::run(&mut self) {}
+         pub data SchedulerHandle [copy] {}
+         pub data Context [copy] { scheduler: SchedulerHandle; }
+         machine observe(context: Context) -> SchedulerHandle {
+             [context, context][0].scheduler
+         }",
+        "observe",
+        "scheduler",
+    );
+    assert_eq!(
+        fixture.project(),
+        Some(declared_field_type(
+            &fixture.program,
+            "Context",
+            "scheduler"
+        )),
+        "the indexed literal must project the element's declared field type"
+    );
+}
+
+/// A member demanded on the literal itself names a field of the array,
+/// which declares none: the window position keeps no reference rather than
+/// lending the element's field type to the collection.
+#[test]
+fn array_literal_members_keep_no_reference_on_the_literal_itself() {
+    let fixture = rooted_fixture(
+        "data Main {}
+         machine Main::run(&mut self) {}
+         pub data SchedulerHandle [copy] {}
+         pub data Context [copy] { scheduler: SchedulerHandle; }
+         machine observe(context: Context) -> SchedulerHandle {
+             [context, context].scheduler
+         }",
+        "observe",
+        "scheduler",
+    );
+    assert_eq!(fixture.project(), None);
+}
+
+/// The call root the expression path already owned must keep its answer:
+/// `forward(context).scheduler` resumes at `forward`'s declared return type
+/// and projects the field through it.
+#[test]
+fn call_rooted_place_still_projects_through_the_declared_return_type() {
+    let fixture = rooted_fixture(
+        "data Main {}
+         machine Main::run(&mut self) {}
+         pub data SchedulerHandle [copy] {}
+         pub data Context [copy] { scheduler: SchedulerHandle; }
+         machine forward(context: Context) -> Context { context }
+         machine observe(context: Context) -> SchedulerHandle {
+             forward(context).scheduler
+         }",
+        "observe",
+        "scheduler",
+    );
+    assert_eq!(
+        fixture.project(),
+        Some(declared_field_type(
+            &fixture.program,
+            "Context",
+            "scheduler"
+        )),
+        "the call root must keep projecting through the declared return type"
+    );
+}
+
+/// `expression_type_reference_in_state` asks the same question of the whole
+/// expression rather than a place: a dispatch whose arms agree on one
+/// stored reference names that reference, while the bare literal whose own
+/// type owns no stored row keeps none.
+#[test]
+fn expression_type_reference_replays_the_same_leaf_evidence() {
+    let fixture = rooted_fixture(
+        "data Main {}
+         machine Main::run(&mut self) {}
+         pub data SchedulerHandle [copy] {}
+         pub data Context [copy] { scheduler: SchedulerHandle; }
+         machine observe(flag: bool, context: Context) -> SchedulerHandle {
+             match flag { true -> context _ -> context }.scheduler
+         }",
+        "observe",
+        "scheduler",
+    );
+    let receiver = program_member_receiver(&fixture);
+    let state = crate::semantic_calls::find_state(&fixture.program, fixture.state_symbol)
+        .expect("fixture state");
+    let context_type = fixture
+        .program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "context")
+        .expect("context parameter")
+        .type_reference;
+    assert_eq!(
+        expression_type_reference_in_state(
+            &fixture.program,
+            fixture.state_symbol,
+            fixture.statement_count,
+            receiver,
+        ),
+        Some(context_type),
+        "the dispatch's declared type is the arms' common stored reference"
+    );
+    // The member read over it answers the field's declared type through the
+    // same replay the place path performs.
+    assert_eq!(
+        expression_type_reference_in_state(
+            &fixture.program,
+            fixture.state_symbol,
+            fixture.statement_count,
+            fixture.member,
+        ),
+        Some(declared_field_type(
+            &fixture.program,
+            "Context",
+            "scheduler"
+        )),
     );
 }
 
