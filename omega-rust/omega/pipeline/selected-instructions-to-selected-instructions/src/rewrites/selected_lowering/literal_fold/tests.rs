@@ -34,8 +34,8 @@ use staged_arithmetic_inputs::{
     staged_wrapping_add_inputs, staged_xor_inputs,
 };
 use staged_memory_inputs::{
-    staged_byte_view_address_inputs, staged_copy_inputs, staged_extension_inputs,
-    staged_load8_indexed_inputs,
+    staged_byte_view_address_backing_inputs, staged_byte_view_address_inputs, staged_copy_inputs,
+    staged_extension_inputs, staged_load8_indexed_inputs,
 };
 
 use super::super::super::super::{

@@ -837,8 +837,9 @@ pub enum PairOperandShape {
     /// xor-zero and wrapping-add-zero identity copies bind `surviving`
     /// unchanged, which `0 ^ x` and `x ^ 0` — likewise `0 + x` and
     /// `x + 0` — share — so only an operation exact under commutation
-    /// may declare it. Exact addition, bitwise xor, and wrapping addition
-    /// commute; subtraction and comparison fix the literal's role, so
+    /// may declare it. Exact addition, bitwise xor, wrapping addition, and
+    /// the byte-view projection's modular address addition commute;
+    /// subtraction and comparison fix the literal's role, so
     /// only those families declare a left-literal pair.
     BinaryLeftLiteral,
     /// Unary consumer: the literal victim is the sole `Use` operand (operand
@@ -1184,6 +1185,18 @@ impl SelectedInstructionPairRule {
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
         machine_effects: PairMachineEffects::Isolated,
+    };
+    /// Eliminate `MaterializeI64` feeding the operand-0 backing operand of
+    /// `ByteViewAddress`: the projection computes `(backing + offset)`
+    /// modulo 2^64 — a commutative modular address addition — so a
+    /// materialized backing literal rewrites to the same constant-offset
+    /// `AddressOffset` form the operand-1 offset fold uses, with the
+    /// operand-1 `Use` surviving as the rewritten row's base. The same
+    /// catalog selection admits both operand positions; the pair
+    /// disambiguates by which `Use` position the folded literal occupies.
+    pub const BYTE_VIEW_ADDRESS_BACKING_U12: Self = Self {
+        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        ..Self::BYTE_VIEW_ADDRESS_OFFSET_U12
     };
 
     /// Eliminate `MaterializeI64` feeding the divisor operand of

@@ -88,7 +88,10 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 23]
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
-            pairs: &[SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12],
+            pairs: &[
+                SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
+                SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_BACKING_U12,
+            ],
         },
     ),
     SelectedLoweringRuleCatalogEntry::new(
