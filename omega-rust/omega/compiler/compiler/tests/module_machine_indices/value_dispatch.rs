@@ -642,6 +642,11 @@ fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
         "(false && (1 / (match true { true -> ((match true { true -> 1, false -> 3 }) - 2), false -> 0 }) == 0))",
         // Correlated result facts are not reconstructed from branch selection.
         "(false && (1 / ((match true { true -> 1, false -> 2 }) - (match true { true -> 1, false -> 2 }) + 1) == 0))",
+        // Sibling gaps cannot rescue a contribution whose own lattice reaches
+        // zero: (-3+2Z)+(3+2Z) is 0+2Z on [0,4], so the pole stays possible.
+        "(false && (1 / ((match 0u8 { 0 -> -3, 1 -> -1, 2 -> 4, _ -> 8 }) + (match 0u8 { 0 -> -6, 1 -> -2, 2 -> 3, _ -> 5 })) == 0))",
+        // A collapsed singleton divisor is still an admissible zero.
+        "(false && (1 / (0 / (8 / (match true { true -> 2, false -> (match true { true -> 4, false -> 600 }) }))) == 0))",
     ] {
         Sources::write(
             root.join("main.omg"),
@@ -692,4 +697,40 @@ fn anonymous_match_divisor_proofs_compose_independent_terms() {
         let checked = compile(&root, root_inputs(&root));
         assert_same_machine_types(&checked, "keep", "oracle");
     }
+}
+
+#[test]
+fn anonymous_match_bounds_keep_each_contributions_own_zero_gap() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    // Each zero-spanning operand pair carries a lattice that skips zero:
+    // (-3+2Z)+(2+2Z) contributes -1+2Z on [-1,3] and (4+4Z)+(-6+4Z)
+    // contributes -2+4Z on [-2,6], but joining them first merges to 1Z and
+    // reopens the pole. Splitting each contribution at its own gap keeps the
+    // divisor proof; the actual sum is -9, so the quotient lands below zero.
+    // A quotient collapsed to one point over an unenumerable divisor hull is
+    // its own exact integrality evidence: [2,600] on 2+2Z exceeds the
+    // enumeration bound, yet 0 divided by any admissible divisor is 0.
+    Sources::write(
+        root.join("main.omg"),
+        &format!(
+            "pub data Flag<const Enabled: bool> {{ value: u8; }}
+             pub data Indexed<const Value: i32> {{ value: u8; }} {} {} {} {}",
+            keep(
+                "keep",
+                "Flag",
+                "(1 / ((match 0u8 { 0 -> -3, 1 -> -1, 2 -> 4, _ -> 8 }) + (match 0u8 { 0 -> -6, 1 -> -2, 2 -> 2, _ -> 4 })) < 0)"
+            ),
+            keep("oracle", "Flag", "true"),
+            keep(
+                "collapsed",
+                "Indexed",
+                "(0 / (8 / (match true { true -> 2, false -> (match true { true -> 4, false -> 600 }) })))"
+            ),
+            keep("zero", "Indexed", "0"),
+        ),
+    );
+    let checked = compile(&root, root_inputs(&root));
+    assert_same_machine_types(&checked, "keep", "oracle");
+    assert_same_machine_types(&checked, "collapsed", "zero");
 }

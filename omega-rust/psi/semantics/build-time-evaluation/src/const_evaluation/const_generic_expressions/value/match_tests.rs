@@ -254,6 +254,51 @@ fn nonzero_divisor_proof_retains_each_result_hulls_own_lattice_gap() {
 }
 
 #[test]
+fn nonzero_divisor_proof_survives_independent_pair_gap_dilution() {
+    // Each zero-spanning operand pair carries a lattice that skips zero
+    // (-1+2Z on [-1,3] and -2+4Z on [-2,6]), but their joined lattice is 1Z.
+    // Splitting each contribution at its own gap keeps the nonzero proof.
+    let (program, expression) = program(
+        "(1 / ((match 0u8 { 0 -> -3, 1 -> -1, 2 -> 4, _ -> 8 }) + (match 0u8 { 0 -> -6, 1 -> -2, 2 -> 2, _ -> 4 })) < 0)",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let (value, _) = evaluate(
+        &program,
+        machine,
+        state,
+        expression,
+        PrimitiveType::Bool,
+        None,
+    )
+    .expect("each operand pair's own lattice gap excludes zero");
+    assert_eq!(value.display, "true");
+}
+
+#[test]
+fn zero_numerator_over_unenumerated_divisor_lands_integrally() {
+    // The inner divisor hull [2,600] on 2+2Z is wider than the enumeration
+    // bound, so no quotient lattice survives; still, 0 divided by any
+    // admissible divisor collapses to the singleton {0}, which is its own
+    // exact integrality evidence.
+    let (program, expression) = program(
+        "0 / (8 / (match true { true -> 2, false -> (match true { true -> 4, false -> 600 }) }))",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let (value, _) = evaluate(
+        &program,
+        machine,
+        state,
+        expression,
+        PrimitiveType::I16,
+        None,
+    )
+    .expect("a collapsed singleton result is its own integral proof");
+    assert_eq!(value.display, "0");
+}
+
+#[test]
 fn match_wildcard_does_not_erase_undefined_anonymous_subject() {
     let (program, expression) = program("match (1 / 0) { _ -> 1 }");
     let machine = &program.machines()[0];
