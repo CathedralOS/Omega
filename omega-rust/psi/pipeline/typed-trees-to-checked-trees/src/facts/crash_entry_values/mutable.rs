@@ -26,9 +26,13 @@ use typed_trees::statement::{
 
 /// Whether a mutable receiver's storage below `field_path` still holds the
 /// value the invocation bound it to. `self` is bound once and transitions
-/// never rebind it, but any earlier arrival may already have run any state,
-/// so the pristine-storage window spans every statement of the machine rather
-/// than one statement prefix. Receiver storage is reached under two rooted
+/// never rebind it, so a field read names the entry field while no statement
+/// that can execute before the read can write through it. The escape window
+/// is reachability-bounded rather than machine-wide: an earlier arrival can
+/// only have visited states that still reach the read's state, and the read's
+/// own state contributes its whole statement list only when it can re-enter
+/// — otherwise just the prefix through the containing statement has run.
+/// Receiver storage is reached under two rooted
 /// spellings — a `self.<field>` place roots at the field symbol, while a
 /// whole-receiver place (`&mut self`, a `&mut self` receiver call, an
 /// exclusive `self` borrow passed on) roots at the machine or attached-data
@@ -40,6 +44,8 @@ use typed_trees::statement::{
 pub(super) fn receiver_field_holds_entry_value(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
     field_path: &[PlaceSegment],
 ) -> bool {
     let Some(&PlaceSegment::Field(field)) = field_path.first() else {
@@ -59,22 +65,93 @@ pub(super) fn receiver_field_holds_entry_value(
     }));
     receiver_roots.retain(|root| root.is_valid());
     receiver_roots.dedup();
-    states.iter().all(|state| {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .all(|statement| {
-                !statement_may_overwrite(
-                    program,
-                    machine.symbol,
-                    statement,
-                    field,
-                    &field_path[1..],
-                ) && receiver_roots.iter().all(|root| {
+    let Some(read_index) = states.iter().position(|state| state.symbol == state_symbol) else {
+        return false;
+    };
+    // State graph edges: the named and self targets of each transition
+    // statement. A state can only have run before the read when a path from
+    // it back to the read's state exists.
+    let adjacency: Vec<Vec<usize>> = states
+        .iter()
+        .enumerate()
+        .map(|(source_index, source)| {
+            let mut outgoing = Vec::new();
+            for statement in program.statement_table.statements(source.statement_nodes) {
+                let StatementNode::Transition(transition) = statement else {
+                    continue;
+                };
+                for target in [transition.target, transition.continuation] {
+                    if !target.is_valid() {
+                        continue;
+                    }
+                    let target_index = match program.statement_table.transition_target(target) {
+                        TransitionTargetNode::Named { path, .. } => {
+                            crate::checks::termination::named_transition_target_state_index(
+                                program,
+                                machine,
+                                path.symbol,
+                            )
+                        }
+                        TransitionTargetNode::SelfTarget => Some(source_index),
+                        TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => None,
+                    };
+                    if let Some(target_index) = target_index {
+                        outgoing.push(target_index);
+                    }
+                }
+            }
+            outgoing
+        })
+        .collect();
+    // Every state that still reaches the read's state — the read's own state
+    // included — may have run on an earlier arrival.
+    let mut may_precede = vec![false; states.len()];
+    may_precede[read_index] = true;
+    let mut pending = vec![read_index];
+    while let Some(index) = pending.pop() {
+        for (source, outgoing) in adjacency.iter().enumerate() {
+            if !may_precede[source] && outgoing.contains(&index) {
+                may_precede[source] = true;
+                pending.push(source);
+            }
+        }
+    }
+    // Without a path back to itself the read's own state ran each statement
+    // at most once, so only the prefix through the containing statement can
+    // have executed before the read.
+    let mut reentrant = false;
+    let mut visited = vec![false; states.len()];
+    let mut pending = adjacency[read_index].clone();
+    while let Some(index) = pending.pop() {
+        if index == read_index {
+            reentrant = true;
+            break;
+        }
+        if visited[index] {
+            continue;
+        }
+        visited[index] = true;
+        pending.extend(adjacency[index].iter().copied());
+    }
+    states.iter().enumerate().all(|(index, state)| {
+        if !may_precede[index] {
+            return true;
+        }
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let window = if index == read_index && !reentrant {
+            let Some(window) = statements.get(..before_statement.saturating_add(1)) else {
+                return false;
+            };
+            window
+        } else {
+            statements
+        };
+        window.iter().all(|statement| {
+            !statement_may_overwrite(program, machine.symbol, statement, field, &field_path[1..])
+                && receiver_roots.iter().all(|root| {
                     !statement_may_overwrite(program, machine.symbol, statement, *root, field_path)
                 })
-            })
+        })
     })
 }
 
