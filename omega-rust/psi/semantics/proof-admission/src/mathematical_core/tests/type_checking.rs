@@ -1,6 +1,7 @@
 use super::{
-    apply, branching_family, case_two, default_budget, fst, lambda, pair, pi, polymorphic_identity,
-    sigma, snd, strict_sort, two, two_one, two_zero, type_sort, universe_motive, variable,
+    apply, branching_family, case_two, default_budget, fst, id, lambda, pair, pi,
+    polymorphic_identity, refl, sigma, snd, strict_sort, two, two_one, two_zero, type_sort,
+    universe_motive, variable,
 };
 use crate::mathematical_core::{
     Budget, Context, CoreError, Level, Signature, Sort, TermArena, check_type, convertible,
@@ -306,7 +307,7 @@ fn checking_the_polymorphic_identity_retains_bounded_storage() {
 
     // Retained-storage receipt: the whole construction and every check above
     // live in a small bounded arena.
-    assert_eq!(arena.len(), 41);
+    assert_eq!(arena.len(), 44);
 }
 
 #[test]
@@ -949,6 +950,44 @@ fn dependent_two_elimination_checks_at_branch_specific_types() {
     assert!(matches!(error, CoreError::TypeMismatch { .. }));
     let swapped = case_two(&mut arena, family, function_witness, wrong_one, scrutinee);
     let error = infer_type(&mut arena, &context, swapped, &mut budget).unwrap_err();
+    assert!(matches!(error, CoreError::TypeMismatch { .. }));
+}
+
+#[test]
+fn lambda_bodies_check_componentwise_against_a_dependent_pi() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let empty = Context::empty();
+
+    // `λ(_ : Two). ⟨zero, refl Two zero⟩` checked against
+    // `Π(_ : Two). Σ(t : Two). caseTwo(M, Id Two zero zero, Two, t)`.
+    // The pair's inferred type is the non-dependent
+    // `Σ(_ : Two). Id Two zero zero`, which no conversion equates with
+    // the tagged family — but componentwise the payload `refl` checks at
+    // `caseTwo(M, …, zero) ≡ Id Two zero zero`. This is the shape a
+    // disjunction introduction reaches inside a case-analysis branch:
+    // the branch `λ` must be *checked*, not merely inferred.
+    let two_type = two(&mut arena);
+    let zero = two_zero(&mut arena);
+    let identity = id(&mut arena, two_type, zero, zero);
+    let proof = refl(&mut arena, two_type, zero);
+    let payload = pair(&mut arena, zero, proof);
+    let witness = lambda(&mut arena, two_type, payload);
+
+    let motive = universe_motive(&mut arena);
+    let bound = variable(&mut arena, 0);
+    let one_landing = two(&mut arena);
+    let family = case_two(&mut arena, motive, identity, one_landing, bound);
+    let codomain = sigma(&mut arena, two_type, family);
+    let expected = pi(&mut arena, two_type, codomain);
+
+    check_type(&mut arena, &empty, witness, expected, &mut budget).unwrap();
+
+    // The annotation is still checked: a binder naming the wrong domain
+    // rejects instead of smuggling the body under it.
+    let strict_zero = strict_sort(&mut arena, 0);
+    let lying = lambda(&mut arena, strict_zero, payload);
+    let error = check_type(&mut arena, &empty, lying, expected, &mut budget).unwrap_err();
     assert!(matches!(error, CoreError::TypeMismatch { .. }));
 }
 

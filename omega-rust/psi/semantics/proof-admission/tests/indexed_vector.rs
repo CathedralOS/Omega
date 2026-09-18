@@ -899,9 +899,9 @@ fn induction_computes_on_cons_with_a_neutral_tail() {
     );
 
     // Work receipt: checking the `iindW` application and closing the
-    // computation across the packed `IW` pair costs 39,346 budgeted
+    // computation across the packed `IW` pair costs 43,636 budgeted
     // steps over this description.
-    assert_eq!(total - budget.remaining(), 39_346);
+    assert_eq!(total - budget.remaining(), 43_636);
 }
 
 #[test]
@@ -1053,8 +1053,8 @@ fn induction_computes_on_nil_with_a_vacuous_child_function() {
 
     // Work receipt: the same eliminator run on the nil node — the
     // transport still goes through the `J` machinery even though every
-    // child position is dead — costs 30,170 budgeted steps.
-    assert_eq!(total - budget.remaining(), 30_170);
+    // child position is dead — costs 32,276 budgeted steps.
+    assert_eq!(total - budget.remaining(), 32_276);
 }
 
 #[test]
@@ -1333,6 +1333,6 @@ fn a_vector_certificate_verifies_with_exact_closure_and_bounded_cost() {
     // the full nine-declaration signature plus the `isup` judgment —
     // re-materializes substituted instances of the encoding. Both
     // numbers are measured, not quotas.
-    assert_eq!(arena.len(), 206_046);
-    assert_eq!(spent, 2_935);
+    assert_eq!(arena.len(), 185_334);
+    assert_eq!(spent, 2_937);
 }

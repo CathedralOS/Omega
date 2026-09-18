@@ -69,6 +69,16 @@ profile's typed function eta runs in both directions at a `Pi` shared type.
 Sorts convert through `levels_equal`; assumption constants convert only at
 the same declaration with semantically equal level instantiations.
 
+Checking (`typing.rs::check_type`) decomposes introduction forms against
+the expected head constructor rather than comparing whole inferred types:
+a `Pair` against a `Sigma` checks componentwise (the second component sees
+the codomain instantiated by the first), and a `Lambda` against a `Pi`
+checks its annotation against the expected domain by conversion and its
+body against the codomain under the extended context. The `Lambda` case
+is what lets a binder's body reach a dependent `Sigma` componentwise —
+without it, inference alone records a non-dependent pair type that no
+conversion can equate with the tagged family.
+
 ## Structural properties
 
 **Weakening** — if `Σ; Δ; Γ ⊢ t : T` and `Γ'` inserts one well-formed
@@ -229,6 +239,15 @@ is a policy default, not part of the calculus. *Witnessed:*
 `conversion_refuses_at_the_step_ceiling` and the computation tests'
 ceiling controls.
 
+Stack depth is likewise a resource, handled outside the calculus: the
+checkers and the bounded denotation recurse over term and proof-tree
+structure, so `certificate.rs::run_on_verification_stack` runs the public
+verification and denotation entries on a dedicated 256 MiB worker stack
+(scoped thread, panics re-thrown on the caller). Depth therefore exhausts
+the elaboration bound or the reservation as a typed error, never as a
+process abort; the recursion itself is unchanged, so the metatheory above
+still describes exactly what runs.
+
 **Level equality is decidable** — `levels_equal` compares `max`-normal
 forms (constant floor plus per-parameter successor offsets, with
 constant-floor absorption); normal forms are equal exactly when the induced
@@ -346,7 +365,7 @@ kernel's guarantee ends at the checked declaration graph.
 | Acceptance families: vector length, mutual, nested, derivation context/conclusion, level polymorphism | `tests/indexed_{vector,mutual,nested,derivation,levels}.rs` — each pins constructor computation on neutral children, rejection controls, exact closures and measured receipts |
 | Bounded rule families | `tests/{equality_symmetry,predicate_conversion,predicate_denotation,value_equality_transport,integer_order_weakening}.rs` |
 | Canonical wire: byte-identical re-encode, independent re-verification, closure through the wire | `terminal-codec` tests `mathematical_certificate`, `theorem_certificate`, `bounded_certificate` |
-| Measured cost examples | derivation `next` family checking: 25_100 budgeted steps; a derivation certificate: 3_689 steps with 282_055 retained arena slots (`indexed_derivation.rs`) |
+| Measured cost examples | derivation `next` family checking: 28_946 budgeted steps; a derivation certificate: 4_794 steps with 278_515 retained arena slots (`indexed_derivation.rs`) |
 
 ## Trust boundary and explicit non-claims
 

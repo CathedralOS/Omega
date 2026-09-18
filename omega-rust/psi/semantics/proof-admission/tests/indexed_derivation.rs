@@ -1490,8 +1490,8 @@ fn induction_computes_on_modus_ponens_with_a_neutral_child_function() {
 
     // Work receipt: checking the `iindW` application and closing the
     // computation across the packed `IW` pair and the position-selected
-    // `next` costs a measured 25_100 budgeted steps.
-    assert_eq!(total - budget.remaining(), 25_100);
+    // `next` costs a measured 28_946 budgeted steps.
+    assert_eq!(total - budget.remaining(), 28_946);
 }
 
 #[test]
@@ -1638,8 +1638,8 @@ fn induction_with_a_dependent_motive_proves_the_conclusion_identity() {
         .unwrap()
     );
 
-    // Work receipt: a measured 3_689 budgeted steps.
-    assert_eq!(total - budget.remaining(), 3_689);
+    // Work receipt: a measured 4_877 budgeted steps.
+    assert_eq!(total - budget.remaining(), 4_877);
 }
 
 #[test]
@@ -2092,6 +2092,6 @@ fn a_derivation_certificate_verifies_with_exact_closure_and_bounded_cost() {
     // the full nine-declaration signature plus the `isup` judgments —
     // re-materializes substituted instances of the encoding. Both
     // numbers are measured, not quotas.
-    assert_eq!(arena.len(), 282_055);
-    assert_eq!(spent, 4_342);
+    assert_eq!(arena.len(), 278_515);
+    assert_eq!(spent, 4_794);
 }

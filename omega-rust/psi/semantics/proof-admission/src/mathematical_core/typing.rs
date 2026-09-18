@@ -1146,6 +1146,38 @@ pub fn check_type(
             return check_type(arena, context, second, second_type, budget);
         }
     }
+    // A lambda against a `Pi` checks componentwise, so the body sees the
+    // dependent codomain rather than the lambda's non-dependent
+    // inference — the dual of the pair rule above. The annotation must
+    // still denote the expected domain, and the body is checked under
+    // the binder, so a nested pair can meet a dependent `Sigma`
+    // componentwise instead of comparing whole inferred types.
+    if let Term::Lambda { domain, body } = arena.get(term) {
+        let head = weak_head_normalize(arena, context.signature(), expected, budget)?;
+        if let Term::Pi {
+            domain: expected_domain,
+            codomain,
+        } = arena.get(head)
+        {
+            let domain_sort = infer_sort(arena, context, expected_domain, budget)?;
+            let shared_domain = arena.insert(Term::Sort(domain_sort));
+            if !convertible(
+                arena,
+                context,
+                domain,
+                expected_domain,
+                shared_domain,
+                budget,
+            )? {
+                return Err(CoreError::TypeMismatch {
+                    expected: expected_domain,
+                    actual: domain,
+                });
+            }
+            let extended = context.extend(domain);
+            return check_type(arena, &extended, body, codomain, budget);
+        }
+    }
     let shared_type = arena.insert(Term::Sort(expected_sort));
     let actual = infer_type(arena, context, term, budget)?;
     if convertible(arena, context, actual, expected, shared_type, budget)? {

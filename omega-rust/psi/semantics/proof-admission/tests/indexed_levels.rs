@@ -868,7 +868,7 @@ fn the_eliminator_computes_at_the_higher_instantiation() {
     );
 
     // Work receipt, pinned to the measured spend over this description.
-    assert_eq!(total - budget.remaining(), 39_346);
+    assert_eq!(total - budget.remaining(), 43_636);
 }
 
 #[test]
@@ -1073,6 +1073,6 @@ fn a_polymorphic_vector_certificate_verifies_for_every_level() {
     // Retained-storage and work receipts: the ten-declaration signature
     // plus the `consVec` judgment, measured like the vector
     // certificate's — exact pins, not quotas.
-    assert_eq!(arena.len(), 365_834);
-    assert_eq!(spent, 3_251);
+    assert_eq!(arena.len(), 310_412);
+    assert_eq!(spent, 2_705);
 }

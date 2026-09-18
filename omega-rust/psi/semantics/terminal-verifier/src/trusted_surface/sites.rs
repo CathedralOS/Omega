@@ -90,6 +90,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         module: "quotient_schemes",
     },
     TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/strict_layer.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests.rs",
+        module: "strict_layer",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/type_checking.rs",
         parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests.rs",
         module: "type_checking",
@@ -269,27 +274,27 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/lib.rs",
-        sha256: Some("4c531814bd905e8859756f461d758623d5233650fc78a45beb36c8114f8a3da8"),
+        sha256: Some("af7c2755f7097dab8cc5aab260f8a41034e683230ea0190b10482eabd1bf0f1c"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core.rs",
-        sha256: Some("b7f56a87da68ecd67f42a0149f015dd3dd016cab5040a4c7c6d0ea15a6b9950b"),
+        sha256: Some("19273e6de49cfcf5dc5a491cac46d44bf67bd6618b6b8b940298a19bf664c550"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation.rs",
-        sha256: Some("cbf19b7337cfbb1e48a6722e6d6852045a01f9fe12476cfb40a4d52ff6ceea77"),
+        sha256: Some("085181391e4bd21a997d3cf1582da61082ff64b5038bfb1844cf597dae7cee80"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/certificate.rs",
-        sha256: Some("f66d5b5216dc581c395b34458e832e69f9e93bc882236118a9dca33e534405aa"),
+        sha256: Some("904bdf506b4f65ed93034ed2dcd0cec28f94ccf66ca34b5dc006c0bcf6386833"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/conversion.rs",
-        sha256: Some("2caf5c9fc2ff3d218ad45e0ec26b14500c939c36808a1209b245a1c71d2387f9"),
+        sha256: Some("4f1da58b4cb32429bb37c5502e77dac6fdfe2ac85112e32995bebd0aebdf9f60"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -309,17 +314,17 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/signature.rs",
-        sha256: Some("7c1f35ff6224e5a0f38234dcc01c4f98776b1890804026c0e21b19cb948b1f4d"),
+        sha256: Some("4b3a1f4d394f0bc86c40d26c4c92a3301d83463f917efd888678cc14b6d6dc46"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/substitution.rs",
-        sha256: Some("0908b1468a1aea94ab0eac759839111e60462be38472b3657a6278718160e798"),
+        sha256: Some("e6d1a91185300eaec8cf89f03e4bbf07815bf5789c5b1b51b47f9a463da6f1b6"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/term.rs",
-        sha256: Some("b6ac58d6801e39c168e564230f6de478b1b6f40001658528a96bde87272f80a6"),
+        sha256: Some("62ab7f693e70a81abba42f814412b373bef6ba095bc77d54657131163cad7c2c"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -329,7 +334,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/typing.rs",
-        sha256: Some("a4f0604d038bea97d90f01d4e072b810b5f3e297224845bf994c95748d1bc356"),
+        sha256: Some("5e5982bbaff7af65149c12ec269d22bb744be67f015540893e8e0a3841962c10"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -349,17 +354,17 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof.rs",
-        sha256: Some("a426f6229474521d9d4784a1feb82b1b269e295ee2273f04c82910ab4d806659"),
+        sha256: Some("ed49ad8748285c8a0579cff1ccb26b6b47066f4b91513d57ef10bd565876f8a8"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/equality_rules.rs",
-        sha256: Some("8b38c9b79a30e99428c8727ed45c16dba7cc492ec88722f02a8203f1c524f119"),
+        sha256: Some("3b68873f5389268867075165cd59365713077a37c620e0543c1eb14f2484d7b2"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/integer_bound_rules.rs",
-        sha256: Some("5fe037e0ecc5dcf19fb7880afaf185b1301cd39767f7c8dc4d2621e3ae2493ca"),
+        sha256: Some("fc1d4dc4a445e5e9ddd0812e8cdbc185118c37dc8ad08180f5300b340c9ec5f4"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -369,12 +374,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/integer_order_rules.rs",
-        sha256: Some("0066787c80e68fa8e13f7e48c5ee7a7820b90642c9660bf5970ca3516a663d18"),
+        sha256: Some("09af469f0cce94efc61839c06f601299cdc4aa6790ee7d92b8a0fa47b2b6fef3"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/order_discreteness.rs",
-        sha256: Some("38d94fad48bf0b4b236cd4cfefa3d6b4da762a4c2eb0cdd013b2eedccaa0da29"),
+        sha256: Some("4ff3c63e8f4949d87deefba5eb2f8a6b548624cf0283de60f6fa3ff1a1146542"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -384,12 +389,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/strict_order_transitivity.rs",
-        sha256: Some("2f884701fe0f68561cdeb957f39f9c3baba9dfea53ebd3782ad197c02fdfbb5e"),
+        sha256: Some("69e745be27e311a6a5c4408f2460482e7370a0f324d5d147c386447948601f5f"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/subtract_order.rs",
-        sha256: Some("a15c78a3cee6916fffe7119f95207204cca6290cf9c498ccef70919d76daa816"),
+        sha256: Some("09c561a250c78e4f10467a8978955a9aae1e285ddb3ffeed6b96d45d4a783df0"),
         inventory_machinery: false,
     },
     ImplementationSite {
