@@ -114,6 +114,16 @@ pub(super) struct ValidationImmediateRows<'a> {
     /// literal's operand position names which family a
     /// `SaturatingSubtract` fold belongs to.
     pub(super) saturating_subtract_zero_minuend: Option<&'a RegisterInstructionConstraint>,
+    /// The `MaterializeI64` row the saturating-add upper-bound fold
+    /// rewrites into — the same constraint row the unary, remainder,
+    /// and-zero, remainder-zero, divide-zero, saturating-divide-zero, and
+    /// saturating-subtract zero-minuend folds bind, gated separately so a
+    /// fold the selection did not enable cannot replay under another
+    /// family's policy. The upper-bound family shares its consumer kind
+    /// and operand positions with the zero-identity family and covers
+    /// only unsigned carriers; the folded literal's value names which
+    /// family a `SaturatingAdd` fold belongs to.
+    pub(super) saturating_add_upper_bound: Option<&'a RegisterInstructionConstraint>,
     /// The bound machine-effect catalog the replay resolves producer,
     /// consumer, and rewritten declarations against.
     pub(super) catalog: &'a ValidatedMachineEffectCatalog,
@@ -213,6 +223,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_saturating_subtract_zero_minuend()
         .then(|| find(keys.materialize_i64))
         .transpose()?;
+    let saturating_add_upper_bound = policy
+        .enables_saturating_add_upper_bound()
+        .then(|| find(keys.materialize_i64))
+        .transpose()?;
     for row in [
         add,
         subtract,
@@ -234,6 +248,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         saturating_divide_one,
         saturating_divide_zero,
         saturating_subtract_zero_minuend,
+        saturating_add_upper_bound,
     ]
     .into_iter()
     .flatten()
@@ -348,6 +363,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
             MachineSemanticKind::MaterializeI64,
             isolated_rewritten_declaration,
         ),
+        (
+            saturating_add_upper_bound,
+            MachineSemanticKind::MaterializeI64,
+            isolated_rewritten_declaration,
+        ),
     ] {
         let Some(row) = row else { continue };
         let declaration = effect_declaration(catalog, rewritten, row.key)
@@ -377,6 +397,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         saturating_divide_one,
         saturating_divide_zero,
         saturating_subtract_zero_minuend,
+        saturating_add_upper_bound,
         catalog,
     })
 }

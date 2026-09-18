@@ -2446,6 +2446,38 @@ pub(super) fn staged_saturating_add_carrier_inputs(
     )
 }
 
+/// A `MaterializeI64` victim producing `Unsigned(carrier.maximum_bits())`
+/// feeding a `Use` operand of a `SaturatingAdd` consumer on `carrier`,
+/// under the upper-bound policy: `x +| MAX` and `MAX +| x` are both `MAX`
+/// for every `x` an unsigned carrier admits, because `x + MAX` reaches
+/// the carrier's upper bound and saturates to it, so the fold rewrites
+/// the consumer into a `MaterializeI64` of the maximum at the result
+/// register and drops the other `Use` the constant result never reads.
+/// Signed carriers admit no maximum fold — `x +| MAX` there is `x + MAX`
+/// unclamped for every negative `x`, not a constant — so staging `carrier`
+/// signed produces the arrangement the family refuses. The u64 carrier's
+/// consumer carries exactly three operands; every other carrier binds the
+/// clamped row whose bound scratch `Def` at operand 3 the fold drops
+/// under occurrence-free custody. The consumer retires the same
+/// target-specific unit effects the identity family does — aarch64
+/// defines `nzcv`, x86-64 clobbers `rflags` — so `block0` chooses the
+/// block-0 terminator the same way.
+pub(super) fn staged_saturating_add_upper_bound_carrier_inputs(
+    target: NativeTarget,
+    carrier: SaturatingCarrier,
+    literal_operand: u16,
+    block0: BlockZeroTerminator,
+) -> Inputs {
+    staged_literal_binary_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::SaturatingAdd { carrier },
+        LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
+        carrier.maximum_bits(),
+        block0,
+    )
+}
+
 /// The same zero-literal fixture for `SaturatingSubtract` on the `U64`
 /// carrier: `x -| 0` folds into a `CopyI64` of the operand-0 operand.
 /// Unlike the saturating-add family the grammar is asymmetric —

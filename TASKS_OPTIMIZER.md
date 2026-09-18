@@ -1175,6 +1175,42 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and carrier signedness alone — re-derives the literal, result
   register, and materialized value from the instruction record, runs
   its own dead-unit scan, and never consults the pair descriptor).
+  `SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS` declares one
+  constant-result pair per `Use` position per unsigned saturating
+  carrier, folding `MaterializeI64(MAX)` feeding `SaturatingAdd` at
+  either operand into a `MaterializeI64` of the carrier's own maximum at
+  the result register under
+  `LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1` — `x +| MAX` and
+  `MAX +| x` are both `MAX` for every `x` an unsigned carrier admits,
+  because `x + MAX >= MAX` and saturation clamps to the carrier's upper
+  bound. The family shares its consumer kind and both operand positions
+  with the zero-identity fold and stays disjoint on the folded literal's
+  value: the producer and the replay each select between the two
+  `SaturatingAdd` families by whether the recorded immediate is the
+  carrier's maximum. Signed carriers admit no pair — `MIN +| MAX` there
+  is `-1`, not a constant — so the descriptor binds only the four
+  unsigned carriers: the u64 pairs restate the exact three-operand
+  grammar and the narrower unsigned pairs restate the clamped row's
+  bound scratch `Def` under occurrence-free custody, while the same
+  `DeadConsumerUnitDefs` gate retires aarch64's `nzcv` definition and
+  drops x86-64's `rflags` clobber unconditionally. The folded immediate
+  is also the first nonzero constant a constant-result family
+  materializes, so `fold_immediate` and the replay's immediate
+  re-derivation now carry the declared bound's payload rather than a
+  hardwired zero (997 crate lib tests pass, including firing on both
+  Linux targets at either operand position of every unsigned carrier,
+  every signed carrier's rejection, sub-maximum and zero-literal
+  rejection, both-families-enabled value dispatch through the sibling
+  identity fold, wrong-position claims, forbidden operand bindings,
+  clamped scratch-custody negatives, live-`nzcv` rejection under both
+  instruction and terminator readers, cross-carrier kind-versus-row
+  rejection, decision-field substitution, and wrong-policy negatives;
+  the replay restates the grammar through its own
+  `SaturatingAddUpperBound`/`SaturatingAddUpperBoundLeft` source shapes
+  plus the clamped row's `Scratch` variants — selecting the family from
+  the recorded immediate's equality with the carrier maximum —
+  re-derives the materialized maximum from the instruction record, runs
+  its own dead-unit scan, and never consults the pair descriptor).
   Remaining: further unit roles beyond retired implicit definitions,
   stack- and control-flow-carrying relationships, and trap relationships
   beyond the existing `FaultDischargedByLiteral`,
