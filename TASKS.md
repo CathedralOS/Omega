@@ -2531,20 +2531,45 @@ Owners include
   list of admitted bodies.
 
 - **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
-  external root and unregister as the operation that ends it before releasing
-  code/component leases. Capacity bounds live registrations, not emitted
-  thunks. Acceptance covers rejection, retry, replacement, cleanup, and an
-  actual Windows callback after the generic path closes.
-  The generic chain is pinned at 4f817ed0a6:
-  `component-publication`
+  external root, and unregister as the operation that ends it before code and
+  component leases release, under
+  [registration and lifetime](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
+  and [opaque retention](wiki/spec/build/component_publication.md#opaque-retention-and-quarantine).
+  Capacity bounds live registrations, not emitted thunks.
+
+  `component-publication/src/callback_registration.rs` holds the runtime
+  ledger: private-entry attribution, registration lease, `lower_registration`,
+  `unregister_and_quiesce` and `release_component_era`. Its only caller is
   `tests::package_registration_owns_exact_component_era_lease_through_replacement`
-  (`mbx nextest run -p component-publication --lib`, macOS x86-64) covers
-  private-entry attribution binding, cross-occurrence rejection, provider
-  rejection/retry, capacity-occurrence collision, foreign and exact
-  component-era lease lowering, unregister retry, quiescence, lease release,
-  and a replacement registration reusing the returned slot/capacity.
-  Remaining acceptance: an actual Windows callback once the generic path is
-  driven from `build.omg` on that host.
+  in the same crate, which sequences the ledger by hand. No Omega source,
+  build declaration or canary expresses a registration or an unregister, and
+  registration capacity is named only in `component-publication` and
+  `external-roots`.
+
+  Remaining work:
+
+  - An authored registrar customer under the linked contract: success yields
+    the linear registration holding the exact live-registration capacity
+    occurrence, failure returns that capacity with no root, and unregister
+    consumes the registration. Use ordinary linear custody; add no
+    registration-specific checker rule.
+  - Omega: join that boundary outcome to the ledger, so root admission, lease
+    acquisition, quiescence and lease release follow the program's operations
+    and not a Rust caller's sequence.
+  - **CALLBACK-PRIVATE-MATERIALIZATION** must supply a native callback entry
+    before any foreign invocation can be witnessed.
+
+  Acceptance: one authored program registers, observes a rejection and retries,
+  replaces a registration by reusing the returned slot and capacity, and
+  unregisters with quiescence before lease release. A dropped registration, a
+  second unregister, a stale or cross-occurrence registration and reuse of
+  spent capacity reject. On Windows a real foreign callback enters the
+  registered machine; other hosts report the leg unavailable. The ledger test
+  is not the customer witness. **FFIVAL** names the same host-gated run.
+
+  Flag: the previous acceptance counted rejection, retry, replacement and
+  cleanup as covered by that Rust test, although no program can reach the
+  ledger. It is supporting machinery until an authored registrar drives it.
 
 - **FOREIGN-RETAINED-ARGUMENT-BACKING.** Generalize retained outbound arguments
   beyond callbacks with explicit call-scoped, lifetime-borrowed, moved, and
