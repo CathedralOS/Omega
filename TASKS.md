@@ -1903,6 +1903,33 @@ Owners include
   `Field`/`FixedIndex` path, stated once in `terminal-semantics` and used by
   both validators.
 
+  DESIGN-BLOCKED (2026-09-18, measured): the owned-parent projected subloan
+  above needs an owner decision before either validator changes. The
+  [reborrow table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access)
+  has rows for `Read`, `Mutable` and `Write-only` parents and none for `Owned`;
+  `loans.md` contains no occurrence of "owned" or "ownership" at all, and
+  `structural_access.md` states no reborrow relation for an owned parent. No
+  `OWNER_QUESTIONS.md` entry covers reborrow, owned roots, owned parents or
+  subloans. Filing one is itself blocked today: that file requires "an
+  independently motivated product requirement or credible external use case",
+  and no authored customer exists -- `tests/omega/pass` has none and shipped
+  `source/` has none. Two near misses are NOT customers: Cathedral's
+  `installer.omg` lends `&mut self.pml4` from an already-`&mut self` receiver,
+  a Mutable parent, and
+  `pass/dependent/mutable_referent_alias_corruption_restored_compile` projects
+  from a `&mut Level` parameter. The owned root is not uniformly excluded:
+  `path_shape_matches` admits owned-to-owned partial-affine projections and
+  `shared_affine_loan` admits an owned affine root lending a whole-root shared
+  borrow; only the owned-parent EXCLUSIVE projected subloan has no route. The
+  rejection is unpinned by any test --
+  `subloan_rejects_access_amplification_and_wrong_multiplicity` varies the
+  argument and parameter access to `Owned`, never the source -- and should stay
+  unpinned while the intended direction is to admit the form. The path cited
+  above is stale: the crate is
+  `omega-rust/omega/semantics/optimization-unit-semantics/`, not
+  `representations/`, and the three rules are `let` bindings inside one
+  function, not `fn`s, so `fn`-anchored greps find nothing.
+
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md): relational
   evidence may establish disjointness or containment between existing places
@@ -1972,6 +1999,34 @@ Owners include
   next refused node kind. The same change recorded one candidate: builtin
   `items[low + 0u64..high]` cannot prove its start bound in
   `checks/ranges/indexes/validation.rs`; rerun it before relying on that.
+
+  DESIGN-BLOCKED (2026-09-18, measured) for the disequality and call-certificate
+  bullets only; endpoint formation and rank-role discovery remain ordinary
+  engineering. (1) Disequality: `decompose_premise_expression`
+  (`checks/borrows/overlap/premises.rs`) decomposes `And`, `Less`,
+  `LessOrEqual`, `Greater`, `GreaterOrEqual` and `Equal` and has no `NotEqual`
+  arm, so a stated `i != j` is dropped before the consult at
+  `overlap/indexes.rs`. `BorrowCompatibilityPremiseRelation` is the closed
+  triple LessOrEqual/StrictlyBefore/Equal inside a PERSISTED certificate that
+  Terminal replay consumes positionally, and `premise_orientation_proves` is a
+  total 3x3 match over constant-offset shifts; disequality orders nothing, so it
+  has no cell, and the only other derivation, `Structural`, retains no premises.
+  Not the blocker: `has_builtin_decomposed_guard_meaning` already accepts
+  `NotEqual` in its boolean-equality branch. Evidence landed as
+  `fail/borrows/borrow_stated_index_disequality_mut`, which moves to `pass/`
+  unchanged once the decision lands. (3) Call certificates: `calls/conflicts.rs`
+  already threads `stated_premises` through its consult sites and discards the
+  `CapturedPlaceCompatibility`, and the capture half exists
+  (`*_with_selector_snapshot` / `*_from_selector_snapshot`). What is missing is
+  a persisted row. `CheckedBorrowCompatibilityCertificate` requires a valid,
+  distinct `forming_loan`/`active_loan` pair, and an argument/argument conflict
+  has neither, so retention needs a new row type, a new arena, its own
+  `*_matches_resources` drift validation, and a change to
+  `AcceptanceSummary::accepted`'s certificate count in
+  `checked-trees/src/checked_trees/admissibility/statement.rs`, which alters
+  admissibility accounting for every statement. A real customer exists and
+  retains nothing today:
+  `premised_disjoint_writes.rs::stated_ordering_premise_admits_exclusive_argument_before_borrowed_window`.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Realize target-owned private callback
   slots natively under the
@@ -3617,6 +3672,29 @@ Owners include
   alone, and `fail/float/float_semantics_lookalike_grants_no_primitive` still
   rejects. The two open source classes gain a producer the verifier rejoins or
   are retired, as the named decision directs.
+
+  DESIGN-BLOCKED (2026-09-18, measured) for the kernel-discharge bullet as well,
+  not only the already-named source-identity bullet. `float_operations.omg`
+  carries 212 `FloatSemantics::` mentions, 146 of them inside `ensures` clauses,
+  and ZERO have a projection on both sides of the `==`: every one is shaped
+  `Float::meaning32(result) == FloatSemantics::add(BINARY32, ...)`.
+  `walk_expression`
+  (`validation/src/proof_contracts/float_projection_invocations.rs`) forms a
+  `ValidatedFloatMeaningEqualityProposition` only when BOTH operands are
+  projection invocations, and its `Call` arm rejects only a drifted projection,
+  so all 146 contracts are silently accepted and carry no obligation --
+  `arithmetic/runtime_float_operations_exit` is green for exactly that reason.
+  Wiring is impossible without new proof vocabulary: `CheckedProofOnlyValueType`
+  has the single variant `FloatMeaning`, `bind_float_meaning_projection_facts`
+  resolves equality operands only from projection invocations and errors
+  otherwise, Terminal's `proof/values.rs` carries only projection-sourced
+  values, and `FloatSemantic` appears zero times in `terminal-verifier/src` and
+  `terminal-codec/src`. A semantic-application proof-value class must be
+  threaded checked-trees -> Terminal -> codec -> verifier. The attachment point
+  is already named in
+  `validation/src/proof_contracts/float_projection_bindings.rs`:
+  `semantic_operations::exact_toolchain_float_semantic_contract` is "the hook a
+  provider binding will consume once discharge attaches to a row".
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
