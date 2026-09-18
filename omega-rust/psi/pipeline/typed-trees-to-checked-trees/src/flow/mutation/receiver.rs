@@ -57,20 +57,29 @@ pub(crate) fn call_receiver_mutated_place(
         caller_machine_symbol,
         caller_state_symbol,
         &call_site,
+        borrow_call.statement_index,
     )
 }
 
+/// `statement_index` is the occurrence's recorded statement coordinate — the
+/// same index `find_call_site` resolved or the caller's own traversal
+/// recorded — so projected-receiver scope is derived from the recorded row,
+/// never from where the call node happens to sit in this arena slice. A
+/// replayed site carrying the same recorded coordinate reaches the same
+/// place; see `receiver_place_for_call_site`.
 pub(crate) fn canonical_receiver_place_for_call_site(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
+    statement_index: usize,
 ) -> Option<CanonicalPlace> {
     let mut place = receiver_place_for_call_site(
         program,
         caller_machine_symbol,
         caller_state_symbol,
         call_site,
+        statement_index,
     )?;
     normalize_attached_place_root(
         program,
@@ -86,16 +95,28 @@ fn receiver_place_for_call_site(
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
+    statement_index: usize,
 ) -> Option<CanonicalPlace> {
     match call_site {
         CallSite::Statement(statement) => {
             let state = find_state(program, caller_state_symbol)?;
             let statements = program.statement_table.statements(state.statement_nodes);
-            if let Some(before) = statements.iter().position(|candidate| match candidate {
-                typed_trees::statement::StatementNode::Call(call) => std::ptr::eq(call, *statement),
-                _ => false,
-            }) && let Some((root, segments)) =
-                crate::lookup::projected_statement_receiver_place(program, state, before, statement)
+            // The projected-receiver scope boundary is the occurrence's
+            // recorded statement coordinate, not the address the row occupies
+            // in this arena slice — pointer identity is unreplayable. The
+            // coordinate is honored only when the recorded statement at that
+            // index is this exact call payload, so a replayed copy of the same
+            // row resolves the same boundary while a coordinate naming a
+            // different statement declines to the receiver-symbol fallback.
+            if let Some(typed_trees::statement::StatementNode::Call(candidate)) =
+                statements.get(statement_index)
+                && *candidate == **statement
+                && let Some((root, segments)) = crate::lookup::projected_statement_receiver_place(
+                    program,
+                    state,
+                    statement_index,
+                    statement,
+                )
             {
                 return Some(CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(root),
@@ -188,3 +209,6 @@ fn canonical_place_root_symbol(place: &CanonicalPlace) -> Option<SymbolHandle> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests;

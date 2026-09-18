@@ -131,6 +131,7 @@ pub(super) fn check(
                 state.machine_symbol,
                 state.state_symbol,
                 &site,
+                call.statement_index,
             )
         } else {
             argument.and_then(|argument| {

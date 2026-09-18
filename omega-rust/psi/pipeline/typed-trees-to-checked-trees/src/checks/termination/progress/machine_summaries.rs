@@ -343,6 +343,7 @@ pub(crate) fn call_argument_subject_with_parameters(
             machine.symbol,
             state_flow.state_symbol,
             &call_site,
+            call.statement_index,
         )?
     } else {
         let argument_index = if uses_receiver {

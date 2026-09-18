@@ -124,6 +124,7 @@ fn operator_statement_operands<'program>(
             caller_machine_symbol,
             caller_state_symbol,
             &CallSite::Statement(call),
+            statement_index,
         )
     });
     let arguments = program.statement_table.expression_handles(call.arguments);

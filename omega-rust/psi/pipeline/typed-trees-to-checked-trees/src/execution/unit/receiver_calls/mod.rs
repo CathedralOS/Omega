@@ -533,8 +533,13 @@ fn receiver_place(
         statement_index,
         call_ordinal,
     )?;
-    let mut place =
-        crate::flow::canonical_receiver_place_for_call_site(program, machine, state, &site)?;
+    let mut place = crate::flow::canonical_receiver_place_for_call_site(
+        program,
+        machine,
+        state,
+        &site,
+        statement_index,
+    )?;
     let authored_machine = program
         .machines()
         .iter()
