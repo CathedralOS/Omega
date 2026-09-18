@@ -801,33 +801,30 @@ Owners include
   do not close this task; missing general layout/call/custody support must be fixed
   in its owner, not replaced with a firmware-specific intrinsic.
 
-- **UEFI-OS-HANDOFF.** Author the nonreturning Boot Services-to-OS protocol in
-  ordinary Omega under the [handoff contract](wiki/spec/build/uefi_entry.md#returning-application-versus-os-handoff).
-  Replace the bodyless `UefiOsHandoffNativeProvider::handoff` implementation
-  promise in `source/library/std/targets/uefi_x86_64/handoff.omg` with checked
-  adapter machines and narrowly contracted firmware leaves. The compiler emits
-  the physical entry/stack-transition mechanics, not a special implementation
-  of the whole retry protocol.
+- **UEFI-OS-HANDOFF.** Implement the
+  [Boot Services-to-OS handoff](wiki/spec/build/uefi_entry.md#returning-application-versus-os-handoff)
+  as ordinary target-package machines, replacing the bodyless whole-protocol
+  promise in `std/targets/uefi_x86_64/handoff.omg`. Reuse the behavior and
+  regression controls in
+  `external-roots/src/platform_bringup/uefi_bootstrap/{os_handoff_cycle.rs,get_memory_map/,exit_boot_services/}`;
+  the Rust cycle currently has test callers, not an emitted authored route.
+  Delete superseded production sequencing when the source route covers it.
+  The compiler owns entry/stack-transition mechanics, not a handoff-loop intrinsic.
 
-  Reuse the behavior and regression controls of
-  `external-roots/src/platform_bringup/uefi_bootstrap/os_handoff_cycle.rs`,
-  `get_memory_map/`, and `exit_boot_services/`: acquire map-buffer storage,
-  grow on insufficient space, retain the freshest snapshot/key, retry stale keys
-  under a decreasing attempt bound, and transfer custody only on successful
-  exit. Keep attempt and exhaustion choices explicit; retain firmware lifetime,
-  surviving stack, allocation lineage, and final-map obligations. Remove
-  superseded Rust sequencing after source execution covers it; do not retain
-  a second production protocol or add a multi-call handoff intrinsic.
+  Depends on `UEFI-PHYSICAL-SEMANTIC-ENTRY` for source-derived layouts, the
+  shell and scoped firmware leaves; reuse `ENTRY-CONTENT-ROOTS`'s service-carrier
+  migration. Acquire/grow map storage, retain the freshest snapshot/key, retry
+  stale keys with a decreasing explicit bound, and transfer custody only on
+  successful exit. Preserve firmware lifetime, surviving-stack evidence, allocation
+  lineage and final-map obligations; exhaustion returns the target-defined error.
 
-  Depends on UEFI-PHYSICAL-SEMANTIC-ENTRY's source-derived layouts, emitted
-  shell, and scoped providers. The checked canary
-  `tests/omega/pass/build/uefi_os_handoff_invocation` only retains a binding;
-  it does not execute a handoff. Acceptance must drive the authored machines
-  through native emission and a firmware or controlled provider harness.
-  Cover grow-then-stale-key retry, bounded exhaustion, malformed map geometry,
-  cross-invocation/stale evidence, lost custody, use of Boot Services after exit,
-  and successful nonreturning transfer to the selected OS entry. Rust ledger
-  tests remain useful controls, not substitutes for that end-to-end witness.
+  Acceptance: evolve `build/uefi_os_handoff_invocation` from binding-only coverage
+  into authored execution through native emission and a firmware or controlled
+  provider harness. Cover grow-then-stale-key retry, bounded exhaustion, malformed
+  map geometry, foreign/stale evidence, lost custody, forbidden Boot Services
+  use after exit, and successful nonreturning transfer to the exact selected OS
+  entry. Rust ledger tests and a selected bodyless provider are not execution
+  evidence; do not hide the protocol in a destructor or special multi-call leaf.
 
 - **AP-BRINGUP.** Complete Cathedral's secondary-processor startup through
   ordinary checked machines and a selected hardware boundary provider under
