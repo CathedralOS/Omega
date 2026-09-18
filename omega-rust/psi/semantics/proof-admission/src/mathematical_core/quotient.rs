@@ -35,7 +35,7 @@
 //! specification states: no new conversion rule, so `lift`/`elim` applied
 //! to `project a` stays a neutral term and never converts to `d a`.
 //!
-//! Three declarations are *derived with checked terms*, as the
+//! Eleven declarations are *derived with checked terms*, as the
 //! specification requires rather than adding separate default axioms:
 //!
 //! - `transport` — forward premise transport `P (project a) → P
@@ -54,6 +54,15 @@
 //!   `transportConst` composed with `respect` by `idTrans`. The
 //!   congruence theorem is an explicit argument: no theorem search, no
 //!   structural inference, no implicit witness selection.
+//! - `idSym`, `idCancel`, `propIsSet`, `boxProp` — the remaining
+//!   derivable infrastructure: `Id` symmetry and the inverse law, the
+//!   standard `J` proof that a mere proposition is a set, and the
+//!   `unbox`-backed proof that a boxed strict proposition is a mere
+//!   proposition.
+//! - `indProp`, `coverage`, `unique` — the rest of the specification's
+//!   derive-list: proposition-valued induction through set-valued
+//!   elimination and boxing, coverage `Squash(Σ a. Id (project a) z)`,
+//!   and pointwise uniqueness of sections agreeing on projections.
 //!
 //! `liftPre` is the optional forward-precondition-transport shape: the
 //! public operation's premise `Pub : Q → Type p` is transported to the
@@ -75,11 +84,12 @@
 //! Producers apply the scheme through [`QuotientFamily`], which bundles
 //! the description and builds the `Constant` spines; the kernel
 //! re-decides every application through ordinary typing and conversion.
-//! The scheme declarations are signature prefix `0..13` — they reference
+//! The scheme declarations are signature prefix `0..20` — they reference
 //! only each other, so a producer's own declarations append after them.
 
 use super::scheme_dsl::{
-    Syntax, app, apps, build, id, jelim, lam, pi, refl, scheme_at, sort, ty, v,
+    Syntax, app, apps, box_elim, box_intro, boxed, build, id, jelim, lam, pair, pi, refl,
+    scheme_at, sigma, sort, squash, squash_intro, strict, ty, v,
 };
 use super::signature::Declaration;
 use super::term::{Level, Term, TermArena, TermHandle};
@@ -127,6 +137,45 @@ pub const QUOTIENT_LIFT: u32 = 11;
 /// `elim`-derivable without extensionality, which this calculus
 /// deliberately lacks.
 pub const QUOTIENT_LIFT_PRECONDITION: u32 = 12;
+/// `idSym`, declaration 13 — symmetry of `Id` through `J`, a
+/// *definition*: the first of the identity lemmas the remaining derived
+/// operations are built from.
+pub const QUOTIENT_ID_SYM: u32 = 13;
+/// `idCancel`, declaration 14 — a *definition*: the inverse law
+/// `trans (sym p) p = refl`, proved by `J` on `p` — the base computes
+/// because `refl` is canonical.
+pub const QUOTIENT_ID_CANCEL: u32 = 14;
+/// `propIsSet`, declaration 15 — a *definition*: a mere proposition is
+/// a set, `isProp X → isSet X`. The standard `J` development: every
+/// `p : Id X x y` equals `trans (sym (f x x)) (f x y)`, so parallel
+/// proofs share that normal form.
+pub const QUOTIENT_PROP_IS_SET: u32 = 15;
+/// `boxProp`, declaration 16 — a *definition*: a boxed strict
+/// proposition is a mere proposition, `Π(S : Strict s). Π(x y : Box S).
+/// Id (Box S) x y`. Two `unbox` rounds reduce the goal to `box a =
+/// box b`, which holds definitionally because `S` is strict.
+pub const QUOTIENT_BOX_PROP: u32 = 16;
+/// `indProp`, declaration 17 — a *definition*: proposition-valued
+/// induction, `Π A R. Π(P : Π(_ : Q A R). Strict s). Π(_ : Π(a : A).
+/// P (project a)). Π(z : Q A R). P z`, derived from `elim` through the
+/// boxed motive `λz. Box (P z)` and `unbox` — exactly the "boxing when
+/// needed" route the specification names.
+pub const QUOTIENT_IND_PROP: u32 = 17;
+/// `coverage`, declaration 18 — a *definition*: every quotient element
+/// is squashed-covered by a projection, `Π A R. Π(z : Q A R).
+/// Squash (Σ(a : A). Id (Q A R) (project a) z)` — an `indProp`
+/// application; it supplies no representative-extraction function.
+pub const QUOTIENT_COVERAGE: u32 = 18;
+/// `unique`, declaration 19 — a *definition*: pointwise uniqueness of
+/// sections agreeing on projections, `Π A R. Π(P : Π(_ : Q A R). Type
+/// w). Π(_ : Π(z : Q A R). isSet (P z)). Π(s₁ s₂ : Π(z : Q A R). P z).
+/// Π(_ : Π(a : A). Id (P (project a)) (s₁ (project a)) (s₂ (project
+/// a))). Π(z : Q A R). Id (P z) (s₁ z) (s₂ z)`. Derived by `elim` at
+/// the identity family; its coherence and setness collapse through the
+/// propositional setness of `P`. Equality of the whole functions would
+/// need the extensionality this calculus lacks — only the pointwise
+/// statement is derived.
+pub const QUOTIENT_UNIQUE: u32 = 19;
 
 /// The level of the carrier `Q A R`: `max(u, v)` — the specification
 /// forbids resizing the quotient to a lower universe.
@@ -872,22 +921,660 @@ fn lift_precondition_declaration(arena: &mut TermArena) -> Declaration {
     Declaration::assumption(5, statement)
 }
 
-/// The thirteen declarations of the set-quotient scheme, in signature
+/// `idSym` — declaration 13, a *definition*: symmetry of `Id`,
+/// `Π(X : Type s). Π(x y : X). Π(_ : Id X x y). Id X y x`,
+/// defined as `J(λy'. λ(_ : Id X x y'). Id X y' x, refl X x, y, p)`.
+fn id_sym_declaration(arena: &mut TermArena) -> Declaration {
+    let statement = pi(
+        "X",
+        ty(0),
+        pi(
+            "x",
+            v("X"),
+            pi(
+                "y",
+                v("X"),
+                pi("_", id(v("X"), v("x"), v("y")), id(v("X"), v("y"), v("x"))),
+            ),
+        ),
+    );
+    // `C y' p' = Id X y' x` over `p' : Id X x y'`.
+    let motive = lam(
+        "y2",
+        v("X"),
+        lam(
+            "_",
+            id(v("X"), v("x"), v("y2")),
+            id(v("X"), v("y2"), v("x")),
+        ),
+    );
+    let body = lam(
+        "X",
+        ty(0),
+        lam(
+            "x",
+            v("X"),
+            lam(
+                "y",
+                v("X"),
+                lam(
+                    "p",
+                    id(v("X"), v("x"), v("y")),
+                    jelim(motive, refl(v("X"), v("x")), v("y"), v("p")),
+                ),
+            ),
+        ),
+    );
+    let statement = build(arena, &mut Vec::new(), &statement);
+    let body = build(arena, &mut Vec::new(), &body);
+    Declaration::definition(1, statement, body)
+}
+
+/// `trans (sym p) p` over `p : Id X x e` — the inverse-law left side,
+/// spelled `idTrans X e x e (idSym X x e p) p`, parameterized by the
+/// endpoint/proof binder names so the statement and motive share it.
+fn cancelled(endpoint: &'static str, proof: &'static str) -> Syntax {
+    let level = vec![Level::Parameter(0)];
+    apps(
+        scheme_at(QUOTIENT_ID_TRANS, level.clone()),
+        [
+            v("X"),
+            v(endpoint),
+            v("x"),
+            v(endpoint),
+            apps(
+                scheme_at(QUOTIENT_ID_SYM, level),
+                [v("X"), v("x"), v(endpoint), v(proof)],
+            ),
+            v(proof),
+        ],
+    )
+}
+
+/// `idCancel` — declaration 14, a *definition*: the inverse law
+/// `Π(X : Type s). Π(x y : X). Π(p : Id X x y).
+///  Id (Id X y y) (trans (sym p) p) (refl X y)`, proved by `J` on `p`:
+/// at the `refl` base `trans (sym refl) refl` reduces to `refl`, so
+/// `refl (Id X x x) (refl X x)` closes it.
+fn id_cancel_declaration(arena: &mut TermArena) -> Declaration {
+    let statement = pi(
+        "X",
+        ty(0),
+        pi(
+            "x",
+            v("X"),
+            pi(
+                "y",
+                v("X"),
+                pi(
+                    "p",
+                    id(v("X"), v("x"), v("y")),
+                    id(
+                        id(v("X"), v("y"), v("y")),
+                        cancelled("y", "p"),
+                        refl(v("X"), v("y")),
+                    ),
+                ),
+            ),
+        ),
+    );
+    // `C y' p' = Id (Id X y' y') (trans (sym p') p') (refl X y')`.
+    let motive = lam(
+        "y2",
+        v("X"),
+        lam(
+            "p2",
+            id(v("X"), v("x"), v("y2")),
+            id(
+                id(v("X"), v("y2"), v("y2")),
+                cancelled("y2", "p2"),
+                refl(v("X"), v("y2")),
+            ),
+        ),
+    );
+    let body = lam(
+        "X",
+        ty(0),
+        lam(
+            "x",
+            v("X"),
+            lam(
+                "y",
+                v("X"),
+                lam(
+                    "p",
+                    id(v("X"), v("x"), v("y")),
+                    jelim(
+                        motive,
+                        refl(id(v("X"), v("x"), v("x")), refl(v("X"), v("x"))),
+                        v("y"),
+                        v("p"),
+                    ),
+                ),
+            ),
+        ),
+    );
+    let statement = build(arena, &mut Vec::new(), &statement);
+    let body = build(arena, &mut Vec::new(), &body);
+    Declaration::definition(1, statement, body)
+}
+
+/// `propIsSet` — declaration 15, a *definition*: a mere proposition is
+/// a set,
+/// `Π(X : Type s). Π(_ : Π(x y : X). Id X x y). isSet[s] X`.
+///
+/// The proof is the standard `J` development: with
+/// `f : Π(x y : X). Id X x y`, every `p : Id X x y` equals the pinned
+/// normal form `M(y) := trans (sym (f x x)) (f x y)` — shown by `J` on
+/// `p`, whose base `refl = M(x)` is `idCancel` at `f x x` read backward.
+/// Parallel `p q : Id X x y` then share `M(y)`, so `trans` of the two
+/// normal forms (one symmetrized) closes `Id p q`.
+fn prop_is_set_declaration(arena: &mut TermArena) -> Declaration {
+    let level = || vec![Level::Parameter(0)];
+    // `f x e` under the `f` hypothesis — the mere-proposition evidence
+    // applied at the fixed `x` and the endpoint named by `endpoint`.
+    let prop = |endpoint: &'static str| apps(v("f"), [v("x"), v(endpoint)]);
+    // `M(e) = trans (sym (f x x)) (f x e)` — the normal form every
+    // proof of `Id X x e` is propositionally equal to.
+    let normal = |endpoint: &'static str| {
+        apps(
+            scheme_at(QUOTIENT_ID_TRANS, level()),
+            [
+                v("X"),
+                v("x"),
+                v("x"),
+                v(endpoint),
+                apps(
+                    scheme_at(QUOTIENT_ID_SYM, level()),
+                    [v("X"), v("x"), v("x"), prop("x")],
+                ),
+                prop(endpoint),
+            ],
+        )
+    };
+    // `C y' p' = Id (Id X x y') p' (M y')` over `p' : Id X x y'`.
+    let path_motive = lam(
+        "y2",
+        v("X"),
+        lam(
+            "p2",
+            id(v("X"), v("x"), v("y2")),
+            id(id(v("X"), v("x"), v("y2")), v("p2"), normal("y2")),
+        ),
+    );
+    // `refl = M(x)` — `idCancel (f x x) : M(x) = refl`, symmetrized at
+    // the identity-type carrier `Id X x x`.
+    let path_base = apps(
+        scheme_at(QUOTIENT_ID_SYM, level()),
+        [
+            id(v("X"), v("x"), v("x")),
+            normal("x"),
+            refl(v("X"), v("x")),
+            apps(
+                scheme_at(QUOTIENT_ID_CANCEL, level()),
+                [v("X"), v("x"), v("x"), prop("x")],
+            ),
+        ],
+    );
+    // `path t = J(C, base, y, t) : Id t (M y)` for `t : Id X x y`.
+    let path =
+        |proof: &'static str| jelim(path_motive.clone(), path_base.clone(), v("y"), v(proof));
+    let is_prop = pi("x2", v("X"), pi("y2", v("X"), id(v("X"), v("x2"), v("y2"))));
+    let statement = pi(
+        "X",
+        ty(0),
+        pi("f", is_prop.clone(), is_set(Level::Parameter(0), v("X"))),
+    );
+    let identity_xy = id(v("X"), v("x"), v("y"));
+    let body = lam(
+        "X",
+        ty(0),
+        lam(
+            "f",
+            is_prop,
+            lam(
+                "x",
+                v("X"),
+                lam(
+                    "y",
+                    v("X"),
+                    lam(
+                        "p",
+                        identity_xy.clone(),
+                        lam(
+                            "q",
+                            identity_xy.clone(),
+                            apps(
+                                scheme_at(QUOTIENT_ID_TRANS, level()),
+                                [
+                                    identity_xy.clone(),
+                                    v("p"),
+                                    normal("y"),
+                                    v("q"),
+                                    path("p"),
+                                    apps(
+                                        scheme_at(QUOTIENT_ID_SYM, level()),
+                                        [identity_xy.clone(), v("q"), normal("y"), path("q")],
+                                    ),
+                                ],
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    );
+    let statement = build(arena, &mut Vec::new(), &statement);
+    let body = build(arena, &mut Vec::new(), &body);
+    Declaration::definition(1, statement, body)
+}
+
+/// `boxProp` — declaration 16, a *definition*: a boxed strict
+/// proposition is a mere proposition,
+/// `Π(S : Strict s). Π(x y : Box S). Id (Box S) x y`.
+///
+/// Two `unbox` rounds expose the payloads: `x`'s case fixes `a : S`,
+/// then `y`'s case fixes `b : S`, and `refl (Box S) (box a)` closes
+/// `Id (box a) (box b)` because `a ≡ b : S` holds definitionally by
+/// strict proof irrelevance.
+fn box_prop_declaration(arena: &mut TermArena) -> Declaration {
+    let boxed_s = || boxed(v("S"));
+    // `P' y'' = Id (Box S) (box a) y''` — the inner unbox motive under
+    // the `a : S` case.
+    let inner_motive = lam(
+        "y3",
+        boxed_s(),
+        id(boxed_s(), box_intro(v("S"), v("a")), v("y3")),
+    );
+    // `P'' x' = Π(y' : Box S). Id (Box S) x' y'` — the outer unbox
+    // motive: each boxed `x` proves every boxed `y` identical to it.
+    let outer_motive = lam(
+        "x2",
+        boxed_s(),
+        pi("y2", boxed_s(), id(boxed_s(), v("x2"), v("y2"))),
+    );
+    // `g a y' = unbox P' (λb. refl (box a)) y' : Id (box a) y'`.
+    let case = lam(
+        "a",
+        v("S"),
+        lam(
+            "y2",
+            boxed_s(),
+            box_elim(
+                inner_motive,
+                lam("b", v("S"), refl(boxed_s(), box_intro(v("S"), v("a")))),
+                v("y2"),
+            ),
+        ),
+    );
+    let statement = pi(
+        "S",
+        strict(0),
+        pi(
+            "x",
+            boxed_s(),
+            pi("y", boxed_s(), id(boxed_s(), v("x"), v("y"))),
+        ),
+    );
+    let body = lam(
+        "S",
+        strict(0),
+        lam(
+            "x",
+            boxed_s(),
+            lam(
+                "y",
+                boxed_s(),
+                app(box_elim(outer_motive, case, v("x")), v("y")),
+            ),
+        ),
+    );
+    let statement = build(arena, &mut Vec::new(), &statement);
+    let body = build(arena, &mut Vec::new(), &body);
+    Declaration::definition(1, statement, body)
+}
+
+/// `indProp` — declaration 17, a *definition*: proposition-valued
+/// induction,
+/// `Π A R. Π(P : Π(_ : Q A R). Strict s). Π(_ : Π(a : A). P (project
+/// a)). Π(z : Q A R). P z`.
+///
+/// Derived through `elim` at the boxed motive `P' = λz. Box (P z)`:
+/// `P'` is a set because `boxProp` makes it a mere proposition and
+/// `propIsSet` lifts that to setness; the representative case boxes `d
+/// a`; the coherence obligation between two inhabitants of `Box (P
+/// (project b))` is `boxProp` again; and `unbox` turns the resulting
+/// `Box (P z)` back into the strict proposition `P z`. This is exactly
+/// the specification's "set-valued elimination and boxing when needed"
+/// route — no new elimination rule.
+fn ind_prop_declaration(arena: &mut TermArena) -> Declaration {
+    let strict_level = || vec![Level::Parameter(2)];
+    // `P' = λ(z' : Q). Box (P z')` — the boxed relevant family.
+    let boxed_family = lam("z2", quotient_of(), boxed(app(v("P"), v("z2"))));
+    // `sets' = λz'. propIsSet (Box (P z')) (boxProp (P z'))`.
+    let sets = lam(
+        "z3",
+        quotient_of(),
+        apps(
+            scheme_at(QUOTIENT_PROP_IS_SET, strict_level()),
+            [
+                boxed(app(v("P"), v("z3"))),
+                apps(
+                    scheme_at(QUOTIENT_BOX_PROP, strict_level()),
+                    [app(v("P"), v("z3"))],
+                ),
+            ],
+        ),
+    );
+    // `d' = λa. box (d a)`.
+    let case = lam(
+        "a",
+        v("A"),
+        box_intro(app(v("P"), project_of(v("a"))), app(v("d"), v("a"))),
+    );
+    // `c' a b r = boxProp (P (project b)) (transport P' a b r (d' a))
+    //  (d' b)` — the coherence collapses because `Box (P _)` is a mere
+    // proposition.
+    let coherence = lam(
+        "a",
+        v("A"),
+        lam(
+            "b",
+            v("A"),
+            lam(
+                "r",
+                related(v("a"), v("b")),
+                apps(
+                    scheme_at(QUOTIENT_BOX_PROP, strict_level()),
+                    [
+                        app(v("P"), project_of(v("b"))),
+                        apps(
+                            motive_scheme(QUOTIENT_TRANSPORT),
+                            [
+                                v("A"),
+                                v("R"),
+                                boxed_family.clone(),
+                                v("a"),
+                                v("b"),
+                                v("r"),
+                                app(case.clone(), v("a")),
+                            ],
+                        ),
+                        app(case.clone(), v("b")),
+                    ],
+                ),
+            ),
+        ),
+    );
+    // `unbox (λ(_ : Box (P z)). P z) (λ(t : P z). t) (elim P' sets' d'
+    // c' z)` — the boxed section delivered by `elim` is unboxed into
+    // the strict target.
+    let section = apps(
+        motive_scheme(QUOTIENT_ELIM),
+        [v("A"), v("R"), boxed_family, sets, case, coherence, v("z")],
+    );
+    let unboxed = box_elim(
+        lam("_", boxed(app(v("P"), v("z"))), app(v("P"), v("z"))),
+        lam("t", app(v("P"), v("z")), v("t")),
+        section,
+    );
+    let family_type = pi("_", quotient_of(), strict(2));
+    let case_type = pi("a", v("A"), app(v("P"), project_of(v("a"))));
+    let statement = pi_description(pi(
+        "P",
+        family_type.clone(),
+        pi(
+            "d",
+            case_type.clone(),
+            pi("z", quotient_of(), app(v("P"), v("z"))),
+        ),
+    ));
+    let body = lam_description(lam(
+        "P",
+        family_type,
+        lam("d", case_type, lam("z", quotient_of(), unboxed)),
+    ));
+    let statement = build(arena, &mut Vec::new(), &statement);
+    let body = build(arena, &mut Vec::new(), &body);
+    Declaration::definition(3, statement, body)
+}
+
+/// `coverage` — declaration 18, a *definition*: the specification's
+/// coverage law, `Π A R. Π(z : Q A R). Squash (Σ(a : A). Id (Q A R)
+/// (project a) z)` — every quotient element is squashed-covered by a
+/// projection. One `indProp` application at the squashed family; it
+/// supplies no representative-extraction function.
+fn coverage_declaration(arena: &mut TermArena) -> Declaration {
+    // `Cov z' = Squash (Σ(a : A). Id Q (project a) z')`.
+    let covered = |anchor: Syntax| {
+        squash(sigma(
+            "a2",
+            v("A"),
+            id(quotient_of(), project_of(v("a2")), anchor),
+        ))
+    };
+    let statement = pi_description(pi("z", quotient_of(), covered(v("z"))));
+    // `d_cov a = sq ⟨a, refl (project a)⟩`.
+    let case = lam(
+        "a",
+        v("A"),
+        squash_intro(
+            sigma(
+                "a2",
+                v("A"),
+                id(quotient_of(), project_of(v("a2")), project_of(v("a"))),
+            ),
+            pair(v("a"), refl(quotient_of(), project_of(v("a")))),
+        ),
+    );
+    // `P_cov = λ(z' : Q). Cov z'` — the strict motive `indProp`
+    // instantiates at `s := max(u, v)`, the Σ's level.
+    let motive = lam("z2", quotient_of(), covered(v("z2")));
+    let body = lam_description(lam(
+        "z",
+        quotient_of(),
+        apps(
+            scheme_at(
+                QUOTIENT_IND_PROP,
+                vec![Level::Parameter(0), Level::Parameter(1), carrier_level()],
+            ),
+            [v("A"), v("R"), motive, case, v("z")],
+        ),
+    ));
+    let statement = build(arena, &mut Vec::new(), &statement);
+    let body = build(arena, &mut Vec::new(), &body);
+    Declaration::definition(2, statement, body)
+}
+
+/// `unique` — declaration 19, a *definition*: pointwise uniqueness of
+/// sections agreeing on projections,
+///
+/// ```text
+/// Π A R. Π(P : Π(_ : Q A R). Type w). Π(sets : Π(z : Q A R). isSet (P z)).
+/// Π(s₁ s₂ : Π(z : Q A R). P z).
+/// Π(_ : Π(a : A). Id (P (project a)) (s₁ (project a)) (s₂ (project a))).
+/// Π(z : Q A R). Id (P z) (s₁ z) (s₂ z)
+/// ```
+///
+/// Derived by `elim` at the identity family `M = λz. Id (P z) (s₁ z)
+/// (s₂ z)`: `M z` is a proposition because `sets z` supplies exactly
+/// that, and `propIsSet` lifts it to the setness `elim` requires; the
+/// coherence `c` between two proofs of `M (project b)` collapses by the
+/// same propositional setness — no transport lemma is needed, since
+/// both endpoints already inhabit a proposition.
+fn unique_declaration(arena: &mut TermArena) -> Declaration {
+    // `M = λ(z' : Q). Id (P z') (s₁ z') (s₂ z')`.
+    let identity_family = lam(
+        "z2",
+        quotient_of(),
+        id(
+            app(v("P"), v("z2")),
+            app(v("s1"), v("z2")),
+            app(v("s2"), v("z2")),
+        ),
+    );
+    // `sets' = λz'. propIsSet (M z') (sets z' (s₁ z') (s₂ z'))` — the
+    // family's own setness, since `sets z'` makes `M z'` a proposition.
+    let sets = lam(
+        "z3",
+        quotient_of(),
+        apps(
+            scheme_at(QUOTIENT_PROP_IS_SET, vec![Level::Parameter(2)]),
+            [
+                id(
+                    app(v("P"), v("z3")),
+                    app(v("s1"), v("z3")),
+                    app(v("s2"), v("z3")),
+                ),
+                apps(
+                    v("sets"),
+                    [v("z3"), app(v("s1"), v("z3")), app(v("s2"), v("z3"))],
+                ),
+            ],
+        ),
+    );
+    // `c a b r = sets (project b) (s₁ _) (s₂ _) (transport M a b r (h
+    // a)) (h b)` — coherence by propositional collapse of `M (project
+    // b)`.
+    let coherence = lam(
+        "a",
+        v("A"),
+        lam(
+            "b",
+            v("A"),
+            lam(
+                "r",
+                related(v("a"), v("b")),
+                apps(
+                    v("sets"),
+                    [
+                        project_of(v("b")),
+                        app(v("s1"), project_of(v("b"))),
+                        app(v("s2"), project_of(v("b"))),
+                        apps(
+                            motive_scheme(QUOTIENT_TRANSPORT),
+                            [
+                                v("A"),
+                                v("R"),
+                                identity_family.clone(),
+                                v("a"),
+                                v("b"),
+                                v("r"),
+                                app(v("h"), v("a")),
+                            ],
+                        ),
+                        app(v("h"), v("b")),
+                    ],
+                ),
+            ),
+        ),
+    );
+    let family_type = motive_type();
+    let sets_type = pi(
+        "z",
+        quotient_of(),
+        is_set(Level::Parameter(2), app(v("P"), v("z"))),
+    );
+    let section_type = pi("z", quotient_of(), app(v("P"), v("z")));
+    let agreement_type = pi(
+        "a",
+        v("A"),
+        id(
+            app(v("P"), project_of(v("a"))),
+            app(v("s1"), project_of(v("a"))),
+            app(v("s2"), project_of(v("a"))),
+        ),
+    );
+    let statement = pi_description(pi(
+        "P",
+        family_type.clone(),
+        pi(
+            "sets",
+            sets_type.clone(),
+            pi(
+                "s1",
+                section_type.clone(),
+                pi(
+                    "s2",
+                    section_type.clone(),
+                    pi(
+                        "h",
+                        agreement_type.clone(),
+                        pi(
+                            "z",
+                            quotient_of(),
+                            id(
+                                app(v("P"), v("z")),
+                                app(v("s1"), v("z")),
+                                app(v("s2"), v("z")),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ));
+    let body = lam_description(lam(
+        "P",
+        family_type,
+        lam(
+            "sets",
+            sets_type,
+            lam(
+                "s1",
+                section_type.clone(),
+                lam(
+                    "s2",
+                    section_type,
+                    lam(
+                        "h",
+                        agreement_type,
+                        lam(
+                            "z",
+                            quotient_of(),
+                            apps(
+                                motive_scheme(QUOTIENT_ELIM),
+                                [
+                                    v("A"),
+                                    v("R"),
+                                    identity_family,
+                                    sets,
+                                    v("h"),
+                                    coherence,
+                                    v("z"),
+                                ],
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ));
+    let statement = build(arena, &mut Vec::new(), &statement);
+    let body = build(arena, &mut Vec::new(), &body);
+    Declaration::definition(3, statement, body)
+}
+
+/// The twenty declarations of the set-quotient scheme, in signature
 /// order: `isSet`, `Q`, `project`, `setQ`, `sound`, `effective`,
 /// `transport`, `elim`, `beta`, `idTrans`, `transportConst`, `lift`,
-/// `liftPre` occupy positions 0–12 and reference only each other.
-/// Append them to the front of a producer signature (or after any
-/// prefix the producer checks first — the contained `Constant`
-/// positions are absolute), then re-decide the whole signature with
-/// `check_signature`.
+/// `liftPre`, `idSym`, `idCancel`, `propIsSet`, `boxProp`, `indProp`,
+/// `coverage` and `unique` occupy positions 0–19 and reference only
+/// each other. Append them to the front of a producer signature (or
+/// after any prefix the producer checks first — the contained
+/// `Constant` positions are absolute), then re-decide the whole
+/// signature with `check_signature`.
 ///
 /// The carrier/operation/law declarations of the specification's
 /// interface — `Q`, `project`, `setQ`, `sound`, `effective`, `elim`,
 /// `beta` — plus the extensionality-blocked `liftPre` are *assumptions*:
 /// admitted named axioms whose exact statements the kernel re-decides
 /// and whose dependencies `assumption_closure` reports exactly.
-/// `transport`, `idTrans`, `transportConst` and `lift` are *definitions*
-/// whose bodies the same check re-decides — derived, not postulated.
+/// `transport`, `idTrans`, `transportConst`, `lift`, `idSym`,
+/// `idCancel`, `propIsSet`, `boxProp`, `indProp`, `coverage` and
+/// `unique` are *definitions* whose bodies the same check re-decides —
+/// every derivable item the specification's "Derive the following"
+/// list names is a checked term, not a default axiom.
 pub fn quotient_scheme(arena: &mut TermArena) -> Vec<Declaration> {
     vec![
         is_set_declaration(arena),
@@ -903,6 +1590,13 @@ pub fn quotient_scheme(arena: &mut TermArena) -> Vec<Declaration> {
         transport_const_declaration(arena),
         lift_declaration(arena),
         lift_precondition_declaration(arena),
+        id_sym_declaration(arena),
+        id_cancel_declaration(arena),
+        prop_is_set_declaration(arena),
+        box_prop_declaration(arena),
+        ind_prop_declaration(arena),
+        coverage_declaration(arena),
+        unique_declaration(arena),
     ]
 }
 
@@ -1171,6 +1865,148 @@ impl QuotientFamily {
                 element,
                 premise,
             ],
+        )
+    }
+
+    /// `idSym B x y p : Id B y x` — symmetry of `Id`. `level` is `B`'s
+    /// level. Like `idTrans`, this lemma is not `A`-/`R`-spined.
+    pub fn id_sym(
+        &self,
+        arena: &mut TermArena,
+        level: Level,
+        ty: TermHandle,
+        left: TermHandle,
+        right: TermHandle,
+        proof: TermHandle,
+    ) -> TermHandle {
+        let mut term = arena.insert(Term::Constant {
+            declaration: QUOTIENT_ID_SYM,
+            levels: vec![level],
+        });
+        for argument in [ty, left, right, proof] {
+            term = arena.insert(Term::Apply {
+                function: term,
+                argument,
+            });
+        }
+        term
+    }
+
+    /// `idCancel B x y p : Id (Id B y y) (trans (sym p) p) (refl B y)`
+    /// — the inverse law. `level` is `B`'s level.
+    pub fn id_cancel(
+        &self,
+        arena: &mut TermArena,
+        level: Level,
+        ty: TermHandle,
+        left: TermHandle,
+        right: TermHandle,
+        proof: TermHandle,
+    ) -> TermHandle {
+        let mut term = arena.insert(Term::Constant {
+            declaration: QUOTIENT_ID_CANCEL,
+            levels: vec![level],
+        });
+        for argument in [ty, left, right, proof] {
+            term = arena.insert(Term::Apply {
+                function: term,
+                argument,
+            });
+        }
+        term
+    }
+
+    /// `propIsSet X f : isSet X` — a mere proposition is a set, where
+    /// `evidence : Π(x y : X). Id X x y`. `level` is `X`'s level.
+    pub fn prop_is_set(
+        &self,
+        arena: &mut TermArena,
+        level: Level,
+        ty: TermHandle,
+        evidence: TermHandle,
+    ) -> TermHandle {
+        let mut term = arena.insert(Term::Constant {
+            declaration: QUOTIENT_PROP_IS_SET,
+            levels: vec![level],
+        });
+        for argument in [ty, evidence] {
+            term = arena.insert(Term::Apply {
+                function: term,
+                argument,
+            });
+        }
+        term
+    }
+
+    /// `boxProp S x y : Id (Box S) x y` — a boxed strict proposition is
+    /// a mere proposition. `level` is the strict `S`'s level.
+    pub fn box_prop(
+        &self,
+        arena: &mut TermArena,
+        level: Level,
+        strict: TermHandle,
+        left: TermHandle,
+        right: TermHandle,
+    ) -> TermHandle {
+        let mut term = arena.insert(Term::Constant {
+            declaration: QUOTIENT_BOX_PROP,
+            levels: vec![level],
+        });
+        for argument in [strict, left, right] {
+            term = arena.insert(Term::Apply {
+                function: term,
+                argument,
+            });
+        }
+        term
+    }
+
+    /// `indProp A R P d z : P z` — proposition-valued induction for
+    /// `P : Π(_ : Q A R). Strict s` and `case : Π(a : A). P (project
+    /// a)`. `strict_level` is the motive's `s`; it is appended after
+    /// the description's `[u, v]` in the constant's instantiation.
+    pub fn ind_prop(
+        &self,
+        arena: &mut TermArena,
+        strict_level: Level,
+        family: TermHandle,
+        case: TermHandle,
+        element: TermHandle,
+    ) -> TermHandle {
+        self.spine(
+            arena,
+            QUOTIENT_IND_PROP,
+            vec![strict_level],
+            &[family, case, element],
+        )
+    }
+
+    /// `coverage A R z : Squash (Σ(a : A). Id (Q A R) (project a) z)` —
+    /// every quotient element is squashed-covered by a projection.
+    pub fn coverage(&self, arena: &mut TermArena, element: TermHandle) -> TermHandle {
+        self.spine(arena, QUOTIENT_COVERAGE, Vec::new(), &[element])
+    }
+
+    /// `unique A R P sets s₁ s₂ h z : Id (P z) (s₁ z) (s₂ z)` —
+    /// pointwise uniqueness of sections `s₁, s₂ : Π(z : Q A R). P z`
+    /// agreeing on projections through `agreement`.
+    /// `motive_level` is the family's `w`.
+    pub fn unique(
+        &self,
+        arena: &mut TermArena,
+        motive_level: Level,
+        family: TermHandle,
+        sets: TermHandle,
+        first: TermHandle,
+        second: TermHandle,
+        agreement: TermHandle,
+        element: TermHandle,
+    ) -> TermHandle {
+        self.spine(
+            arena,
+            QUOTIENT_UNIQUE,
+            vec![motive_level],
+            &[family, sets, first, second, agreement, element],
         )
     }
 }

@@ -565,7 +565,7 @@ fn two_quotient(arena: &mut TermArena) -> QuotientFamily {
     }
 }
 
-/// The checked signature holding exactly the thirteen scheme
+/// The checked signature holding exactly the twenty scheme
 /// declarations.
 fn quotient_signature(arena: &mut TermArena) -> Signature {
     let mut budget = default_budget();
