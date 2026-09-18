@@ -14,8 +14,15 @@ Rows verified by independent stash-baseline reproduction at revision
 ## typed-trees-to-checked-trees
 
 `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast` at
-30f4189a58 plus the seven `psi:` fixture commits beside this row (2026-09-17,
-macOS arm64): 3991 run, 3988 passed, 3 failed. The 13-failure row recorded at
+660f5af762 (2026-09-18, macOS arm64): 4159 run, 4153 passed, 6 failed. Three
+are the long-standing set described below. The other three,
+`tests::termination::rank_ranges::{computed_field_limits::
+field_endpoint_formation_never_uses_final_cancellation_to_excuse_overflow,
+field_coordinates::field_endpoints_require_defined_intermediates_and_exact_owned_carriers,
+field_endpoint_arithmetic::constant_rank_endpoints_preserve_landing_and_rational_meaning}`,
+appeared under the live **TERMINATION-RANKING-CHECKS** claim and belong to
+that lane. The earlier reading at 30f4189a58 was 3991 run, 3988 passed,
+3 failed. The 13-failure row recorded at
 2c234a684c was worked through test by test; ten were stale fixtures or retired
 premises (each commit names the introducing revision and the rule that decided
 it), and the two renamed tests are now
