@@ -175,7 +175,9 @@ pub(super) enum RelationPlanError {
     RepresentativeStaticArgumentIsOpen(usize),
     RepresentativeLifetimeApplicationRequiresElision,
     RepresentativePropositionApplicationUnsupported(usize),
+    RepresentativeClosureIsNotChecked,
     TheoremEntryDoesNotResolveExactly,
+    SelectedTheoremClosureIsNotChecked,
     NonCanonicalTheoremRoleCollection,
     TheoremMustBeCheckedBody,
     TheoremMustBeResultless,
@@ -261,6 +263,12 @@ impl fmt::Display for RelationPlanError {
             Self::RepresentativePropositionApplicationUnsupported(position) => write!(
                 formatter,
                 "representative proposition argument {position} has no closed application boundary yet"
+            ),
+            Self::RepresentativeClosureIsNotChecked => formatter.write_str(
+                "the selected representative operation's transitive call closure reaches an admitted or boundary machine; a representative-level result whose closure needs a quotient assumption cannot be accepted under a policy refusing them",
+            ),
+            Self::SelectedTheoremClosureIsNotChecked => formatter.write_str(
+                "a selected theorem's transitive call closure reaches an admitted or boundary proof machine; admitted evidence cannot license quotient substitution",
             ),
             Self::TheoremEntryDoesNotResolveExactly => formatter.write_str(
                 "the selected theorem does not resolve to one exact machine entry",
@@ -461,6 +469,22 @@ pub(super) fn derive_direct_terminal_plan(
             })
         })
         .collect::<Result<Vec<_>, RelationPlanError>>()?;
+    // Neither the representative operation nor a selected theorem may reach an
+    // admitted or boundary machine through its call closure. Checking only the
+    // directly named entry would let an ordinary checked theorem launder an
+    // assumed law through one helper call.
+    require_checked_proof_closure(
+        program,
+        representative.machine_symbol,
+        RelationPlanError::RepresentativeClosureIsNotChecked,
+    )?;
+    for evidence in &theorem_evidence {
+        require_checked_proof_closure(
+            program,
+            evidence.selected_application.machine_symbol,
+            RelationPlanError::SelectedTheoremClosureIsNotChecked,
+        )?;
+    }
     // A selected transport is authoritative for the whole Q => P lane. Until
     // its role-specific schema verifier is live, do not silently fall back to
     // the automatic per-row implication producer.
@@ -684,6 +708,26 @@ pub(super) fn derive_direct_terminal_plan(
         define_precondition_correspondence,
         correspondence_certificate,
     })
+}
+
+fn require_checked_proof_closure(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    error: RelationPlanError,
+) -> Result<(), RelationPlanError> {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine_symbol)
+    else {
+        return Err(error);
+    };
+    super::equivalence_selection::checked_proof_dependency(
+        program,
+        machine,
+        &mut std::collections::HashSet::new(),
+    )
+    .map_err(|_| error)
 }
 
 fn derive_relation_and_representative(
