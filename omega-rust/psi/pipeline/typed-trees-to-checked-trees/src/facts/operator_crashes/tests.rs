@@ -1789,3 +1789,105 @@ fn spelled_use_still_widens_a_route_whose_opaque_leaf_hides_a_formal() {
         &[checked_trees::CrashRouteGuard::Truth],
     );
 }
+
+/// A `crashes` guard may read a float literal beside a formal. The literal is
+/// a closed leaf — no formal hides inside its spelling — so the surviving
+/// route must carry the authored `1.5` verbatim in caller coordinates rather
+/// than widening to `Truth`. Before `Float` existed, the leaf flattened to
+/// `Opaque`, substitution refused it, and a caller could only cover the route
+/// by publishing an unconditional `crashes Trap`.
+#[test]
+fn spelled_use_keeps_a_route_whose_guard_reads_a_float_literal() {
+    use checked_trees::CrashPredicateExpression;
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    let source = "boundary operator == Comparison::equal(left: f64, right: f64) -> bool
+         crashes Trap !(right >= 1.5);
+         machine keep(value: f64) -> bool {
+             1.0 == value
+         }";
+    check(source).expect("a float-literal leaf keeps its route structured");
+    let checked = inspect(source);
+    let site = spelled_site(&checked);
+    assert_eq!(site.published.len(), 1);
+    // `right` binds the caller's `value`, an entry-state parameter, so the
+    // surviving predicate is `!(value >= 1.5)` in caller coordinates.
+    let expected = CrashPredicateExpression::Unary {
+        operator: UnaryOperator::LogicalNot as u8,
+        operand: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::GreaterOrEqual as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(0)),
+            right: Box::new(CrashPredicateExpression::Float("1.5".to_owned())),
+        }),
+    };
+    assert_eq!(surviving_guard_expressions(site), [&expected]);
+}
+
+/// A published-ceiling caller republishing `!(value >= 1.5)` covers the
+/// surviving route exactly: the transported `Float` leaf gives the caller a
+/// route it can spell again, so the invocation checks clean without
+/// over-publishing an unconditional ceiling.
+#[test]
+fn caller_republication_covers_a_route_whose_guard_reads_a_float_literal() {
+    let source = "boundary operator == Comparison::equal(left: f64, right: f64) -> bool
+         crashes Trap !(right >= 1.5);
+         pub machine keep(value: f64) -> bool
+         crashes Trap !(value >= 1.5) {
+             1.0 == value
+         }";
+    check(source).expect("the caller's matching published route covers the float-leaf route");
+}
+
+/// A float literal actual also transports: the guard's `left` binds the
+/// caller's `2.5` entry literal, so the surviving predicate is
+/// `!(2.5 >= value)` rather than `Truth`.
+#[test]
+fn spelled_use_substitutes_a_float_literal_actual() {
+    use checked_trees::CrashPredicateExpression;
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    let source = "boundary operator == Comparison::equal(left: f64, right: f64) -> bool
+         crashes Trap !(left >= right);
+         machine keep(value: f64) -> bool {
+             2.5 == value
+         }";
+    check(source).expect("a float-literal actual keeps its route structured");
+    let checked = inspect(source);
+    let site = spelled_site(&checked);
+    let expected = CrashPredicateExpression::Unary {
+        operator: UnaryOperator::LogicalNot as u8,
+        operand: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::GreaterOrEqual as u8,
+            left: Box::new(CrashPredicateExpression::Float("2.5".to_owned())),
+            right: Box::new(CrashPredicateExpression::Parameter(0)),
+        }),
+    };
+    assert_eq!(surviving_guard_expressions(site), [&expected]);
+}
+
+/// Without coverage the route still fails closed — the uncovered diagnostic
+/// names the same structured route the site retained.
+#[test]
+fn spelled_use_float_leaf_route_stays_uncoverable_without_a_matching_ceiling() {
+    let source = "boundary operator == Comparison::equal(left: f64, right: f64) -> bool
+         crashes Trap !(right >= 1.5);
+         pub machine keep(value: f64) -> bool {
+             1.0 == value
+         }";
+    let diagnostics = check(source).expect_err("an uncovered float-leaf route rejects");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let site = spelled_site(&checked);
+    assert_eq!(site.surviving.len(), 1);
+    assert!(
+        site.surviving
+            .iter()
+            .flat_map(|bucket| bucket.alternative_guards())
+            .all(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_))),
+        "the uncovered route still keeps its structured predicate: {:?}",
+        site.surviving
+    );
+}

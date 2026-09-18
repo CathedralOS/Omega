@@ -78,6 +78,10 @@ pub(super) fn crash_predicate_from_expression(
         ExpressionNode::Integer(value) => {
             CrashPredicateExpression::Integer(value.text().to_owned())
         }
+        // A float literal is a closed leaf like `Integer`: its suffix-free
+        // spelling is the whole identity, so the predicate keeps it
+        // structured instead of flattening to `Opaque`.
+        ExpressionNode::Float(value) => CrashPredicateExpression::Float(value.text().to_owned()),
         ExpressionNode::Boolean(value) => CrashPredicateExpression::Boolean(*value),
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
