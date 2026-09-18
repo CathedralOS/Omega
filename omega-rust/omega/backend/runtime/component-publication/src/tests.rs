@@ -1,9 +1,9 @@
 use super::{
-    ArtifactId, ComponentDeploymentAcceptanceSnapshot, ComponentDeploymentAdmissionRecord,
-    ComponentDeploymentJournalPhase, ComponentDeploymentJournalRecord,
-    ComponentDeploymentRecoveryChoice, ComponentDeploymentRestartReconciliation,
-    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraEntryState,
-    ComponentEraPublicationReceipt, InstalledCodeId, InstalledRootLedger,
+    AdmittedExternalStackDomainLease, ArtifactId, ComponentDeploymentAcceptanceSnapshot,
+    ComponentDeploymentAdmissionRecord, ComponentDeploymentJournalPhase,
+    ComponentDeploymentJournalRecord, ComponentDeploymentRecoveryChoice,
+    ComponentDeploymentRestartReconciliation, ComponentEraCandidate, ComponentEraEntryLedger,
+    ComponentEraEntryState, ComponentEraPublicationReceipt, InstalledCodeId, InstalledRootLedger,
     InstalledRunnableComponent, ProgramLocalRootEpochLeaseId, ProvisionedExternalStackSet,
     ProvisionedRootInstallError, RunnableComponentEraLedger, admit_external_stack_domain_lease,
     bind_installed_runnable_component, decode_component_deployment_journal,
@@ -21,9 +21,10 @@ use calling_conventions::{
     ValidatedBoundaryEntryPlan, ValueShape, evaluate_call_plan,
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_realization,
 };
-use effects::provider_plan::ProviderPlan;
+use effects::provider_plan::{ProviderPlan, ServiceSchema};
 use effects::{
-    ComponentEraLedgerId, ExecutableTcbManifest, ExecutableTcbProfile,
+    ComponentEraLedgerId, ComponentEraQuiescenceReceipt, ComponentEraRetirementReceipt,
+    ComponentProgressManifest, ExecutableTcbManifest, ExecutableTcbProfile,
     ExecutableTcbProfileAcceptance, ExecutionScope, IncompleteScopePolicy, ScopeCompleteness,
     SelectedProviderPlanFacts, evaluate_executable_tcb_profile,
 };
@@ -44,24 +45,28 @@ use external_roots::{
     ComponentArtifactId, ComponentContractId, ComponentProviderId, ComponentVersionPin,
     ComponentVersionPinId, ExternalRootCandidate, ExternalRootDiagnostic, ExternalRootId,
     FixedFuelCall, FixedFuelProviderSummary, FuelProvisionId, FuelScheduleIdentity,
-    FuelValidationReceiptId, LogicalFuelResourceColumn, MachineStateResourceColumn,
-    NestingRelationId, OpaqueCallbackProviderId, OpaqueCallbackRegistrationCapacityOccurrence,
+    FuelValidationReceiptId, InstalledComponentProgressClosure, InstalledProviderOccurrenceId,
+    LogicalFuelResourceColumn, MachineStateResourceColumn, NestingRelationId,
+    OpaqueCallbackProviderId, OpaqueCallbackRegistrationCapacityOccurrence,
     OpaqueCallbackRegistrationCapacityOccurrenceId, OpaqueCallbackRegistrationId,
     OpaqueCallbackRegistrationReceipt, OpaqueCallbackRegistrationReceiptId,
     OpaqueCallbackUnregistrationContractId, OpaqueCallbackUnregistrationReceipt,
     OpaqueCallbackUnregistrationReceiptId, OpaqueProviderExitAssurance, ProviderExecution,
-    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId,
-    ProviderStackSummary, ResolvedRootServiceReach, RootAdmission, RootAdmissionId, RootEffectId,
-    RootProviderId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority, RootSlotId,
-    RootSlotOwnerId, StackDomain, StackNestingRelation, StackResourceColumn,
-    StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
-    admit_opaque_arrival_context_set, bind_opaque_adapter_stack_realization,
-    compose_bound_entry_stack_epochs, compose_fixed_fuel, validate_external_root,
+    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,
+    ProviderOccurrenceInstallationReceipt, ProviderOccurrenceInstallationReceiptId,
+    ProviderOccurrencePlanBinding, ProviderPlanId, ProviderStackSummary, ResolvedRootServiceReach,
+    RootAdmission, RootAdmissionId, RootEffectId, RootProviderId, RootRemovalReceipt,
+    RootRemovalReceiptId, RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackDomain,
+    StackNestingRelation, StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId,
+    TrustReceiptId, ValidatedExternalRoot, admit_opaque_arrival_context_set,
+    bind_opaque_adapter_stack_realization, compose_bound_entry_stack_epochs, compose_fixed_fuel,
+    validate_external_root,
 };
 use function_identity::{MachineFunctionIdentity, StateKey};
 use image_emission::{
-    bind_installed_artifact, bind_installed_compiler_private_function_entry,
-    build_installation_record, build_object_artifact_with_private_functions, emit_executable_image,
+    InstalledArtifact, bind_installed_artifact, bind_installed_compiler_private_function_entry,
+    build_installation_record, build_installation_record_with_evidence,
+    build_object_artifact_with_private_functions, emit_executable_image,
     encode_installation_record, installation_fingerprint,
 };
 use layout_plans::{
@@ -446,19 +451,165 @@ fn unprovisioned_runnable_fixture_at(seed: u64, placement_base: u64) -> Runnable
 /// Provider-owned stack supply covering the interrupted domain the callback
 /// root's bound epoch composition demands (2048 bytes at 16-byte alignment).
 fn callback_stack_provision(installed: &InstalledCode) -> ProvisionedExternalStackSet {
-    seal_external_stack_provision(
+    seal_external_stack_provision(installed, [stack_lease(installed)])
+        .expect("sealed callback stack provision")
+}
+
+/// One provider-admitted lease over the interrupted domain: 8192 bytes at
+/// 16-byte alignment, covering the 2048-byte demand the callback root's bound
+/// epoch composition carries.
+fn stack_lease(installed: &InstalledCode) -> AdmittedExternalStackDomainLease {
+    admit_external_stack_domain_lease(
         installed,
-        [admit_external_stack_domain_lease(
-            installed,
-            StackDomain::Interrupted,
-            8192,
-            16,
-            root_id(760, RootProviderId::from_normalized_identity),
-            root_id(761, StackValidationReceiptId::from_normalized_identity),
-        )
-        .expect("interrupted-domain stack lease")],
+        StackDomain::Interrupted,
+        8192,
+        16,
+        root_id(760, RootProviderId::from_normalized_identity),
+        root_id(761, StackValidationReceiptId::from_normalized_identity),
     )
-    .expect("sealed callback stack provision")
+    .expect("interrupted-domain stack lease")
+}
+
+/// The validated callback root, its slot authority, and its exact admission
+/// for `installed` — the inputs `external_root_runtime().install` consumes
+/// and hands back on every provision-lane rejection.
+fn callback_install_inputs(
+    installed: &InstalledCode,
+    entry: EntryStubId,
+) -> (ValidatedExternalRoot, RootSlotAuthority, RootAdmission) {
+    let boundary = callback_boundary();
+    let validated = validate_external_root(callback_root_candidate(installed, entry), &boundary)
+        .expect("callback root");
+    let slot = RootSlotAuthority::from_admitted_owner(
+        root_id(720, RootSlotId::from_normalized_identity),
+        root_id(721, RootSlotOwnerId::from_normalized_identity),
+    );
+    let execution = ProviderExecution::from_admitted_provider(
+        root_id(754, ProviderExecutionId::from_normalized_identity),
+        &validated,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: ProviderExitRealization {
+                control: validated.boundary().call.entry_control,
+                restored_state: validated.boundary().state.restored_state,
+            },
+            validation_receipt: root_id(704, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("callback provider execution");
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(722, RootAdmissionId::from_normalized_identity),
+        &validated,
+        &execution,
+        installed,
+        &slot,
+        validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("callback root admission");
+    (validated, slot, admission)
+}
+
+/// Drive one install against `runnable`'s retained provision, asserting the
+/// rejection comes from the provision lane — not the ledger — with
+/// `fragment`, then return the consumed inputs the error hands back for
+/// retry.
+fn expect_provision_rejection(
+    runnable: &mut InstalledRunnableComponent,
+    validated: ValidatedExternalRoot,
+    slot: RootSlotAuthority,
+    admission: RootAdmission,
+    field: &str,
+    fragment: &str,
+) -> (ValidatedExternalRoot, RootSlotAuthority, RootAdmission) {
+    let mut runtime = runnable.external_root_runtime();
+    let error = runtime
+        .install(validated, slot, admission)
+        .expect_err(field);
+    assert!(
+        matches!(*error, ProvisionedRootInstallError::Provision { .. }),
+        "{field}: rejection must come from the provision lane before ledger custody: {}",
+        error.diagnostic()
+    );
+    assert!(
+        error.diagnostic().to_string().contains(fragment),
+        "{field}: unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    drop(runtime);
+    (*error).into_parts()
+}
+
+/// An installed terminal artifact plus the root registry claimed on its exact
+/// occurrence, before runnable binding joins them — the two pieces a
+/// one-field substitution can misalign.
+struct UnboundInstallation {
+    artifact: InstalledArtifact,
+    roots: InstalledRootLedger,
+}
+
+fn unbound_installation(seed: u64, placement_base: u64) -> UnboundInstallation {
+    let (object, image) = terminal_image();
+    let mut installed = install_terminal_text(&object, seed + 20, seed + 21, placement_base);
+    let roots = InstalledRootLedger::claim(&mut installed).expect("installation registry");
+    let installation = build_installation_record(
+        &image,
+        ProfileDecisionId::new(seed + 40).expect("profile decision"),
+    )
+    .expect("terminal installation record");
+    let artifact = bind_installed_artifact(object, image, installation, installed)
+        .expect("installed terminal artifact");
+    UnboundInstallation { artifact, roots }
+}
+
+/// An installed terminal artifact, its claimed registry, and one sealed
+/// component-progress acceptance, before runnable binding joins them. `commit`
+/// selects whether the artifact's canonical installation record carries the
+/// acceptance identities.
+struct UnboundProgressInstallation {
+    artifact: InstalledArtifact,
+    roots: InstalledRootLedger,
+    progress: InstalledComponentProgressClosure,
+}
+
+fn unbound_progress_installation(
+    seed: u64,
+    placement_base: u64,
+    entry_callable: &str,
+    commit: bool,
+) -> UnboundProgressInstallation {
+    let (object, image) = terminal_image();
+    let mut installed = install_terminal_text(&object, seed + 20, seed + 21, placement_base);
+    let mut roots = InstalledRootLedger::claim(&mut installed).expect("installation registry");
+    roots
+        .seal_provider_occurrence_closure(&SelectedProviderPlanFacts::default(), [])
+        .expect("empty provider occurrence closure");
+    let manifest = ComponentProgressManifest::bind(
+        entry_callable.into(),
+        &SelectedProviderPlanFacts::default(),
+        Vec::new(),
+    )
+    .expect("component progress manifest");
+    let progress = roots
+        .seal_component_progress(manifest, [])
+        .expect("sealed component progress");
+    let profile = ProfileDecisionId::new(seed + 40).expect("profile decision");
+    let installation = if commit {
+        build_installation_record_with_evidence(
+            &image,
+            profile,
+            std::iter::empty::<&ProviderExecution>(),
+            Some(&progress),
+        )
+        .expect("committed installation record")
+    } else {
+        build_installation_record(&image, profile).expect("terminal installation record")
+    };
+    let artifact = bind_installed_artifact(object, image, installation, installed)
+        .expect("installed terminal artifact");
+    UnboundProgressInstallation {
+        artifact,
+        roots,
+        progress,
+    }
 }
 
 fn callback_boundary() -> ValidatedBoundaryEntryPlan {
@@ -1520,6 +1671,960 @@ fn external_stack_provision_rejects_cohort_evidence_for_another_occurrence() {
     assert_eq!(
         root.root(),
         root_id(701, ExternalRootId::from_normalized_identity)
+    );
+}
+
+/// `AdmittedExternalStackDomainLease` and `ProvisionedExternalStackSet` are
+/// in-memory custody records: every representable field mutates
+/// independently. A substitution either fails before a record exists — the
+/// lease admission gates — or is rejected by the exact later seam that owns
+/// its join: the seal binding each lease's occurrence triple and keying the
+/// domain map, the component-admission gate retaining the set for this exact
+/// occurrence, and the install-time rejoin re-authenticating the retained
+/// set's occurrence triple and each demanded domain's supply before the
+/// ledger sees the root. Provider-minted provenance on a lease (provisioner,
+/// validation receipt), a lease's binding triple restated inside an
+/// already-sealed set, a domain restated under its sealed key, and supply
+/// over the composed demand are carried verbatim: sealing is the
+/// lease-binding seam and the coverage joins are supply inequalities.
+#[test]
+fn external_stack_provision_rejects_every_one_field_substitution() {
+    let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
+    let mut fixture = unprovisioned_runnable_fixture_at(910, 0x1000);
+    // The same seed at a second placement collides on the compact
+    // installed-code and artifact identities; only the exact receipt context
+    // differs. A different seed diverges every occurrence axis.
+    let colliding = unprovisioned_runnable_fixture_at(910, 0x9000);
+    let distinct = unprovisioned_runnable_fixture_at(920, 0x1000);
+    assert_eq!(fixture.installed_code, colliding.installed_code);
+    assert_eq!(
+        fixture.runnable.installed().artifact(),
+        colliding.runnable.installed().artifact()
+    );
+    assert_ne!(
+        fixture.runnable.installed().receipt_context(),
+        colliding.runnable.installed().receipt_context()
+    );
+    assert_ne!(fixture.installed_code, distinct.installed_code);
+    assert_ne!(
+        fixture.runnable.installed().artifact(),
+        distinct.runnable.installed().artifact()
+    );
+
+    let foreign_code = distinct.installed_code;
+    let foreign_context = colliding.runnable.installed().receipt_context();
+    let foreign_artifact = distinct.runnable.installed().artifact();
+    let foreign_provider = root_id(762, RootProviderId::from_normalized_identity);
+    let foreign_validation = root_id(763, StackValidationReceiptId::from_normalized_identity);
+    let provisioner = root_id(760, RootProviderId::from_normalized_identity);
+    let lease_receipt = root_id(761, StackValidationReceiptId::from_normalized_identity);
+
+    // Lease admission: fields that cannot describe real supply reject before
+    // a record exists — an unresolved provider-selected disposition, zero
+    // capacity, and a zero or non-power-of-two alignment.
+    let admission_rejected: [(&str, StackDomain, u64, u64, &str); 4] = [
+        (
+            "provider-selected domain",
+            StackDomain::ProviderSelected,
+            8192,
+            16,
+            "cannot be provisioned",
+        ),
+        (
+            "zero capacity",
+            StackDomain::Interrupted,
+            0,
+            16,
+            "requires nonzero capacity",
+        ),
+        (
+            "zero alignment",
+            StackDomain::Interrupted,
+            8192,
+            0,
+            "power-of-two alignment",
+        ),
+        (
+            "non-power-of-two alignment",
+            StackDomain::Interrupted,
+            8192,
+            24,
+            "power-of-two alignment",
+        ),
+    ];
+    for (field, domain, capacity_bytes, alignment, fragment) in admission_rejected {
+        let error = admit_external_stack_domain_lease(
+            fixture.runnable.installed(),
+            domain,
+            capacity_bytes,
+            alignment,
+            provisioner,
+            lease_receipt,
+        )
+        .expect_err(field);
+        assert!(
+            error.to_string().contains(fragment),
+            "{field}: unexpected diagnostic: {error}"
+        );
+    }
+
+    // Seal: the lease's retained occurrence triple is authenticated against
+    // the set being sealed, and the roster must be nonempty with unique
+    // domains. Rejection hands every supplied lease back for correction.
+    let seal_rejected: [(&str, Box<dyn Fn(&mut AdmittedExternalStackDomainLease)>); 3] = [
+        (
+            "installed-code identity",
+            Box::new(move |lease| *lease.installed_code_mut_for_test() = foreign_code),
+        ),
+        (
+            "installed-code context",
+            Box::new(move |lease| {
+                *lease.installed_code_context_mut_for_test() = foreign_context.clone();
+            }),
+        ),
+        (
+            "artifact identity",
+            Box::new(move |lease| *lease.artifact_mut_for_test() = foreign_artifact),
+        ),
+    ];
+    for (field, mutate) in seal_rejected {
+        let authentic = stack_lease(fixture.runnable.installed());
+        let mut changed = authentic.clone();
+        mutate(&mut changed);
+        assert_ne!(
+            changed, authentic,
+            "{field}: substitution changes the lease"
+        );
+        let error = seal_external_stack_provision(fixture.runnable.installed(), [changed])
+            .expect_err(field);
+        assert!(
+            error.diagnostic().to_string().contains(
+                "different installed-code occurrence than the provision set being sealed"
+            ),
+            "{field}: unexpected diagnostic: {}",
+            error.diagnostic()
+        );
+        assert_eq!(
+            error.into_leases().len(),
+            1,
+            "{field}: supplied leases return for correction"
+        );
+    }
+    let error = seal_external_stack_provision(fixture.runnable.installed(), [])
+        .expect_err("an empty lease set cannot seal a provision");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("at least one admitted domain lease")
+    );
+    let error = seal_external_stack_provision(
+        fixture.runnable.installed(),
+        [
+            stack_lease(fixture.runnable.installed()),
+            stack_lease(fixture.runnable.installed()),
+        ],
+    )
+    .expect_err("two leases for one domain cannot seal a provision");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("two external stack leases provision domain")
+    );
+
+    // Component admission: the set's retained occurrence triple is
+    // authenticated before it can become this component's provision.
+    let foreign_code = distinct.installed_code;
+    let foreign_context = colliding.runnable.installed().receipt_context();
+    let admit_rejected: [(&str, Box<dyn Fn(&mut ProvisionedExternalStackSet)>); 3] = [
+        (
+            "installed-code identity",
+            Box::new(move |set| *set.installed_code_mut_for_test() = foreign_code),
+        ),
+        (
+            "installed-code context",
+            Box::new(move |set| {
+                *set.installed_code_context_mut_for_test() = foreign_context.clone();
+            }),
+        ),
+        (
+            "artifact identity",
+            Box::new(move |set| *set.artifact_mut_for_test() = foreign_artifact),
+        ),
+    ];
+    for (field, mutate) in admit_rejected {
+        let authentic = callback_stack_provision(fixture.runnable.installed());
+        let mut changed = authentic.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, authentic, "{field}: substitution changes the set");
+        let error = fixture
+            .runnable
+            .admit_external_stack_provision(changed)
+            .expect_err(field);
+        assert!(
+            error.diagnostic().to_string().contains(
+                "different installed-code occurrence than the retained runnable component"
+            ),
+            "{field}: unexpected diagnostic: {}",
+            error.diagnostic()
+        );
+        let recovered = (*error).into_provision();
+        assert!(
+            !recovered.binds_installed_code(fixture.runnable.installed()),
+            "{field}: the rejected set still names its foreign occurrence"
+        );
+        assert!(
+            fixture.runnable.external_stack_provision().is_none(),
+            "{field}: rejection leaves the absent field untouched"
+        );
+    }
+
+    // Install: with no provision retained at all the field's absent state
+    // rejects before the ledger sees the root.
+    let (validated, slot, admission) =
+        callback_install_inputs(fixture.runnable.installed(), private_entry);
+    let (mut validated, mut slot, mut admission) = expect_provision_rejection(
+        &mut fixture.runnable,
+        validated,
+        slot,
+        admission,
+        "absent provision",
+        "no admitted external stack provision",
+    );
+
+    // A lease admitted for the demanded domain but restated before the seal
+    // lands under its restated key: the demanded domain has no provisioned
+    // lease at the coverage join.
+    let mut restated = stack_lease(fixture.runnable.installed());
+    *restated.domain_mut_for_test() = StackDomain::Dedicated { class: 7 };
+    let dedicated_only = seal_external_stack_provision(fixture.runnable.installed(), [restated])
+        .expect("the restated domain keys the retained map");
+    fixture
+        .runnable
+        .admit_external_stack_provision(dedicated_only)
+        .expect("a set keyed on an undemanded domain still binds this occurrence");
+    (validated, slot, admission) = expect_provision_rejection(
+        &mut fixture.runnable,
+        validated,
+        slot,
+        admission,
+        "restated lease domain",
+        "no admitted stack lease provisions domain",
+    );
+
+    // Corrupting the RETAINED record in place is the substitution an
+    // in-memory custody family must survive: the install-time rejoin
+    // re-authenticates the set's occurrence triple and each demanded
+    // domain's supply before the ledger sees the root, and every rejection
+    // returns the inputs for retry.
+    let foreign_context = colliding.runnable.installed().receipt_context();
+    let retained_rejected: [(&str, &str, Box<dyn Fn(&mut ProvisionedExternalStackSet)>); 8] = [
+        (
+            "set installed-code identity",
+            "different installed-code occurrence",
+            Box::new(move |set| *set.installed_code_mut_for_test() = foreign_code),
+        ),
+        (
+            "set installed-code context",
+            "different installed-code occurrence",
+            Box::new(move |set| {
+                *set.installed_code_context_mut_for_test() = foreign_context.clone();
+            }),
+        ),
+        (
+            "set artifact identity",
+            "different installed-code occurrence",
+            Box::new(move |set| *set.artifact_mut_for_test() = foreign_artifact),
+        ),
+        (
+            "dropped demanded lease",
+            "no admitted stack lease provisions domain",
+            Box::new(|set| {
+                set.leases_mut_for_test().remove(&StackDomain::Interrupted);
+            }),
+        ),
+        (
+            "lease capacity below demand",
+            "below the composed 2048-byte demand",
+            Box::new(|set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .capacity_bytes_mut_for_test() = 1024;
+            }),
+        ),
+        (
+            "lease zero capacity",
+            "below the composed 2048-byte demand",
+            Box::new(|set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .capacity_bytes_mut_for_test() = 0;
+            }),
+        ),
+        (
+            "lease alignment below demand",
+            "below the composed alignment",
+            Box::new(|set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .alignment_mut_for_test() = 8;
+            }),
+        ),
+        (
+            "lease zero alignment",
+            "below the composed alignment",
+            Box::new(|set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .alignment_mut_for_test() = 0;
+            }),
+        ),
+    ];
+    for (field, fragment, mutate) in retained_rejected {
+        *fixture.runnable.external_stack_provision_mut_for_test() =
+            Some(callback_stack_provision(fixture.runnable.installed()));
+        mutate(
+            fixture
+                .runnable
+                .external_stack_provision_mut_for_test()
+                .as_mut()
+                .expect("retained provision"),
+        );
+        (validated, slot, admission) = expect_provision_rejection(
+            &mut fixture.runnable,
+            validated,
+            slot,
+            admission,
+            field,
+            fragment,
+        );
+    }
+
+    // Substitutions the later seams deliberately do not authenticate stay
+    // carried: lease provenance is provider-minted at admission and the seal
+    // is the lease-binding seam, while the coverage join is a supply
+    // inequality that over-satisfying, desynced, or undemanded leases still
+    // meet.
+    let foreign_context = colliding.runnable.installed().receipt_context();
+    let carried: [(&str, Box<dyn Fn(&mut ProvisionedExternalStackSet)>); 8] = [
+        (
+            "lease provisioner",
+            Box::new(move |set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .provisioner_mut_for_test() = foreign_provider;
+            }),
+        ),
+        (
+            "lease validation receipt",
+            Box::new(move |set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .validation_receipt_mut_for_test() = foreign_validation;
+            }),
+        ),
+        (
+            "lease installed-code identity",
+            Box::new(move |set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .installed_code_mut_for_test() = foreign_code;
+            }),
+        ),
+        (
+            "lease installed-code context",
+            Box::new(move |set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .installed_code_context_mut_for_test() = foreign_context.clone();
+            }),
+        ),
+        (
+            "lease artifact identity",
+            Box::new(move |set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .artifact_mut_for_test() = foreign_artifact;
+            }),
+        ),
+        (
+            "lease domain restated under its sealed key",
+            Box::new(|set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .domain_mut_for_test() = StackDomain::Dedicated { class: 7 };
+            }),
+        ),
+        (
+            "over-provisioned lease capacity",
+            Box::new(|set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .capacity_bytes_mut_for_test() = 16_384;
+            }),
+        ),
+        (
+            "over-aligned lease supply",
+            Box::new(|set| {
+                *set.leases_mut_for_test()
+                    .get_mut(&StackDomain::Interrupted)
+                    .expect("interrupted lease")
+                    .alignment_mut_for_test() = 32;
+            }),
+        ),
+    ];
+    for (field, mutate) in carried {
+        let authentic = callback_stack_provision(fixture.runnable.installed());
+        let mut changed = authentic.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, authentic, "{field}: substitution changes the set");
+        assert!(
+            changed.binds_installed_code(fixture.runnable.installed()),
+            "{field}: a lease-row substitution leaves the set binding intact"
+        );
+        assert!(
+            changed.covers_root_demand(&validated).is_ok(),
+            "{field}: a post-seal lease substitution is carried, not re-authenticated"
+        );
+    }
+
+    // Undemanded supply and a lease bound to another occurrence inserted
+    // post-seal are likewise roster content the coverage join does not visit
+    // — sealing is the only lease-binding seam.
+    let mut changed = callback_stack_provision(fixture.runnable.installed());
+    changed.leases_mut_for_test().insert(
+        StackDomain::Dedicated { class: 9 },
+        admit_external_stack_domain_lease(
+            fixture.runnable.installed(),
+            StackDomain::Dedicated { class: 9 },
+            8192,
+            16,
+            provisioner,
+            lease_receipt,
+        )
+        .expect("undemanded lease"),
+    );
+    changed.leases_mut_for_test().insert(
+        StackDomain::Dedicated { class: 11 },
+        admit_external_stack_domain_lease(
+            distinct.runnable.installed(),
+            StackDomain::Dedicated { class: 11 },
+            8192,
+            16,
+            provisioner,
+            lease_receipt,
+        )
+        .expect("foreign-bound lease"),
+    );
+    assert!(
+        changed.covers_root_demand(&validated).is_ok(),
+        "undemanded or post-seal foreign supply does not break coverage"
+    );
+
+    // Carried provenance still rides the retained record through the complete
+    // install seam: a substituted lease provisioner installs, and the live
+    // root then pins the provision field against replacement.
+    let mut changed = callback_stack_provision(fixture.runnable.installed());
+    *changed
+        .leases_mut_for_test()
+        .get_mut(&StackDomain::Interrupted)
+        .expect("interrupted lease")
+        .provisioner_mut_for_test() = foreign_provider;
+    *fixture.runnable.external_stack_provision_mut_for_test() = Some(changed);
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let root = runtime
+        .install(validated, slot, admission)
+        .expect("provider-minted provenance is carried through install");
+    assert_eq!(
+        root.root(),
+        root_id(701, ExternalRootId::from_normalized_identity)
+    );
+    drop(root);
+    drop(runtime);
+    let error = fixture
+        .runnable
+        .admit_external_stack_provision(callback_stack_provision(fixture.runnable.installed()))
+        .expect_err("the retained provision is pinned while a root is live");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("pinned while external roots are live")
+    );
+}
+
+/// The retained `InstalledRunnableComponent` is the crate's installation
+/// record: the bound artifact, the claimed root registry, the optional
+/// committed progress acceptance, and the retained stack provision. Its
+/// binding gate joins each field to the exact installed occurrence, the era
+/// ledger's publish and retire gates bind the retained record to its
+/// candidate axes and era, and the provision field's admit and pin seams
+/// guard substitution. Every representable substitution below rejects at the
+/// exact seam that owns its join. The progress acceptance is opaque custody
+/// sealed inside external-roots — its own field surface is mutation-covered
+/// there — so the substitutions this record can express are absent, foreign,
+/// or divergent acceptances, each rejected at binding.
+#[test]
+fn installed_runnable_component_rejects_every_one_field_substitution() {
+    let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
+
+    // roots: a registry claimed on another occurrence cannot bind this
+    // artifact — the ledger's retained context, not the compact identity,
+    // names the occurrence. Compact identities collide between these two
+    // fixtures; the join still rejects, in both substitution directions.
+    let own = unbound_installation(930, 0x1000);
+    let foreign = unbound_installation(930, 0x9000);
+    assert_eq!(
+        own.artifact.installed().identity(),
+        foreign.artifact.installed().identity(),
+        "compact installed-code identities collide"
+    );
+    assert_ne!(
+        own.artifact.installed().receipt_context(),
+        foreign.artifact.installed().receipt_context(),
+        "exact installed occurrence contexts differ"
+    );
+    let error = bind_installed_runnable_component(own.artifact, foreign.roots, None)
+        .expect_err("a registry claimed on another occurrence cannot bind this artifact");
+    assert!(
+        error
+            .diagnostic()
+            .contains("installation registry names a different installed-code occurrence"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let own = unbound_installation(931, 0x1000);
+    let foreign = unbound_installation(931, 0x9000);
+    let error = bind_installed_runnable_component(foreign.artifact, own.roots, None)
+        .expect_err("an artifact bound to another occurrence cannot bind this registry");
+    assert!(
+        error
+            .diagnostic()
+            .contains("installation registry names a different installed-code occurrence"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+
+    // roots: the registry must already be sealed with the exact
+    // provider-occurrence closure the artifact's record names; an unsealed
+    // registry cannot bind, and a closure sealed over a divergent selected
+    // plan set cannot either. Rejection returns the pieces for correction.
+    let pieces = unbound_installation(932, 0x1000);
+    let error = bind_installed_runnable_component(pieces.artifact, pieces.roots, None)
+        .expect_err("an unsealed registry cannot bind");
+    assert!(
+        error
+            .diagnostic()
+            .contains("requires a sealed provider-occurrence closure"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (artifact, mut roots, _) = (*error).into_parts();
+    let divergent = SelectedProviderPlanFacts::from_selected_plans(vec![ProviderPlan {
+        name: "scheduler".into(),
+        schema: ServiceSchema {
+            trait_name: "Scheduler".into(),
+            ..ServiceSchema::default()
+        },
+        ..ProviderPlan::default()
+    }])
+    .expect("one-plan selected closure");
+    let plan = divergent.plans()[0].clone();
+    roots
+        .seal_provider_occurrence_closure(
+            &divergent,
+            [ProviderOccurrencePlanBinding::new(
+                plan.report_fingerprint(),
+                plan,
+                ProviderOccurrenceInstallationReceipt::from_provider(
+                    root_id(
+                        970,
+                        ProviderOccurrenceInstallationReceiptId::from_normalized_identity,
+                    ),
+                    artifact.installed(),
+                    root_id(980, InstalledProviderOccurrenceId::from_normalized_identity),
+                    "Provider",
+                ),
+            )],
+        )
+        .expect("divergent provider-occurrence closure seals");
+    let error = bind_installed_runnable_component(artifact, roots, None)
+        .expect_err("a divergent provider-occurrence closure cannot bind");
+    assert!(
+        error
+            .diagnostic()
+            .contains("different selected provider-plan closures"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+
+    // roots: a registry already holding a live external root belongs to that
+    // root's slot owner, not to this binding.
+    let (object, image) = terminal_image();
+    let mut installed = install_terminal_text(&object, 953, 954, 0x1000);
+    let mut roots = InstalledRootLedger::claim(&mut installed).expect("installation registry");
+    roots
+        .seal_provider_occurrence_closure(&SelectedProviderPlanFacts::default(), [])
+        .expect("empty provider occurrence closure");
+    let (validated, slot, admission) = callback_install_inputs(&installed, private_entry);
+    let live = roots
+        .install(&installed, validated, slot, admission)
+        .expect("root installs into the claimed registry");
+    drop(live);
+    let installation = build_installation_record(
+        &image,
+        ProfileDecisionId::new(990).expect("profile decision"),
+    )
+    .expect("terminal installation record");
+    let artifact = bind_installed_artifact(object, image, installation, installed)
+        .expect("installed terminal artifact");
+    let error = bind_installed_runnable_component(artifact, roots, None)
+        .expect_err("a registry with a live root is owned by that root's slot");
+    assert!(
+        error
+            .diagnostic()
+            .contains("installed external roots require their own live owner"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+
+    // progress: committed by the record but withheld at binding rejects, as
+    // does an acceptance the record never committed. A divergent acceptance
+    // bound to this occurrence and an acceptance bound to a foreign
+    // occurrence each reject on their own identity join.
+    let pieces = unbound_progress_installation(940, 0x1000, "Codec::start", true);
+    let error = bind_installed_runnable_component(pieces.artifact, pieces.roots, None)
+        .expect_err("committed progress cannot be dropped at binding");
+    assert!(
+        error
+            .diagnostic()
+            .contains("commits component progress but the opaque acceptance was not supplied"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let uncommitted = unbound_progress_installation(941, 0x1000, "Codec::start", false);
+    let error = bind_installed_runnable_component(
+        uncommitted.artifact,
+        uncommitted.roots,
+        Some(uncommitted.progress),
+    )
+    .expect_err("uncommitted progress cannot be supplied at binding");
+    assert!(
+        error
+            .diagnostic()
+            .contains("omits the supplied component-progress acceptance"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let mut pieces = unbound_progress_installation(942, 0x1000, "Codec::start", true);
+    let divergent_manifest = ComponentProgressManifest::bind(
+        "Codec::other".into(),
+        &SelectedProviderPlanFacts::default(),
+        Vec::new(),
+    )
+    .expect("divergent component progress manifest");
+    let divergent_progress = pieces
+        .roots
+        .seal_component_progress(divergent_manifest, [])
+        .expect("a second manifest seals its own acceptance");
+    let error =
+        bind_installed_runnable_component(pieces.artifact, pieces.roots, Some(divergent_progress))
+            .expect_err("a divergent acceptance cannot bind this record");
+    assert!(
+        error
+            .diagnostic()
+            .contains("commits different component-progress identities"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let foreign = unbound_progress_installation(943, 0x9000, "Codec::start", false);
+    let committed = unbound_progress_installation(944, 0x1000, "Codec::start", true);
+    let error = bind_installed_runnable_component(
+        committed.artifact,
+        committed.roots,
+        Some(foreign.progress),
+    )
+    .expect_err("a foreign-occurrence acceptance cannot bind this record");
+    assert!(
+        error
+            .diagnostic()
+            .contains("component-progress acceptance names a different installed-code occurrence"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    // The authentic committed pair binds and retains the acceptance.
+    let pair = unbound_progress_installation(945, 0x1000, "Codec::start", true);
+    let runnable =
+        bind_installed_runnable_component(pair.artifact, pair.roots, Some(pair.progress))
+            .expect("the committed progress acceptance binds");
+    assert!(
+        runnable.progress().is_some(),
+        "the retained record carries the committed acceptance"
+    );
+
+    // external_stack_provision: the field's representable states — absent,
+    // foreign, admitted, corrected while quiescent, and pinned while a root
+    // is live — each hold at their own seam. The retained record's own field
+    // surface is covered by
+    // `external_stack_provision_rejects_every_one_field_substitution`.
+    let mut fixture = unprovisioned_runnable_fixture_at(946, 0x1000);
+    let foreign = unprovisioned_runnable_fixture_at(946, 0x9000);
+    assert!(fixture.runnable.external_stack_provision().is_none());
+    let error = fixture
+        .runnable
+        .admit_external_stack_provision(callback_stack_provision(foreign.runnable.installed()))
+        .expect_err("a foreign-bound set cannot substitute the provision field");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("different installed-code occurrence than the retained runnable component"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let returned = (*error).into_provision();
+    assert!(
+        returned.binds_installed_code(foreign.runnable.installed()),
+        "the returned set still binds its own occurrence"
+    );
+    assert!(fixture.runnable.external_stack_provision().is_none());
+    fixture
+        .runnable
+        .admit_external_stack_provision(callback_stack_provision(fixture.runnable.installed()))
+        .expect("authentic provision admitted while quiescent");
+    fixture
+        .runnable
+        .admit_external_stack_provision(callback_stack_provision(fixture.runnable.installed()))
+        .expect("the provision field may still be corrected while quiescent");
+    let (validated, slot, admission) =
+        callback_install_inputs(fixture.runnable.installed(), private_entry);
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let root = runtime
+        .install(validated, slot, admission)
+        .expect("covering provision installs");
+    drop(root);
+    drop(runtime);
+    let error = fixture
+        .runnable
+        .admit_external_stack_provision(callback_stack_provision(fixture.runnable.installed()))
+        .expect_err("the provision field is pinned while a root is live");
+    assert!(
+        error
+            .diagnostic()
+            .to_string()
+            .contains("pinned while external roots are live")
+    );
+
+    // Era publication joins the retained record to the candidate's exact
+    // occurrence axes before the lifecycle sees it; a receipt minted for
+    // another candidate rejects at the lifecycle seam with every piece
+    // returned, and one era retains exactly one record. Three live-era slots
+    // keep every leg exercisable in one ledger.
+    let mut ledger = RunnableComponentEraLedger::new(
+        ComponentEraEntryLedger::new(
+            ComponentEraLedgerId::from_normalized_identity(1).expect("ledger"),
+            "CodecBinding/v1".into(),
+            "CodecEntry/v1".into(),
+            3,
+            tcb_acceptance("platform", 1),
+        )
+        .expect("component lifecycle"),
+    );
+    let era_a = runnable_fixture_at(960, 0x1000);
+    let era_b = runnable_fixture_at(970, 0x9000);
+    let era_c = unprovisioned_runnable_fixture_at(980, 0x1_1000);
+
+    // A publication receipt minted for another candidate is rejected by the
+    // lifecycle and forwarded with every piece intact for correction.
+    let candidate_c = candidate(30, &era_c.runnable);
+    let other_candidate = candidate(31, &era_c.runnable);
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        41,
+        ledger.lifecycle(),
+        &other_candidate,
+        true,
+        false,
+    );
+    let error = ledger
+        .publish(candidate_c, receipt, era_c.runnable)
+        .expect_err("a receipt minted for another candidate cannot publish this record");
+    assert!(
+        error
+            .diagnostic()
+            .contains("does not bind and expose the exact candidate"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (candidate_c, _receipt, runnable_c) = (*error).into_parts();
+    let honest_receipt = ComponentEraPublicationReceipt::from_runtime(
+        42,
+        ledger.lifecycle(),
+        &candidate_c,
+        true,
+        false,
+    );
+    ledger
+        .publish(candidate_c, honest_receipt, runnable_c)
+        .expect("the corrected pair publishes era 30");
+
+    // The candidate's occurrence axes bind the retained record — not its own
+    // claims — at the crate gate.
+    let mut forged = candidate(10, &era_a.runnable);
+    forged.artifact_occurrence_digest = era_b.runnable.installed().occurrence_digest();
+    let receipt =
+        ComponentEraPublicationReceipt::from_runtime(43, ledger.lifecycle(), &forged, true, true);
+    let error = ledger
+        .publish(forged, receipt, era_a.runnable)
+        .expect_err("a foreign occurrence digest cannot publish this record");
+    assert!(
+        error
+            .diagnostic()
+            .contains("different installed artifact occurrence"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (mut candidate_a, _receipt, runnable_a) = (*error).into_parts();
+    // Restore the digest axis and substitute the compact report identity
+    // alone: the same join still rejects on the retained record's authority.
+    candidate_a.artifact_occurrence_digest = runnable_a.installed().occurrence_digest();
+    candidate_a.artifact_instance_compatibility_report_identity =
+        era_b.runnable.installed_code().normalized_identity();
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        44,
+        ledger.lifecycle(),
+        &candidate_a,
+        true,
+        true,
+    );
+    let error = ledger
+        .publish(candidate_a, receipt, runnable_a)
+        .expect_err("a foreign compatibility report cannot publish this record");
+    assert!(
+        error
+            .diagnostic()
+            .contains("different installed artifact occurrence"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (_candidate_a, _receipt, runnable_a) = (*error).into_parts();
+
+    let authentic_a = candidate(10, &runnable_a);
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        45,
+        ledger.lifecycle(),
+        &authentic_a,
+        true,
+        true,
+    );
+    ledger
+        .publish(authentic_a, receipt, runnable_a)
+        .expect("authentic era 10 publishes");
+    let duplicate = candidate(10, &era_b.runnable);
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        46,
+        ledger.lifecycle(),
+        &duplicate,
+        true,
+        true,
+    );
+    let error = ledger
+        .publish(duplicate, receipt, era_b.runnable)
+        .expect_err("one era retains exactly one runnable record");
+    assert!(
+        error
+            .diagnostic()
+            .contains("already retains runnable installation evidence"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let (_candidate, _receipt, runnable_b) = (*error).into_parts();
+    let authentic_b = candidate(20, &runnable_b);
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        47,
+        ledger.lifecycle(),
+        &authentic_b,
+        true,
+        true,
+    );
+    ledger
+        .publish(authentic_b, receipt, runnable_b)
+        .expect("authentic era 20 publishes");
+
+    // Era retirement releases the retained record only through the exact
+    // seam: an era with no retained record rejects at the crate gate, a live
+    // non-quiescent era rejects at the lifecycle with its receipt returned,
+    // and a quiescent noncurrent era hands the complete installation record —
+    // artifact, registry, progress, and retained provision — back intact.
+    let error = ledger
+        .retire(ComponentEraRetirementReceipt::from_runtime(
+            7,
+            ledger.lifecycle(),
+            99,
+            true,
+        ))
+        .expect_err("an era with no retained record cannot retire");
+    assert!(
+        error
+            .diagnostic()
+            .contains("has no retained runnable installation evidence"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let error = ledger
+        .retire(ComponentEraRetirementReceipt::from_runtime(
+            8,
+            ledger.lifecycle(),
+            20,
+            true,
+        ))
+        .expect_err("the current era cannot retire");
+    assert!(
+        error.diagnostic().contains("noncurrent quiescent"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let _receipt = error.into_receipt();
+    ledger
+        .establish_quiescence(ComponentEraQuiescenceReceipt::from_runtime(
+            ledger.lifecycle(),
+            10,
+            0,
+            true,
+        ))
+        .expect("closed era 10 establishes quiescence");
+    let retired = ledger
+        .retire(ComponentEraRetirementReceipt::from_runtime(
+            9,
+            ledger.lifecycle(),
+            10,
+            true,
+        ))
+        .expect("quiescent era 10 retires");
+    assert_eq!(retired.installed().identity(), era_a.installed_code);
+    let provision = retired
+        .external_stack_provision()
+        .expect("the admitted provision survives retirement");
+    assert!(
+        provision.binds_installed_code(retired.installed()),
+        "the retained provision still binds the retired occurrence"
+    );
+    assert!(retired.progress().is_none());
+    let (_artifact, _roots, _progress, provision) = retired.into_parts();
+    assert!(
+        provision.is_some(),
+        "custody decomposition hands the provision back"
     );
 }
 

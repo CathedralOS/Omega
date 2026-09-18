@@ -74,6 +74,34 @@ impl AdmittedExternalStackDomainLease {
     }
 }
 
+#[cfg(test)]
+impl AdmittedExternalStackDomainLease {
+    pub fn domain_mut_for_test(&mut self) -> &mut StackDomain {
+        &mut self.domain
+    }
+    pub fn capacity_bytes_mut_for_test(&mut self) -> &mut u64 {
+        &mut self.capacity_bytes
+    }
+    pub fn alignment_mut_for_test(&mut self) -> &mut u64 {
+        &mut self.alignment
+    }
+    pub fn provisioner_mut_for_test(&mut self) -> &mut RootProviderId {
+        &mut self.provisioner
+    }
+    pub fn validation_receipt_mut_for_test(&mut self) -> &mut StackValidationReceiptId {
+        &mut self.validation_receipt
+    }
+    pub fn installed_code_mut_for_test(&mut self) -> &mut InstalledCodeId {
+        &mut self.installed_code
+    }
+    pub fn installed_code_context_mut_for_test(&mut self) -> &mut InstalledCodeContext {
+        &mut self.installed_code_context
+    }
+    pub fn artifact_mut_for_test(&mut self) -> &mut ArtifactId {
+        &mut self.artifact
+    }
+}
+
 /// Admit one provider-owned stack lease for `domain` of `installed`.
 ///
 /// An unresolved provider-selected disposition can never be leased: it is a
@@ -207,6 +235,24 @@ impl ProvisionedExternalStackSet {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+impl ProvisionedExternalStackSet {
+    pub fn installed_code_mut_for_test(&mut self) -> &mut InstalledCodeId {
+        &mut self.installed_code
+    }
+    pub fn installed_code_context_mut_for_test(&mut self) -> &mut InstalledCodeContext {
+        &mut self.installed_code_context
+    }
+    pub fn artifact_mut_for_test(&mut self) -> &mut ArtifactId {
+        &mut self.artifact
+    }
+    pub fn leases_mut_for_test(
+        &mut self,
+    ) -> &mut BTreeMap<StackDomain, AdmittedExternalStackDomainLease> {
+        &mut self.leases
     }
 }
 
