@@ -1525,6 +1525,91 @@ fn a_level_polymorphic_indexed_certificate_round_trips_and_re_verifies() {
     );
 }
 
+#[test]
+fn a_squashed_indexed_family_certificate_round_trips_and_re_verifies() {
+    // Γ = n : Nat, tail : Vec n proves `sq_{Vec n} tail : Squash (Vec
+    // n)` — squashed existence over the derived indexed family: the
+    // `Squash`/`SquashIntro` tags, the `IW` constant spine and the
+    // vector producer assumptions all travel as data and the kernel
+    // re-decides the strict-layer judgment after decode.
+    let mut arena = TermArena::new();
+    let element = elem(&mut arena);
+    let family = vector_family(&mut arena, element, Level::Constant(0));
+    let declarations = vector_declarations(&mut arena);
+    let n_binding = nat(&mut arena);
+    let tail_binding = {
+        // `Vec n` under [n]: n is 0.
+        let n = variable(&mut arena, 0);
+        family.indexed_w(&mut arena, n)
+    };
+    let term = {
+        // Under Γ: tail is 0, n is 1.
+        let n = variable(&mut arena, 1);
+        let carrier = family.indexed_w(&mut arena, n);
+        let tail = variable(&mut arena, 0);
+        squash_intro(&mut arena, carrier, tail)
+    };
+    let expected = {
+        let n = variable(&mut arena, 1);
+        let carrier = family.indexed_w(&mut arena, n);
+        squash(&mut arena, carrier)
+    };
+    let certificate = MathematicalCertificate {
+        signature: declarations,
+        level_arity: 0,
+        context: vec![n_binding, tail_binding],
+        term,
+        expected,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    verify(&mut decoded).expect("the squashed family judgment must re-check");
+    let repacked =
+        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode");
+    assert_eq!(repacked, bytes);
+    assert_eq!(
+        proof_admission::certificate_assumption_closure(&decoded.arena, &decoded.certificate),
+        [NAT, NAT_ZERO, NAT_SUCC, ELEM].into_iter().collect(),
+        "the description constants keep the four producer assumptions in scope"
+    );
+
+    // The receiver re-decides: claiming the same evidence at the
+    // un-squashed `Vec n` — asking the squash to leak its witness —
+    // decodes fine and the kernel refuses it.
+    let mut arena = TermArena::new();
+    let element = elem(&mut arena);
+    let family = vector_family(&mut arena, element, Level::Constant(0));
+    let declarations = vector_declarations(&mut arena);
+    let n_binding = nat(&mut arena);
+    let tail_binding = {
+        let n = variable(&mut arena, 0);
+        family.indexed_w(&mut arena, n)
+    };
+    let term = {
+        let n = variable(&mut arena, 1);
+        let carrier = family.indexed_w(&mut arena, n);
+        let tail = variable(&mut arena, 0);
+        squash_intro(&mut arena, carrier, tail)
+    };
+    let wrong_claim = {
+        let n = variable(&mut arena, 1);
+        family.indexed_w(&mut arena, n)
+    };
+    let certificate = MathematicalCertificate {
+        signature: declarations,
+        level_arity: 0,
+        context: vec![n_binding, tail_binding],
+        term,
+        expected: wrong_claim,
+    };
+    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
+    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
+    assert!(matches!(
+        verify(&mut decoded),
+        Err(CoreError::TypeMismatch { .. })
+    ));
+}
+
 fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
 }
