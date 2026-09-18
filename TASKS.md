@@ -2404,28 +2404,48 @@ Owners include
 ## Parallel language and compiler lanes
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
-  Implement [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
-  through exclusive borrows. The source checker currently rejects the guide's
-  move-out/replace pattern in `pass/ownership/move_keyword_field_assignment`;
-  the product parser avoids it by borrowing the lexer's stream. This is an
-  implementation gap, not an open ownership decision. Own the exact place/loan
-  restoration debt in `typed-trees-to-checked-trees` multiplicity and loan flow,
-  transport it through lowering, and reconstruct it independently in Terminal
-  verification before native realization. Reuse the ordinary partial-move,
-  invariant-window, store, and control-flow relationships; do not add a recognizer
-  for adjacent move/assignment statements or weaken nominal-drop restrictions.
+  Carry [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
+  from the source checker through lowering, Terminal verification and native
+  realization. `typed-trees-to-checked-trees/src/checks/multiplicity/borrowed_windows.rs`
+  opens a window on the exact resolved storage place for a consuming move
+  through an exclusive chain, closes it at a same-typed store, and rejects an
+  open window at returns and non-crash transition edges. The guide canary
+  `pass/ownership/move_keyword_field_assignment` checks, and
+  `checked-interpreter/tests/borrowed_restoration.rs` executes a round trip and
+  a consuming transform with caller-visible contents. That canary is on the
+  checked-only roster: nothing transports the restoration debt below checked
+  trees, and [Terminal ownership](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration)
+  has no producer or verifier for it. The product parser still avoids the
+  pattern by borrowing the lexer's stream.
 
-  Acceptance: the unchanged guide canary checks; a consuming transform followed
-  by replacement executes with caller-visible updated contents and exact-once
-  custody in the interpreter and supported native targets. Also exercise disjoint
-  sibling work between move and repair, repair on both branches, and contained-loan
-  transport. Reject missing repair on one returning branch, early return, stale
-  field use, overlapping borrows, wrong-place replacement, repeated extraction,
-  and whole-owner cleanup. Outcome controls must cover recoverable failure,
-  suspension/resume/cancellation custody, and crash/process-exit abandonment
-  without invented rollback or survivor guarantees. Tampered Terminal evidence
-  must fail independent replay. Keep unsupported paths rejected until their
-  evidence is implemented; do not delete the existing rejection gate wholesale.
+  Remaining work:
+
+  - Lowering: transport the exact place/loan restoration debt through
+    `checked-trees-to-lowered-psi` using the ordinary partial-move, store and
+    control-flow relationships, without replacing the caller's storage by a
+    staged copy.
+  - Terminal: represent the window so `terminal-verifier` reconstructs it from
+    operations, loan authority and control flow, then execute it in the Terminal
+    interpreter and supported native targets.
+  - Checker: a move inside a match arm or on a transition edge still takes the
+    plain rejection, so branch-local extraction/repair and the reconvergence
+    agreement rule are unimplemented. A suspending or blocking call across an
+    open window rejects outright. Contained-loan transport and
+    recoverable-failure paths have no regression.
+
+  Acceptance: a consuming transform followed by replacement executes with
+  caller-visible updated contents and exact-once custody in the Terminal
+  interpreter and supported native targets, beside disjoint sibling work, repair
+  on both branches and contained-loan transport. Missing repair on one
+  returning branch, early return, stale field use, overlapping borrows,
+  wrong-place replacement, repeated extraction and whole-owner cleanup reject,
+  and tampered Terminal evidence fails independent replay. Outcome controls
+  cover recoverable failure, suspension/resume/cancellation custody and
+  crash/process-exit abandonment without invented rollback or survivor
+  guarantees. `src/tests/multiplicity/borrowed_restoration.rs` holds the
+  checker half. Do not add a recognizer for adjacent move/assignment
+  statements, weaken nominal-drop restrictions, or delete the rejection gate
+  wholesale; unsupported paths stay rejected until their evidence exists.
 
 - **MATCH-SELECTIVE-LOWERING.** Complete the [value-dispatch
   contract](wiki/spec/language/patterns.md) for owned/nonnumeric results with
