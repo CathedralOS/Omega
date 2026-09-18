@@ -231,12 +231,14 @@ impl<'program> FieldCoordinate<'program> {
             .map(|step| step.field_symbol)
             .chain([field_symbol])
             .collect::<Vec<_>>();
-        Self::for_parameter(program, parameter, &chain)
+        Self::for_parameter(program, parameter, &chain, false)
     }
 
     /// The coordinate an authored member chain names: every step an exact
     /// declared field, by resolved symbol and spelling, of the record before
-    /// it, rooted at a state formal.
+    /// it, rooted at a state formal. The leaf may be any exact unsigned
+    /// integer: a scalar rank subject or endpoint reads the projected
+    /// natural coordinate, not only the `u64` a declared field view emits.
     pub(super) fn resolve_projection(
         program: &'program TypedTrees,
         state: &State,
@@ -247,6 +249,7 @@ impl<'program> FieldCoordinate<'program> {
             program,
             parameter,
             &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
+            true,
         )?;
         let spelled_as_declared = chain
             .iter()
@@ -259,6 +262,7 @@ impl<'program> FieldCoordinate<'program> {
         program: &'program TypedTrees,
         parameter: &'program StateParameter,
         chain: &[SymbolHandle],
+        natural_leaf: bool,
     ) -> Option<Self> {
         // A mutable record still denotes its arrival value at an edge whose
         // evaluated prefix is proven to preserve its path; mutability is a
@@ -285,8 +289,24 @@ impl<'program> FieldCoordinate<'program> {
         }
         let (_, field) = declared_field(program, owner, *last)?;
         // The independently selected field view produces builtin u64.
-        // Other carriers need their own view-application proof.
-        if exact_integer_parameter(program, field.type_reference) != Some(PrimitiveType::U64) {
+        // Other carriers need their own view-application proof. An authored
+        // member chain read directly as a natural coordinate admits any exact
+        // unsigned leaf -- a signed field has no natural rank coordinate.
+        let leaf = exact_integer_parameter(program, field.type_reference);
+        let leaf_is_natural = if natural_leaf {
+            matches!(
+                leaf,
+                Some(
+                    PrimitiveType::U8
+                        | PrimitiveType::U16
+                        | PrimitiveType::U32
+                        | PrimitiveType::U64
+                )
+            )
+        } else {
+            leaf == Some(PrimitiveType::U64)
+        };
+        if !leaf_is_natural {
             return None;
         }
         let mut identity = format!("\0ranking:field:{:?}", parameter.symbol);
@@ -334,7 +354,9 @@ impl<'program> FieldCoordinate<'program> {
         if parameters.next().is_some() {
             return None;
         }
-        let coordinate = Self::for_parameter(program, parameter, &self.chain())?;
+        // The re-resolved chain lands on the same declared leaf by
+        // construction, so the natural-leaf check is the origin's own.
+        let coordinate = Self::for_parameter(program, parameter, &self.chain(), true)?;
         (coordinate.root == self.root).then_some(coordinate)
     }
 
@@ -477,7 +499,7 @@ impl<'program> FieldCoordinate<'program> {
             return None;
         }
         chain.extend(self.chain());
-        Self::for_parameter(program, carrier, &chain)
+        Self::for_parameter(program, carrier, &chain, true)
     }
 
     /// The value `expression` installs for this coordinate's chain when it

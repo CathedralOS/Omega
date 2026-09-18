@@ -14,6 +14,7 @@ mod identity;
 mod increasing;
 mod lexicographic;
 mod meaning;
+mod members;
 mod ranges;
 mod scratch_writes;
 mod slice;
