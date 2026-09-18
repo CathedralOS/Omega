@@ -253,3 +253,96 @@ fn scalar_computations_refuse_nonlocal_or_unestablished_assignment_destinations(
             .is_none()
     );
 }
+
+#[test]
+fn scalar_computations_keep_indexed_store_call_value() {
+    let checked = checked_source(
+        r#"
+        machine take() -> u8 { 7 }
+        data Main { cells: [u8; 8]; }
+        machine Main::main(&mut self) {
+            let i: u64 = 2;
+            self.cells[i] = take();
+        }
+        "#,
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let StatementNode::Assignment(assignment) = &statements[1] else {
+        panic!("indexed assignment");
+    };
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| root.state == state.symbol)
+        .collect::<Vec<_>>();
+    // The call-valued RHS keeps the same `AssignmentValue` coordinate a
+    // `Name`/`Member` store uses; the local-read index stays in the pure plan.
+    let [value_root] = roots.as_slice() else {
+        panic!("only the call value retains a computation root")
+    };
+    assert_eq!(value_root.statement_ordinal, 1);
+    assert_eq!(
+        value_root.role,
+        CheckedScalarExpressionRole::AssignmentValue
+    );
+    let value_node = plans.nodes.get(value_root.root);
+    assert_eq!(value_node.authored_root, assignment.value);
+    assert!(matches!(
+        value_node.kind,
+        CheckedScalarComputationKind::Call { .. }
+    ));
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                state.symbol,
+                1,
+                CheckedScalarExpressionRole::AssignmentIndex,
+            )
+            .is_some()
+    );
+}
+
+#[test]
+fn scalar_computations_do_not_duplicate_pure_indexed_store_operands() {
+    let checked = checked_source(
+        r#"
+        data Main { cells: [u8; 8]; }
+        machine Main::main(&mut self) {
+            let i: u64 = 2;
+            self.cells[i] = 7;
+        }
+        "#,
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    // Both operands are already pure rows at the same coordinates; no
+    // computation duplicates them.
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .find(|root| root.state == state.symbol)
+            .is_none()
+    );
+}

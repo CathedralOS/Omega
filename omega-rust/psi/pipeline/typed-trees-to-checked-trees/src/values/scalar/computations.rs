@@ -357,6 +357,49 @@ pub(crate) fn build_checked_value_computation_plans(
                             primitive_type,
                         );
                     }
+                    if let ExpressionNode::Indexed(indexed) =
+                        program.expression_table.expression(assignment.target)
+                    {
+                        // A scalar-indexed store evaluates its index operand
+                        // before its value. The pure plan already keeps the
+                        // same `AssignmentIndex`/`AssignmentValue` coordinates
+                        // for the operands it can carry; a range index is a
+                        // subslice endpoint pair, not a scalar store index.
+                        if !matches!(
+                            program.expression_table.expression(indexed.index),
+                            ExpressionNode::Range(_)
+                        ) {
+                            builder.record_root(
+                                pure,
+                                statement_ordinal,
+                                CheckedScalarExpressionRole::AssignmentIndex,
+                                indexed.index,
+                                PrimitiveType::U64,
+                            );
+                        }
+                        if let Some(primitive_type) =
+                            crate::flow::expression_type_reference_in_state(
+                                program,
+                                state.symbol,
+                                statement_index,
+                                assignment.target,
+                            )
+                            .and_then(|reference| {
+                                crate::values::scalar::expression_plans::assignment_target_primitive_type(
+                                    program,
+                                    reference,
+                                )
+                            })
+                        {
+                            builder.record_root(
+                                pure,
+                                statement_ordinal,
+                                CheckedScalarExpressionRole::AssignmentValue,
+                                assignment.value,
+                                primitive_type,
+                            );
+                        }
+                    }
                     if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)
                         && name.symbol.is_valid()
