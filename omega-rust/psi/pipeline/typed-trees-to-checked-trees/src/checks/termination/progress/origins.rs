@@ -155,7 +155,17 @@ fn call_result_place(
     {
         return None;
     }
-    let returned = callee_value_place(program, prefix, result, depth)?;
+    // `result_relative` is the demanded path into the call result; the callee
+    // trace applies it inside its own body so a returned constructor routes
+    // the demand to the operand that supplied that exact field or element.
+    let returned = callee_value_place(
+        program,
+        prefix,
+        result,
+        callee_state.return_type,
+        result_relative,
+        depth,
+    )?;
     let PlaceRoot::Symbol(root) = returned.root else {
         return None;
     };
@@ -185,9 +195,14 @@ fn call_result_place(
                 .position(|candidate| candidate.symbol == root)?,
         )?
     };
-    let mut relative = returned.segments;
-    relative.extend_from_slice(result_relative);
-    scope_argument_place(program, scope, actual, &relative, depth - 1)
+    scope_argument_place(
+        program,
+        scope,
+        actual,
+        parameter.type_reference,
+        &returned.segments,
+        depth - 1,
+    )
 }
 
 /// The call-bound argument's exact place in the ambient scope. The caller's
@@ -198,6 +213,7 @@ fn scope_argument_place(
     program: &TypedTrees,
     scope: ArgumentScope<'_>,
     actual: ExpressionHandle,
+    declared_type: TypeReferenceHandle,
     relative: &[PlaceSegment],
     depth: usize,
 ) -> Option<CanonicalPlace> {
@@ -237,21 +253,63 @@ fn scope_argument_place(
             }
         }
         ArgumentScope::Callee { prefix } => {
-            let mut source = callee_value_place(program, prefix, actual, depth)?;
-            source.segments.extend_from_slice(relative);
-            Some(source)
+            callee_value_place(program, prefix, actual, declared_type, relative, depth)
         }
     }
 }
 
-/// The returned expression's exact place in callee space. A parameter or an
-/// immutable local traced to its initializer qualifies, as does a nested
-/// checked call proven through the same result gate; every other root (an
-/// opaque expression, a mutable slot) stays unproven.
+/// The returned expression's exact place in callee space, under the demanded
+/// `relative` projection into its value. A parameter or an immutable local
+/// traced to its initializer qualifies, as does a nested checked call proven
+/// through the same result gate; every other root (an opaque expression, a
+/// mutable slot) stays unproven.
 fn callee_value_place(
     program: &TypedTrees,
     prefix: &[StatementNode],
     expression: ExpressionHandle,
+    declared_type: TypeReferenceHandle,
+    relative: &[PlaceSegment],
+    depth: usize,
+) -> Option<CanonicalPlace> {
+    if depth == 0 {
+        return None;
+    }
+    // A constructor has no storage of its own: the demanded projection
+    // arrives from the operand bound to that exact field or element, which
+    // then proves its own origin under the same leaf rules. A dynamic index
+    // or range names several operands, so it is not one exact origin.
+    if !relative.is_empty()
+        && matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+        )
+    {
+        let mut projections =
+            flow::literal_value_projections(program, expression, declared_type, relative, false)?;
+        if projections.len() != 1 {
+            return None;
+        }
+        let projection = projections.remove(0);
+        return callee_value_place_leaf(
+            program,
+            prefix,
+            projection.expression,
+            &projection.remaining,
+            depth - 1,
+        );
+    }
+    callee_value_place_leaf(program, prefix, expression, relative, depth)
+}
+
+/// The non-constructor leaf of `callee_value_place`. `relative` is appended
+/// after the expression's own path: for `local.field` under demanded `[x]`
+/// the initializer owes `[field, x]`, and a nested call owes the same
+/// composed path as its result projection.
+fn callee_value_place_leaf(
+    program: &TypedTrees,
+    prefix: &[StatementNode],
+    expression: ExpressionHandle,
+    relative: &[PlaceSegment],
     depth: usize,
 ) -> Option<CanonicalPlace> {
     if depth == 0 {
@@ -268,11 +326,13 @@ fn callee_value_place(
             let ExpressionNode::Call(nested) = program.expression_table.expression(rooted) else {
                 return None;
             };
+            let mut nested_relative = place.segments;
+            nested_relative.extend_from_slice(relative);
             return call_result_place(
                 program,
                 ArgumentScope::Callee { prefix },
                 nested,
-                &place.segments,
+                &nested_relative,
                 depth - 1,
             );
         }
@@ -282,14 +342,25 @@ fn callee_value_place(
         StatementNode::LocalData(local) if local.symbol == root => Some(local),
         _ => None,
     }) else {
+        let mut place = place;
+        place.segments.extend_from_slice(relative);
         return Some(place);
     };
     if local.is_mutable {
         return None;
     }
-    let mut source = callee_value_place(program, prefix, local.initial_value, depth - 1)?;
-    source.segments.extend_from_slice(&place.segments);
-    Some(source)
+    // The demanded path into the local's value applies to its initializer,
+    // including a constructor bound for later return.
+    let mut demanded = place.segments;
+    demanded.extend_from_slice(relative);
+    callee_value_place(
+        program,
+        prefix,
+        local.initial_value,
+        local.type_reference,
+        &demanded,
+        depth - 1,
+    )
 }
 
 /// A callee reads a frozen input but cannot change which storage it names:
