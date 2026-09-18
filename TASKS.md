@@ -4614,7 +4614,7 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   and production pipeline, passes the shared product suite, and publishes a
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
-  Resume (macOS ARM64, dd35ac7cb9 on d0371277e3): `omega --check
+  Resume (macOS ARM64, 4bfa009246 on eb6f223ce5): `omega --check
   source/omega/main.omg` runs the complete Psi checked stage and the std
   calling-policy admission and stops on one diagnostic, `root slot
   alpha_bootstrap::ProgramEntry belongs to unknown target profile
@@ -4642,34 +4642,50 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   CRASH-CONTRACT scope and neither declaration was kept. The parser gate
   (`source/psi/gates/parser/`; f6c762c501 harness reach/span fixes;
   5c40dd26b0 write-frame law, 3340.6 s kill to 174.4 s) completes the
-  checked stage in 1538.3 s wall / 1402.2 s user. dd35ac7cb9 gives its
-  receiver a Unit shape: a fixed array of a copy sum with payload cases
-  (`TokenStream.tokens: [Token; 16384]`) is now a material array element
-  (`execution/unit/types/build_types.rs`, Terminal already spells
-  `FixedArray` over `Sum`/`Mixed`; `tests/flow/terminal_unit/attached_receiver_shapes.rs`
-  pins the nine-shape probe and
-  `pass/structs/runtime_copy_sum_array_receiver_exit` exits 70 in the
-  interpreter and establishes its entry under the host target). The gate
-  now stops one state later, still on the establishment rejoin:
-  `ParserHarness::main` omission `statement sequence: call: call
-  operation`, state 2 (`retain`), statement 0, the attached call through
-  a nested receiver field with a cast argument
-  `self.lexer.append_source_byte(value as u8)`; the product `Main::main`
-  `retain` state is the same statement, so both legs of
-  `command_line::routed_production_entry_roots_pass_real_package_resolution`
-  wait on that call shape (and the product on OWNER_QUESTIONS 8). Native
-  production of the new fixture is not claimed either: its entry's
-  element store (`structural field store: scalar field type`) and element
-  load (`local data: structural call binding`) are separate Unit statement
-  slices. Known baseline reds met on the way (d0371277e3): `compiler
-  --test calling_policy_plans` fails 3 `macos_entry` tests on duplicate
-  std declarations, `validation` suite fails
+  checked stage and still stops on the establishment rejoin, one Unit
+  statement at a time: 587ae15689 gave its receiver a shape (a fixed
+  array of a copy sum with payload cases, `TokenStream.tokens: [Token;
+  16384]`, is a material array element; `pass/structs/runtime_copy_sum_array_receiver_exit`
+  exits 70 in the interpreter and establishes its entry), and
+  4bfa009246 retains exact integer cast evidence for call-statement
+  arguments so `retain`'s `self.lexer.append_source_byte(value as u8)`
+  plans on the `[0..=255]` payload bound the transition transports (the
+  nested receiver was never refused; `tests/flow/terminal_unit/call_argument_casts.rs`
+  pins the three probe shapes and
+  `pass/calls/runtime_nested_receiver_cast_argument_exit` exits 70 in
+  the interpreter and establishes its entry). The gate's next omission is
+  `statement sequence: call: call operation`, state 3 (`source_full`),
+  statement 1: `self.lexer.reject(LexDiagnosticCode::SourceCapacityExceeded,
+  length, length)`, an attached call through the nested receiver whose
+  first argument is a copy-enum case literal beside two ranged scalars;
+  the product `Main::main` has no such call, so its own next stop after
+  OWNER_QUESTIONS 8 is unmeasured. Gate check timing moved with main, not
+  with these commits: 1538.3 s wall / 1402.2 s user at d0371277e3 became
+  6463.8 s / 4370.1 s at 4bfa009246 and 6458.5 s / 4367.7 s with the
+  validation change reverted on the same base; a `sample` of the run sits
+  in `typed-trees-to-checked-trees` `flow::builder::build_flow_facts ->
+  state flow -> transition exits` calling `validation` write frames
+  (`permuted_cycle_frames`, `place_paths`, `stored_origins`), so one of
+  d0371277e3..fc633a98ae's call-frame commits (ca6e517527, 1544a206ec,
+  90cde5211e, f5d4abc290) is the likely cost and is unattributed here.
+  Native production of the two new fixtures is not claimed: their entry
+  statements stop at `structural field store: scalar field type`, `local
+  data: structural call binding` and `state graph: terminator: conditional
+  successors: parameter transfer` (a sum-literal state argument), separate
+  Unit slices, so both sit on the checked-only roster. Validation still
+  accepts an exact `i32 as u8` narrowing with no positive evidence (an
+  unbounded field source), contrary to counts_and_addresses.md; the Unit
+  builder fails closed on it. A user declaration spelled like a std one
+  (`ByteRead`, `Lexer`) makes std's own machines fail checking
+  (`read_line` `store` overflow, `MacosArm64::extent_shape` range), the
+  same family as the 3 red `calling_policy_plans::macos_entry` tests.
+  Known baseline reds met on the way (fc633a98ae): those 3 tests,
+  `validation` suite's
   `match_values::fresh_match_containers_cannot_hide_existing_owned_inputs_or_cleanup`,
-  `typed-trees-to-checked-trees --lib` fails 3 tests and carries 8 clippy
-  errors, `canary_suite` fails
-  `discovered_exact_native_coverage_is_consistent` (798 against 797) and
-  carries unused-import clippy errors on macOS, and the `control_flow/`
-  pass leg fails the same 23 fixtures.
+  `typed-trees-to-checked-trees --lib` 3 failures and 8 clippy errors,
+  `canary_suite`'s `discovered_exact_native_coverage_is_consistent` (798
+  against 797) and its unused-import clippy errors on macOS, and the
+  `control_flow/` pass leg's 23 fixtures.
 
 ## Platform-gated verification
 
