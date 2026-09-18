@@ -25,6 +25,11 @@ pub(super) fn validate_tails(
             if super::call_origin::installed_operation(node, optimized, native, plan)?.is_some() {
                 continue;
             }
+            // An evaluated normalized foreign call carries its own admitted
+            // provider execution; it is never a hosted process-exit tail.
+            if super::normalized_foreign::row(native, optimized.machine, psi_operation)?.is_some() {
+                continue;
+            }
             if matches!(
                 hosted_realization(native, optimized.machine, psi_operation)?,
                 BoundaryRealization::HostedExitProcessI32(_)

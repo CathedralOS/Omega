@@ -117,6 +117,10 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
             .arguments
             .iter()
             .any(|argument| argument.scalar_source() == Some(value)),
+        Instruction::NormalizedForeignCall(call) => call
+            .scalar_arguments
+            .iter()
+            .any(|argument| argument.source.source_value() == value),
         Instruction::SaturatingAdd { left, right, .. }
         | Instruction::SaturatingSubtract { left, right, .. }
         | Instruction::SaturatingDivide { left, right, .. }

@@ -4,8 +4,8 @@ use abstract_operations::ValueBinding;
 use calling_conventions::{CallPlan, ValuePlacement};
 use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, ValueDefinitionSite};
 use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, ScalarType,
-    StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, ScalarType, StructuralTypeId, ValueId,
 };
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::CrashRouteBucket;
@@ -97,6 +97,10 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
+                    LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
+                        .scalar_arguments
+                        .iter()
+                        .any(|argument| argument.source.source_value() == value),
                     LegalizedScalarInstructionKind::BooleanNot { operand }
                     | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
                         | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => {
@@ -291,6 +295,12 @@ pub enum LegalizedScalarInstructionKind {
     },
     Call(LegalizedScalarCall),
     BoundarySettlement(crate::LegalizedBoundarySettlement),
+    /// One evaluated normalized foreign boundary call. The typed locator,
+    /// admitted provider execution, and evaluated boundary-entry plan stay
+    /// bound to the exact scalar and structural argument rows it transports;
+    /// this kind never collapses into an authored `Call` or a compiler-builtin
+    /// `BoundarySettlement`.
+    NormalizedForeignCall(LegalizedNormalizedForeignCall),
     /// Addition clamped to the named carrier's bounds. The carrier is part of
     /// the kind so replay can reject a kind naming a different width than the
     /// source operation declares: clamping to the wrong bounds is a silent
@@ -486,6 +496,24 @@ impl LegalizedScalarArgument {
             Self::Structural { target, .. } => &target.destination,
         }
     }
+}
+
+/// One evaluated normalized foreign call retained beside scalar transport.
+///
+/// `provider_execution` and `binding` keep the exact admitted execution and
+/// the evaluated locator/entry-plan pair; they are evidence, not ambient
+/// lookup authority. `scalar_arguments` and `structural_arguments` retain the
+/// evaluated plan's exact ordered placements; `result_home` requires
+/// downstream assignment to preserve an optional fixed-integer result for
+/// later Unit operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedNormalizedForeignCall {
+    pub boundary: BoundaryMachineId,
+    pub provider_execution: target_operations::ProviderExecutionBinding,
+    pub binding: target_operations::NormalizedForeignCallBinding,
+    pub scalar_arguments: Vec<target_operations::NormalizedForeignScalarArgument>,
+    pub structural_arguments: Vec<target_operations::NormalizedForeignStructuralArgument>,
+    pub result_home: Option<target_operations::TargetUnitScalarHomeRequirement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

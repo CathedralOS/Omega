@@ -106,6 +106,10 @@ pub(super) fn folded_literal<'a>(
                     .arguments
                     .iter()
                     .any(|argument| argument.scalar_source() == Some(definition.value)),
+                LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
+                    .scalar_arguments
+                    .iter()
+                    .any(|argument| argument.source.source_value() == definition.value),
                 LegalizedScalarInstructionKind::SaturatingAdd { left, right, .. }
                 | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
                 | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }

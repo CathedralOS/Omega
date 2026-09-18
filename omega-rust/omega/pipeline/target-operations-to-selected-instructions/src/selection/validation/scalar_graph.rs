@@ -758,6 +758,7 @@ pub(in crate::selection) fn validate_with_environment(
                     }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
+                    | LegalizedScalarInstructionKind::NormalizedForeignCall(_)
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
                         return Err(invalid());

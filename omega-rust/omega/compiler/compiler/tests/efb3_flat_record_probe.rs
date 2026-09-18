@@ -184,12 +184,16 @@ impl ProviderExecutionEvidence for ProbeExecution {
 }
 
 /// Drive the flat-record `via` call past the Terminal artifact into retained
-/// native realization. Target lowering now carries the source-rooted
-/// structural argument, so the current frontier is the common instruction
-/// selection stage: source-custody legalization has no normalized-foreign
-/// structural lane yet. This pins that exact failure so the probe flips when
-/// the selection transport lands, at which point it must be promoted to the
-/// full custody and physical-child replay assertions.
+/// native realization. Source-custody legalization now projects the boundary
+/// call into a dedicated `NormalizedForeignCall` legalized instruction that
+/// carries the admitted provider execution, evaluated entry plan, ordered
+/// scalar rows, and the source-rooted structural argument, and independent
+/// replay re-derives and rejoins all of it. The current frontier is
+/// selection: the selected-instruction construction has no normalized-foreign
+/// transport yet and rejects the kind as an unsupported source shape. This
+/// pins that exact failure so the probe flips when the selection transport
+/// lands, at which point it must be promoted to the full custody and
+/// physical-child replay assertions.
 #[test]
 fn flat_record_via_call_native_realization_probe() {
     let probe = Probe::new();
@@ -322,7 +326,7 @@ fn flat_record_via_call_native_realization_probe() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        text.contains("Selection(Legalization(SourceCustodyMismatch))"),
-        "expected the known selection-stage source-custody frontier, got:\n{text}"
+        text.contains("Selection(Selection(UnsupportedSourceShape { function: 0 }))"),
+        "expected the known selected-instruction transport frontier, got:\n{text}"
     );
 }

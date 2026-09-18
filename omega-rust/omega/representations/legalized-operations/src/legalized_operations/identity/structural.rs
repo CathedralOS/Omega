@@ -7,7 +7,32 @@ pub(super) fn encode_boundary_settlement(
 ) {
     bytes.extend_from_slice(&settlement.operation.get().to_le_bytes());
     bytes.extend_from_slice(&settlement.boundary.get().to_le_bytes());
-    let execution = settlement.provider_execution;
+    encode_provider_execution(bytes, settlement.provider_execution);
+    bytes.push(1);
+    encode_len(bytes, settlement.arguments.len());
+    for argument in &settlement.arguments {
+        encode_structural_argument(bytes, argument);
+    }
+    encode_len(bytes, settlement.completion_claim_sources.len());
+    for source in &settlement.completion_claim_sources {
+        encode_completion_claim_source(bytes, source);
+    }
+    encode_len(bytes, settlement.completion_receipts.len());
+    for receipt in &settlement.completion_receipts {
+        bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
+        bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
+    }
+    encode_fuel(bytes, &settlement.fuel);
+    encode_effect(bytes, settlement.effect);
+    encode_ownership_roster(bytes, &settlement.ownership);
+}
+
+/// The complete admitted provider-execution coordinate set, shared by
+/// boundary settlements and evaluated normalized foreign calls.
+pub(super) fn encode_provider_execution(
+    bytes: &mut Vec<u8>,
+    execution: target_operations::ProviderExecutionBinding,
+) {
     bytes.extend_from_slice(
         &execution
             .provider_plan_report_identity()
@@ -26,23 +51,6 @@ pub(super) fn encode_boundary_settlement(
             .boundary_contract_report_fingerprint()
             .to_le_bytes(),
     );
-    bytes.push(1);
-    encode_len(bytes, settlement.arguments.len());
-    for argument in &settlement.arguments {
-        encode_structural_argument(bytes, argument);
-    }
-    encode_len(bytes, settlement.completion_claim_sources.len());
-    for source in &settlement.completion_claim_sources {
-        encode_completion_claim_source(bytes, source);
-    }
-    encode_len(bytes, settlement.completion_receipts.len());
-    for receipt in &settlement.completion_receipts {
-        bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
-        bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
-    }
-    encode_fuel(bytes, &settlement.fuel);
-    encode_effect(bytes, settlement.effect);
-    encode_ownership_roster(bytes, &settlement.ownership);
 }
 
 pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin) {

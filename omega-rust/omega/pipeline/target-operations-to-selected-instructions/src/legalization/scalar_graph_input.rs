@@ -22,6 +22,7 @@ pub(super) mod aggregate_results;
 mod byte_views;
 mod header;
 mod hosted_scalar;
+pub(in crate::legalization) mod normalized_foreign;
 pub(super) mod read_byte;
 pub(super) mod scalar_arrays;
 pub(super) mod structural_case;

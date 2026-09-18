@@ -63,6 +63,11 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                         .iter()
                         .filter_map(|argument| argument.scalar_source()),
                 ),
+                Instruction::NormalizedForeignCall(call) => pending.extend(
+                    call.scalar_arguments
+                        .iter()
+                        .map(|argument| argument.source.source_value()),
+                ),
                 Instruction::SaturatingAdd { left, right, .. }
                 | Instruction::SaturatingSubtract { left, right, .. }
                 | Instruction::SaturatingDivide { left, right, .. }

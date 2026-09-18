@@ -4,6 +4,7 @@
 pub(crate) mod byte_input;
 mod byte_output;
 mod ieee_literal_sources;
+mod normalized_foreign;
 mod plain_unit;
 mod primitive_stores;
 mod process_exit;
