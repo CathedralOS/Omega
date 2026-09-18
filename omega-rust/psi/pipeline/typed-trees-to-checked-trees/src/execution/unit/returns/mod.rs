@@ -10,21 +10,13 @@
 //! `primitive_effects.rs` and `selected_operator.rs` carry effects and
 //! selected operators.
 
-#[path = "affine_and_case_returns.rs"]
 mod affine_and_case_returns;
-#[path = "boundary_scalar_returns.rs"]
 mod boundary_scalar_returns;
-#[path = "guarded_call_returns.rs"]
 mod guarded_call_returns;
-#[path = "primitive_effects/build_primitive_effects.rs"]
 pub(super) mod primitive_effects;
-#[path = "scalar_return_expressions.rs"]
 mod scalar_return_expressions;
-#[path = "selected_operator.rs"]
 mod selected_operator;
-#[path = "structural_return_machine.rs"]
 mod structural_return_machine;
-#[path = "structural_scalar_returns.rs"]
 mod structural_scalar_returns;
 
 pub(crate) use boundary_scalar_returns::build_boundary_scalar_return_machine;

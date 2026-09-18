@@ -6,7 +6,6 @@ use checked_trees::{
 };
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 pub(super) fn complementary(

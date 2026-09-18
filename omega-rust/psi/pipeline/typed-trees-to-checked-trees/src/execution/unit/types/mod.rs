@@ -13,15 +13,12 @@ use super::{
 use checked_trees::CheckedStructuralPathQualification;
 use typed_trees::type_identity::TypeIdentityRequest;
 
-#[path = "scalar_fields.rs"]
 mod scalar_fields;
 
 #[cfg(test)]
-#[path = "partial_affine_ownership_tests.rs"]
 mod partial_affine_ownership_tests;
 
 #[cfg(test)]
-#[path = "arithmetic_policy_array_tests.rs"]
 mod arithmetic_policy_array_tests;
 
 pub(super) use validation::has_plain_owned_contents;

@@ -6,15 +6,10 @@
 //! cleanup machine and `cleanup_evidence.rs` recognizes content evidence,
 //! empty service reach and exact affine discards.
 
-#[path = "anonymous.rs"]
 pub(super) mod anonymous;
-#[path = "cleanup_evidence.rs"]
 mod cleanup_evidence;
-#[path = "nominal_requirements.rs"]
 mod nominal_requirements;
-#[path = "partial_affine_cleanup.rs"]
 mod partial_affine_cleanup;
-#[path = "residuals.rs"]
 mod residuals;
 
 pub(crate) use cleanup_evidence::{

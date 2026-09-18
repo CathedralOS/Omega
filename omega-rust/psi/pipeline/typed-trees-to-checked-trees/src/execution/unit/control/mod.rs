@@ -7,23 +7,14 @@
 //! when it declines a body) and `call_results.rs` binds call results to unit
 //! locals.
 
-#[path = "boundary_machine.rs"]
 mod boundary_machine;
-#[path = "call_occurrences.rs"]
 mod call_occurrences;
-#[path = "call_results.rs"]
 mod call_results;
-#[path = "checked_machine.rs"]
 mod checked_machine;
-#[path = "construction_trace.rs"]
 mod construction_trace;
-#[path = "scalar_arrays.rs"]
 mod scalar_arrays;
-#[path = "statement_sequence.rs"]
 pub(super) mod statement_sequence;
-#[path = "structural_operands.rs"]
 pub(super) mod structural_operands;
-#[path = "structural_unit_machine.rs"]
 mod structural_unit_machine;
 
 pub(crate) use boundary_machine::{build_boundary_machine, build_static_boundary_requirements};

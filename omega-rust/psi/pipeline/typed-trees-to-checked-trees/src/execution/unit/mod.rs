@@ -69,7 +69,7 @@ contract is ../../compiler/terminal-production/README.md relative to this crate.
 Erased parameters. An `[erased]` binding occurrence
 (contracts.md#explicit-erased-bindings) stays in the typed signature and in
 proof identity but owns no ABI position. Every signature builder here
-(calls/signatures.rs, calls/call_operations.rs, ../scalar/plan_scalar.rs)
+(calls/signatures.rs, calls/call_operations.rs, ../scalar/mod.rs)
 skips it, and every caller-side argument producer
 (values/scalar/computations.rs, values/scalar/call_lowering.rs,
 flow/transfers/scalar_values/calls.rs) numbers its dense argument ordinals over
@@ -153,44 +153,25 @@ use typed_trees::{
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
-#[path = "calls/build_calls.rs"]
 pub(crate) mod calls;
-#[path = "candidate_closure/build_candidate_closure.rs"]
 mod candidate_closure;
-#[path = "cleanup/build_cleanup.rs"]
 mod cleanup;
-#[path = "composed_control/build_composed_control.rs"]
 mod composed_control;
-#[path = "control/build_control.rs"]
 pub(crate) mod control;
-#[path = "dynamic_scalar_calls/build_dynamic_scalar_calls.rs"]
 mod dynamic_scalar_calls;
-#[path = "primitive_store.rs"]
 mod primitive_store;
-#[path = "providers.rs"]
 mod providers;
-#[path = "receiver_aliases/build_receiver_aliases.rs"]
 mod receiver_aliases;
-#[path = "receiver_calls/build_receiver_calls.rs"]
 mod receiver_calls;
 use validation::reference_result_custody as reference_results;
-#[path = "returns/build_returns.rs"]
 pub(crate) mod returns;
-#[path = "scalar_locals.rs"]
 mod scalar_locals;
-#[path = "scalar_targets/build_scalar_targets.rs"]
 mod scalar_targets;
-#[path = "selected_ieee_float.rs"]
 mod selected_ieee_float;
-#[path = "selected_operator.rs"]
 pub(super) mod selected_operator;
-#[path = "shared_convergence.rs"]
 pub(crate) mod shared_convergence;
-#[path = "state_graph/build_state_graph.rs"]
 mod state_graph;
-#[path = "structural_scalar_store/build_structural_scalar_store.rs"]
 mod structural_scalar_store;
-#[path = "types/build_types.rs"]
 pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;

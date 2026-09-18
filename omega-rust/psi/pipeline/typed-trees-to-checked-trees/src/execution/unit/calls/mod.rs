@@ -7,30 +7,18 @@
 //! remaining modules cover byte subslices, computation arguments and
 //! reference forwarding.
 
-#[path = "affine_locals.rs"]
 mod affine_locals;
-#[path = "argument_paths.rs"]
 mod argument_paths;
-#[path = "boundary_admission.rs"]
 mod boundary_admission;
-#[path = "byte_subslice.rs"]
 pub(super) mod byte_subslice;
-#[path = "call_operations.rs"]
 mod call_operations;
-#[path = "computation_arguments/build_computation_arguments.rs"]
 mod computation_arguments;
-#[path = "reference_forwarding/build_reference_forwarding.rs"]
 mod reference_forwarding;
-#[path = "result_arguments/build_result_arguments.rs"]
 mod result_arguments;
 #[cfg(test)]
-#[path = "scalar_argument_tests.rs"]
 mod scalar_argument_tests;
-#[path = "service_forward.rs"]
 mod service_forward;
-#[path = "signatures.rs"]
 mod signatures;
-#[path = "structural_arguments.rs"]
 mod structural_arguments;
 
 pub(crate) use affine_locals::{

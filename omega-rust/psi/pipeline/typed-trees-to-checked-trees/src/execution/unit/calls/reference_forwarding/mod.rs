@@ -326,5 +326,4 @@ fn preceding_byte_loan_preserves_carrier(
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

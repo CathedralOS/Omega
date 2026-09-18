@@ -18,7 +18,6 @@ use super::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
     StatementNode, SymbolHandle, TypedTrees,
 };
-#[path = "observations.rs"]
 mod observations;
 pub(super) use observations::reads_receiver;
 

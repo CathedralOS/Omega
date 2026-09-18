@@ -1941,7 +1941,7 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
         root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit");
     for (entrance, modules) in [
         (
-            typed.join("composed_control/build_composed_control.rs"),
+            typed.join("composed_control/mod.rs"),
             &[
                 "assembly",
                 "custody",
@@ -1972,7 +1972,15 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
     ] {
         let source = std::fs::read_to_string(&entrance)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", entrance.display()));
-        let directory = entrance.with_extension("");
+        // A folder's route is its `mod.rs`; a sibling route names the folder.
+        let directory = if entrance.file_name().is_some_and(|name| name == "mod.rs") {
+            entrance
+                .parent()
+                .expect("entrance has a folder")
+                .to_path_buf()
+        } else {
+            entrance.with_extension("")
+        };
         for module in modules {
             let declaration = format!("mod {module};");
             let explicit_source = source.find(&declaration).and_then(|offset| {
@@ -2007,7 +2015,7 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
         }
     }
     let typed_nested = typed.join("composed_control/nested_control");
-    let typed_nested_entrance = typed_nested.join("build_control.rs");
+    let typed_nested_entrance = typed_nested.join("mod.rs");
     let typed_nested_source =
         std::fs::read_to_string(&typed_nested_entrance).unwrap_or_else(|error| {
             panic!(

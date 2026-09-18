@@ -3,11 +3,8 @@ use super::{
 };
 use crate::execution::terminal_scalar::checked_branch_destination;
 
-#[path = "cyclic_owned.rs"]
 mod cyclic_owned;
-#[path = "primitive_locals.rs"]
 mod primitive_locals;
-#[path = "record_locals.rs"]
 mod record_locals;
 
 fn crash_source(cause: &str, guard: &str, prefix: &str) -> checked_trees::CheckedTrees {

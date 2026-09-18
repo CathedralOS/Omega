@@ -12,7 +12,6 @@ use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, state::State};
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 pub(super) fn validate(

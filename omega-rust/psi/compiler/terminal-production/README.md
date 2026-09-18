@@ -139,7 +139,7 @@ remain separate work; a Console-specific intrinsic would bypass this adapter.
 
 The [control-flow contract](../../../../wiki/spec/terminal-psi/control_flow.md)
 is broader than any one checked source family. The
-[composed Unit producer](../../pipeline/typed-trees-to-checked-trees/src/execution/unit/composed_control/build_composed_control.rs)
+[composed Unit producer](../../pipeline/typed-trees-to-checked-trees/src/execution/unit/composed_control/mod.rs)
 retains per-state operations, call coordinates, contracts, and service reach.
 Admission and emission rejoin the original checked calls and publish complete
 boundary/service/attachment catalogs; an unavailable child rejects the machine.
@@ -791,7 +791,7 @@ argument per consumer, with exact empty effect-free Unit disposers. Mixed
 argument effects/producers and non-Unit consumers need further support.
 
 The current construction-prefix parser in
-[call planning](../../pipeline/typed-trees-to-checked-trees/src/execution/unit/calls/build_calls.rs)
+[call planning](../../pipeline/typed-trees-to-checked-trees/src/execution/unit/calls/mod.rs)
 admits empty, unqualified, claim-free affine elements and fixed-array lengths
 through 26, with literal establishment of the all-but-last prefix. The general
 reverse-index cleanup rule is not limited to that bound. Wider or dynamic plans
