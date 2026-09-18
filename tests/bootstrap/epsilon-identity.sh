@@ -119,13 +119,14 @@ echo "receipt: a same-size divergent reconstruction is refused"
 for needle in \
   "$EPSILON_EVALUATOR_MANIFEST_SHA256" "$EPSILON_EVALUATOR_PACKED_SHA256" \
   "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
-  "617,354"
+  "15,163" "617,354"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/README.md" ||
     fail "bootstrap/4_epsilon/README.md lacks bound record $needle"
 done
 for needle in \
-  "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SHA256"
+  "$EPSILON_EXECUTION_DRIVER_SHA256" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
+  "617,354" "2,565" "721,484"
 do
   grep -q "$needle" \
     "$OMEGA_REPO_ROOT/tests/epsilon/interpreted-omega-experiment/README.md" ||
@@ -135,6 +136,20 @@ for needle in "$EPSILON_EVALUATOR_PACKED_SIZE" "$EPSILON_EVALUATOR_PACKED_SHA256
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/epsilon/checking/run.sh" ||
     fail "epsilon checking gate lacks bound record $needle"
+done
+for record in \
+  tests/bootstrap/omega-parser/gate.py \
+  tests/bootstrap/omega-outcome/gate.py \
+  tests/bootstrap/source-closure.py \
+  tests/epsilon/array-storage/gate.py \
+  tests/epsilon/interpreted-omega-experiment/run.sh
+do
+  for needle in \
+    "$EPSILON_EVALUATOR_PACKED_SIZE" "$EPSILON_EVALUATOR_PACKED_SHA256"
+  do
+    grep -q "$needle" "$OMEGA_REPO_ROOT/$record" ||
+      fail "$record lacks bound evaluator-closure record $needle"
+  done
 done
 for gate in \
   tests/bootstrap/omega-parser/gate.py \
@@ -151,6 +166,14 @@ do
       fail "$gate lacks bound record $needle"
   done
 done
-echo "records: bound identities match the rung README, the driver owner README, and every consuming gate"
+for needle in \
+  "$EPSILON_EVALUATOR_PACKED_SHA256" "$EPSILON_EXECUTION_DRIVER_SHA256" \
+  "$EPSILON_EVALUATOR_RECEIPT_SHA256" "617,354" "2,565" "721,484"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/EVALUATOR_PROFILE.md" ||
+    fail "4_epsilon EVALUATOR_PROFILE.md lacks bound record $needle"
+done
+echo "records: bound identities match the rung README, the edge profile, the driver owner README, and every consuming gate"
 
 echo "Epsilon identity: bound closure materialized exactly; corrupted manifest, member, driver, and receipt refused"

@@ -110,6 +110,37 @@ done
 grep -q "$GAMMA_EVALUATOR_TAPE_SHA256" \
   "$OMEGA_REPO_ROOT/bootstrap/3_delta/delta_compiler.composed" ||
   fail "delta_compiler.composed lacks bound evaluator identity"
-echo "records: bound identities match EVALUATOR_PROFILE.md, evaluator.tsv, and delta_compiler.composed"
+for needle in \
+  "$GAMMA_EVALUATOR_SOURCE_SIZE" "$GAMMA_EVALUATOR_SOURCE_SHA256" \
+  "$GAMMA_EVALUATOR_TAPE_SIZE" "$GAMMA_EVALUATOR_TAPE_SHA256"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/tests/gamma/evaluator-development/run.sh" ||
+    fail "evaluator-development gate lacks bound record $needle"
+done
+for needle in "$GAMMA_EVALUATOR_TAPE_SHA256" "8,575"
+do
+  grep -q "$needle" \
+    "$OMEGA_REPO_ROOT/bootstrap/4_epsilon/EVALUATOR_PROFILE.md" ||
+    fail "4_epsilon EVALUATOR_PROFILE.md lacks bound record $needle"
+done
+for record in \
+  tests/gamma/evaluator-development/README.md \
+  bootstrap/proofs/checker/FORMAT.md \
+  bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md \
+  bootstrap/proofs/beta_encoding/PROFILE.md
+do
+  grep -q "47,748" "$OMEGA_REPO_ROOT/$record" ||
+    fail "$record lacks bound source record 47,748"
+done
+for record in \
+  tests/gamma/evaluator-development/README.md \
+  bootstrap/proofs/checker/FORMAT.md \
+  bootstrap/proofs/beta_encoding/PROFILE.md
+do
+  grep -q "8,575" "$OMEGA_REPO_ROOT/$record" ||
+    fail "$record lacks bound tape record 8,575"
+done
+echo "records: bound identities match EVALUATOR_PROFILE.md, evaluator.tsv, delta_compiler.composed, the evaluator-development gate and README, the proofs subject records, and the Epsilon edge profile"
 
 echo "Gamma identity: selected evaluator stamped exactly; corrupted and truncated sources and tapes refused"
