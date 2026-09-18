@@ -789,6 +789,56 @@ fn normalized_source(
     }
 }
 
+/// An `EstablishReference` whose source ends in `Referent` beneath an owned
+/// record carrier selects that carrier's leaf rather than borrowing through
+/// it: the leaf re-homes under the result root and the carrier is consumed
+/// whole. The move is only exact when the carrier's declared reference roster
+/// is that one leaf — a partial leaf move would strand sibling custody under
+/// a consumed place. A reference-typed carrier is the loan itself, so forming
+/// `&mut *r` keeps the ordinary child-loan lane instead of consuming `r`.
+pub(super) fn establishment_moves_leaf(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    live: &[LiveReference],
+    operation: &terminal_psi::Operation,
+) -> Option<(PlaceId, usize)> {
+    let OperationKind::EstablishReference { source } = &operation.kind else {
+        return None;
+    };
+    let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() else {
+        return None;
+    };
+    let (position, leaf) = live.iter().enumerate().find(|(_, reference)| {
+        reference.carrier == source.place && reference.carrier_path == carrier_path
+    })?;
+    if leaf.parent != ReferenceParent::Root(leaf.root.clone()) {
+        return None;
+    }
+    let signature = super::structural_result_contracts::source_signature(machine, source.place)?;
+    if matches!(
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == signature.structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::Reference { .. })
+    ) {
+        return None;
+    }
+    let paths = leaf_paths(module, signature.structural_type, live.len())?;
+    (paths.len() == 1
+        && paths[0].as_slice() == carrier_path
+        && live
+            .iter()
+            .filter(|reference| reference.carrier == source.place)
+            .count()
+            == 1
+        && !live.iter().any(|child| {
+            matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &leaf.identity)
+        }))
+    .then_some((source.place, position))
+}
+
 pub(super) fn release(
     machine: &TerminalMachine,
     live: &mut Vec<LiveReference>,
@@ -1094,7 +1144,13 @@ pub(super) fn apply_operation(
         }
     }
     let sources = match &operation.kind {
-        OperationKind::EstablishReference { source } => vec![(Vec::new(), source.clone(), false)],
+        OperationKind::EstablishReference { source } => {
+            let transfers_existing = establishment_moves_leaf(module, machine, live, operation);
+            if let Some((_, position)) = transfers_existing {
+                moved.insert(live[position].identity.clone());
+            }
+            vec![(Vec::new(), source.clone(), transfers_existing.is_some())]
+        }
         OperationKind::CallStructural {
             callee,
             structural_arguments,

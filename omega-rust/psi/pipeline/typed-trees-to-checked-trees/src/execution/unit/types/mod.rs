@@ -72,9 +72,20 @@ pub(super) fn return_unit_affine_discards(
                 .filter(|argument| argument.access == CheckedStructuralAccess::Owned)
                 .filter_map(|argument| argument.source_parameter_index())
                 .collect::<Vec<_>>(),
+            CheckedUnitEffectOperationPlan::EstablishReference { source, .. } => {
+                // A projected reference establishment moves its carrier's
+                // leaf into the result and consumes the carrier whole; the
+                // carrier owes no separate exit discard. The whole-ingress
+                // lane keeps an empty path and leaves the borrowed parameter
+                // on the ordinary roster.
+                if source.path.is_empty() {
+                    Vec::new()
+                } else {
+                    source.source_parameter_index().into_iter().collect()
+                }
+            }
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
             | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }

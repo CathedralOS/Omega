@@ -28,10 +28,6 @@ pub(super) fn validate_establishment(
     };
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
-    let position = validation::reference_result_custody::source_parameter(&checked.typed, state)
-        .ok_or(LoweringError::Unsupported(
-            "reference completion has no exact ingress source",
-        ))?;
     let returned = machine
         .structural_result
         .as_ref()
@@ -51,12 +47,30 @@ pub(super) fn validate_establishment(
         .ok_or(LoweringError::Unsupported(
             "reference ingress parameter is absent",
         ))?;
-    if parameter.position as usize != position
-        || parameter.access != CheckedStructuralAccess::MutableBorrow
-        || parameter.access != source.access
-        || parameter.type_identity != source.type_identity
-        || !parameter.qualifications.is_empty()
-        || !source.path.is_empty()
+    // The checked plan carries the whole-ingress shape and the projected
+    // leaf shape in the same fields; reconstructing the authored tail selects
+    // exactly one.
+    let exact_ingress = if let Some(position) =
+        validation::reference_result_custody::source_parameter(&checked.typed, state)
+    {
+        parameter.position as usize == position
+            && parameter.access == CheckedStructuralAccess::MutableBorrow
+            && parameter.access == source.access
+            && parameter.type_identity == source.type_identity
+            && parameter.qualifications.is_empty()
+            && source.path.is_empty()
+    } else if let Some((position, expected)) =
+        validation::reference_result_custody::source_leaf(&checked.typed, state)
+    {
+        parameter.position as usize == position
+            && parameter.access == CheckedStructuralAccess::Owned
+            && parameter.multiplicity == Multiplicity::Affine
+            && parameter.qualifications.is_empty()
+            && expected == *source
+    } else {
+        return unsupported("reference completion has no exact ingress source");
+    };
+    if !exact_ingress
         || !reference.path.is_empty()
         || reference.source != *source
         || binding.multiplicity != Multiplicity::Affine
