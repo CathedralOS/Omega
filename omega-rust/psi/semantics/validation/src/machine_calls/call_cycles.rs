@@ -17,7 +17,7 @@ use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
 
-mod runtime_ranking;
+pub(crate) mod runtime_ranking;
 
 #[cfg(test)]
 mod query_tests;

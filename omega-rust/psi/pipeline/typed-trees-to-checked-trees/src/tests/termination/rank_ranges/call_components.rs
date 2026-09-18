@@ -576,6 +576,78 @@ fn reject_requires(source: &str) {
     );
 }
 
+const SUBORDINATE_REQUIRES: &str = r#"
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.outer(6, 4) }
+}
+
+machine Main::outer(&mut self, cap: u64, remaining: u64)
+requires remaining <= cap;
+terminates by remaining in 0..=cap;
+-> u64 {
+    transition remaining > 0 {
+        true -> hold(remaining, cap)
+        false -> remaining
+    }
+    state hold(pending: u64, bound: u64) {
+        transition pending > 0 {
+            true -> self.inner(pending, bound)
+            false -> pending
+        }
+    }
+}
+
+machine Main::inner(&mut self, n: u64, limit: u64)
+requires n <= limit;
+terminates by n;
+-> u64 {
+    transition n > 0 && n <= limit {
+        true -> self.outer(limit, n - 1)
+        false -> n
+    }
+}
+"#;
+
+#[test]
+fn subordinate_call_reads_the_caller_members_proven_range_invariant() {
+    prove(SUBORDINATE_REQUIRES);
+    // The invariant supplies exactly the comparisons it proves: a strictly
+    // stronger requirement, or one the carried facts do not establish,
+    // still has no site evidence.
+    reject_requires(&SUBORDINATE_REQUIRES.replace("requires n <= limit;", "requires n < limit;"));
+    reject_requires(&SUBORDINATE_REQUIRES.replace(
+        "requires n <= limit;",
+        "requires n <= limit && limit <= 42;",
+    ));
+    // An actual that is not the carried endpoint leaves the ceiling
+    // unpinned at the component edge even though `pending <= pending`
+    // remains provable.
+    reject(
+        &SUBORDINATE_REQUIRES.replace("self.inner(pending, bound)", "self.inner(pending, pending)"),
+    );
+    // An arrival the member cannot pin fails its own state-edge judgment
+    // rather than feeding a stale premise into the requires proof, and an
+    // intervening write to a required carrier does the same.
+    reject(
+        &SUBORDINATE_REQUIRES
+            .replace(
+                "transition remaining > 0 {",
+                "transition remaining > 0 && cap > 0 {",
+            )
+            .replace("hold(remaining, cap)", "hold(remaining, cap - 1)"),
+    );
+    reject(
+        &SUBORDINATE_REQUIRES
+            .replace("pending: u64, bound: u64)", "pending: u64, mut bound: u64)")
+            .replace(
+                "        transition pending > 0 {",
+                "        bound = bound; transition pending > 0 {",
+            ),
+    );
+}
+
 const MIXED_STATEFUL: &str = r#"
 data Main {}
 machine Main::outer(&mut self, cap: u64, remaining: u64)
@@ -645,12 +717,13 @@ fn mixed_component_conserves_endpoints_through_internal_state_calls() {
             .replace("hold(remaining, cap)", "hold(remaining, cap - 1)"),
     );
     reject(&MIXED_STATEFUL.replace("requires remaining <= cap;\n", ""));
-    // The private range invariant discharges the private ranking obligation
-    // only. A callee's public `requires` is ordinary contract application at
-    // the site, so it still needs the site's own evidence.
+    // A callee's public `requires` is ordinary contract application at the
+    // site, and the member's own proven range invariant is the site's
+    // established evidence for it: `pending <= bound` discharges
+    // `n <= limit` without a respelled guard.
     let public =
         MIXED_STATEFUL.replace("terminates by n;", "requires n <= limit;\nterminates by n;");
-    reject_requires(&public);
+    prove(&public);
     prove(&public.replace("pending > 0", "pending > 0 && pending <= bound"));
 }
 
@@ -713,15 +786,17 @@ fn ranged_slice_member_calls_from_a_subordinate_state_under_its_own_invariant() 
             .replace("hold(entries, capacity)", "hold(entries, capacity - 1)"),
     );
     reject(&SLICE_STATEFUL.replace("requires entries.len <= capacity;\n", ""));
-    // A ranged callee's public `requires` is not discharged by the caller's
-    // private invariant; the site guard must still carry it.
+    // A ranged callee's public `requires` is discharged by the caller
+    // member's own proven invariant: the carried collection's produced
+    // length is the rank, so `pending.len <= bound` is established site
+    // evidence for `rest.len <= capacity`.
     let public = SLICE_STATEFUL
         .replace(
             "terminates by rest -> Slice::Length;",
             "requires rest.len <= capacity;\nterminates by rest -> Slice::Length in 0..=capacity;",
         )
         .replace("rest.len > 0 && rest.len <= capacity", "rest.len > 0");
-    reject_requires(&public);
+    prove(&public);
     prove(&public.replace("pending.len > 0", "pending.len > 0 && pending.len <= bound"));
 }
 
