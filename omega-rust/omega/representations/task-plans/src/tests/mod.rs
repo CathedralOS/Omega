@@ -4,6 +4,7 @@
 mod activation_plans;
 mod executor_selection;
 mod lifecycle_ledger;
+mod provider_admission;
 mod runtime_invocation;
 mod start_transaction;
 
@@ -12,9 +13,9 @@ use crate::{
     CanonicalSuspensionCrossing, ExecutorPreservationAxis, ExecutorPreservationEvidence,
     ExecutorPreservationEvidenceId, MachineContractId, MachineEntryId, MovedTaskArguments,
     SelectedTaskRuntimeProviderFact, StackLease, StackLeaseBacking, StackPlan,
-    StackRepresentationId, SuspensionCrossingId, TaskActivationPlanFact, TaskArgumentCustodyId,
-    TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationId,
-    TaskRuntimeInvocationReceiptCandidate, TaskRuntimeInvocationReceiptId,
+    StackRepresentationId, SuspensionCrossingId, TaskActivationPlanFact, TaskActivationPlanSet,
+    TaskArgumentCustodyId, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
+    TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptCandidate, TaskRuntimeInvocationReceiptId,
     TaskSpecializationCommitment, TaskStackFrameId, TaskStackFrameSummary,
     TaskStackFrameValidationId, TaskStartOperation, TaskStorageLeaseId, TaskStorageOwnerId,
     TaskStorageProvenance, ValidatedActivationPlan, ValidatedTaskRuntimeInvocationReceipt,
@@ -111,19 +112,62 @@ fn moved_arguments(plan: &ValidatedActivationPlan, custody: u64) -> MovedTaskArg
 }
 
 fn activation_fact(plan: &ValidatedActivationPlan) -> TaskActivationPlanFact {
+    activation_fact_for(plan, TaskStartOperation::Start)
+}
+
+fn activation_fact_for(
+    plan: &ValidatedActivationPlan,
+    operation: TaskStartOperation,
+) -> TaskActivationPlanFact {
     TaskActivationPlanFact {
         start_requirement: symbols::SymbolHandle::invalid(),
         target_machine: symbols::SymbolHandle::invalid(),
         target_entry: symbols::SymbolHandle::invalid(),
         specialization_report_fingerprint: 79,
         specialization_commitment: TaskSpecializationCommitment::from_digest([7; 32]),
-        operation: TaskStartOperation::Start,
+        operation,
         selected_runtime: SelectedTaskRuntimeProviderFact {
             runtime: runtime(),
             provider_plan_name: "LocalTaskRuntime::satisfies::TaskRuntime".into(),
             requirement_identity: "TaskRuntime::start".into(),
         },
         plan: plan.clone(),
+    }
+}
+
+fn activation_set(plan: &ValidatedActivationPlan) -> TaskActivationPlanSet {
+    TaskActivationPlanSet {
+        activations: vec![activation_fact(plan)],
+    }
+}
+
+fn receipt_candidate(
+    plan: &ValidatedActivationPlan,
+    instance: TaskRuntimeInstanceId,
+    invocation: u64,
+    receipt: u64,
+    operation: TaskStartOperation,
+) -> TaskRuntimeInvocationReceiptCandidate {
+    let activation = activation_fact_for(plan, operation);
+    TaskRuntimeInvocationReceiptCandidate {
+        receipt: id(
+            receipt,
+            TaskRuntimeInvocationReceiptId::from_normalized_identity,
+        ),
+        invocation: id(
+            invocation,
+            TaskRuntimeInvocationId::from_normalized_identity,
+        ),
+        runtime: runtime(),
+        runtime_instance: instance,
+        operation,
+        provider_plan_name: activation.selected_runtime.provider_plan_name.clone(),
+        requirement_identity: activation.selected_runtime.requirement_identity.clone(),
+        activation_plan: plan.normalized_identity(),
+        preservation: vec![ExecutorPreservationEvidence::new(
+            ExecutorPreservationAxis::Cpu,
+            id(81, ExecutorPreservationEvidenceId::from_normalized_identity),
+        )],
     }
 }
 
@@ -136,26 +180,13 @@ fn invocation_receipt(
     let activation = activation_fact(plan);
     validate_task_runtime_invocation_receipt(
         &activation,
-        TaskRuntimeInvocationReceiptCandidate {
-            receipt: id(
-                receipt,
-                TaskRuntimeInvocationReceiptId::from_normalized_identity,
-            ),
-            invocation: id(
-                invocation,
-                TaskRuntimeInvocationId::from_normalized_identity,
-            ),
-            runtime: runtime(),
-            runtime_instance: instance,
-            operation: TaskStartOperation::Start,
-            provider_plan_name: activation.selected_runtime.provider_plan_name.clone(),
-            requirement_identity: activation.selected_runtime.requirement_identity.clone(),
-            activation_plan: plan.normalized_identity(),
-            preservation: vec![ExecutorPreservationEvidence::new(
-                ExecutorPreservationAxis::Cpu,
-                id(81, ExecutorPreservationEvidenceId::from_normalized_identity),
-            )],
-        },
+        receipt_candidate(
+            plan,
+            instance,
+            invocation,
+            receipt,
+            TaskStartOperation::Start,
+        ),
     )
     .expect("matching task runtime invocation receipt")
 }
