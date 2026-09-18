@@ -4,7 +4,7 @@
 //! correspondence or a call hypothesis could name a different value than the
 //! member's own termination witness proves.
 
-use super::fields::record_referent;
+use super::fields::{collect_record_paths, record_referent};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -509,12 +509,15 @@ fn argument_mapping(
 }
 
 /// A dependency-free record actual can still carry the ranked role: when the
-/// destination has exactly one formal of the rank subject's own record type,
-/// that slot is the only candidate the field view can read. The role claims
-/// nothing about value ancestry — the arrival's field values are substituted
-/// and proved independently. Multiple owner-typed formals keep the slot
-/// role-less rather than guessing between records. Returns the shared record
-/// owner symbol when this position is the unique carrier.
+/// destination has exactly one formal whose own record can hold the rank
+/// subject's lineage -- the subject's record itself, a record containing it
+/// at a unique nested path, or a record its coordinate chain reaches partway
+/// -- that slot is the only candidate the field view can read. The role
+/// claims nothing about value ancestry — the arrival's field values are
+/// substituted and proved independently. Multiple candidate formals keep the
+/// slot role-less rather than guessing between records. Returns the slot's
+/// own referent record when this position is the unique carrier, so a
+/// discovered lineage through that exact record still outranks the claim.
 fn fresh_record_carrier(
     program: &TypedTrees,
     machine: &Machine,
@@ -540,8 +543,25 @@ fn fresh_record_carrier(
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     let mut carriers = target_parameters.iter().filter(|parameter| {
-        record_referent(program, parameter.type_reference)
-            .is_some_and(|(referent, _)| referent == owner)
+        let Some((referent, _)) = record_referent(program, parameter.type_reference) else {
+            return false;
+        };
+        if referent == owner {
+            return true;
+        }
+        // The formal may instead carry the role at a nested path -- its own
+        // record contains the subject's -- or be the record the subject's
+        // coordinate chain reaches partway. Either carriage demands the one
+        // unique path the arrival judgment resolves; two readings stay a
+        // guess and a reversed direction still names this slot's record.
+        let mut nested = Vec::new();
+        collect_record_paths(program, referent, owner, &mut nested);
+        if !nested.is_empty() {
+            return nested.len() == 1;
+        }
+        let mut boundary = Vec::new();
+        collect_record_paths(program, owner, referent, &mut boundary);
+        boundary.len() == 1
     });
     let formal = carriers.next()?;
     if carriers.next().is_none()
@@ -549,7 +569,7 @@ fn fresh_record_carrier(
             .get(position)
             .is_some_and(|parameter| parameter.symbol == formal.symbol)
     {
-        Some(owner)
+        record_referent(program, formal.type_reference).map(|(referent, _)| referent)
     } else {
         None
     }

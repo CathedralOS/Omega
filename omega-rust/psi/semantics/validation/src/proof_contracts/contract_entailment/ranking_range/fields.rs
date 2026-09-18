@@ -356,8 +356,70 @@ impl<'program> FieldCoordinate<'program> {
         }
         // The re-resolved chain lands on the same declared leaf by
         // construction, so the natural-leaf check is the origin's own.
-        let coordinate = Self::for_parameter(program, parameter, &self.chain(), true)?;
-        (coordinate.root == self.root).then_some(coordinate)
+        let chain = self.chain();
+        if let Some(coordinate) = Self::for_parameter(program, parameter, &chain, true)
+            && coordinate.root == self.root
+        {
+            return Some(coordinate);
+        }
+        // The role may instead arrive nested inside the carrier formal's own
+        // record -- `pair.left` carries `countdown` -- or as a record this
+        // chain descends partway -- `pending` is `countdown.inner` itself.
+        // The formal's declaration must admit exactly one such reading; two
+        // readings leave the carriage ambiguous and keep no coordinate.
+        let chain = self.arrival_chain(program, parameter)?;
+        Self::for_parameter(program, parameter, &chain, true)
+    }
+
+    /// The chain this coordinate becomes when `parameter`'s record carries
+    /// the role at a nested path: the formal's declaration contains one of
+    /// this chain's intermediate records at a unique field path, or the
+    /// formal is itself a record this chain reaches partway. Each candidate
+    /// is a distinct reading of the same role, so zero or two stay role-less
+    /// rather than guess which record the arrival meant.
+    fn arrival_chain(
+        &self,
+        program: &'program TypedTrees,
+        parameter: &'program StateParameter,
+    ) -> Option<Vec<SymbolHandle>> {
+        let chain = self.chain();
+        let (formal_record, _) = record_referent(program, parameter.type_reference)?;
+        // `boundaries[i]` is the record this chain reaches after `chain[..i]`
+        // under its own root -- the owner `chain[i]` resolves against. A
+        // carrier formal can denote any of them through its own fields.
+        let mut boundaries = Vec::with_capacity(self.steps.len() + 1);
+        boundaries.push(self.root);
+        for step in &self.steps {
+            let TypeReferenceNode::Named { symbol: next, .. } = program
+                .type_reference_table
+                .type_reference(unwrap_constraint_shells(program, step.type_reference))
+            else {
+                return None;
+            };
+            boundaries.push(*next);
+        }
+        let mut candidates: Vec<Vec<SymbolHandle>> = Vec::new();
+        for (boundary, target) in boundaries.iter().enumerate() {
+            let mut prefixes = Vec::new();
+            collect_record_paths(program, formal_record, *target, &mut prefixes);
+            for mut prefix in prefixes {
+                if boundary == 0 && prefix.is_empty() {
+                    // The direct reading was already judged by the caller.
+                    continue;
+                }
+                prefix.extend(&chain[boundary..]);
+                if !candidates.contains(&prefix) {
+                    candidates.push(prefix);
+                }
+                if candidates.len() > 1 {
+                    return None;
+                }
+            }
+        }
+        let [resolved] = candidates.as_slice() else {
+            return None;
+        };
+        Some(resolved.clone())
     }
 
     pub(super) fn value(&self) -> Polynomial {
@@ -425,8 +487,19 @@ impl<'program> FieldCoordinate<'program> {
         }
         let mut owner = self.root;
         for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
-            if depth > 0 && self.is_prefix_projection(program, state, current, depth) {
-                return Some(self.value());
+            if depth > 0
+                && let Some((carrier, prefix)) = rooted_carrier(program, state, current)
+            {
+                // `current` names the record this step reads through a
+                // carrier instead of a literal: a formal forward or a member
+                // projection inside the rebuilt record. Its prefix must land
+                // on the record the chain expects at this step; the remaining
+                // chain then resolves under the carrier's own declaration, so
+                // a forward of this coordinate's own prefix keeps this
+                // coordinate itself.
+                return self
+                    .through_carrier_at(program, carrier, &prefix, owner, depth)
+                    .map(|coordinate| coordinate.value());
             }
             current = unique_literal_field(program, current, owner, field)?;
             if let TypeReferenceNode::Named { symbol, .. } = program
@@ -479,8 +552,24 @@ impl<'program> FieldCoordinate<'program> {
         carrier: &'program StateParameter,
         prefix: &[(SymbolHandle, &Identifier)],
     ) -> Option<Self> {
+        self.through_carrier_at(program, carrier, prefix, self.root, 0)
+    }
+
+    /// The coordinate this chain reads when `carrier.prefix` supplies the
+    /// record `expected` at chain position `depth`: the prefix walks the
+    /// carrier's own declaration, must land on `expected`, and the remaining
+    /// chain steps resolve there. A prefix landing on any other record names
+    /// a different carriage, not this coordinate.
+    fn through_carrier_at(
+        &self,
+        program: &'program TypedTrees,
+        carrier: &'program StateParameter,
+        prefix: &[(SymbolHandle, &Identifier)],
+        expected: SymbolHandle,
+        depth: usize,
+    ) -> Option<Self> {
         let (carrier_root, _) = record_referent(program, carrier.type_reference)?;
-        let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1);
+        let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1 - depth);
         let mut owner = carrier_root;
         for (symbol, _) in prefix {
             let (_, field) = declared_field(program, owner, *symbol)?;
@@ -495,10 +584,10 @@ impl<'program> FieldCoordinate<'program> {
             chain.push(*symbol);
             owner = *next;
         }
-        if owner != self.root {
+        if owner != expected {
             return None;
         }
-        chain.extend(self.chain());
+        chain.extend(self.chain().into_iter().skip(depth));
         Self::for_parameter(program, carrier, &chain, true)
     }
 
@@ -531,7 +620,18 @@ impl<'program> FieldCoordinate<'program> {
             return Some(self.through_carrier(program, carrier, &prefix)?.value());
         }
         let mut owner = self.root;
-        for field in self.steps.iter().chain([&self.field]) {
+        for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
+            if depth > 0
+                && let Some((carrier, prefix)) = rooted_carrier(program, state, current)
+            {
+                // As in `actual`: a literal field value may itself name a
+                // record through a carrier's projection prefix; the prefix
+                // must land on the record this chain expects at this step
+                // before the remaining steps resume under its declaration.
+                return self
+                    .through_carrier_at(program, carrier, &prefix, owner, depth)
+                    .map(|coordinate| coordinate.value());
+            }
             current = unique_literal_field(program, current, owner, field)?;
             if let TypeReferenceNode::Named { symbol, .. } = program
                 .type_reference_table
@@ -541,27 +641,6 @@ impl<'program> FieldCoordinate<'program> {
             }
         }
         engine.normalize(current)
-    }
-
-    /// `expression` is exactly `parameter.steps[..depth]`: the same formal
-    /// projected through the first `depth` steps of this chain.
-    fn is_prefix_projection(
-        &self,
-        program: &TypedTrees,
-        state: &State,
-        expression: ExpressionHandle,
-        depth: usize,
-    ) -> bool {
-        member_chain(program, state, expression).is_some_and(|(parameter, chain)| {
-            parameter.symbol == self.parameter.symbol
-                && chain.len() == depth
-                && chain
-                    .iter()
-                    .zip(&self.steps)
-                    .all(|((symbol, spelled), step)| {
-                        *symbol == step.symbol && *spelled == &step.name
-                    })
-        })
     }
 }
 
@@ -733,4 +812,80 @@ pub(super) fn unique_literal_field(
         .filter(|candidate| candidate.field_symbol == field.symbol && candidate.name == field.name);
     let value = fields.next()?.value;
     fields.next().is_none().then_some(value)
+}
+
+/// Every field path under `from`'s declaration that lands on record `to`,
+/// including the empty path when `from` is already `to`. Only owned exact
+/// record steps carry the descent -- a reference boundary or a leaf ends it,
+/// matching `for_parameter`'s chain resolution -- and a path that would
+/// revisit a record it already crossed reads a slot it left, not a new
+/// arrival. Collection stops at two: a second path already makes the
+/// carriage ambiguous, so no caller needs the rest.
+pub(super) fn collect_record_paths(
+    program: &TypedTrees,
+    from: SymbolHandle,
+    to: SymbolHandle,
+    paths: &mut Vec<Vec<SymbolHandle>>,
+) {
+    fn visit(
+        program: &TypedTrees,
+        owner: SymbolHandle,
+        target: SymbolHandle,
+        visiting: &mut Vec<SymbolHandle>,
+        path: &mut Vec<SymbolHandle>,
+        paths: &mut Vec<Vec<SymbolHandle>>,
+        depth: usize,
+    ) {
+        if paths.len() >= 2 || depth >= 16 {
+            return;
+        }
+        let Some(declaration) = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == owner)
+        else {
+            return;
+        };
+        visiting.push(owner);
+        for member in program.data_members(declaration) {
+            let DataMember::Field(field) = member else {
+                continue;
+            };
+            let TypeReferenceNode::Named { symbol: next, .. } = program
+                .type_reference_table
+                .type_reference(unwrap_constraint_shells(program, field.type_reference))
+            else {
+                continue;
+            };
+            path.push(field.symbol);
+            // A step landing on the target records its own path even when
+            // the record is already crossed -- `x` and `x.y` both landing on
+            // the target are genuinely two readings. Deeper paths through an
+            // already-crossed record keep reading slots this path left, so
+            // recursion continues only into fresh records.
+            if *next == target {
+                paths.push(path.clone());
+            }
+            if !visiting.contains(next) {
+                visit(program, *next, target, visiting, path, paths, depth + 1);
+            }
+            path.pop();
+            if paths.len() >= 2 {
+                break;
+            }
+        }
+        visiting.pop();
+    }
+    if from == to {
+        paths.push(Vec::new());
+    }
+    visit(
+        program,
+        from,
+        to,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        paths,
+        0,
+    );
 }

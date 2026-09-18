@@ -164,20 +164,23 @@ impl<'program> FieldCoordinates<'program> {
             if entry_symbol != formal {
                 continue;
             }
-            // The destination formal's own type decides whether the actual
-            // arrives under one borrow: an owned source slot can feed a `&R`
-            // formal through `&x`, while the source coordinate's boundary
-            // says nothing about the arrival. A root edge re-fills the
+            // The destination formal's own coordinate walks the actual: a
+            // role arriving nested inside the carrier's record -- `pair.left`
+            // holding `countdown` -- or as a record this chain reaches
+            // partway reads the literal through the chain the destination's
+            // invariant names, not the source slot's own spelling. The
+            // destination's type likewise decides whether the actual arrives
+            // under one borrow: an owned source slot can feed a `&R` formal
+            // through `&x`, while the source coordinate's boundary says
+            // nothing about the arrival. A root edge re-fills the
             // coordinate's own formal, so its boundary is the arrival's.
-            let arrival_borrowed = match destination {
+            let actual = match destination {
                 Some(destination) => {
-                    coordinate
-                        .at_arrival(program, destination, entry_symbol)?
-                        .borrowed
+                    let arrived = coordinate.at_arrival(program, destination, entry_symbol)?;
+                    arrived.actual(program, state, engine, argument, arrived.borrowed)?
                 }
-                None => coordinate.borrowed,
+                None => coordinate.actual(program, state, engine, argument, coordinate.borrowed)?,
             };
-            let actual = coordinate.actual(program, state, engine, argument, arrival_borrowed)?;
             if substitutions
                 .insert(coordinate.identity.clone(), actual)
                 .is_some()
