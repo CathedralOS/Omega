@@ -126,6 +126,11 @@ pub struct CheckedDynamicUnitCallPlan {
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub realization_identity: String,
+    /// The finite-family value tuple this call selects: canonical const
+    /// identities in the requirement's const/value binder declaration order.
+    /// `realization_machine` and `realization_state` then name the tuple's
+    /// specialization instance. Empty on a nongeneric requirement.
+    pub family_tuple: Box<[String]>,
     pub realization_callables: Vec<CheckedDynamicUnitRealizationCallablePlan>,
     pub realization_contract_report_fingerprint: u64,
     pub realization_contract_commitment: MachineContractCommitment,
@@ -153,6 +158,9 @@ pub struct CheckedDynamicUnitRealizationCallablePlan {
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub realization_identity: String,
+    /// The finite-family value tuple this callable realizes: one roster tuple
+    /// per entry for a generic requirement, empty for a nongeneric one.
+    pub family_tuple: Box<[String]>,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: MachineContractCommitment,
 }
@@ -404,6 +412,12 @@ pub struct CheckedDynamicScalarCallPlan {
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub realization_identity: String,
+    /// The finite-family value tuple this call selects: canonical const
+    /// identities in the requirement's const/value binder declaration order
+    /// (`named(integer-const(16))` spellings). `realization_machine` and
+    /// `realization_state` then name the tuple's specialization instance.
+    /// Empty on a nongeneric requirement, which matches every call to it.
+    pub family_tuple: Box<[String]>,
     /// Exact source-independent body of the selected realization's sole
     /// scalar return. The current structural-scalar lane cannot represent an
     /// unrestricted borrowed `self`, so downstream lowering consumes this
@@ -454,6 +468,9 @@ pub struct CheckedDynamicRealizationCallablePlan {
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub realization_identity: String,
+    /// The finite-family value tuple this callable realizes: one roster tuple
+    /// per entry for a generic requirement, empty for a nongeneric one.
+    pub family_tuple: Box<[String]>,
     pub result_type: typed_trees::types::PrimitiveType,
     /// Exact ordered primitive-field mutations performed before the return.
     /// The bounded body shape admits at most three distinct literal stores

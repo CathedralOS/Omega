@@ -2,6 +2,7 @@
 
 pub mod boundary;
 pub mod dynamic_traits;
+pub mod finite_family;
 pub mod service;
 pub mod signature;
 

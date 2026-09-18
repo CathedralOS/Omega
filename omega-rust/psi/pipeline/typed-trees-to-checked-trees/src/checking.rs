@@ -60,13 +60,19 @@ fn check_program(
     crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     normalize_open_index_identities(&mut program)?;
+    // A local `dyn` selection generates the complete finite family of its
+    // selected conformance rows: every roster tuple's provider body becomes
+    // checked evidence without requiring a static call site.
+    crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
     // Keep the authored generic provider templates immutable while ordinary
     // machine specialization closes caller binders. Selected providers may be
     // demanded only by applications copied into those newly concrete bodies,
     // and a newly selected provider may itself expose another ordinary or
-    // selected generic application. Alternate the two existing elaborators to
-    // a fixed point; neither open applications nor template mutation may be
-    // mistaken for final D29 coverage.
+    // selected generic application. Alternate the existing elaborators to a
+    // fixed point; neither open applications nor template mutation may be
+    // mistaken for final D29 coverage. A generated or provider-selected body
+    // can itself contain a dynamic selection, so family generation repeats
+    // inside the same fixed point.
     let selected_provider_templates = crate::monomorphization::SelectedProviderTemplates::prepare(
         &program,
         selected_generic_operator_providers,
@@ -74,12 +80,19 @@ fn check_program(
     let mut nominal_machine_uses =
         specialize_static_machine_calls_with_nominal_uses(&mut program, true)?;
     normalize_open_index_identities(&mut program)?;
-    while let Some(templates) = &selected_provider_templates {
-        let materialized = crate::monomorphization::specialize_selected_generic_operator_providers(
-            templates,
-            &mut program,
-            selected_generic_operator_providers,
-        )?;
+    loop {
+        let mut materialized = match &selected_provider_templates {
+            Some(templates) => {
+                crate::monomorphization::specialize_selected_generic_operator_providers(
+                    templates,
+                    &mut program,
+                    selected_generic_operator_providers,
+                )?
+            }
+            None => 0,
+        };
+        materialized +=
+            crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
         if materialized == 0 {
             break;
         }

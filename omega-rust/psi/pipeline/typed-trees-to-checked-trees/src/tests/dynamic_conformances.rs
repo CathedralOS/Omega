@@ -3,6 +3,7 @@
 
 mod dynamic_binding_and_plan_retention;
 mod dynamic_unit_plans;
+mod finite_family;
 mod structural_field_stores_and_descriptor_transfers;
 
 use crate::tests::{

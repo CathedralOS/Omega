@@ -54,6 +54,8 @@ pub use identities::{
 mod body_cloning;
 use body_cloning::*;
 mod const_arguments;
+mod dynamic_families;
+pub(crate) use dynamic_families::generate_dynamic_family_specializations;
 mod const_values;
 #[cfg(test)]
 mod membership_tests;

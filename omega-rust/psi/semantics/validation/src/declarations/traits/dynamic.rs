@@ -579,6 +579,8 @@ fn validate_dynamic_call_arguments_in_statement(
             call.source_span,
             call.target_symbol,
             &call.target,
+            &call.machine_arguments,
+            call.static_requirement_dispatch.is_some(),
             call.arguments,
             selections,
             diagnostics,
@@ -655,6 +657,8 @@ fn validate_dynamic_call_arguments_in_expression(
                 program.expression_table.source_span(expression),
                 call.target_symbol,
                 &call.target,
+                &call.machine_arguments,
+                call.static_requirement_dispatch.is_some(),
                 call.arguments,
                 selections,
                 diagnostics,
@@ -698,10 +702,19 @@ fn validate_dynamic_call_arguments(
     source_span: SourceSpan,
     target_symbol: symbols::SymbolHandle,
     target_name: &Identifier,
+    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
+    static_requirement_dispatch: bool,
     arguments: arena::HandleSpan<ExpressionHandle>,
     selections: &[DynamicConformanceSelection],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_dynamic_family_call_tuple(
+        program,
+        target_symbol,
+        machine_arguments,
+        static_requirement_dispatch,
+        diagnostics,
+    );
     let source_span = program
         .symbols
         .symbol_source_span(caller.symbol)
@@ -812,6 +825,79 @@ fn validate_dynamic_call_arguments(
                 "call to `{target_name}` cannot pass `{source_name}` to bare dynamic parameter `{}`: {count} complete closed conformances to `{}` are available; declare the parameter with one exact named dynamic conformance",
                 parameter.name, trait_definition.name
             ))),
+        }
+    }
+}
+
+/// Validate the static machine arguments of a call whose resolved target is a
+/// local `dyn` requirement. A dynamic family call carries no ordinary generic
+/// machinery: the only legal binder tuple is one complete roster tuple of
+/// closed static values (`erased.code<16>()`), matching the requirement's
+/// declared finite family exactly. A requirement outside the family contract
+/// cannot take machine arguments at all, and static requirement dispatch
+/// (`C::m` bound calls) carries its own requirement contract outside this
+/// surface.
+fn validate_dynamic_family_call_tuple(
+    program: &TypedTrees,
+    target_symbol: symbols::SymbolHandle,
+    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
+    static_requirement_dispatch: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if static_requirement_dispatch || !target_symbol.is_valid() {
+        return;
+    }
+    // Only a local `dyn` receiver binds a trait requirement signature as the
+    // call target; an ordinary machine call resolves to a state symbol and a
+    // boundary requirement is dispatched through selected adapters, not this
+    // local surface.
+    let Some((declaring_trait, requirement)) = program
+        .traits()
+        .iter()
+        .flat_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .map(move |signature| (definition, signature))
+        })
+        .find(|(_, signature)| signature.symbol == target_symbol)
+    else {
+        return;
+    };
+    if declaring_trait.is_boundary {
+        return;
+    }
+    match program.finite_signature_family(requirement) {
+        typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } => {
+            let tuple_identities: Option<Vec<String>> = machine_arguments
+                .iter()
+                .map(|argument| program.static_const_argument_identity(argument))
+                .collect();
+            let selects_exact_tuple = tuple_identities.as_deref().is_some_and(|identities| {
+                identities.len() == arity
+                    && tuples
+                        .iter()
+                        .any(|tuple| tuple.identities.as_ref() == identities)
+            });
+            if !selects_exact_tuple {
+                let roster = tuples
+                    .iter()
+                    .map(|tuple| format!("({})", tuple.display.join(", ")))
+                    .collect::<Vec<_>>()
+                    .join(" or ");
+                diagnostics.push(Diagnostic::error(format!(
+                    "dynamic family call `{}::{}` requires exactly one closed roster tuple ({roster}); runtime subjects and non-member values cannot select a family row",
+                    declaring_trait.name, requirement.name
+                )));
+            }
+        }
+        typed_trees::finite_family::FamilyProbe::NotFinite(_) => {
+            if !machine_arguments.is_empty() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "dynamic requirement call `{}::{}` supplies static machine arguments, but the requirement declares no finite family",
+                    declaring_trait.name, requirement.name
+                )));
+            }
         }
     }
 }
