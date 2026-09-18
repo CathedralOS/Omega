@@ -22,8 +22,8 @@ use selected_instructions::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
-    OperationId, PlaceId, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -442,4 +442,152 @@ fn packed_dead_chained(target: NativeTarget) -> ValidatedDeadStoreElimination {
     mutated_chained(target, |function, environment| {
         make_packed_dead(function, environment)
     })
+}
+
+/// The materialize instruction the covering `CopyBytes`'s count resolves to.
+const MATERIALIZE_COUNT: SelectedInstructionId = SelectedInstructionId(7);
+
+/// The covering `CopyBytes`'s source pointer.
+const SPAN_SOURCE: VirtualRegisterId = VirtualRegisterId(10);
+
+/// The covering `CopyBytes`'s count register — the destination span's real
+/// extent: its function-wide definition decides whether the written span is
+/// a constant range that can cover the dead bytes.
+const SPAN_COUNT: VirtualRegisterId = VirtualRegisterId(11);
+
+/// The covering `CopyBytes`'s early-clobber scratch registers.
+const SPAN_CURSOR: VirtualRegisterId = VirtualRegisterId(12);
+const SPAN_BYTE: VirtualRegisterId = VirtualRegisterId(13);
+
+/// The semantic value the destination span's `length` and the count
+/// register's `source_value` share — row-instruction agreement for the
+/// dynamic extent.
+fn span_length() -> ValueId {
+    ValueId::new(7).unwrap()
+}
+
+/// Rewrite instruction `id` into a `CopyBytes` on the target's declared row —
+/// `[use source, use destination, use count]` plus the two early-clobber
+/// scratch defs — and its roster row at `write_row` into the destination
+/// `WriteByteSpan` claiming `length` bytes at `byte_offset`. The copy's
+/// source `ReadByteSpan` rides on a disjoint second place, quiet on the dead
+/// range. The `count` register's origin names `length` — the row-instruction
+/// agreement a dynamic extent needs — but only an added definition decides
+/// what the span really writes.
+fn span_copy(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    id: SelectedInstructionId,
+    write_row: usize,
+    byte_offset: u32,
+    count: VirtualRegisterId,
+    length: ValueId,
+) {
+    let copy = environment
+        .constraint(environment.selected_keys().copy_bytes.unwrap())
+        .unwrap();
+    for block in &mut function.blocks {
+        if let Some(position) = block
+            .instructions
+            .iter()
+            .position(|instruction| instruction.id == id)
+        {
+            block.instructions[position] = instruction(
+                id,
+                SelectedInstructionKind::CopyBytes,
+                copy,
+                &[SPAN_SOURCE, POINTER, count, SPAN_CURSOR, SPAN_BYTE],
+            );
+        }
+    }
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for (register, operand) in [(SPAN_CURSOR, 3), (SPAN_BYTE, 4)] {
+        function.virtual_registers.push(VirtualRegister {
+            id: register,
+            scalar_type,
+            class: copy.operands[operand].class,
+            origin: VirtualRegisterOrigin::InstructionScratch {
+                instruction: id,
+                operand: operand as u16,
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+    }
+    function.virtual_registers.push(VirtualRegister {
+        id: SPAN_SOURCE,
+        scalar_type,
+        class: copy.operands[0].class,
+        origin: VirtualRegisterOrigin::EntryParameter {
+            source_value: ValueId::new(11).unwrap(),
+            parameter_index: 1,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    let write = &mut function.memory_accesses[write_row];
+    write.instruction = id;
+    write.byte_offset = byte_offset;
+    write.byte_count = 0;
+    write.role = SelectedMemoryAccessRole::WriteByteSpan {
+        length,
+        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    };
+    function.memory_accesses.push(SelectedMemoryAccess {
+        byte_count: 0,
+        ..access(
+            id,
+            8,
+            PlaceId::new(2).unwrap(),
+            0,
+            SelectedMemoryAccessRole::ReadByteSpan {
+                length,
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [3; 32],
+                ),
+            },
+        )
+    });
+}
+
+/// Insert a clean `MaterializeI64` at `position` in `block` defining
+/// `register` as `bits`, with the register's origin naming `source_value` —
+/// the sole clean definition `materialized_bits` resolves, so the covering
+/// span's extent becomes the compile-time `bits` bytes.
+fn define_count(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    block: usize,
+    position: usize,
+    register: VirtualRegisterId,
+    source_value: ValueId,
+    bits: u64,
+) {
+    let materialize = environment
+        .constraint(environment.selected_keys().materialize_i64)
+        .unwrap();
+    function.virtual_registers.push(VirtualRegister {
+        id: register,
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        class: materialize.operands[0].class,
+        origin: VirtualRegisterOrigin::InstructionResult {
+            instruction: MATERIALIZE_COUNT,
+            source_value,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    function.blocks[block].instructions.insert(
+        position,
+        instruction(
+            MATERIALIZE_COUNT,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(u128::from(bits)),
+            },
+            materialize,
+            &[register],
+        ),
+    );
 }
