@@ -37,38 +37,23 @@ pub use typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 
 use crate::capabilities::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 
-/// Uninhabited marker for the retired string-backed import bootstrap.
-///
-/// Raw foreign bytes are data, never Omega symbol names or ambient lookup
-/// authority: an import binds through one evaluated
-/// [`EvaluatedForeignImport`] whose target-normalized locator was produced by
-/// checked Omega code. Keeping this type empty makes the retirement a
-/// compile-time fact rather than a convention.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RetiredStringBackedImportBootstrap {}
-
 /// How one method binds on one target. Instructions are checked `asm` bodies
 /// whose catalog contracts contribute their obligations; they are deliberately
 /// not a second, bodiless provider-binding mechanism.
+///
+/// The string-backed `via Binding::DllImport("library", "symbol")` bootstrap
+/// has no case here. Raw foreign bytes are data, never Omega symbol names or
+/// ambient lookup authority: an import binds through one evaluated
+/// [`EvaluatedForeignImport`] whose target-normalized locator was produced by
+/// checked Omega code. Versioned encodings that once carried the bootstrap
+/// keep their tag unassigned and reject it on decode instead of
+/// reinterpreting two authored strings as one physical locator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderBinding {
     /// One evaluated, target-validated physical foreign locator. Its atomic
     /// byte coordinates remain sealed together through selection and opaque
     /// executable accounting.
     Import { evaluated: EvaluatedForeignImport },
-    /// Retired source `via Binding::DllImport("library", "symbol")` bridge.
-    ///
-    /// No producer, codec, or report constructs this variant any more: its
-    /// only field is the uninhabited [`RetiredStringBackedImportBootstrap`],
-    /// so a value of this variant cannot exist and every consumer arm is
-    /// statically dead. Versioned encodings that once carried it reject the
-    /// retired tag on decode instead of reinterpreting two authored strings
-    /// as one physical locator. The variant name survives only because
-    /// `native-realization` still spells `StringBackedImportBootstrap { .. }`
-    /// rejection arms; delete this variant together with those arms.
-    StringBackedImportBootstrap {
-        retired: RetiredStringBackedImportBootstrap,
-    },
     /// Direct system call by number.
     Syscall { number: i64 },
     /// A compiler-known operation furnished by the selected target package.
@@ -352,7 +337,6 @@ impl ProviderPlan {
                         locator.non_authoritative_compatibility_fingerprint(),
                     )
                 }
-                ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
                 ProviderBinding::CompilerIntrinsic { machine, .. } => {
                     format!("CompilerIntrinsic {{ machine: {machine:?} }}")
                 }
@@ -733,7 +717,6 @@ impl ProviderPlan {
                         ));
                     }
                 }
-                ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
                 ProviderBinding::Syscall { number } => {
                     if u32::try_from(*number).is_err() {
                         errors.push(format!(

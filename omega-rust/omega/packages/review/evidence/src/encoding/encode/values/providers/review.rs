@@ -206,7 +206,6 @@ pub(crate) fn encode_provider_row(
         }
         // Byte 0 was the retired string-backed import bootstrap; it stays
         // unassigned so review bytes of typed plans are unchanged.
-        ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
         ProviderBinding::Syscall { number } => {
             encoder.byte(1);
             encoder.i64(*number);

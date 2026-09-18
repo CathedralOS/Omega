@@ -688,7 +688,6 @@ fn trust_provider_realization(
         ProviderBinding::Import { evaluated } => TrustProviderRealization::Import {
             evaluated: evaluated.clone(),
         },
-        ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
         ProviderBinding::Syscall { number } => {
             TrustProviderRealization::Syscall { number: *number }
         }

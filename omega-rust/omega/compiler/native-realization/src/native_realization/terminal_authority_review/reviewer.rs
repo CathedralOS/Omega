@@ -106,7 +106,6 @@ impl<'a> Reviewer<'a> {
                     mechanism,
                 )?;
             }
-            ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
             ProviderBinding::VtableSlot { .. } => {
                 return Err(format!(
                     "selected requirement `{requirement}` uses the unsupported vtable-slot terminal role"
