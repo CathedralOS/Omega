@@ -3252,8 +3252,38 @@ Owners include
   on every host: `emit_realization_object`
   (`native-realization/src/native_realization/object_emission.rs`) rejects any
   callback thunk with "callback ABI transport is not implemented in the common
-  instruction pipeline". Next: admit the field cohort through both native
-  routes without a raw code pointer.
+  instruction pipeline". Next, measured 2026-09-18 rather than
+  inferred: admitting either cohort needs two pieces that do not exist, so this
+  is not a fence-widening. (1) Nothing lowers a thunk to machine code.
+  `produce_callback_thunk_artifact`
+  (`checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs`) ends at
+  `finalize_terminal_artifact`, so `NativeCallbackThunkSettlement` carries a
+  `CanonicalTerminalArtifact`, a lowering receipt and a boundary entry plan --
+  never bytes -- while `target-operations-to-selected-instructions` and
+  `selected-instructions-to-register-homes` carry no callback reference in their
+  sources at all. A second Terminal artifact must therefore be lowered to
+  machine code within one realization. (2) The private-function emission that
+  exists is orphaned from production. `validate_private_functions` and
+  `emit_private_functions` (`image-emission/src/object_artifact/`) are already
+  purpose-built for exactly this -- at most one private function, whose identity
+  must carry a `callback_thunk_placement_index` -- but
+  `build_object_artifact_with_private_functions` has no non-test caller.
+  Retained realization instead reaches `emit_optimized_fragments` ->
+  `build_function_fragment_object_artifact`, which builds its `ObjectPlan` from
+  the fragment text section and has no private-function channel. Everything
+  downstream of the thunk is already built and target-aware:
+  `validate_callback_address_bytes`
+  (`image-emission/src/object_artifact/call_sites.rs`) encodes the x86-64 rel32
+  LEA and the aarch64 page-address pair for both register and outgoing-stack
+  destinations, physical derivation matches the callback relocation by origin,
+  offset, width, symbol and kind, and final image validation checks it;
+  `realize_native_artifact_with_callback_custody` is an opaque sidecar that
+  grants no thunk authority by construction. Both walls reject before any
+  lowering: `emit_realization_object` on any non-empty `callback_thunks` or
+  `native_callbacks`, and `lower_realization_optimization_stage` separately
+  whenever optimization selections are present ("retained callbacks require the
+  ordinary custody-preserving pipeline"), so the retained route is the intended
+  path. This is implementation scope, not a language-design question.
 
 - **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
   external root and unregister as the operation that ends it before releasing
