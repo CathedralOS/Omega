@@ -1,7 +1,7 @@
 //! Named `Namespace::requirement(...)` crash uses prove route falsity from
 //! the containing statement's entry contexts — never from a fabricated flow
-//! invocation capture, and only while every place a guard leaf reads is an
-//! entry-proven operand.
+//! invocation capture, and only while every place a guard leaf reads keeps
+//! its invocation-entry provenance below the operand it binds to.
 
 use checked_trees::CheckedTrees;
 use typed_trees::TypedTrees;
@@ -473,6 +473,182 @@ fn authored_operator_crash_buckets_carry_their_structured_guard_forms() {
         );
         assert_eq!(published_guard_forms(&inspect(&source)), forms);
     }
+}
+
+#[test]
+fn named_call_discharge_reads_the_guard_field_through_a_sibling_write() {
+    // `rec` is mutable: writing `rec.other` ends whole-storage provenance but
+    // not the `count` projection the guard actually reads through `&rec`, so
+    // the statement-entry fact still falsifies the route.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine safe(mut rec: Rec) -> bool
+         requires rec.count >= 0 {
+             rec.other = 1;
+             Ns::probe(&rec)
+         }";
+    check(source).expect("a sibling-field write keeps the read projection's provenance");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.published.len(), 1);
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_discharge_reads_the_guard_field_through_a_sibling_loan() {
+    // An exclusive borrow of `rec.other` likewise never reaches `rec.count`.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         machine peek(x: &mut i32) { }
+         pub machine safe(mut rec: Rec) -> bool
+         requires rec.count >= 0 {
+             peek(&mut rec.other);
+             Ns::probe(&rec)
+         }";
+    check(source).expect("an exclusive sibling-field loan keeps the read projection's provenance");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_read_field_is_rewritten() {
+    // The write reaches the exact projection the guard reads, so the
+    // statement-entry fact no longer describes `rec.count` at the call.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine drifted(mut rec: Rec) -> bool
+         requires rec.count >= 0 {
+             rec.count = -1;
+             Ns::probe(&rec)
+         }";
+    let diagnostics = check(source).expect_err("a rewritten read projection keeps its route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
+fn named_call_keeps_a_route_whose_read_field_is_exclusively_borrowed() {
+    // `&mut rec.count` lends the read projection itself, so provenance ends
+    // even though the loaned sibling was never written.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         machine peek(x: &mut i32) { }
+         pub machine drifted(mut rec: Rec) -> bool
+         requires rec.count >= 0 {
+             peek(&mut rec.count);
+             Ns::probe(&rec)
+         }";
+    let diagnostics =
+        check(source).expect_err("an exclusive loan of the read projection keeps its route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert_eq!(site.surviving.len(), 1);
+}
+
+#[test]
+fn named_call_discharges_a_route_through_a_mutated_by_value_operand() {
+    // The operand is the record itself, not a borrow: the leaf's `count`
+    // projection is still all the guard reads.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(cell: Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine safe(mut rec: Rec) -> bool
+         requires rec.count >= 0 {
+             rec.other = 1;
+             Ns::probe(rec)
+         }";
+    check(source).expect("a by-value operand's read projection survives a sibling write");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_discharge_versions_each_operand_projection_independently() {
+    // A relation leaf reads one field per operand; `left.other` interferes
+    // with neither `left.count` nor `right.count`, so both projections keep
+    // entry provenance and the fact discharges the route.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::paired(left: &Rec, right: &Rec) -> bool
+         crashes Trap !(left.count == right.count);
+         pub machine paired(mut left: Rec, right: Rec) -> bool
+         requires left.count == right.count {
+             left.other = 1;
+             Ns::paired(&left, &right)
+         }";
+    check(source).expect("each operand's read projection is provenance-checked independently");
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    assert!(site.surviving.is_empty());
+}
+
+#[test]
+fn named_call_discharge_follows_the_leafs_nested_projection() {
+    // `cell.outer.count` reads `rec.outer.count`: a sibling write outside
+    // that path preserves it, a write inside it ends it.
+    let discharge = "pub data Inner { count: i32 }
+         pub data Rec { outer: Inner; other: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.outer.count >= 0);
+         pub machine safe(mut rec: Rec) -> bool
+         requires rec.outer.count >= 0 {
+             rec.other = 1;
+             Ns::probe(&rec)
+         }";
+    check(discharge).expect("a sibling write keeps the nested read projection's provenance");
+    let retain = "pub data Inner { count: i32 }
+         pub data Rec { outer: Inner; other: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.outer.count >= 0);
+         pub machine drifted(mut rec: Rec) -> bool
+         requires rec.outer.count >= 0 {
+             rec.outer.count = -1;
+             Ns::probe(&rec)
+         }";
+    let diagnostics =
+        check(retain).expect_err("a write inside the read projection keeps its route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
 }
 
 #[test]

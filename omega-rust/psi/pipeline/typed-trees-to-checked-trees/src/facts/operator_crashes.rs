@@ -310,7 +310,6 @@ fn retained_operator_crash_routes(
                         statement_index,
                         parameters,
                         operands,
-                        &substitution,
                         expression,
                     )
                 }

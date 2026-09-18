@@ -7,20 +7,22 @@
 //! flow pass proved on arrival at that statement. Those facts describe
 //! storage as it stands at statement entry, so they falsify a route guard
 //! only while every place a guard leaf reads keeps its statement-entry value
-//! through the invocation. `entry_operand` supplies exactly that boundary:
-//! its pristine-storage window includes the containing statement, so an
-//! earlier sibling effect — a receiver-mutating call, an exclusive borrow, an
-//! atomic — already voids a mutable operand's provenance, and immutable
-//! bindings cannot be overwritten at all. A leaf occurrence that does not
-//! resolve to an entry-proven operand — a `self` field, a constant, an
-//! unproven binding — keeps the route, as does a leaf that would evaluate a
-//! nested call or atomic afresh rather than re-reading captured storage.
-//! A shared-borrow operand is the referent: `entry_operand` transports the
-//! referent's provenance and the instantiated label names the referent,
-//! mirroring the call-`requires` rule that a reference formal used as a
-//! predicate value reads its referent.
+//! through the invocation. `operand_entry_provenance` supplies exactly that
+//! boundary per occurrence: its pristine-storage window includes the
+//! containing statement, so an earlier sibling effect — a receiver-mutating
+//! call, an exclusive borrow, an atomic — already voids provenance at the
+//! place the leaf reads, while writes confined to disjoint sibling fields
+//! leave it intact, and immutable bindings cannot be overwritten at all. A
+//! leaf occurrence that does not resolve to an entry-proven operand
+//! projection — a `self` field with unknown receiver provenance, a constant,
+//! an unproven binding — keeps the route, as does a leaf that would evaluate
+//! a nested call or atomic afresh rather than re-reading captured storage.
+//! A shared-borrow operand is the referent: the referent's provenance
+//! transports through the borrow and the instantiated label names the
+//! referent, mirroring the call-`requires` rule that a reference formal used
+//! as a predicate value reads its referent.
 
-use checked_trees::{CrashPredicateExpression, FlowFacts};
+use checked_trees::FlowFacts;
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -47,7 +49,6 @@ pub(super) fn named_route_is_false(
     statement_index: usize,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
-    substitution: &[Option<CrashPredicateExpression>],
     expression: ExpressionHandle,
 ) -> bool {
     let context_rows =
@@ -59,9 +60,12 @@ pub(super) fn named_route_is_false(
         program,
         semantic,
         &context_rows,
+        machine_symbol,
+        state_symbol,
+        statement_index,
         parameters,
+        operands,
         &operand_labels(program, parameters, operands),
-        substitution,
         expression,
         false,
     )
@@ -102,13 +106,17 @@ fn statement_entry_context_rows(
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn expression_has_polarity(
     program: &TypedTrees,
     semantic: &FactPlan,
     context_rows: &[Vec<FactContextHandle>],
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
     parameters: &[StateParameter],
+    operands: &[ExpressionHandle],
     operand_labels: &[String],
-    substitution: &[Option<CrashPredicateExpression>],
     expression: ExpressionHandle,
     polarity: bool,
 ) -> bool {
@@ -119,9 +127,12 @@ fn expression_has_polarity(
                 program,
                 semantic,
                 context_rows,
+                machine_symbol,
+                state_symbol,
+                before_statement,
                 parameters,
+                operands,
                 operand_labels,
-                substitution,
                 unary.operand,
                 !polarity,
             );
@@ -133,9 +144,12 @@ fn expression_has_polarity(
                 program,
                 semantic,
                 context_rows,
+                machine_symbol,
+                state_symbol,
+                before_statement,
                 parameters,
+                operands,
                 operand_labels,
-                substitution,
                 binary.left,
                 polarity,
             );
@@ -143,9 +157,12 @@ fn expression_has_polarity(
                 program,
                 semantic,
                 context_rows,
+                machine_symbol,
+                state_symbol,
+                before_statement,
                 parameters,
+                operands,
                 operand_labels,
-                substitution,
                 binary.right,
                 polarity,
             );
@@ -157,8 +174,15 @@ fn expression_has_polarity(
         }
         _ => {}
     }
-    if !leaf_reads_only_entry_operands(program, parameters, substitution, expression)
-        || expression_evaluates_effects(program, expression)
+    if !leaf_reads_only_entry_operands(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        parameters,
+        operands,
+        expression,
+    ) || expression_evaluates_effects(program, expression)
     {
         return false;
     }
@@ -227,14 +251,21 @@ fn operand_labels(
 }
 
 /// Every place occurrence the leaf reads must resolve to an operator
-/// parameter whose operand carries entry provenance: only then does a
-/// statement-entry fact about the operand's storage still describe the value
-/// the invocation evaluates. A constant, a `self` field, or a binding whose
-/// provenance is unknown fails this gate and retains the guard.
+/// parameter whose operand carries entry provenance *at the projected place*:
+/// only then does a statement-entry fact about that place still describe the
+/// value the invocation evaluates. The provenance is per occurrence rather
+/// than per operand — a mutable record whose `other` field was written still
+/// carries `count` provenance, so a guard leaf reading only `cell.count`
+/// through `&rec` discharges where whole-operand provenance would retain. A
+/// constant, a `self` field with unknown receiver provenance, or a binding
+/// whose projection was disturbed fails this gate and retains the guard.
 fn leaf_reads_only_entry_operands(
     program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
     parameters: &[StateParameter],
-    substitution: &[Option<CrashPredicateExpression>],
+    operands: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
     let mut occurrences = Vec::new();
@@ -246,7 +277,17 @@ fn leaf_reads_only_entry_operands(
     occurrences.iter().all(|occurrence| {
         let root = occurrence_root_symbol(program, *occurrence);
         parameters.iter().enumerate().any(|(index, parameter)| {
-            parameter.symbol == root && substitution.get(index).is_some_and(Option::is_some)
+            parameter.symbol == root
+                && operands.get(index).is_some_and(|operand| {
+                    super::super::crash_entry_values::operand_entry_provenance(
+                        program,
+                        machine_symbol,
+                        state_symbol,
+                        before_statement,
+                        *operand,
+                        *occurrence,
+                    )
+                })
         })
     })
 }
