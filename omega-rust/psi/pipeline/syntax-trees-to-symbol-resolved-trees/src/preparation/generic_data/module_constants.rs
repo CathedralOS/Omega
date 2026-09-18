@@ -1,11 +1,40 @@
 //! Reject module constant selection before legacy lexical evaluation can erase it.
 
 use source::{SourceId, SourceSpan};
+use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::{ConstDefinition, Item};
 
 pub(super) fn is_module_constant(syntax: &SyntaxTrees, definition: &ConstDefinition) -> bool {
     module_path(syntax, definition.name.source_span().source_id).is_some()
+}
+
+/// The integer constant ledger pre-resolution fact evaluation may read: every
+/// non-module const's qualified name mapped to its literal integer value.
+/// Module constants deliberately stay out — their names need resolved
+/// declaration selection, which `reject_module_constant_selection` enforces on
+/// any fact spelling that could reach one.
+pub(super) fn lexical_integer_const_values(syntax: &SyntaxTrees) -> HashMap<String, i128> {
+    syntax
+        .root_items()
+        .filter_map(|item| {
+            let Item::Const(definition) = item else {
+                return None;
+            };
+            if is_module_constant(syntax, definition) {
+                return None;
+            }
+            let ExpressionNode::Integer(value) = syntax.expressions.expression(definition.value)
+            else {
+                return None;
+            };
+            Some((
+                super::qualified_const_name(definition),
+                super::integer_literal_value(value)?,
+            ))
+        })
+        .collect()
 }
 
 pub(super) fn reject_module_constant_selection(
