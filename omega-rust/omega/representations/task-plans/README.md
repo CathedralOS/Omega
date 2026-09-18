@@ -31,9 +31,18 @@ together, every rejection returns them whole, the ledger retains the lease
 while the claim lives, and settlement releases the spent authority. A
 cancellation request is a recorded provider-side transition on the exact
 live claim — never a disposal — and settlement reports a `Cancelled`
-outcome only when that transition was recorded, so the cooperative
-outcome cannot be fabricated and an inline completion can never settle
-cancelled.
+outcome only when that request was recorded and then observed at a
+canonical safe point of the plan, so the cooperative outcome cannot be
+fabricated, a never-suspending activation can never settle cancelled, and
+an inline completion can never settle cancelled.
+
+Live activations carry an execution state: a claim can `park` only at a
+canonical suspension crossing of its plan, `resume` continues that same
+invocation under unchanged bindings, and a parked claim cannot settle —
+resumption must precede the terminal outcome. `observe_cancellation`
+records where a recorded request was observed: at the parked crossing for
+a suspended activation, or at any canonical crossing a running activation
+traverses.
 
 [provider_admission.rs](src/provider_admission.rs) is the provider-side
 gate consuming those carriers: one admitted runtime instance owns its
@@ -45,10 +54,10 @@ never caller custody); caller-supplied storage rejections return it whole
 through `TaskStartRejection`. Settlement returns provisioned backing to
 the free set while the spent era stays burned.
 
-These carriers still do not establish a source `Task<T>`, marshal actual
-argument bytes, execute park/resume, or observe cancellation at a checked
-safe point. Routed source establishment, safe-point cancellation
-conformance, and real runtime execution remain separate consumers. The
+These carriers still do not establish a source `Task<T>` or marshal actual
+argument bytes, and no selected runtime executes the transitions the
+ledger models: real park/resume of a native stack and observation at a
+checked-source safe point remain separate consumers. The
 bounded
 scalar suspension carrier likewise does not license receiver/structural/claim
 frontiers without their exact joins; see the

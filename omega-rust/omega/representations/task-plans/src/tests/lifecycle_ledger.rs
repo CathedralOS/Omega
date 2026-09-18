@@ -1,4 +1,7 @@
-use super::{candidate, id, invocation_receipt, moved_arguments, runtime, stack_lease, wcsu_plan};
+use super::{
+    candidate, canonical_crossing, id, invocation_receipt, moved_arguments, runtime, stack_lease,
+    wcsu_plan,
+};
 use crate::{
     ActivationInstanceId, TaskLifecycleLedger, TaskRuntimeInstanceId, TaskSettlementOutcome,
     TaskStartOperation, TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId,
@@ -39,6 +42,9 @@ fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
         .request_cancellation(&claim)
         .expect("cancellation preserves the claim");
     assert!(ledger.cancellation_requested(claim.identity()));
+    ledger
+        .observe_cancellation(&claim, canonical_crossing())
+        .expect("the activation observes the request at a canonical safe point");
     assert!(ledger.validate_storage_reclaim(storage).is_err());
     let close = ledger.close().expect_err("live child blocks runtime close");
     let mut ledger = close.into_ledger();

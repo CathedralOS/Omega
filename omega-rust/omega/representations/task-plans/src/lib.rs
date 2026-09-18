@@ -11,7 +11,8 @@
 //! `executor_selection` binds an executor to a plan's preservation axes,
 //! `runtime_invocation` receipts one activation, `stack_leases` issues the
 //! nonmoving stack authority, `lifecycle_ledger` runs the transactional
-//! start, records cancellation requests, and accounts for claims until
+//! start, tracks park/resume at canonical suspension crossings and the
+//! safe-point cancellation observation, and accounts for claims until
 //! outcome-bound settlement, `provider_admission`
 //! is the provider-side gate consuming those carriers for one admitted
 //! runtime instance, `stack_composition` projects WCSU stack plans,

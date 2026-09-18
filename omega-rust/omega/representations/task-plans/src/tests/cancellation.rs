@@ -1,14 +1,18 @@
-//! Cancellation execution: the recorded `request_cancel` transition and the
-//! outcome-bound settlement it authorizes.
+//! Cancellation execution: the recorded `request_cancel` transition, the
+//! safe-point observation it enables, and the outcome-bound settlement
+//! observation authorizes.
 //!
 //! `request_cancellation` is transactional, not a read-only probe: it writes
 //! the request onto the exact live claim's dependency while retaining the
-//! claim, and `settle` reports `Cancelled` only through that recording.
+//! claim, and `settle` reports `Cancelled` only after `observe_cancellation`
+//! records the activation observing that request at a canonical safe point.
 //! Cooperative semantics stay intact — a recorded request never forces the
-//! cancelled outcome, and an activation that completed inline can never
-//! report one.
+//! cancelled outcome, a never-suspending activation has no safe point to
+//! observe at, and an activation that completed inline can never report one.
 
-use super::{id, invocation_receipt, moved_arguments, runtime, stack_lease, wcsu_plan};
+use super::{
+    canonical_crossing, id, invocation_receipt, moved_arguments, runtime, stack_lease, wcsu_plan,
+};
 use crate::{
     ActivationInstanceId, TaskLifecycleClaimId, TaskLifecycleLedger, TaskRuntimeInstanceId,
     TaskSettlementOutcome, TaskStartStorage,
@@ -56,9 +60,27 @@ fn cancelled_settlement_requires_the_recorded_request() {
     ledger
         .request_cancellation(&claim)
         .expect("the recorded request retains the claim");
+
+    // A recorded request alone is still not the observation: settlement
+    // rejects until the activation observes the request at a canonical
+    // safe point.
+    let error = ledger
+        .settle(claim, TaskSettlementOutcome::Cancelled)
+        .expect_err("an unobserved request cannot settle cancelled");
+    assert!(
+        error.diagnostic().0.contains("safe-point observation"),
+        "unexpected diagnostic: {}",
+        error.diagnostic().0
+    );
+    let claim = error.into_claim();
+    assert_eq!(ledger.records().count(), 1, "the claim survives");
+
+    ledger
+        .observe_cancellation(&claim, canonical_crossing())
+        .expect("the activation observes the request at a canonical safe point");
     let settled = ledger
         .settle(claim, TaskSettlementOutcome::Cancelled)
-        .expect("the recorded request authorizes the cancelled outcome");
+        .expect("the recorded observation authorizes the cancelled outcome");
     assert_eq!(settled.outcome(), TaskSettlementOutcome::Cancelled);
     assert!(
         !ledger.cancellation_requested(settled.identity()),
@@ -191,7 +213,10 @@ fn repeated_requests_and_close_still_require_settlement() {
     let close = ledger.close().expect_err("a requested claim is still live");
     let mut ledger = close.into_ledger();
     ledger
+        .observe_cancellation(&claim, canonical_crossing())
+        .expect("the request is observed at a canonical safe point");
+    ledger
         .settle(claim, TaskSettlementOutcome::Cancelled)
-        .expect("the claim settles through its recorded request");
+        .expect("the claim settles through its observed request");
     ledger.close().expect("settled claims permit close");
 }
