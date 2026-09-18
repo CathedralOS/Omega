@@ -1509,98 +1509,66 @@ Owners include
   Candidate naming syntax is not a prerequisite. These controls do not
   establish full mathematical coverage.
 
-- **PROOF-CERTIFICATION-BRIDGE.** A well-founded denotation must be checked
-  against the generated loop, not inherited from termination: a ranked
-  `Natural` component whose accumulator update is wrong must fail its
-  functional claim (post-loop `ensures` or scalar block invariant) while its
-  unchanged control-cycle certificate still verifies, under the
-  [publication contract](wiki/spec/proofs/publication.md). Today the
-  source-level twins (`fail/proofs/inductive_climbing_sum_step_false_twin`,
-  `inductive_gauss_sum_step_false_twin`) refute the wrong update in Psi
-  validation only; both positive fixtures are checked-only, and
-  `checked-trees-to-lowered-psi` does not lower a value-returning ranked
-  machine ("has no admitted body (local construction stopped at call
-  statement shape)"), so no generated loop carries a functional claim.
-  Leg (a) landed on macOS ARM64: the terminal-verifier replay control in
-  `tests/ranked_scc/scalar_block_invariants.rs`
-  (`ranked_natural_certificate_replays_with_a_correct_accumulator_arrival`,
-  `ranked_natural_certificate_replay_rejects_a_wrong_accumulator_arrival`)
-  keeps the countdown's `Natural` certificate over a header accumulator
-  claiming `rank <= previous` and rejects a wrong accumulator arrival with
-  `RejectedEvidence { CertificateConclusionMismatch }` on the preservation
-  obligation while the unchanged cycle certificate still answers the
-  identical cycle question. The claim is an order the current kernel can
-  derive; an arithmetic accumulation claim (`sum + rank = initial`) still
-  needs ring evidence, which is the shared law-normalization gap below.
-  Leg (b), Terminal half, landed on macOS ARM64: a value-returning ranked
-  free machine (`descend(n, previous) terminates by n -> Nat::Descending`,
-  returning the accumulator) already lowers through the scalar-graph cycle
-  route with its `Natural` certificate; what was missing was the header
-  invariant an `ensures` needs after the loop. The producer's
-  `proofs/scalar_block_invariants/cyclic_guarantees.rs` now strengthens the
-  cyclic header, only when a cyclic machine's guarantee is otherwise
-  unprovable, with entry requirements generalized over the header
-  parameters, `header == formal` for parameters every in-component arrival
-  forwards unchanged, and the guarantee transported through the exit's exact
-  equations; the whole strengthening is discarded when any arrival or the
-  guarantee still fails, so other modules keep their roster unchanged.
-  `checked-trees-to-lowered-psi` `tests::ranked_value_guarantees` pins it:
-  `requires n <= previous`/`ensures result <= previous` retains
-  `rank <= accumulator /\ accumulator <= previous` at the header, every
-  obligation certificate is produced, the module verifies with its cycle
-  certificate, dropping an arrival certificate rejects, forwarding the
-  latch's `1` constant as the accumulator asks the identical cycle question
-  (the retained `Natural` certificate still answers it) but replays with
-  `RejectedEvidence { CertificateConclusionMismatch }` on the preservation
-  obligation and refuses fresh production, and a guarantee the loop does
-  not establish (`result <= n`) leaves the roster empty and the guarantee
-  `OperationProofUnavailable`. Leg (b), source half, landed on macOS ARM64:
-  for the free-loop form (a single-state machine re-entered by named
-  backedges) `checks/contracts/exits/cyclic_headers.rs` proposes, for every
-  exit and every expression guarantee, the guarantee transported through
-  the exit's returned term over the invocation formals, proves it at the
-  invocation arrival from `requires` and at every backedge from the
-  conjunction, the re-established `requires` and the arm's guard facts
-  under the arrival's simultaneous substitution, and only then discharges
-  the exit by that conjunct; any failed obligation discards every proposal
-  and the origin diagnostic stands unchanged (`flow/entry_origins.rs` is
-  untouched). The arrival proofs run on
-  `validation::scoped_arithmetic_implication`
-  (`contract_entailment/scoped_arithmetic.rs`): per-proposition rosters
-  over the strict engine, so one parameter symbol reads as the formal atom
-  in the guarantee and the header atom in the returned term.
-  `tests/contracts/cyclic_header_invariants.rs` pins acceptance of
-  `requires n <= previous`/`ensures result <= previous`, the constant-step
-  and unestablished (`result <= n`) twins, all-or-nothing on a false
-  conjunct, and the forwarded-`limit` form;
-  `pass/proofs/runtime_ranked_accumulator_guarantee_exit` (`descend(3, 9)`
-  returns 1, exit 70, `runtime_ranked_accumulator_guarantee_exit_canary_runs`)
-  with `fail/proofs/ranked_accumulator_guarantee_wrong_step_twin` is the
-  executable canary and its wrong-accumulator twin, registered in
-  `ACTIVE_PASS_CANARIES`/`ROOTED_BACKEND_PASS_CANARIES` and
-  `ACTIVE_FAIL_CANARIES`. The route reads exact fixed-integer parameters
-  and returns only; a loop-carried value in a second state, a `self`
-  transition that changes storage, or a Wrapping accumulator is not
-  proposed. The two existing fixtures are further out: their `&mut self`
-  machines have no scalar graph and stop in the attached Unit closure at
-  `local construction stopped at call statement shape: call count without
-  a statement sequence` (`execution/unit/control/checked_machine.rs`), and
-  their arithmetic claims (`result * 2 == acc * 2 + n * (n + 1)`, `embed`
-  over a two-subject `Nat::BoundedDistance` rank) need the ring evidence
-  below. Remaining acceptance: an arithmetic accumulation claim over a
-  generated loop (the two existing fixtures, or a free-loop restatement of
-  their sums) fails its functional claim on a wrong update while the
-  unchanged cycle certificate still verifies, which needs the attached
-  value-returning cyclic route or that restatement plus the ring evidence
-  below. Law normalization (`verify_normalization`
-  in `proof-admission/src/admission/normalization.rs`) has no Terminal
-  consumer; routing quotient/ring-law evidence through it is shared with
-  **PCC-CANONICAL-SEMANTIC-LEDGER**. Edge decrease, premise, law, and
-  component identity changes, separately compiled dependency recheck, the
-  absence of shape-selected trust routes, and one-SCC certificates are
-  pinned by `terminal-verifier/tests/ranked_scc.rs`, `pcc_publication.rs`
-  (including `receiver_replay_never_inherits_the_producer_admission_profile`),
-  and `tests/architecture/layering.rs`.
+- **PROOF-CERTIFICATION-BRIDGE.** A functional claim about a ranked loop must
+  be checked against the generated loop, not inherited from termination, under
+  the [publication contract](wiki/spec/proofs/publication.md): a ranked
+  `Natural` component whose accumulator update is wrong fails its post-loop
+  `ensures` or scalar block invariant while its unchanged control-cycle
+  certificate still verifies. That holds today for order claims on one form.
+  A single-state free machine re-entered by named backedges proves
+  `ensures result <= previous` at the source
+  (`typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs`),
+  lowers with a strengthened header invariant
+  (`checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`),
+  executes natively, and its wrong-step twin rejects
+  (`pass/proofs/runtime_ranked_accumulator_guarantee_exit`,
+  `fail/proofs/ranked_accumulator_guarantee_wrong_step_twin`). No arithmetic
+  accumulation claim reaches a generated loop:
+  `proofs/proof_inductive_gauss_sum` and `proofs/proof_inductive_climbing_sum`
+  remain in `CHECKED_ONLY_PASS_CANARIES`, and their step-false twins refute the
+  wrong update in Psi validation only.
+
+  Remaining work:
+
+  - Ring evidence at the Terminal verifier. The fixtures claim
+    `result * 2 == acc * 2 + n * (n + 1)` over `u64 in Wrapping` and an `embed`
+    sum over a two-subject `Nat::BoundedDistance` rank. The kernel derives the
+    order `rank <= previous`; it cannot derive `sum + rank = initial`.
+    `verify_normalization` (`proof-admission/src/admission/normalization.rs`)
+    has no Terminal consumer; routing quotient and ring-law evidence through it
+    is shared with **PCC-CANONICAL-SEMANTIC-LEDGER**.
+  - A generated loop that carries the claim. Both fixtures are `&mut self`
+    machines with no scalar graph; they stop in the attached Unit closure at
+    `call statement shape: call count without a statement sequence`
+    (`typed-trees-to-checked-trees/src/execution/unit/control/checked_machine.rs`).
+    Either the attached value-returning cyclic route lands through
+    **STATE-LOCAL-VALUE-FRONTIER**'s ordinary evaluation, or the sums are
+    restated as free loops.
+  - Header-invariant proposal beyond its current reach: immutable exact
+    fixed-integer parameters, one state, the returned value only. A
+    loop-carried value in a second state, a `self` transition that changes
+    storage, and a Wrapping accumulator are not proposed, so a free-loop
+    restatement of the Wrapping sums does not prove yet either.
+
+  Acceptance: an arithmetic accumulation claim over a generated loop (the two
+  fixtures, or a free-loop restatement of their sums) executes natively, and
+  its wrong-update twin fails the functional claim on the preservation
+  obligation while the unchanged cycle certificate still answers the identical
+  cycle question. Dropping an arrival certificate rejects, and a guarantee the
+  loop does not establish stays unproved. Keep the existing controls:
+  terminal-verifier `tests/ranked_scc.rs` and
+  `tests/ranked_scc/scalar_block_invariants.rs`, `checked-trees-to-lowered-psi`
+  `tests::ranked_value_guarantees`, `compiler/tests/pcc_publication.rs`, and
+  `tests/architecture/layering.rs`.
+
+  Flag: the transported-guarantee header invariant is searched twice. The
+  source prover (`cyclic_headers.rs`, which calls itself "the source analog")
+  and the Terminal producer (`cyclic_guarantees.rs`) each propose and prove the
+  same conjunct independently, with different reach: the source side returns
+  `None` unless the machine has exactly one state. One derivation at any cyclic
+  header, recorded by checking as a fact that lowering certifies and the
+  verifier still replays, would remove the second search and the single-state
+  restriction.
 
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted Rust fusion of artifact
   traversal and proof search with a small total canonical-ledger generator plus
