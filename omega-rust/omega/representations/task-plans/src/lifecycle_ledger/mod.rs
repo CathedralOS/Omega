@@ -4,22 +4,27 @@
 //! `start.rs` owns the transactional-start custody boundary: the moved
 //! arguments and the supplied nonmoving stack lease enter `accept_invocation`
 //! together, every rejection returns them whole, and the ledger retains the
-//! lease authority while the claim lives. `mod.rs` owns the accounting
-//! itself: the live dependency map, the single-use identity sets, the
-//! recorded cancellation-request transition, settlement, reclaim validation,
-//! and close.
+//! lease authority while the claim lives. `execution.rs` owns the live
+//! activation's execution state: park/resume at canonical suspension
+//! crossings and the safe-point cancellation observation. `mod.rs` owns the
+//! accounting itself: the live dependency map, the single-use identity sets,
+//! the recorded cancellation-request transition, settlement, reclaim
+//! validation, and close.
 
+mod execution;
 mod start;
+
+use execution::TaskExecutionState;
 
 pub use start::{MovedTaskArguments, TaskStartRejection, TaskStartStorage};
 
 use crate::report_fingerprints::task_claim_report_fingerprint;
 use crate::stack_leases::{StackLease, TaskStorageProvenance};
 use crate::{
-    ActivationInstanceId, ActivationPlanId, ExecutorSelectionId, TaskArgumentCustodyId,
-    TaskLifecycleClaimId, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId,
-    TaskStartOperation, ValidatedTaskRuntimeInvocationReceipt,
+    ActivationInstanceId, ActivationPlanId, ExecutorSelectionId, SuspensionCrossingId,
+    TaskArgumentCustodyId, TaskLifecycleClaimId, TaskPlanDiagnostic, TaskRuntimeId,
+    TaskRuntimeInstanceId, TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId,
+    TaskRuntimeInvocationReceiptId, TaskStartOperation, ValidatedTaskRuntimeInvocationReceipt,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -99,6 +104,15 @@ struct LiveTaskDependency {
     /// unchanged; requesting cancellation must not invalidate the claim's
     /// issuance-time binding.
     cancellation_requested: bool,
+    /// Provider-side execution state: running, or parked at one canonical
+    /// suspension crossing of the activation's plan. Settlement requires a
+    /// terminated activation, so a parked claim cannot settle.
+    execution: TaskExecutionState,
+    /// The canonical safe point where the activation observed a recorded
+    /// cancellation request. `Cancelled` settlement is reachable only
+    /// through this recorded observation — a bare request is not the
+    /// cooperative observation the outcome reports.
+    cancellation_observed_at: Option<SuspensionCrossingId>,
 }
 
 impl LiveTaskDependency {
@@ -122,11 +136,14 @@ pub enum TaskSettlementOutcome {
     /// settle completed while its request was never observed.
     Completed,
     /// `TaskOutcome::Cancelled`: the activation observed a recorded
-    /// cancellation request at a checked safe point. Settlement rejects
-    /// this outcome unless `request_cancellation` was recorded on the
-    /// exact claim, so a provider cannot fabricate a cancelled outcome,
+    /// cancellation request at a declared safe point. Settlement rejects
+    /// this outcome unless a request was recorded on the exact claim and
+    /// `observe_cancellation` recorded the activation's observation at a
+    /// canonical crossing of its plan, so a provider cannot fabricate a
+    /// cancelled outcome, a never-suspending activation — whose plan has
+    /// no canonical crossing to observe at — can never settle cancelled,
     /// and an inline completion — which finished before any claim existed
-    /// to request against — can never settle cancelled.
+    /// to request against — can never settle cancelled either.
     Cancelled,
 }
 
@@ -303,6 +320,8 @@ impl TaskLifecycleLedger {
             invocation: Box::new(invocation.clone()),
             storage_authority,
             cancellation_requested: false,
+            execution: TaskExecutionState::Running,
+            cancellation_observed_at: None,
         };
         self.live.insert(claim, dependency);
         Ok(TaskLifecycleClaim {
@@ -405,7 +424,8 @@ impl TaskLifecycleLedger {
     /// no parked continuation, and never removes the record. Repeated
     /// requests on the same live claim record the same fact. Only terminal
     /// settlement removes the record, and a `Cancelled` settlement is
-    /// reachable only through this recorded transition.
+    /// reachable only through `observe_cancellation` recording that this
+    /// request was observed at a canonical safe point.
     pub fn request_cancellation(
         &mut self,
         claim: &TaskLifecycleClaim,
@@ -432,12 +452,18 @@ impl TaskLifecycleLedger {
     /// Terminal settlement: removes the exact live claim and its storage
     /// relationship and reports the lifecycle outcome the provider observed.
     ///
-    /// `Cancelled` requires a cancellation request recorded on the same
-    /// claim — the cooperative-cancellation outcome cannot be fabricated —
-    /// and can never apply to an inline completion, whose activation
-    /// finished before a claim existed to request against. `Completed`
-    /// covers the ordinary `Returned`/`Failed` outcomes and is always
-    /// permitted, including after a request the activation never observed.
+    /// Settlement reports a terminated activation, so a claim parked at a
+    /// canonical crossing must first resume — settling while parked would
+    /// dispose a suspended continuation. `Cancelled` requires both a
+    /// cancellation request recorded on the same claim and a recorded
+    /// `observe_cancellation` at one of the plan's canonical safe points —
+    /// the cooperative-cancellation outcome cannot be fabricated, and a
+    /// never-suspending activation has no safe point to observe at. It can
+    /// never apply to an inline completion, whose activation finished before
+    /// a claim existed to request against. `Completed` covers the ordinary
+    /// `Returned`/`Failed` outcomes and is always permitted for a
+    /// terminated activation, including after a request the activation
+    /// never observed.
     /// Every failure returns the claim so custody survives the rejection.
     pub fn settle(
         &mut self,
@@ -455,6 +481,17 @@ impl TaskLifecycleLedger {
             });
         }
         let dependency = dependency.expect("matched live claim");
+        if let TaskExecutionState::Parked(_) = dependency.execution {
+            return Err(TaskSettlementError {
+                claim,
+                diagnostic: TaskPlanDiagnostic(
+                    "task settlement reports a terminal outcome while the activation is \
+                     parked at a canonical suspension crossing; resume must continue \
+                     the same invocation first"
+                        .into(),
+                ),
+            });
+        }
         if outcome == TaskSettlementOutcome::Cancelled {
             if !dependency.cancellation_requested {
                 return Err(TaskSettlementError {
@@ -472,6 +509,16 @@ impl TaskLifecycleLedger {
                     diagnostic: TaskPlanDiagnostic(
                         "task settlement reports a cancelled outcome for an inline completion \
                          whose activation finished before its claim existed"
+                            .into(),
+                    ),
+                });
+            }
+            if dependency.cancellation_observed_at.is_none() {
+                return Err(TaskSettlementError {
+                    claim,
+                    diagnostic: TaskPlanDiagnostic(
+                        "task settlement reports a cancelled outcome without a recorded \
+                         safe-point observation of the cancellation request"
                             .into(),
                     ),
                 });

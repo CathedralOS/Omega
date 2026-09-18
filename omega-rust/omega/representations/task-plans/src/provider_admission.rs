@@ -25,11 +25,11 @@
 use crate::stack_leases::{StackLeaseBacking, TaskStorageProvenance, establish_stack_lease};
 use crate::{
     ActivationInstanceId, ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, StackPlan,
-    TaskActivationPlanSet, TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleClaimId,
-    TaskLifecycleLedger, TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId,
-    TaskRuntimeInvocationReceiptCandidate, TaskSettlementError, TaskSettlementOutcome,
-    TaskStartRejection, TaskStartStorage, TaskStorageBinding, TaskStorageLeaseId,
-    TaskStorageOwnerId, ValidatedTaskRuntimeInvocationReceipt,
+    SuspensionCrossingId, TaskActivationPlanSet, TaskDependencyRecord, TaskLifecycleClaim,
+    TaskLifecycleClaimId, TaskLifecycleLedger, TaskPlanDiagnostic, TaskRuntimeId,
+    TaskRuntimeInstanceId, TaskRuntimeInvocationReceiptCandidate, TaskSettlementError,
+    TaskSettlementOutcome, TaskStartRejection, TaskStartStorage, TaskStorageBinding,
+    TaskStorageLeaseId, TaskStorageOwnerId, ValidatedTaskRuntimeInvocationReceipt,
     validate_task_runtime_invocation_receipt,
 };
 use std::collections::BTreeMap;
@@ -304,6 +304,53 @@ impl TaskRuntimeAdmission {
         self.ledger.cancellation_requested(claim)
     }
 
+    /// Park the claim's activation at one canonical suspension crossing of
+    /// its plan. Parking keeps the claim's lease authority and every
+    /// binding; it establishes no result or cleanup edge.
+    pub fn park(
+        &mut self,
+        claim: &TaskLifecycleClaim,
+        crossing: SuspensionCrossingId,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        self.ledger.park(claim, crossing)
+    }
+
+    /// Resume a parked activation: the same invocation continues under the
+    /// same claim, receipt binding and retained lease. Returns the crossing
+    /// the activation was suspended at.
+    pub fn resume(
+        &mut self,
+        claim: &TaskLifecycleClaim,
+    ) -> Result<SuspensionCrossingId, TaskPlanDiagnostic> {
+        self.ledger.resume(claim)
+    }
+
+    /// Record that the activation observed a recorded cancellation request
+    /// at one canonical safe point of its plan — the transition that makes
+    /// a later `Cancelled` settlement honest.
+    pub fn observe_cancellation(
+        &mut self,
+        claim: &TaskLifecycleClaim,
+        crossing: SuspensionCrossingId,
+    ) -> Result<(), TaskPlanDiagnostic> {
+        self.ledger.observe_cancellation(claim, crossing)
+    }
+
+    /// The canonical crossing the claim's activation is parked at, or
+    /// `None` when it is running, settled, or unknown.
+    pub fn parked_crossing(&self, claim: TaskLifecycleClaimId) -> Option<SuspensionCrossingId> {
+        self.ledger.parked_crossing(claim)
+    }
+
+    /// The canonical crossing where the claim's activation observed its
+    /// recorded cancellation request, or `None` while none is recorded.
+    pub fn cancellation_observed(
+        &self,
+        claim: TaskLifecycleClaimId,
+    ) -> Option<SuspensionCrossingId> {
+        self.ledger.cancellation_observed(claim)
+    }
+
     /// The provider's storage-reclaim precondition for an external storage
     /// authority. Pool backing is reclaimed by `settle` directly.
     pub fn validate_storage_reclaim(
@@ -317,8 +364,10 @@ impl TaskRuntimeAdmission {
     /// Released pool backing returns to the free set; its era stays burned
     /// in the ledger, so reusing the slot still mints a fresh lease era.
     /// Caller-supplied storage is not pool backing and passes back to its
-    /// owner through the settlement carrier. A `Cancelled` outcome settles
-    /// only when a cancellation request was recorded on the claim.
+    /// owner through the settlement carrier. A parked activation must resume
+    /// before any settlement, and a `Cancelled` outcome settles only when a
+    /// cancellation request was recorded on the claim and observed at a
+    /// canonical safe point.
     pub fn settle(
         &mut self,
         claim: TaskLifecycleClaim,

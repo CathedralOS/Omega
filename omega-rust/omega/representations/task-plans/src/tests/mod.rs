@@ -3,6 +3,7 @@
 
 mod activation_plans;
 mod cancellation;
+mod execution;
 mod executor_selection;
 mod lifecycle_ledger;
 mod provider_admission;
@@ -79,6 +80,11 @@ fn wcsu_projection(validation_identity: u64) -> WcsuStackPlanProjection {
 
 fn runtime() -> TaskRuntimeId {
     id(80, TaskRuntimeId::from_normalized_identity)
+}
+
+/// The canonical suspension crossing every `candidate()` plan publishes.
+fn canonical_crossing() -> SuspensionCrossingId {
+    SuspensionCrossingId::new(7).expect("nonzero crossing identity")
 }
 
 /// An activation plan whose stack shape carries sealed whole-call-graph WCSU

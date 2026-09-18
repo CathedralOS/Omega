@@ -1,4 +1,7 @@
-use super::{candidate, id, invocation_receipt, moved_arguments, runtime, stack_lease, wcsu_plan};
+use super::{
+    candidate, canonical_crossing, id, invocation_receipt, moved_arguments, runtime, stack_lease,
+    wcsu_plan,
+};
 use crate::{
     ActivationInstanceId, MovedTaskArguments, StackLeaseBacking, StackPlan, StackRepresentationId,
     TaskArgumentCustodyId, TaskLifecycleLedger, TaskRuntimeInstanceId, TaskSettlementOutcome,
@@ -259,7 +262,8 @@ fn concurrent_claims_settle_independently_and_cross_instance_settlement_returns_
     assert_eq!(ledger.records().count(), 2);
 
     // Cancellation requests and a parked interval do not consume either
-    // claim; custody outlives execution state.
+    // claim; custody outlives execution state. The first activation parks
+    // at a canonical crossing of its plan while the second stays running.
     ledger
         .request_cancellation(&first)
         .expect("first claim survives a cancel request");
@@ -268,6 +272,14 @@ fn concurrent_claims_settle_independently_and_cross_instance_settlement_returns_
         .expect("second claim survives a cancel request");
     assert!(ledger.cancellation_requested(first.identity()));
     assert!(ledger.cancellation_requested(second.identity()));
+    ledger
+        .park(&first, canonical_crossing())
+        .expect("first activation parks at a canonical crossing");
+    assert_eq!(
+        ledger.parked_crossing(first.identity()),
+        Some(canonical_crossing())
+    );
+    assert_eq!(ledger.parked_crossing(second.identity()), None);
 
     // A foreign ledger cannot settle the claim; the failure returns it.
     let first = foreign_ledger
@@ -289,6 +301,17 @@ fn concurrent_claims_settle_independently_and_cross_instance_settlement_returns_
             .is_err()
     );
 
+    // The parked first activation observed its recorded request at the
+    // park crossing, resumes the same invocation, and settles cancelled.
+    ledger
+        .observe_cancellation(&first, canonical_crossing())
+        .expect("the parked activation observes the request at its crossing");
+    assert_eq!(
+        ledger
+            .resume(&first)
+            .expect("resume continues the invocation"),
+        canonical_crossing()
+    );
     let settled_first = ledger
         .settle(first, TaskSettlementOutcome::Cancelled)
         .expect("first observed the recorded request and settles cancelled");

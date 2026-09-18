@@ -3,8 +3,8 @@
 //! every rejection.
 
 use super::{
-    activation_fact_for, activation_set, id, moved_arguments, receipt_candidate, runtime,
-    stack_lease, wcsu_plan,
+    activation_fact_for, activation_set, canonical_crossing, id, moved_arguments,
+    receipt_candidate, runtime, stack_lease, wcsu_plan,
 };
 use crate::{
     ActivationInstanceId, ActivationPlanId, MovedTaskArguments, StackPlan, TaskActivationPlanSet,
@@ -73,6 +73,8 @@ fn pending_admission_establishes_a_fresh_provider_lease() {
     gate.request_cancellation(&claim)
         .expect("a live claim accepts a cancellation request");
     assert!(gate.cancellation_requested(claim.identity()));
+    gate.observe_cancellation(&claim, canonical_crossing())
+        .expect("the activation observes the request at a canonical safe point");
 
     let close = gate.close().expect_err("a live claim blocks close");
     let mut gate = close.into_admission();
@@ -409,8 +411,10 @@ fn cancelled_settlement_through_the_gate_requires_the_recorded_request() {
 
     gate.request_cancellation(&claim)
         .expect("the provider records the request");
+    gate.observe_cancellation(&claim, canonical_crossing())
+        .expect("the activation observes the request at a canonical safe point");
     gate.settle(claim, TaskSettlementOutcome::Cancelled)
-        .expect("the recorded request authorizes the cancelled settlement");
+        .expect("the recorded observation authorizes the cancelled settlement");
 
     // Settlement returned the backing to the pool under a fresh era.
     gate.admit_pending(
