@@ -1,0 +1,39 @@
+// FAIL CANARY. `Countdown::Remaining` and `Countdown::Pending` are two
+// declared measures with identical bodies; a field-view pair shares one
+// produced coordinate only through the same declared measure, so the members
+// do not share a ranking order.
+data Countdown {
+    remaining: u64 [0..=5];
+}
+
+measure Countdown::Remaining(countdown: Countdown) -> u64 {
+    countdown.remaining
+}
+
+measure Countdown::Pending(pending: Countdown) -> u64 {
+    pending.remaining
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(Countdown { remaining: 2 }) }
+}
+
+machine Main::scan_a(&mut self, countdown: Countdown)
+terminates by countdown -> Countdown::Remaining in 0..=5;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> self.scan_b(countdown)
+        false -> countdown.remaining
+    }
+}
+
+machine Main::scan_b(&mut self, pending: Countdown)
+terminates by pending -> Countdown::Pending in 0..=5;
+-> u64 {
+    transition pending.remaining > 0 {
+        true -> self.scan_a(Countdown { remaining: pending.remaining - 1 })
+        false -> pending.remaining
+    }
+}

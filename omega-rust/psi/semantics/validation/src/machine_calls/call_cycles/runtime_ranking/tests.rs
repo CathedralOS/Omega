@@ -9,6 +9,7 @@ mod carriers;
 mod clamped;
 mod computed;
 mod distance;
+mod fields;
 mod identity;
 mod increasing;
 mod lexicographic;

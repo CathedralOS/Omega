@@ -1,0 +1,35 @@
+// PASS CANARY. A runtime call component ranked by a declared custom
+// struct-field view: `Countdown::Remaining` reads the exact `remaining`
+// coordinate of each member's record subject. The forward edge preserves the
+// record; the rebuilt literal strictly decreases the coordinate.
+data Countdown {
+    remaining: u64 [0..=5];
+}
+
+measure Countdown::Remaining(countdown: Countdown) -> u64 {
+    countdown.remaining
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(Countdown { remaining: 2 }) }
+}
+
+machine Main::scan_a(&mut self, countdown: Countdown)
+terminates by countdown -> Countdown::Remaining in 0..=5;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> self.scan_b(countdown)
+        false -> countdown.remaining
+    }
+}
+
+machine Main::scan_b(&mut self, pending: Countdown)
+terminates by pending -> Countdown::Remaining in 0..=5;
+-> u64 {
+    transition pending.remaining > 0 {
+        true -> self.scan_a(Countdown { remaining: pending.remaining - 1 })
+        false -> pending.remaining
+    }
+}

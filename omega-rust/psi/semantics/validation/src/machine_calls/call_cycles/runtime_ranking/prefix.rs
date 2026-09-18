@@ -35,6 +35,7 @@ pub(super) fn preserves_rank(
             | RankOrder::SliceLength
             | RankOrder::DeclaredIdentity { .. }
             | RankOrder::DeclaredComputation { .. }
+            | RankOrder::CustomStructView { .. }
     ) {
         return false;
     }
