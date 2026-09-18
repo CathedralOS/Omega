@@ -26,7 +26,7 @@ pub(super) fn derive(
             }
             let domains = domains::build(function, requirements, work)?;
             let conflicts = conflicts::build(function, &domains, ranges, physical, work)?;
-            placement::assign(function, ranges.machine, &domains, &conflicts, work)
+            placement::assign(function, ranges.machine, &domains, &conflicts, ranges, work)
         })
         .collect()
 }

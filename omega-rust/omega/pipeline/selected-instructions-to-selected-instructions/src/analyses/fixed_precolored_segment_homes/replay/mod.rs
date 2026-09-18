@@ -61,7 +61,7 @@ fn family(
                 .ok_or(FixedPrecoloredSegmentHomeError::FunctionMismatch { function })?;
             let domains = domains::reconstruct(function, source, work)?;
             let conflicts = conflicts::reconstruct(function, &domains, ranges, physical, work)?;
-            placement::reconstruct(function, ranges.machine, &domains, &conflicts, work)
+            placement::reconstruct(function, ranges.machine, &domains, &conflicts, ranges, work)
         })
         .collect()
 }

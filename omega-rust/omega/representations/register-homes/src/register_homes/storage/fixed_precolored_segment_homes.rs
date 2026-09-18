@@ -29,7 +29,11 @@ impl FixedPrecoloredSegmentHomePlanIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredSegmentHomePolicy {
-    /// Place the most constrained remaining domain, then its lowest viable view.
+    /// Place the most constrained remaining domain, then its preferred viable
+    /// view: candidates keeping every constrained neighbor feasible rank by
+    /// satisfied copy-partner edges, then the view still-unassigned partners
+    /// would take, then fewest stolen neighbor coalesces; the lowest viable
+    /// view breaks every remaining tie.
     MostConstrainedLowestCompatibleViewV1,
 }
 
