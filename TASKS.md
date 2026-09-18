@@ -2231,18 +2231,18 @@ Owners include
   conversion argued over the implemented judgments with the
   ceiling's bounded-incompleteness stated, the encoding
   correspondence discharged per obligation, and the trust boundary
-  and non-claims named (no strict-layer formers yet).
+  and non-claims named.
 
-  The connect milestone is discharged: real theorem and bounded
-  certificates travel the canonical wire and are independently
-  re-decided with exact assumption closure. Next: the pinned
-  reference core's strict-layer formers (squash, boxing, strict
-  empty/unit) remain unimplemented — the `Strict` sort and
-  irrelevance conversion exist, strict introduction/elimination do
-  not, and `core::Squash` has no kernel counterpart — and the
-  source-elaboration seam is owned by PROOF-CONTRACT-MIGRATION. A
-  verified-profile claim still requires the full pinned core plus
-  the migration item's discriminating controls.
+  The connect milestone is discharged: real theorem and bounded certificates
+  travel the canonical wire and are independently re-decided with exact
+  assumption closure. Next: the pinned reference core's strict layer landed at
+  b367f54a77 (squash, boxing and strict empty/unit formers with their
+  introduction and elimination rules in
+  `proof-admission/src/mathematical_core/term.rs`, witnessed by
+  `mathematical_core/tests/strict_layer.rs` and the certificate-wire tests,
+  macOS ARM64); the source-elaboration seam is owned by
+  PROOF-CONTRACT-MIGRATION. A verified-profile claim still requires the full
+  pinned core plus the migration item's discriminating controls.
 
   Implement the pinned reference core and selected
   [W-based profile](wiki/spec/proofs/inductive_profile.md): relevant identity,
@@ -3160,46 +3160,47 @@ Owners include
 
 ## Parallel language and compiler lanes
 
-- **MATCH-SELECTIVE-LOWERING.** Complete the
-  [value-dispatch contract](wiki/spec/language/patterns.md) for owned/nonnumeric
-  results with parameter/projected/borrowed/linear custody, structural/case/domain
-  patterns and coverage. Owned call arms and record fields that move existing
-  affine children still need their exact residual transport. `5c986466a2`
-  admits candidate sources interleaved with other live affine owners: edge
-  arguments bind the join frontier positionally and the shared cleanup roster
-  splices residual and pass-through parameters per row in establishment
-  order (`pass/expressions/owned_match_interleaved_values`, macOS).
-  `06b6da61d6` carries that same roster across authored state joins: each
-  ordinary successor partitions residual custody per edge through the shared
-  source-run splice, transfer sources resolve rebound frontier places, and
-  the checker's state-exit locals accept the receipt-backed destination
-  (`pass/expressions/owned_match_authored_state`, macOS). `517e86d465`
-  moves projected affine children through owned match arms: a field or
-  fixed-index chain on a local record or a call's structural product becomes
-  a path-bearing owned argument, the exact residual complement dies on the
+- **MATCH-SELECTIVE-LOWERING.** Complete the [value-dispatch
+  contract](wiki/spec/language/patterns.md) for owned/nonnumeric results with
+  parameter/projected/borrowed/linear custody, structural/case/domain patterns
+  and coverage. Owned call arms and record fields that move existing affine
+  children still need their exact residual transport. `5c986466a2` admits
+  candidate sources interleaved with other live affine owners: edge arguments
+  bind the join frontier positionally and the shared cleanup roster splices
+  residual and pass-through parameters per row in establishment order
+  (`pass/expressions/owned_match_interleaved_values`, macOS). `06b6da61d6`
+  carries that same roster across authored state joins: each ordinary
+  successor partitions residual custody per edge through the shared source-run
+  splice, transfer sources resolve rebound frontier places, and the checker's
+  state-exit locals accept the receipt-backed destination
+  (`pass/expressions/owned_match_authored_state`, macOS). `517e86d465` moves
+  projected affine children through owned match arms: a field or fixed-index
+  chain on a local record or a call's structural product becomes a
+  path-bearing owned argument, the exact residual complement dies on the
   selected edge, and the Terminal interpreter replays the verifier's split
-  contract so the root carrier leaves storage only after every semantic
-  path is discharged (`pass/expressions/owned_match_projected_field`,
-  macOS). `9f8c787780` admits whole owned affine state parameters as match
-  sources: the checker establishes each source at state entry with its
-  authored parameter position as the source ordinal and orders parameters
-  after statement locals, lowering resolves the physical structural
-  parameter places and splices residual parameter custody through the same
-  positional selection-edge roster, and selected parameters stay out of
-  unconditional return drops (`pass/expressions/owned_match_parameter_values`,
-  macOS). `8f65df406e` projects affine children out of a prior selection's
-  join result: the chained source arrives on a join block parameter, both
+  contract so the root carrier leaves storage only after every semantic path
+  is discharged (`pass/expressions/owned_match_projected_field`, macOS).
+  `9f8c787780` admits whole owned affine state parameters as match sources:
+  the checker establishes each source at state entry with its authored
+  parameter position as the source ordinal and orders parameters after
+  statement locals, lowering resolves the physical structural parameter places
+  and splices residual parameter custody through the same positional
+  selection-edge roster, and selected parameters stay out of unconditional
+  return drops (`pass/expressions/owned_match_parameter_values`, macOS).
+  `8f65df406e` projects affine children out of a prior selection's join
+  result: the chained source arrives on a join block parameter, both
   downstream contracts root partial-affine residual custody at the target
   block's declared parameter roster, and the chained fixture replays all four
   input combinations with mutation coverage on the residual path, join
   arguments, and origin receipt (macOS). Remaining: borrowed and linear
   custody joins plus the borrowed-subject and operator-result obligations
-  below; preserve exact origins and actual death edges.
-  Owners: `validation/src/expression_types/{match_dispatch,result_type}.rs`,
+  below; preserve exact origins and actual death edges. Owners:
+  `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
-  canonical package-review contract/index projection. Preserve a once-evaluated
-  subject, ordered first match, branch-local execution and exact result owners;
-  do not flatten conditional ownership into a statement-wide move roster.
+  canonical package-review contract/index projection. Preserve a
+  once-evaluated subject, ordered first match, branch-local execution and
+  exact result owners; do not flatten conditional ownership into a
+  statement-wide move roster.
 
   Indexed affine tag observation reaches checked trees without copying the
   element (macOS ARM64, `51dc05abf5`; `cargo nextest run -p
@@ -3844,36 +3845,40 @@ Owners include
   classification-specific boundary-route restrictions remain unchanged.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
-  exact target-mechanism classification under the settled
-  [filesystem control/lifecycle policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
+  exact target-mechanism classification under the settled [filesystem
+  control/lifecycle
+  policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
   Acceptance: every admitted leaf has one exact mechanism/contract row;
-  unknowns and duplicates reject; exercised classes fit independently
-  supplied service permissions. Explicit empties retain service reach and
-  exact review identity. Retire the transitional broad `Filesystem` summary
-  only after exact replacement closes. Generic close need not be supported
-  to admit a separately proved constrained occurrence; do not fabricate a
-  broad union to complete the table. Slice landed at 2212af0bb4 on Linux
-  x86-64: the three ordinary-release cohorts emit one evidence-bound
-  explicit-empty mechanism row for the direct-syscall mechanism carrying a
-  retained `FilesystemOrdinaryReleaseContract` in its checked
-  argument-contract coordinate, and the review admits one constrained close
-  leaf with empty exercised and permitted classes while the unconstrained
-  sibling under the same syscall number stays unclassified. A normalized
-  foreign mechanism now carries an argument-contract coordinate beside its
-  admitted calling plan (`effects::NormalizedForeignArgumentContract`):
-  the admitted-plan key keeps its published bytes, and a checked coordinate
-  binds the same retained release contract, so a constrained
-  `kernel32!CloseHandle` import occurrence earns the evidence-bound empty
-  row under review while the unconstrained import of the same symbol stays
-  unclassified (`terminal_authority_review/tests.rs::
-  foreign_release_occurrence_review_binds_the_retained_record`, macOS
-  ARM64). Remaining: settlement wiring —
-  `native-realization/src/native_realization/providers/settlements/source_imports.rs`
-  mints only the conservative syscall key and the admitted-plan foreign key,
-  and nothing hands a compile's retained build filesystem replay record
-  through `filesystem_native_handle_query_release_contracts` into the
-  settled mechanisms, so no real compile earns the constrained row yet; the
-  broad `Filesystem` summary retires only after that wiring closes.
+  unknowns and duplicates reject; exercised classes fit independently supplied
+  service permissions. Explicit empties retain service reach and exact review
+  identity. Retire the transitional broad `Filesystem` summary only after
+  exact replacement closes. Generic close need not be supported to admit a
+  separately proved constrained occurrence; do not fabricate a broad union to
+  complete the table. Slice landed at 2212af0bb4 on Linux x86-64: the three
+  ordinary-release cohorts emit one evidence-bound explicit-empty mechanism
+  row for the direct-syscall mechanism carrying a retained
+  `FilesystemOrdinaryReleaseContract` in its checked argument-contract
+  coordinate, and the review admits one constrained close leaf with empty
+  exercised and permitted classes while the unconstrained sibling under the
+  same syscall number stays unclassified. A normalized foreign mechanism now
+  carries an argument-contract coordinate beside its admitted calling plan
+  (`effects::NormalizedForeignArgumentContract`): the admitted-plan key keeps
+  its published bytes, and a checked coordinate binds the same retained
+  release contract, so a constrained `kernel32!CloseHandle` import occurrence
+  earns the evidence-bound empty row under review while the unconstrained
+  import of the same symbol stays unclassified
+  (`terminal_authority_review/tests.rs::
+  foreign_release_occurrence_review_binds_the_retained_record`, macOS ARM64).
+  The settlement wiring landed at a56b3b6265:
+  `native-realization/src/native_product/realization.rs` captures the verified
+  filesystem replay record, calls
+  `filesystem_native_handle_query_release_contracts`, derives
+  `filesystem_release_occurrence_mechanism_rows` and merges them into the
+  terminal-authority policy, and `settlements/source_imports.rs` now takes
+  those contracts as a parameter, so the earlier "nothing hands a compile's
+  retained build filesystem replay record" sentence is stale. Remaining: a
+  witness that a real compile earns the constrained row end to end, after
+  which the broad `Filesystem` summary retires.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Implement bounded occurrence-specific
   open/query/close evidence through checked flow and native realization replay.
@@ -3985,44 +3990,44 @@ Owners include
   unresolved result routes keep no checked guarantee.
 
   Realize projected nested value-call operands guarded by
-  `validation/src/calls/expression_scanning/result_realization.rs` through the
-  checked/lowered value planning path. Borrow checking can transfer owned
-  helper-result projections, but full checking still rejects the inner call's
-  result as an unrealized operand.
-  Complete result projections through the shared evaluator and result-binding
-  lookup; extend the shared closure to general structural-result callees. Carry loans,
+  `validation/src/machine_calls/calls/expression_scanning/result_realization.rs`
+  through the checked/lowered value planning path. Borrow checking can
+  transfer owned helper-result projections, but full checking still rejects
+  the inner call's result as an unrealized operand. Complete result
+  projections through the shared evaluator and result-binding lookup; extend
+  the shared closure to general structural-result callees. Carry loans,
   qualifications, and projected claims through structural results without
-  erasing their obligations.
-  Acceptance:
-  `select(forward_outer(outer).inner)` and `select(forward_array(values)[0])`
-  evaluate each call once, retain the inner result home through projection and
-  the outer call, and preserve every selected source loan and linear claim.
-  Remove the nested-call gate only when those result uses have real producers;
-  a correct declared type or source origin alone does not realize a value.
-  Resume at the checked/Terminal representation seam, not another evaluator
-  source-shape gate: realize projected owned reference leaves with residual
-  carrier cleanup, then nested result operands with their recursive loan custody.
-  Whole owned record ingress and forwarding are available: at `5374ab3198`,
-  `cargo nextest run -p checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
-  (macOS ARM64, `RUST_MIN_STACK=33554432`) checks canonical encoding, independent
-  verification, and fuel-stepped execution of `forward(input)` followed by
-  `replace(held.body)`, preserving the transferred leaf and restoring the caller's
-  original backing after cleanup. `select(value: View) -> &mut i32 { value.body }`
-  must move the selected permission and dispose the remainder, not create a
-  reborrow whose parent dies at return.
-  This is Terminal acceptance, not native acceptance. Reuse
-  `validation/src/reference_result_custody.rs` for ordinary completion and
-  independent source replay; preserve conservative lifetime unions when extending
-  exact runtime origins beyond the current whole-record route. Transfer existing
-  permissions through owned call/edge/result moves and residual cleanup;
-  `EstablishReference` creates a child loan and cannot substitute for moving an
-  existing leaf. Keep carrier location distinct from loan occurrence/parent,
-  relocate runtime descriptors without copying referents, and reject nested
-  reference host interfaces until their custody exists. Reuse existing typed
-  projection/result maps; structural-element array construction remains a
-  further dependency beyond the record route. The full-checking rejection
-  controls in `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs`
-  cover nested `select(forward_outer(...).inner)` and
+  erasing their obligations. Acceptance: `select(forward_outer(outer).inner)`
+  and `select(forward_array(values)[0])` evaluate each call once, retain the
+  inner result home through projection and the outer call, and preserve every
+  selected source loan and linear claim. Remove the nested-call gate only when
+  those result uses have real producers; a correct declared type or source
+  origin alone does not realize a value. Resume at the checked/Terminal
+  representation seam, not another evaluator source-shape gate: realize
+  projected owned reference leaves with residual carrier cleanup, then nested
+  result operands with their recursive loan custody. Whole owned record
+  ingress and forwarding are available: at `5374ab3198`, `cargo nextest run -p
+  checked-trees-to-lowered-psi --test reference_result_source --no-fail-fast`
+  (macOS ARM64, `RUST_MIN_STACK=33554432`) checks canonical encoding,
+  independent verification, and fuel-stepped execution of `forward(input)`
+  followed by `replace(held.body)`, preserving the transferred leaf and
+  restoring the caller's original backing after cleanup. `select(value: View)
+  -> &mut i32 { value.body }` must move the selected permission and dispose
+  the remainder, not create a reborrow whose parent dies at return. This is
+  Terminal acceptance, not native acceptance. Reuse
+  `validation/src/machine_calls/reference_result_custody.rs` for ordinary
+  completion and independent source replay; preserve conservative lifetime
+  unions when extending exact runtime origins beyond the current whole-record
+  route. Transfer existing permissions through owned call/edge/result moves
+  and residual cleanup; `EstablishReference` creates a child loan and cannot
+  substitute for moving an existing leaf. Keep carrier location distinct from
+  loan occurrence/parent, relocate runtime descriptors without copying
+  referents, and reject nested reference host interfaces until their custody
+  exists. Reuse existing typed projection/result maps; structural-element
+  array construction remains a further dependency beyond the record route. The
+  full-checking rejection controls in
+  `typed-trees-to-checked-trees/src/tests/borrow/carrier_results.rs` cover
+  nested `select(forward_outer(...).inner)` and
   `select(forward_array(...)[0])` calls, not the simpler `make_view` binding.
   Keep those controls until their corresponding unchanged source cases execute
   from encoded Terminal evidence, including projected moves and array ingress.
