@@ -2205,13 +2205,55 @@ fn instruction_defined_structural_victims_keep_their_coordinates() {
             "mutation {mutation}"
         );
     }
-    // The bridge pointer defined by `FrameAddress` names storage coordinates,
-    // not a restatable value — the definition-kind bound still applies.
+    // The bridge pointer defined by `FrameAddress` names storage coordinates
+    // — an `AbiTransport` provenance with no `ValueId` — and its resolved
+    // address round-trips through private storage like any other result. Its
+    // single use is the field `Load64`'s address operand, which no replay
+    // joins to the forming instruction, so the operand follows the reload
+    // while the load's own observation result keeps the payload's exact
+    // coordinates.
     let source = case_parameter_fixture(target);
-    assert_eq!(
+    let result =
         spill_selected_runtime_value(&source, 0, VirtualRegisterId(2), &environment, budget())
-            .unwrap_err(),
-        RuntimeSpillError::UnsupportedValue
+            .unwrap();
+    let transformed = &result.transformed().functions[0];
+    let bridge = transformed
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|instruction| instruction.id == SelectedInstructionId(201))
+        })
+        .unwrap();
+    let load = bridge
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == SelectedInstructionId(202))
+        .unwrap();
+    let reloaded = load.operands[0].virtual_register;
+    assert_ne!(reloaded, VirtualRegisterId(2));
+    assert!(matches!(
+        transformed
+            .virtual_registers
+            .iter()
+            .find(|register| register.id == reloaded)
+            .unwrap()
+            .origin,
+        VirtualRegisterOrigin::StructuralObservation { place: restated, byte_offset: 0, .. }
+            if restated == PlaceId::new(1).unwrap()
+    ));
+    assert!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(2),
+            &environment,
+            budget(),
+            result.transformed().clone()
+        )
+        .is_ok()
     );
 }
 

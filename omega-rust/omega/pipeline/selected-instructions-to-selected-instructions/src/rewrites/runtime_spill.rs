@@ -43,8 +43,13 @@
 //! and its reload registers carry that same coordinate in their observation
 //! origin — exact enough that a reload can still serve a case-payload
 //! argument whose transport demands the declared field. The definition's own
-//! instruction still cannot be an address producer, and the coordinate stays
-//! rejected where a transport names a different place or field offset.
+//! instruction may be an address producer — `FrameAddress`, `AddressOffset`,
+//! or `ByteViewAddress` — since a resolved address round-trips its bits like
+//! any other result; the single exception is the primitive-local
+//! establishment idiom, where the `WritePlace` store paired with the
+//! `AddressLocal` access on that definition keeps the victim register in its
+//! address operand verbatim, and the coordinate stays rejected where a
+//! transport names a different place or field offset.
 //!
 //! Terminator instruction operands are ordinary uses at one more position:
 //! each reloads at the end of its block, after the last body instruction and
