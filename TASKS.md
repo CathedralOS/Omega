@@ -1619,77 +1619,82 @@ Owners include
   failure. General source punctuation is not a kernel blocker.
 
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
-  [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).
-  Owners: Psi syntax/resolution/typing, contract proof semantics, Terminal
-  evidence/codec/replay, and core mathematical traits. Use `PROOF-KERNEL-CORE`,
-  not a second general logical representation. Implement the selected
-  [mathematical bindings](wiki/spec/proofs/mathematical_bindings.md): closed
-  parameterized top-level `let`, dependent function types, curried prefix
-  application, core-named universes/level binders and `boundary let` assumptions.
-  Their general certificate integration follows the settled
-  [PCC checking/publication contract](wiki/spec/proofs/publication.md).
-  Preserve ordinary local bindings, complete machine calls and executable callback
-  selection. Do not introduce quantifier keywords or substitute declaration
-  enumeration or an optional-returning decider for general mathematical quantification.
+  [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles)
+  and implement the selected
+  [mathematical bindings](wiki/spec/proofs/mathematical_bindings.md),
+  elaborating to `PROOF-KERNEL-CORE`'s terms, not a second general logical
+  representation. Owners: Psi syntax/resolution/typing, contract proof
+  semantics, Terminal evidence/codec/replay, and core mathematical traits.
+  Only Rust-built kernel legs of cases 3-5 exist, in `proof-admission`, and
+  `terminal-codec`'s mathematical certificate wire has no production caller.
+  The parser (`tokens-to-syntax-trees/src/declarations/parse_declaration.rs`)
+  has no top-level `let`, `boundary let` or arrow type, no `core::Level`,
+  `Type`, `Strict` or `Squash` declaration exists, and the dedicated
+  `proposition` declaration with its named-witness call lanes
+  (`typed-trees-to-checked-trees/src/proof/proof_output_calls.rs`) still
+  carries `core/int.omg` and 37 files under `tests/`.
 
-  Replace the dedicated formula-declaration and hidden-witness call machinery
-  with ordinary contracts and named witness/law bundles, preserving exact
-  substitution, result/path availability, erasure, validity, and transitive
-  assumptions across trait calls and artifacts. This incorporates the former
-  selected-witness and trait-named-witness work; do not widen those old surfaces
-  independently. Retain useful checking rules, not mandatory wrapper syntax.
-  Include value/computation elaboration here: a total admitted invocation may
-  denote mathematically; effectful calls expose outcome contracts, never effects
-  executed by conversion. Mathematical result-bearing axioms are explicit in
-  checked declarations, not missing-provider slots or a new domain qualifier.
-  Enforce executable demand across data, calls and control flow, consistently
-  at source use, evaluation and lowering; proof-only references retain trust
-  without creating runtime demand.
+  Remaining work:
 
-  Preserve [call preconditions](wiki/spec/language/machines.md#call-preconditions)
-  during mathematical application and theorem citation, including logical
-  evidence supplied through binders. **OPERATOR-MACHINE-SUPPLY** owns the shared
-  call-checker repair and Nat migration below; general kernel integration must
-  retain premise evidence under exact substitution rather than restore a
-  proof-only exemption. Induction additionally needs its exact decreasing edge.
+  - Parse, resolve, type and elaborate closed parameterized top-level `let`,
+    dependent function types, curried prefix application, core-named
+    universes/level binders and `boundary let` assumptions. Preserve ordinary
+    local bindings, complete machine calls and executable callback selection.
+    Add no quantifier keywords, and do not substitute declaration enumeration
+    or an optional-returning decider for mathematical quantification.
+  - Replace formula declarations and hidden-witness calls with ordinary
+    contracts and named witness/law bundles, preserving exact substitution,
+    result/path availability, erasure, validity and transitive assumptions
+    across trait calls and artifacts. Do not widen the old selected-witness or
+    trait-named-witness surfaces independently; retain useful checking rules,
+    not mandatory wrapper syntax.
+  - Elaborate values and computation under
+    [executable demand](wiki/spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand),
+    enforced consistently at source use, evaluation and lowering. Conversion
+    never executes an effect, and a result-bearing axiom is an explicit
+    checked declaration, not a missing-provider slot or a domain qualifier.
+  - Preserve [call preconditions](wiki/spec/language/machines.md#call-preconditions)
+    during mathematical application and theorem citation, including logical
+    evidence supplied through binders; never restore a proof-only exemption.
+    Induction also needs its exact decreasing edge. **OPERATOR-MACHINE-SUPPLY**
+    owns the shared call-checker repair and the `core/nat.omg` migration.
+  - Migrate core relations, quotients, samples and tests, remove obsolete
+    parser/carrier/codec routes, and reject retired spellings. Two other
+    owners assign encodings here: the replacement proof rows of
+    `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md`, and
+    QUOTIENT-THEOREM-LIFT's congruence-only `lift` wire payload.
 
   Acceptance: actual proof scripts and false twins pass through source,
-  Terminal serialization, and independent replay for all five cases:
+  Terminal serialization and independent replay, under the
+  [publication contract](wiki/spec/proofs/publication.md), for all five cases:
 
   1. Composition of two witness/law bundles preserves exact substitutions and
      distinct witnesses.
-  2. A higher-order theorem quantifies over arbitrary mathematical predicates or
-     functions, not an enumeration of executable declarations. Supply the
-     machine-shaped logical hypothesis from derived Π-term evidence, with fixed
-     subjects and discharged premises, not only a named proof declaration.
-     Reject that supply for reset-through-borrow and executable callback contracts.
-     Exercise `greater_than(limit)`, dependent result substitution, shadowing,
-     independent universe levels and stable inferred public level telescopes.
-     Partial mathematical applications are complete function terms; wrong expected
-     types and missing machine arguments reject without implicit runtime closures.
-  3. Nonconstructive existence uses an explicit axiom and cannot supply an
-     executable witness without checked realization. Cover a chosen `u32`, a
-     choice-dependent branch, and an erased theorem that mentions that value.
-     Also prove squashed witness existence from another squashed witness and a
-     logical hypothesis, with no choice assumption. Establish constrained records
-     at construction, retain exact evidence dependencies, and keep relevant
-     dependent witness bundles distinct from strict predicate gating.
+  2. A higher-order theorem over arbitrary mathematical predicates or
+     functions passes every
+     [delivery control](wiki/spec/proofs/mathematical_bindings.md#delivery-controls),
+     its machine-shaped hypothesis supplied from derived Π-term evidence and
+     not only a named proof declaration.
+  3. Nonconstructive existence uses an explicit axiom and supplies no
+     executable witness without checked realization, including an erased
+     theorem that mentions the chosen value; squashed existence derived from
+     another squashed witness needs no choice assumption. Constrained records
+     are established at construction with exact evidence dependencies, and
+     relevant dependent witness bundles stay distinct from strict predicate
+     gating.
   4. Accepting and denying policies distinguish the same theorem, with exact
-     transitive assumptions surviving import, erasure, serialization, and replay.
-  5. A Cauchy/quotient proof uses the selected
-     [set-quotient interface](wiki/spec/proofs/quotients.md#set-quotient-foundation),
-     with exact universes, set-valued dependent elimination, point computation
-     as a law and explicitly admitted effectivity. Check derived lift, coverage,
-     proposition induction and pointwise uniqueness; no hidden extensionality
-     or kernel reduction. Squashed relations yield only squashed evidence.
-     Preserve representative operations/congruence independently: a quotient-refusing
-     policy accepts their quotient-free closure and rejects the assumption-bearing
-     quotient proof. This control depends on transitive closure through helper
-     statements/types; existing Rat comments do not establish that closure.
+     transitive assumptions surviving import, erasure, serialization and replay.
+  5. A Cauchy/quotient proof uses the
+     [set-quotient interface](wiki/spec/proofs/quotients.md#set-quotient-foundation)
+     and its derived items with no hidden extensionality or kernel reduction.
+     A quotient-refusing policy accepts the quotient-free closure of the
+     representative operations and congruence and rejects the
+     assumption-bearing quotient proof. That control depends on transitive
+     closure through helper statements/types; existing Rat comments do not
+     establish it.
 
-  Migrate core relations, quotients, samples, and tests, remove obsolete parser/carrier/codec
-  routes, and reject retired spellings. Candidate naming syntax is not a
-  prerequisite. Do not claim full mathematical coverage from these controls.
+  Candidate naming syntax is not a prerequisite. These controls do not
+  establish full mathematical coverage.
 
 - **PROOF-CERTIFICATION-BRIDGE.** A well-founded denotation must be checked
   against the generated loop, not inherited from termination: a ranked
