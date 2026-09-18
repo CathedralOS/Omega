@@ -11,9 +11,9 @@ use register_environment::baseline_target_register_environment;
 use selected_instructions::{
     LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedInstructionId,
-    SelectedInstructionKind, SelectedMemoryAccessRole, SelectedStructuralBinding,
-    SelectedStructuralCaseEdge, SelectedStructuralTransport, SelectedTerminator,
-    SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
+    SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralBinding, SelectedStructuralCaseEdge, SelectedStructuralTransport,
+    SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
@@ -798,6 +798,69 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
         );
     });
     let result = sink(&terminator_write, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // A dynamic-extent row on the crossed terminator reaches only upward
+    // from its fixed offset, so starting at the moved range's end it is
+    // provably disjoint and the store still crosses into the covering
+    // block; one byte earlier the moved range's last byte stays reachable
+    // and the store lands at the crossed block's end.
+    let terminator_above = mutated_chained(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    SelectedInstructionId(6),
+                    3,
+                    place(),
+                    8,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    let result = sink(&terminator_above, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![STORE, KILLER]
+    );
+    let terminator_inside = mutated_chained(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    SelectedInstructionId(6),
+                    3,
+                    place(),
+                    7,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    let result = sink(&terminator_inside, &environment).unwrap();
     assert_eq!(
         result.transformed().functions[0].blocks[0]
             .instructions

@@ -32,9 +32,14 @@
 //! slide. A `WriteLocal` or `AddressLocal` row names a slot: the place's own
 //! storage — a parameter, block-parameter, or producer-declared `Structural`
 //! home — interferes on the moved bytes like a place row, while a slot that
-//! only stages bytes naming the place never reaches them. Only a
+//! only stages bytes naming the place never reaches them. A dynamic-extent
+//! row reaches only upward from its fixed byte offset — a span covers
+//! `length` bytes there and a sequence row touches `offset + index` — so
+//! one starting at or past the moved range's end is provably disjoint and
+//! slides past like any disjoint row. Only a
 //! potentially overlapping access on the moved place, a dynamic-extent row
-//! on it, a write to or materialized address of the place's own storage, or
+//! on it still able to reach the moved bytes, a write to or materialized
+//! address of the place's own storage, or
 //! a call/hosted effect bounds the window.
 //!
 //! The walk is not confined to one block: reaching a block's end without a

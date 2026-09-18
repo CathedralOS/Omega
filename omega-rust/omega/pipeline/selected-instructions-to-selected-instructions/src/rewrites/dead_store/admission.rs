@@ -6,8 +6,11 @@
 //!
 //! Interference is decided from the validated access roster. A row naming the
 //! dead place interferes when it can observe the stored bytes or leave them
-//! observable: any overlapping or dynamic-extent read, any write that is not
-//! the exact covering write, or a materialized local address. Rows for other
+//! observable: any overlapping read, any write that is not
+//! the exact covering write, or a materialized local address. A
+//! dynamic-extent row interferes the same way while its fixed offset starts
+//! below the dead range's end — its reach is unbounded upward, so only a row
+//! beginning at or past that end is provably disjoint. Rows for other
 //! places are safe under place exclusivity. A `WriteLocal` on the dead
 //! place's own storage interferes exactly like a `WritePlace` on that place:
 //! an overlapping row decides coverage below, a disjoint row walks past. The
@@ -88,6 +91,17 @@ impl Dead {
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
             && u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count)
+    }
+
+    /// A dynamic-extent row's reach is unbounded only upward: a span row
+    /// covers `length` bytes starting at `byte_offset` and a sequence row
+    /// touches the single byte `byte_offset + index`, so every byte the row
+    /// can touch lies at or after `byte_offset`. It still reaches this range
+    /// exactly while its fixed offset starts below the range's end; an
+    /// offset at or past the end is provably disjoint however far the reach
+    /// extends.
+    fn reached_by(&self, access: &SelectedMemoryAccess) -> bool {
+        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
     }
 }
 
@@ -511,8 +525,11 @@ fn scratch_definition_is_dead(
 }
 
 /// Whether one roster row can observe the dead bytes or leave them
-/// observable. Reads must intersect the dead range; dynamic extents always
-/// reach it. Writes must target the same place root to overlap; the covering
+/// observable. Reads must intersect the dead range. A dynamic-extent row on
+/// the dead place reaches only upward from its fixed offset, so it
+/// interferes exactly while that offset starts below the dead range's end;
+/// a row starting at or past the end is provably disjoint and walks past.
+/// Writes must target the same place root to overlap; the covering
 /// write is checked by the caller after this returns true. A `WriteLocal`
 /// row names an exact range on a slot: when the slot is the dead place's
 /// own storage, range intersection decides and an intersecting row still has
@@ -534,7 +551,9 @@ fn interferes(
         SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
-        | SelectedMemoryAccessRole::WriteByteSequence { .. } => access.place == dead.place,
+        | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
+            access.place == dead.place && dead.reached_by(access)
+        }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
             local_slot_is_place_storage(slot, dead.place, structural_places)
                 && dead.intersects(access)

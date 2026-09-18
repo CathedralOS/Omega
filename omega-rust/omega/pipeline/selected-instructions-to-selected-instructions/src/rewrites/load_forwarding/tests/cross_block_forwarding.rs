@@ -1604,6 +1604,55 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
         forward(&terminator_write, &environment).unwrap_err(),
         StoredLoadForwardingError::AliasingWrite
     );
+    // A dynamic-extent write on the crossed terminator reaches only upward
+    // from its fixed offset, so starting at the read's end it is provably
+    // disjoint and the walk crosses; one byte earlier the read's last byte
+    // stays reachable and it still decides against the pair.
+    let terminator_above = mutated_chained(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    SelectedInstructionId(6),
+                    3,
+                    place(),
+                    8,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    forward(&terminator_above, &environment).unwrap();
+    let terminator_inside = mutated_chained(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    SelectedInstructionId(6),
+                    3,
+                    place(),
+                    7,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    assert_eq!(
+        forward(&terminator_inside, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
 }
 
 #[test]

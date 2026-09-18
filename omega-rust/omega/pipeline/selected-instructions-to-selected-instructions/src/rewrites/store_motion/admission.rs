@@ -27,8 +27,10 @@
 //!
 //! Sinking the store delays the write inside the window where the delay is
 //! unobservable. The scan stops before the first position that must stay
-//! ordered after the store: a roster row touching the moved byte range or the
-//! place's dynamic storage, a call or hosted effect, a redefinition of a
+//! ordered after the store: a roster row touching the moved byte range — an
+//! exact row intersecting it, or a dynamic-extent row whose fixed offset
+//! still starts below the moved end, its reach being unbounded upward — a
+//! call or hosted effect, a redefinition of a
 //! carried register, a memory-capable instruction with no roster row, or a
 //! boundary settlement. The store lands immediately before that position;
 //! every kept event still observes the write in the same relative order.
@@ -93,6 +95,17 @@ impl Moved {
         u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
             && u64::from(self.byte_offset)
                 < u64::from(access.byte_offset) + u64::from(access.byte_count)
+    }
+
+    /// A dynamic-extent row's reach is unbounded only upward: a span row
+    /// covers `length` bytes starting at `byte_offset` and a sequence row
+    /// touches the single byte `byte_offset + index`, so every byte the row
+    /// can touch lies at or after `byte_offset`. It still reaches this range
+    /// exactly while its fixed offset starts below the range's end; an
+    /// offset at or past the end is provably disjoint however far the reach
+    /// extends.
+    fn reached_by(&self, access: &SelectedMemoryAccess) -> bool {
+        u64::from(access.byte_offset) < u64::from(self.byte_offset) + u64::from(self.byte_count)
     }
 }
 
@@ -475,8 +488,12 @@ fn carried_surface(
 }
 
 /// Whether one roster row touches the moved bytes or the place's dynamic
-/// storage. Exact rows must intersect the moved range; dynamic extents
-/// always reach it. A `WriteLocal` row names an exact range on a slot: when
+/// storage. Exact rows must intersect the moved range. A dynamic-extent row
+/// on the moved place reaches only upward from its fixed offset, so it
+/// interferes exactly while that offset starts below the moved range's end;
+/// a row beginning at or past the end is provably disjoint and the store
+/// slides past it like any disjoint row. A `WriteLocal` row names an exact
+/// range on a slot: when
 /// the slot is the moved place's own storage, range intersection decides; a
 /// slot that only stages bytes naming the place holds none of the place's
 /// bytes at any offset, so its writes never stop the walk. A materialized
@@ -496,7 +513,9 @@ fn interferes(
         SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
-        | SelectedMemoryAccessRole::WriteByteSequence { .. } => access.place == moved.place,
+        | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
+            access.place == moved.place && moved.reached_by(access)
+        }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
             local_slot_is_place_storage(slot, moved.place, structural_places)
                 && moved.intersects(access)

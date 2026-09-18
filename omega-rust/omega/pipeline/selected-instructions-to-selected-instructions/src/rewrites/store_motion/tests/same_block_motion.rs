@@ -246,8 +246,9 @@ fn observing_accesses_land_the_store_just_before_them() {
         sink(&immediate, &environment).unwrap_err(),
         StoreMutationMotionError::UnsupportedPair
     );
-    // A dynamic-extent write to the same place cannot be proven disjoint, so
-    // it bounds the motion just as an exact row does.
+    // A dynamic-extent write to the same place starting inside the moved
+    // range still reaches its last byte, so it bounds the motion just as an
+    // exact row does.
     let dynamic = mutated(target, |function, _| {
         function.memory_accesses.insert(
             1,
@@ -273,6 +274,89 @@ fn observing_accesses_land_the_store_just_before_them() {
     assert_eq!(
         sink(&dynamic, &environment).unwrap_err(),
         StoreMutationMotionError::UnsupportedPair
+    );
+    // One byte below the moved range's end the same row still bounds the
+    // motion, but a dynamic-extent row reaches only upward from its fixed
+    // offset, so starting at the moved end it is provably disjoint and the
+    // store slides past to the covering store.
+    let dynamic_edge = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    7,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(5).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    assert_eq!(
+        sink(&dynamic_edge, &environment).unwrap_err(),
+        StoreMutationMotionError::UnsupportedPair
+    );
+    let dynamic_above = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    8,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(5).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    let result = sink(&dynamic_above, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
+    );
+    // A span read past the moved range slides past the same way.
+    let span_above = mutated(target, |function, _| {
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 0,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    8,
+                    SelectedMemoryAccessRole::ReadByteSpan {
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    let result = sink(&span_above, &environment).unwrap();
+    assert_eq!(
+        landed_ids(&result),
+        vec![SelectedInstructionId(1), BETWEEN, STORE, KILLER]
     );
     // A `WriteLocal` on a `Structural` slot the place's declaration does not
     // charge to that operation only stages bytes naming the place — its
