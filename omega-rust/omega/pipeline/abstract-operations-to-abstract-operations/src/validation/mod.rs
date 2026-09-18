@@ -638,9 +638,10 @@ pub(crate) fn invariant_scalar_case_admission(
     member_scalar_operand_substitution(function, component, node, relocating)
 }
 
-/// Whether the affine scalar-case result `picked` stays inside `component`'s
+/// Whether the affine scalar-case or structural-call result `picked` stays
+/// inside `component`'s
 /// member roster spelled only through positions the relocation's custody
-/// rewrite covers: the producing establishment itself, a `StructuralCase`
+/// rewrite covers: the producing establishment or call itself, a `StructuralCase`
 /// dispatch or read-only inspection of the sum, a structural return's source
 /// or exit-disposal roster, and the member-internal or exit edges whose
 /// discard rosters the rewrite adjusts. The cyclic eligibility fence already
@@ -672,8 +673,16 @@ fn scalar_case_result_contained(
             let confined = match &node.operation {
                 // The producer spells its own result — a declaration, not a
                 // use of an existing place — and only a member node can
-                // produce it inside this component.
-                O::EstablishScalarCase { result, .. } if result.place == picked => member,
+                // produce it inside this component. A `CallStructural`
+                // producer is the same declaration position: the admitted
+                // relocation carries an affine claim-free result the cyclic
+                // eligibility fence already confined to the producing
+                // member block's dispatch or return.
+                O::EstablishScalarCase { result, .. } | O::CallStructural { result, .. }
+                    if result.place == picked =>
+                {
+                    member
+                }
                 // Dispatch, inspection, and structural-return positions keep
                 // the result inside re-expressible custody when they live
                 // inside the roster.
@@ -767,7 +776,8 @@ fn scalar_case_result_contained(
 }
 
 /// Rewrite one retained member node's edge and cleanup custody for the
-/// relocated affine scalar-case results in `case_results`: strip each such
+/// relocated affine scalar-case and structural-call results in
+/// `case_results`: strip each such
 /// place from every member-internal edge — the persistent preheader result
 /// stays live across the traversal where the source's fresh place died at
 /// dispatch — and insert it, in the Terminal cleanup schedule's order, on
@@ -2581,6 +2591,69 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
     .then_some(*callee)
 }
 
+/// Structural-result machine calls — `CallStructural` — are the call family's
+/// fourth admitted member: an exact internal callee invocation returning a
+/// fresh structural place. The admitted shape is the one the cyclic
+/// eligibility fence already confines: an affine, claim-free result the
+/// producing member block dispatches through a `StructuralCase` or returns
+/// outright, so the verifier's per-traversal custody — produce inside the
+/// member, discard on every dispatch edge — is exactly what the relocation
+/// re-expresses. The node must keep its own operation identity as the first
+/// provenance row, define no scalar, use exactly its scalar `arguments` in
+/// operand order, carry no successors, and keep no crash-route custody.
+/// `claim_transfers` and `returned_claim_transfers` must both be empty — the
+/// node then carries exactly one vacuous `ClaimTransfer` ownership row, which
+/// relocates byte-exact inside the moved operation — and `structural_arguments`
+/// must be empty too: a borrow argument would let the callee observe a caller
+/// place whose member contents the affine result's containment bound does not
+/// freeze, so borrow-carrying calls stay inside until that bound is spelled
+/// out. `requirement_obligations`, `crash_continuations`, and
+/// `selected_evidence` must likewise be empty: the admitted contract carries
+/// none of them, and a call that does stays inside rather than re-expressing
+/// evidence this family has not reconstructed. Callee purity, member
+/// observability, and the result's member-roster containment are decided
+/// separately by [`invariant_structural_call_admission`].
+pub(crate) fn admissible_invariant_structural_call(
+    node: &OptimizationNode,
+) -> Option<(MachineId, terminal_psi::StructuralOperationResult)> {
+    let O::CallStructural {
+        psi_operation,
+        result,
+        callee,
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+        selected_evidence,
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.is_empty()
+        && node.uses.len() == arguments.len()
+        && node
+            .uses
+            .iter()
+            .zip(arguments.iter())
+            .all(|(value_use, argument)| value_use.value == *argument)
+        && node.successors.is_empty()
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && structural_arguments.is_empty()
+        && claim_transfers.is_empty()
+        && returned_claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && selected_evidence.is_empty()
+        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
+    .then(|| (*callee, result.clone()))
+}
+
 /// The complete unit-call admission shared by the proposal and the
 /// relocation freeze replay: `node` must carry the source-owned call shape
 /// ([`admissible_invariant_unit_call`]) — which yields the exact internal
@@ -2691,6 +2764,44 @@ pub(crate) fn invariant_structural_scalar_call_admission(
         relocating_roots,
         effects,
     )
+}
+
+/// The complete structural-result call admission shared by the proposal and
+/// the relocation freeze replay: `node` must carry the source-owned call
+/// shape ([`admissible_invariant_structural_call`]) — which yields the exact
+/// internal callee and its affine claim-free result — the callee's transitive
+/// effect summary must prove no observable effect, no crash, and no
+/// suspension, and every node inside the component's member roster must be
+/// unobservable, so hoisting the call's possible divergence reorders nothing
+/// anyone could see. The admitted shape carries no structural arguments, so
+/// the callee cannot observe a caller place at all — the whole-component
+/// place-custody bound the borrow calls need is vacuous here — while the
+/// affine result place must stay inside the member roster spelled only
+/// through positions the relocation's custody rewrite re-expresses
+/// ([`scalar_case_result_contained`]): the producing call itself, the
+/// member-block dispatch or structural return consuming it, and the edges
+/// whose discard rosters the rewrite adjusts. Each scalar `arguments`
+/// operand then obeys the shared use-site invariance rule
+/// ([`member_scalar_operand_substitution`]). Returns the scalar substitution
+/// the relocated call performs.
+pub(crate) fn invariant_structural_call_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    effects: &crate::EffectSummaryAnalysis,
+) -> Option<BTreeMap<ValueId, ValueId>> {
+    let (callee, result) = admissible_invariant_structural_call(node)?;
+    if !scalar_call_callee_pure(effects, callee) {
+        return None;
+    }
+    if !component_members_unobservable(function, component, effects) {
+        return None;
+    }
+    if !scalar_case_result_contained(function, component, result.place) {
+        return None;
+    }
+    member_scalar_operand_substitution(function, component, node, relocating)
 }
 
 /// The shared evidence every admitted structural-signature call replays once
@@ -3051,7 +3162,8 @@ pub(crate) fn substitute_invariant_scalar_operands(
         // argument roots rebind through `substitute_invariant_call_roots`.
         O::Call { arguments, .. }
         | O::CallUnit { arguments, .. }
-        | O::CallStructuralScalar { arguments, .. } => {
+        | O::CallStructuralScalar { arguments, .. }
+        | O::CallStructural { arguments, .. } => {
             for argument in arguments {
                 substitute(argument, substitution);
             }

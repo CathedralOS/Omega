@@ -100,6 +100,20 @@ pub use model::{
 /// consuming the call's return relocates behind it in the same run, and the
 /// place-custody bound is also what makes the hoisted invocation return
 /// what every in-loop traversal's invocation returned.
+/// `CallStructural` — the call returning a fresh structural place — adds the
+/// family's fourth call relocation and its second custody-rewriting shape:
+/// the admitted form is the one the cyclic eligibility fence already
+/// confines, an affine claim-free result the producing member block
+/// dispatches through a `StructuralCase` or returns outright, carrying no
+/// structural arguments, claims, obligations, crash routes, or selected
+/// evidence. The callee passes the same purity bar and the member roster
+/// stays unobservable; the result place obeys the scalar-case containment
+/// bound, so hoisting the call keeps the one persistent preheader place
+/// live across member-internal edges while every exit edge and member
+/// return disposes it — the same frontier re-expression the establishment
+/// performs, replayed independently at validation. Its scalar arguments
+/// obey the shared member-parameter substitution, and its declared place
+/// joins the run's relocated roots.
 /// An `EstablishPrimitiveLocal` adds the family's second establishment
 /// relocation — and the storage prerequisite that lets the structural-scalar
 /// call leave at all: the cyclic eligibility fence only lets a borrow

@@ -464,6 +464,34 @@ fn admit_member_node(
         }
         argument_rewrites = rewrites;
         substitution.into_iter().collect()
+    } else if crate::validation::admissible_invariant_structural_call(node).is_some() {
+        // A structural-result call keeps the call family's effect and
+        // observability evidence — the non-speculative gate, the pure
+        // transitive callee, and the unobservable member roster — and then
+        // adds the custody-rewriting half the scalar-case establishment
+        // introduced: the cyclic eligibility fence already confines its
+        // affine claim-free result to the member block that dispatches or
+        // returns it, so hoisting the call keeps the one persistent result
+        // live through the whole component while member-internal edges stop
+        // discarding it and every exit edge and member return disposes it
+        // instead. The admitted shape carries no structural arguments —
+        // the callee cannot observe a caller place — and no claim,
+        // obligation, crash, or evidence rows, so the moved operation keeps
+        // every non-operand field byte-exact while each scalar argument
+        // obeys the shared member-parameter substitution. Its declared
+        // place joins `relocating_roots`, so a member node anchored on the
+        // persistent result relocates behind it in the same run.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let effects = evidence.effects();
+        let substitution = crate::validation::invariant_structural_call_admission(
+            function, component, node, relocating, &effects,
+        )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        substitution.into_iter().collect()
     } else {
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
@@ -703,6 +731,12 @@ pub(super) fn component_plan(
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Unit
+                        }
+                        AbstractOperation::CallStructural { result, .. }
+                            if crate::validation::admissible_invariant_structural_call(node)
+                                .is_some() =>
+                        {
+                            LoopInvariantNodeResult::Structural(result.clone())
                         }
                         _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                     },

@@ -40,10 +40,12 @@ pub enum LoopInvariantNodeResult {
     /// A preserved structural operation result — the fresh view place a
     /// `ByteSequenceSubslice` establishes, the fresh storage cell an
     /// `EstablishPrimitiveLocal` declares, the fresh payload an
-    /// `EstablishScalarArray` or `EstablishRecord` binds, or the fresh sum
-    /// place an `EstablishScalarCase` declares. The moved operation keeps it
+    /// `EstablishScalarArray` or `EstablishRecord` binds, the fresh sum
+    /// place an `EstablishScalarCase` declares, or the fresh place a
+    /// `CallStructural` returns. The moved operation keeps it
     /// byte-exact, so the transformed unit's structural custody still sees
-    /// the same producer declaring the same place — for an affine case
+    /// the same producer declaring the same place — for an affine case or
+    /// call
     /// result the realization additionally re-spells where member edges and
     /// returns dispose that persistent place.
     Structural(terminal_psi::StructuralOperationResult),
@@ -100,7 +102,13 @@ impl LoopInvariantNodeResult {
 /// admitted `CallStructuralScalar` carries the same operand and
 /// argument-root rewrites while recording its result as
 /// [`LoopInvariantNodeResult::Scalar`]: the relocated call's return value
-/// stays bound for the member consumers the same run relocates.
+/// stays bound for the member consumers the same run relocates. An
+/// admitted `CallStructural` records its affine result as
+/// [`LoopInvariantNodeResult::Structural`] — the declared place stays
+/// byte-exact while the realization re-spells its dispatch custody — and
+/// rebinds its scalar `arguments` through `operand_rewrites`; the admitted
+/// shape carries no structural arguments, so `argument_rewrites` stays
+/// empty.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopInvariantScalarNode {
     pub(super) psi_operation: OperationId,

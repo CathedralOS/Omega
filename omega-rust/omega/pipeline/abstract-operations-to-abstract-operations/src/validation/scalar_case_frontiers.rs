@@ -1,7 +1,8 @@
 //! Reconstructed ownership-frontier membership for relocated affine
-//! scalar-case results.
+//! scalar-case and structural-call results.
 //!
-//! An affine `EstablishScalarCase` relocated out of a cyclic member re-times
+//! An affine `EstablishScalarCase` or `CallStructural` relocated out of a
+//! cyclic member re-times
 //! where its result is owned: the seed established a fresh place inside the
 //! member block and discarded it on every dispatch edge, while the
 //! transformed unit produces the one persistent place in the preheader,
@@ -27,11 +28,12 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// The affine `EstablishScalarCase` results whose position in `unit` moved
+/// The affine `EstablishScalarCase` and `CallStructural` results whose
+/// position in `unit` moved
 /// away from the block the seed established them in — the only places whose
 /// frontier membership a relocation may re-time. A node's seed home is the
 /// block containing its `psi_operation` in the immutable Terminal module; a
-/// moved establishment is the signature the relocation freeze already
+/// moved producer is the signature the relocation freeze already
 /// proved against the seed. Validating the verified seed itself always
 /// yields an empty map, so the seed catalog is never touched.
 pub(crate) fn relocated_scalar_case_result_places(
@@ -50,18 +52,23 @@ pub(crate) fn relocated_scalar_case_result_places(
     for function in &unit.functions {
         for block in &function.blocks {
             for node in &block.nodes {
-                let O::EstablishScalarCase {
-                    psi_operation,
-                    result,
-                    ..
-                } = &node.operation
-                else {
-                    continue;
+                let (psi_operation, result) = match &node.operation {
+                    O::EstablishScalarCase {
+                        psi_operation,
+                        result,
+                        ..
+                    }
+                    | O::CallStructural {
+                        psi_operation,
+                        result,
+                        ..
+                    } => (*psi_operation, result),
+                    _ => continue,
                 };
                 if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine {
                     continue;
                 }
-                if seed_home.get(&(function.machine, *psi_operation)) == Some(&block.id) {
+                if seed_home.get(&(function.machine, psi_operation)) == Some(&block.id) {
                     continue;
                 }
                 relocated
