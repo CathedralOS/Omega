@@ -1441,13 +1441,31 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   restore-by-content validation that re-derives the
   permutation from the source rather than the
   proposal's own grouping (crate `nextest`: 1105
+  pass). Also landed: `rewrites/commuting_run_interchange`
+  interchanges two disjoint runs of body instructions
+  in one selected block — the run interchange's own
+  geometry, each run the contiguous span its named
+  first and last members bound, of at least two
+  members — when every roster row that newly trades
+  order commutes with every row of the position it
+  crosses, so the memory roster itself follows the new
+  execution order, the window's rows rewritten in
+  place. The commutation audit both commuting families
+  share now lives in `rewrites/commuting_accesses`.
+  A window whose trading pairs carry no rowed-vs-rowed
+  pair stays with the plain run interchange, and a
+  one-member run stays with the pair and
+  member-against-run families, under the same replayed
+  restore-by-content validation (crate `nextest`: 1117
   pass).
   Remaining: scheduling past the proven bounded window,
-  run, member-against-run, and commuting-pair
-  interchanges, relocation through further converging
-  or branching control flow, and compare/test selection
-  past the landed literal folds and the constant-flag
-  boolean materialization and conditional-branch folds.
+  run, member-against-run, commuting-pair, and
+  commuting-run interchanges — a member-against-run
+  trade under the commuting memory rule stays open —
+  relocation through further converging or branching
+  control flow, and compare/test selection past the
+  landed literal folds and the constant-flag boolean
+  materialization and conditional-branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
 
