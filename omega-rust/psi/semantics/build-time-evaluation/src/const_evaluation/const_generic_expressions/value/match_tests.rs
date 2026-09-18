@@ -317,6 +317,76 @@ fn match_wildcard_does_not_erase_undefined_anonymous_subject() {
 }
 
 #[test]
+fn exact_operand_points_discharge_divisors_beyond_lattice_gaps() {
+    // While the admissible value set stays small the bounds carry it exactly:
+    // the point list unions at arm joins and composes pairwise, so proofs see
+    // values the merged hulls can only approximate.
+    for (body, destination, expected) in [
+        // {2,3} * {2,4} products are exactly {4,6,8,12} and all divide the
+        // numerator; the hull's 4+2Z lattice on [4,12] would also admit the
+        // phantom 10, breaking integrality lattice enumeration cannot repair.
+        (
+            "48 / ((match true { true -> 2, false -> 3 }) * (match true { true -> 2, false -> 4 }))",
+            PrimitiveType::I16,
+            "12",
+        ),
+        (
+            "96 / ((match true { true -> 2, false -> 3 }) * (match true { true -> 2, false -> 4 }))",
+            PrimitiveType::I16,
+            "24",
+        ),
+        // The difference is exactly {-2,-1,1,2}; the joined lattice -1+Z
+        // reaches zero through the pole.
+        (
+            "(1 / ((match true { true -> 1, false -> 4 }) - (match true { true -> 2, false -> 3 })) == -1)",
+            PrimitiveType::Bool,
+            "true",
+        ),
+        // One dispatch's own arms {1,3,4} shift to {-1,1,2}: nonzero on every
+        // arm even though 1+Z spans the gap.
+        (
+            "(1 / ((match 0u8 { 0 -> 1, 1 -> 3, _ -> 4 }) - 2) == -1)",
+            PrimitiveType::Bool,
+            "true",
+        ),
+    ] {
+        let (program, expression) = program(body);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let (value, _) = evaluate(&program, machine, state, expression, destination, None)
+            .unwrap_or_else(|error| panic!("{body}: {error}"));
+        assert_eq!(value.display, expected, "{body}");
+    }
+    for (body, destination) in [
+        // An exact zero point is a genuine pole: the selected product 2*2
+        // minus 8 is -4, but the arm combination 2*4-8 is admissibly zero.
+        (
+            "(1 / ((match true { true -> 2, false -> 3 }) * (match true { true -> 2, false -> 4 }) - 8) == 0)",
+            PrimitiveType::Bool,
+        ),
+        // Distinct dispatches stay independent: the pairwise union keeps
+        // every cross pair, so 1-2+1 = 0 remains an admissible divisor.
+        (
+            "(1 / ((match true { true -> 1, false -> 2 }) - (match true { true -> 1, false -> 2 }) + 1) == 0)",
+            PrimitiveType::Bool,
+        ),
+        // A real non-dividing product keeps the integrality obligation.
+        (
+            "48 / ((match true { true -> 2, false -> 3 }) * (match true { true -> 2, false -> 5 }))",
+            PrimitiveType::I16,
+        ),
+    ] {
+        let (program, expression) = program(body);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        assert!(
+            evaluate(&program, machine, state, expression, destination, None).is_err(),
+            "{body}"
+        );
+    }
+}
+
+#[test]
 fn anonymous_match_subject_is_evaluated_once_across_ordered_patterns() {
     use super::{Value, match_dispatch::MatchSubject};
     use typed_trees::expression::MatchPattern;

@@ -36,6 +36,22 @@
 //! division and width semantics, so only its interval laws apply here; all
 //! arithmetic uses the shared exact rationals.
 //!
+//! While the summarized value set stays small, the bounds also carry it
+//! exactly: a sorted point list unions at arm joins and composes pairwise at
+//! each binary, then drops away past a fixed size. The list only ever
+//! overapproximates the reachable values — joins merge no phantom points and
+//! binaries add none — so it discharges proofs the hulls cannot: a joined
+//! lattice that reaches zero still yields to a zero-free point list, and a
+//! divisor cell whose interval spans the pole still divides when its exact
+//! points are all nonzero. Lattice admissibility, by contrast, can name
+//! points no arm produces ({2, 3} multiplied by {2, 4} admits 10 inside
+//! [4, 12] on 4+2Z), so exact divisors keep integrality proofs the
+//! lattice enumeration must decline. The point list is flat across sign
+//! cells; each division clips it to one cell's interval to recover that
+//! cell's own admissible divisors. Points are operand values, never branch
+//! selections: two dispatch operands stay independent because the pairwise
+//! composition unions every cross pair.
+//!
 //! The caller has validated the complete acyclic scalar graph and checks every
 //! subject, pattern, and arm. This pass visits only anonymous result edges; it
 //! cannot execute landed operations in an undemanded subject or select an arm.
@@ -164,18 +180,23 @@ fn analyze(
         .ok_or("missing anonymous rational bounds".into())
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RationalBounds {
     negative: Option<RationalCell>,
     positive: Option<RationalCell>,
     containing_zero: Option<RationalCell>,
     fractional_history: bool,
+    /// The exact admissible values while the set stays bounded: a sorted
+    /// deduplicated list covering every reachable result and nothing the
+    /// operand lists could not produce. `None` falls back to the hull cells.
+    points: Option<Vec<BigRational>>,
 }
 
 /// One sign-category hull: a closed interval paired with the lattice covering
 /// exactly the values summarized there. The lattice is evidence over this
 /// hull's values alone, so composing a cell pair never dilutes a sibling
 /// hull's retained gap.
+#[derive(Clone)]
 struct RationalCell {
     interval: RationalInterval,
     lattice: Option<RationalLattice>,
@@ -209,6 +230,7 @@ impl RationalBounds {
     fn constant(value: BigRational) -> Self {
         let mut bounds = Self {
             fractional_history: value.to_integer_exact().is_none(),
+            points: Some(vec![value.clone()]),
             ..Self::default()
         };
         bounds.include_cell(
@@ -222,13 +244,25 @@ impl RationalBounds {
     }
 
     fn excludes_zero(&self) -> bool {
+        // Exact points answer the pole question directly; the hull cells only
+        // decide when the point list was dropped.
+        if let Some(points) = &self.points {
+            return !points.is_empty() && points.iter().all(|point| !point.is_zero());
+        }
         self.containing_zero.is_none() && (self.negative.is_some() || self.positive.is_some())
     }
 
     /// Every summarized value is provably integral: at least one hull exists
     /// and each hull's effective evidence lands on integers. A collapsed
-    /// singleton carries its own point as that evidence.
+    /// singleton carries its own point as that evidence. The exact point
+    /// list answers directly when retained.
     fn has_integral_lattice(&self) -> bool {
+        if let Some(points) = &self.points {
+            return !points.is_empty()
+                && points
+                    .iter()
+                    .all(|point| point.to_integer_exact().is_some());
+        }
         self.cells().next().is_some()
             && self
                 .cells()
@@ -299,6 +333,14 @@ impl RationalBounds {
 
     fn include(&mut self, other: Self) {
         self.fractional_history |= other.fractional_history;
+        self.points = match (self.points.take(), other.points) {
+            (Some(mut left), Some(right)) => {
+                left.extend(right);
+                sorted_unique(&mut left);
+                (left.len() <= MAX_EXACT_POINTS).then_some(left)
+            }
+            _ => None,
+        };
         for cell in [other.negative, other.positive, other.containing_zero]
             .into_iter()
             .flatten()
@@ -307,9 +349,92 @@ impl RationalBounds {
         }
     }
 
+    /// The admissible divisor values of one cell, when finitely known: the
+    /// exact bound points clipped to the cell's interval, else the cell
+    /// lattice's own points inside it. An empty list marks a vacuous cell
+    /// whose contribution cannot occur; `None` declines an enumeration no
+    /// finite evidence covers.
+    fn admissible_divisors(&self, cell: &RationalCell) -> Option<Vec<BigRational>> {
+        if let Some(points) = &self.points {
+            return Some(
+                points
+                    .iter()
+                    .filter(|point| cell.interval.contains(point))
+                    .cloned()
+                    .collect(),
+            );
+        }
+        cell.evidence()?.points_within(&cell.interval)
+    }
+
+    /// One operand cell pair's contribution to a quotient bound. Each exact
+    /// admissible divisor produces its own piece — a corner interval clipped
+    /// to that divisor and the quotient lattice it induces — so pieces keep
+    /// their own gaps instead of joining one diluted hull. A divisor cell
+    /// whose interval reaches zero can still divide when the bound's exact
+    /// point list names every admissible value and none is zero; lattice
+    /// enumeration alone cannot split a continuous pole. An empty admissible
+    /// set is vacuous and contributes only its interval hull; an
+    /// unenumerable set keeps the corner interval without lattice evidence.
+    fn include_quotient(
+        &mut self,
+        left: &RationalCell,
+        right: &RationalBounds,
+        right_cell: &RationalCell,
+    ) -> Result<(), String> {
+        let divisors = right.admissible_divisors(right_cell);
+        if !right_cell.interval.excludes_zero() {
+            match &divisors {
+                Some(divisors) if divisors.iter().all(|divisor| !divisor.is_zero()) => {}
+                _ => {
+                    return Err("anonymous rational division requires a nonzero divisor proof; its rational bounds include zero".into());
+                }
+            }
+        }
+        match divisors {
+            Some(divisors) if !divisors.is_empty() => {
+                for divisor in divisors {
+                    let low = left
+                        .interval
+                        .low
+                        .div(&divisor)
+                        .ok_or("undefined anonymous rational quotient")?;
+                    let high = left
+                        .interval
+                        .high
+                        .div(&divisor)
+                        .ok_or("undefined anonymous rational quotient")?;
+                    let interval = if low.cmp_value(&high).is_gt() {
+                        RationalInterval {
+                            low: high,
+                            high: low,
+                        }
+                    } else {
+                        RationalInterval { low, high }
+                    };
+                    let lattice = left.evidence().and_then(|left| {
+                        Some(RationalLattice {
+                            offset: left.offset.div(&divisor)?,
+                            stride: left.stride.div(&divisor)?,
+                        })
+                    });
+                    self.include_cell(interval, lattice);
+                }
+            }
+            _ => {
+                let interval = left
+                    .interval
+                    .apply(BinaryOperator::Divide, &right_cell.interval)?;
+                self.include_cell(interval, None);
+            }
+        }
+        Ok(())
+    }
+
     fn apply(&self, operator: BinaryOperator, right: &Self) -> Result<Self, String> {
         let mut result = Self {
             fractional_history: self.fractional_history || right.fractional_history,
+            points: exact_apply(operator, &self.points, &right.points),
             ..Self::default()
         };
         // Each result hull's lattice joins only the operand cell pairs whose
@@ -319,14 +444,15 @@ impl RationalBounds {
         // divide evenly.
         for left_cell in self.cells() {
             for right_cell in right.cells() {
+                if operator == BinaryOperator::Divide {
+                    result.include_quotient(left_cell, right, right_cell)?;
+                    continue;
+                }
                 let interval = left_cell.interval.apply(operator, &right_cell.interval)?;
-                let lattice = match operator {
-                    BinaryOperator::Divide => divide_lattice(left_cell, right_cell),
-                    _ => left_cell
-                        .evidence()
-                        .zip(right_cell.evidence())
-                        .and_then(|(left, right)| left.apply(operator, &right)),
-                };
+                let lattice = left_cell
+                    .evidence()
+                    .zip(right_cell.evidence())
+                    .and_then(|(left, right)| left.apply(operator, &right));
                 result.include_cell(interval, lattice);
             }
         }
@@ -341,6 +467,48 @@ impl RationalBounds {
     }
 }
 
+/// The pairwise composition of two exact point lists, while the work stays
+/// bounded. Division by a listed zero still declines here; the hull pass
+/// reports the pole through its own proof. The result count is capped after
+/// deduplication, so independent dispatches grow the list by distinct values
+/// rather than by branch combinations.
+fn exact_apply(
+    operator: BinaryOperator,
+    left: &Option<Vec<BigRational>>,
+    right: &Option<Vec<BigRational>>,
+) -> Option<Vec<BigRational>> {
+    let (left, right) = left.as_ref().zip(right.as_ref())?;
+    if left.len().checked_mul(right.len())? > MAX_EXACT_POINT_PRODUCTS {
+        return None;
+    }
+    let mut points = Vec::new();
+    for left in left {
+        for right in right {
+            let value = match operator {
+                BinaryOperator::Add => left.add(right),
+                BinaryOperator::Subtract => left.sub(right),
+                BinaryOperator::Multiply => left.mul(right),
+                BinaryOperator::Divide => left.div(right)?,
+                _ => return None,
+            };
+            points.push(value);
+        }
+    }
+    sorted_unique(&mut points);
+    (points.len() <= MAX_EXACT_POINTS).then_some(points)
+}
+
+fn sorted_unique(points: &mut Vec<BigRational>) {
+    points.sort_by(|left, right| left.cmp_value(right));
+    points.dedup_by(|left, right| left.cmp_value(right).is_eq());
+}
+
+/// The retained exact point list's bounds: at most this many distinct values
+/// survive a join or composition, and pairwise composition is only attempted
+/// below this product. Past either bound the hull cells carry the proof.
+const MAX_EXACT_POINTS: usize = 256;
+const MAX_EXACT_POINT_PRODUCTS: usize = 4096;
+
 /// A collapsed hull's own point is exact evidence: the interval admits only
 /// that value, so it proves integrality, an admissible divisor, or a lattice
 /// neighbor without a retained lattice. Explicit lattice evidence always
@@ -350,31 +518,6 @@ fn singleton_lattice(interval: &RationalInterval) -> Option<RationalLattice> {
         offset: interval.low.clone(),
         stride: BigRational::zero(),
     })
-}
-
-/// Quotient lattice covering one operand cell pair under division. For x in
-/// a+sZ and an exact nonzero d, x/d is in a/d+(s/d)Z. Each right hull's
-/// admissible divisors are its intersection with its own lattice: a finite
-/// set of exact points, so a joined same-sign hull like [2,3] on 2+Z still
-/// contributes {2,3} and a lattice-free hull still needs the hull's single
-/// endpoint. Join every quotient lattice; a pair whose admissible set cannot
-/// be enumerated forfeits only its own result hull's lattice. This inspects
-/// at most three summary cells per operand, never authored arms.
-fn divide_lattice(left: &RationalCell, right: &RationalCell) -> Option<RationalLattice> {
-    let left = left.evidence()?;
-    let divisors = right.evidence()?.points_within(&right.interval)?;
-    let mut joined: Option<RationalLattice> = None;
-    for divisor in divisors {
-        let quotient = RationalLattice {
-            offset: left.offset.div(&divisor)?,
-            stride: left.stride.div(&divisor)?,
-        };
-        joined = Some(match joined {
-            Some(previous) => previous.join(&quotient)?,
-            None => quotient,
-        });
-    }
-    joined
 }
 
 #[derive(Clone)]
@@ -553,6 +696,7 @@ fn common_divisor(left: &BigRational, right: &BigRational) -> Option<BigRational
     BigRational::from_integer(numerator).div(&BigRational::from_integer(denominator))
 }
 
+#[derive(Clone)]
 struct RationalInterval {
     low: BigRational,
     high: BigRational,
@@ -569,6 +713,10 @@ impl RationalInterval {
     fn excludes_zero(&self) -> bool {
         self.low.cmp_value(&BigRational::zero()).is_gt()
             || self.high.cmp_value(&BigRational::zero()).is_lt()
+    }
+
+    fn contains(&self, point: &BigRational) -> bool {
+        !point.cmp_value(&self.low).is_lt() && !point.cmp_value(&self.high).is_gt()
     }
 
     fn include(&mut self, other: Self) {

@@ -636,9 +636,9 @@ fn anonymous_match_divisor_proofs_preserve_undefined_and_unknown_cases() {
         "(false && (1 / (1 + 0 * (1 / (match true { true -> 1, false -> 0 }))) == 0))",
         "(false && (1 / ((match true { true -> -1, false -> 1 }) + 1) == 0))",
         "(false && (1 / ((match true { true -> -1, false -> 1 }) / (match true { true -> -2, false -> 0 })) == 0))",
-        // A later zero arm or a weakened lattice cannot inherit a prior gap.
+        // A later zero arm cannot inherit a prior gap: {1,3,2}-2 contains an
+        // admissible zero. Exact points name it directly.
         "(false && (1 / ((match 0u8 { 0 -> 1, 1 -> 3, _ -> 2 }) - 2) == 0))",
-        "(false && (1 / ((match 0u8 { 0 -> 1, 1 -> 3, _ -> 4 }) - 2) == 0))",
         "(false && (1 / (match true { true -> ((match true { true -> 1, false -> 3 }) - 2), false -> 0 }) == 0))",
         // Correlated result facts are not reconstructed from branch selection.
         "(false && (1 / ((match true { true -> 1, false -> 2 }) - (match true { true -> 1, false -> 2 }) + 1) == 0))",
@@ -733,4 +733,59 @@ fn anonymous_match_bounds_keep_each_contributions_own_zero_gap() {
     let checked = compile(&root, root_inputs(&root));
     assert_same_machine_types(&checked, "keep", "oracle");
     assert_same_machine_types(&checked, "collapsed", "zero");
+}
+
+#[test]
+fn anonymous_match_bounds_retain_exact_operand_points() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    // While the admissible value set stays small the bounds carry it exactly:
+    // the point list unions at arm joins and composes pairwise, discharging
+    // proofs the hull cells cannot.
+    // {2,3} * {2,4} produces exactly {4,6,8,12} — every product divides 48
+    // and 96 — but the hull's 4+2Z lattice on [4,12] also admits the phantom
+    // 10, which no arm produces, so lattice enumeration must decline the
+    // integrality proof the exact divisors still make.
+    // {1,4} - {2,3} is exactly {-2,-1,1,2}: the merged difference lattice
+    // -1+Z reaches zero through the pole, while the point list names only
+    // nonzero divisors. A single dispatch's arms {1,3,4} shift to {-1,1,2}
+    // the same way.
+    Sources::write(
+        root.join("main.omg"),
+        &format!(
+            "pub data Flag<const Enabled: bool> {{ value: u8; }}
+             pub data Indexed<const Value: i32> {{ value: u8; }} {} {} {} {}",
+            keep(
+                "product",
+                "Indexed",
+                "(48 / ((match true { true -> 2, false -> 3 }) * (match true { true -> 2, false -> 4 })))"
+            ),
+            keep("product_oracle", "Indexed", "12"),
+            keep(
+                "difference",
+                "Flag",
+                "(1 / ((match true { true -> 1, false -> 4 }) - (match true { true -> 2, false -> 3 })) == -1)"
+            ),
+            keep("difference_oracle", "Flag", "true")
+        ),
+    );
+    let checked = compile(&root, root_inputs(&root));
+    assert_same_machine_types(&checked, "product", "product_oracle");
+    assert_same_machine_types(&checked, "difference", "difference_oracle");
+
+    // The same dispatch over three arms: {1,3,4} - 2 is exactly {-1,1,2}.
+    Sources::write(
+        root.join("main.omg"),
+        &format!(
+            "pub data Flag<const Enabled: bool> {{ value: u8; }} {} {}",
+            keep(
+                "shifted",
+                "Flag",
+                "(1 / ((match 0u8 { 0 -> 1, 1 -> 3, _ -> 4 }) - 2) == -1)"
+            ),
+            keep("shifted_oracle", "Flag", "true")
+        ),
+    );
+    let checked = compile(&root, root_inputs(&root));
+    assert_same_machine_types(&checked, "shifted", "shifted_oracle");
 }

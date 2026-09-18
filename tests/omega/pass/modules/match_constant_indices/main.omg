@@ -28,7 +28,10 @@ machine signed_divisor(value: Flag<(1 / ((match true { true -> -1, false -> 1 })
     value
 }
 
-machine spaced_divisor(value: Flag<(1 / ((match true { true -> 1, false -> 3 }) - 2) == -1)>) -> Flag<true> {
+// Anonymous match operands carry no recoverable type, so a `-` operand tuple
+// still matches the prelude's declared `Nat::subtract` and requires authored
+// selection. The same shifted point set is written as a sum of a negative arm.
+machine spaced_divisor(value: Flag<(1 / ((match true { true -> 1, false -> 3 }) + -2) == -1)>) -> Flag<true> {
     value
 }
 
@@ -45,5 +48,17 @@ machine pair_gap_divisor(value: Flag<(1 / ((match 0u8 { 0 -> -3, 1 -> -1, 2 -> 4
 }
 
 machine collapsed_quotient(value: SignedIndex<(0 / (8 / (match true { true -> 2, false -> (match true { true -> 4, false -> 600 }) })))>) -> SignedIndex<0> {
+    value
+}
+
+machine product_divisor(value: SignedIndex<(48 / ((match true { true -> 2, false -> 3 }) * (match true { true -> 2, false -> 4 })))>) -> SignedIndex<12> {
+    value
+}
+
+// The difference point set {1,4} - {2,3} = {-2,-1,1,2} is spelled with
+// negated arms for the same `Nat::subtract` reason as `spaced_divisor`: its
+// merged lattice reaches zero, so only the exact operand points prove the
+// divisor nonzero.
+machine exact_points_divisor(value: Flag<(1 / ((match true { true -> 1, false -> 4 }) + (match true { true -> -2, false -> -3 })) == -1)>) -> Flag<true> {
     value
 }
