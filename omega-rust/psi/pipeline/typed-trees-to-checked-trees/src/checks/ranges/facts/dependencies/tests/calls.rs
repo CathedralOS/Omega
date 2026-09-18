@@ -3,10 +3,10 @@ use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::RangeCallContext;
 use crate::checks::ranges::facts::dependencies::tests::initializer;
 use crate::checks::ranges::facts::dependencies::tests::parameter_place;
+use crate::checks::ranges::facts::dependencies::tests::selected_operator_facts;
 use crate::checks::ranges::facts::dependencies::tests::typed_source;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use crate::checks::ranges::facts::dependencies::tests::selected_operator_facts;
 
 fn window(program: &TypedTrees) -> (&Machine, &State) {
     let machine = program
