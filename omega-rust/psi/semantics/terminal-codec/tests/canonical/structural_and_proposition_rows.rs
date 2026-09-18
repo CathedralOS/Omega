@@ -4,20 +4,26 @@ use super::{
     unit_fixture,
 };
 use crate::canonical::{
-    block_id, claim_id, edge_id, machine_id, obligation_id, place_id, proposition_id, service_id,
-    structural_case_id, structural_field_id, structural_type_id, value_id,
+    block_id, boundary_machine_id, claim_id, contract_id, edge_id, machine_id, obligation_id,
+    operation_id, place_id, proposition_id, service_id, structural_case_id, structural_field_id,
+    structural_type_id, value_id,
 };
-use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind};
+use semantic_vocabulary::{
+    IntegerValue, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
+    StructuralTypeId,
+};
 use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
 use terminal_psi::{
-    BindingRelevance, CrashCause, EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration,
+    BindingRelevance, BoundaryMachineDeclaration, BoundaryMachineResult, ByteSequenceCarrier,
+    CrashCause, EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration, Operation,
     OperationKind, OperationResult, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
     OutcomeSpecificGuard, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralCaseDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachineResult, Terminator,
-    VocabularyMarker,
+    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAccess,
+    StructuralArgument, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
 };
 
 #[test]
@@ -833,4 +839,312 @@ fn scalar_term_nesting_has_a_total_bound() {
         encode_module(&module),
         Err(CodecError::ScalarTermNestingTooDeep)
     );
+}
+
+/// The record field an inline byte presentation projects, and the container
+/// field a nested presentation crosses before reaching it.
+const BYTE_FIELD: &str = "payload";
+const CONTAINER_FIELD: &str = "owner";
+
+/// A standalone `BorrowedView` declaration, the record owning one inline byte
+/// field under `carrier`, and a container reaching that record through one more
+/// structural field.
+///
+/// The standalone declaration is what made the closed hole reachable: a field
+/// typed `ByteSequence(BorrowedView)` shares its shape, so a path end that
+/// resolved a leaf shape would have found this exact declaration and matched a
+/// callee's view parameter by type equality alone.
+fn inline_byte_carrier_types(carrier: ByteSequenceCarrier) -> Vec<StructuralTypeDeclaration> {
+    vec![
+        StructuralTypeDeclaration {
+            id: structural_type_id(1),
+            identity: "example::ByteView".to_owned(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(2),
+            identity: "example::Buffer".to_owned(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: structural_field_id(1),
+                    identity: BYTE_FIELD.to_owned(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(carrier),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(3),
+            identity: "example::BufferContainer".to_owned(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: structural_field_id(1),
+                    identity: CONTAINER_FIELD.to_owned(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(structural_type_id(2)),
+                }],
+            },
+        },
+    ]
+}
+
+fn inline_byte_parameter(
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    access: StructuralAccess,
+) -> StructuralParameterDeclaration {
+    StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }
+}
+
+fn byte_field_path() -> Vec<StructuralPathSegment> {
+    vec![StructuralPathSegment::Field(BYTE_FIELD.to_owned())]
+}
+
+fn nested_byte_field_path() -> Vec<StructuralPathSegment> {
+    vec![
+        StructuralPathSegment::Field(CONTAINER_FIELD.to_owned()),
+        StructuralPathSegment::Field(BYTE_FIELD.to_owned()),
+    ]
+}
+
+/// A boundary call presenting the caller's inline byte field to a borrowed-view
+/// parameter. `root` is the caller's own structural parameter type and `path`
+/// reaches the byte field from it.
+fn boundary_inline_byte_module(
+    carrier: ByteSequenceCarrier,
+    root: StructuralTypeId,
+    path: Vec<StructuralPathSegment>,
+    access: StructuralAccess,
+) -> TerminalModule {
+    let mut module = unit_fixture();
+    module.structural_types = inline_byte_carrier_types(carrier);
+    module.boundary_machines = vec![BoundaryMachineDeclaration {
+        fixed_service_reach: Vec::new(),
+        crash_routes: Vec::new(),
+        id: boundary_machine_id(1),
+        identity: "example::write_buffer".to_owned(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        structural_parameters: vec![inline_byte_parameter(
+            place_id(920),
+            structural_type_id(1),
+            access,
+        )],
+        result: BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        published_service_ceiling: Vec::new(),
+    }];
+    let machine = &mut module.machines[0];
+    machine.structural_parameters = vec![inline_byte_parameter(
+        place_id(910),
+        root,
+        StructuralAccess::MutableBorrow,
+    )];
+    machine.structural_places = vec![StructuralPlaceDeclaration {
+        id: place_id(910),
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
+        id: operation_id(901),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: boundary_machine_id(1),
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(910),
+                path,
+                access,
+            }],
+            completion_receipts: Vec::new(),
+        },
+    }];
+    module
+}
+
+/// The same presentation through an ordinary Unit call: the boundary's view
+/// parameter becomes a module machine's, so the second implementation of the
+/// argument check runs its `Ordinary` arm instead of the `Boundary` one.
+fn ordinary_inline_byte_module(
+    carrier: ByteSequenceCarrier,
+    root: StructuralTypeId,
+    path: Vec<StructuralPathSegment>,
+) -> TerminalModule {
+    let mut module =
+        boundary_inline_byte_module(carrier, root, path, StructuralAccess::MutableBorrow);
+    let view_parameter = module.boundary_machines[0].structural_parameters[0].clone();
+    module.boundary_machines.clear();
+    let OperationKind::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!("boundary presentation fixture")
+    };
+    let structural_arguments = structural_arguments.clone();
+    let mut callee = module.machines[0].clone();
+    callee.id = machine_id(901);
+    callee.structural_places = vec![StructuralPlaceDeclaration {
+        id: view_parameter.place,
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    callee.structural_parameters = vec![view_parameter];
+    callee.contract.id = contract_id(901);
+    callee.entry = block_id(901);
+    callee.blocks[0].id = block_id(901);
+    callee.blocks[0].operations.clear();
+    callee.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(901),
+        trivial_affine_discards: Vec::new(),
+    };
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
+        callee: callee.id,
+        arguments: Vec::new(),
+        structural_arguments,
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    module.machines.push(callee);
+    module
+}
+
+fn argument_path(module: &TerminalModule) -> &[StructuralPathSegment] {
+    let (OperationKind::BoundaryCall {
+        structural_arguments,
+        ..
+    }
+    | OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    }) = &module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!("inline byte presentation fixture")
+    };
+    &structural_arguments[0].path
+}
+
+/// The codec's own path-custody refusal. `MalformedStructuralFoundation` is
+/// raised only by this crate's foundation validation, which runs ahead of the
+/// verifier's `validate_module_representation` in both `encode_module` and
+/// `decode_module`; a verifier rejection would arrive as `InvalidModule`.
+/// Asserting this exact variant therefore witnesses the codec's independent
+/// reconstruction, not the verifier's.
+fn path_custody_refusal() -> Result<Vec<u8>, CodecError> {
+    Err(CodecError::MalformedStructuralFoundation(
+        "structural path must retain structural custody",
+    ))
+}
+
+#[test]
+fn a_borrowed_view_field_cannot_supply_a_boundary_view_parameter() {
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::SharedBorrow,
+    ] {
+        let module = boundary_inline_byte_module(
+            ByteSequenceCarrier::BorrowedView,
+            structural_type_id(2),
+            byte_field_path(),
+            access,
+        );
+        assert_eq!(
+            encode_module(&module),
+            path_custody_refusal(),
+            "{access:?} boundary loan of a borrowed-view field must reject"
+        );
+    }
+}
+
+#[test]
+fn a_borrowed_view_field_cannot_supply_an_ordinary_view_parameter() {
+    let module = ordinary_inline_byte_module(
+        ByteSequenceCarrier::BorrowedView,
+        structural_type_id(2),
+        byte_field_path(),
+    );
+    assert_eq!(encode_module(&module), path_custody_refusal());
+}
+
+#[test]
+fn a_nested_borrowed_view_field_cannot_supply_a_view_parameter() {
+    let boundary = boundary_inline_byte_module(
+        ByteSequenceCarrier::BorrowedView,
+        structural_type_id(3),
+        nested_byte_field_path(),
+        StructuralAccess::MutableBorrow,
+    );
+    assert_eq!(encode_module(&boundary), path_custody_refusal());
+
+    let ordinary = ordinary_inline_byte_module(
+        ByteSequenceCarrier::BorrowedView,
+        structural_type_id(3),
+        nested_byte_field_path(),
+    );
+    assert_eq!(encode_module(&ordinary), path_custody_refusal());
+}
+
+#[test]
+fn a_bounded_owned_field_keeps_every_admitted_inline_presentation() {
+    let carrier = ByteSequenceCarrier::BoundedOwned { capacity: 16 };
+    let admitted = [
+        (
+            boundary_inline_byte_module(
+                carrier,
+                structural_type_id(2),
+                byte_field_path(),
+                StructuralAccess::MutableBorrow,
+            ),
+            byte_field_path(),
+        ),
+        (
+            boundary_inline_byte_module(
+                carrier,
+                structural_type_id(2),
+                byte_field_path(),
+                StructuralAccess::SharedBorrow,
+            ),
+            byte_field_path(),
+        ),
+        (
+            boundary_inline_byte_module(
+                carrier,
+                structural_type_id(3),
+                nested_byte_field_path(),
+                StructuralAccess::MutableBorrow,
+            ),
+            nested_byte_field_path(),
+        ),
+        (
+            ordinary_inline_byte_module(carrier, structural_type_id(2), byte_field_path()),
+            byte_field_path(),
+        ),
+        (
+            ordinary_inline_byte_module(carrier, structural_type_id(3), nested_byte_field_path()),
+            nested_byte_field_path(),
+        ),
+    ];
+    for (module, path) in admitted {
+        let bytes = encode_module(&module).expect("an admitted inline presentation validates");
+        let decoded = decode_module(&bytes).expect("decoding revalidates the same foundation");
+        assert_eq!(argument_path(&decoded), path.as_slice());
+        assert_eq!(decoded.structural_types, module.structural_types);
+    }
 }
