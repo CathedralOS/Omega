@@ -9,7 +9,9 @@
 //! flag-reading `MaterializeBoolean*` materializations and
 //! `constant_branch` for the conditional-branch terminators; the walk and
 //! the operand audit are one owner, matching the `window_hazards` split for
-//! the relocation rewrites.
+//! the relocation rewrites. The redundant-compare admission reuses the same
+//! reaching-event walk in its set form: a cross-block shadow is sound only
+//! when every published unit's full reaching set agrees.
 use std::collections::{BTreeSet, VecDeque};
 
 use crate::rewrites::block_edges::{
@@ -272,6 +274,39 @@ pub(super) fn reaching_event(
     read_position: usize,
     unit: RegisterUnitId,
 ) -> Result<EventSite, ConditionStateError> {
+    let sites = reaching_events(
+        function,
+        entry,
+        successors,
+        cone,
+        block_index,
+        read_position,
+        unit,
+    )?;
+    if sites.len() == 1
+        && let Some(&site) = sites.iter().next()
+    {
+        return Ok(site);
+    }
+    Err(ConditionStateError::Use)
+}
+
+/// The set-valued form of `reaching_event`: every event site a path to the
+/// read position may last have observed for `unit`. The in-block rule still
+/// stands — a preceding event decides alone on every traversal, cyclic
+/// re-entries included — while the cross-block walk resolves to the
+/// fixpoint's full entry set. `Unknown` among the reaching events, or an
+/// empty set where no predecessor cone reaches, refuses; the caller decides
+/// what the surviving sites must agree on.
+pub(super) fn reaching_events(
+    function: &SelectedFunction,
+    entry: usize,
+    successors: &[Vec<usize>],
+    cone: &[bool],
+    block_index: usize,
+    read_position: usize,
+    unit: RegisterUnitId,
+) -> Result<BTreeSet<EventSite>, ConditionStateError> {
     let block = &function.blocks[block_index];
     if let Some(position) = block.instructions[..read_position]
         .iter()
@@ -279,7 +314,7 @@ pub(super) fn reaching_event(
             instruction.implicit_defs.contains(&unit) || instruction.clobbers.contains(&unit)
         })
     {
-        return Ok((block_index, position));
+        return Ok(BTreeSet::from([(block_index, position)]));
     }
     // The last condition-state event for `unit` in each block's full
     // stream — body then terminator — or none where the block leaves the
@@ -325,10 +360,16 @@ pub(super) fn reaching_event(
             }
         }
     }
-    if entry_events[block_index].len() == 1
-        && let Some(&ReachingEvent::At(site)) = entry_events[block_index].iter().next()
+    if entry_events[block_index].is_empty()
+        || entry_events[block_index].contains(&ReachingEvent::Unknown)
     {
-        return Ok(site);
+        return Err(ConditionStateError::Use);
     }
-    Err(ConditionStateError::Use)
+    Ok(entry_events[block_index]
+        .iter()
+        .map(|event| match event {
+            ReachingEvent::At(site) => *site,
+            ReachingEvent::Unknown => unreachable!(),
+        })
+        .collect())
 }

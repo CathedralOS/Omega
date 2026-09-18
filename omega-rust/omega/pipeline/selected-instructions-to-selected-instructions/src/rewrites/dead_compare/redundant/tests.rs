@@ -15,8 +15,8 @@ use selected_instructions::{
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -600,10 +600,12 @@ fn role_mismatch_rejects() {
     );
 }
 
-/// A block that can reach itself refuses: a re-entering traversal's last
-/// flag event is the compare's own earlier execution, never the shadow.
+/// A block that can reach itself still admits when the shadow precedes
+/// the compare in the same body: a re-entering traversal's last flag
+/// event is that traversal's own shadow execution, so the in-block
+/// equivalence describes every arrival.
 #[test]
-fn cyclic_block_rejects() {
+fn cyclic_self_loop_admits() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated(target, |function, environment| {
@@ -611,23 +613,35 @@ fn cyclic_block_rejects() {
             .constraint(environment.selected_keys().jump)
             .unwrap()
             .clone();
-        // The compare's block jumps back to itself: on the second traversal
-        // the compare's own earlier execution is the last flag event.
+        // The compare's block jumps back to itself: on every traversal the
+        // shadow still executes immediately before the redundant compare.
         function.blocks[0].terminator = SelectedTerminator::Jump {
             instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
             successor: successor(0, 2),
         };
     });
-    assert_eq!(
-        remove(&source, &environment).unwrap_err(),
-        RedundantCompareError::UnsupportedUse
-    );
+    let result = remove(&source, &environment).unwrap();
+    let ids: Vec<SelectedInstructionId> = result.transformed().functions[0].blocks[0]
+        .instructions
+        .iter()
+        .map(|instruction| instruction.id)
+        .collect();
+    assert_eq!(ids, vec![LOAD, SECOND_LOAD, COMPARE]);
+    validate_redundant_compare(
+        &source,
+        0,
+        REDUNDANT,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
 }
 
 /// A block reachable from itself through a second block is the same
-/// refusal: the cycle does not have to be a self-edge.
+/// admission: the cycle does not have to be a self-edge.
 #[test]
-fn two_block_cycle_rejects() {
+fn two_block_cycle_admits() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated(target, |function, environment| {
@@ -654,16 +668,164 @@ fn two_block_cycle_rejects() {
             },
         });
     });
+    let result = remove(&source, &environment).unwrap();
+    let ids: Vec<SelectedInstructionId> = result.transformed().functions[0].blocks[0]
+        .instructions
+        .iter()
+        .map(|instruction| instruction.id)
+        .collect();
+    assert_eq!(ids, vec![LOAD, SECOND_LOAD, COMPARE]);
+}
+
+/// A loop tail that rewrites an operand register between the shadow and
+/// the next traversal's compare is the cyclic refusal: the redundant
+/// compare heads a self-looping block, the entry block's compare shadows
+/// the first arrival and the in-loop shadow the later ones, and the
+/// exposed interval crossing the back edge holds the rewrite.
+#[test]
+fn cyclic_tail_rewrite_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap()
+            .clone();
+        let copy_row = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        let compare_row = environment
+            .constraint(environment.selected_keys().compare_i64)
+            .unwrap()
+            .clone();
+        let redundant = function.blocks[0].instructions.remove(3);
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
+            successor: successor(1, 2),
+        };
+        // Block 1: `[redundant, shadow, rewrite, jump->self]` — every
+        // arrival's last flag event is an equivalent compare (the entry
+        // block's shadow on the first traversal, the in-loop shadow on
+        // later ones), but the loop tail rewrites an operand register
+        // inside the exposed interval.
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![
+                redundant,
+                instruction(
+                    SelectedInstructionId(12),
+                    SelectedInstructionKind::CompareI64,
+                    &compare_row,
+                    &[INPUT, OTHER],
+                ),
+                instruction(
+                    MOVED,
+                    SelectedInstructionKind::CopyI64,
+                    &copy_row,
+                    &[INPUT, OTHER],
+                ),
+            ],
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::Jump,
+                    &jump_row,
+                    &[],
+                ),
+                successor: successor(1, 3),
+            },
+        });
+    });
     assert_eq!(
         remove(&source, &environment).unwrap_err(),
         RedundantCompareError::UnsupportedUse
     );
 }
 
-/// An equivalent compare in a predecessor block does not admit in v1: the
-/// reaching scan is in-block, so a shadow across an edge is out of scope.
+/// The compare's own earlier execution is itself a valid reaching site:
+/// the redundant compare heads a self-looping block whose tail writes
+/// only an unrelated register, so the first arrival's reaching event is
+/// the entry shadow and every later arrival's is the compare itself —
+/// both flag-equivalent, and the exposed interval keeps the operands
+/// stable.
 #[test]
-fn cross_block_shadow_refuses() {
+fn cyclic_self_site_admits() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap()
+            .clone();
+        let load_row = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap()
+            .clone();
+        let class = function.virtual_registers[1].class;
+        function.virtual_registers.push(register(
+            FRESH,
+            class,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: THIRD_LOAD,
+                source_value: ValueId::new(7).unwrap(),
+            },
+        ));
+        let redundant = function.blocks[0].instructions.remove(3);
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
+            successor: successor(1, 2),
+        };
+        // Block 1: `[redundant, unrelated load, jump->self]` — arrival 1's
+        // last flag event is the entry block's shadow; every later
+        // arrival's is the redundant compare's own previous execution.
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![
+                redundant,
+                instruction(
+                    THIRD_LOAD,
+                    SelectedInstructionKind::Load8 { byte_offset: 0 },
+                    &load_row,
+                    &[POINTER, FRESH],
+                ),
+            ],
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::Jump,
+                    &jump_row,
+                    &[],
+                ),
+                successor: successor(1, 3),
+            },
+        });
+    });
+    let result = remove(&source, &environment).unwrap();
+    let ids: Vec<SelectedInstructionId> = result.transformed().functions[0].blocks[1]
+        .instructions
+        .iter()
+        .map(|instruction| instruction.id)
+        .collect();
+    assert_eq!(ids, vec![THIRD_LOAD]);
+    validate_redundant_compare(
+        &source,
+        0,
+        REDUNDANT,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// An equivalent compare in a predecessor block shadows across the edge:
+/// every path into the redundant compare's block last observed the
+/// shadow's publication, so the removal replays clean.
+#[test]
+fn cross_block_shadow_admits() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let return_row = environment
@@ -692,6 +854,275 @@ fn cross_block_shadow_refuses() {
                     &[],
                 ),
                 psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    let result = remove(&source, &environment).unwrap();
+    assert!(
+        result.transformed().functions[0].blocks[1]
+            .instructions
+            .is_empty()
+    );
+    validate_redundant_compare(
+        &source,
+        0,
+        REDUNDANT,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// A write to a shared operand register between the cross-block shadow
+/// and the compare refuses: the exposed interval crosses the edge, so the
+/// compare may compute flags from a different value.
+#[test]
+fn cross_block_operand_rewrite_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let return_row = environment
+        .constraint(environment.selected_keys().return_unit)
+        .unwrap()
+        .clone();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap()
+            .clone();
+        let copy_row = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        let redundant = function.blocks[0].instructions.remove(3);
+        function.blocks[0].instructions.push(instruction(
+            MOVED,
+            SelectedInstructionKind::CopyI64,
+            &copy_row,
+            &[INPUT, OTHER],
+        ));
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
+            successor: successor(1, 2),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![redundant],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    assert_eq!(
+        remove(&source, &environment).unwrap_err(),
+        RedundantCompareError::UnsupportedUse
+    );
+}
+
+/// An edge transport defining a shared operand register on the crossed
+/// edge refuses: the compare would read the transported value, not the
+/// one the shadow computed flags from.
+#[test]
+fn cross_block_edge_parameter_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let return_row = environment
+        .constraint(environment.selected_keys().return_unit)
+        .unwrap()
+        .clone();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap()
+            .clone();
+        let redundant = function.blocks[0].instructions.remove(3);
+        let mut edge = successor(1, 2);
+        edge.bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(8).unwrap(),
+                argument: ValueId::new(3).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: OTHER,
+                parameter: INPUT,
+            },
+        });
+        function.blocks[0].terminator = SelectedTerminator::Jump {
+            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
+            successor: edge,
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(1),
+            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
+            instructions: vec![redundant],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(10),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(3).unwrap(),
+            },
+        });
+    });
+    assert_eq!(
+        remove(&source, &environment).unwrap_err(),
+        RedundantCompareError::UnsupportedUse
+    );
+}
+
+/// A diamond whose arms each republish the same compare admits: the
+/// reaching set resolves to one equivalent site per arm and no position
+/// between either and the join's compare writes a shared operand.
+#[test]
+fn diamond_shadows_admit() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let branch_row = environment
+            .constraint(keys.conditional_branch)
+            .unwrap()
+            .clone();
+        let jump_row = environment.constraint(keys.jump).unwrap().clone();
+        let return_row = environment.constraint(keys.return_unit).unwrap().clone();
+        let redundant = function.blocks[0].instructions.remove(3);
+        let shadow = function.blocks[0].instructions.remove(2);
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(11),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                &branch_row,
+                &[],
+            ),
+            when_nonzero: successor(1, 2),
+            when_zero: successor(2, 3),
+        };
+        for (block, edge) in [(1u32, 4u64), (2u32, 5u64)] {
+            let mut arm_shadow = shadow.clone();
+            arm_shadow.id = SelectedInstructionId(11 + block);
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 1).unwrap()),
+                instructions: vec![arm_shadow],
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(20 + block),
+                        SelectedInstructionKind::Jump,
+                        &jump_row,
+                        &[],
+                    ),
+                    successor: successor(3, edge),
+                },
+            });
+        }
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: vec![redundant],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(30),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(6).unwrap(),
+            },
+        });
+    });
+    let result = remove(&source, &environment).unwrap();
+    assert!(
+        result.transformed().functions[0].blocks[3]
+            .instructions
+            .is_empty()
+    );
+    validate_redundant_compare(
+        &source,
+        0,
+        REDUNDANT,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// One divergent arm refuses: the leg whose last event is a compare with
+/// swapped operand registers publishes a different subtraction, so the
+/// reaching set does not resolve to flag-equivalent sites.
+#[test]
+fn divergent_leg_rejects() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let compare_row = environment.constraint(keys.compare_i64).unwrap().clone();
+        let branch_row = environment
+            .constraint(keys.conditional_branch)
+            .unwrap()
+            .clone();
+        let jump_row = environment.constraint(keys.jump).unwrap().clone();
+        let return_row = environment.constraint(keys.return_unit).unwrap().clone();
+        let redundant = function.blocks[0].instructions.remove(3);
+        let shadow = function.blocks[0].instructions.remove(2);
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(11),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                &branch_row,
+                &[],
+            ),
+            when_nonzero: successor(1, 2),
+            when_zero: successor(2, 3),
+        };
+        let swapped = instruction(
+            SelectedInstructionId(13),
+            SelectedInstructionKind::CompareI64,
+            &compare_row,
+            &[OTHER, INPUT],
+        );
+        for (block, edge, arm_shadow) in [(1u32, 4u64, shadow), (2u32, 5u64, swapped)] {
+            let mut arm_shadow = arm_shadow.clone();
+            arm_shadow.id = SelectedInstructionId(11 + block);
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 1).unwrap()),
+                instructions: vec![arm_shadow],
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(20 + block),
+                        SelectedInstructionKind::Jump,
+                        &jump_row,
+                        &[],
+                    ),
+                    successor: successor(3, edge),
+                },
+            });
+        }
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: vec![redundant],
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(30),
+                    SelectedInstructionKind::ReturnUnit,
+                    &return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(6).unwrap(),
             },
         });
     });
@@ -927,18 +1358,22 @@ fn instruction_surface_rows_reject() {
 /// The measured validation-step boundary: admission charges one step per
 /// block plus one per instruction across the plan, repeats the scan over
 /// the admitted function together with its register roster and call/access
-/// rows, then charges one in-block last-event scan per published unit, the
-/// interval operand audit, and the cycle check's one pass over the block
-/// and edge lists — so the exact count admits the removal on both the
-/// proposal and the independent replay path while one step below rejects
-/// both, on the single-block fixture and on a second whose acyclic block
-/// list carries a nonzero edge count.
+/// rows, then charges the reaching walk's setup — every edge's target
+/// resolution, the predecessor fill, and the cone mark — plus per
+/// published unit the in-block prefix scan, the per-block last-event
+/// table, and the bounded fixpoint propagation, and finally the backward
+/// operand audit once per unit over stream positions and crossed edge
+/// surfaces — so the exact count admits the removal on both the proposal
+/// and the independent replay path while one step below rejects both, on
+/// the single-block fixture and on a second whose acyclic block list
+/// carries a nonzero edge count.
 #[test]
 fn measured_validation_step_boundary_admits_and_rejects() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // A second, acyclic two-block form: the compare's block is a jump's
-    // target, so the cycle check walks one real edge.
+    // target, so the walk's setup resolves one real edge and the operand
+    // audit crosses it backward.
     let two_block = mutated(target, |function, environment| {
         let jump_row = environment
             .constraint(environment.selected_keys().jump)
@@ -981,6 +1416,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             .iter()
             .map(|block| block.instructions.len() as u64 + 1)
             .sum();
+        let block_count = function.blocks.len() as u64;
         let edge_count: u64 = function
             .blocks
             .iter()
@@ -991,6 +1427,51 @@ fn measured_validation_step_boundary_admits_and_rejects() {
                 | SelectedTerminator::ConditionalBranchI64LessThan { .. } => 2u64,
                 SelectedTerminator::HostedExitProcess { .. }
                 | SelectedTerminator::Return { .. } => 0u64,
+            })
+            .sum();
+        let widest_out: u64 = function
+            .blocks
+            .iter()
+            .map(|block| match &block.terminator {
+                SelectedTerminator::Jump { .. } => 1u64,
+                SelectedTerminator::ConditionalBranch { .. }
+                | SelectedTerminator::ConditionalBranchU64LessThan { .. }
+                | SelectedTerminator::ConditionalBranchI64LessThan { .. } => 2u64,
+                SelectedTerminator::HostedExitProcess { .. }
+                | SelectedTerminator::Return { .. } => 0u64,
+            })
+            .max()
+            .unwrap_or(0);
+        let transport_rows: u64 = function
+            .blocks
+            .iter()
+            .flat_map(|block| match &block.terminator {
+                SelectedTerminator::Jump { successor, .. } => vec![successor],
+                SelectedTerminator::ConditionalBranch {
+                    when_nonzero,
+                    when_zero,
+                    ..
+                } => vec![when_nonzero, when_zero],
+                SelectedTerminator::ConditionalBranchU64LessThan {
+                    when_less,
+                    when_not_less,
+                    ..
+                }
+                | SelectedTerminator::ConditionalBranchI64LessThan {
+                    when_less,
+                    when_not_less,
+                    ..
+                } => vec![when_less, when_not_less],
+                SelectedTerminator::HostedExitProcess { .. }
+                | SelectedTerminator::Return { .. } => Vec::new(),
+            })
+            .map(|successor| {
+                (successor.bindings.len()
+                    + successor.structural_bindings.len()
+                    + successor
+                        .structural_case
+                        .as_ref()
+                        .map_or(0, |case| case.payloads.len())) as u64
             })
             .sum();
         let compare = function
@@ -1008,15 +1489,19 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         let registers = function.virtual_registers.len() as u64;
         let calls = function.calls.len() as u64;
         let accesses = function.memory_accesses.len() as u64;
+        let elements = function_scan + 1;
+        let pops = block_count * (elements + 1);
+        let per_unit = function_scan + block_count + pops + pops * widest_out * elements;
+        let walk_setup = edge_count * (block_count + 1) + block_count + edge_count;
+        let audit = units * (function_scan + edge_count + transport_rows);
         let exact_steps = plan_scan
             + function_scan
             + registers
             + calls
             + accesses
-            + units * function_scan
-            + function_scan
-            + function.blocks.len() as u64
-            + edge_count;
+            + walk_setup
+            + units * per_unit
+            + audit;
         let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
         let result = remove_redundant_compare(&source, 0, REDUNDANT, &environment, exact).unwrap();
         validate_redundant_compare(
