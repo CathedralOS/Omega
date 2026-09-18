@@ -7,6 +7,8 @@ mod content_and_component_proof_formats;
 mod control_cycles;
 #[path = "artifact/integer_proof_formats.rs"]
 mod integer_proof_formats;
+#[path = "artifact/optimization_execution_custody.rs"]
+mod optimization_execution_custody;
 #[path = "artifact/pcc.rs"]
 mod pcc;
 #[path = "artifact/proof_section.rs"]
