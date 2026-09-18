@@ -3841,11 +3841,13 @@ Owners include
   preconditioned `define`, result aliases and forwarded result flow, none of
   which has a canonical row.
 
-- **EVALUATED-FOREIGN-BINDINGS.** Replace string-backed import bootstrap with
-  typed compile-time locator values for PE, versioned ELF, and Darwin/Mach-O.
-  Carry normalized locator, evaluated plan, target applicability, and producer
-  custody through provider selection and native emission. Raw foreign bytes are
-  data, never Omega symbol names or ambient lookup authority.
+- **EVALUATED-FOREIGN-BINDINGS.** Carry the typed compile-time locator values
+  for PE, versioned ELF, and Darwin/Mach-O
+  (`provider-planning/src/evaluated_via_bindings/`; the string-backed import
+  bootstrap is retired) with their normalized locator, evaluated plan, target
+  applicability, and producer custody through provider selection and native
+  emission. Raw foreign bytes are data, never Omega symbol names or ambient
+  lookup authority.
 
   Extend [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement)
   from fixed-width scalar calls to a
