@@ -378,9 +378,148 @@ fn borrowed_selection_call_consumer_forwards_the_established_view() {
 /// lane. That is a checker-side admission boundary, not a lowered-consumer
 /// gap -- this pins it so the selection join above is not read as silently
 /// admitting every borrowed local into calls.
+///
+/// The pin is precise about which side is missing. Everything downstream of
+/// the establishment already checks: the loan `view` takes on `a` is recorded
+/// for exactly its live range, and the `read(view)` call's scalar computation
+/// already plans `view` as a `SharedBorrow` `StructuralLocal` argument through
+/// the shared nominal-argument lane. What does not exist is the establishment
+/// itself: the `&a` initializer is a bare `ExpressionNode::Borrow`, which the
+/// structural-value driver's `is_record_value` gate admits only beneath a
+/// `Match`, so no `Reference` root is built for the statement. Without that
+/// root both control lanes reject upstream of lowering:
+/// `has_statement_shape`/`has_structural_result` find no root and produce no
+/// `terminal_unit_effects` plan, and `retain_record_locals`/`record_value_root`
+/// -- which admit only `Record` and owned `Place` kinds anyway -- produce no
+/// `terminal_scalar_graphs` plan. `choose` therefore reaches lowering with
+/// zero checked plans and stops at the dispatch's final lookup.
 #[test]
 fn established_reference_local_call_rejection_pins_the_checker_gap() {
     let checked = check_source(DIRECT_FORWARD_SOURCE).expect("direct borrowed local checks");
+    let (view_statement, view_symbol) = local(&checked, "view");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| checked.typed.symbols.name(machine.symbol) == "choose")
+        .expect("choose machine");
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .next()
+        .expect("single state");
+
+    // The established-borrow evidence already exists: `view` loans `a` for
+    // exactly the initializer-to-call range the selection join records.
+    let loans = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .map(|(_, loan)| loan)
+        .collect::<Vec<_>>();
+    let [loan] = loans.as_slice() else {
+        panic!("`let view = &a` records exactly one loan");
+    };
+    assert_eq!(loan.owner_symbol, view_symbol);
+    assert_eq!(loan.statement_index, view_statement);
+    assert_eq!(loan.last_use_statement_index, view_statement + 1);
+    assert!(matches!(loan.kind, checked_trees::BorrowAccessKind::Read));
+    let a_symbol = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            checked_trees::statement::StatementNode::LocalData(local)
+                if checked.typed.symbols.name(local.symbol) == "a" =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .expect("local `a` exists");
+    assert_eq!(loan.root_symbol, a_symbol, "the direct borrow lends `a`");
+
+    // The call consumer is already planned: `read(view)`'s scalar computation
+    // forwards `view` as the shared-borrow `StructuralLocal` argument, exactly
+    // as the selection-join lane emits. Only the establishment plan is absent.
+    let call_argument = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .filter_map(|(_, root)| {
+            let node = checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(root.root);
+            match &node.kind {
+                checked_trees::CheckedScalarComputationKind::Call {
+                    structural_arguments,
+                    ..
+                } if root.state == state.symbol => Some(
+                    checked
+                        .facts
+                        .values
+                        .scalar_computations
+                        .structural_arguments
+                        .span(*structural_arguments),
+                ),
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>();
+    let [Some(arguments)] = call_argument.as_slice() else {
+        panic!("choose plans exactly one structural call: {call_argument:?}");
+    };
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = *arguments
+    else {
+        panic!("read's argument is one place: {arguments:?}");
+    };
+    assert_eq!(
+        argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: view_symbol
+        },
+        "the call observes `view` itself"
+    );
+    assert_eq!(
+        argument.access,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+    );
+    assert!(argument.path.is_empty());
+
+    // The missing half is the establishment: `&a` is a bare `Borrow`
+    // initializer, which never reaches `borrowed_place` behind the
+    // `is_record_value` gate, so no `Reference` root exists for the statement
+    // and no control plan covers `choose` at all.
+    assert_eq!(
+        checked
+            .facts
+            .values
+            .structural_values
+            .root_at(state.symbol, u32::try_from(view_statement).unwrap()),
+        None,
+        "a bare `&a` initializer has no structural-value root"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine.symbol)
+            .is_none()
+            && checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(machine.symbol)
+                .is_none(),
+        "choose has no unit-effect or scalar-graph plan to lower"
+    );
+
     let error = checked_trees_to_lowered_psi::lower_machine(&checked, "choose")
         .expect_err("a bare `&a` establishment has no checked unit plan yet");
     assert_eq!(
