@@ -32,9 +32,9 @@ use target_operations::{
     NormalizedForeignCallBinding, ProviderExecutionBinding, ScalarAbiValue, ScalarFunctionAbi,
     TargetBoundaryResult, TargetControlTerminator, TargetDynamicDescriptorArgument,
     TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi, TargetFunction,
-    TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralHomeRequirement,
-    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
-    TargetUnitScalarHomeRequirement,
+    TargetReferenceResult, TargetStructuralArgument, TargetStructuralArgumentSource,
+    TargetStructuralHomeRequirement, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, ClosedConformanceCallableResult, CrashRouteBucket,
@@ -44,6 +44,7 @@ use terminal_psi::{
     TerminalDynamicRequirement,
 };
 
+use super::reference_results;
 use super::structural_shapes;
 use super::structural_signatures;
 
@@ -54,11 +55,13 @@ enum EmbeddedResult<'a> {
     /// `StructuralScalarCall`: the retained scalar result row.
     Scalar(&'a AbstractResult),
     /// `StructuralResultCall`: the call's result row, the retained declared
-    /// callee result, and the required durable home.
+    /// callee result, the required durable home, and the retained reference
+    /// leaf roster.
     Structural {
         result: &'a StructuralOperationResult,
         callee_result: &'a StructuralResultDeclaration,
         result_home: Option<&'a TargetStructuralHomeRequirement>,
+        reference_results: &'a [TargetReferenceResult],
     },
 }
 
@@ -192,6 +195,12 @@ struct Replay<'a> {
     boundary_machines: &'a [BoundaryMachineDeclaration],
     native_target: NativeTarget,
     roots: &'a BTreeMap<PlaceId, RootDeclaration>,
+    /// The reference leaf roster each structural-result call establishes,
+    /// independently recomputed from the caller's own custody stream by
+    /// `reference_results::expected`. A source whose custody cannot be
+    /// replayed yields an empty map, so every retained `StructuralResultCall`
+    /// row under it rejects.
+    expected_reference_results: BTreeMap<OperationId, Vec<TargetReferenceResult>>,
 }
 
 /// The semantic referent declaration bound to one argument place: the root
@@ -285,7 +294,7 @@ pub(super) fn validate(
                     callee,
                     callee_result,
                     result_home,
-                    reference_results: _,
+                    reference_results,
                     call_plan,
                     scalar_arguments,
                     arguments,
@@ -305,6 +314,7 @@ pub(super) fn validate(
                             result,
                             callee_result,
                             result_home: result_home.as_ref(),
+                            reference_results: reference_results.as_slice(),
                         },
                         claim_transfers,
                         returned_claim_transfers,
@@ -598,6 +608,26 @@ pub(super) fn validate(
         .collect::<BTreeSet<_>>();
 
     let roots = canonical_roots(source);
+    // The retained row identity selects which custody effect a source
+    // `BoundaryCall` replays: an installed-provider call moves arguments and
+    // establishes declared result leaves like an authored call, a settlement
+    // establishes only its structural result home, and any other retained row
+    // family has no custody effect.
+    let mut boundary_call_rows = BTreeMap::new();
+    for operation in &source.operations {
+        let AbstractOperation::BoundaryCall { psi_operation, .. } = operation else {
+            continue;
+        };
+        let row = match target_calls.get(psi_operation) {
+            Some(EmbeddedCall::Structural {
+                origin: NativeCallOrigin::InstalledProvider { provider, .. },
+                ..
+            }) => reference_results::BoundaryCallRow::Installed(provider.candidate),
+            Some(EmbeddedCall::Settlement { .. }) => reference_results::BoundaryCallRow::Settlement,
+            _ => reference_results::BoundaryCallRow::Other,
+        };
+        boundary_call_rows.insert(*psi_operation, row);
+    }
     let replay = Replay {
         source,
         source_functions,
@@ -607,6 +637,13 @@ pub(super) fn validate(
         boundary_machines,
         native_target,
         roots: &roots,
+        expected_reference_results: reference_results::expected(
+            source,
+            source_functions,
+            declarations,
+            &boundary_call_rows,
+        )
+        .unwrap_or_default(),
     };
 
     for (position, operation) in source.operations.iter().enumerate() {
@@ -2827,6 +2864,7 @@ impl Replay<'_> {
                     result,
                     callee_result,
                     result_home,
+                    reference_results,
                 },
             ) => {
                 let declared = callee.result.structural().ok_or(psi_operation)?;
@@ -2837,6 +2875,13 @@ impl Replay<'_> {
                     || !declared.qualifications.is_empty()
                     || !declared.projected_qualifications.is_empty()
                     || !callee.entry_claims.is_empty()
+                    // The retained leaf roster must equal the roster the
+                    // caller's own custody replay derives; a forged path,
+                    // root, or count cannot survive the comparison.
+                    || self
+                        .expected_reference_results
+                        .get(&psi_operation)
+                        .is_none_or(|rows| *reference_results != rows.as_slice())
                 {
                     return Err(psi_operation);
                 }
