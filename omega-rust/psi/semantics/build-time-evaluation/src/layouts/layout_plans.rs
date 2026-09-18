@@ -447,7 +447,7 @@ pub fn materialize_typed_owned_layout_into(
         });
         values.push(AggregateFieldValue::new(&reflected.name, bytes)?);
     }
-    materialize_aggregate_layout_into(layout, &schemas, &values, destination)
+    materialize_aggregate_layout_into(layout, &schemas, &values, byte_order, destination)
 }
 
 /// Evaluates an effect-free, zero-argument source machine to obtain an owned

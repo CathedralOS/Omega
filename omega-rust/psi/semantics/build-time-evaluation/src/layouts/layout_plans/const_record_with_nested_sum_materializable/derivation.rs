@@ -666,6 +666,7 @@ pub(super) fn stage_record_level_fields(
 pub(super) fn materialize_level_bytes(
     outer_layout: &layout_plans::LayoutPlanReport,
     encoded_fields: Vec<EncodedOuterField>,
+    byte_order: ByteOrder,
 ) -> Result<Vec<u8>, MaterializationDiagnostic> {
     validate_outer_layout(outer_layout, &encoded_fields)?;
     let byte_len =
@@ -720,7 +721,7 @@ pub(super) fn materialize_level_bytes(
         schemas.push(schema);
         values.push(AggregateFieldValue::new(field.name, field.bytes)?);
     }
-    materialize_aggregate_layout_into(outer_layout, &schemas, &values, &mut bytes)?;
+    materialize_aggregate_layout_into(outer_layout, &schemas, &values, byte_order, &mut bytes)?;
     Ok(bytes)
 }
 
@@ -847,7 +848,7 @@ pub(super) fn derive_record_level_children_bytes(
         byte_order,
         "record-level",
     )?;
-    let bytes = materialize_level_bytes(outer_layout, encoded_fields)?;
+    let bytes = materialize_level_bytes(outer_layout, encoded_fields, byte_order)?;
     let mut nested_sum_arrays = Vec::new();
     nested_sum_arrays
         .try_reserve_exact(prepared_arrays.len())
@@ -1116,7 +1117,7 @@ pub(super) fn derive_recursive_nested_sums_bytes_with_reachability(
         return Err(MaterializationDiagnostic("ConstMaterializable plural recursive staging did not consume the complete authored-order set".to_owned()));
     }
 
-    let bytes = materialize_level_bytes(&path_layout.outer_layout, encoded_fields)?;
+    let bytes = materialize_level_bytes(&path_layout.outer_layout, encoded_fields, byte_order)?;
     let mut nested_sum_arrays = Vec::new();
     nested_sum_arrays
         .try_reserve_exact(prepared_arrays.len())
@@ -1526,7 +1527,13 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
         schemas.push(schema);
         values.push(AggregateFieldValue::new(field.name, field.bytes)?);
     }
-    materialize_aggregate_layout_into(path_layout.outer_layout(), &schemas, &values, &mut bytes)?;
+    materialize_aggregate_layout_into(
+        path_layout.outer_layout(),
+        &schemas,
+        &values,
+        byte_order,
+        &mut bytes,
+    )?;
     Ok(DerivedNestedRecordSumsMaterialization {
         schema_report_fingerprint,
         inner_records,

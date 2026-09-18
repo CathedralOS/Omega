@@ -956,3 +956,76 @@ machine Main::main(&mut self) { }
         "numbered case names and authored order are presentation/runtime-discriminant inputs, not stable schema identity"
     );
 }
+
+#[test]
+fn mixed_scalar_placements_materialize_beside_aggregate_fields() {
+    let main_path = write_program(
+        "mixed-placement-policy",
+        r#"
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan {
+    case At(offset: u64);
+    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
+    case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
+data PackedFrame { }
+machine PackedFrame::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt {
+        offset: 0, stored_width: 16, interpretation: IntegerInterpretation::Unsigned } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::Bits {
+        container: 2, container_width: 16, destination_lsb: 0, source_lsb: 0, width: 10 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 4 } };
+    entries[3] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 6 } };
+    entries[4] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 8 } };
+    Plan { entries: entries, entry_count: 5, size_fixed: 12, size_is_dynamic: false, align: 4 }
+}
+data Cell { lo: u8; hi: u8; }
+data Frame { id: u32; packed: u16 [0..=1023]; cells: [Cell; 2]; tag: u8; }
+machine make_frame() -> Frame {
+    let mut cells: [Cell; 2];
+    cells[0] = Cell { lo: 1, hi: 2 };
+    cells[1] = Cell { lo: 3, hi: 4 };
+    Frame { id: 4660, packed: 677, cells: cells, tag: 171 }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("mixed placement policy should compile");
+    let report = compute_layout_plan(&checked.typed, "PackedFrame::plan", "Frame", None)
+        .expect("a plan mixing scalar and aggregate placements should validate");
+    assert_eq!(report.entries.len(), 5);
+    assert_eq!(report.offsets, None);
+    assert_eq!(report.size, Some(12));
+
+    let mut little = [0xa5; 12];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_frame",
+        "Frame",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut little,
+    )
+    .expect("scalar placements should replay beside aggregate extents");
+    assert_eq!(little, [0x34, 0x12, 0xa5, 0x02, 1, 2, 3, 4, 0xab, 0, 0, 0]);
+
+    let mut big = [0xa5; 12];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_frame",
+        "Frame",
+        &report,
+        ByteOrder::BigEndian,
+        &mut big,
+    )
+    .expect("the same plan should materialize big-endian");
+    assert_eq!(big, [0x12, 0x34, 0x02, 0xa5, 1, 2, 3, 4, 0xab, 0, 0, 0]);
+}

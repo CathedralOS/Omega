@@ -284,6 +284,7 @@ fn materializers_reject_layout_identity_aliases_before_observable_work() {
         &aggregate_layout,
         &[schema],
         &[value],
+        ByteOrder::LittleEndian,
         &mut aggregate_bytes,
     )
     .expect_err("aggregate materialization must reject one identity under two names");
@@ -340,8 +341,14 @@ fn owned_aggregate_materializer_places_complete_values_atomically() {
         AggregateFieldValue::new("payload", [5, 6, 7, 8, 9, 10]).expect("payload value"),
     ];
     let mut bytes = [0xa5; 20];
-    materialize_aggregate_layout_into(&layout, &fields, &values, &mut bytes)
-        .expect("complete aggregates should materialize through whole At extents");
+    materialize_aggregate_layout_into(
+        &layout,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("complete aggregates should materialize through whole At extents");
     assert_eq!(&bytes[4..8], &[1, 2, 3, 4]);
     assert_eq!(&bytes[12..18], &[5, 6, 7, 8, 9, 10]);
     assert!(
@@ -356,8 +363,14 @@ fn owned_aggregate_materializer_places_complete_values_atomically() {
     let mut short = values.clone();
     short[1] = AggregateFieldValue::new("payload", [5, 6, 7]).expect("short payload");
     let mut unchanged = [0xa5; 20];
-    let error = materialize_aggregate_layout_into(&layout, &fields, &short, &mut unchanged)
-        .expect_err("caller bytes cannot claim a complete aggregate extent");
+    let error = materialize_aggregate_layout_into(
+        &layout,
+        &fields,
+        &short,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("caller bytes cannot claim a complete aggregate extent");
     assert!(error.0.contains("compiler-derived extent is 6"));
     assert_eq!(unchanged, [0xa5; 20]);
 
@@ -369,9 +382,38 @@ fn owned_aggregate_materializer_places_complete_values_atomically() {
         source_lsb: 0,
         width: 32,
     };
-    let error = materialize_aggregate_layout_into(&fragmented, &fields, &values, &mut unchanged)
-        .expect_err("aggregate fields cannot enter scalar fragment placement");
-    assert!(error.0.contains("requires one whole `At` placement"));
+    let mut fragmented_bytes = [0xa5; 20];
+    materialize_aggregate_layout_into(
+        &fragmented,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut fragmented_bytes,
+    )
+    .expect("a carrier-sized field may carry a scalar fragment placement");
+    assert_eq!(&fragmented_bytes[4..8], &[1, 2, 3, 4]);
+
+    fragmented.entries[0].placement = LayoutPlacementReport::Bits {
+        container: 12,
+        container_width: 32,
+        destination_lsb: 0,
+        source_lsb: 0,
+        width: 32,
+    };
+    let error = materialize_aggregate_layout_into(
+        &fragmented,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a fragment destination cannot overlap a whole-extent placement");
+    assert!(
+        error
+            .0
+            .contains("fragment destination overlaps a whole-extent placement"),
+        "{error}"
+    );
     assert_eq!(unchanged, [0xa5; 20]);
 }
 
@@ -392,15 +434,27 @@ fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
         .expect("compiler-derived numbered schema")];
     let values = [AggregateFieldValue::new("payload", [1, 2, 3, 4]).expect("complete payload")];
     let mut bytes = [0xa5; 12];
-    materialize_aggregate_layout_into(&layout, &schema, &values, &mut bytes)
-        .expect("stable identity should rejoin a renamed aggregate field");
+    materialize_aggregate_layout_into(
+        &layout,
+        &schema,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("stable identity should rejoin a renamed aggregate field");
     assert_eq!(bytes, [0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0]);
 
     let mut drifted = layout;
     drifted.entries[0].member_identity = Some(8);
     let mut unchanged = [0x5a; 12];
-    let error = materialize_aggregate_layout_into(&drifted, &schema, &values, &mut unchanged)
-        .expect_err("stable member identity drift must reject before mutation");
+    let error = materialize_aggregate_layout_into(
+        &drifted,
+        &schema,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("stable member identity drift must reject before mutation");
     assert!(error.0.contains("same stable identity"));
     assert_eq!(unchanged, [0x5a; 12]);
 
@@ -429,6 +483,7 @@ fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
         &repeated_layout,
         &repeated_schema,
         &repeated_values,
+        ByteOrder::LittleEndian,
         &mut repeated_bytes,
     )
     .expect("stable identity should also rejoin renamed fixed-array tiling");
@@ -474,15 +529,407 @@ fn repeated_aggregate_materializer_rejects_invalid_geometry_atomically() {
         (&[0, 6, 12][..], "violates its compiler-derived alignment 4"),
     ] {
         let mut unchanged = [0xa5; 32];
-        let error =
-            materialize_aggregate_layout_into(&layout(offsets), &schema, &values, &mut unchanged)
-                .expect_err("invalid repeated aggregate geometry must reject");
+        let error = materialize_aggregate_layout_into(
+            &layout(offsets),
+            &schema,
+            &values,
+            ByteOrder::LittleEndian,
+            &mut unchanged,
+        )
+        .expect_err("invalid repeated aggregate geometry must reject");
         assert!(
             error.0.contains(expected),
             "unexpected diagnostic: {error:?}"
         );
         assert_eq!(unchanged, [0xa5; 32]);
     }
+}
+
+#[test]
+fn aggregate_materialization_applies_scalar_placements_beside_whole_extents() {
+    let layout = LayoutPlanReport {
+        schema_report_fingerprint: 1,
+        entries: vec![
+            LayoutFieldEntryReport {
+                field: "id".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::IntegerAt {
+                    offset: 0,
+                    stored_width: 16,
+                    interpretation: IntegerInterpretation::Unsigned,
+                },
+            },
+            LayoutFieldEntryReport {
+                field: "flags".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::Bits {
+                    container: 2,
+                    container_width: 16,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 10,
+                },
+            },
+            LayoutFieldEntryReport {
+                field: "pair".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 4 },
+            },
+            LayoutFieldEntryReport {
+                field: "items".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 8 },
+            },
+            LayoutFieldEntryReport {
+                field: "items".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset: 10 },
+            },
+        ],
+        offsets: None,
+        size: Some(12),
+        align: 4,
+    };
+    let fields = [
+        AggregateFieldSchema::new("id", 4).expect("id carrier"),
+        AggregateFieldSchema::new("flags", 2).expect("flags carrier"),
+        AggregateFieldSchema::new("pair", 2).expect("pair extent"),
+        AggregateFieldSchema::new_repeated("items", 2, 2, 2).expect("items shape"),
+    ];
+    let little_values = [
+        AggregateFieldValue::new("id", [0x34, 0x12, 0, 0]).expect("id"),
+        AggregateFieldValue::new("flags", [0xa5, 0x02]).expect("flags"),
+        AggregateFieldValue::new("pair", [9, 8]).expect("pair"),
+        AggregateFieldValue::new("items", [0x11, 0x22, 0x33, 0x44]).expect("items"),
+    ];
+    let mut bytes = [0x5a; 12];
+    materialize_aggregate_layout_into(
+        &layout,
+        &fields,
+        &little_values,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("scalar placements should compose with whole extents");
+    assert_eq!(
+        bytes,
+        [0x34, 0x12, 0xa5, 0x02, 9, 8, 0, 0, 0x11, 0x22, 0x33, 0x44]
+    );
+
+    let big_values = [
+        AggregateFieldValue::new("id", [0, 0, 0x12, 0x34]).expect("id"),
+        AggregateFieldValue::new("flags", [0x02, 0xa5]).expect("flags"),
+        AggregateFieldValue::new("pair", [9, 8]).expect("pair"),
+        AggregateFieldValue::new("items", [0x11, 0x22, 0x33, 0x44]).expect("items"),
+    ];
+    let mut big = [0x5a; 12];
+    materialize_aggregate_layout_into(
+        &layout,
+        &fields,
+        &big_values,
+        ByteOrder::BigEndian,
+        &mut big,
+    )
+    .expect("the same plan should materialize big-endian");
+    assert_eq!(
+        big,
+        [0x12, 0x34, 0x02, 0xa5, 9, 8, 0, 0, 0x11, 0x22, 0x33, 0x44]
+    );
+}
+
+#[test]
+fn aggregate_materialization_shares_fragment_bytes_but_rejects_bit_drift() {
+    // Two fields may tile disjoint destination bits of one container byte.
+    let shared = LayoutPlanReport {
+        schema_report_fingerprint: 1,
+        entries: vec![
+            LayoutFieldEntryReport {
+                field: "low".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::Bits {
+                    container: 4,
+                    container_width: 8,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 4,
+                },
+            },
+            LayoutFieldEntryReport {
+                field: "high".into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::Bits {
+                    container: 4,
+                    container_width: 8,
+                    destination_lsb: 4,
+                    source_lsb: 0,
+                    width: 4,
+                },
+            },
+        ],
+        offsets: None,
+        size: Some(8),
+        align: 1,
+    };
+    let fields = [
+        AggregateFieldSchema::new("low", 1).expect("low carrier"),
+        AggregateFieldSchema::new("high", 1).expect("high carrier"),
+    ];
+    let values = [
+        AggregateFieldValue::new("low", [0x0b]).expect("low"),
+        AggregateFieldValue::new("high", [0x0d]).expect("high"),
+    ];
+    let mut bytes = [0x5a; 8];
+    materialize_aggregate_layout_into(
+        &shared,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("disjoint destination bits may share one container byte");
+    assert_eq!(bytes[4], 0xdb);
+    assert!(
+        bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| index == 4 || *byte == 0)
+    );
+
+    let mut overlapping = shared.clone();
+    overlapping.entries[1].placement = LayoutPlacementReport::Bits {
+        container: 4,
+        container_width: 8,
+        destination_lsb: 2,
+        source_lsb: 0,
+        width: 4,
+    };
+    let mut unchanged = [0x5a; 8];
+    let error = materialize_aggregate_layout_into(
+        &overlapping,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("overlapping fragment destinations must reject");
+    assert!(
+        error
+            .0
+            .contains("fragment destination overlaps an earlier fragment"),
+        "{error}"
+    );
+    assert_eq!(unchanged, [0x5a; 8]);
+
+    let mut out_of_layout = shared.clone();
+    out_of_layout.entries[1].placement = LayoutPlacementReport::Bits {
+        container: 7,
+        container_width: 16,
+        destination_lsb: 8,
+        source_lsb: 0,
+        width: 4,
+    };
+    let error = materialize_aggregate_layout_into(
+        &out_of_layout,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a fragment destination past the layout must reject");
+    assert!(
+        error.0.contains("writes byte 8, past the 8-byte layout"),
+        "{error}"
+    );
+    assert_eq!(unchanged, [0x5a; 8]);
+}
+
+#[test]
+fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
+    let fields = [
+        AggregateFieldSchema::new("id", 4).expect("id carrier"),
+        AggregateFieldSchema::new_repeated("items", 2, 2, 2).expect("items shape"),
+        AggregateFieldSchema::new("wide", 16).expect("wide extent"),
+        AggregateFieldSchema::new("zz", 4).expect("zz carrier"),
+    ];
+    let values = [
+        AggregateFieldValue::new("id", [0x34, 0x12, 0, 0]).expect("id"),
+        AggregateFieldValue::new("items", [1, 2, 3, 4]).expect("items"),
+        AggregateFieldValue::new("wide", [7; 16]).expect("wide"),
+        AggregateFieldValue::new("zz", [9, 9, 9, 9]).expect("zz"),
+    ];
+    let entry = |field: &str, placement| LayoutFieldEntryReport {
+        field: field.to_owned(),
+        member_identity: None,
+        placement,
+    };
+    let base = |entries: Vec<LayoutFieldEntryReport>| LayoutPlanReport {
+        schema_report_fingerprint: 1,
+        entries,
+        offsets: None,
+        size: Some(32),
+        align: 4,
+    };
+
+    let mixed = base(vec![
+        entry("id", LayoutPlacementReport::At { offset: 0 }),
+        entry(
+            "id",
+            LayoutPlacementReport::Bits {
+                container: 4,
+                container_width: 8,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 8,
+            },
+        ),
+        entry("items", LayoutPlacementReport::At { offset: 8 }),
+        entry("items", LayoutPlacementReport::At { offset: 10 }),
+        entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        entry("zz", LayoutPlacementReport::At { offset: 24 }),
+    ]);
+    let mut unchanged = [0xa5; 32];
+    let error = materialize_aggregate_layout_into(
+        &mixed,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("mixing `At` and scalar placements must reject");
+    assert!(
+        error.0.contains("mixes `At` with scalar placements"),
+        "{error}"
+    );
+    assert_eq!(unchanged, [0xa5; 32]);
+
+    let fragmented_array = base(vec![
+        entry("id", LayoutPlacementReport::At { offset: 0 }),
+        entry(
+            "items",
+            LayoutPlacementReport::Bits {
+                container: 4,
+                container_width: 8,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 8,
+            },
+        ),
+        entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        entry("zz", LayoutPlacementReport::At { offset: 24 }),
+    ]);
+    let error = materialize_aggregate_layout_into(
+        &fragmented_array,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("an outer fixed array cannot carry scalar placements");
+    assert!(
+        error
+            .0
+            .contains("carries scalar placements but is an outer fixed array"),
+        "{error}"
+    );
+    assert_eq!(unchanged, [0xa5; 32]);
+
+    let oversized_scalar = base(vec![
+        entry("id", LayoutPlacementReport::At { offset: 0 }),
+        entry("items", LayoutPlacementReport::At { offset: 8 }),
+        entry("items", LayoutPlacementReport::At { offset: 10 }),
+        entry(
+            "wide",
+            LayoutPlacementReport::Bits {
+                container: 16,
+                container_width: 64,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 64,
+            },
+        ),
+        entry("zz", LayoutPlacementReport::At { offset: 24 }),
+    ]);
+    let error = materialize_aggregate_layout_into(
+        &oversized_scalar,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a field wider than the scalar carrier cannot fragment");
+    assert!(
+        error.0.contains("past the 64-bit scalar placement carrier"),
+        "{error}"
+    );
+    assert_eq!(unchanged, [0xa5; 32]);
+
+    // `zz` sorts after `items`, so the array's whole extents claim their bytes
+    // before the stored-integer overlap check runs.
+    let overlapping_stored = base(vec![
+        entry("id", LayoutPlacementReport::At { offset: 0 }),
+        entry("items", LayoutPlacementReport::At { offset: 8 }),
+        entry("items", LayoutPlacementReport::At { offset: 10 }),
+        entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        entry(
+            "zz",
+            LayoutPlacementReport::IntegerAt {
+                offset: 8,
+                stored_width: 16,
+                interpretation: IntegerInterpretation::Unsigned,
+            },
+        ),
+    ]);
+    // `zz` has exactly one placement, so no mixed-kind rejection preempts the
+    // overlap check.
+    let error = materialize_aggregate_layout_into(
+        &overlapping_stored,
+        &fields,
+        &values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a stored integer cannot overlap another placement");
+    assert!(
+        error
+            .0
+            .contains("stored-integer placement overlaps an earlier placement"),
+        "{error}"
+    );
+    assert_eq!(unchanged, [0xa5; 32]);
+
+    let overflow_values = [
+        AggregateFieldValue::new("id", [0, 0, 1, 0]).expect("id"),
+        AggregateFieldValue::new("items", [1, 2, 3, 4]).expect("items"),
+        AggregateFieldValue::new("wide", [7; 16]).expect("wide"),
+        AggregateFieldValue::new("zz", [9, 9, 9, 9]).expect("zz"),
+    ];
+    let stored = base(vec![
+        entry(
+            "id",
+            LayoutPlacementReport::IntegerAt {
+                offset: 0,
+                stored_width: 16,
+                interpretation: IntegerInterpretation::Unsigned,
+            },
+        ),
+        entry("items", LayoutPlacementReport::At { offset: 8 }),
+        entry("items", LayoutPlacementReport::At { offset: 10 }),
+        entry("wide", LayoutPlacementReport::At { offset: 16 }),
+        entry("zz", LayoutPlacementReport::At { offset: 24 }),
+    ]);
+    let error = materialize_aggregate_layout_into(
+        &stored,
+        &fields,
+        &overflow_values,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("a value exceeding its stored integer width must reject");
+    assert!(
+        error.0.contains("does not fit its 16-bit unsigned storage"),
+        "{error}"
+    );
+    assert_eq!(unchanged, [0xa5; 32]);
 }
 
 #[test]
