@@ -8,7 +8,7 @@ use numerics::bignum::BigRational;
 use numerics::literals::LandedIntegerType;
 use typed_trees::{
     TypedTrees,
-    expression::{ExpressionHandle, ExpressionNode, MatchPattern},
+    expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern},
     machine::Machine,
     state::State,
     types::PrimitiveType,
@@ -308,11 +308,24 @@ pub(super) fn validate_landing(
     Ok(carrier)
 }
 
-/// Bounds cannot invent the exact final value required by a fractional warning.
-/// With one varying child per operation, each complete result path can reuse
-/// ordinary landing with exact arm edges. This visits alternatives, not their
-/// Cartesian product, and never evaluates subjects or patterns. Independent
-/// fractional histories still need compositional exact diagnostic evidence.
+/// One reachable result of a match-containing anonymous subtree: its exact
+/// rational value, the first fractional intermediate the path records, and a
+/// selection reproducing both. The first fractional node in left-to-right
+/// evaluation order is the warning's origin; its own subtree value under the
+/// path is the reported intermediate.
+struct LandingSummary {
+    value: BigRational,
+    fractional: Option<(ExpressionHandle, BigRational)>,
+    selection: Vec<(ExpressionHandle, ExpressionHandle)>,
+}
+
+/// Bounds cannot invent the exact final value required by a fractional
+/// warning, so each distinct reachable (result, origin) pair replays its own
+/// recorded selection through the ordinary landing, which emits the shared
+/// warning unchanged. Summaries combine at the value level: a Match unions its
+/// arms' entries and a binary joins two bounded entry sets, so independent
+/// dispatches contribute their own evidence instead of a Cartesian enumeration
+/// of arm combinations. Subjects and patterns are never evaluated.
 fn validate_fractional_landings(
     program: &TypedTrees,
     machine: &Machine,
@@ -321,81 +334,205 @@ fn validate_fractional_landings(
     destination: PrimitiveType,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), String> {
-    let mut pending = vec![root];
-    while let Some(expression) = pending.pop() {
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Match(dispatch) => pending.extend(
-                program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .map(|arm| arm.value),
-            ),
-            ExpressionNode::Binary(binary) => {
-                if contains_match(program, binary.left) && contains_match(program, binary.right) {
-                    return Err("anonymous constant Match landing with independent fractional histories requires exact warning evidence".into());
-                }
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
-            _ => {}
-        }
-    }
-
-    enum Step {
-        Enter(ExpressionHandle),
-        Arm(ExpressionHandle, ExpressionHandle),
-        Restore(usize),
-    }
-    let mut pending = vec![Step::Enter(root)];
-    let mut selected = Vec::new();
-    while let Some(step) = pending.pop() {
-        match step {
-            Step::Restore(length) => selected.truncate(length),
-            Step::Arm(owner, result) => {
-                pending.push(Step::Restore(selected.len()));
-                selected.push((owner, result));
-                pending.push(Step::Enter(result));
-            }
-            Step::Enter(expression) => {
-                match program.expression_table.expression(expression) {
-                    ExpressionNode::Match(dispatch) => {
-                        pending.extend(
-                            program
-                                .expression_table
-                                .match_arms(dispatch.arms)
-                                .iter()
-                                .rev()
-                                .map(|arm| Step::Arm(expression, arm.value)),
-                        );
-                        continue;
-                    }
-                    ExpressionNode::Binary(binary) => {
-                        if contains_match(program, binary.left) {
-                            pending.push(Step::Enter(binary.left));
-                            continue;
-                        }
-                        if contains_match(program, binary.right) {
-                            pending.push(Step::Enter(binary.right));
-                            continue;
-                        }
-                    }
-                    _ => {}
-                }
-                land_anonymous(
-                    program,
-                    machine,
-                    state,
-                    root,
-                    destination,
-                    &selected,
-                    warnings,
-                )?;
-            }
-        }
+    for summary in landing_summaries(program, machine, state, root)? {
+        land_anonymous(
+            program,
+            machine,
+            state,
+            root,
+            destination,
+            &summary.selection,
+            warnings,
+        )?;
     }
     Ok(())
 }
+
+fn landing_summaries(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    root: ExpressionHandle,
+) -> Result<Vec<LandingSummary>, String> {
+    enum Step {
+        Enter(ExpressionHandle),
+        Leave(ExpressionHandle),
+    }
+    let mut pending = vec![Step::Enter(root)];
+    let mut results: Vec<Vec<LandingSummary>> = Vec::new();
+    while let Some(step) = pending.pop() {
+        match step {
+            Step::Enter(expression) => match program.expression_table.expression(expression) {
+                ExpressionNode::Match(dispatch) => {
+                    let arms = program.expression_table.match_arms(dispatch.arms);
+                    if arms.is_empty() || arms.len() != dispatch.arms.len() {
+                        return Err("anonymous constant Match landing requires valid arms".into());
+                    }
+                    pending.push(Step::Leave(expression));
+                    pending.extend(arms.iter().rev().map(|arm| Step::Enter(arm.value)));
+                }
+                ExpressionNode::Binary(binary) => {
+                    if !validation::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    ) {
+                        return Err(
+                            "anonymous rational bounds require selected builtin meaning".into()
+                        );
+                    }
+                    pending.push(Step::Leave(expression));
+                    pending.push(Step::Enter(binary.right));
+                    pending.push(Step::Enter(binary.left));
+                }
+                _ => {
+                    let value =
+                        validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+                            program,
+                            expression,
+                            &[],
+                            |operand| {
+                                validation::has_builtin_binary_expression_meaning(
+                                    program,
+                                    machine,
+                                    Some(state),
+                                    operand,
+                                )
+                            },
+                        )
+                        .ok_or(
+                            "anonymous constant expression requires defined exact numeric values",
+                        )?;
+                    let fractional = (matches!(
+                        program.expression_table.expression(expression),
+                        ExpressionNode::Float(_)
+                    ) && value.to_integer_exact().is_none())
+                    .then_some((expression, value.clone()));
+                    results.push(vec![LandingSummary {
+                        value,
+                        fractional,
+                        selection: Vec::new(),
+                    }]);
+                }
+            },
+            Step::Leave(expression) => match program.expression_table.expression(expression) {
+                ExpressionNode::Match(dispatch) => {
+                    let arms = program.expression_table.match_arms(dispatch.arms);
+                    let count = arms.len();
+                    if results.len() < count {
+                        return Err("anonymous constant Match lost its arm results".into());
+                    }
+                    let selected = results.split_off(results.len() - count);
+                    let mut joined = Vec::new();
+                    for (arm, mut arm_results) in arms.iter().zip(selected.into_iter()) {
+                        for summary in &mut arm_results {
+                            summary.selection.push((expression, arm.value));
+                        }
+                        append_unique(&mut joined, arm_results)?;
+                    }
+                    results.push(joined);
+                }
+                ExpressionNode::Binary(binary) => {
+                    let Some(right) = results.pop() else {
+                        return Err("anonymous constant operation lost its right operand".into());
+                    };
+                    let Some(left) = results.pop() else {
+                        return Err("anonymous constant operation lost its left operand".into());
+                    };
+                    let mut joined = Vec::new();
+                    for left in &left {
+                        for right in &right {
+                            let value = match binary.operator {
+                                BinaryOperator::Add => left.value.add(&right.value),
+                                BinaryOperator::Subtract => left.value.sub(&right.value),
+                                BinaryOperator::Multiply => left.value.mul(&right.value),
+                                BinaryOperator::Divide => left
+                                    .value
+                                    .div(&right.value)
+                                    .ok_or("undefined anonymous rational quotient")?,
+                                _ => {
+                                    return Err(
+                                        "anonymous rational bounds require arithmetic meaning"
+                                            .into(),
+                                    );
+                                }
+                            };
+                            let fractional = if let Some(fractional) = &left.fractional {
+                                Some(fractional.clone())
+                            } else if let Some(fractional) = &right.fractional {
+                                Some(fractional.clone())
+                            } else {
+                                (value.to_integer_exact().is_none())
+                                    .then_some((expression, value.clone()))
+                            };
+                            let mut selection = left.selection.clone();
+                            selection.extend(right.selection.iter().copied());
+                            push_unique(
+                                &mut joined,
+                                LandingSummary {
+                                    value,
+                                    fractional,
+                                    selection,
+                                },
+                            )?;
+                        }
+                    }
+                    results.push(joined);
+                }
+                _ => return Err("anonymous constant Match landing lost its traversal".into()),
+            },
+        }
+    }
+    if results.len() != 1 {
+        return Err("anonymous constant expression did not produce one summary".into());
+    }
+    results
+        .pop()
+        .ok_or("anonymous constant expression did not produce one summary".into())
+}
+
+/// Distinct (value, fractional-origin) pairs are the warnings the authored
+/// tree can emit; identical pairs share one diagnostic, so the recorded
+/// selection of either path reproduces it.
+fn push_unique(summaries: &mut Vec<LandingSummary>, summary: LandingSummary) -> Result<(), String> {
+    let duplicate = summaries.iter().any(|existing| {
+        existing.value.cmp_value(&summary.value).is_eq()
+            && match (&existing.fractional, &summary.fractional) {
+                (None, None) => true,
+                (Some((left_origin, left_value)), Some((right_origin, right_value))) => {
+                    left_origin == right_origin && left_value.cmp_value(right_value).is_eq()
+                }
+                _ => false,
+            }
+    });
+    if !duplicate {
+        if summaries.len() >= MAX_LANDING_SUMMARIES {
+            return Err(
+                "anonymous constant Match landing has more exact fractional-warning paths than the bounded summary"
+                    .into(),
+            );
+        }
+        summaries.push(summary);
+    }
+    Ok(())
+}
+
+fn append_unique(
+    summaries: &mut Vec<LandingSummary>,
+    arm_results: Vec<LandingSummary>,
+) -> Result<(), String> {
+    for summary in arm_results {
+        // Duplicate (value, origin) pairs would emit an identical diagnostic;
+        // the bound still applies because distinct arms can exceed it joined.
+        push_unique(summaries, summary)?;
+    }
+    Ok(())
+}
+
+/// The summary bound keeps the emitted warning roster finite: each retained
+/// entry still replays one exact selection through the ordinary landing.
+const MAX_LANDING_SUMMARIES: usize = 4096;
 
 fn contains_match(program: &TypedTrees, root: ExpressionHandle) -> bool {
     let mut pending = vec![root];

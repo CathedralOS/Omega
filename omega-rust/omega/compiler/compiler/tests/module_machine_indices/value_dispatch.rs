@@ -54,6 +54,13 @@ fn anonymous_match_integer_quotients_preserve_canonical_indices() {
             "(840 / ((match true { true -> (match true { true -> -5, false -> -1 }), false -> 2 }) + (match true { true -> 4, false -> -3 })))",
             "-840",
         ),
+        // Independent dispatches on both sides of the division keep exact
+        // fractional-warning evidence: each reachable landing replays its own
+        // recorded selection rather than enumerating arm combinations.
+        (
+            "(((match true { true -> 7 / 2, false -> 0 }) * 4) / (match true { true -> -2, false -> 2 }))",
+            "-7",
+        ),
     ] {
         Sources::write(
             root.join("main.omg"),
@@ -107,11 +114,6 @@ fn anonymous_match_integer_quotients_retain_all_arm_obligations() {
             "i8",
             "(256 / (match true { true -> -2, false -> 2 }))",
             "every arm to fit",
-        ),
-        (
-            "i32",
-            "(((match true { true -> 7 / 2, false -> 0 }) * 4) / (match true { true -> -2, false -> 2 }))",
-            "exact warning evidence",
         ),
     ] {
         Sources::write(

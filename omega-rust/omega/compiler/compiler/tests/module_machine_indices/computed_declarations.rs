@@ -129,32 +129,36 @@ fn computed_match_integer_landing_handles_twenty_four_independent_terms() {
 }
 
 #[test]
-fn computed_match_fractional_branch_combinations_require_complete_warning_evidence() {
+fn computed_match_fractional_branch_combinations_retain_complete_warning_evidence() {
     let tree = Sources::new();
     let root = tree.package("root");
     let terms = std::iter::repeat_n("(match true { true -> 7 / 2, false -> 9 / 2 })", 24)
         .collect::<Vec<_>>()
         .join(" + ");
-    for expression in [
-        "((match true { true -> 1 / 2, false -> 3 / 2 }) * (match false { true -> 2, false -> 4 }))".to_owned(),
-        "(((match true { true -> 1 / 2, false -> 3 / 2 }) + (match false { true -> 1 / 2, false -> 3 / 2 })) * 2)".to_owned(),
-        format!("(({terms}) * 2)"),
+    for (expression, expected) in [
+        (
+            "((match true { true -> 1 / 2, false -> 3 / 2 }) * (match false { true -> 2, false -> 4 }))".to_owned(),
+            2,
+        ),
+        (
+            "(((match true { true -> 1 / 2, false -> 3 / 2 }) + (match false { true -> 1 / 2, false -> 3 / 2 })) * 2)".to_owned(),
+            4,
+        ),
+        (format!("(({terms}) * 2)"), 168),
     ] {
         for initializer in [expression.clone(), format!("{expression} + 0u64")] {
             Sources::write(
                 root.join("main.omg"),
-                &format!("const VALUE: u64 = {initializer};"),
+                &format!(
+                    "{BUFFER} const VALUE: u64 = {initializer};
+                     machine read() -> u64 {{ VALUE }} {} {}",
+                    keep("keep", "VALUE"),
+                    keep("oracle", &expected.to_string()),
+                ),
             );
-            let diagnostics =
-                compile_to_checked(CheckedCompileRequest { package_inputs: Some(root_inputs(&root)), ..CheckedCompileRequest::new(&root.join("main.omg"), None) })
-                    .expect_err("integral all-arm results still need complete fractional warnings");
-            assert!(
-                diagnostics.iter().any(|diagnostic| {
-                    diagnostic.message.contains("fractional")
-                        && diagnostic.message.contains("warning")
-                }),
-                "warning evidence, not integer representability, remains unsupported for {initializer}: {diagnostics:?}"
-            );
+            let checked = compile(&root, root_inputs(&root));
+            assert_body_value(&checked, "read", expected);
+            assert_same_machine_types(&checked, "keep", "oracle");
         }
     }
 }
