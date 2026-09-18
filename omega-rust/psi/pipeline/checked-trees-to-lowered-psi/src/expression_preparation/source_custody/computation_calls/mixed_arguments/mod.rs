@@ -12,9 +12,7 @@ use super::{borrow_rows, owned_arguments, primitive_arguments, shared_nominal_ar
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
-#[path = "access_occurrences.rs"]
 pub(super) mod access_occurrences;
-#[path = "arrays.rs"]
 mod arrays;
 
 /// Authored formal order, preserving scalar handles and structural occurrences.

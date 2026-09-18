@@ -8,14 +8,10 @@ use super::{
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody;
 
-#[path = "structural_cases.rs"]
 pub(crate) mod structural_cases;
-#[path = "structural_fields/replay_structural_fields.rs"]
 pub(crate) mod structural_fields;
-#[path = "structural_paths.rs"]
 pub(crate) mod structural_paths;
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 pub(crate) use structural_fields::StructuralScalarFieldBinding;
 

@@ -6,11 +6,9 @@ use super::{
     PrimitiveType, SourceRoot, StatementNode, authored_state, supported_mutable_parameter,
     unsupported,
 };
-#[path = "case_membership.rs"]
 pub(super) mod case_membership;
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 /// Reads retain their occurrence, operand position, and exact binding or place.

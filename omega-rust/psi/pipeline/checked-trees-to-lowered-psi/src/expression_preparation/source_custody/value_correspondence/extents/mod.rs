@@ -5,7 +5,6 @@ use super::{
     LoweringError,
 };
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 impl Context<'_> {

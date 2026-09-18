@@ -19,7 +19,6 @@ use symbols::SymbolHandle;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
-#[path = "scalar_fields.rs"]
 mod scalar_fields;
 
 /// Signature admission owns plain-content and no-code eligibility. Catalog
