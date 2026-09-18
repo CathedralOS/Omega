@@ -227,6 +227,35 @@ must be surfaced before relying on them.
    stands unused, and **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** and
    **FILESYSTEM-RELEASE-CONTRACT** cannot close.
 
+10. **May a provider's selected plan resolve an installation-bound row it
+    owns, or does that wait on receiver-bearing selection?**
+    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
+    settles what the completion row should be without ambiguity:
+    acknowledgement "has a provider-neutral bounded abstract row beneath
+    `MachineControl + PortIo`", and the language guide already prints that
+    declaration. `source/library/core/interrupt.omg` is the laggard, still
+    publishing an unbounded `reaches PortIo`, so no owner input is needed on
+    the row itself. What is blocked is landing it. Migrating the declaration
+    is a verified one-line change that takes `calling_policy_plans` from 60
+    of 60 to 52 of 59: every realization of the installation-bound
+    `InterruptEntry::enter` must settle the linear acknowledgement and so
+    retains the nested bounded row, and the selected-row rejection that
+    **BOUNDED-INSTALLATION-REACH-ROWS** tells us to keep then fires on the
+    shipped route. No satisfier for `complete` can be authored today, because
+    a checked body cannot discharge the linear receiver, which is the gap
+    **TOP-LEVEL-BOUNDARY-REQUIREMENTS** already records. Decision needed:
+    (a) installation resolves a nested bounded row against the same provider
+    plan that owns it, which the item currently forbids by saying "no nested
+    substitution step exists, so keep that rejection", and for which
+    `RealizedMachineContractEnvelope::concrete_service_reach` looks like the
+    representation; or (b) the whole bullet waits on receiver-bearing
+    requirement selection, and the library declaration stays unbounded and
+    knowingly stale until then. Until answered, the completion route cannot
+    migrate. The rejection itself is now driven from authored source by
+    `calling_policy_plans/opaque_boundaries.rs::
+    selected_realization_with_an_unresolved_installation_bound_row_rejects`,
+    so whichever route is chosen, losing that fence is a red test.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
