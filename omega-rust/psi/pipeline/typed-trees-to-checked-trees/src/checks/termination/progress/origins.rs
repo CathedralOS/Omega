@@ -259,37 +259,16 @@ fn scope_argument_place(
         ArgumentScope::Caller {
             state,
             statement_index,
-        } => {
-            match flow::canonical_place_from_expression_in_state(
-                program,
-                state.state_symbol,
-                statement_index,
-                actual,
-            )? {
-                mut source if matches!(source.root, PlaceRoot::Symbol(_)) => {
-                    source.segments.extend_from_slice(relative);
-                    Some(source)
-                }
-                CanonicalPlace {
-                    root: PlaceRoot::Expression(expression),
-                    segments,
-                } => {
-                    // An argument that is itself a call result keeps tracing
-                    // through that callee's own returned expression, with the
-                    // callee projection and the subject's remainder appended
-                    // in order.
-                    let ExpressionNode::Call(nested) =
-                        program.expression_table.expression(expression)
-                    else {
-                        return None;
-                    };
-                    let mut nested_relative = segments;
-                    nested_relative.extend_from_slice(relative);
-                    call_result_place(program, frames, scope, nested, &nested_relative, depth)
-                }
-                _ => None,
-            }
-        }
+        } => caller_argument_place(
+            program,
+            frames,
+            state,
+            statement_index,
+            actual,
+            declared_type,
+            relative,
+            depth,
+        ),
         ArgumentScope::Callee { body } => callee_value_place(
             program,
             frames,
@@ -299,6 +278,115 @@ fn scope_argument_place(
             relative,
             depth,
         ),
+    }
+}
+
+/// The caller-scope half of `scope_argument_place`. A constructor operand has
+/// no storage of its own: the callee's demanded path selects the operand that
+/// supplied that exact field or element, which then proves its own origin
+/// under the same leaf rules — a name keeps the shared backward trace's
+/// place, and a value-position call result recurses through that callee's
+/// own returned expression. A bare constructor under no demanded projection
+/// names several operands, so it is not one exact origin.
+fn caller_argument_place(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    state: &FlowStateFact,
+    statement_index: usize,
+    actual: ExpressionHandle,
+    declared_type: TypeReferenceHandle,
+    relative: &[PlaceSegment],
+    mut depth: usize,
+) -> Option<CanonicalPlace> {
+    let mut expression = actual;
+    let mut demanded = relative.to_vec();
+    loop {
+        if depth == 0 {
+            return None;
+        }
+        let place = flow::canonical_place_from_expression_in_state(
+            program,
+            state.state_symbol,
+            statement_index,
+            expression,
+        )?;
+        match place.root {
+            PlaceRoot::Symbol(_) => {
+                let mut source = place;
+                source.segments.extend_from_slice(&demanded);
+                return Some(source);
+            }
+            PlaceRoot::Expression(rooted) => {
+                let mut peeled = place.segments;
+                peeled.extend_from_slice(&demanded);
+                match program.expression_table.expression(rooted) {
+                    // An argument that is itself a call result keeps tracing
+                    // through that callee's own returned expression, with the
+                    // callee projection and the subject's remainder appended
+                    // in order.
+                    ExpressionNode::Call(nested) => {
+                        return call_result_place(
+                            program,
+                            frames,
+                            ArgumentScope::Caller {
+                                state,
+                                statement_index,
+                            },
+                            nested,
+                            &peeled,
+                            depth,
+                        );
+                    }
+                    ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_) => {
+                        if peeled.is_empty() {
+                            return None;
+                        }
+                        // The literal's own declared type supplies the
+                        // projection frame; the parameter's declared type
+                        // applies only while the operand is the literal
+                        // itself, not a member or element peeled off it.
+                        let declared = (rooted == expression).then_some(declared_type);
+                        let mut projections = flow::literal_value_projections(
+                            program,
+                            rooted,
+                            literal_operand_type(program, rooted, declared)?,
+                            &peeled,
+                            false,
+                        )?;
+                        if projections.len() != 1 {
+                            return None;
+                        }
+                        let projection = projections.remove(0);
+                        expression = projection.expression;
+                        demanded = projection.remaining;
+                        depth -= 1;
+                    }
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// A constructor operand's own declared type: the data type a struct literal
+/// declares, the callee parameter's type when the whole operand is the
+/// literal, or a constant array's declared type. Without one there is no
+/// exact operand provenance.
+fn literal_operand_type(
+    program: &TypedTrees,
+    rooted: ExpressionHandle,
+    declared: Option<TypeReferenceHandle>,
+) -> Option<TypeReferenceHandle> {
+    match program.expression_table.expression(rooted) {
+        ExpressionNode::StructLiteral(literal) => program
+            .type_reference_table
+            .find_named_type_reference(literal.type_symbol)
+            .or(declared),
+        ExpressionNode::ArrayLiteral(_) => {
+            declared.or_else(|| validation::declared_constant_array_type(program, rooted))
+        }
+        _ => None,
     }
 }
 
@@ -367,23 +455,55 @@ fn callee_value_place_leaf(
     let root = match place.root {
         PlaceRoot::Symbol(root) => root,
         PlaceRoot::Expression(rooted) => {
-            // A returned expression that is itself a checked call arrives at
-            // that callee's input the same way the outer call arrives at this
-            // one's: the proof recurses through the nested callee's own
-            // returned expression, keeping the projected segments.
-            let ExpressionNode::Call(nested) = program.expression_table.expression(rooted) else {
-                return None;
-            };
-            let mut nested_relative = place.segments;
-            nested_relative.extend_from_slice(relative);
-            return call_result_place(
-                program,
-                frames,
-                ArgumentScope::Callee { body },
-                nested,
-                &nested_relative,
-                depth - 1,
-            );
+            match program.expression_table.expression(rooted) {
+                // A returned expression that is itself a checked call arrives at
+                // that callee's input the same way the outer call arrives at this
+                // one's: the proof recurses through the nested callee's own
+                // returned expression, keeping the projected segments.
+                ExpressionNode::Call(nested) => {
+                    let mut nested_relative = place.segments;
+                    nested_relative.extend_from_slice(relative);
+                    return call_result_place(
+                        program,
+                        frames,
+                        ArgumentScope::Callee { body },
+                        nested,
+                        &nested_relative,
+                        depth - 1,
+                    );
+                }
+                // A member or index peel over a returned constructor selects
+                // the operand that supplied the demanded projection, exactly
+                // as a bare returned constructor does; that operand then
+                // proves its own origin under the same leaf rules.
+                ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_) => {
+                    let mut peeled = place.segments;
+                    peeled.extend_from_slice(relative);
+                    if peeled.is_empty() {
+                        return None;
+                    }
+                    let mut projections = flow::literal_value_projections(
+                        program,
+                        rooted,
+                        literal_operand_type(program, rooted, None)?,
+                        &peeled,
+                        false,
+                    )?;
+                    if projections.len() != 1 {
+                        return None;
+                    }
+                    let projection = projections.remove(0);
+                    return callee_value_place_leaf(
+                        program,
+                        frames,
+                        body,
+                        projection.expression,
+                        &projection.remaining,
+                        depth - 1,
+                    );
+                }
+                _ => return None,
+            }
         }
         _ => return None,
     };
