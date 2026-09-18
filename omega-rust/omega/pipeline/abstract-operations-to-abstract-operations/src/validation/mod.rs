@@ -334,7 +334,7 @@ pub(crate) fn invariant_primitive_local_admission(
 
 /// An `EstablishRecord` is the third structural establishment admitted for
 /// loop-invariant motion — the primitive local's multi-field sibling. The
-/// node declares a fresh claim-free unrestricted record place initialized
+/// node declares a fresh claim-free record place initialized
 /// from declaration-ordered field initializers: it reads exactly the scalar
 /// field values in field order, mutates no existing place, and carries no
 /// successors or ownership events. A structural field initializer copies a
@@ -346,16 +346,25 @@ pub(crate) fn invariant_primitive_local_admission(
 /// name its own operation as the first provenance row, define no scalar
 /// value (its result is the declared place), use exactly its scalar field
 /// values in declaration order, and keep the result claim-free the way
-/// `record::fields` requires for the cyclic-eligibility fence —
-/// unrestricted multiplicity and vacuous qualification, projection, and
-/// claim rosters — so the moved declaration still validates as an owned
-/// establishment. A bounded-integer field's `range_obligation` is not an
-/// operand position: it was discharged against the field value and operand
-/// substitution only rebinds a member parameter to the representative every
-/// reaching edge proves equal, so the obligation moves byte-exact inside
+/// `record::fields` requires for the cyclic-eligibility fence — vacuous
+/// qualification, projection, and claim rosters, with either unrestricted
+/// multiplicity or the affine multiplicity the fence admits only for an
+/// empty declaration — so the moved declaration still validates as an owned
+/// establishment. An affine result is admitted only when `fields` is empty:
+/// the empty record is the composed-control spelling of a trivial affine
+/// local, so its custody is the place itself with no initializer whose
+/// contents could diverge between one establishment and per-traversal
+/// re-establishment; an affine record carrying initializers has no admitted
+/// custody model here and refuses. A bounded-integer field's
+/// `range_obligation` is not an operand position: it was discharged against
+/// the field value and operand substitution only rebinds a member parameter
+/// to the representative every reaching edge proves equal, so the
+/// obligation moves byte-exact inside
 /// the operation. Whether the field values are actually loop-invariant and
-/// whether the component preserves the record's fixed contents are decided
-/// separately by [`invariant_record_admission`].
+/// whether the component preserves the record's fixed contents — or, for
+/// an affine result, contains its disposal custody in a shape the
+/// relocation can re-express — are decided separately by
+/// [`invariant_record_admission`].
 pub(crate) fn admissible_invariant_record(
     node: &OptimizationNode,
 ) -> Option<terminal_psi::StructuralOperationResult> {
@@ -392,7 +401,9 @@ pub(crate) fn admissible_invariant_record(
         })
         && node.successors.is_empty()
         && node.ownership.is_empty()
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            || (result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && fields.is_empty()))
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
@@ -402,8 +413,10 @@ pub(crate) fn admissible_invariant_record(
 /// The complete record-establishment admission shared by the proposal and
 /// the relocation freeze replay: `node` must carry the source-owned
 /// establishment shape ([`admissible_invariant_record`]) — which yields the
-/// declared place — the component must perform no place mutation or custody
-/// movement ([`component_preserves_place_observations`]), and each scalar
+/// declared place — and the custody bound matching its result multiplicity
+/// must hold. An unrestricted result is copyable custody: the component
+/// must perform no place mutation or custody movement
+/// ([`component_preserves_place_observations`]), and each scalar
 /// field value must obey the shared use-site invariance rule
 /// ([`member_scalar_operand_substitution`]). The custody bound is what
 /// makes hoisting a *re-established-every-iteration* record sound: the
@@ -420,7 +433,18 @@ pub(crate) fn admissible_invariant_record(
 /// producer's declared place identity and orders it ahead of the record. A
 /// member-produced root the run does not cover is re-established fresh
 /// every traversal, so a record copying it cannot collapse into one
-/// preheader copy and refuses. Returns the scalar substitution plus the
+/// preheader copy and refuses. An affine result — admitted only with an
+/// empty declaration — is the family's custody-rewriting shape the scalar
+/// case introduced: the cyclic eligibility fence already confined the fresh
+/// place to the member block that established it, discarding it on every
+/// departing edge, so hoisting the establishment keeps the one persistent
+/// result live through the whole component while member-internal edges stop
+/// discarding it and every exit edge and member return disposes it instead.
+/// [`scalar_case_result_contained`] is the bound proving the component only
+/// ever spells the result through positions that rewrite covers; the empty
+/// declaration reads no scalar or structural operand, so the substitution
+/// and the structural-field rewrites below both come out empty. Returns the
+/// scalar substitution plus the
 /// `(member parameter or member-produced root, preheader-visible root)`
 /// rewrites the relocated establishment performs on its structural field
 /// arguments — empty when every copied root already names a visible or
@@ -432,8 +456,12 @@ pub(crate) fn invariant_record_admission(
     relocating: &BTreeSet<ValueId>,
     relocating_roots: &BTreeSet<PlaceId>,
 ) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    admissible_invariant_record(node)?;
-    if !component_preserves_place_observations(function, component) {
+    let result = admissible_invariant_record(node)?;
+    if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
+        if !scalar_case_result_contained(function, component, result.place) {
+            return None;
+        }
+    } else if !component_preserves_place_observations(function, component) {
         return None;
     }
     let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
@@ -638,7 +666,8 @@ pub(crate) fn invariant_scalar_case_admission(
     member_scalar_operand_substitution(function, component, node, relocating)
 }
 
-/// Whether the affine scalar-case or structural-call result `picked` stays
+/// Whether the affine scalar-case, empty-record, or structural-call result
+/// `picked` stays
 /// inside `component`'s
 /// member roster spelled only through positions the relocation's custody
 /// rewrite covers: the producing establishment or call itself, a `StructuralCase`
@@ -677,8 +706,14 @@ fn scalar_case_result_contained(
                 // producer is the same declaration position: the admitted
                 // relocation carries an affine claim-free result the cyclic
                 // eligibility fence already confined to the producing
-                // member block's dispatch or return.
-                O::EstablishScalarCase { result, .. } | O::CallStructural { result, .. }
+                // member block's dispatch or return. An `EstablishRecord`
+                // producer is likewise the empty declaration's own place —
+                // the admissibility gate confines an affine result to the
+                // field-free shape, so no structural field argument can
+                // spell `picked` here.
+                O::EstablishScalarCase { result, .. }
+                | O::EstablishRecord { result, .. }
+                | O::CallStructural { result, .. }
                     if result.place == picked =>
                 {
                     member
@@ -776,7 +811,8 @@ fn scalar_case_result_contained(
 }
 
 /// Rewrite one retained member node's edge and cleanup custody for the
-/// relocated affine scalar-case and structural-call results in
+/// relocated affine scalar-case, empty-record, and structural-call results
+/// in
 /// `case_results`: strip each such
 /// place from every member-internal edge — the persistent preheader result
 /// stays live across the traversal where the source's fresh place died at
