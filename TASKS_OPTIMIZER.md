@@ -254,23 +254,38 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Psi optimization and loops
 
-- **GENERAL-CYCLIC-EXECUTION.** Complete ordinary cyclic Terminal Psi execution
-  with authenticated SCCs, dominance and
-  frontiers, optional well-founded ranking, productive unranked components,
-  and structured finite-work failures. The dedicated unsigned-countdown native
-  carrier is removed; its old custody rejects. Extend the common graph and
-  ordinary ranking evidence rather than restoring a second native route.
+- **GENERAL-CYCLIC-EXECUTION.** Carry ordinary cyclic Terminal Psi through the
+  post-Terminal stages to native publication. Natural-ranked and unranked
+  modules already take the ordinary verification and abstract-lowering route
+  ([ranked native admission](omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/README.md#ranked-native-admission)),
+  the optimizer authenticates their components and freezes the complete cyclic
+  function under
+  [catalogs and independent replay](omega-rust/optimization.md#catalogs-and-independent-replay),
+  and admission rejects the retired unsigned-countdown custody outright instead
+  of falling back. Artifact admission alone establishes no downstream
+  optimization, target lowering, or publication support for those cycles. The
+  item of the same name in `TASKS.md` owns the Psi half — Terminal production
+  of cyclic machines, the verifier's cyclic shape allowlist, and the
+  `print_squares` and Console-writer customers. This item starts at admitted
+  Terminal input and owns the receiving graph, native selection, and replay.
 
-  First bounded call-composition milestone: implement the
-  [ranked callee on a projected receiver](wiki/spec/language/termination.md#ranked-callees-on-projected-receivers),
-  beyond the current whole-entry-only admission. Acceptance: an ordinary caller
-  borrows a nested field, its ranked callee preserves that referent across
-  backedges, and the caller observes writes after return. Conflicting parent
-  access and missing/invalid callee ranking reject. Validate argument identity,
-  call/return, cleanup, and composed resource bounds through native replay and
-  execution on both Linux architectures. This needs no new receiver syntax.
-  Broader changing-reference transfers still require loan/alias and ranking
-  substitution work; increasing the parameter count alone does not close them.
+  Remaining: implement
+  [ranked callees on projected receivers](wiki/spec/language/termination.md#ranked-callees-on-projected-receivers),
+  beyond the current whole-entry-only admission. Composed argument references,
+  call and return, cleanup, callee measure checking, and composed resource
+  evidence are all missing; a graph representation establishes none of them,
+  and unsupported transfers reject until their ordinary operation and proof
+  joins exist. Extend the common graph and ordinary ranking evidence rather
+  than restoring a second native route.
+
+  Acceptance: an ordinary caller borrows a nested field, its ranked callee
+  preserves that referent across backedges, and the caller observes writes
+  after return. Conflicting parent access and missing or invalid callee ranking
+  reject. Argument identity, call and return, cleanup, and composed resource
+  bounds validate through native replay and execution on both Linux
+  architectures. This needs no new receiver syntax; broader changing-reference
+  transfers still require loan/alias and ranking substitution work, and
+  widening the parameter count alone closes none of them.
 
 - **GENERAL-LICM.** Implement motion only through transformations that
   invalidate and reconstruct component, loop-carried custody, ranking,
