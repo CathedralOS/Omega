@@ -215,6 +215,149 @@ fn assert_hosted_binding_replay_rejects_corruption(report: &CompileReport) {
     }
 }
 
+/// A receiver carrying nested records, structural arrays, a closed sum, and
+/// a mixed declaration provisions all of them under the same ZII contract:
+/// record fields, element payloads, common fields, and the first declared
+/// case's payload begin established at zero. The entry transition observes
+/// `self.event in Event::Loud` — `Loud` is declared first, so the zero tag
+/// selects its zeroed payload case — and nested/indexed scalar stores
+/// survive the bridge round trip.
+#[test]
+fn linux_hosted_receiver_provisions_record_arrays_and_the_zero_tag_sum_case() {
+    let directory = unique_no_output_build_dir();
+    fs::create_dir(&directory).expect("create exclusively owned hosted-entry project");
+    let project = HostedProject(directory);
+    let standard_library = repo_root()
+        .join("source/library/std")
+        .to_string_lossy()
+        .replace('\\', "/");
+    fs::write(
+        project.0.join("build.omg"),
+        format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.application("linux-hosted-receiver-sum-array");
+    builder.depend(Source::Path {{ location: "{standard_library}" }});
+    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}}
+"#
+        ),
+    )
+    .expect("write authored target, entry, and provider selection");
+    fs::write(
+        project.0.join("main.omg"),
+        r#"use omega_language_std::console;
+use omega::language::core::service;
+
+data Pair {
+    first: i32;
+    second: i32;
+}
+
+data Event {
+    case Loud(gain: i32);
+    case Quiet;
+}
+
+data Mixed {
+    flag: i32;
+    case Flat;
+    case Raised(level: i32);
+}
+
+data Main {
+    value: i32;
+    pair: Pair;
+    grid: [Pair; 2];
+    tags: [Event; 2];
+    event: Event;
+    mixed: Mixed;
+    console: Service<Console> in Bound;
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition self.value == 0 && self.pair.first == 0 && self.pair.second == 0
+        && self.event in Event::Loud
+        && self.tags[0] in Event::Loud && self.tags[1] in Event::Loud {
+        true -> initialized()
+        false -> failed()
+    }
+    state initialized(&mut self) {
+        self.pair.second = 63;
+        self.grid[1].second = 63;
+        self.value = 65;
+        transition self.value == 65 && self.pair.second == 63 {
+            true -> observed()
+            false -> failed()
+        }
+    }
+    state observed(&mut self) {
+        self.console.write_byte(self.value);
+    }
+    state failed(&mut self) {
+        self.console.write_byte(70);
+    }
+}
+"#,
+    )
+    .expect("write widened receiver storage and Bound Console customer");
+    let report = compile(CanaryCompileSpec {
+        root_path: project.0.join("main.omg"),
+        build_dir: Some(project.0.join("build")),
+        target_name: Some("linux_x86_64".into()),
+        product: CanaryCompileProduct::NativeArtifact,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("widened Linux hosted receiver must produce its executable: {diagnostics:#?}")
+    });
+    let receiver = report
+        .retained_native_artifact()
+        .unwrap()
+        .object()
+        .hosted_receiver_binding()
+        .expect("retain exact provisioned receiver");
+    assert_eq!(
+        receiver.receiver_byte_count(),
+        64,
+        "nested record, record array, sum array, sum, and mixed storage all occupy the image-backed receiver"
+    );
+    assert_hosted_binding_replay_rejects_corruption(&report);
+    let report = report
+        .publish_retained_native_artifact(&project.0.join("build"))
+        .expect("publish exact admitted native artifact after corruption controls");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("exact executable publication receipt");
+    let bytes = fs::read(executable).expect("read published ELF");
+    assert_eq!(
+        bytes.get(..4),
+        Some([0x7f, 0x45, 0x4c, 0x46].as_slice()),
+        "the published hosted receiver must be an ELF image"
+    );
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        // Execute the published bytes without a host wrapper: the kernel
+        // arrives through rsp only, so a working bridge is the only way the
+        // receiver reaches the semantic continuation.
+        let output = Command::new(executable)
+            .output()
+            .expect("execute authored Linux hosted receiver process");
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "unexpected process completion: {output:?}"
+        );
+        assert_eq!(
+            output.stdout, b"A",
+            "receiver must begin at zero and retain its writes"
+        );
+        assert!(output.stderr.is_empty(), "unexpected stderr: {output:?}");
+    }
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+    eprintln!("SKIP: hosted receiver runtime requires Linux x86-64; source cross-emission checked");
+}
+
 #[test]
 fn linux_hosted_receiver_normal_return_provisions_zii_storage_and_fused_console() {
     compile_and_run_linux_hosted_receiver(false, true);

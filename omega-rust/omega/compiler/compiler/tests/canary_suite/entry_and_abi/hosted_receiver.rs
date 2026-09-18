@@ -30,6 +30,7 @@ enum ReceiverObservation {
     LocalBorrowedResultSnapshot,
     SignedWrappingRemainder,
     IndexedPrimitiveArray,
+    SumAndRecordArray,
 }
 
 fn compile_and_run_hosted_receiver(
@@ -75,33 +76,52 @@ fn compile_and_run_hosted_receiver(
         ReceiverObservation::IndexedPrimitiveArray => {
             "machine set_array_byte(bytes: &mut [u8; 256]) { bytes[255] = 65; }"
         }
+        ReceiverObservation::SumAndRecordArray => {
+            "data Pair { first: i32; second: i32; }
+             data Event { case Loud(gain: i32); case Quiet; }
+             data Mixed { flag: i32; case Flat; case Raised(level: i32); }"
+        }
         _ => "",
     };
-    let (extra_fields, initialization, observation_condition, receiver_bytes) = match observation {
-        ReceiverObservation::ScalarMutation => ("", "self.value = 65;", "self.value == 65", 260),
+    let (extra_fields, initialization, entry_condition, observation_condition, receiver_bytes) =
+        match observation {
+        ReceiverObservation::ScalarMutation => ("", "self.value = 65;", "self.value == 0", "self.value == 65", 260),
         ReceiverObservation::IndexedPrimitiveArray => (
             "",
             "self.bytes[255] = 64; let saved: u8 = self.bytes[255]; set_array_byte(&mut self.bytes);",
+            "self.value == 0",
             "saved == 64 && self.bytes[255] == 65 && self.bytes[254] == 0",
             260,
         ),
         ReceiverObservation::BorrowedRecordCopy => (
             "source: Counter; destination: Counter;",
             "self.source.value = 65; copy_counter(&self.source, &mut self.destination); self.value = self.destination.value;",
+            "self.value == 0",
             "self.value == 65",
             268,
         ),
         ReceiverObservation::BorrowedResultSnapshot => (
             "source: Counter;",
             "self.source.value = 65; let saved: i32 = self.source.read(); self.source.write(66); let current: i32 = self.source.read(); self.value = saved;",
+            "self.value == 0",
             "saved == 65 && current == 66",
             264,
         ),
         ReceiverObservation::LocalBorrowedResultSnapshot => (
             "",
             "let mut counter: Counter = Counter::new(65); let saved: i32 = counter.read(); counter.write(66); let current: i32 = counter.read(); self.value = saved;",
+            "self.value == 0",
             "saved == 65 && current == 66",
             260,
+        ),
+        ReceiverObservation::SumAndRecordArray => (
+            "pair: Pair; grid: [Pair; 2]; tags: [Event; 2]; event: Event; mixed: Mixed;",
+            "self.pair.second = 63; self.grid[1].second = 63; self.value = 65;",
+            "self.value == 0 && self.pair.first == 0 && self.pair.second == 0
+             && self.event in Event::Loud
+             && self.tags[0] in Event::Loud && self.tags[1] in Event::Loud",
+            "self.value == 65 && self.pair.second == 63",
+            320,
         ),
         ReceiverObservation::SignedWrappingRemainder => (
             "dividend: i64 in Wrapping; divisor: i64 in Wrapping;
@@ -124,6 +144,7 @@ fn compile_and_run_hosted_receiver(
              self.word = -7; self.word_divisor = 3;
              self.word_remainder = self.word % self.word_divisor;
              self.value = 65;",
+            "self.value == 0",
             "self.first == -1 && self.second == 1 && self.third == 0 && self.self_remainder == 0
              && self.small_remainder == -1 && self.medium_remainder == 0 && self.word_remainder == -1",
             336,
@@ -152,7 +173,7 @@ data Main {{
 }}
 
 machine Main::main(&mut self) reaches Console {{
-    transition self.value == 0 {{
+    transition {entry_condition} {{
         true -> initialized()
         false -> failed()
     }}
@@ -331,6 +352,18 @@ fn hosted_receiver_signed_wrapping_remainder_preserves_sign_and_overflow_policy(
 #[test]
 fn hosted_receiver_indexed_primitive_storage_survives_state_transition() {
     compile_and_run_hosted_receiver(false, true, ReceiverObservation::IndexedPrimitiveArray);
+}
+
+#[test]
+fn hosted_receiver_provisions_record_arrays_and_the_zero_tag_sum_case() {
+    // A receiver carrying nested records, structural arrays, a closed sum,
+    // and a mixed declaration provisions all of them under the same ZII
+    // contract: record fields, element payloads, common fields, and the
+    // first declared case's payload begin established at zero. The entry
+    // transition observes `self.event in Event::Loud` — `Loud` is declared
+    // first, so the zero tag selects its zeroed payload case — before any
+    // write, and nested/indexed scalar stores survive the bridge round trip.
+    compile_and_run_hosted_receiver(false, true, ReceiverObservation::SumAndRecordArray);
 }
 
 #[test]

@@ -6,7 +6,7 @@
 //! Byte carriers erase their domain predicates, so empty-buffer eligibility must
 //! rejoin the actual source field and evaluate every understood value constraint.
 
-use checked_trees::data::{DataDefinition, DataMember};
+use checked_trees::data::{DataDefinition, DataMember, DataVariant};
 use checked_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -199,6 +199,12 @@ pub(super) fn derive(
     ))
 }
 
+/// Whether zero-filled storage is an established value of the receiver's
+/// structural declaration. Zero storage composes through record fields, fixed
+/// arrays, and the payload of the zero-tag — first declared — sum case; the
+/// same establishment rule `validation::data_requires_establishment` applies
+/// to source is re-derived here against the exact Terminal declarations so a
+/// module cannot smuggle an unestablished shape past the source-side gate.
 fn zero_valid_record_storage(
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
@@ -218,13 +224,135 @@ fn zero_valid_record_storage(
     if matches.next().is_some() {
         return false;
     }
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return terminal_semantics::scalar_array_leaf_shape(declarations.iter(), structural_type)
-            .is_some();
-    };
     let is_receiver = visiting.is_empty();
     visiting.push(structural_type);
-    let valid = fields.iter().all(|field| {
+    let valid = zero_valid_shape(
+        checked,
+        declarations,
+        declaration,
+        source,
+        None,
+        visiting,
+        is_receiver,
+    );
+    visiting.pop();
+    valid
+}
+
+/// One nested declaration reached beneath the receiver. `source_reference` is
+/// the exact source type reference for this node; a nominal reference rejoins
+/// its data definition only when the declaration identity matches the
+/// normalized source identity. Refined references stay unresolved rather than
+/// stripping a constraint to reach nested storage.
+fn zero_valid_node(
+    checked: &CheckedTrees,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    source_reference: Option<TypeReferenceHandle>,
+    visiting: &mut Vec<StructuralTypeId>,
+) -> bool {
+    if visiting.contains(&structural_type) {
+        return false;
+    }
+    let mut matches = declarations
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let Some(declaration) = matches.next() else {
+        return false;
+    };
+    if matches.next().is_some() {
+        return false;
+    }
+    let source = source_reference.and_then(|reference| {
+        source_record(checked, reference).filter(|_| {
+            declaration.identity == checked.normalized_type_identity(reference).into_string()
+        })
+    });
+    visiting.push(structural_type);
+    let valid = zero_valid_shape(
+        checked,
+        declarations,
+        declaration,
+        source,
+        source_reference,
+        visiting,
+        false,
+    );
+    visiting.pop();
+    valid
+}
+
+/// The storage judgment for one declaration shape. `source` is the rejoined
+/// source data definition (member lookup for record, common, and payload
+/// fields); `source_reference` is the source type reference for this node
+/// itself (element and byte-carrier checks).
+fn zero_valid_shape(
+    checked: &CheckedTrees,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    declaration: &terminal_psi::StructuralTypeDeclaration,
+    source: Option<&DataDefinition>,
+    source_reference: Option<TypeReferenceHandle>,
+    visiting: &mut Vec<StructuralTypeId>,
+    is_receiver: bool,
+) -> bool {
+    match &declaration.shape {
+        StructuralTypeShape::Record { fields } => zero_valid_fields(
+            checked,
+            declarations,
+            fields,
+            |field| source_field_type(checked, source, field),
+            visiting,
+            is_receiver,
+        ),
+        StructuralTypeShape::FixedArray { element, .. } => {
+            // Array eligibility follows the complete element chain at any
+            // length; a zero element count never excuses an invalid element.
+            let element_reference = source_reference.and_then(|reference| {
+                match checked.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
+                    _ => None,
+                }
+            });
+            zero_valid_node(checked, declarations, *element, element_reference, visiting)
+        }
+        StructuralTypeShape::Sum { cases } => {
+            zero_valid_first_case(checked, declarations, source, cases, visiting)
+        }
+        StructuralTypeShape::Mixed { fields, cases } => {
+            zero_valid_fields(
+                checked,
+                declarations,
+                fields,
+                |field| source_field_type(checked, source, field),
+                visiting,
+                is_receiver,
+            ) && zero_valid_first_case(checked, declarations, source, cases, visiting)
+        }
+        StructuralTypeShape::PrimitiveScalar(scalar) => matches!(
+            scalar,
+            semantic_vocabulary::ScalarType::Boolean
+                | semantic_vocabulary::ScalarType::Integer(_)
+                | semantic_vocabulary::ScalarType::IeeeFloat(_)
+        ),
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            capacity,
+        }) => zero_valid_byte_field(checked, source_reference.unwrap_or_default(), *capacity),
+        _ => false,
+    }
+}
+
+/// Every field inhabiting zero storage must itself be zero-valid. Erased
+/// nested fields carry obligations this storage cannot discharge; only the
+/// receiver's own erased fields join fused-service establishment rows.
+fn zero_valid_fields(
+    checked: &CheckedTrees,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    field_reference: impl Fn(&terminal_psi::StructuralFieldDeclaration) -> TypeReferenceHandle,
+    visiting: &mut Vec<StructuralTypeId>,
+    is_receiver: bool,
+) -> bool {
+    fields.iter().all(|field| {
         (is_receiver || !field.relevance.is_erased())
             && match field.field_type {
                 StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
@@ -233,30 +361,89 @@ fn zero_valid_record_storage(
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
                 }
                 StructuralFieldType::Structural(child) => {
-                    let reference = source_field_type(checked, source, field);
-                    let source = source_record(checked, reference).filter(|_| {
-                        declarations.iter().any(|declaration| {
-                            declaration.id == child
-                                && declaration.identity
-                                    == checked.normalized_type_identity(reference).into_string()
-                        })
-                    });
-                    zero_valid_record_storage(checked, declarations, child, source, visiting)
+                    let reference = field_reference(field);
+                    zero_valid_node(
+                        checked,
+                        declarations,
+                        child,
+                        reference.is_valid().then_some(reference),
+                        visiting,
+                    )
                 }
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-                ) => zero_valid_byte_field(
-                    checked,
-                    source_field_type(checked, source, field),
-                    capacity,
-                ),
+                ) => zero_valid_byte_field(checked, field_reference(field), capacity),
                 // Only the top-level receiver joins erased service establishment.
                 StructuralFieldType::Erased { .. } => is_receiver,
                 StructuralFieldType::ByteSequence(_) => false,
             }
+    })
+}
+
+/// A zero tag selects the first declared case: provisioning fills the four-byte
+/// tag and the payload overlay with zeroes, so only `cases[0]` inhabits zero
+/// storage. Later cases are unreachable here and are not judged.
+fn zero_valid_first_case(
+    checked: &CheckedTrees,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    source: Option<&DataDefinition>,
+    cases: &[terminal_psi::StructuralCaseDeclaration],
+    visiting: &mut Vec<StructuralTypeId>,
+) -> bool {
+    let Some(case) = cases.first() else {
+        return false;
+    };
+    let variant = source.and_then(|source| {
+        checked.data_members(source).iter().find_map(|member| {
+            let DataMember::Variant(variant) = member else {
+                return None;
+            };
+            let matches = match variant.identity {
+                Some(identity) => case.identity == format!("#{identity}"),
+                None => case.identity == variant.name.as_str(),
+            };
+            matches.then_some(variant)
+        })
     });
-    visiting.pop();
-    valid
+    // A case carrying its own `where` facts must construct through its
+    // constructor; zero bytes alone cannot prove them.
+    if variant.is_some_and(|variant| {
+        !checked
+            .proof_facts
+            .span_or_empty(variant.where_facts)
+            .is_empty()
+    }) {
+        return false;
+    }
+    zero_valid_fields(
+        checked,
+        declarations,
+        &case.fields,
+        |field| source_payload_field_type(checked, variant, field),
+        visiting,
+        false,
+    )
+}
+
+fn source_payload_field_type(
+    checked: &CheckedTrees,
+    variant: Option<&DataVariant>,
+    field: &terminal_psi::StructuralFieldDeclaration,
+) -> TypeReferenceHandle {
+    let Some(variant) = variant else {
+        return TypeReferenceHandle::invalid();
+    };
+    checked
+        .data_payload_fields(variant)
+        .iter()
+        .find_map(|candidate| {
+            let matches = match candidate.identity {
+                Some(identity) => field.identity == format!("#{identity}"),
+                None => field.identity == candidate.name.as_str(),
+            };
+            matches.then_some(candidate.type_reference)
+        })
+        .unwrap_or_default()
 }
 
 fn source_field_type(
@@ -584,6 +771,159 @@ mod tests {
                 "cyclic elements reject even beneath an empty dimension"
             );
         }
+    }
+
+    #[test]
+    fn receiver_sum_and_mixed_storage_follow_the_zero_tag_first_case() {
+        // Zero-filled sum storage selects the first declared case, so the
+        // payload of that case — and any record/array composed beneath it —
+        // must itself be an established zero value.
+        for source in [
+            "data Event { case Quiet; case Loud(gain: i32); } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Event { case Loud(gain: i32); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Child { level: i32; } data Event { case Hit(child: Child); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Room { occupied: bool; case Empty; case Full(load: i32); } data Main { value: i32; room: Room; } machine Main::run(&mut self) { self.value = 7; }",
+            "domain [u8; 3]::SafeBytes requires valid_utf8(self); data Event { case Say(text: [u8; 3] in SafeBytes, count: i32); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Event { case Quiet; case Loud(gain: i32); } data Wrap { event: Event; } data Main { value: i32; wrap: Wrap; } machine Main::run(&mut self) { self.value = 7; }",
+        ] {
+            let checked = check_source(source);
+            let produced = TerminalProductionRequest::new(&checked, "Main::run")
+                .produce_program_entry([7; 32])
+                .unwrap();
+            assert!(
+                produced.receipt().receiver_eligibility().is_some(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn receiver_record_array_storage_checks_the_complete_element_chain() {
+        // A record element array is admissible when the element record's
+        // transitive storage is zero-valid; the element judgment follows the
+        // complete chain through every dimension.
+        for source in [
+            "data Pair { first: i32; second: i32; } data Main { value: i32; grid: [Pair; 2]; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Pair { first: i32; second: i32; } data Main { value: i32; grid: [[Pair; 2]; 3]; } machine Main::run(&mut self) { self.value = 7; }",
+        ] {
+            let checked = check_source(source);
+            let produced = TerminalProductionRequest::new(&checked, "Main::run")
+                .produce_program_entry([7; 32])
+                .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+            assert!(
+                produced.receipt().receiver_eligibility().is_some(),
+                "{source}"
+            );
+        }
+        // A byte domain on the element record that refuses empty contents
+        // rejects through the same element chain.
+        let checked = check_source(
+            "domain [u8; 3]::NonEmpty requires non_empty(self); data Pair { bytes: [u8; 3] in NonEmpty; } data Main { value: i32; grid: [Pair; 2]; } machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_program_entry([7; 32])
+            .unwrap();
+        assert!(produced.receipt().receiver_eligibility().is_none());
+    }
+
+    #[test]
+    fn receiver_sum_storage_rejects_payloads_zero_cannot_establish() {
+        for source in [
+            // A byte domain that refuses the empty carrier beneath the zero tag.
+            "domain [u8; 3]::NonEmpty requires non_empty(self); data Event { case Say(text: [u8; 3] in NonEmpty); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            // A borrowed view payload has no owned bytes to provision.
+            "data Event { case Say(text: &[u8]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            // A range-gated payload beneath the zero tag is not an established
+            // value; the same source gate also rejects this receiver earlier.
+            "data Event { case Loud(gain: i32 [1..=9]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+        ] {
+            let checked = check_source(source);
+            let produced = TerminalProductionRequest::new(&checked, "Main::run")
+                .produce_program_entry([7; 32])
+                .unwrap();
+            assert!(
+                produced.receipt().receiver_eligibility().is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn receiver_sum_eligibility_rejoins_exact_case_and_payload_storage() {
+        let checked = check_source(
+            "domain [u8; 3]::SafeBytes requires valid_utf8(self); data Event { case Say(text: [u8; 3] in SafeBytes, count: i32); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_program_entry([7; 32])
+            .unwrap();
+        let eligible = produced.receipt().receiver_eligibility().unwrap();
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        let selection =
+            checked_trees_to_lowered_psi::select_terminal_machine(&checked, "Main::run").unwrap();
+        for corruption in 0..4 {
+            let mut changed = module.clone();
+            let declaration = changed
+                .structural_types
+                .iter_mut()
+                .find(|declaration| declaration.identity == "named(name(Event))")
+                .unwrap();
+            let StructuralTypeShape::Sum { cases } = &mut declaration.shape else {
+                panic!("sum");
+            };
+            match corruption {
+                // The zero-tag case must rejoin the source variant that owns
+                // its payload fields; relabelling erases the byte domain.
+                0 => cases[0].identity = "Quiet".into(),
+                1 => cases[0].identity = "Unknown".into(),
+                // A payload field must rejoin its exact source field; renaming
+                // to a sibling field swaps the byte carrier's domain away.
+                2 => cases[0].fields[0].identity = "count".into(),
+                // The inhabiting case's payload storage must stay zero-valid.
+                _ => {
+                    cases[0].fields[1].field_type = StructuralFieldType::BoundedInteger(
+                        semantic_vocabulary::BoundedIntegerType::new(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Signed,
+                                32,
+                            )
+                            .unwrap(),
+                            semantic_vocabulary::IntegerValue::Signed(1),
+                            semantic_vocabulary::IntegerValue::Signed(9),
+                        )
+                        .unwrap(),
+                    )
+                }
+            }
+            assert!(
+                derive(&checked, selection, &changed).is_none(),
+                "corruption {corruption}"
+            );
+        }
+        // A case beyond the zero tag never inhabits provisioned storage:
+        // corrupting its payload cannot revoke eligibility.
+        let mut changed = module.clone();
+        let declaration = changed
+            .structural_types
+            .iter_mut()
+            .find(|declaration| declaration.identity == "named(name(Event))")
+            .unwrap();
+        let StructuralTypeShape::Sum { cases } = &mut declaration.shape else {
+            panic!("sum");
+        };
+        cases[1]
+            .fields
+            .push(terminal_psi::StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(90).unwrap(),
+                identity: "smuggled".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Erased {
+                    type_identity: "unestablished".into(),
+                },
+            });
+        assert_eq!(
+            derive(&checked, selection, &changed).as_ref(),
+            Some(eligible)
+        );
     }
 
     #[test]
