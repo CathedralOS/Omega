@@ -286,16 +286,82 @@ machine Main::main(&mut self) {
 expect_observation("large sparse array through the canonical edge",
                    ereq(SPARSE_ARRAY), b"\x00\x00\x00\x00\x00A")
 
-# --- Transport refusal: no frame, no observation -------------------------
+# --- Incomplete transport outcomes ----------------------------------------
+#
+# A lower-chain refusal cannot be intercepted by the evaluator program: the
+# adapter refuses an oversized sealed input before `main` runs, and evaluator
+# context or pair exhaustion halts the process outright. At the edge boundary
+# a nonzero status with empty stdout is the section-10 outer Incomplete; the
+# status and the requester's own submitted extents carry its fields
+# (bootstrap/4_epsilon/EVALUATOR_ENTRY.md).
+
+INCOMPLETE = {
+    # status: (resource, limit, requested)
+    250: ("evaluator live call contexts", 256, 257),
+    252: ("cumulative immutable pair nodes", 40265318, 40265319),
+    253: ("sealed input", 4194304, None),  # requested = submitted extent
+    254: ("published observation", 4194304, 4194305),
+}
+incomplete = []  # (name, request, status, resource, limit, requested)
+
+
+def expect_incomplete(name, request, status, requested=None):
+    resource, limit, refused = INCOMPLETE[status]
+    if requested is None:
+        requested = len(request)
+    incomplete.append((name, request, status, resource, limit, requested))
+
 
 # The adapter's 4,194,304-byte sealed-input bound is the transport boundary.
 # Exactly at the bound the EREQ envelope is admitted (and then refuses its
-# trailing section with EEOUT, still no observation); one byte beyond is a
-# lower-chain status 253 with empty stdout - no frame and no observation.
+# trailing section with EEOUT, still no observation); one byte beyond is the
+# Incomplete sealed-input refusal - status 253 with empty stdout, no frame,
+# no observation.
 at_bound = ereq() + b" " * (4194304 - 52)
 cases.append(("sealed input at exact bound", at_bound, refusal(7, 52)))
-cases.append(("sealed input one beyond bound", at_bound + b"x",
-              (253, b"")))
+expect_incomplete("sealed input one beyond bound", at_bound + b"x", 253)
+
+# Live call contexts are an execution-side counter on the same receipt: the
+# evaluator's 256-context bound admits 34 nested non-tail machine calls and
+# refuses the 35th before any observation - Incomplete via status 250. This
+# exact/adjacent pair is a measured property of this artifact, not an Epsilon
+# language limit.
+NESTED_CALLS = b"""boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+}
+
+machine Main::main(&mut self) {
+  let total: i32 = nest(DEPTH);
+  self.console.write_byte(65);
+  self.console.exit_process(total);
+}
+
+machine nest(depth: i32) -> i32 {
+  transition depth {
+    0 -> return 0
+    _ -> recurse()
+  }
+  state recurse() {
+    let subtotal: i32 = nest(depth - 1);
+    return subtotal + 1;
+  }
+}
+"""
+expect_observation(
+    "34 nested calls admitted",
+    ereq(NESTED_CALLS.replace(b"DEPTH", b"34")),
+    b"\x00" + struct.pack("<i", 34) + b"A",
+)
+expect_incomplete(
+    "35th nested call refused",
+    ereq(NESTED_CALLS.replace(b"DEPTH", b"35")), 250, 257)
 
 for name, request, expected in cases + admissions:
     actual = evaluate(receipt, request)
@@ -305,8 +371,18 @@ for name, request, expected in cases + admissions:
             f"got status {actual[0]}, {len(actual[1])} bytes, "
             f"prefix {actual[1][:80].hex()}")
 
+for name, request, status, resource, limit, requested in incomplete:
+    actual = evaluate(receipt, request)
+    if actual != (status, b""):
+        raise SystemExit(
+            f"{name}: expected Incomplete({resource}, {limit}, {requested}) "
+            f"via status {status} with empty stdout, got status "
+            f"{actual[0]}, {len(actual[1])} bytes, "
+            f"prefix {actual[1][:80].hex()}")
+
 print(
-    f"Epsilon evaluator entry: {len(cases)} exact/adjacent EEOUT and "
-    f"transport controls and {len(admissions)} canonical observations passed"
+    f"Epsilon evaluator entry: {len(cases)} exact/adjacent EEOUT controls, "
+    f"{len(incomplete)} Incomplete transport outcomes, and "
+    f"{len(admissions)} canonical observations passed"
 )
 PY

@@ -47,9 +47,16 @@ refusal frame; the first byte keeps the classes disjoint:
   Request refusals carry outcome 1; evaluator-internal contradictions carry
   outcome 3.
 
-Resource refusals publish neither: sealed-input extent, publication extent,
-and evaluator storage exhaustion remain lower-chain nonzero statuses with
-empty stdout.
+Resource refusals publish neither: the evaluator program cannot intercept the
+lower chain's refusals, so sealed-input extent, publication extent, and
+evaluator context/storage exhaustion remain nonzero statuses with empty
+stdout. At the edge boundary each is the section-10 outer `Incomplete`:
+status 253 carries `Incomplete(sealed input, 4194304, submitted extent)`,
+status 254 `Incomplete(published observation, 4194304, 4194305)`, status 250
+`Incomplete(live call contexts, 256, 257)`, and status 252 `Incomplete(pair
+nodes, 40265318, 40265319)`. Every other process observation carries the
+outer `InternalFailure`. The status table and derivations live in
+[`EVALUATOR_ENTRY.md`](../../../bootstrap/4_epsilon/EVALUATOR_ENTRY.md).
 
 ## Controls
 
@@ -65,7 +72,10 @@ receipt:
   `limit`/`requested` reported, against exact one-byte sections;
 - a trailing byte after the complete envelope;
 - the 4,194,304-byte sealed-input boundary, admitted exactly and refused
-  adjacently at 4,194,305 with status 253 and empty stdout.
+  adjacently at 4,194,305 as `Incomplete` via status 253 with empty stdout;
+- the live-call-context boundary: 34 nested non-tail machine calls admitted
+  with the canonical `Exit` observation, the 35th refused as `Incomplete` via
+  status 250 with empty stdout.
 
 Canonical observations witnessed: `Exit` with stdout (exit 42, `A`), the
 sealed stdin section reaching `Console.read_byte` (echo of `Z`, exit 90),
@@ -74,5 +84,5 @@ observations for an empty source (`UnexpectedEnd` at 0) and an invalid source
 byte (`InvalidSourceByte` at 0). No control publishes an observation on a
 refusal path.
 
-On macOS arm64 the receipt reconstruction and controls took 275.4 seconds at
+On macOS arm64 the receipt reconstruction and controls took 266.7 seconds at
 the measured revision; that is a host measurement, not a profile bound.

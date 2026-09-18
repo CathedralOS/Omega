@@ -120,7 +120,8 @@ resource, request, and observation profile against the selected lower chain,
 including the exact/adjacent refusal witnesses and the sparse-storage account.
 The canonical evaluator `main` and request/observation envelope are realized
 separately: [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) defines EREQ v1, the
-canonical observation grammar, the EEOUT refusal frame, and the bound
+canonical observation grammar, the EEOUT refusal frame, the carry of every
+lower-chain refusal status to the outer `Incomplete`, and the bound
 canonical receipt, gated by
 [`tests/epsilon/evaluator-entry/`](../../tests/epsilon/evaluator-entry/README.md).
 
