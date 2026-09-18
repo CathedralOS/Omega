@@ -46,6 +46,14 @@ pub enum CrashPredicateExpression {
         receiver: Box<Self>,
         member: String,
     },
+    /// A `collection[index]` read. Both children are explicit, so entry
+    /// substitution transports any formals they carry rather than hiding
+    /// them inside a flattened display the way `Opaque` did. The index is
+    /// an evaluated operand, not a fixed field projection.
+    Indexed {
+        collection: Box<Self>,
+        index: Box<Self>,
+    },
     Call {
         target: String,
         receiver: Box<Self>,
@@ -79,6 +87,10 @@ impl CrashPredicateExpression {
             Self::Member { receiver, member } => Self::Member {
                 receiver: Box::new(receiver.substitute(arguments)),
                 member: member.clone(),
+            },
+            Self::Indexed { collection, index } => Self::Indexed {
+                collection: Box::new(collection.substitute(arguments)),
+                index: Box::new(index.substitute(arguments)),
             },
             Self::Call {
                 target,
@@ -167,6 +179,11 @@ impl CrashPredicateExpression {
                 receiver.write_canonical(out);
                 out.extend(member.as_bytes());
                 out.push(0);
+            }
+            Self::Indexed { collection, index } => {
+                out.push(0x0b);
+                collection.write_canonical(out);
+                index.write_canonical(out);
             }
             Self::Call {
                 target,

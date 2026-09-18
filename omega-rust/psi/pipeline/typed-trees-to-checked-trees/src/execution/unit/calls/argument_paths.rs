@@ -656,6 +656,10 @@ pub(crate) fn crash_expression_mentions_parameter_outside_member_path(
                 crash_expression_mentions_parameter_outside_member_path(receiver, parameter)
             }
         }
+        CrashPredicateExpression::Indexed { collection, index } => {
+            crash_expression_mentions_parameter_outside_member_path(collection, parameter)
+                || crash_expression_mentions_parameter_outside_member_path(index, parameter)
+        }
         CrashPredicateExpression::Call {
             receiver,
             arguments,
