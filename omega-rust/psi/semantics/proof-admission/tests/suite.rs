@@ -11,4 +11,5 @@ mod indexed_vector;
 mod integer_order_weakening;
 mod predicate_conversion;
 mod predicate_denotation;
+mod theorem_certificate_admission;
 mod value_equality_transport;

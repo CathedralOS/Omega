@@ -1,0 +1,20 @@
+// False twin of pass/proofs/kernel_theorem_equality_certificates: the
+// same theorem shape with a conclusion its premise does not entail.
+// `equal_symmetric` claims `b == c` from `a == b` alone, so no certificate
+// exists for the ensures clause and the obligation is refused before any
+// kernel judgment: the pass twin's certificate is load-bearing, not
+// decorative.
+
+machine equal_symmetric(a: u64, b: u64, c: u64)
+requires
+    a == b
+ensures
+    b == c
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
