@@ -5,7 +5,9 @@
 
 use super::checked_source;
 use crate::lower_machine;
-use lowered_psi::LoweredSelectedIntegerComparisonOperation;
+use lowered_psi::{
+    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
+};
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId};
 
 /// Omega separately rejoins these opaque commitments to actual selected
@@ -41,21 +43,26 @@ fn i32_equality() -> checked_trees::CheckedTrees {
 
 #[test]
 fn a_replayed_integer_occurrence_is_admitted_into_the_custody_scope() {
-    for (token, name, expected) in [
-        (
-            "==",
-            "equal",
-            LoweredSelectedIntegerComparisonOperation::Equal,
-        ),
-        (
-            "<",
-            "less",
-            LoweredSelectedIntegerComparisonOperation::LessThan,
-        ),
+    use LoweredSelectedIntegerComparisonOperandOrder as Order;
+    use LoweredSelectedIntegerComparisonOperation as Operation;
+    for (token, name, expected, order, negated) in [
+        ("==", "equal", Operation::Equal, Order::Authored, false),
+        ("!=", "not_equal", Operation::Equal, Order::Authored, true),
+        ("<", "less", Operation::LessThan, Order::Authored, false),
         (
             "<=",
             "less_or_equal",
-            LoweredSelectedIntegerComparisonOperation::LessOrEqual,
+            Operation::LessOrEqual,
+            Order::Authored,
+            false,
+        ),
+        (">", "greater", Operation::LessThan, Order::Swapped, false),
+        (
+            ">=",
+            "greater_or_equal",
+            Operation::LessOrEqual,
+            Order::Swapped,
+            false,
         ),
     ] {
         for (primitive, sign, bits) in [
@@ -70,6 +77,8 @@ fn a_replayed_integer_occurrence_is_admitted_into_the_custody_scope() {
                 panic!("one selected integer comparison occurrence: {source}");
             };
             assert_eq!(occurrence.comparison, expected, "{source}");
+            assert_eq!(occurrence.operand_order, order, "{source}");
+            assert_eq!(occurrence.negated, negated, "{source}");
             assert_eq!(
                 occurrence.integer_type,
                 IntegerType::new(sign, bits).expect("primitive integer type"),
@@ -219,8 +228,20 @@ fn a_foreign_integer_occurrence_rejects() {
         .unwrap_err(),
         changed
     );
-    // A row from a program whose checked use is not an authored-order
-    // integer comparison: the same handle now resolves a `>` use.
+    // A row whose recorded operand mapping or negation is not the authored
+    // spelling's admitted emission. The admitted roster is the producer's
+    // only source for both, so neither can be relabelled onto a real
+    // operation: `==` emits the authored order and does not negate.
+    let mut corrupted = lowered.clone();
+    corrupted.selected_integer_comparison_occurrences[0].operand_order =
+        LoweredSelectedIntegerComparisonOperandOrder::Swapped;
+    assert_eq!(replay(&corrupted), changed);
+    let mut corrupted = lowered.clone();
+    corrupted.selected_integer_comparison_occurrences[0].negated = true;
+    assert_eq!(replay(&corrupted), changed);
+    // A row from a program whose checked use has a different admitted
+    // emission: the same handle now resolves a `>` use, which emits the
+    // reversed `IntegerLessThan` rather than this row's equality.
     let foreign =
         checked_with_provider_commitments(&selected_integer_comparison(">", "greater", "i32"));
     assert_eq!(

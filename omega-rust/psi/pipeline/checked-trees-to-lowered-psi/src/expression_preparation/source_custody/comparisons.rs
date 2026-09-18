@@ -7,7 +7,6 @@ use crate::emission::scalar_types::terminal_scalar_type;
 use crate::emission::selected_comparison::{SelectedComparison, SelectedComparisonMeaning};
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
-use checked_trees::expression::BinaryOperator;
 use checked_trees::types::PrimitiveType;
 use lowered_psi::LoweredSelectedIntegerComparisonOperation;
 use semantic_vocabulary::ScalarType;
@@ -58,12 +57,14 @@ pub(crate) fn occurrence(
     })
 }
 
-/// The one Terminal operation a selected comparison use denotes. The checked
-/// classifiers decide what was selected; this only names the operation that
-/// keeps the authored operand order, because the operation's positional
-/// operand roster is the formal telescope operation crash contracts and
-/// provider rejoins read. A use with no such operation fails closed rather
-/// than lowering through a swapped or composed emission.
+/// The one Terminal emission a selected comparison use denotes. The checked
+/// classifiers decide what was selected; this only names the operation, where
+/// that operation reads the authored operands, and whether the authored
+/// meaning is its negation. The mapping is what lets the operation's
+/// positional operand roster remain the formal telescope operation crash
+/// contracts and provider rejoins read, without inventing an operand order
+/// the emission does not have. A use outside the admitted roster fails closed
+/// rather than lowering through an unnamed swapped or composed emission.
 fn selected_meaning(
     checked: &CheckedTrees,
     handle: checked_trees::CheckedOperatorUseHandle,
@@ -84,21 +85,20 @@ fn selected_meaning(
     else {
         return unsupported("comparison has no exact selected Terminal meaning");
     };
-    let comparison = match operation {
-        BinaryOperator::Equal => LoweredSelectedIntegerComparisonOperation::Equal,
-        BinaryOperator::Less => LoweredSelectedIntegerComparisonOperation::LessThan,
-        BinaryOperator::LessOrEqual => LoweredSelectedIntegerComparisonOperation::LessOrEqual,
-        _ => {
-            return unsupported(
-                "selected integer comparison has no authored-order Terminal operation to join",
-            );
-        }
+    let Some((comparison, operand_order, negated)) =
+        LoweredSelectedIntegerComparisonOperation::admitted_emission(operation)
+    else {
+        return unsupported(
+            "selected integer comparison has no admitted Terminal operation and operand mapping to join",
+        );
     };
     let ScalarType::Integer(integer_type) = terminal_scalar_type(primitive)? else {
         return unsupported("selected integer comparison has a non-integer operand");
     };
     Ok(SelectedComparisonMeaning::Integer {
         comparison,
+        operand_order,
+        negated,
         integer_type,
     })
 }

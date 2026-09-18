@@ -4,10 +4,20 @@
 //! Terminal callee to carry its crash contract. Each checked
 //! `CheckedCrashOperatorSite` in the lowered source closure therefore becomes
 //! one `TerminalOperationCrashContract` row at the exact emitted operation:
-//! the operator's published routes in the same declaration-local formal
-//! telescope boundary declarations use (scalar operand ordinal `k` is formal
-//! `ValueId` `k + 1`), and the continuations the verifier reconstructs by
-//! substituting the operation's own operands into those routes.
+//! the operator's published routes in the emitted operation's own positional
+//! formal telescope (operand position `k` is formal `ValueId` `k + 1`), and
+//! the continuations the verifier reconstructs by substituting the
+//! operation's own operands into those routes.
+//!
+//! Boundary declarations index the same routes by authored parameter ordinal.
+//! The two telescopes coincide whenever the emission keeps the authored
+//! operand order, and differ exactly when it does not: `>` and `>=` emit the
+//! reversed `IntegerLessThan`/`IntegerLessOrEqual`. The emission records that
+//! mapping on its occurrence row, and the routes are reindexed through it
+//! before publication, because the verifier binds formal `k + 1` to the
+//! operand at position `k` and would otherwise read the other operand. A
+//! mapping that cannot address the emitted operand roster exactly fails
+//! closed rather than publishing a guessed order.
 //!
 //! Nothing here is inferred from the emitted operation: the published routes
 //! come from the checked site and must agree with the operator declaration's
@@ -24,7 +34,7 @@ use checked_trees::signature::{SignatureContract, SignatureContractKind};
 use checked_trees::{
     CheckedCrashOperatorSite, CheckedOperatorUseHandle, CheckedTrees, CheckedValueOrigin,
 };
-use lowered_psi::LoweredPsi;
+use lowered_psi::{LoweredPsi, LoweredSelectedIntegerComparisonOperandOrder};
 use semantic_vocabulary::{MachineId, OperationId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{OperationKind, TerminalMachine, TerminalOperationCrashContract};
 
@@ -155,7 +165,7 @@ fn lower_site(
     lowered: &LoweredPsi,
     site: &CheckedCrashOperatorSite,
 ) -> Result<TerminalOperationCrashContract, LoweringError> {
-    let (machine_id, operation_id) = emitted_operation(lowered, site)?;
+    let (machine_id, operation_id, operand_order) = emitted_operation(lowered, site)?;
     let machine = lowered
         .semantic_module
         .machines
@@ -181,9 +191,28 @@ fn lower_site(
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    validate_operator_signature(checked, site, &operand_types)?;
-    let published_routes =
-        lower_formal_crash_routes(published_buckets(checked, site)?, &operand_types)?;
+    // The declaration binds authored parameter ordinals; the emitted operation
+    // binds positions. Read the declaration through the emission's own
+    // mapping, then reindex the lowered routes into the operation's telescope.
+    let authored_positions = (0..operands.len())
+        .map(|ordinal| {
+            operand_order
+                .terminal_operand_position(ordinal, operands.len())
+                .ok_or(LoweringError::Unsupported(
+                    "operator crash site operand mapping does not address the emitted operand roster",
+                ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let authored_operand_types = authored_positions
+        .iter()
+        .map(|position| operand_types[*position])
+        .collect::<Vec<_>>();
+    validate_operator_signature(checked, site, &authored_operand_types)?;
+    let published_routes = reindex_formal_telescope(
+        lower_formal_crash_routes(published_buckets(checked, site)?, &authored_operand_types)?,
+        &authored_positions,
+        &authored_operand_types,
+    )?;
     if published_routes.is_empty() {
         return unsupported("operator crash site publishes no lowerable crash route");
     }
@@ -193,9 +222,7 @@ fn lower_site(
         .enumerate()
         .map(|(ordinal, (operand, scalar_type))| {
             Ok((
-                ValueId::new(dense_identity(ordinal)?).ok_or(LoweringError::Unsupported(
-                    "operator crash formal identity is zero",
-                ))?,
+                formal_identity(ordinal)?,
                 ScalarTerm::value(*operand, *scalar_type),
             ))
         })
@@ -210,31 +237,53 @@ fn lower_site(
     })
 }
 
-/// The exact emitted operation for one site. Only emission's own
-/// source-occurrence joins may answer, and every join is keyed by the same
-/// checked `operator_use` identity whichever scalar family emitted it; a
-/// positional or shape-based guess would let one comparison borrow
-/// another's contract.
+/// The exact emitted operation for one site, and how that operation reads the
+/// operator's authored operands. Only emission's own source-occurrence joins
+/// may answer, and every join is keyed by the same checked `operator_use`
+/// identity whichever scalar family emitted it; a positional or shape-based
+/// guess would let one comparison borrow another's contract, and an inferred
+/// operand order would let it borrow the other operand.
 fn emitted_operation(
     lowered: &LoweredPsi,
     site: &CheckedCrashOperatorSite,
-) -> Result<(MachineId, OperationId), LoweringError> {
+) -> Result<
+    (
+        MachineId,
+        OperationId,
+        LoweredSelectedIntegerComparisonOperandOrder,
+    ),
+    LoweringError,
+> {
     if site.named_use.is_valid() {
         return unsupported(
             "named operator crash invocation has no Terminal operation join to carry its contract",
         );
     }
     let operator_use: CheckedOperatorUseHandle = site.operator_use;
+    // `IeeeFloatCompare` carries its own comparison identity, so an IEEE
+    // comparison is always emitted over the authored operand order.
     let float_joins = lowered
         .selected_ieee_float_comparison_occurrences
         .iter()
         .filter(|occurrence| occurrence.operator_use == operator_use)
-        .map(|occurrence| (occurrence.terminal_machine, occurrence.terminal_operation));
+        .map(|occurrence| {
+            (
+                occurrence.terminal_machine,
+                occurrence.terminal_operation,
+                LoweredSelectedIntegerComparisonOperandOrder::Authored,
+            )
+        });
     let integer_joins = lowered
         .selected_integer_comparison_occurrences
         .iter()
         .filter(|occurrence| occurrence.operator_use == operator_use)
-        .map(|occurrence| (occurrence.terminal_machine, occurrence.terminal_operation));
+        .map(|occurrence| {
+            (
+                occurrence.terminal_machine,
+                occurrence.terminal_operation,
+                occurrence.operand_order,
+            )
+        });
     let mut joins = float_joins.chain(integer_joins);
     match (joins.next(), joins.next()) {
         (Some(join), None) => Ok(join),
@@ -245,6 +294,50 @@ fn emitted_operation(
             unsupported("selected operator crash invocation joins more than one Terminal operation")
         }
     }
+}
+
+/// Rewrite routes lowered over the operator declaration's authored formal
+/// telescope into the emitted operation's positional one.
+///
+/// The verifier binds formal `k + 1` to the operand at position `k` and
+/// recomputes the continuations itself, so an emission that reversed the
+/// authored pair must publish the reversed formal identities; publishing the
+/// authored ones would make the verifier read the other operand. An
+/// authored-order emission already sits in that telescope and keeps its
+/// routes exactly as lowered rather than passing through a rewrite.
+fn reindex_formal_telescope(
+    routes: Vec<terminal_psi::CrashRouteBucket>,
+    authored_positions: &[usize],
+    authored_operand_types: &[ScalarType],
+) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
+    if authored_positions
+        .iter()
+        .enumerate()
+        .all(|(ordinal, position)| ordinal == *position)
+    {
+        return Ok(routes);
+    }
+    let renaming = authored_positions
+        .iter()
+        .zip(authored_operand_types)
+        .enumerate()
+        .map(|(ordinal, (position, scalar_type))| {
+            Ok((
+                formal_identity(ordinal)?,
+                ScalarTerm::value(formal_identity(*position)?, *scalar_type),
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
+    Ok(terminal_verifier::substitute_crash_routes(
+        &routes, &renaming,
+    ))
+}
+
+/// The formal `ValueId` of one zero-based scalar operand ordinal.
+fn formal_identity(ordinal: usize) -> Result<ValueId, LoweringError> {
+    ValueId::new(dense_identity(ordinal)?).ok_or(LoweringError::Unsupported(
+        "operator crash formal identity is zero",
+    ))
 }
 
 /// The published routes for the site's selected operator. When the operator

@@ -20,7 +20,9 @@ pub(crate) use calls::emit_staged_scalar_call_binding;
 use calls::{CallEmissionContext, LoweredDirectCallBinding};
 use expressions::LoweredDirectExpression;
 pub(crate) use expressions::{emit_byte_length, emit_direct_expression};
-use lowered_psi::LoweredSelectedIntegerComparisonOperation;
+use lowered_psi::{
+    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
+};
 use semantic_vocabulary::{QualifiedScalarType, ScalarType, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
@@ -102,7 +104,7 @@ pub(crate) fn emit_scalar_binding(
             // The occurrence row is recorded beside the exact operation it
             // names: a selected use that reached emission without one would
             // be indistinguishable from a builtin comparison downstream.
-            let kind = match occurrence.meaning {
+            let (kind, negated) = match occurrence.meaning {
                 SelectedComparisonMeaning::IeeeFloat { comparison, format } => {
                     operations.selected_ieee_float_comparisons.push(
                         lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence {
@@ -118,14 +120,19 @@ pub(crate) fn emit_scalar_binding(
                             terminal_operation: operation,
                         },
                     );
-                    OperationKind::IeeeFloatCompare {
-                        comparison,
-                        left,
-                        right,
-                    }
+                    (
+                        OperationKind::IeeeFloatCompare {
+                            comparison,
+                            left,
+                            right,
+                        },
+                        false,
+                    )
                 }
                 SelectedComparisonMeaning::Integer {
                     comparison,
+                    operand_order,
+                    negated,
                     integer_type,
                 } => {
                     operations.selected_integer_comparisons.push(
@@ -137,22 +144,42 @@ pub(crate) fn emit_scalar_binding(
                                 .provider_plan_report_fingerprint,
                             provider_plan_commitment: occurrence.provider_plan_commitment,
                             comparison,
+                            operand_order,
+                            negated,
                             integer_type,
                             terminal_machine,
                             terminal_operation: operation,
                         },
                     );
-                    match comparison {
+                    // Both operands are already completed above in authored
+                    // evaluation order; only the emitted operation's
+                    // positional roster follows the recorded mapping, exactly
+                    // as the checked stage normalizes a builtin `>` or `>=`.
+                    let (first, second) = match operand_order {
+                        LoweredSelectedIntegerComparisonOperandOrder::Authored => (left, right),
+                        LoweredSelectedIntegerComparisonOperandOrder::Swapped => (right, left),
+                    };
+                    let kind = match comparison {
                         LoweredSelectedIntegerComparisonOperation::Equal => {
-                            OperationKind::IntegerEqual { left, right }
+                            OperationKind::IntegerEqual {
+                                left: first,
+                                right: second,
+                            }
                         }
                         LoweredSelectedIntegerComparisonOperation::LessThan => {
-                            OperationKind::IntegerLessThan { left, right }
+                            OperationKind::IntegerLessThan {
+                                left: first,
+                                right: second,
+                            }
                         }
                         LoweredSelectedIntegerComparisonOperation::LessOrEqual => {
-                            OperationKind::IntegerLessOrEqual { left, right }
+                            OperationKind::IntegerLessOrEqual {
+                                left: first,
+                                right: second,
+                            }
                         }
-                    }
+                    };
+                    (kind, negated)
                 }
             };
             operations.push(Operation {
@@ -165,7 +192,32 @@ pub(crate) fn emit_scalar_binding(
                 }),
                 kind,
             });
-            Ok(id)
+            if !negated {
+                return Ok(id);
+            }
+            // `!=` completes as the emitted equality's negation. The crash
+            // contract stays on the comparison the occurrence names, which is
+            // the operation owning the scalar operands the formal telescope
+            // binds; this negation only carries its Boolean result forward.
+            let negated_id = value_id(*next_value_identity);
+            *next_value_identity =
+                next_value_identity
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "comparison negation value identity overflow",
+                    ))?;
+            let negation = operations.allocate();
+            operations.push(Operation {
+                static_reach_binding: None,
+                id: negation,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: negated_id,
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: Default::default(),
+                }),
+                kind: OperationKind::BooleanNot { operand: id },
+            });
+            Ok(negated_id)
         }
         LoweredScalarBinding::StoredValue { value, destination } => {
             use crate::emission::store_destination::StoreDestination;

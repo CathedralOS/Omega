@@ -12,7 +12,8 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_psi::{
-    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, OperationKind,
+    Block, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, Operation,
+    OperationKind, TerminalOperationCrashContract,
 };
 
 /// Omega separately rejoins these opaque commitments to actual selected
@@ -85,6 +86,43 @@ const GUARDED_INTEGER_OPERATOR_SOURCE: &str =
     "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
      crashes Trap !(right >= 0);
      pub machine compare(left: i32, right: i32) -> bool crashes Trap { left == right }";
+
+/// The same guarded route on a spelling whose emission reverses the authored
+/// operands: `>` emits `IntegerLessThan` over `(right, left)`.
+const GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE: &str =
+    "boundary operator > Comparison::greater(left: i32, right: i32) -> bool
+     crashes Trap !(right >= 0);
+     pub machine compare(left: i32, right: i32) -> bool crashes Trap { left > right }";
+
+/// The same guarded route on a spelling whose emission negates the authored
+/// comparison: `!=` emits `IntegerEqual` and one `BooleanNot` over its result.
+const GUARDED_NEGATED_INTEGER_OPERATOR_SOURCE: &str =
+    "boundary operator != Comparison::not_equal(left: i32, right: i32) -> bool
+     crashes Trap !(right >= 0);
+     pub machine compare(left: i32, right: i32) -> bool crashes Trap { left != right }";
+
+/// The block and operation one crash contract row names.
+fn joined_operation<'lowered>(
+    lowered: &'lowered lowered_psi::LoweredPsi,
+    row: &TerminalOperationCrashContract,
+) -> (&'lowered Block, &'lowered Operation) {
+    lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == row.machine)
+        .expect("the row names the lowered machine")
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .operations
+                .iter()
+                .find(|operation| operation.id == row.operation)
+                .map(|operation| (block, operation))
+        })
+        .expect("the row names an emitted operation")
+}
 
 #[test]
 fn selected_operator_crash_site_lowers_to_one_row_at_the_emitted_comparison() {
@@ -325,6 +363,135 @@ fn a_guarded_integer_operator_route_lowers_end_to_end_to_the_row_the_verifier_ac
 }
 
 #[test]
+fn a_reordered_greater_route_publishes_the_operations_own_formal_telescope() {
+    // `>` emits `IntegerLessThan` over the reversed pair, so the operator's
+    // authored formal 2 (`right`) is the operation's operand position 0. The
+    // producer reindexes the published routes through the mapping the
+    // occurrence recorded, so the verifier's positional substitution — which
+    // binds formal 1 to operand position 0 — reconstructs the guard over the
+    // authored `right` without the positional rule being relaxed.
+    let checked = checked_with_provider_commitments(GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE);
+    let lowered = lower_machine(&checked, "compare")
+        .expect("a reordered guarded integer comparison carries its crash contract");
+    let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
+        panic!("one selected integer comparison occurrence");
+    };
+    assert_eq!(
+        occurrence.comparison,
+        lowered_psi::LoweredSelectedIntegerComparisonOperation::LessThan
+    );
+    assert_eq!(
+        occurrence.operand_order,
+        lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Swapped
+    );
+    assert!(!occurrence.negated);
+    let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
+        panic!("one operation crash contract row");
+    };
+    assert_eq!(row.machine, occurrence.terminal_machine);
+    assert_eq!(row.operation, occurrence.terminal_operation);
+    let (block, operation) = joined_operation(&lowered, row);
+    let OperationKind::IntegerLessThan { left, right } = operation.kind else {
+        panic!("the joined operation is the emitted reversed comparison");
+    };
+    // The authored pair still completes as `left` then `right`; only the
+    // emitted operand roster is reversed.
+    let [.., authored_left, authored_right] = block.parameters.as_slice() else {
+        panic!("the comparison block carries both completed operands");
+    };
+    assert_eq!((left, right), (authored_right.id, authored_left.id));
+    let integer = ScalarType::Integer(i32_type());
+    let formal = |raw| ScalarTerm::value(ValueId::new(raw).expect("formal"), integer);
+    assert_eq!(row.published_routes, vec![guarded_trap_route(formal(1))]);
+    assert_eq!(
+        row.crash_continuations,
+        vec![guarded_trap_route(ScalarTerm::value(left, integer))]
+    );
+    terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("the verifier accepts the reindexed guarded row");
+}
+
+#[test]
+fn a_reordered_row_left_in_the_authored_telescope_fails_verification() {
+    // The reindexing is load-bearing, not cosmetic. A `>` row that kept the
+    // operator declaration's authored formal 2 would make the verifier
+    // reconstruct the guard over the other operand, so it must reject.
+    let checked = checked_with_provider_commitments(GUARDED_REORDERED_INTEGER_OPERATOR_SOURCE);
+    let lowered = lower_machine(&checked, "compare").expect("the reordered route lowers");
+    let mut forged = lowered.semantic_module.clone();
+    let integer = ScalarType::Integer(i32_type());
+    forged.operation_crash_contracts[0].published_routes = vec![guarded_trap_route(
+        ScalarTerm::value(ValueId::new(2).expect("formal"), integer),
+    )];
+    assert!(matches!(
+        terminal_verifier::validate_module(&forged),
+        Err(terminal_verifier::ModuleError::OperationCrashContinuationsMismatch { .. })
+    ));
+}
+
+#[test]
+fn a_negated_route_keeps_its_contract_on_the_emitted_comparison() {
+    // `!=` emits `IntegerEqual` over the authored order plus one `BooleanNot`.
+    // The crash contract stays on the equality, which is the operation owning
+    // the scalar operands the formal telescope binds, so the authored
+    // telescope needs no reindexing and the negation only carries the Boolean
+    // result forward without taking a row of its own.
+    let checked = checked_with_provider_commitments(GUARDED_NEGATED_INTEGER_OPERATOR_SOURCE);
+    let lowered = lower_machine(&checked, "compare")
+        .expect("a negated guarded integer comparison carries its crash contract");
+    let [occurrence] = lowered.selected_integer_comparison_occurrences.as_slice() else {
+        panic!("one selected integer comparison occurrence");
+    };
+    assert_eq!(
+        occurrence.comparison,
+        lowered_psi::LoweredSelectedIntegerComparisonOperation::Equal
+    );
+    assert_eq!(
+        occurrence.operand_order,
+        lowered_psi::LoweredSelectedIntegerComparisonOperandOrder::Authored
+    );
+    assert!(occurrence.negated);
+    let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
+        panic!("one operation crash contract row");
+    };
+    assert_eq!(row.operation, occurrence.terminal_operation);
+    let (block, operation) = joined_operation(&lowered, row);
+    let OperationKind::IntegerEqual { left, right } = operation.kind else {
+        panic!("the joined operation is the emitted equality");
+    };
+    let [.., authored_left, authored_right] = block.parameters.as_slice() else {
+        panic!("the comparison block carries both completed operands");
+    };
+    assert_eq!((left, right), (authored_left.id, authored_right.id));
+    let result = operation
+        .result
+        .scalar()
+        .expect("the comparison produces a Boolean")
+        .id;
+    assert_eq!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .filter(|machine| machine.id == row.machine)
+            .flat_map(|machine| machine.blocks.iter().flat_map(|block| &block.operations))
+            .filter(|candidate| matches!(candidate.kind,
+                OperationKind::BooleanNot { operand } if operand == result))
+            .count(),
+        1
+    );
+    let integer = ScalarType::Integer(i32_type());
+    let formal = |raw| ScalarTerm::value(ValueId::new(raw).expect("formal"), integer);
+    assert_eq!(row.published_routes, vec![guarded_trap_route(formal(2))]);
+    assert_eq!(
+        row.crash_continuations,
+        vec![guarded_trap_route(ScalarTerm::value(right, integer))]
+    );
+    terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("the verifier accepts the negated route's row");
+}
+
+#[test]
 fn a_guarded_operator_route_without_a_structured_scalar_form_fails_closed() {
     // The checked stage structures integer comparisons and Boolean formals
     // over an operator's parameters; an IEEE ordering over scalar float
@@ -345,31 +512,23 @@ fn a_guarded_operator_route_without_a_structured_scalar_form_fails_closed() {
 }
 
 #[test]
-fn a_crash_qualified_use_without_an_emitted_join_fails_closed() {
-    // Only an authored-order integer comparison (`==`, `<`, `<=`) emits one
-    // Terminal operation whose positional operands are the operator's formal
-    // telescope; `>` would swap or compose operands, so it records no join
-    // and its crash-qualified use must not lower crash-free. A use whose
-    // provider application is incomplete has no exact selected occurrence
-    // either.
-    for (operator_contract, caller_contract) in [
-        ("crashes Trap", "crashes Trap"),
-        ("crashes Abort", "crashes Abort"),
-        ("crashes Trap false", ""),
-    ] {
-        let checked = checked_with_provider_commitments(&format!(
-            "boundary operator > Comparison::greater(left: i32, right: i32) -> bool {operator_contract};
-             pub machine compare(left: i32, right: i32) -> bool {caller_contract} {{ left > right }}"
-        ));
-        let error = lower_machine(&checked, "compare")
-            .expect_err("an unjoined crash-qualified use must not lower crash-free");
-        assert!(
-            format!("{error:?}").contains(
-                "selected integer comparison has no authored-order Terminal operation to join"
-            ),
-            "{error:?}"
-        );
-    }
+fn a_crash_qualified_use_without_lowerable_crash_evidence_fails_closed() {
+    // Every authored integer comparison spelling now has an admitted
+    // emission, so the remaining refusals are about the evidence itself: a
+    // published route that normalizes away leaves the site with nothing to
+    // carry, and a use without complete provider plan evidence has no exact
+    // selected occurrence to join at all.
+    let checked = checked_with_provider_commitments(
+        "boundary operator > Comparison::greater(left: i32, right: i32) -> bool
+         crashes Trap false;
+         pub machine compare(left: i32, right: i32) -> bool { left > right }",
+    );
+    let error = lower_machine(&checked, "compare")
+        .expect_err("a site with no lowerable route must not lower crash-free");
+    assert!(
+        format!("{error:?}").contains("operator crash site publishes no lowerable crash route"),
+        "{error:?}"
+    );
     let checked = checked_source(GUARDED_INTEGER_OPERATOR_SOURCE);
     let error = lower_machine(&checked, "compare")
         .expect_err("a use without complete provider plan evidence must not lower");
