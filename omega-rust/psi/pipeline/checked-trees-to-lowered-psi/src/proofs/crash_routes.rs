@@ -125,35 +125,6 @@ pub(crate) fn lower_checked_crash_frontier(
     Ok(lowered)
 }
 
-pub(crate) fn lower_checked_crash_routes(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<Vec<checked_trees::CrashRouteBucket>, LoweringError> {
-    checked
-        .facts
-        .contract_plans
-        .for_machine(machine)
-        .map(|contract| {
-            contract
-                .crash
-                .published()
-                .iter()
-                .map(|bucket| {
-                    if bucket.alternative_guards().iter().any(|guard| {
-                        matches!(guard, checked_trees::CrashRouteGuard::Predicate(predicate)
-                            if predicate.scalar_expression().is_none())
-                    }) {
-                        return unsupported(
-                            "guarded crash route is outside structured scalar predicate lowering",
-                        );
-                    }
-                    Ok(bucket.clone())
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .unwrap_or_else(|| Ok(Vec::new()))
-}
-
 pub(crate) fn lower_checked_crash_exit(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,

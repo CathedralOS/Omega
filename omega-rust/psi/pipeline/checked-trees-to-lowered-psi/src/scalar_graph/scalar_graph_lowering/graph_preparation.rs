@@ -15,8 +15,8 @@ use crate::scalar_graph::scalar_graph_lowering::contract_lowering::{
 use crate::scalar_graph::scalar_graph_lowering::graph_validation::validate_scalar_graph;
 use crate::scalar_graph::scalar_graph_lowering::known_evaluation::evaluate_known_scalar_graph;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
-    LoweredScalarBranchState, LoweredScalarBranchTerminator, PreparedScalarContract,
-    PreparedScalarMachine,
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+    PreparedScalarContract, PreparedScalarMachine,
 };
 use crate::scalar_graph::scalar_graph_lowering::{
     bindings, branch_destinations, cycles, guards, structural_values,
@@ -25,7 +25,7 @@ use crate::scalar_graph::{
     CheckedScalarBranchDestination, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
     CheckedScalarStateTerminator, CheckedTrees, ClosedScalarContractValue, LoweringError,
     Multiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    lower_checked_crash_exit, lower_checked_crash_routes, scalar_carriers, unsupported,
+    lower_checked_crash_exit, scalar_carriers, unsupported,
 };
 
 pub(crate) fn prepare_scalar_graph_machine(
@@ -441,6 +441,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 matches!(binding, LoweredScalarBinding::DirectCall(call)
                         if !call.crash_continuations.is_empty())
             })
+            || state.structural_effects.iter().any(|effect| {
+                matches!(effect, LoweredScalarEffect::CallUnit(call)
+                        if !call.crash_routes.is_empty())
+            })
     });
     let has_return = lowered_states.iter().any(|state| {
         matches!(
@@ -523,7 +527,12 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         states: lowered_states,
         result_type,
         contract,
-        crash_routes: lower_checked_crash_routes(checked, machine)?,
+        // The emitted contract ceiling is the machine's effective crash
+        // routes, not the authored slice alone: a private scalar-graph machine
+        // with an inferred contract still owes its callers the union of its
+        // retained body evidence, or its own Trap continuations and crash
+        // terminators would be uncovered.
+        crash_routes: crate::unit::effective_crash_routes(checked, machine)?,
         identity_reshuffles,
         partition_compositions,
         loop_plan,

@@ -163,9 +163,15 @@ pub(crate) fn lower_scalar_call(
     // Computed arguments have already become values. Bind the pinned callee
     // routes to those values, as ordinary staged calls do, rather than trying
     // to turn their effectful source expressions into pure caller predicates.
+    // The pinned ceiling is the callee's effective crash routes — authored
+    // buckets for a published ceiling or the union of retained body evidence
+    // for an inferred contract — in the callee's parameter namespace, exactly
+    // the ceiling the emitted machine contract publishes and the verifier
+    // substitutes back at this call.
+    let target_routes = crate::unit::effective_crash_routes(checked, target_machine)?;
     let crash_continuations = match crash_scope {
-        ScalarCallCrashScope::CallerValues => checked_call.surviving_buckets(),
-        ScalarCallCrashScope::Arguments => target_contract.crash.published(),
+        ScalarCallCrashScope::CallerValues => checked_call.surviving_buckets().to_vec(),
+        ScalarCallCrashScope::Arguments => target_routes.clone(),
     };
     if crash_continuations.iter().any(|bucket| {
         bucket.alternative_guards().iter().any(|guard| {
@@ -191,8 +197,8 @@ pub(crate) fn lower_scalar_call(
         // The selected body owns storage even when its public signature has
         // only scalars. Graph and ordered-body callers use the same decision.
         uses_structural_frame: target.requires_structural_frame(),
-        crash_continuations: crash_continuations.to_vec(),
-        parameter_relative_crash_routes: target_contract.crash.published().to_vec(),
+        crash_continuations,
+        parameter_relative_crash_routes: target_routes,
     })
 }
 
