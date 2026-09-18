@@ -285,3 +285,226 @@ fn a_static_binder_or_hidden_argument_keeps_the_footprint_incomplete() {
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
+
+/// A static type application substitutes a declaration identity, never a
+/// place: specialization "creates no runtime dictionary", so a statically
+/// applied call reads exactly what the same call without the application
+/// reads — the checked operand accesses at the exact occurrence.
+#[test]
+fn a_type_applied_generic_call_reads_its_established_operand_footprint() {
+    for source in [
+        "machine identity<Element>(value: Element) -> Element { value }
+        machine window(original: u64, index: u64, unrelated: u64) {
+            let cut: u64 = identity<u64>(original);
+        }",
+        "data Card { count: u64; }
+        machine identity<Element>(value: &Element) -> u64 { 0u64 }
+        machine window(original: Card, index: u64, unrelated: u64) {
+            let cut: u64 = identity<Card>(&original);
+        }",
+    ] {
+        let program = typed_source(source);
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        let statement_index = statement_index_of(&program, state, "cut");
+        let (borrows, flow, frames) = checked_facts(&program);
+        let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_calls = Some(&context);
+        facts.statement_index = statement_index;
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        let reads = facts.expression_dependencies[0]
+            .reads
+            .as_ref()
+            .expect("a statically applied call footprint");
+        assert_eq!(
+            reads.as_slice(),
+            &[parameter_place(&program, state, "original")],
+            "{source}"
+        );
+        let label = program.expression_table.display_name(expression);
+        for (name, survives) in [("original", false), ("index", true), ("unrelated", true)] {
+            let writes = [parameter_place(&program, state, name)];
+            assert_eq!(
+                facts
+                    .preserved_expression_labels(&program, machine, state, Some(&writes))
+                    .contains(&label),
+                survives,
+                "write to {name} under {source}"
+            );
+        }
+    }
+}
+
+/// A const application selects a compile-time value. It reaches the callee as
+/// a substituted static value rather than storage, so the operand accesses
+/// still enumerate the complete footprint.
+#[test]
+fn a_const_applied_generic_call_reads_its_operand_footprint() {
+    let program = typed_source(
+        "machine scaled<const Factor: u64>(value: u64) -> u64 { value }
+        machine window(original: u64, index: u64, unrelated: u64) {
+            let cut: u64 = scaled<2u64>(original);
+        }",
+    );
+    let (machine, state) = window(&program);
+    let expression = initializer(&program, state);
+    let statement_index = statement_index_of(&program, state, "cut");
+    let (borrows, flow, frames) = checked_facts(&program);
+    let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_calls = Some(&context);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("a const-applied call footprint");
+    assert_eq!(
+        reads.as_slice(),
+        &[parameter_place(&program, state, "original")]
+    );
+    let label = program.expression_table.display_name(expression);
+    for (name, survives) in [("original", false), ("index", true), ("unrelated", true)] {
+        let writes = [parameter_place(&program, state, name)];
+        assert_eq!(
+            facts
+                .preserved_expression_labels(&program, machine, state, Some(&writes))
+                .contains(&label),
+            survives,
+            "write to {name}"
+        );
+    }
+}
+
+/// The receiver rule is unchanged by the application: an applied `&self`
+/// callee still reads the caller's machine storage, so a write through `self`
+/// retires the premise.
+#[test]
+fn a_type_applied_self_receiver_call_reads_the_callers_machine_storage() {
+    let program = typed_source(
+        "data Main { count: u64; other: u64; }
+        machine Main::measure<Element>(&self, value: Element) -> u64 { self.count }
+        machine Main::window(&mut self, original: u64, unrelated: u64) -> u64 {
+            let cut: u64 = self.measure<u64>(original);
+            cut
+        }",
+    );
+    let (machine, state) = machine_state(&program, "Main::window");
+    let expression = initializer(&program, state);
+    let statement_index = statement_index_of(&program, state, "cut");
+    let (borrows, flow, frames) = checked_facts(&program);
+    let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+    let mut facts = RangeFacts::new(&[]);
+    facts.checked_calls = Some(&context);
+    facts.statement_index = statement_index;
+    facts.record_expression_dependencies(&program, machine, state, expression);
+    let reads = facts.expression_dependencies[0]
+        .reads
+        .as_ref()
+        .expect("an applied self-receiver callee footprint");
+    let machine_root = crate::flow::CanonicalPlace {
+        root: facts::PlaceRoot::Symbol(machine.symbol),
+        segments: Vec::new(),
+    };
+    assert!(reads.contains(&machine_root), "{reads:?}");
+    let label = program.expression_table.display_name(expression);
+    assert!(
+        !facts
+            .preserved_expression_labels(&program, machine, state, Some(&[machine_root]))
+            .contains(&label),
+        "a write through self must retire the applied callee-read premise"
+    );
+    let writes = [parameter_place(&program, state, "unrelated")];
+    assert!(
+        facts
+            .preserved_expression_labels(&program, machine, state, Some(&writes))
+            .contains(&label),
+        "a disjoint parameter write must preserve it"
+    );
+}
+
+/// A machine-valued static argument hands the callee a callable body whose
+/// own reads this occurrence never authenticated, and a nested static
+/// application can carry such a binder below the argument this scan sees.
+/// Both keep the read set incomplete.
+#[test]
+fn a_machine_valued_or_nested_static_application_stays_incomplete() {
+    for source in [
+        "machine double(value: u64) -> u64 { value }
+        machine apply<machine Chosen>(value: u64) -> u64
+        where machine Chosen(value: u64) -> u64;
+        { Chosen(value) }
+        machine window(original: u64, unrelated: u64) {
+            let cut: u64 = apply<double>(original);
+        }",
+        "data Pair<Element> { value: Element; }
+        machine identity<Element>(value: &Element) -> u64 { 0u64 }
+        machine window(original: Pair<u64>, unrelated: u64) {
+            let cut: u64 = identity<Pair<u64>>(&original);
+        }",
+    ] {
+        let program = typed_source(source);
+        let (machine, state) = window(&program);
+        let expression = initializer(&program, state);
+        let statement_index = statement_index_of(&program, state, "cut");
+        let (borrows, flow, frames) = checked_facts(&program);
+        let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_calls = Some(&context);
+        facts.statement_index = statement_index;
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        assert!(facts.expression_dependencies[0].reads.is_none(), "{source}");
+    }
+}
+
+/// The static selection's own kind decides, not the mere presence of an
+/// application: one admitted occurrence becomes incomplete when its argument
+/// is retargeted at a callable state symbol or given a nested application,
+/// with the checked call evidence untouched.
+#[test]
+fn only_storage_free_static_selections_admit_the_applied_call_footprint() {
+    for drift in ["none", "callable", "nested"] {
+        let mut program = typed_source(
+            "machine identity<Element>(value: Element) -> Element { value }
+            machine window(original: u64, unrelated: u64) {
+                let cut: u64 = identity<u64>(original);
+            }",
+        );
+        let expression = {
+            let (_, state) = window(&program);
+            initializer(&program, state)
+        };
+        let callable = {
+            let identity = &program.machines()[0];
+            program.machine_states(identity)[0].symbol
+        };
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            panic!("applied call fixture")
+        };
+        match drift {
+            "callable" => call.machine_arguments[0].symbol = callable,
+            "nested" => {
+                call.machine_arguments[0].application =
+                    Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                        lifetime_arguments: Box::default(),
+                        arguments: Box::default(),
+                    }))
+            }
+            _ => {}
+        }
+        let (machine, state) = window(&program);
+        let statement_index = statement_index_of(&program, state, "cut");
+        let (borrows, flow, frames) = checked_facts(&program);
+        let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
+        let mut facts = RangeFacts::new(&[]);
+        facts.checked_calls = Some(&context);
+        facts.statement_index = statement_index;
+        facts.record_expression_dependencies(&program, machine, state, expression);
+        assert_eq!(
+            facts.expression_dependencies[0].reads.is_some(),
+            drift == "none",
+            "{drift}"
+        );
+    }
+}

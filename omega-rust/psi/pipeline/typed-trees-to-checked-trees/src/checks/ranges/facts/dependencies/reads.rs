@@ -95,9 +95,12 @@ pub(super) fn collect_reads(
         // the callee may also read receiver `self` storage. Admit a footprint
         // only for the exact checked call occurrence at this statement — the
         // same flow/borrow join `structured_call_writes` uses — and only when
-        // the typed call carries no machine, requirement, quotient, or
+        // the typed call carries no machine-valued, requirement, quotient, or
         // private-layout binder that could hand the callee storage the
-        // operand scan cannot see. The checked operand accesses then
+        // operand scan cannot see. A static type or const application is not
+        // such a binder: it substitutes a declaration identity or a
+        // compile-time value, so the applied call reads exactly what the same
+        // call without the application reads. The checked operand accesses then
         // enumerate every caller place reachable through the arguments,
         // while a `self` target adds the canonical receiver place so an
         // implicit-self callee still reads the caller's machine storage.
@@ -115,7 +118,7 @@ pub(super) fn collect_reads(
             };
             if call.static_machine_parameter.is_valid()
                 || call.static_requirement_dispatch.is_some()
-                || !call.machine_arguments.is_empty()
+                || !static_application_carries_no_caller_storage(program, call)
                 || call.quotient_operation.is_some()
                 || call.private_layout_operation.is_some()
             {
@@ -476,6 +479,39 @@ pub(super) fn collect_reads(
             }
         }
     }
+}
+
+/// Whether a call's static application substitutes only storage-free
+/// selections, so the checked operand accesses still enumerate the complete
+/// caller footprint. A type argument names a declaration identity and a
+/// const argument names a compile-time value; neither is a place, and
+/// specialization "creates no runtime dictionary", so a statically applied
+/// call reads exactly what the same call without the application reads. A
+/// machine-valued argument is different in kind: it hands the callee a
+/// callable body this occurrence never authenticated, whose own reads no
+/// operand scan here describes. A nested static application or an evidence
+/// projection can carry such a binder below the argument this scan sees, so
+/// both stay unproven rather than being walked for a machine leaf.
+fn static_application_carries_no_caller_storage(
+    program: &TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> bool {
+    call.machine_arguments.iter().all(|argument| {
+        if argument.application.is_some() || argument.evidence_projection.is_some() {
+            return false;
+        }
+        if !argument.symbol.is_valid() {
+            // A literal const selection retains no declaration symbol; every
+            // other symbol-free argument is an unresolved selection.
+            return argument.const_literal.is_some();
+        }
+        matches!(
+            program.symbols.get(argument.symbol).kind,
+            symbols::SymbolKind::BuiltinType
+                | symbols::SymbolKind::Data
+                | symbols::SymbolKind::Const
+        )
+    })
 }
 
 /// The footprint of a writing atomic (`store`, `swap`, fetch, or decisive
