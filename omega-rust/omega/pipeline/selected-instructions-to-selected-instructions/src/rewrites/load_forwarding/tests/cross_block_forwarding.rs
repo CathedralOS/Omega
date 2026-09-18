@@ -1,6 +1,6 @@
 use super::{
     BETWEEN, LOAD, OUTPUT, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, crossed_edge,
-    fixture, forward, instruction, mutated_chained, place, successor,
+    fixture, forward, instruction, mutated_chained, place, sequence_pair, successor,
 };
 use crate::{
     StoredLoadForwardingError, forward_selected_stored_load, validate_stored_load_forwarding,
@@ -1833,5 +1833,125 @@ fn cross_block_forwarding_is_deterministic_and_terminal() {
     assert_eq!(
         forward_selected_stored_load(&first, 0, STORE, &environment, budget()).unwrap_err(),
         StoredLoadForwardingError::UnsupportedInstruction
+    );
+}
+
+/// The indexed byte load forwards across the edge the same way an exact
+/// load does: the byte-sequence store in the predecessor is its byte-exact
+/// writer, the crossed terminator carries no row on the place, and the edge
+/// moves neither the stored register nor the load's result.
+#[test]
+fn cross_block_byte_sequence_load_forwards_across_the_edge() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let source = mutated_chained(target, |function, environment| {
+            sequence_pair(function, environment, 0, 5);
+        });
+        let environment = baseline_target_register_environment(target).unwrap();
+        let result = forward(&source, &environment).unwrap();
+        let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+        assert_eq!(rewritten.id, LOAD);
+        assert_eq!(rewritten.kind, SelectedInstructionKind::ZeroExtendU8);
+        assert_eq!(rewritten.operands.len(), 2);
+        assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+        assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+        // The roster drops only the load's read row; the covering sequence
+        // store's row survives in the predecessor block.
+        assert_eq!(
+            result.transformed().functions[0]
+                .memory_accesses
+                .iter()
+                .map(|access| (access.instruction, access.role))
+                .collect::<Vec<_>>(),
+            vec![(
+                STORE,
+                SelectedMemoryAccessRole::WriteByteSequence {
+                    index: ValueId::new(5).unwrap(),
+                    value: ValueId::new(6).unwrap(),
+                    length: ValueId::new(7).unwrap(),
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [3; 32]
+                    ),
+                }
+            )]
+        );
+        validate_stored_load_forwarding(
+            &source,
+            0,
+            LOAD,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A sequence row on the crossed terminator always meets the dynamic
+    // read, whatever its index.
+    let terminator_sequence = mutated_chained(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        function.memory_accesses.insert(
+            2,
+            SelectedMemoryAccess {
+                byte_count: 1,
+                ..access(
+                    SelectedInstructionId(6),
+                    3,
+                    place(),
+                    0,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(5).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    assert_eq!(
+        forward(&terminator_sequence, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // An edge transport redefining the carried register rejects the pair.
+    let redefined = mutated_chained(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: SCRATCH,
+                parameter: VALUE,
+            },
+        });
+    });
+    assert_eq!(
+        forward(&redefined, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedUse
+    );
+    // A byte-sequence read the roster does not cover is not the pair: the
+    // deferred predecessor region resolves to a register only when the
+    // stored value is the read's source.
+    let storeless = mutated_chained(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        function.blocks[0].instructions.remove(1);
+        function.memory_accesses.remove(0);
+    });
+    assert_eq!(
+        forward(&storeless, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
     );
 }

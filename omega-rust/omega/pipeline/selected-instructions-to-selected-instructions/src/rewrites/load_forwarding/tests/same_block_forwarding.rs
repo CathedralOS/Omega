@@ -1,6 +1,6 @@
 use super::{
     BETWEEN, LOAD, OUTPUT, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, fixture,
-    forward, instruction, mutated, narrowed, place,
+    forward, instruction, mutated, narrowed, place, sequence_pair,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::{
@@ -1215,4 +1215,417 @@ fn validation_budget_covers_the_walk() {
             StoredLoadForwardingError::WorkBudgetExceeded
         );
     }
+}
+
+/// The indexed byte load reads the byte at `base + index`; the matching
+/// byte-sequence `Store { 0, 1 }` is its byte-exact writer, so the load
+/// forwards to `ZeroExtendU8` of the stored register and drops only the
+/// read row.
+#[test]
+fn byte_sequence_load_forwards_from_the_matching_sequence_store() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let source = mutated(target, |function, environment| {
+            sequence_pair(function, environment, 0, 5);
+        });
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source_load = source.transformed().functions[0].blocks[0].instructions[3].clone();
+        let result = forward(&source, &environment).unwrap();
+        let function = &result.transformed().functions[0];
+        let rewritten = &function.blocks[0].instructions[3];
+        assert_eq!(rewritten.id, LOAD);
+        assert_eq!(rewritten.kind, SelectedInstructionKind::ZeroExtendU8);
+        assert_eq!(rewritten.operands.len(), 2);
+        assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+        assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+        assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Def);
+        assert_eq!(rewritten.provenance, source_load.provenance);
+        // Only the read row drops; the covering sequence row survives.
+        assert_eq!(
+            function
+                .memory_accesses
+                .iter()
+                .map(|access| access.role)
+                .collect::<Vec<_>>(),
+            vec![SelectedMemoryAccessRole::WriteByteSequence {
+                index: ValueId::new(5).unwrap(),
+                value: ValueId::new(6).unwrap(),
+                length: ValueId::new(7).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [3; 32]
+                ),
+            }]
+        );
+        validate_stored_load_forwarding(
+            &source,
+            0,
+            LOAD,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+        // A detached, separately allocated proposal replays by content.
+        let mut detached = result.transformed().clone();
+        detached.functions = detached.functions.iter().cloned().collect();
+        validate_stored_load_forwarding(&source, 0, LOAD, &environment, budget(), detached)
+            .unwrap();
+    }
+}
+
+/// The dynamic read's forwarding source stays byte-exact: same payload
+/// base, same index value, one written byte. Every other writer — another
+/// index, another base, an exact or span write, a slot store, or a second
+/// roster row — may land on a different byte, so it rejects as the source
+/// while still counting as interference on the walk.
+#[test]
+fn byte_sequence_forwarding_stays_byte_exact() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // A sequence write at another index may land on a different byte.
+    let other_index = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        let SelectedMemoryAccessRole::WriteByteSequence { index, .. } =
+            &mut function.memory_accesses[0].role
+        else {
+            unreachable!()
+        };
+        *index = ValueId::new(6).unwrap();
+    });
+    assert_eq!(
+        forward(&other_index, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A different payload base never spells the read's byte.
+    let other_base = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        function.memory_accesses[0].byte_offset = 8;
+    });
+    assert_eq!(
+        forward(&other_base, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // An exact one-byte write cannot contain the runtime-placed read byte.
+    let exact = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WritePlace;
+    });
+    assert_eq!(
+        forward(&exact, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A span write's reach cannot be proven to land on the read byte.
+    let span = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        let write = &mut function.memory_accesses[0];
+        write.byte_count = 0;
+        write.role = SelectedMemoryAccessRole::WriteByteSpan {
+            length: ValueId::new(7).unwrap(),
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        };
+    });
+    assert_eq!(
+        forward(&span, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // An encoded `Store` other than `{ 0, 1 }` never took the sequence
+    // route, whatever its row claims.
+    let widened = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        function.blocks[0].instructions[1].kind = SelectedInstructionKind::Store {
+            byte_offset: 0,
+            byte_size: 8,
+        };
+    });
+    assert_eq!(
+        forward(&widened, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // The direct slot store names a slot, so it never carries the sequence
+    // route either.
+    let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+    let slot_store = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 8,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[1] = instruction(
+            STORE,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[VALUE],
+        );
+        function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+    });
+    assert_eq!(
+        forward(&slot_store, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A second roster row on the writer leaves its identity ambiguous.
+    let two_rows = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        function.memory_accesses.insert(
+            1,
+            access(STORE, 3, place(), 0, SelectedMemoryAccessRole::WritePlace),
+        );
+    });
+    assert_eq!(
+        forward(&two_rows, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // The indexed load carrying an exact-range read row is not the sequence
+    // read, and a fixed-offset byte load carrying the sequence row is not
+    // either — each pair's kind and role must agree.
+    let exact_read = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        function.memory_accesses[1].role = SelectedMemoryAccessRole::ReadPlace;
+    });
+    assert_eq!(
+        forward(&exact_read, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    let fixed_load = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        let load8 = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[3] = instruction(
+            LOAD,
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            load8,
+            &[POINTER, OUTPUT],
+        );
+    });
+    assert_eq!(
+        forward(&fixed_load, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // A read row wider than the single indexed byte is not the sequence
+    // read either.
+    let wide_read = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 0, 5);
+        function.memory_accesses[1].byte_count = 8;
+    });
+    assert_eq!(
+        forward(&wide_read, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+}
+
+/// The dynamic read extent mirrors the byte-sequence dead store's
+/// interference directions: an exact or local row still reaches the read
+/// byte once its own extent ends past the payload base — ending at or
+/// below it is the only provable disjointness — and a dynamic-extent row
+/// on the place always meets it.
+#[test]
+fn byte_sequence_walk_obeys_the_dynamic_extent_rule() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // An exact write ending at the payload base cannot touch the runtime
+    // byte, so the walk crosses it to the real source.
+    let below = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 0, SelectedMemoryAccessRole::WritePlace),
+        );
+    });
+    let forwarded_result = forward(&below, &environment).unwrap();
+    assert_eq!(
+        forwarded_result.transformed().functions[0].blocks[0].instructions[3].kind,
+        SelectedInstructionKind::ZeroExtendU8
+    );
+    validate_stored_load_forwarding(
+        &below,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        forwarded_result.transformed().clone(),
+    )
+    .unwrap();
+    // Ending one byte past the base leaves the read byte reachable.
+    let covering = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store {
+                byte_offset: 4,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 8,
+                ..access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace)
+            },
+        );
+    });
+    assert_eq!(
+        forward(&covering, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A disjoint local write on the place's own storage ends at the base
+    // the same way and walks past.
+    let slot = LocalStorageSlotId::StructuralParameter { place: place() };
+    let local_below = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        let store64 = environment
+            .constraint(environment.selected_keys().store64.unwrap())
+            .unwrap();
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store64 {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            store64,
+            &[SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WriteLocal { slot },
+            ),
+        );
+    });
+    forward(&local_below, &environment).unwrap();
+    // A dynamic-extent row on the place always meets the dynamic read —
+    // here a sequence write at the same base but another index.
+    let sequence_between = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 1,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 1,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    8,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(6).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    assert_eq!(
+        forward(&sequence_between, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A sequence write on another place never reaches this root.
+    let other_place = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        function.blocks[0].instructions[2] = instruction(
+            BETWEEN,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 1,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 1,
+                ..access(
+                    BETWEEN,
+                    3,
+                    PlaceId::new(2).unwrap(),
+                    8,
+                    SelectedMemoryAccessRole::WriteByteSequence {
+                        index: ValueId::new(5).unwrap(),
+                        value: ValueId::new(6).unwrap(),
+                        length: ValueId::new(7).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        accepted_fact:
+                            optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+                    },
+                )
+            },
+        );
+    });
+    forward(&other_place, &environment).unwrap();
+    // Materializing the place's own storage address still blocks.
+    let address = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        function.memory_accesses.insert(
+            1,
+            access(
+                BETWEEN,
+                3,
+                place(),
+                8,
+                SelectedMemoryAccessRole::AddressLocal { slot },
+            ),
+        );
+    });
+    assert_eq!(
+        forward(&address, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
 }

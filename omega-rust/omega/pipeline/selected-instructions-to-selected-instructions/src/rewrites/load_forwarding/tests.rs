@@ -76,6 +76,9 @@ const SCRATCH: VirtualRegisterId = VirtualRegisterId(2);
 
 const OUTPUT: VirtualRegisterId = VirtualRegisterId(3);
 
+/// The indexed byte load's runtime index register.
+const INDEX: VirtualRegisterId = VirtualRegisterId(4);
+
 fn place() -> PlaceId {
     PlaceId::new(1).unwrap()
 }
@@ -305,6 +308,81 @@ fn narrowed(target: NativeTarget, byte_size: u8) -> ValidatedStoredLoadForwardin
         function.memory_accesses[0].byte_count = u32::from(byte_size);
         function.memory_accesses[1].byte_count = u32::from(byte_size);
     })
+}
+
+/// Rewrite the fixture's store into the byte-sequence `Store { 0, 1 }`
+/// through a fully computed view address carrying `WriteByteSequence`, and
+/// its load into the indexed byte load `Load8Indexed` carrying
+/// `ReadByteSequence`: both rows name payload base `offset` and runtime
+/// index `index`, so the byte the store writes is the byte the load reads.
+/// The fixture's two roster rows keep their order — the store's first, the
+/// load's second — and the load's extra index operand takes a fresh
+/// parameter register.
+fn sequence_pair(
+    function: &mut SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    offset: u32,
+    index: u64,
+) {
+    let keys = environment.selected_keys();
+    let store = environment.constraint(keys.store.unwrap()).unwrap();
+    let load = environment.constraint(keys.load8_indexed.unwrap()).unwrap();
+    function.virtual_registers.push(VirtualRegister {
+        id: INDEX,
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        class: load.operands[0].class,
+        origin: VirtualRegisterOrigin::EntryParameter {
+            source_value: ValueId::new(9).unwrap(),
+            parameter_index: 1,
+        },
+        definition_site: Some(ValueDefinitionSite::FunctionParameter(1)),
+        entry_fixed_view: None,
+    });
+    for block in &mut function.blocks {
+        for position in 0..block.instructions.len() {
+            if block.instructions[position].id == STORE {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 0,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            } else if block.instructions[position].id == LOAD {
+                let mut rewritten = instruction(
+                    LOAD,
+                    SelectedInstructionKind::Load8Indexed,
+                    load,
+                    &[POINTER, INDEX, OUTPUT],
+                );
+                rewritten.provenance.operations = vec![OperationId::new(2).unwrap()];
+                rewritten.provenance.values = vec![ValueId::new(4).unwrap()];
+                block.instructions[position] = rewritten;
+            }
+        }
+    }
+    let index_value = ValueId::new(index).unwrap();
+    let write = &mut function.memory_accesses[0];
+    write.byte_offset = offset;
+    write.byte_count = 1;
+    write.role = SelectedMemoryAccessRole::WriteByteSequence {
+        index: index_value,
+        value: ValueId::new(6).unwrap(),
+        length: ValueId::new(7).unwrap(),
+        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    };
+    let read = &mut function.memory_accesses[1];
+    read.byte_offset = offset;
+    read.byte_count = 1;
+    read.role = SelectedMemoryAccessRole::ReadByteSequence {
+        index: index_value,
+        length: ValueId::new(7).unwrap(),
+        obligation: semantic_vocabulary::ObligationId::new(2).unwrap(),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([4; 32]),
+    };
 }
 
 /// A plain semantic edge to `block` carrying no transfers; tests mutate its

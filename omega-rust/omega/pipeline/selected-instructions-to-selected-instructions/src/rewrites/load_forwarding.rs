@@ -17,6 +17,16 @@
 //! assumption is needed. The loaded register keeps its identity, origin, and
 //! the read's provenance.
 //!
+//! A `Load8Indexed` reads a dynamic extent instead — the single byte at its
+//! `ReadByteSequence` row's payload base plus the runtime index the row
+//! carries — so only the byte-exact writer sources the forward: a
+//! `Store { 0, 1 }` through a fully computed view address whose
+//! `WriteByteSequence` row names the same payload base and the same index
+//! value. The replacement is `ZeroExtendU8` of the stored register. An
+//! exact or local range cannot contain a runtime-placed byte, and a
+//! sequence write at another offset or index may land on a different byte
+//! entirely, so neither can serve as the source.
+//!
 //! The store and the load need not share a block: when a block's top is
 //! reached without interference, the walk crosses into every predecessor
 //! block, and the block resolves once each predecessor path's last writer
@@ -46,7 +56,10 @@
 //! offset, so its writes and materialized address never block. A
 //! dynamic-extent write reaches only upward from its fixed byte offset, so
 //! one starting at or past the read's end is provably disjoint and walks
-//! past while one starting below it still blocks. Only a
+//! past while one starting below it still blocks — and when the read's own
+//! extent is dynamic, every dynamic-extent row on the place still meets it
+//! while an exact row blocks only once its extent ends past the payload
+//! base. Only a
 //! potentially overlapping write, a dynamic-extent write still able to reach
 //! the read, an escaped
 //! place-storage address, or a call/host effect blocks the pair.
