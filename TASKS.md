@@ -2438,7 +2438,7 @@ Owners include
     installation-bound entry settles the linear acknowledgement and retains
     the nested bounded row, and no satisfier for `complete` can be authored
     while a checked body cannot discharge the linear receiver, so the route
-    now waits on [owner question 10](OWNER_QUESTIONS.md). The rejection is
+    now waits on [owner question 5](OWNER_QUESTIONS.md). The rejection is
     driven from authored source by
     `opaque_boundaries.rs::selected_realization_with_an_unresolved_installation_bound_row_rejects`,
     so losing the fence is a red test whichever route is chosen. The
