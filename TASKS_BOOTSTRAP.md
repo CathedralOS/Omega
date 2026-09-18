@@ -405,46 +405,38 @@ prerequisite to every lower-rung milestone.
 - **CHAIN-MANIFEST.** In shared `tools/bootstrap/` orchestration and edge-owned
   records, bind each exact source closure, artifact, semantics version,
   observation/resource profile, independently reconstructed obligation,
-  certificate, and disclosed admission. Acceptance: a reviewer can follow
-  every dependency back to the audited root without treating a digest,
-  successful execution, or producer assertion as a proof.
-  Bound so far: the audited Alpha seed container identity in
-  `tools/bootstrap/alpha/seed_env.sh` (every stamp refuses a non-audited
-  container), the Alpha-to-Beta edge source/tape identity in
-  `tools/bootstrap/beta/artifact_env.sh`, the selected Gamma evaluator
-  source/tape identity in `tools/bootstrap/gamma/evaluator_env.sh`, the Delta
-  request entry, source manifest, ordered support-member manifest and packed
-  support section, `GammaComposedV2` record, and repacked
-  canonical closure in `tools/bootstrap/delta/compiler_env.sh` (which also
-  checks the record names the selected evaluator, packed closure, and packed
-  support section, and binds the staged-compiler gate's
-  `development_driver.gamma` diagnostic entry), the
-  Epsilon evaluator manifest and repacked closure, the canonical slice
-  driver `execution_driver.delta`, and the reconstructed evaluator receipt
-  obligation in
-  `tools/bootstrap/epsilon/evaluator_env.sh`, the Epsilon-written Omega D
-  manifest and repacked closure in `tools/bootstrap/omega/compiler_env.sh`,
-  and the derivation-checker and Beta-encoding theory manifests and repacked
-  member closures in `tools/bootstrap/proofs/sources_env.sh`; checked by
-  `tests/bootstrap/{alpha,beta,gamma,delta,epsilon,omega,proofs}-identity.sh`
-  (identity and refusal coverage for every bound subject — seed container,
-  flat-edge source and tape, entry, manifest, member, composed record,
-  driver, and receipt — plus cross-pin agreement for every repository
-  record of a bound subject: gate pins, rung READMEs, edge profiles,
-  owner records, the Beta language subject table, the proofs subject
-  statements, and `execution_storage.md`; the sweep already corrected one
-  stale packed-development record in `tests/delta/staged-compiler/README.md`
-  — without executing the rungs; seed execution
-  needs macOS arm64 or Windows x64). Every test gate consuming a canonical
-  closure now reaches it through the bound materializers or their
-  `require_*_identity` checks; only gate-local diagnostic closures and
-  per-gate prefix entries still pack on top of the bound member bytes (the
-  shared slice driver and the registered staged-compiler development entry
-  are bound; the remaining unbound prefixes are the other gate-local drivers
-  and D's gate-local entries).
-  Next: bind D's OCREQ request
-  entry, the omega0/omega compiler tapes, and the eventual certificate and
-  disclosed admission records the same way as those artifacts land.
+  certificate, and disclosed admission. Every edge through Omega D binds
+  today: `require_bound_identity` (`tools/bootstrap/alpha/seed_env.sh`) checks
+  a subject's exact size and digest against the audit record that states them,
+  each edge's `*_env.sh` wraps it per subject — seed container, flat-edge
+  source and tape, request entry, manifests, members, composed record, driver,
+  receipt — and every test gate consuming a canonical closure reaches it
+  through those materializers. The `tests/bootstrap/*-identity.sh` gates cover
+  identity, refusal, and agreement with every other repository record that
+  pins a bound subject. These are byte identities, not evidence that a rung
+  ran: the gates bind without executing, and seed execution needs macOS arm64
+  or Windows x64, the only two audited seed containers in `bootstrap/0_alpha/`.
+
+  Remaining work:
+
+  - D's OCREQ request entry, still framed per gate rather than bound.
+  - The gate-local prefixes packed on top of bound member bytes: every
+    gate-local driver except the shared Epsilon slice driver, and D's
+    gate-local entries.
+  - The `omega0` and `omega` compiler tapes, which **OMEGA-C** has yet to
+    produce.
+  - The certificates and disclosed admission records, as the edges producing
+    them land. Bind each on arrival; a subject bound after the fact cannot
+    show that the artifact a gate consumed was the audited one.
+
+  Acceptance: a reviewer can follow every dependency back to the audited root
+  without treating a digest, a successful execution, or a producer assertion as
+  a proof. Each binding names the exact customer that requires it, per the
+  [retention test](bootstrap/MINIMIZATION.md#retention-test); this orchestration
+  is permanent host tooling inside the audited surface, so added plumbing
+  counts against the same budget it protects.
+
+  **OFFLINE-REBUILD** owns reconstruction of the whole chain on a blank host.
 
 - **OFFLINE-REBUILD.** Close `tests/bootstrap/` reconstruction across all
   completed edges. Acceptance: a blank supported host reconstructs and checks
