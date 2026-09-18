@@ -672,66 +672,42 @@ an implementation shortcut.
 
 ## Process-exit contract
 
-Implement the [canonical process-exit contract](wiki/spec/language/process_exit.md)
-for CLI programs that deliberately exit, including conditional exits through
-helpers. Core must declare the exact `ProcessExit::exit_process(i32)` requirement
-and separate its authority/reach from console I/O. Psi owns canonical recognition,
-checking, conditional control and ownership, Terminal completion, codec,
-independent verification, observation, and interpreter support. Omega owns
-provider conformance and realization; targets supply domain-bound authority and
-physical exit under the same contract. Preserve the current trace distinction;
-do not infer terminal meaning from the transitional Unit call or a native syscall.
+Finish the [canonical process-exit contract](wiki/spec/language/process_exit.md)
+through Terminal Psi and source-free verification. Core/std declarations, exact
+canonical recognition in the checked interpreter, and selected hosted exit
+realization already exist. They do not establish the portable contract:
+`terminal_module/control_flow/termination.rs` has no external-completion
+terminator, and the Terminal trace codec admits only an empty terminal-external
+group.
 
-Acceptance: source-produced unconditional and conditional exit cases retain
-exact requirement/argument identity through canonical replay and target
-realization. Returning branches retain cleanup and postconditions; exit branches
-abandon without discharge receipts. Reject missing authority/reach, lookalike
-requirements, returning or aborting substitutes, unmet progress premises, exit
-from automatic cleanup, and unsupported survivor contracts. Root return cannot
-hide unfinished task custody. The interpreter ends only its simulated domain;
-native tests on each available host preserve status mapping and ordered output,
-with unavailable-host coverage explicit. Tampered identity, arguments, completion
-rows, or provider evidence reject independently. General completion syntax and
-other terminal services are not prerequisites.
+Remaining work:
 
-  Landed: `ProcessExit::exit_process(i32)` is declared in core/std with
-  per-target `process_exit_impl` providers and recognized as a canonical
-  requirement bound through selected-dispatch hosted custody — the interpreter
-  ends its simulated domain with the exact status and drained trace, and native
-  realization settles `HostedExitProcessI32` rows under `SelectedProcessExit`
-  custody (`tests/omega/pass/host/process_exit_i32_status{,_ordered}`,
-  macOS arm64 native run exits 70 with byte-ordered console output; Windows
-  provider declared, host execution unavailable). Status mapping is witnessed
-  by `process_exit_i32_status_mapped`: semantic statuses outside the host's
-  8-bit presentation (-44 taken, 300 untaken) stay exact through the checked
-  interpreter and each branch's `SelectedProcessExit` custody, while the
-  macOS arm64 physical run presents the low byte (212). At c2a47182f6 the
-  ordinary CLI review proposes the root consumer's `Console::exit_process`
-  `terminal_permission` row (`process_termination`) as one blocking
-  decision (`review/candidate/semantic_bindings.rs`, root-only because
-  every package's open permissions propagate into one root policy);
-  accepting it publishes a lock whose accepted policy carries the row, so
-  `omega --target macos_arm64` on a downstream application now stops only
-  at the empty CLI receiving policy ("omits the accepted permission"),
-  which is TWO-AXIS-TERMINAL-AUTHORITY-REVIEW's misplaced production gate
-  (`PreparedLocalProjectNativeRequest::with_receiving_terminal_authority_permission_policy`
-  has no caller under `omega-rust/omega/src`) rather than test-owned
-  acceptance (`package_commands console_exit_permission`,
-  `tests/fixtures/packages/console-exit-app`). At 30fbd45660 the same
-  discovery also proposes the `write_byte` (`process_output`) and
-  `read_byte` (`process_input`) rows the nominated Console provider
-  declares as compiler-intrinsic leaves, one blocking root-only decision
-  each at the selected provider's declared-row granularity (package review
-  carries service-level reach; final closure admission owns
-  demand-completeness): a provider declaring only the exit leaf proposes no
-  byte row (`review::candidate::compilation::tests::discovery_proposes_*`,
-  1 against 3 rows), and console-exit-app now writes a line, accepts 3 rows
-  into the lock and stops at the empty receiving policy for all three
-  (4121d83206). Remove that mandatory gate from ordinary compilation;
-  explicit ecosystem admission still checks its independent policy. No new
-  policy-selection surface is required. Open: the production/admission split,
-  remaining hosts' physical runs, root-return/task-custody survivor
-  contracts, and general completion syntax.
+- Psi checking/lowering must retain the exact canonical requirement, bound-domain
+  authority, status argument and no-normal-successor outcome. Carry that through
+  Terminal representation, codec, independent verifier, observations and
+  interpreter. Do not encode successful exit as an ordinary Unit call, crash, or
+  provider-name convention.
+- Model conditional helper exits compositionally: returning paths retain results,
+  cleanup and postconditions; exit paths abandon in-domain obligations without
+  discharge receipts or a post-exit frontier. Automatic cleanup must return.
+  Root return must settle/transfer task custody, and survivor crossing contracts
+  must account for domain death without inventing a whole-process resource census.
+- Preserve exact `i32` semantic status and ordered output through provider
+  conformance and native realization. Reuse `SelectedProcessExit` custody and the
+  canonical host canaries; the current hosted-exit target support excludes Windows.
+  Complete and exercise the missing supported-host realization.
+
+Acceptance: source-produced unconditional and conditional/helper exits replay
+independently after serialization. Tampered identities, arguments, completion or
+provider evidence reject. Cover missing authority/reach, lookalike requirements,
+returning/aborting substitutes, missing progress premises, cleanup exits and
+unsupported survivor contracts. Interpreter exit ends only its simulated domain;
+native tests record each available host's status mapping and preceding output.
+Report unavailable hosts, not a cross-target emission as a runtime pass.
+
+The ordinary-production/receiver-admission split is already implemented; further
+receiver work stays in `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`. General completion
+syntax and other terminal services are not prerequisites.
 
 ## P1 - Authority, roots, and entry
 
