@@ -777,3 +777,283 @@ fn place_member_resolution_rejects_an_absent_case_qualification() {
         Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
     ));
 }
+
+/// `values[0..2][i].item.scheduler` crosses a fixed window before the indexed
+/// leaf: the range hop yields a slice over the same element, so the following
+/// index hop resumes at `Box<Context>` and `item`'s declared `T` still lands
+/// on `Context`. A range that dropped the position would leave `scheduler`
+/// unprovable even though every hop is exact.
+fn ranged_indexed_generic_leaf_fixture() -> (
+    typed_trees::TypedTrees,
+    TableMemberExpression,
+    TableMemberExpression,
+    ExpressionHandle,
+    SymbolHandle,
+    usize,
+) {
+    let source = r#"
+        data Main {}
+        machine Main::run(&mut self) {}
+        pub data SchedulerHandle [copy] {}
+        pub data Context { scheduler: SchedulerHandle; }
+        pub data Box<T> { item: T; }
+        machine hold(values: &[Box<Context>]) {
+            let i: u64 = 1;
+            let s: SchedulerHandle = values[0..2][i].item.scheduler;
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let members: Vec<TableMemberExpression> = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, node)| match node {
+            ExpressionNode::Member(member) => Some(member.clone()),
+            _ => None,
+        })
+        .collect();
+    let item = members
+        .iter()
+        .find(|member| member.member.as_str() == "item")
+        .expect("values[0..2][i].item member expression")
+        .clone();
+    let scheduler = members
+        .iter()
+        .find(|member| member.member.as_str() == "scheduler")
+        .expect("values[0..2][i].item.scheduler member expression")
+        .clone();
+    let scheduler_handle = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            (member.member.as_str() == "scheduler").then_some(handle)
+        })
+        .expect("scheduler member handle");
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "hold")
+        .expect("hold machine");
+    let state_symbol = program.machine_states(machine)[0].symbol;
+    let statement_index = {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "hold")
+            .expect("hold machine");
+        let state = &program.machine_states(machine)[0];
+        member_statement_index(&program, state, scheduler_handle)
+    };
+    (
+        program,
+        item,
+        scheduler,
+        scheduler_handle,
+        state_symbol,
+        statement_index,
+    )
+}
+
+#[test]
+fn member_resolution_replays_a_ranged_indexed_leaf() {
+    let (program, _, scheduler, ..) = ranged_indexed_generic_leaf_fixture();
+    // The expression route answers from types alone: `values[0..2]` is a
+    // window over `Box<Context>`, `[i]` names one element, and `item`'s
+    // declared `T` resumes at the bound `Context` argument.
+    assert_eq!(
+        effective_member_symbol(&program, scheduler.receiver, &scheduler),
+        declared_field(&program, "Context", "scheduler")
+    );
+    assert_eq!(
+        super::expression_type_symbol(&program, scheduler.receiver),
+        Some(declared_data_symbol(&program, "Context"))
+    );
+}
+
+#[test]
+fn place_member_resolution_replays_a_ranged_indexed_leaf() {
+    let (mut program, _item, scheduler, scheduler_handle, state_symbol, statement_index) =
+        ranged_indexed_generic_leaf_fixture();
+    let item_symbol = declared_field(&program, "Box", "item");
+    let scheduler_symbol = declared_field(&program, "Context", "scheduler");
+
+    // Strip the receiver chain's retained symbols so only the contextual
+    // place walk can name either member.
+    strip_receiver_symbols(&mut program, scheduler.receiver);
+    let ExpressionNode::Member(item_member) =
+        program.expression_table.expression(scheduler.receiver)
+    else {
+        unreachable!();
+    };
+    assert!(
+        !effective_member_symbol(&program, item_member.receiver, item_member).is_valid(),
+        "the stripped receiver must leave the expression route unanswered"
+    );
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        scheduler_handle,
+    )
+    .expect("a parameter-rooted ranged member place resolves");
+    let ExpressionNode::Indexed(inner) = program.expression_table.expression(item_member.receiver)
+    else {
+        unreachable!();
+    };
+    assert_eq!(
+        place.segments,
+        [
+            facts::PlaceSegment::FixedRange { start: 0, end: 2 },
+            facts::PlaceSegment::Index {
+                expression: inner.index
+            },
+            facts::PlaceSegment::Field {
+                symbol: item_symbol
+            },
+            facts::PlaceSegment::Field {
+                symbol: scheduler_symbol
+            },
+        ]
+    );
+}
+
+#[test]
+fn place_member_resolution_across_a_range_still_requires_a_declared_member() {
+    let (mut program, _, scheduler, scheduler_handle, state_symbol, statement_index) =
+        ranged_indexed_generic_leaf_fixture();
+    strip_receiver_symbols(&mut program, scheduler.receiver);
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(scheduler_handle)
+    else {
+        unreachable!();
+    };
+    member.member = Identifier::generated("missing");
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        scheduler_handle,
+    )
+    .expect("the place walk still builds");
+    // The range hop replays onto `Context`, which has no `missing` member:
+    // the demanded field stays unresolved rather than minting the window's
+    // element for it.
+    assert!(matches!(
+        place.segments.last(),
+        Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
+    ));
+}
+
+#[test]
+fn ranged_window_members_do_not_borrow_the_elements_fields() {
+    let (mut program, item, ..) = ranged_indexed_generic_leaf_fixture();
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(item.receiver)
+    else {
+        unreachable!();
+    };
+    // `values[0..2]` — the window expression itself. A member demanded
+    // directly on it names a field of the slice, which declares none: the
+    // window must not borrow `Box<Context>`'s `item`.
+    let window = indexed.collection;
+    strip_receiver_symbols(&mut program, window);
+    let mut member = item.clone();
+    member.member = Identifier::generated("item");
+    member.member_symbol = SymbolHandle::invalid();
+    member.receiver = window;
+    let member_handle = program
+        .expression_table
+        .insert(ExpressionNode::Member(member));
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "hold")
+        .expect("hold machine");
+    let state = &program.machine_states(machine)[0];
+    let statement_index = member_statement_index(&program, state, item.receiver);
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state.symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("the place walk still builds");
+    assert_eq!(
+        place.segments,
+        [
+            facts::PlaceSegment::FixedRange { start: 0, end: 2 },
+            facts::PlaceSegment::Field {
+                symbol: SymbolHandle::invalid()
+            },
+        ]
+    );
+}
+
+/// An atomic leaf's position is its operand's position: the checked
+/// interpreter evaluates `atomic.value`, and `expression_type_reference_
+/// in_state` maps the node the same way, so a member resolved against an
+/// atomic receiver stands on the operand's declared type.
+#[test]
+fn atomic_expression_position_is_its_operand_position() {
+    let source = r#"
+        data Main {}
+        machine Main::run(&mut self) {}
+        pub data SchedulerHandle [copy] {}
+        pub data Context { scheduler: SchedulerHandle; }
+        machine hold(context: Context) {
+            let s: SchedulerHandle = context.scheduler;
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let mut program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let context = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Name(path) = node else {
+                return None;
+            };
+            (program.expression_table.display_name(handle) == "context"
+                && program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1)
+                .then_some(handle)
+        })
+        .expect("the context name expression");
+    let atomic = program.expression_table.insert(ExpressionNode::Atomic(
+        typed_trees::expression::TableAtomicExpression {
+            value: context,
+            result: ExpressionHandle::invalid(),
+            ordering: language_core::atomic::AtomicOrderingPlan::Load(
+                language_core::atomic::MemoryOrdering::NoOrdering,
+            ),
+            result_custody: language_core::atomic::AtomicExpressionResultCustody::Scalar,
+        },
+    ));
+    assert_eq!(
+        super::expression_type_symbol(&program, atomic),
+        Some(declared_data_symbol(&program, "Context"))
+    );
+}

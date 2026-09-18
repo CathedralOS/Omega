@@ -62,6 +62,11 @@ pub(crate) fn canonical_place_type_reference(
         let result = super::super::calls::call_target_return_type(program, call.target_symbol)?;
         return project_type_reference_from_segments(program, result, &place.segments);
     }
+    // A type-reference root names the place's own stored type: its declared
+    // type is that reference replayed through the retained segments.
+    if let facts::PlaceRoot::TypeReference(reference) = place.root {
+        return project_type_reference_from_segments(program, reference, &place.segments);
+    }
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -126,6 +131,17 @@ pub(crate) fn project_type_reference_from_segments(
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     project_type_reference_from_segment_iter(program, current, segments)
+}
+
+/// The element type a collection reference projects at an index hop — the
+/// same element a half-open window shares with its collection, so
+/// `&[Box<Context>]` resumes at `Box<Context>`. A reference with no element
+/// (a record, a scalar, an unbound parameter) has none to resume at.
+pub(crate) fn collection_element_type_reference(
+    program: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    indexed_element_type_reference(program, type_reference, &[])
 }
 
 fn project_type_reference_from_segment_iter<'segment>(

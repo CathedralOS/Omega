@@ -23,8 +23,8 @@ use moves::{
     initializer_produces_owned_value,
 };
 pub(crate) use place_types::{
-    canonical_place_type_reference, expression_type_reference_in_state,
-    project_type_reference_from_segments,
+    canonical_place_type_reference, collection_element_type_reference,
+    expression_type_reference_in_state, project_type_reference_from_segments,
 };
 use type_references::type_requires_ownership;
 
