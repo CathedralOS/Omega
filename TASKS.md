@@ -3510,8 +3510,28 @@ Owners include
   6fd003a9bb (Linux x86_64): a linear `BorrowedMapping` carrier plus
   three new fail canaries. The source-spelled obligation surface
   landed at e02ab0990f: authored install/release obligation sets now
-  ride on the translation carriers. Next surface: a Cathedral package
-  carrying real page-table installation.
+  ride on the translation carriers. That surface landed at 61ace15fe1:
+  `cathedral/` in the same fixture carries a fully backed four-level
+  hierarchy (`tables.omg`: `Table` over `Extent in Granted`, raw `TableEntry`
+  encode routes, and `level_index`'s 9-bit per-level walk), the install and
+  remove routes (`installer.omg`), and the three irreducible hardware
+  crossings as boundary requirements (`hardware.omg`: entry store, root
+  activation, leaf invalidation), driven end to end by
+  `cathedral_install_and_teardown` against the pending carrier's recorded
+  geometry.
+
+  Next edges, named by the package's own sources rather than inferred.
+  (1) Multi-page installation: `install` writes one entry per level for a
+  single virtual base and activates the root, and `remove` clears exactly
+  that one leaf slot, so both cover only the mapping's first page; iterating
+  the leaf write and clear across the mapped length reuses `level_index` and
+  `TableEntry::terminal` and needs no new vocabulary. (2) Demand-grown
+  intermediate tables: minting a level when a walk meets an empty slot needs
+  the same split/conservation surface the bump allocator's package uses, so
+  it inherits that item's open questions. Reading an entry back is
+  deliberately absent and stays so -- interpreting stored table memory is the
+  undeclared placed-access surface -- which is why the hardware edges remain
+  boundary requirements.
 
 - **EXCEPTION-ROOTS-AND-TIMER.** Materialize all fatal exception entries,
   dedicated critical stacks, IDT installation, and a minimal timer root whose
