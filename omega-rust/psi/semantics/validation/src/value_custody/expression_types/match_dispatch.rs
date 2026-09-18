@@ -477,6 +477,13 @@ fn projected_plain_owned_source(
 /// and case-bearing referents keep their separate rejections: the former has
 /// affine custody of its own, and the latter is outside the record-shaped
 /// frontier the structural pipeline carries.
+///
+/// A primitive referent is admitted on the same terms. `&u64` denotes the
+/// original storage exactly as `&Payload` does -- "a small referent or register
+/// ABI does not authorize passing a snapshot" -- so the join observes a place
+/// whose width happens to be scalar, and there is still no owned custody to
+/// merge. It has no data declaration for the record rule to resolve, which is a
+/// fact about where its shape is declared, not about what this gate checks.
 fn selected_shared_borrow_place(
     program: &TypedTrees,
     machine: &Machine,
@@ -506,6 +513,12 @@ fn selected_shared_borrow_place(
     };
     if !crate::has_linear_owned_contents(program, referent) {
         return false;
+    }
+    // A primitive referent carries no declaration to resolve. The structural
+    // pipeline builds its carrier from the primitive itself, so requiring a
+    // data definition here would reject the place for the wrong reason.
+    if program.primitive_type_reference(referent).is_some() {
+        return true;
     }
     let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(referent)

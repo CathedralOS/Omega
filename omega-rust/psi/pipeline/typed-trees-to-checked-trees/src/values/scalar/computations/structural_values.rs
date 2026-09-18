@@ -36,25 +36,37 @@ pub(super) fn is_record_value(
     // A `&T` selection result plans its borrowed arms against the referent
     // record; owned results keep their own carrier.
     let reference = shared_referent.unwrap_or(reference);
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return false;
-    };
-    let Some(record) = program
-        .data_definitions()
-        .iter()
-        .find(|record| record.symbol == *symbol)
-    else {
-        return false;
-    };
-    if program
-        .data_members(record)
-        .iter()
-        .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
-    {
-        return false;
+    // A primitive referent declares no record to resolve, so there is no field
+    // roster to check and no constructor arm it could ever admit: its only
+    // admitted arm is the shared borrow of an exact place checked below. The
+    // invalid record symbol makes that explicit rather than implied -- no
+    // authored `StructLiteral` can carry it.
+    let primitive_referent =
+        shared_referent.is_some() && program.primitive_type_reference(reference).is_some();
+    let mut record_symbol = SymbolHandle::invalid();
+    if !primitive_referent {
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(reference)
+        else {
+            return false;
+        };
+        let Some(record) = program
+            .data_definitions()
+            .iter()
+            .find(|record| record.symbol == *symbol)
+        else {
+            return false;
+        };
+        if program
+            .data_members(record)
+            .iter()
+            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+        {
+            return false;
+        }
+        record_symbol = *symbol;
     }
+    let symbol = &record_symbol;
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
         match program.expression_table.expression(expression) {
@@ -118,12 +130,17 @@ pub(super) fn is_record_value(
     true
 }
 
-/// The record referent of a shared-borrow result type (`&T` where `T` is a
-/// named record the structural pipeline can carry). `None` for owned results
-/// and for borrows the structural pipeline cannot carry. The carrier rule is
-/// linear-tolerant: a shared borrow observes the referent without moving it,
-/// so a linear declaration's claim never reaches this join and the referent's
-/// own owner keeps the whole discharge obligation.
+/// The referent of a shared-borrow result type (`&T` where `T` is a named
+/// record, or a primitive, that the structural pipeline can carry). `None` for
+/// owned results and for borrows the structural pipeline cannot carry. The
+/// carrier rule is linear-tolerant: a shared borrow observes the referent
+/// without moving it, so a linear declaration's claim never reaches this join
+/// and the referent's own owner keeps the whole discharge obligation.
+///
+/// A primitive referent resolves to no data declaration, so the record rule
+/// cannot name its shape. `add_type` registers it as a `PrimitiveScalar`
+/// structural carrier exactly as it does for a borrowed primitive elsewhere,
+/// and the borrow still denotes the original storage rather than a snapshot.
 fn shared_record_reference(
     program: &TypedTrees,
     expected: TypeReferenceHandle,
@@ -138,6 +155,9 @@ fn shared_record_reference(
         || !validation::has_linear_owned_contents(program, *referee)
     {
         return None;
+    }
+    if program.primitive_type_reference(*referee).is_some() {
+        return Some(*referee);
     }
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(*referee)
@@ -571,8 +591,10 @@ impl Builder<'_, '_> {
     /// canonical root and path become a `SharedBorrow` source so lowering can
     /// rejoin borrowed custody at the selection's block parameter instead of
     /// moving a child. `shared_record_reference` pins the referent to a
-    /// plain-owned record, and the target must be the exact place semantics
-    /// admitted: its projected leaf type has to equal the declared referent.
+    /// carrier the pipeline can build -- a record, or a primitive whose
+    /// structural shape is its own scalar -- and the target must be the exact
+    /// place semantics admitted: its projected leaf type has to equal the
+    /// declared referent.
     fn borrowed_place(
         &mut self,
         expression: ExpressionHandle,

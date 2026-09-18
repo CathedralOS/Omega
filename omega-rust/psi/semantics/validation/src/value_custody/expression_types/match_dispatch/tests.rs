@@ -103,6 +103,70 @@ fn shared_borrow_arms_join_a_linear_referent_without_an_owned_custody_join() {
     }
 }
 
+/// A primitive referent joins on exactly the shared-borrow terms a record one
+/// does. `&u64` denotes the original storage, so the selection still merges no
+/// owned custody; the only thing it lacked was a carrier, and the structural
+/// pipeline builds that from the primitive itself. Whole places and exact
+/// field projections are the same admission here as for a record referent.
+#[test]
+fn shared_borrow_arms_join_a_primitive_referent_without_a_data_declaration() {
+    for (label, source) in [
+        (
+            "projected primitive fields",
+            "data Payload { left: u64; right: u64; }
+             machine choose(other: bool) -> u64 {
+                 let a: Payload = Payload { left: 1, right: 2 };
+                 let b: Payload = Payload { left: 3, right: 4 };
+                 let view: &u64 = match other { true -> &a.left, false -> &b.right };
+                 0
+             }",
+        ),
+        (
+            "whole primitive state parameters",
+            "machine choose(other: bool, first: u64, second: u64) -> u64 {
+                 let view: &u64 = match other { true -> &first, false -> &second };
+                 0
+             }",
+        ),
+    ] {
+        let messages = choose_dispatch_diagnostics(source);
+        assert!(
+            messages.is_empty(),
+            "{label}: a shared borrow of a primitive referent joins without an owned custody join: {messages:?}",
+        );
+    }
+}
+
+/// The primitive admission is about the referent's declaration, not about the
+/// authored target's shape. A fixed-index element is still not a direct place
+/// path, so it never becomes a canonical root and path and keeps rejecting
+/// here rather than reaching a planner that cannot carry it.
+#[test]
+fn shared_borrow_arms_reject_a_fixed_index_place_the_planner_cannot_carry() {
+    let source = "data Payload { left: u64; right: u64; }
+         data Holder { items: [Payload; 2]; }
+         machine choose(other: bool) -> u64 {
+             let x: Holder = Holder {
+                 items: [Payload { left: 1, right: 2 }, Payload { left: 3, right: 4 }]
+             };
+             let y: Holder = Holder {
+                 items: [Payload { left: 5, right: 6 }, Payload { left: 7, right: 8 }]
+             };
+             let view: &Payload = match other {
+                 true -> &x.items[0],
+                 false -> &y.items[1]
+             };
+             view.left ^ view.right
+         }";
+    let messages = choose_dispatch_diagnostics(source);
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains(CUSTODY_JOIN_REJECTION)),
+        "a fixed-index target must reject by naming the missing join: {messages:?}",
+    );
+}
+
 /// The admitted carrier is still the record shape the structural pipeline
 /// carries. A referent holding a loan is not that shape: the join would have
 /// to name a borrowed leaf's own lifetime, which this gate cannot prove.

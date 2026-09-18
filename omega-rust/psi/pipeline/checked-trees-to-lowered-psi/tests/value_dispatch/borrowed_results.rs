@@ -151,6 +151,146 @@ fn checked_borrowed_selection(
     (lent, planned)
 }
 
+/// A `&u64` result: the referent is a primitive, so it has no data
+/// declaration for the record referent rule to resolve. The view is left
+/// unread because no source spelling reads through a borrowed primitive local.
+const PRIMITIVE_REFERENT_SOURCE: &str = "data Payload { left: u64; right: u64; }
+    machine choose(other: bool) -> u64 {
+        let a: Payload = Payload { left: 1, right: 2 };
+        let b: Payload = Payload { left: 3, right: 4 };
+        let view: &u64 = match other { true -> &a.left, false -> &b.right };
+        0
+    }";
+
+/// The already-admitted record referent under the same unread view. Comparing
+/// against this separates a primitive-specific gap from a consumer-shape gap.
+const RECORD_UNREAD_SOURCE: &str = "data Payload { left: u64; right: u64; }
+    data Pair { first: Payload; second: Payload; }
+    machine choose(other: bool) -> u64 {
+        let x: Pair = Pair {
+            first: Payload { left: 1, right: 2 },
+            second: Payload { left: 3, right: 4 }
+        };
+        let b: Pair = Pair {
+            first: Payload { left: 9, right: 10 },
+            second: Payload { left: 11, right: 12 }
+        };
+        let view: &Payload = match other { true -> &x.first, false -> &b.second };
+        0
+    }";
+
+/// Passing the join result to a call is the only consumer a borrowed primitive
+/// local could ever have, so the record referent is asked the same question.
+const PRIMITIVE_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
+    machine read(value: &u64) -> u64 { value }
+    machine choose(other: bool) -> u64 {
+        let a: Payload = Payload { left: 1, right: 2 };
+        let b: Payload = Payload { left: 3, right: 4 };
+        let view: &u64 = match other { true -> &a.left, false -> &b.right };
+        read(view)
+    }";
+
+const RECORD_CALL_SOURCE: &str = "data Payload { left: u64; right: u64; }
+    machine read(value: &Payload) -> u64 { value.left ^ value.right }
+    machine choose(other: bool) -> u64 {
+        let a: Payload = Payload { left: 1, right: 2 };
+        let b: Payload = Payload { left: 3, right: 4 };
+        let view: &Payload = match other { true -> &a, false -> &b };
+        read(view)
+    }";
+
+/// Each planned `SharedBorrow` arm as (root local name, its authored field
+/// path joined by `.`), sorted, beside the machine's lowering outcome: `None`
+/// when it lowers, otherwise the exact rejection. A whole-place borrow such as
+/// `&a` carries no segments and reports an empty path.
+fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) {
+    let checked =
+        check_source(source).unwrap_or_else(|errors| panic!("source checks: {errors:#?}"));
+    let mut arms: Vec<(String, String)> = borrowed_arms(&checked)
+        .iter()
+        .map(|arm| {
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+                arm.source
+            else {
+                panic!("borrowed arm roots at an exact local: {arm:?}");
+            };
+            let path = arm
+                .path
+                .iter()
+                .map(|segment| match segment {
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(field) => field.clone(),
+                    other => panic!("borrowed arm keeps only authored field segments: {other:?}"),
+                })
+                .collect::<Vec<_>>()
+                .join(".");
+            (checked.typed.symbols.name(symbol).to_owned(), path)
+        })
+        .collect();
+    arms.sort();
+    let lowering = match checked_trees_to_lowered_psi::lower_machine(&checked, "choose") {
+        Ok(_) => None,
+        Err(error) => Some(format!("{error:?}")),
+    };
+    (arms, lowering)
+}
+
+/// The checked arm planner builds a carrier for a primitive referent. It
+/// previously built none at all: `shared_record_reference` resolved the
+/// referent through its data declaration, and `u64` has none, so a `&u64`
+/// selection produced zero `SharedBorrow` argument plans against two for a
+/// record. Both arms now keep their authored root and field, which is what the
+/// lowering replay and the terminal verifier each re-derive independently.
+///
+/// Lowering still stops, and not at the carrier: the record referent with the
+/// same unread view stops at the identical diagnostic. That parity is the
+/// point of this assertion — the remaining gap belongs to the consumer shape,
+/// not to the primitive.
+#[test]
+fn borrowed_selection_plans_a_primitive_referent_carrier() {
+    let (arms, lowering) = planned_borrow_arms(PRIMITIVE_REFERENT_SOURCE);
+    assert_eq!(
+        arms,
+        vec![
+            ("a".to_owned(), "left".to_owned()),
+            ("b".to_owned(), "right".to_owned()),
+        ],
+        "each primitive arm keeps its authored root and field"
+    );
+    let (record_arms, record_lowering) = planned_borrow_arms(RECORD_UNREAD_SOURCE);
+    assert_eq!(record_arms.len(), 2, "the record control plans both arms");
+    assert_eq!(
+        lowering, record_lowering,
+        "a primitive referent stops exactly where an admitted record referent does"
+    );
+    assert_eq!(
+        lowering.as_deref(),
+        Some(r#"Unsupported("structural local carried a borrow event with no recorded loan")"#),
+        "an unread view has no loan to replay, for either referent"
+    );
+}
+
+/// The one record shape that lowers end to end reads its view with a member
+/// access, and a borrowed primitive local has no such spelling:
+/// `primitive_reference_read` admits only state parameters. A call is
+/// therefore the only consumer `&u64` could have, and it is not supported for
+/// the admitted record referent either. Closing it serves both referents; this
+/// pins that it is one gap rather than two.
+#[test]
+fn borrowed_selection_call_consumers_reject_for_every_referent() {
+    let (primitive_arms, primitive_lowering) = planned_borrow_arms(PRIMITIVE_CALL_SOURCE);
+    let (record_arms, record_lowering) = planned_borrow_arms(RECORD_CALL_SOURCE);
+    assert_eq!(primitive_arms.len(), 2);
+    assert_eq!(record_arms.len(), 2);
+    assert_eq!(
+        primitive_lowering, record_lowering,
+        "a call consumer rejects identically for both referents"
+    );
+    assert_eq!(
+        primitive_lowering.as_deref(),
+        Some(r#"Unsupported("machine has no source-independent checked scalar control plan")"#),
+    );
+}
+
 #[test]
 fn borrowed_selection_rejoins_each_arms_exact_source() {
     let checked = check_source(CHAINED_SOURCE).expect("borrowed chained selection checks");
