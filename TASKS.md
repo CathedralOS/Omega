@@ -3894,13 +3894,20 @@ Owners include
   generic no longer panic ("arena span append must be contiguous"):
   `lowering/type_reference.rs` and `lowering/domain.rs` lower every argument or
   constraint before placing it, so each span reaches the arena as one
-  contiguous run (`tests/generic_range_arguments.rs`, macOS ARM64). One defect
-  remains a stage earlier: `tokens-to-syntax-trees` appends each generic
-  argument handle to the shared table as it parses, so a nested application's
-  arguments interleave with the enclosing list and the authored spans overlap
-  (`Pair<u64[0..=3], Pair<u64[0..=7], u64[0..=15]>>` hands the outer
-  application the nested shell as its second argument). Collect the argument
-  handles and insert the span once, as the domain argument pack already does.
+  contiguous run (`tests/generic_range_arguments.rs`, macOS ARM64). The
+  parser-stage defect recorded beside it is closed: `tokens-to-syntax-trees`
+  no longer appends generic argument or bracket constraint handles one at a
+  time. `type_syntax/parse_type.rs` collects each run and inserts the span
+  once, so a nested application's arguments stop interleaving with the
+  enclosing list (`Pair<u64[0..=3], Pair<u64[0..=7], u64[0..=15]>>` handed the
+  outer application the nested application's first argument as its own
+  second). Pinned in `type_syntax/nested_application_tests.rs` by
+  `a_nested_application_keeps_the_enclosing_applications_authored_arguments`
+  and `a_nested_applications_argument_span_is_disjoint_from_the_enclosing_span`,
+  and downstream by
+  `generic_range_arguments::a_nested_application_argument_keeps_its_own_arguments`
+  (macOS ARM64). No append-as-you-go type-reference or constraint span remains
+  in that parser.
   Record and case-payload endpoint calls resolve in
   their declaration scope before folding; local bounded record construction and
   field reads retain range obligations through canonical Terminal execution.

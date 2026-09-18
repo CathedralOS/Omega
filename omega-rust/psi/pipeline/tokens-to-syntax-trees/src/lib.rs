@@ -92,6 +92,8 @@ mod parameters {
 }
 
 mod type_syntax {
+    #[cfg(test)]
+    mod nested_application_tests;
     pub(crate) mod parse_type;
     pub(crate) mod properties;
     #[cfg(test)]

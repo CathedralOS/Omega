@@ -11,7 +11,7 @@ use crate::expressions::parse_expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
 };
 use crate::input::token_cursor::{Input, ParseResult};
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode};
 use syntax_trees::identifier::Identifier;
@@ -184,13 +184,18 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     let mut type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;
         let mut lifetime_arguments = Vec::new();
-        let mut argument_start = Handle::invalid();
-        let mut argument_count = 0u32;
-        let mut first_argument = TypeReferenceHandle::invalid();
+        // Every argument's own children -- its base type and, for a nested
+        // application, that application's arguments -- land in the same
+        // type-reference handle table as this list. Collect the argument
+        // handles and insert the span once after the list closes, the way
+        // `parse_domain_argument_handles` already does: appending each handle
+        // as it is parsed interleaves a nested application's arguments with
+        // this list and leaves the two authored spans overlapping.
+        let mut arguments: Vec<TypeReferenceHandle> = Vec::new();
 
         loop {
             if input.at_punctuation(PunctuationKind::Apostrophe) {
-                if argument_count != 0 {
+                if !arguments.is_empty() {
                     return Err(input.error_here(
                         "lifetime arguments precede type, const, and machine arguments",
                     ));
@@ -279,18 +284,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             } else {
                 parse_type_reference_handle(syntax_trees, input)?
             };
-            if argument_count == 0 {
-                first_argument = argument;
-            }
-            let handle = syntax_trees
-                .type_references
-                .append_type_reference_handle(argument);
-            if argument_count == 0 {
-                argument_start = handle;
-            }
-            argument_count = argument_count
-                .checked_add(1)
-                .expect("type reference argument span count overflow");
+            arguments.push(argument);
             input = rest;
 
             if input.at_punctuation(PunctuationKind::Comma) {
@@ -302,11 +296,14 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         }
 
         input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-        let arguments = if argument_count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(argument_start, argument_count)
-        };
+        let argument_count = arguments.len();
+        let first_argument = arguments
+            .first()
+            .copied()
+            .unwrap_or_else(TypeReferenceHandle::invalid);
+        let arguments = syntax_trees
+            .type_references
+            .insert_type_reference_handles(arguments);
         // TASK RUNTIME TR1: reject the erased stage-1 handle explicitly.
         // `Task<T>` becomes a real linear core type in TR2; silently folding a
         // lifecycle claim into its result would recreate the bug this pass
@@ -736,8 +733,10 @@ pub(crate) fn parse_type_constraint_handles<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<TypeConstraintNode>> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-    let mut constraint_start = Handle::invalid();
-    let mut constraint_count = 0u32;
+    // A bound expression can carry its own constrained type reference (a cast
+    // target, for instance), whose constraints land in this same table. Collect
+    // the run and insert it once, the way the `in <Domain>` suffix already does.
+    let mut constraints: Vec<TypeConstraintNode> = Vec::new();
 
     if !input.at_punctuation(PunctuationKind::RightBracket) {
         loop {
@@ -793,13 +792,7 @@ pub(crate) fn parse_type_constraint_handles<'tokens, 'source>(
                 }
             };
 
-            let handle = syntax_trees.type_references.append_constraint(constraint);
-            if constraint_count == 0 {
-                constraint_start = handle;
-            }
-            constraint_count = constraint_count
-                .checked_add(1)
-                .expect("type constraint span count overflow");
+            constraints.push(constraint);
 
             if input.at_punctuation(PunctuationKind::Comma) {
                 input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -811,10 +804,6 @@ pub(crate) fn parse_type_constraint_handles<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-    let constraints = if constraint_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(constraint_start, constraint_count)
-    };
+    let constraints = syntax_trees.type_references.insert_constraints(constraints);
     Ok((constraints, input))
 }
