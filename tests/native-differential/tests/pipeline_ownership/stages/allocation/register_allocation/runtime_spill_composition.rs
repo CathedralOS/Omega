@@ -9,7 +9,9 @@ use crate::tests::{
     OptimizedPostAllocationMachinePipelineError, PostAllocationSelectedTransformation,
     stage_leaf_local_fixed_view_register_allocation_composing,
     stage_optimized_post_allocation_machine_plan,
-    stage_shared_entry_fixed_view_register_allocation, staged_composition_pressure_module_legality,
+    stage_shared_entry_fixed_view_register_allocation,
+    staged_composition_pressure_computed_killer_legality,
+    staged_composition_pressure_module_legality,
 };
 use selected_instructions::LocalStorageSlotId;
 use selected_instructions_to_register_homes::{
@@ -158,6 +160,189 @@ fn leaf_local_composition_rejects_a_declared_shared_entry_selection() {
             ),
             "{target:?}: a leaf-local prefix must not absorb a declared selection"
         );
+    }
+}
+
+/// With each killer defined by an add instead of a literal, the stranded
+/// register's definition is never a materialization: recovery's
+/// rematerialization-first cost decision declines it, and the same victim
+/// commits a genuine `RuntimeSpill` step. The retained ledger keeps the
+/// fixed-view prefix ahead of that step, the realized program declares the
+/// spill's private storage, and the whole retained allocation replays and
+/// composes into the machine plan.
+#[test]
+fn non_immediate_pressure_retains_a_runtime_spill_step() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let retained = stage_leaf_local_fixed_view_register_allocation_composing(
+            staged_composition_pressure_computed_killer_legality(
+                target,
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            ),
+        )
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: leaf-local composition must complete: {error}")
+        });
+        let current = retained.current();
+        assert!(
+            matches!(current.evidence(), AllocationEvidence::RuntimeSpill(_)),
+            "{target:?}: residual pressure must publish runtime-spill evidence"
+        );
+        let ledger = transformations(&retained);
+        assert!(
+            matches!(
+                ledger.first(),
+                Some(PostAllocationSelectedTransformation::FixedViewCopy(_))
+            ),
+            "{target:?}: the fixed-view transformation stays first in the ledger"
+        );
+        assert!(
+            ledger[1..].iter().any(|transformation| matches!(
+                transformation,
+                PostAllocationSelectedTransformation::RuntimeSpill(_)
+            )),
+            "{target:?}: a non-materialized victim must commit a RuntimeSpill step, got {ledger:?}"
+        );
+        // The spill's private storage is a declared slot in the realized
+        // program — the frame realization downstream demand composes from,
+        // not a ledger annotation.
+        let caller = retained
+            .program()
+            .selected
+            .functions
+            .iter()
+            .find(|function| !function.local_storage_slots.is_empty())
+            .unwrap_or_else(|| panic!("{target:?}: a committed spill must declare its slot"));
+        assert!(
+            caller
+                .local_storage_slots
+                .iter()
+                .any(|slot| matches!(slot.id, LocalStorageSlotId::Spill { .. })),
+            "{target:?}: the realized program must declare a Spill slot"
+        );
+        let replayed = retained.replay_allocation().unwrap();
+        assert_eq!(current.selected_plan(), replayed.selected_plan());
+        assert_eq!(current.homes(), replayed.homes());
+        assert_eq!(current.evidence(), replayed.evidence());
+        assert_eq!(
+            current.post_allocation_manifest(),
+            replayed.post_allocation_manifest()
+        );
+        let machine = stage_optimized_post_allocation_machine_plan(&retained).unwrap();
+        assert_eq!(
+            machine.machine().plan().selected,
+            retained.current().selected().selected_identity()
+        );
+    }
+}
+
+/// The same divergent pressure under the declared shared-entry selection
+/// keeps the shared-entry copy transformation first and still commits a real
+/// `RuntimeSpill` step for the non-materialized victim — the recorded copy
+/// policy binds the selection exactly as it does on the rematerialized
+/// shape.
+#[test]
+fn shared_entry_composition_retains_a_runtime_spill_step() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let undeclared = stage_shared_entry_fixed_view_register_allocation(
+            staged_composition_pressure_computed_killer_legality(
+                target,
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            ),
+        );
+        assert!(
+            matches!(
+                undeclared,
+                Err(RegisterAllocationError::Replay(
+                    AllocationReplayError::SelectionMismatch
+                ))
+            ),
+            "{target:?}: a shared-entry prefix under no declared selection must reject"
+        );
+
+        let retained = stage_shared_entry_fixed_view_register_allocation(
+            staged_composition_pressure_computed_killer_legality(
+                target,
+                OptimizationSelections::new([
+                    Optimization::CopyPropagation,
+                    Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                ])
+                .unwrap(),
+            ),
+        )
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: declared shared-entry composition must complete: {error}")
+        });
+        let current = retained.current();
+        assert!(
+            matches!(current.evidence(), AllocationEvidence::RuntimeSpill(_)),
+            "{target:?}: residual pressure must publish runtime-spill evidence"
+        );
+        let ledger = transformations(&retained);
+        assert!(
+            matches!(
+                ledger.first(),
+                Some(PostAllocationSelectedTransformation::FixedViewCopy(_))
+            ),
+            "{target:?}: the shared-entry copy transformation stays first in the ledger"
+        );
+        assert!(
+            ledger[1..].iter().any(|transformation| matches!(
+                transformation,
+                PostAllocationSelectedTransformation::RuntimeSpill(_)
+            )),
+            "{target:?}: a non-materialized victim must commit a RuntimeSpill step, got {ledger:?}"
+        );
+        let replayed = retained.replay_allocation().unwrap();
+        assert_eq!(current.selected_plan(), replayed.selected_plan());
+        assert_eq!(current.homes(), replayed.homes());
+    }
+}
+
+/// The computed-killer program's declared `Spill` slot is the frame
+/// realization itself: mutating its geometry — not just appending a foreign
+/// slot — must invalidate retained replay before the machine plan, and
+/// therefore any stack demand, derives from stale facts.
+#[test]
+fn changed_real_spill_slot_geometry_invalidates_retained_demand() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut retained = stage_leaf_local_fixed_view_register_allocation_composing(
+            staged_composition_pressure_computed_killer_legality(
+                target,
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            ),
+        )
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: leaf-local composition must complete: {error}")
+        });
+        retained.replay_allocation().unwrap();
+        let original = retained.program().clone();
+        let mut grown = original.clone();
+        let slot = std::sync::Arc::make_mut(&mut grown.selected)
+            .functions
+            .iter_mut()
+            .flat_map(|function| function.local_storage_slots.iter_mut())
+            .find(|slot| matches!(slot.id, LocalStorageSlotId::Spill { .. }))
+            .expect("the computed-killer spill must declare its slot");
+        slot.byte_size = 16;
+        retained.substitute_current_program_for_test(grown);
+        assert!(
+            matches!(
+                retained.replay_allocation(),
+                Err(AllocationReplayError::CurrentProgramMismatch)
+            ),
+            "{target:?}: a changed real spill-slot extent must fail retained replay"
+        );
+        assert!(
+            matches!(
+                stage_optimized_post_allocation_machine_plan(&retained),
+                Err(OptimizedPostAllocationMachinePipelineError::Allocation(
+                    AllocationReplayError::CurrentProgramMismatch
+                ))
+            ),
+            "{target:?}: stale demand must reject before post-allocation derivation"
+        );
+        retained.substitute_current_program_for_test(original);
+        retained.replay_allocation().unwrap();
     }
 }
 
