@@ -10,11 +10,11 @@ use crate::{
     ValidatedCommutingRunInterchange, ValidatedCommutingRunRelocation,
     ValidatedConfluenceRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
     ValidatedCopyRemoval, ValidatedDeadCompare, ValidatedDeadStoreElimination,
-    ValidatedDiamondRelocation, ValidatedEdgeRelocation, ValidatedFixedViewCopies,
-    ValidatedForkRelocation, ValidatedInflowRelocation, ValidatedJoinRelocation,
-    ValidatedLiteralArithmetic, ValidatedLiteralCompare, ValidatedLiteralFold,
-    ValidatedLiteralMinuend, ValidatedLocalRelocation, ValidatedLocalSchedule,
-    ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
+    ValidatedDiamondRelocation, ValidatedEdgeRelocation, ValidatedEquivalentCompare,
+    ValidatedFixedViewCopies, ValidatedForkRelocation, ValidatedInflowRelocation,
+    ValidatedJoinRelocation, ValidatedLiteralArithmetic, ValidatedLiteralCompare,
+    ValidatedLiteralFold, ValidatedLiteralMinuend, ValidatedLocalRelocation,
+    ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
     ValidatedPressureRematerialization, ValidatedRedundantCompare, ValidatedRedundantExtension,
     ValidatedRunInterchange, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
     ValidatedRuntimeSpill, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
@@ -448,6 +448,26 @@ impl ValidatedSelectedAnalysis for ValidatedDiamondRelocation {
 impl sealed::Sealed for ValidatedEdgeRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedEdgeRelocation {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedEquivalentCompare {}
+
+impl ValidatedSelectedAnalysis for ValidatedEquivalentCompare {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

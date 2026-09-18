@@ -42,6 +42,16 @@
 //! unchanged between each shadow and the compare, so the removal leaves
 //! every reader observing identical values.
 //!
+//! The [`equivalent`] family relaxes the strict family's form identity to
+//! value identity: the shadow may carry a different compare kind and read
+//! different operand registers when each side of the subtraction provably
+//! coincides — by shared register identity, audited stable along every
+//! path, or by the literal a unique `MaterializeI64` producer pins
+//! function-wide. It is the removal the `literal_compare` fold leaves
+//! reachable: an immediate- or zero-form shadow against a later
+//! register-form compare computes one subtraction, and the flag
+//! publication, not the instruction kind, is what the reader observes.
+//!
 //! Removing the compare shortens its block's instruction vector, so
 //! boundary settlements positioned after it shift one ordinal earlier;
 //! positions at or before it are untouched, and the compare's register
@@ -55,6 +65,7 @@
 //! roster row, call, and settlement included.
 
 mod admission;
+mod equivalent;
 mod redundant;
 mod rewrite;
 mod validation;
@@ -65,6 +76,10 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
+pub use equivalent::{
+    EquivalentCompareError, EquivalentCompareReceipt, ValidatedEquivalentCompare,
+    remove_equivalent_compare, validate_equivalent_compare,
+};
 pub use redundant::{
     RedundantCompareError, RedundantCompareReceipt, ValidatedRedundantCompare,
     remove_redundant_compare, validate_redundant_compare,
