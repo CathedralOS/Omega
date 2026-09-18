@@ -7,7 +7,7 @@
 //! mutation belong to a coordinator-facing ledger crate. Derived report
 //! evidence is filesystem-free; an observation coordinator may render it but
 //! rendering carries no admission authority. Start at `admission_settlement.rs`
-//! for requirement comparison, or `trust_report.rs` for report reconstruction.
+//! for requirement comparison, or `trust_report` for report reconstruction.
 
 mod accepted_templates;
 mod admission_settlement;

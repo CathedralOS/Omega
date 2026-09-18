@@ -399,7 +399,7 @@ fn machine_specialization_compact_coordinate_is_report_only_beside_strong_author
 #[test]
 fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority() {
     let root = workspace_root();
-    let grants_path = root.join("omega-rust/omega/build/trust-model/src/provider_grants.rs");
+    let grants_path = root.join("omega-rust/omega/build/trust-model/src/provider_grants/mod.rs");
     let grants = fs::read_to_string(&grants_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", grants_path.display()));
     for required in [
@@ -416,7 +416,7 @@ fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority(
     }
     assert!(!grants.contains("pub selected_plan_identity: u64"));
 
-    let admissions_path = root.join("omega-rust/omega/build/trust-model/src/trust_admission.rs");
+    let admissions_path = root.join("omega-rust/omega/build/trust-model/src/trust_admission/mod.rs");
     let admissions = fs::read_to_string(&admissions_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", admissions_path.display()));
     assert!(
