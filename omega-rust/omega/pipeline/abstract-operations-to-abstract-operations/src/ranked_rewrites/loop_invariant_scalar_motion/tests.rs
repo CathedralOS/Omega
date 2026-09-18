@@ -8463,3 +8463,659 @@ fn stale_scalar_case_frontier_catalog_is_rejected() {
         ) if rejected_machine == machine
     ));
 }
+
+/// Two-state cycle whose member invokes a pure structural-result callee on an
+/// invariant argument: `pick` returns the fresh affine sum the member block
+/// immediately dispatches, so the cyclic eligibility fence already confined
+/// the result to same-block dispatch custody — exactly the shape the
+/// relocation re-expresses. `s` resolves transitively to `scale`'s preheader
+/// anchor, so the call relocates rebinding its scalar argument while the
+/// retained dispatch stops discarding the persistent result on
+/// member-internal edges and every exit edge disposes it instead.
+const MEMBER_STRUCTURAL_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Step { case More(rest: u32); case Halt(tag: u32); }
+
+    machine pick(seed: u32) -> Step { Step::More { rest: seed } }
+
+    machine Root::scan(scale: u32, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32, pending: u32 [0..=5]) {
+            let picked: Step = pick(s);
+            transition picked {
+                Step::More { rest } -> check(rest, s, pending)
+                Step::Halt { tag } -> check(tag, s, pending)
+            }
+        }
+        state check(v: u32, s: u32, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> step(s, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32) {}
+    }
+"#;
+
+/// Same component shape, but the call's scalar argument reads the
+/// loop-carried `pending` countdown: the member parameter never resolves to
+/// a preheader representative, so the call stays inside even though its
+/// callee is pure and its member block is guaranteed to execute.
+const CARRIED_ARGUMENT_STRUCTURAL_RESULT_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Step { case More(rest: u32); case Halt(tag: u32); }
+
+    machine pick(seed: u32) -> Step { Step::More { rest: seed } }
+
+    machine Root::scan(scale: u32, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32, pending: u32 [0..=5]) {
+            let picked: Step = pick(pending);
+            transition picked {
+                Step::More { rest } -> check(rest, s, pending)
+                Step::Halt { tag } -> check(tag, s, pending)
+            }
+        }
+        state check(v: u32, s: u32, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> step(s, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32) {}
+    }
+"#;
+
+/// Every `CallStructural` node inside `component`'s member blocks — the
+/// call counterpart of [`member_scalar_case_establishments`].
+fn member_structural_calls<'function>(
+    function: &'function optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+) -> Vec<(
+    &'function optimization_unit::OptimizationBlock,
+    &'function optimization_unit::OptimizationNode,
+)> {
+    let mut calls = Vec::new();
+    for member in &component.members {
+        let block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == *member)
+            .expect("member block exists");
+        for node in &block.nodes {
+            if let AbstractOperation::CallStructural { .. } = &node.operation {
+                calls.push((block, node));
+            }
+        }
+    }
+    calls
+}
+
+#[test]
+fn invariant_structural_call_relocates_re_expressing_dispatch_custody() {
+    let session = lowered_session_entry(
+        MEMBER_STRUCTURAL_CALL_SOURCE,
+        "member structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let (call_operation, picked, arguments) = match &call.operation {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            result,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            selected_evidence,
+            ..
+        } => {
+            assert!(
+                structural_arguments.is_empty()
+                    && claim_transfers.is_empty()
+                    && returned_claim_transfers.is_empty()
+                    && requirement_obligations.is_empty()
+                    && crash_continuations.is_empty()
+                    && selected_evidence.is_empty(),
+                "the admitted call shape carries no structural surface beyond its result"
+            );
+            assert_eq!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Affine,
+                "the result is the confined affine sum"
+            );
+            (*psi_operation, result.place, arguments.clone())
+        }
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    assert_eq!(arguments.len(), 1, "the call carries one scalar argument");
+    // The seed's dispatch discards the fresh affine place on every case
+    // edge — the custody the relocation re-expresses.
+    let dispatch = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.nodes.iter())
+        })
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::StructuralCase { source, .. } if *source == picked
+            )
+        })
+        .expect("the member block holds the dispatch on the fresh sum");
+    let AbstractOperation::StructuralCase { cases, .. } = &dispatch.operation else {
+        panic!("the dispatch is a structural case")
+    };
+    for case in cases {
+        assert!(
+            case.trivial_affine_discards.contains(&picked),
+            "the seed's dispatch edge discards the fresh affine sum"
+        );
+    }
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the structural call is a planned relocation");
+    let LoopInvariantNodeResult::Structural(result) = relocation.node().result() else {
+        panic!("the structural call relocates its structural result")
+    };
+    assert_eq!(result.place, picked, "the declared place is byte-exact");
+    let rewrites = relocation.node().operand_rewrites();
+    assert_eq!(
+        rewrites.len(),
+        1,
+        "the single scalar argument carries one member-parameter rewrite"
+    );
+    assert_eq!(
+        rewrites[0].0, arguments[0],
+        "the rewrite spells the call's scalar argument"
+    );
+    let anchor = function
+        .parameters
+        .iter()
+        .find(|parameter| parameter.value == rewrites[0].1)
+        .expect("the argument representative is the machine's `scale` parameter")
+        .value;
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::CallStructural {
+            result, arguments, ..
+        } => {
+            assert_eq!(result.place, picked, "the declared place is byte-exact");
+            for argument in arguments {
+                assert_eq!(
+                    *argument, anchor,
+                    "the moved call rebinds its scalar argument to the preheader anchor"
+                );
+            }
+        }
+        operation => panic!("relocated node keeps its call operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    // The retained dispatch keeps the persistent result live on
+    // member-internal edges and disposes it on the component's exit: the
+    // affine place survives every traversal's case inspection and is
+    // discarded exactly once on the way out.
+    let staying_dispatch = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::StructuralCase { source, .. } if *source == picked
+            )
+        })
+        .expect("the dispatch survives in the member block");
+    for edge in &staying_dispatch.successors {
+        assert!(
+            !edge.trivial_affine_discards.contains(&picked),
+            "a member-bound dispatch edge keeps the persistent result live"
+        );
+    }
+    let exit_discards: Vec<_> = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .filter(|block| member_targets.contains(&block.id))
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| !member_targets.contains(&edge.target))
+        .map(|edge| edge.trivial_affine_discards.contains(&picked))
+        .collect();
+    assert!(
+        !exit_discards.is_empty() && exit_discards.iter().all(|discard| *discard),
+        "every member exit edge disposes the persistent result exactly once"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn carried_argument_structural_call_stays_inside() {
+    let session = lowered_session_entry(
+        CARRIED_ARGUMENT_STRUCTURAL_RESULT_CALL_SOURCE,
+        "carried argument structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let call_operation = operation_of(call);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "a structural call reading a carried argument stays inside"
+    );
+}
+
+#[test]
+fn forged_structural_call_argument_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_STRUCTURAL_CALL_SOURCE,
+        "member structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let (call_operation, member_argument) = match &call.operation {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            arguments,
+            ..
+        } => (*psi_operation, arguments[0]),
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the structural call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the moved argument back to the member parameter skips the
+    // seed-derived substitution — the call's argument rebinds to the
+    // preheader anchor, so the replayed operation comparison rejects the
+    // drifted spelling.
+    let forged = find_operation_mut(&mut unit, call_operation);
+    if let AbstractOperation::CallStructural { arguments, .. } = &mut forged.operation {
+        for argument in arguments {
+            *argument = member_argument;
+        }
+    }
+    for value_use in &mut forged.uses {
+        value_use.value = member_argument;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn kept_internal_structural_call_discard_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_STRUCTURAL_CALL_SOURCE,
+        "member structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let picked = match &call.operation {
+        AbstractOperation::CallStructural { result, .. } => result.place,
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    let dispatch_block = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+        })
+        .find(|block| {
+            block.nodes.iter().any(|node| {
+                matches!(
+                    &node.operation,
+                    AbstractOperation::StructuralCase { source, .. } if *source == picked
+                )
+            })
+        })
+        .expect("the dispatch's member block")
+        .id;
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the dispatch's member-internal edges to keep discarding the
+    // persistent result restores the source's per-traversal custody: the
+    // first traversal would end the one preheader place the next traversal
+    // dispatches. The freeze replay normalizes the seed's retained node
+    // through the same custody rewrite — internal edges stripped, exits
+    // disposing — so the kept discard rejects byte-exact.
+    let forged = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .flat_map(|block| &mut block.nodes)
+        .find(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::StructuralCase { source, .. } if *source == picked
+            )
+        })
+        .expect("the dispatch survives in the member block");
+    if let AbstractOperation::StructuralCase { cases, .. } = &mut forged.operation {
+        for case in cases {
+            if member_targets.contains(&case.target)
+                && !case.trivial_affine_discards.contains(&picked)
+            {
+                case.trivial_affine_discards.push(picked);
+            }
+        }
+    }
+    for edge in &mut forged.successors {
+        if member_targets.contains(&edge.target) && !edge.trivial_affine_discards.contains(&picked)
+        {
+            edge.trivial_affine_discards.push(picked);
+        }
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == dispatch_block
+    ));
+}
+
+#[test]
+fn dropped_exit_structural_call_disposal_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_STRUCTURAL_CALL_SOURCE,
+        "member structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let picked = match &call.operation {
+        AbstractOperation::CallStructural { result, .. } => result.place,
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    // The exit edge is a member terminator edge departing the roster —
+    // `check`'s `finish` arm — which must dispose the persistent result.
+    let exit = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .into_iter()
+                .flat_map(|block| block.nodes.iter())
+        })
+        .flat_map(|node| node.successors.iter())
+        .find(|edge| !member_targets.contains(&edge.target))
+        .expect("the component has an exit edge");
+    let exit_edge = exit.psi_edge;
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // The applied transform disposes `picked` on the exit edge. Forging the
+    // edge back to the seed's empty roster leaves the persistent place live
+    // outside the component — the freeze replay's normalized custody expects
+    // the disposal, so the drop rejects byte-exact.
+    let mut forged = false;
+    for function in &mut unit.functions {
+        for block in &mut function.blocks {
+            if !member_targets.contains(&block.id) {
+                continue;
+            }
+            for node in &mut block.nodes {
+                for edge in &mut node.successors {
+                    if edge.psi_edge == exit_edge
+                        && let Some(index) = edge
+                            .trivial_affine_discards
+                            .iter()
+                            .position(|place| *place == picked)
+                    {
+                        edge.trivial_affine_discards.remove(index);
+                        forged = true;
+                    }
+                }
+                match &mut node.operation {
+                    AbstractOperation::Jump {
+                        trivial_affine_discards,
+                        ..
+                    } if node
+                        .successors
+                        .first()
+                        .is_some_and(|edge| edge.psi_edge == exit_edge) =>
+                    {
+                        trivial_affine_discards.retain(|place| *place != picked);
+                    }
+                    AbstractOperation::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        for successor in [when_true, when_false] {
+                            if successor.psi_edge == exit_edge {
+                                forged |= !successor.trivial_affine_discards.is_empty();
+                                successor
+                                    .trivial_affine_discards
+                                    .retain(|place| *place != picked);
+                            }
+                        }
+                    }
+                    AbstractOperation::StructuralCase { cases, .. } => {
+                        for case in cases {
+                            if case.psi_edge == exit_edge {
+                                forged |= !case.trivial_affine_discards.is_empty();
+                                case.trivial_affine_discards
+                                    .retain(|place| *place != picked);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    assert!(
+        forged,
+        "the exit edge carried the relocated result's disposal"
+    );
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                ..
+            }
+        ) if rejected_machine == machine
+    ));
+}
+
+#[test]
+fn stale_structural_call_frontier_catalog_is_rejected() {
+    let session = lowered_session_entry(
+        MEMBER_STRUCTURAL_CALL_SOURCE,
+        "member structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    // The seed catalog still carries the source's per-traversal custody:
+    // `picked` owned between its member call and the dispatch-edge
+    // discards, dead everywhere else.
+    let seed_frontier_facts = session.unit().ownership_frontier_facts.clone();
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the frontier catalog back to the seed's spelling leaves the
+    // affine-authority replay reading custody the transformed edges no
+    // longer execute — internal edges keep the persistent place live where
+    // the stale catalog still ends it at dispatch — so the stale
+    // membership rejects before the catalog comparison is even reached.
+    unit.ownership_frontier_facts = seed_frontier_facts;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
+                machine: rejected_machine,
+                ..
+            }
+        ) if rejected_machine == machine
+    ));
+}

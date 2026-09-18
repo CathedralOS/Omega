@@ -50,7 +50,13 @@
 //! preheader-visible, resolved through an invariant member structural
 //! parameter, or produced in the same run, while a mutable or write-only
 //! borrow may name only a uniquely member-produced root the same run already
-//! relocated and no other member observes), or
+//! relocated and no other member observes), an admissible
+//! structural-result call — `CallStructural` — whose affine claim-free
+//! result the cyclic eligibility fence already confined to the producing
+//! member block's dispatch or return (the same effect and observability
+//! bars, the scalar-case containment bound on the result place, the scalar
+//! argument substitution, and the same member-internal discard stripping
+//! and exit disposal the establishment's custody rewrite performs), or
 //! an admissible scalar
 //! computation (an obligated variant keeps its verifier-discharged
 //! obligation byte-exact inside the moved operation) whose uses are all
@@ -190,7 +196,8 @@ pub(super) fn validate(
         }
     }
     let no_relocated_roots = BTreeSet::new();
-    // Affine scalar-case results every relocated establishment produced,
+    // Affine scalar-case and structural-call results every relocated
+    // establishment or call produced,
     // keyed by its home component: the relocation re-expresses their
     // dispatch custody — member-internal edges keep the one persistent
     // place live while exit edges and member returns dispose it — so the
@@ -199,10 +206,12 @@ pub(super) fn validate(
     // byte-exact.
     let mut relocated_case_results: BTreeMap<CycleComponentId, BTreeSet<PlaceId>> = BTreeMap::new();
     for relocation in &moved {
-        if let abstract_operations::AbstractOperation::EstablishScalarCase { result, .. } =
-            &relocation.expected.operation
-            && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-        {
+        let result = match &relocation.expected.operation {
+            abstract_operations::AbstractOperation::EstablishScalarCase { result, .. }
+            | abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
+            _ => continue,
+        };
+        if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
             relocated_case_results
                 .entry(relocation.home.id.clone())
                 .or_default()
@@ -442,6 +451,35 @@ pub(super) fn validate(
                 }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
+        } else if crate::validation::admissible_invariant_structural_call(relocation.expected)
+            .is_some()
+        {
+            // A structural-result call replays the scalar-result call's
+            // effect and observability evidence from the seed — the pure
+            // transitive callee and the unobservable member roster — plus
+            // the affine result's containment: the result place must stay
+            // inside the member roster spelled only through positions the
+            // custody rewrite re-expresses. The admitted shape carries no
+            // structural arguments and no claim, obligation, crash, or
+            // evidence rows, so the only re-derived rewrite is the scalar
+            // argument substitution; a forged result, argument, or claim
+            // spelling rejects in `same_relocated_node`'s operation
+            // comparison, and a kept internal discard or missing exit
+            // disposal rejects in the retained-member normalization.
+            let effects = call_effects
+                .get_or_insert_with(|| crate::validation::unit_effect_summaries(expected_unit));
+            match crate::validation::invariant_structural_call_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                effects,
+            ) {
+                Some(substitution) => (substitution, None, BTreeMap::new()),
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
         } else if crate::validation::admissible_invariant_primitive_local(relocation.expected)
             .is_some()
         {
@@ -642,9 +680,10 @@ pub(super) fn validate(
             return Err(mismatch(machine, expected_block.id));
         }
         // A block inside a component whose run relocated affine scalar-case
-        // results keeps every retained node but spells the persistent
-        // result's custody differently — member-internal edges keep it live
-        // while exit edges and member returns dispose it. Normalize each
+        // or structural-call results keeps every retained node but spells
+        // the persistent result's custody differently — member-internal
+        // edges keep it live while exit edges and member returns dispose
+        // it. Normalize each
         // seed node through the same custody rewrite the realization
         // performs so a forged spelling — a kept internal discard, a missing
         // exit disposal, a reordered roster — rejects byte-exact.
@@ -743,8 +782,9 @@ fn same_relocated_node(
         && expected.ownership == current.ownership
 }
 
-/// A retained member node whose component relocated affine scalar-case
-/// results spells their persistent custody differently from the seed:
+/// A retained member node whose component relocated affine scalar-case or
+/// structural-call results spells their persistent custody differently from
+/// the seed:
 /// member-internal edges keep the place live where the source's fresh place
 /// died at dispatch, and every exit edge and member return disposes it
 /// instead. Normalize the seed node through the same custody rewrite the
