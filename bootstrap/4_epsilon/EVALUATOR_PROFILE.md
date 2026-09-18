@@ -192,9 +192,11 @@ no Epsilon observation. The evaluator-entry leg is now realized separately
 in [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md): a versioned EREQ request
 envelope, canonical observation grammar, and EEOUT refusal frame bound to a
 canonical receipt, still within the evaluator's current construct coverage.
-Still open under EPSILON-EVALUATOR: witnessed checking/runtime conformance
-gaps, an evaluator-internal budget layer if the final profile wants
-fail-closed `Incomplete` accounting inside the evaluator, complete D
+That document also carries each lower-chain refusal status to the outer
+`Incomplete` at the edge boundary; the envelope classifies every named
+refusal path, so no evaluator-internal budget layer was needed. Still open
+under EPSILON-EVALUATOR: witnessed checking/runtime conformance
+gaps, the pending direct evaluator-level status-252 pin, complete D
 composition, and independent `RunEpsilon` refinement — section 11's final
 acceptance still requires executing every Epsilon construct for the exact D
 source.

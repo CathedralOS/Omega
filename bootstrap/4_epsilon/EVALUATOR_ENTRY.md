@@ -3,8 +3,9 @@
 This document defines the evaluator's realized entry boundary for the selected
 lower chain and derives its explicit resource, request, and observation
 profile. It satisfies the EPSILON-EVALUATOR entry obligation: one explicit
-profile, exact and adjacent refusals, and no Epsilon observation on any
-resource or transport refusal. The private diagnostic adapter
+profile, exact and adjacent refusals, every lower-chain resource refusal
+carried to the section-10 outer `Incomplete`, and no Epsilon observation on
+any resource or transport refusal. The private diagnostic adapter
 (`tests/epsilon/interpreted-omega-experiment/execution_driver.delta`, profiled
 in [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md)) is not this boundary; it
 remains the development transport only.
@@ -112,10 +113,53 @@ observation tag, and no observation tag can be `FF`.
 
 Internal contradictions — `EpsilonEvaluatorSliceInternal` — publish EEOUT
 outcome 3, not an observation: a staging internal is not an Epsilon judgment.
-Resource refusals publish nothing at this level at all: sealed-input extent,
-publication extent, and evaluator storage exhaustion remain the lower chain's
-nonzero statuses (253, 254, 252) with empty stdout — no frame, no observation,
-no partial stdout.
+
+**Incomplete transport outcomes.** The evaluator program cannot intercept a
+lower-chain refusal: the generated `ConformanceBytesV1` adapter refuses an
+oversized sealed input or output before or after `main` runs, and evaluator
+context, stack, or pair exhaustion halts the process outright. These paths
+therefore publish no bytes. At the edge boundary a nonzero status with empty
+stdout is the section-10 outer `Incomplete(resource, limit, requested,
+coordinate?)` — never an Epsilon observation, never an EEOUT frame, and never
+a partial stdout. The status and the requester's own submitted extents carry
+the fields:
+
+| Status | Resource | Limit | Requested | Coordinate |
+| ---: | --- | ---: | --- | --- |
+| 250 | evaluator live call contexts | 256 contexts | 257 — the refused context | none |
+| 252 | cumulative immutable pair nodes | 40,265,318 nodes | 40,265,319 — the refused node | none |
+| 253 | sealed input bytes | 4,194,304 | the exact submitted sealed-input extent | none |
+| 254 | published observation bytes | 4,194,304 | 4,194,305 — the refused byte | none |
+
+For the execution-side counters the transport cannot carry the program's
+complete demand, so `requested` reports the refused unit — the least demand
+the bound refuses — not a projected total. The sealed-input refusal instead
+reports the exact submitted extent, which the requester itself knows. One
+status can back several counters; the dominated-counter derivations in the
+resource table below name the resource that actually binds in this
+composition. The 256-context bound trips before the 524,288-entry value stack
+or the 131,072 environment rows, and the adapter's 4,194,304-byte input and
+output bounds trip before the evaluator's own 16 MiB transport bounds — a
+request beyond 16,777,216 bytes is refused before the adapter sees its input
+and classifies as `Incomplete(complete request, 16,777,216, submitted request
+extent)` under the same status 253. A changed evaluator or adapter
+composition must re-derive which counter behind each status binds first; the
+mapping above belongs to this exact receipt.
+
+**Internal failure.** Every other process observation carries section 10's
+`InternalFailure`: a nonzero status outside the four named above (248
+evaluator internal, 249 authored trap in the evaluator's own Delta code, 132
+Alpha VM illegal instruction, or an unassigned value), a status-zero
+invocation with empty stdout or an unassigned lead byte, or a nonzero status
+with nonempty stdout. None is an Epsilon judgment, a partial observation, or
+an EEOUT frame.
+
+The classification is complete and disjoint: every process observation of
+this edge is exactly one of a canonical observation, an EEOUT refusal frame,
+an `Incomplete` transport outcome, or `InternalFailure`. No evaluator-internal
+budget is added — the envelope classifies every named refusal path, so the
+fallback clause of the board item does not apply, and no hypothetical
+dense-storage sizing pass is introduced.
 
 ## Exact resource counters
 
@@ -124,14 +168,14 @@ of the selected lower chain, now charged against the canonical receipt.
 
 | Counter | Owner | Limit | Refusal | Witness |
 | --- | --- | ---: | --- | --- |
-| complete request | Gamma evaluator | 16,777,216 bytes | status 253, empty stdout | adjacent pinned by [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md) and `tests/gamma` boundary gates |
-| sealed input | `ConformanceBytesV1` adapter | 4,194,304 bytes | status 253, empty stdout | exact/adjacent executed in [`tests/epsilon/evaluator-entry/`](../../tests/epsilon/evaluator-entry/README.md) |
+| complete request | Gamma evaluator | 16,777,216 bytes | `Incomplete` via status 253, empty stdout | adjacent pinned by [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md) and `tests/gamma` boundary gates |
+| sealed input | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 253, empty stdout | exact/adjacent executed in [`tests/epsilon/evaluator-entry/`](../../tests/epsilon/evaluator-entry/README.md) |
 | EREQ envelope fields | canonical entry | fixed 52-byte header, declared sections, exact end | EEOUT outcome 1 | exact/adjacent executed in the same gate |
-| published observation | `ConformanceBytesV1` adapter | 4,194,304 bytes | status 254, empty stdout | adjacent pinned by [`tests/delta/staged-compiler/run.sh`](../../tests/delta/staged-compiler/run.sh) |
-| cumulative immutable pairs | Gamma evaluator | 40,265,318 nodes | status 252, empty stdout | exact/adjacent pinned by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md); evaluator-level derivation below |
-| live call contexts | Gamma evaluator | 256 contexts | status 250, empty stdout | measured property of this exact artifact in the entry gate |
-| temporary value stack | Gamma evaluator | 524,288 entries | status 250, empty stdout | dominated by the context bound |
-| lexical environment rows | Gamma evaluator | 131,072 rows | status 250, empty stdout | dominated likewise |
+| published observation | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 254, empty stdout | adjacent pinned by [`tests/delta/staged-compiler/run.sh`](../../tests/delta/staged-compiler/run.sh) |
+| cumulative immutable pairs | Gamma evaluator | 40,265,318 nodes | `Incomplete` via status 252, empty stdout | exact/adjacent pinned by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md); evaluator-level derivation below |
+| live call contexts | Gamma evaluator | 256 contexts | `Incomplete` via status 250, empty stdout | exact/adjacent executed in the entry gate: 34 nested calls admitted, the 35th refused |
+| temporary value stack | Gamma evaluator | 524,288 entries | `Incomplete` via status 250, empty stdout | dominated by the context bound |
+| lexical environment rows | Gamma evaluator | 131,072 rows | `Incomplete` via status 250, empty stdout | dominated likewise |
 
 Effective Epsilon-facing extents follow directly: `source + stdin <=
 4,194,252` bytes inside one 4,194,304-byte sealed input after the 52-byte
@@ -149,8 +193,8 @@ exact under cumulative per-update allocation. The canonical receipt adds only
 the entry's fixed header validation and the stdin section rope — bounded,
 header-sized work outside the evaluator's own allocation pattern. The same
 sparse-array and repeated-update witnesses apply to this receipt; their
-resource exhaustion mode is pair-arena status 252 with empty stdout, not an
-observation.
+resource exhaustion mode is `Incomplete` via pair-arena status 252 with empty
+stdout, not an observation.
 
 ## Refusal witnesses
 
@@ -160,7 +204,7 @@ on macOS arm64:
 
 | Boundary | Exact (admitted) | Adjacent (refused) |
 | --- | --- | --- |
-| sealed input extent | 4,194,304-byte EREQ: admitted past the adapter, then EEOUT `trailing_input` at 52 | 4,194,305-byte EREQ: status 253, empty stdout |
+| sealed input extent | 4,194,304-byte EREQ: admitted past the adapter, then EEOUT `trailing_input` at 52 | 4,194,305-byte EREQ: `Incomplete` via status 253, empty stdout |
 | EREQ header | 52-byte header, zero-section request: admitted | 51-byte header: EEOUT `short_header` at coordinate = extent |
 | identity | all 8 bytes exact: admitted | each adjacent identity byte: EEOUT `identity_or_reserved` at its offset |
 | profile | profile 1: admitted | profiles 0, 2, 2^32-1: EEOUT `unknown_profile` at 8 |
@@ -168,21 +212,24 @@ on macOS arm64:
 | closure identity | bound digest: admitted | each adjacent digest byte: EEOUT `artifact_mismatch` at 20 + index |
 | section extents | declared = remaining: admitted | declared one beyond: EEOUT `section_extent` at 12 or 16 |
 | exact end | no trailing bytes: admitted | one trailing byte: EEOUT `trailing_input` at first extra offset |
+| live call contexts | 34 nested non-tail machine calls: `Exit` 34, stdout `A` | the 35th nested call: `Incomplete` via status 250, empty stdout |
 
-Every refusal in the gate publishes either the exact EEOUT frame above or a
-lower-chain nonzero status with empty stdout; none publishes a canonical
-observation.
+Every refusal in the gate publishes either the exact EEOUT frame above or an
+`Incomplete` transport outcome — a lower-chain nonzero status with empty
+stdout; none publishes a canonical observation.
 
 ## What remains open
 
 This document discharges the evaluator-entry leg: a realized section-11
-envelope, its resource profile, deterministic refusal witnesses, and the rule
-that no resource, transport, or request refusal publishes an Epsilon
-observation. The envelope binds the exact evaluator artifact, the exact
-source closure, the sealed stdin, this profile, and the complete
+envelope, its resource profile, deterministic refusal witnesses, the carry of
+every lower-chain refusal to the outer `Incomplete`, and the rule that no
+resource, transport, or request refusal publishes an Epsilon observation. The
+envelope binds the exact evaluator artifact, the exact source closure, the
+sealed stdin, this profile, and the complete
 `RunEpsilon` observation without host parsing or policy, within the construct
 coverage the evaluator currently implements. Still open under
 EPSILON-EVALUATOR: witnessed checking/runtime conformance gaps, complete D
-composition, and independent `RunEpsilon` refinement — section 11's final
+composition, independent `RunEpsilon` refinement, and the pending direct
+evaluator-level status-252 pin — section 11's final
 acceptance still requires the evaluator to execute every Epsilon construct
 and Console effect for the exact D source.
