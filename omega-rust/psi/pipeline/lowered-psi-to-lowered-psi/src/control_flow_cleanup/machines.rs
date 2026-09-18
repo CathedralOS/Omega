@@ -10,40 +10,55 @@
 //! Removal still refuses while evidence could dangle: a candidate whose
 //! contents a row surviving the proposed removal still names — including the
 //! unsealed checked-source and selected-IEEE sidecars only the producer can
-//! see — stays in place. The independent verifier then re-derives the whole
-//! relation from the rewritten module rather than trusting this proposal.
+//! see — stays in place. A machine kept that way is not a retention root,
+//! but its own transitions still name machines: the keep-set grows until the
+//! surviving-evidence check and the transition closure agree. The
+//! independent verifier then re-derives the whole relation from the
+//! rewritten module rather than trusting this proposal.
 
 use semantic_vocabulary::{OperationId, ValueId};
 use std::collections::BTreeSet;
 use terminal_psi::{TerminalMachine, TerminalModule};
 
-/// Drop every machine outside the retained closure whose contents no
-/// surviving evidence or sidecar row names. Evidence is computed over the
+/// Drop every machine outside the keep-set the retained closure and the
+/// surviving-evidence check converge on. Evidence is computed over the
 /// module with all unreachable candidates removed, matching the relation the
 /// independent verifier re-derives on the rewrite's output: a candidate the
-/// remaining rows still pin stays unreachable but retained.
+/// remaining rows still pin stays unreachable but retained, and the machines
+/// its own transitions name are pulled into the next round's closure.
 pub(super) fn prune(
     module: &mut TerminalModule,
     sidecar_operations: &BTreeSet<OperationId>,
     sidecar_values: &BTreeSet<ValueId>,
 ) {
-    let retained = terminal_verifier::retained_machines(module);
-    if module
-        .machines
-        .iter()
-        .all(|machine| retained.contains(&machine.id))
-    {
-        return;
+    let mut kept = terminal_verifier::retained_machines(module);
+    loop {
+        if module
+            .machines
+            .iter()
+            .all(|machine| kept.contains(&machine.id))
+        {
+            return;
+        }
+        let mut proposed = module.clone();
+        proposed
+            .machines
+            .retain(|machine| kept.contains(&machine.id));
+        let evidence = terminal_verifier::block_local_evidence(&proposed);
+        let bound = module.machines.iter().filter(|machine| {
+            !kept.contains(&machine.id)
+                && machine_bound(machine, &evidence, sidecar_operations, sidecar_values)
+        });
+        let next = terminal_verifier::retained_machines_with_roots(
+            module,
+            kept.iter().copied().chain(bound.map(|machine| machine.id)),
+        );
+        if next == kept {
+            break;
+        }
+        kept = next;
     }
-    let mut proposed = module.clone();
-    proposed
-        .machines
-        .retain(|machine| retained.contains(&machine.id));
-    let evidence = terminal_verifier::block_local_evidence(&proposed);
-    module.machines.retain(|machine| {
-        retained.contains(&machine.id)
-            || machine_bound(machine, &evidence, sidecar_operations, sidecar_values)
-    });
+    module.machines.retain(|machine| kept.contains(&machine.id));
 }
 
 /// The verifier's surviving-evidence check plus the producer-only sidecar
