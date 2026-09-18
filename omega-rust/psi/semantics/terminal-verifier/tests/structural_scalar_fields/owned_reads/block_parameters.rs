@@ -378,14 +378,20 @@ fn owned_successors_reject_same_arity_aliases_and_transfer_after_disposal() {
             unreachable!()
         };
         let source = structural_arguments[0].place;
-        if duplicate {
+        let expected = if duplicate {
+            // Two owned arguments cannot move the same affine place: the
+            // second transfer finds its root already consumed.
             structural_arguments[1].place = source;
+            ModuleError::InvalidStructuralSuccessorArgument {
+                edge: *edge,
+                place: source,
+            }
         } else {
+            // The edge transfers `source` into the successor before its exact
+            // discards commit, so naming it there is malformed discard
+            // evidence, not a bad argument.
             trivial_affine_discards.push(source);
-        }
-        let expected = ModuleError::InvalidStructuralSuccessorArgument {
-            edge: *edge,
-            place: source,
+            ModuleError::EdgeAffineDiscardsInvalid { edge: *edge }
         };
         assert_eq!(validate_module(&module).map(|_| ()), Err(expected));
     }
