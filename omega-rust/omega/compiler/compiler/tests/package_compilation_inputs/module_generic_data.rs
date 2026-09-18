@@ -159,12 +159,39 @@ fn package_aliases_preserve_direct_dependency_and_private_template_gates() {
                     .any(|diagnostic| diagnostic.message.contains(if direct {
                         "private"
                     } else {
-                        "failed to resolve"
+                        // `leaf` is in the closure but the root declares no
+                        // edge to it: the missing edge is named, not a path.
+                        "declares no product dependency under that alias"
                     })),
                 "{diagnostics:?}"
             );
         }
     }
+    // An alias binds one package key, not a package-name spelling. A direct
+    // `leaf` edge pointing at another key must not reach the transitively
+    // available `leaf` that actually declares the template.
+    let other = tree.package("other");
+    TempTree::write(other.join("main.omg"), "data Other {}");
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+            PackageSourceBinding::new(identity(4), "other", other.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(4)),
+        ],
+    )
+    .expect("a same-spelled alias bound to another package key");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a foreign package under the same alias spelling declares no template");
 }
 
 #[test]
@@ -476,7 +503,9 @@ fn shared_sum_instances_preserve_package_authority_at_each_constructor() {
                     .any(|diagnostic| diagnostic.message.contains(if direct {
                         "private"
                     } else {
-                        "failed to resolve"
+                        // `leaf` is in the closure but the root declares no
+                        // edge to it: the missing edge is named, not a path.
+                        "declares no product dependency under that alias"
                     })),
                 "{diagnostics:?}"
             );
