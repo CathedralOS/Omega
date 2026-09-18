@@ -1143,6 +1143,104 @@ fn retired_byte_carrier_literal_supplies_no_live_length() {
     );
 }
 
+#[test]
+fn assignment_target_index_call_retains_call_ordinal_and_flow_call() {
+    // The indexed store's target operand is evaluated left to right like any
+    // other authored operand: `self.pick()` occupies call ordinal 0 of the
+    // assignment statement and `self.seven()` occupies 1. Both must reach the
+    // borrowed/collected call set and resolve back through find_call_site,
+    // or the target-side call silently executes with no flow fact.
+    let checked = lower_typed_trees(typed_trees(
+        r#"
+        data Main {
+            cells: [u8; 4];
+        }
+        machine Main::pick(&self) -> u64
+        ensures result < 4u64
+        {
+            2
+        }
+        machine Main::seven(&self) -> u8 {
+            7
+        }
+        machine Main::store(&mut self) {
+            self.cells[self.pick()] = self.seven();
+        }
+    "#,
+    ))
+    .expect("indexed target call checks");
+    let program = &checked.typed;
+    let entry = |name: &str| {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| program.symbols.name(machine.symbol) == name)
+            .unwrap_or_else(|| panic!("{name} machine"));
+        program
+            .machine_states(machine)
+            .first()
+            .map(|state| state.symbol)
+    };
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| program.symbols.name(machine.symbol) == "Main::store")
+        .expect("Main::store machine");
+    let store = entry("Main::store").expect("store state");
+    let pick_entry = entry("Main::pick").expect("pick state");
+    let seven_entry = entry("Main::seven").expect("seven state");
+    let state_flow = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, state)| (state.state_symbol == store).then_some(state))
+        .expect("store flow state");
+    let calls = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state_flow.calls);
+    let pick_call = calls
+        .iter()
+        .find(|call| call.target_symbol == pick_entry)
+        .expect("the index call must produce a flow call fact");
+    assert_eq!(pick_call.statement_index, 0);
+    assert_eq!(pick_call.call_ordinal, 0);
+    assert!(matches!(
+        program
+            .expression_table
+            .expression(pick_call.authored_expression),
+        typed_trees::expression::ExpressionNode::Call(_)
+    ));
+    let seven_call = calls
+        .iter()
+        .find(|call| call.target_symbol == seven_entry)
+        .expect("the value call must produce a flow call fact");
+    assert_eq!(seven_call.statement_index, 0);
+    assert_eq!(
+        seven_call.call_ordinal, 1,
+        "the authored target operand precedes the value operand"
+    );
+    // Both directions of the ordinal join must agree: the collected fact's
+    // ordinal resolves back to the authored index expression.
+    let site = crate::semantic_calls::find_call_site(
+        program,
+        machine.symbol,
+        store,
+        0,
+        pick_call.call_ordinal,
+    )
+    .expect("the index call ordinal must resolve to its authored site");
+    assert!(matches!(
+        site,
+        crate::semantic_calls::CallSite::Expression { expression, .. }
+            if expression == pick_call.authored_expression
+    ));
+}
+
 fn typed_trees(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

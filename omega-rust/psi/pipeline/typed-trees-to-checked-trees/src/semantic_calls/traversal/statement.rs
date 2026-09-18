@@ -12,6 +12,13 @@ pub(crate) fn find_call_site_in_statement<'program>(
     match statement {
         StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => None,
         StatementNode::Assignment(assignment) => {
+            // The authored target operand precedes the value. A call-valued
+            // index (e.g. `self.cells[pick()]`) takes the earlier call ordinal
+            // and must resolve through this traversal like every other call
+            // site, or borrow call ordinals and find_call_site disagree.
+            if let Some(call_site) = find_call_site_in_expression(traversal, assignment.target) {
+                return Some(call_site);
+            }
             find_call_site_in_expression(traversal, assignment.value)
         }
         StatementNode::Call(call) => {
