@@ -17,8 +17,8 @@ use selected_instructions::{
 };
 
 use super::ForkRelocationError;
-use super::dead_path;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::dead_path;
 use crate::rewrites::window_hazards::{
     coupled, has_call_contract, register_reads, register_writes, schedulable, surface,
 };
@@ -345,12 +345,15 @@ pub(super) fn admit<'source>(
     if !skipped_edges.is_empty()
         && !dead_path::dead(
             function,
-            block_index,
-            member_index,
-            target_index,
-            landing_index,
-            member_instruction,
-            &skipped_edges,
+            dead_path::Relocation {
+                member: member_instruction,
+                vacated_block: block_index,
+                vacated_index: member_index,
+                landing_block: target_index,
+                landing_index,
+                landing: dead_path::Landing::Executed,
+            },
+            dead_path::Start::Edges(&skipped_edges),
         )
     {
         return Err(ForkRelocationError::UnsupportedPair);

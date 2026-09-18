@@ -20,8 +20,8 @@ use selected_instructions::{
 };
 
 use super::ConfluenceRelocationError;
-use super::dead_path;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::dead_path;
 use crate::rewrites::window_hazards::{
     coupled, has_call_contract, register_reads, register_writes, schedulable, surface,
 };
@@ -316,11 +316,15 @@ pub(super) fn admit<'source>(
     // shared continuations every inflow reaches.
     if !dead_path::dead(
         function,
-        block_index,
-        member_index,
-        target_index,
-        landing_index,
-        member_instruction,
+        dead_path::Relocation {
+            member: member_instruction,
+            vacated_block: block_index,
+            vacated_index: member_index,
+            landing_block: target_index,
+            landing_index,
+            landing: dead_path::Landing::Speculated,
+        },
+        dead_path::Start::Block(target_index),
     ) {
         return Err(ConfluenceRelocationError::UnsupportedPair);
     }

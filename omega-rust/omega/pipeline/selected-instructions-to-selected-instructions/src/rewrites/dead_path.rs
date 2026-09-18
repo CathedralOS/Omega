@@ -1,52 +1,46 @@
-//! The forward dead-on-path audit for confluence relocation.
+//! The forward dead-on-path audit shared by the relocation rewrites that
+//! move one member across a branch or a join.
 //!
-//! Sinking the member into the join adds its execution to every arrival
-//! through the join's other inflows. The move is sound only when nothing
-//! on the shared continuations can observe the definitions the member
-//! newly publishes: every register the member writes and every
-//! condition-state unit it defines or clobbers must be dead — read by no
-//! body or terminator position and no edge transport before a write
-//! retires the foreign definition — from the landing index onward.
+//! Moving the member changes which traversals execute it. A sink into one
+//! arm removes its execution from every traversal that leaves the branch
+//! through a different edge; a hoist into a fork head or a sink into a join
+//! adds its execution to traversals that never ran it. Either move is sound
+//! only when nothing on the affected paths can observe the definitions the
+//! member no longer publishes, or newly publishes: every register the
+//! member writes and every condition-state unit it defines or clobbers must
+//! be dead on those paths — read by no body or terminator position and no
+//! edge transport before a write retires the stale or foreign definition.
 //!
 //! The audit is the forward mirror of `rewrites/condition_state`'s
-//! entry-event walk, shared in shape with `rewrites/arm_relocation`'s
-//! dead-path audit but seeded where this family speculates: the arm
-//! hoist publishes its foreign definitions at the head before the
-//! skipped edges carry them outward, while this sink's member publishes
-//! them at the landing index inside the join on every arrival — the
-//! join's own arrivals included, since the region behind and ahead of
-//! the landing position cannot tell which inflow a traversal took.
-//! Per-block entry sets of still-live member locations propagate forward
-//! through each successor edge's register surface — a binding or
-//! case-payload argument or a structural transport's argument reading a
-//! live location refuses, while a parameter or payload writing one
-//! retires it — and scan each reached block's body and terminator
+//! entry-event walk. Per-block entry sets of still-live member locations
+//! propagate forward through each successor edge's register surface — a
+//! binding or case-payload argument or a structural transport's argument
+//! reading a live location refuses, while a parameter or payload writing
+//! one retires it — and scan each reached block's body and terminator
 //! positions the same way: a reader of a live location refuses, a writer
-//! of one kills it. Entry sets only ever hold member locations and grow
-//! by union at joins, so the walk is a monotone fixpoint over a finite
-//! subset lattice and terminates.
+//! of one kills it. Entry sets only ever hold member locations and grow by
+//! union at joins, so the walk is a monotone fixpoint over a finite subset
+//! lattice and terminates.
 //!
-//! Two positions are special. In the member's own block the vacated
-//! index is absent from the transformed stream — a dead path that loops
-//! back through it scans the remaining positions only. In the join the
-//! member occupies the landing index on every traversal reaching the
-//! block — including the speculative arrivals this audit walks — so its
-//! reads belong to the added execution and go unaudited, while its
-//! writes republish member locations that are foreign to the path: the
-//! position re-seeds the live set rather than clearing it. The join is
-//! the one block the walk enters unseeded: its own positions before the
-//! landing index precede the member's execution on the traversal now
-//! arriving, so they observe only the loop-carried set, while positions
-//! at and after it carry the published locations forward.
+//! Two positions are special. In the member's own block the vacated index
+//! is absent from the transformed stream — a dead path that loops back
+//! through it scans the remaining positions only. At the landing position
+//! the member's occupancy on the walked paths decides what the walk sees
+//! ([`Landing`]). Where every traversal reaching the block runs the member
+//! there, its position republishes every location it writes and clears the
+//! live set. Where its execution is speculative on the walked paths, its
+//! reads belong to the added execution and go unaudited, while its writes
+//! republish member locations that are foreign to the path: the position
+//! re-seeds the live set rather than clearing it, so a reader after it
+//! still refuses and only an ordinary writer retires them. The destination
+//! instruction at the landing index sits after the member in the
+//! transformed stream and is scanned against the published set.
 //!
 //! The member's own reads need no audit on the source side either: the
 //! window's position-level hazard proof already refuses every write to a
 //! location the member reads between its old and new positions, on every
-//! path through the crossed edge into the join — so the reaching
-//! definition it observes at the landing index on its own inflow's path
-//! is the one it observed at its original position, and its reads on the
-//! other inflows' arrivals belong to an execution whose outputs die
-//! anyway.
+//! path — so the reaching definition it observes at the landing index is
+//! the one it observed at its original position.
 use std::collections::{BTreeSet, VecDeque};
 
 use register_model::RegisterUnitId;
@@ -58,11 +52,50 @@ use selected_instructions::{
 
 use crate::rewrites::window_hazards::{register_reads, register_writes};
 
-/// The locations a speculated member publishes that a path it never ran
-/// on must never observe: every register it writes and every
-/// condition-state unit it defines or clobbers.
+/// How the moved member occupies its landing position on the paths the
+/// audit walks.
+pub(super) enum Landing {
+    /// Every traversal reaching the landing block runs the member there — a
+    /// sink into one arm, whose only predecessors are the branch's own
+    /// edges — so its position publishes every location it writes afresh.
+    Executed,
+    /// The walked traversals never ran the member before — a hoist into a
+    /// fork head, a sink into a join — so its writes at the landing
+    /// position are foreign to the path and stay live until an ordinary
+    /// writer retires them.
+    Speculated,
+}
+
+/// The member's old and new positions in the transformed stream.
+pub(super) struct Relocation<'a> {
+    pub(super) member: &'a SelectedInstruction,
+    /// The block the member leaves; `vacated_index` is absent from its
+    /// transformed stream.
+    pub(super) vacated_block: usize,
+    pub(super) vacated_index: usize,
+    /// The block the member enters and the index it occupies there.
+    pub(super) landing_block: usize,
+    pub(super) landing_index: usize,
+    pub(super) landing: Landing,
+}
+
+/// Where the walk begins.
+pub(super) enum Start<'a> {
+    /// The member's locations are live on each of these edges: the branch
+    /// terminator's successor edges that do not reach the landing block.
+    Edges(&'a [&'a SelectedSuccessor]),
+    /// The walk enters this block with nothing live yet; its landing
+    /// position publishes the member's locations on every arrival, the
+    /// member's own inflow included, since the region behind and ahead of
+    /// that position cannot tell which inflow a traversal took.
+    Block(usize),
+}
+
+/// The locations a moved member publishes that a path it no longer
+/// executes on, or newly executes on, must never observe: every register
+/// it writes and every condition-state unit it defines or clobbers.
 #[derive(Clone, Default)]
-pub(super) struct LiveLocations {
+struct LiveLocations {
     registers: BTreeSet<VirtualRegisterId>,
     units: BTreeSet<RegisterUnitId>,
 }
@@ -82,10 +115,9 @@ impl LiveLocations {
     }
 }
 
-/// Everything the member writes that a speculative execution would leave
-/// foreign: written registers plus defined and clobbered condition-state
-/// units.
-pub(super) fn member_locations(member: &SelectedInstruction) -> LiveLocations {
+/// Everything the member writes: written registers plus defined and
+/// clobbered condition-state units.
+fn member_locations(member: &SelectedInstruction) -> LiveLocations {
     LiveLocations {
         registers: register_writes(member).collect(),
         units: member
@@ -135,6 +167,7 @@ fn terminator_instruction(block: &SelectedBlock) -> &SelectedInstruction {
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }
+
 /// The register surface one crossed edge carries at the boundary. Value
 /// bindings and case payloads move register arguments into parameters;
 /// structural bindings read an argument register into storage;
@@ -197,7 +230,7 @@ fn reads_live(instruction: &SelectedInstruction, live: &LiveLocations) -> bool {
 }
 
 /// Retire the locations the position writes: a rewritten location is dead
-/// to the member's foreign definition from this position onward.
+/// to the member's stale definition from this position onward.
 fn retire_writes(instruction: &SelectedInstruction, live: &mut LiveLocations) {
     for register in register_writes(instruction) {
         live.registers.remove(&register);
@@ -229,30 +262,29 @@ fn cross_edge(live: &LiveLocations, successor: &SelectedSuccessor) -> Option<Liv
     Some(out)
 }
 
-/// Prove every location the member writes dead from the landing index
-/// forward: `vacated_block` / `member_index` name the member's vacated
-/// position — absent from the transformed stream — and `join_index` /
-/// `landing_index` name the position it occupies instead, which the walk
-/// treats as a foreign republisher: on a speculative arrival the
-/// member's execution reads without observing and writes member
-/// locations back into the live set, so a reader after its position
-/// still refuses and only an ordinary writer retires them. The join is
-/// queued unconditionally — its landing position publishes the foreign
-/// set even when nothing arrives at its entry — while every other block
-/// is reached only through edges carrying still-live locations.
+/// The member's landing position as a walked path sees it.
+fn land(live: &mut LiveLocations, landing: &Landing, locations: &LiveLocations) {
+    match landing {
+        Landing::Executed => *live = LiveLocations::default(),
+        Landing::Speculated => {
+            live.union_with(locations);
+        }
+    }
+}
+
+/// Prove every location the member writes dead on every path the walk
+/// reaches from `start`, with the member absent from its vacated position
+/// and present at its landing position as `relocation.landing` says.
 ///
-/// Returns `false` the moment a still-live member location meets a
-/// reader: a body or terminator position reading it, or a crossed edge
-/// whose transports read it at the boundary.
+/// Returns `false` the moment a still-live member location meets a reader:
+/// a body or terminator position reading it, or a crossed edge whose
+/// transports read it at the boundary.
 pub(super) fn dead(
     function: &SelectedFunction,
-    vacated_block: usize,
-    member_index: usize,
-    join_index: usize,
-    landing_index: usize,
-    member: &SelectedInstruction,
+    relocation: Relocation<'_>,
+    start: Start<'_>,
 ) -> bool {
-    let locations = member_locations(member);
+    let locations = member_locations(relocation.member);
     if locations.is_empty() {
         return true;
     }
@@ -261,31 +293,41 @@ pub(super) fn dead(
         .map(|_| LiveLocations::default())
         .collect();
     let mut pending: VecDeque<usize> = VecDeque::new();
-    pending.push_back(join_index);
+    match start {
+        Start::Edges(edges) => {
+            for edge in edges {
+                let Some(out) = cross_edge(&locations, edge) else {
+                    return false;
+                };
+                if let Some(target) = index_of(edge.block)
+                    && entry[target].union_with(&out)
+                    && !pending.contains(&target)
+                {
+                    pending.push_back(target);
+                }
+            }
+        }
+        Start::Block(block) => pending.push_back(block),
+    }
     while let Some(current) = pending.pop_front() {
         let block = &function.blocks[current];
         let mut live = entry[current].clone();
         for (position, instruction) in block.instructions.iter().enumerate() {
-            // The member is gone from its own block's stream. At its new
-            // position in the join its speculative execution reads
-            // nothing the audit tracks and republishes every location it
-            // writes: those values are foreign to the path, so the live
-            // set gains them. The destination instruction itself sits
-            // after the member in the transformed stream, so it is
-            // scanned against the published set rather than skipped.
-            if current == vacated_block && position == member_index {
+            if current == relocation.vacated_block && position == relocation.vacated_index {
                 continue;
             }
-            if current == join_index && position == landing_index {
-                live.union_with(&locations);
+            if current == relocation.landing_block && position == relocation.landing_index {
+                land(&mut live, &relocation.landing, &locations);
             }
             if reads_live(instruction, &live) {
                 return false;
             }
             retire_writes(instruction, &mut live);
         }
-        if current == join_index && landing_index == block.instructions.len() {
-            live.union_with(&locations);
+        if current == relocation.landing_block
+            && relocation.landing_index == block.instructions.len()
+        {
+            land(&mut live, &relocation.landing, &locations);
         }
         let terminator = terminator_instruction(block);
         if reads_live(terminator, &live) {

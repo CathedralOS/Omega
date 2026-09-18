@@ -10,6 +10,7 @@ mod constant_boolean;
 mod constant_branch;
 mod copy_removal;
 mod dead_compare;
+mod dead_path;
 mod dead_store;
 mod diamond_relocation;
 mod edge_relocation;
