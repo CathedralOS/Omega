@@ -3858,28 +3858,32 @@ Owners include
   admitted concrete authority.
 
 - **FLOAT-PROVIDERS.** Complete runtime Boolean/machine operations for exact
-  `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources.
+  `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources
+  under the [FloatMeaning contract](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
   Keep IEEE runtime comparison distinct from mathematical meaning equality;
   NaN payloads erase only in the meaning projection and signed zeros remain
-  distinct there. Landed: terminal-interpreter boundary dispatch executes
-  installed scalar-result providers through the shared suspended scalar frame
-  (`call_operations.rs`/`call_frames.rs`, witnessed by
-  `terminal_interpreter/scalar_provider_call_tests.rs`), and verifier
-  provider-result conformance admits
-  `(BoundaryMachineResult::Scalar, TerminalMachineResult::Scalar)` pairs with
-  the structural arm's closure (`validation/foundation/provider_result.rs`),
-  so codec representation validation and artifact admission accept scalar
-  provider rows. Open: kernel discharge. The remaining artifact-aware proof
-  sources are owner-blocked on `float-meaning-use-site-source-identity`
-  (`OWNER_QUESTIONS.md`): Terminal carries the
-  `DirectOperationResult`/`DirectCallResult` identities with codec tags 6/8 and
-  independent verifier rejoins, but no checked source class can name either,
-  since every checked class is signature-relative and the only artifact carrier
-  that matches is the use site of a transported contract, which has no per-use
-  canonical proof value. Measured at `a2c6676c37` (macOS ARM64): a caller of a
-  float machine yields two `DirectMachineResult` projections and two equalities,
-  no call-site row; `DirectOperationResult` has zero producers in the checked
-  and lowered crates.
+  distinct there. Installed scalar-result providers already execute in the
+  Terminal interpreter, and the verifier's provider-result conformance already
+  admits scalar provider rows.
+
+  Remaining work:
+
+  - Kernel discharge. The `FloatSemantics::*` rows in
+    `numerics/src/float_semantics_catalog.rs` are identity only; attach the
+    discharge binding beside each row, never keyed on the leaf spelling.
+  - The non-call operation result and call result
+    [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity).
+    Terminal carries `DirectOperationResult`/`DirectCallResult` with codec
+    tags 6/8 and independent verifier rejoins, and no checked or lowered
+    producer exists. This part is owner-blocked on the named decision
+    `float-meaning-use-site-source-identity` in `OWNER_QUESTIONS.md`; do not
+    synthesize a source that cannot be tied to an exact operation or call.
+
+  Acceptance: every `FloatSemantics` obligation a `Float::*` slot contract
+  cites is discharged through a checked kernel binding, not catalog identity
+  alone, and `fail/float/float_semantics_lookalike_grants_no_primitive` still
+  rejects. The two open source classes gain a producer the verifier rejoins or
+  are retired, as the named decision directs.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
