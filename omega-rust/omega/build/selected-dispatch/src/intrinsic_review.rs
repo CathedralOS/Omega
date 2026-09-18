@@ -47,6 +47,7 @@ pub fn resolve_accepted_service_binding(
             | package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
             | package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry
             | package_compilation::AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
+            | package_compilation::AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
     ) || binding.selected_provider_plan_digest().is_some()
     {
         return Err(Diagnostic::error(format!(

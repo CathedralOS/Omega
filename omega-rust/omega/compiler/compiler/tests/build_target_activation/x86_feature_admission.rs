@@ -31,9 +31,30 @@ fn package_inputs_with_linux_entry(
         .expect("Linux entry acceptance binds to the std package")
 }
 
-/// Select the package inputs for one target leg: Linux x86-64 entries carry
-/// the accepted contract binding, every other target keeps the plain
-/// std-linked inputs.
+/// Package inputs for a std-linked fixture that selects the Linux ARM64
+/// program entry; its package-sourced contract needs the same explicit
+/// accepted binding.
+fn package_inputs_with_linux_arm64_entry(
+    main: &std::path::Path,
+    canonical_name: &str,
+) -> package_compilation::PackageCompilationInputs {
+    let entry_binding = linux_entry_acceptance::candidate_linux_arm64_entry_binding(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(4)
+            .expect("repository root")
+            .join("source/library/std"),
+        package_identity(2),
+    )
+    .expect("the fixture explicitly accepts the checked Linux ARM64 entry schema");
+    package_inputs_with_standard_library(main, canonical_name)
+        .with_accepted_semantic_bindings(vec![entry_binding])
+        .expect("Linux ARM64 entry acceptance binds to the std package")
+}
+
+/// Select the package inputs for one target leg: the Linux entries carry the
+/// accepted contract binding, every other target keeps the plain std-linked
+/// inputs.
 fn package_inputs_for_target(
     main: &std::path::Path,
     canonical_name: &str,
@@ -41,6 +62,8 @@ fn package_inputs_for_target(
 ) -> package_compilation::PackageCompilationInputs {
     if target == "linux_x86_64" {
         package_inputs_with_linux_entry(main, canonical_name)
+    } else if target == "linux_arm64" {
+        package_inputs_with_linux_arm64_entry(main, canonical_name)
     } else {
         package_inputs_with_standard_library(main, canonical_name)
     }
@@ -695,9 +718,10 @@ machine Main::main(&mut self) {
 fn aarch64_fma_demand_is_not_an_x86_feature_association() {
     let main = pass_canary_main(fixtures::NAMED_PROVIDER_FUSED_MULTIPLY_ADD_EXIT);
     let checked = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(package_inputs_with_standard_library(
+        package_inputs: Some(package_inputs_for_target(
             &main,
             "named-provider-fused-multiply-add-exit",
+            "linux_arm64",
         )),
         ..CheckedCompileRequest::new(&main, Some("linux_arm64"))
     })

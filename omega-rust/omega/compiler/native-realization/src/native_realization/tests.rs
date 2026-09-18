@@ -343,12 +343,14 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
         );
         if matches!(
             target_profile,
-            target::TargetProfile::LinuxX64 | target::TargetProfile::UefiX64
+            target::TargetProfile::LinuxX64
+                | target::TargetProfile::LinuxArm64
+                | target::TargetProfile::UefiX64
         ) {
-            // The Linux x86-64 and UEFI slots declare their two-surface
-            // contracts, so a declaration-only settlement without the selected
-            // paired calling plans fails closed before receiver provisioning
-            // is examined.
+            // The Linux and UEFI slots declare their two-surface contracts, so
+            // a declaration-only settlement without the selected paired
+            // calling plans fails closed before receiver provisioning is
+            // examined.
             assert!(matches!(
                 settlement,
                 Err(crate::NativeProgramEntrySettlementError::CallingPlanPairingDrift)

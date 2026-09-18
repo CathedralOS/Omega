@@ -1,4 +1,4 @@
-use super::{validate, validate_x86_64};
+use super::{validate, validate_linux_arm64, validate_x86_64};
 use crate::hosted_receiver::HostedReceiverPartitions;
 
 const BSS_ADDRESS: u64 = 0x1000_2000;
@@ -285,4 +285,179 @@ fn linux_bridge_instructions_reject_redirected_storage_or_entry() {
     let mut overflowing = PARTITIONS;
     overflowing.stack_byte_count = u64::MAX;
     assert!(validate_x86_64(&shim, address, entry, BSS_ADDRESS, overflowing).is_err());
+}
+
+// Hand-encoded Linux ARM64 bridge: adrp/add the continuation residence,
+// observe the incoming sp, load the head-word contract input, stp the pair,
+// adrp/add the private stack top, switch sp, adrp/add the receiver into x0,
+// bl to the semantic continuation, then exit_group(94) with w0 = 0 and a brk
+// fence. Immediates are computed independently of the writer and relocator.
+fn linux_arm64_shim(
+    address: u64,
+    selected_entry: u64,
+    bss: u64,
+    partitions: HostedReceiverPartitions,
+) -> [u32; 15] {
+    let adrp = |instruction: usize, register: u32, target: u64| -> u32 {
+        let pc = (address + (instruction * 4) as u64) & !0xfff;
+        let pages = ((target & !0xfff) as i64 - pc as i64) / 4096;
+        0x9000_0000
+            | (((pages as u32) & 0x3) << 29)
+            | ((((pages as u32) >> 2) & 0x7_ffff) << 5)
+            | register
+    };
+    let add_lo12 = |register: u32, target: u64| -> u32 {
+        0x9100_0000 | (((target as u32) & 0xfff) << 10) | (register << 5) | register
+    };
+    let continuation = bss + partitions.saved_continuation_offset;
+    let stack_top = bss + partitions.stack_offset + partitions.stack_byte_count;
+    let receiver = bss + partitions.receiver_offset;
+    let call_words = ((selected_entry as i64 - (address + 40) as i64) / 4) as u32;
+    [
+        adrp(0, 9, continuation),
+        add_lo12(9, continuation),
+        0x9100_03ea,
+        0xf940_014b,
+        0xa900_2d2a,
+        adrp(5, 10, stack_top),
+        add_lo12(10, stack_top),
+        0x9100_015f,
+        adrp(8, 0, receiver),
+        add_lo12(0, receiver),
+        0x9400_0000 | (call_words & 0x03ff_ffff),
+        0x5280_0000,
+        0xd280_0bc8,
+        0xd400_0001,
+        0xd420_0000,
+    ]
+}
+
+fn linux_arm64_bytes(words: &[u32; 15]) -> Vec<u8> {
+    words.iter().flat_map(|word| word.to_le_bytes()).collect()
+}
+
+#[test]
+fn linux_arm64_bridge_instructions_reconstruct_signed_pages_and_call() {
+    let shim = linux_arm64_shim(0x1000_0ff0, 0x1000_0fb0, BSS_ADDRESS, PARTITIONS);
+    validate_linux_arm64(
+        &linux_arm64_bytes(&shim),
+        0x1000_0ff0,
+        0x1000_0fb0,
+        BSS_ADDRESS,
+        PARTITIONS,
+    )
+    .expect("exact Linux ARM64 bridge words and resolved targets");
+
+    // Negative page displacements and a backward call both reconstruct.
+    let shim = linux_arm64_shim(0x1000_3000, 0x1000_2fc0, BSS_ADDRESS, PARTITIONS);
+    validate_linux_arm64(
+        &linux_arm64_bytes(&shim),
+        0x1000_3000,
+        0x1000_2fc0,
+        BSS_ADDRESS,
+        PARTITIONS,
+    )
+    .expect("negative page displacement and backward call");
+    let shim = linux_arm64_shim(0x1000_3000, 0x1000_4000, BSS_ADDRESS, PARTITIONS);
+    validate_linux_arm64(
+        &linux_arm64_bytes(&shim),
+        0x1000_3000,
+        0x1000_4000,
+        BSS_ADDRESS,
+        PARTITIONS,
+    )
+    .expect("forward call displacement");
+}
+
+#[test]
+fn linux_arm64_bridge_instructions_reject_every_mutated_word() {
+    let address = 0x1000_0ff0;
+    let entry = 0x1000_0fb0;
+    let original = linux_arm64_shim(address, entry, BSS_ADDRESS, PARTITIONS);
+    for instruction in 0..15 {
+        for bit in 0..32 {
+            let mut changed = original;
+            changed[instruction] ^= 1 << bit;
+            assert!(
+                validate_linux_arm64(
+                    &linux_arm64_bytes(&changed),
+                    address,
+                    entry,
+                    BSS_ADDRESS,
+                    PARTITIONS
+                )
+                .is_err(),
+                "instruction {instruction}, bit {bit}"
+            );
+        }
+    }
+    // Storing the continuation after the SP switch would lose input custody.
+    let mut reordered = original;
+    reordered.swap(4, 7);
+    assert!(
+        validate_linux_arm64(
+            &linux_arm64_bytes(&reordered),
+            address,
+            entry,
+            BSS_ADDRESS,
+            PARTITIONS
+        )
+        .is_err(),
+        "switching SP before saving the physical continuation changes custody"
+    );
+    for length in [0, 4, 40, 56, 59] {
+        assert!(
+            validate_linux_arm64(
+                &linux_arm64_bytes(&original)[..length],
+                address,
+                entry,
+                BSS_ADDRESS,
+                PARTITIONS
+            )
+            .is_err()
+        );
+    }
+    let mut longer = linux_arm64_bytes(&original);
+    longer.extend([0; 4]);
+    assert!(validate_linux_arm64(&longer, address, entry, BSS_ADDRESS, PARTITIONS).is_err());
+}
+
+#[test]
+fn linux_arm64_bridge_instructions_reject_redirected_storage_or_entry() {
+    let address = 0x1000_0ff0;
+    let entry = 0x1000_0fb0;
+    let shim = linux_arm64_bytes(&linux_arm64_shim(address, entry, BSS_ADDRESS, PARTITIONS));
+    for mutation in 0..4 {
+        let mut partitions = PARTITIONS;
+        match mutation {
+            0 => partitions.saved_continuation_offset += 16,
+            1 => partitions.stack_offset += 16,
+            2 => partitions.stack_byte_count += 16,
+            _ => partitions.receiver_offset += 16,
+        }
+        assert!(validate_linux_arm64(&shim, address, entry, BSS_ADDRESS, partitions).is_err());
+    }
+    // A shim aimed at a different continuation must not satisfy this entry.
+    assert!(validate_linux_arm64(&shim, address, entry + 0x40, BSS_ADDRESS, PARTITIONS).is_err());
+    let redirected = linux_arm64_bytes(&linux_arm64_shim(
+        address,
+        entry + 0x40,
+        BSS_ADDRESS,
+        PARTITIONS,
+    ));
+    assert!(validate_linux_arm64(&redirected, address, entry, BSS_ADDRESS, PARTITIONS).is_err());
+    let moved = linux_arm64_bytes(&linux_arm64_shim(
+        address,
+        entry,
+        BSS_ADDRESS + 0x1000,
+        PARTITIONS,
+    ));
+    assert!(validate_linux_arm64(&moved, address, entry, BSS_ADDRESS, PARTITIONS).is_err());
+    for hostile in [address + 1, u64::MAX - 3] {
+        assert!(validate_linux_arm64(&shim, hostile, entry, BSS_ADDRESS, PARTITIONS).is_err());
+    }
+    // BSS arithmetic overflow fails closed.
+    let mut overflowing = PARTITIONS;
+    overflowing.stack_byte_count = u64::MAX;
+    assert!(validate_linux_arm64(&shim, address, entry, BSS_ADDRESS, overflowing).is_err());
 }

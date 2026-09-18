@@ -3292,6 +3292,12 @@ fn reviewed_repository_fixture_package_inputs(
             )?,
         );
     }
+    if target_name == Some("linux_arm64") {
+        bindings.push(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
+            &repo_root().join("source/library/std"),
+            fixture_package_identity(2),
+        )?);
+    }
     if target_name == Some("uefi_x86_64") {
         bindings.push(uefi_entry_acceptance::candidate_uefi_entry_binding(
             &repo_root().join("source/library/std"),

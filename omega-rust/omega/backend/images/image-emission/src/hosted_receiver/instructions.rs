@@ -50,7 +50,14 @@ pub(super) fn validate(
         let pc = address
             .checked_add((instruction * 4) as u64)
             .ok_or_else(invalid)?;
-        if address_pair(words[instruction], words[instruction + 1], pc, register)? != expected {
+        if address_pair(
+            words[instruction],
+            words[instruction + 1],
+            pc,
+            register,
+            &invalid,
+        )? != expected
+        {
             return Err(invalid());
         }
     }
@@ -78,8 +85,13 @@ pub(super) fn validate(
     Ok(())
 }
 
-fn address_pair(page: u32, add: u32, pc: u64, register: u32) -> Result<u64, Diagnostic> {
-    let invalid = || invalid(target::NativeTarget::macos_arm64());
+fn address_pair(
+    page: u32,
+    add: u32,
+    pc: u64,
+    register: u32,
+    invalid: &dyn Fn() -> Diagnostic,
+) -> Result<u64, Diagnostic> {
     if page & 0x9f00_001f != 0x9000_0000 | register
         || add & 0xffc0_03ff != 0x9100_0000 | (register << 5) | register
     {
@@ -162,6 +174,98 @@ pub(super) fn validate_x86_64(
         return Err(invalid());
     }
     if rip_relative(22) != Some(selected_entry) {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+/// Independent reader for the Linux ARM64 hosted receiver bridge.
+///
+/// The emitted text is exactly 60 bytes (fifteen instructions):
+///
+/// ```text
+/// 0:  adrp x9, scratch ; add x9, x9, lo12   -> saved continuation residence
+/// 2:  mov x10, sp                          -> incoming stack image base
+/// 3:  ldr x11, [x10]                       -> authored head-word input (argc)
+/// 4:  stp x10, x11, [x9]                   -> preserve continuation + input
+/// 5:  adrp x10, stack_top ; add x10, lo12  -> private stack top
+/// 7:  mov sp, x10                          -> switch before any spill
+/// 8:  adrp x0, receiver ; add x0, lo12     -> provisioned receiver
+/// 10: bl <rel26>                           -> exact semantic continuation
+/// 11: mov w0, #0                           -> Unit result -> status zero
+/// 12: movz x8, #94                         -> exit_group
+/// 13: svc #0
+/// 14: brk #0                               -> fence if the call returned
+/// ```
+///
+/// Kernel arrival on AArch64 supplies the stack image through sp and no
+/// return continuation. The reader proves the continuation pointer and the
+/// authored contract input are stored in their own image partition before sp
+/// switches, that the callee sees the provisioned receiver in x0, and that
+/// normal completion is the nonreturning exit_group supervisor call.
+pub(super) fn validate_linux_arm64(
+    bytes: &[u8],
+    address: u64,
+    selected_entry: u64,
+    bss_address: u64,
+    partitions: HostedReceiverPartitions,
+) -> Result<(), Diagnostic> {
+    let invalid = || invalid(target::NativeTarget::linux_arm64());
+    let (encoded, remainder) = bytes.as_chunks::<4>();
+    if encoded.len() != 15 || !remainder.is_empty() || !address.is_multiple_of(4) {
+        return Err(invalid());
+    }
+    let mut words = [0; 15];
+    for (word, encoded) in words.iter_mut().zip(encoded) {
+        *word = u32::from_le_bytes(*encoded);
+    }
+    let continuation = bss_address
+        .checked_add(partitions.saved_continuation_offset)
+        .ok_or_else(invalid)?;
+    let stack_top = bss_address
+        .checked_add(partitions.stack_offset)
+        .and_then(|low| low.checked_add(partitions.stack_byte_count))
+        .ok_or_else(invalid)?;
+    let receiver = bss_address
+        .checked_add(partitions.receiver_offset)
+        .ok_or_else(invalid)?;
+    for (instruction, register, expected) in
+        [(0, 9, continuation), (5, 10, stack_top), (8, 0, receiver)]
+    {
+        let pc = address
+            .checked_add((instruction * 4) as u64)
+            .ok_or_else(invalid)?;
+        if address_pair(
+            words[instruction],
+            words[instruction + 1],
+            pc,
+            register,
+            &invalid,
+        )? != expected
+        {
+            return Err(invalid());
+        }
+    }
+    for (instruction, expected) in [
+        (2, 0x9100_03ea),  // Incoming SP -> x10; the arrival image stays observable.
+        (3, 0xf940_014b),  // The contract's head-word input loads through x10.
+        (4, 0xa900_2d2a),  // Store x10/x11 through x9, exactly sixteen bytes.
+        (7, 0x9100_015f),  // Private stack top -> SP before the call.
+        (11, 0x5280_0000), // Semantic Unit normal return -> physical zero.
+        (12, 0xd280_0bc8), // exit_group -> x8.
+        (13, 0xd400_0001), // svc #0.
+        (14, 0xd420_0000), // brk #0 if the nonreturning call ever returned.
+    ] {
+        if words[instruction] != expected {
+            return Err(invalid());
+        }
+    }
+    if words[10] & 0xfc00_0000 != 0x9400_0000 {
+        return Err(invalid());
+    }
+    let signed_words = (i64::from(words[10] & 0x03ff_ffff) << 38) >> 38;
+    let call_address = address.checked_add(40).ok_or_else(invalid)?;
+    if call_address.checked_add_signed(signed_words * 4) != Some(selected_entry) {
         return Err(invalid());
     }
     Ok(())

@@ -426,3 +426,70 @@ fn linux_hosted_physical_replay_keeps_source_bytes_for_package_qualified_require
         target::NativeTarget::linux_x64()
     ));
 }
+
+fn linux_arm64_physical_contract(
+    requirement: &str,
+    source: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
+) -> ProgramEntryPhysicalContractPlan {
+    let plan = program_entry_plan::exact_linux_arm64_physical_boundary_entry_plan();
+    ProgramEntryPhysicalContractPlan::new(
+        target::TargetProfile::LinuxArm64.program_entry_slot(),
+        requirement.into(),
+        target::ProgramEntryPhysicalContractPackage::LinuxArm64,
+        source,
+        0,
+        [program_entry_plan::LINUX_ARM64_U64_TYPE_IDENTITY]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+        program_entry_plan::LINUX_ARM64_I32_TYPE_IDENTITY.into(),
+        plan.contract_report_fingerprint(),
+        plan.plan().clone(),
+    )
+    .expect("well-shaped Linux ARM64 physical plan")
+}
+
+#[test]
+fn linux_arm64_hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements() {
+    let source = program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest();
+    for requirement in [
+        program_entry_plan::LINUX_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
+        "accepted-package::LinuxPhysicalEntry::enter",
+    ] {
+        assert!(physical_contract_matches(
+            &linux_arm64_physical_contract(requirement, source),
+            target::NativeTarget::linux_arm64()
+        ));
+        // The exact Linux ARM64 contract must not satisfy a different bridge.
+        assert!(!physical_contract_matches(
+            &linux_arm64_physical_contract(requirement, source),
+            target::NativeTarget::linux_x64()
+        ));
+        assert!(!physical_contract_matches(
+            &linux_arm64_physical_contract(requirement, source),
+            target::NativeTarget::macos_arm64()
+        ));
+    }
+    let changed_source =
+        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+            target::ProgramEntryPhysicalContractPackage::LinuxArm64,
+            b"different target implementation",
+        );
+    assert!(!physical_contract_matches(
+        &linux_arm64_physical_contract(
+            "accepted-package::LinuxPhysicalEntry::enter",
+            changed_source
+        ),
+        target::NativeTarget::linux_arm64()
+    ));
+    // An x86-64 contract presented on the ARM64 target is a contract
+    // substitution, not an alias.
+    let linux_x64 = linux_physical_contract(
+        program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest(),
+    );
+    assert!(!physical_contract_matches(
+        &linux_x64,
+        target::NativeTarget::linux_arm64()
+    ));
+}

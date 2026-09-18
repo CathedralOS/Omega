@@ -158,9 +158,11 @@ fn return_programs_publish_replayable_native_evidence_on_every_target() {
         );
         if matches!(
             target_profile,
-            target::TargetProfile::MacosArm64 | target::TargetProfile::LinuxX64
+            target::TargetProfile::MacosArm64
+                | target::TargetProfile::LinuxX64
+                | target::TargetProfile::LinuxArm64
         ) {
-            // macOS ARM64 and Linux x86-64 declare their two-surface
+            // macOS ARM64 and the Linux slots declare their two-surface
             // application contracts on the target slot, so native realization
             // must fail closed when the settlement lost the exact paired
             // semantic/physical calling plans a real selection produces.

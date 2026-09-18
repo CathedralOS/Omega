@@ -238,3 +238,216 @@ fn linux_entry_policy_rejects_wrong_physical_or_storage_signatures() {
         );
     }
 }
+
+/// Check the real bundled Linux ARM64 contract under its own standard-library
+/// package custody: a copied fixture source would declare a second
+/// `LinuxArm64` beside the bundled target implementation.
+fn checked_arm64_contract(_name: &str) -> compiler::CheckedCompilation {
+    let standard_library_root = repository_root().join("source/library/std");
+    let package =
+        PackageKeyIdentity::from_digest([74; 32]).expect("nonzero entry fixture package identity");
+    let inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "omega-language-std",
+            standard_library_root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("standard-library entry fixture package graph");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(
+            &standard_library_root.join("targets/linux_arm64/entry.omg"),
+            Some("linux_arm64"),
+        )
+    })
+    .expect("the real Linux ARM64 entry contract and its calling applications check")
+}
+
+#[test]
+fn linux_arm64_entry_policy_replays_physical_and_semantic_calling_plans() {
+    let checked = checked_arm64_contract("linux-arm64-entry-call-plans");
+    let realizations: Vec<_> = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .filter(|realization| realization.policy_machine.ends_with("LinuxArm64::plan"))
+        .collect();
+    assert_eq!(realizations.len(), 2);
+    for realization in realizations {
+        let (actual, report, commitment) = realization
+            .replayed_validated_application()
+            .expect("independent source-signature and policy-result replay");
+        assert_eq!(report, realization.report_fingerprint);
+        assert_eq!(commitment, realization.commitment);
+        assert_eq!(actual.plan(), realization.exact_boundary_entry_plan());
+        if actual.plan().call.result.is_some() {
+            // The physical surface is the kernel arrival, not an ordinary
+            // boundary call: the kernel delivers no argument registers, so the
+            // authored contract names the argument count at the base of the
+            // initial process-stack image, and completion leaves through
+            // exit_group with status in w0.
+            let [argc] = actual.plan().call.parameters.as_slice() else {
+                panic!("kernel physical entry carries exactly the image's head word")
+            };
+            assert_eq!(argc.shape, ValueShape::integer(8, 8));
+            assert_eq!(
+                argc.locations.as_slice(),
+                [ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                }]
+            );
+            let result = actual
+                .plan()
+                .call
+                .result
+                .as_ref()
+                .expect("physical entry result");
+            assert_eq!(result.shape, ValueShape::integer(4, 4));
+            assert_eq!(
+                result.locations.as_slice(),
+                [ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 4,
+                }]
+            );
+            assert_eq!(
+                actual.plan().call.entry_control,
+                EntryControl::SupervisorCall {
+                    number_register: MachineRegister::Aarch64X(8),
+                    immediate: 94,
+                }
+            );
+        } else {
+            let materialized = realization.materialized_signature();
+            for root in materialized.parameters() {
+                let shape = materialized.shapes()[usize::from(*root)];
+                let BoundaryValueClass::Record {
+                    first_field,
+                    field_count,
+                } = shape.class()
+                else {
+                    panic!("core Extent must retain its record shape, not an ABI-sized integer")
+                };
+                assert_eq!(field_count, 2);
+                let fields = &materialized.fields()[usize::from(first_field)..][..2];
+                assert_eq!([fields[0].byte_offset(), fields[1].byte_offset()], [0, 8]);
+                for field in fields {
+                    let word = materialized.shapes()[usize::from(field.shape())];
+                    assert_eq!(word.class(), BoundaryValueClass::Integer);
+                    assert_eq!((word.byte_size(), word.alignment()), (8, 8));
+                }
+            }
+            // The semantic crossing is an ordinary AAPCS64 boundary call the
+            // generated bridge performs: the two Extent roots occupy x0/x1
+            // and x2/x3.
+            let expected = evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::Aapcs64,
+                &semantic_signature(),
+            )
+            .expect("independent ABI plan");
+            assert_eq!(actual.plan().call, expected.plan().call);
+        }
+    }
+}
+
+#[test]
+fn linux_arm64_entry_policy_evaluates_both_entry_surfaces() {
+    let checked = checked_arm64_contract("linux-arm64-entry-policy-eval");
+    let physical =
+        evaluate_calling_policy_plan(&checked.typed, "LinuxArm64::plan", &physical_signature())
+            .expect("kernel physical entry plans");
+    assert_eq!(physical.plan().call.stack_alignment, 16);
+    assert_eq!(
+        physical.plan().call.entry_control,
+        EntryControl::SupervisorCall {
+            number_register: MachineRegister::Aarch64X(8),
+            immediate: 94,
+        },
+        "the kernel supplies no return continuation; completion is exit_group"
+    );
+    // The program-storage crossing is only expressible through its retained
+    // application: the authored policy requires the exact Extent record
+    // shapes, which a flat call signature cannot denote.
+    let semantic = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .filter(|realization| realization.policy_machine.ends_with("LinuxArm64::plan"))
+        .find(|realization| {
+            realization
+                .exact_boundary_entry_plan()
+                .call
+                .result
+                .is_none()
+        })
+        .expect("retained semantic program-storage entry application");
+    let (semantic_plan, _, _) = semantic
+        .replayed_validated_application()
+        .expect("semantic application replays");
+    assert_eq!(
+        semantic_plan.plan().call.entry_control,
+        EntryControl::CallReturn
+    );
+    assert_eq!(
+        semantic_plan.plan().call.parameters.len(),
+        2,
+        "the bridge passes the image and initial-storage roots"
+    );
+    assert_eq!(
+        semantic_plan.plan().state.initial_regime,
+        MachineRegime::Aarch64A64 { exception_level: 0 }
+    );
+    assert_eq!(
+        semantic_plan.plan().state.stack,
+        EntryStack::ProviderSelected
+    );
+}
+
+#[test]
+fn linux_arm64_entry_policy_rejects_wrong_physical_or_storage_signatures() {
+    let checked = checked_arm64_contract("linux-arm64-entry-invalid-call-plans");
+    for mutation in 0..8 {
+        let mut signature = physical_signature();
+        match mutation {
+            0 => {
+                signature.parameters.push(ValueShape::integer(8, 8));
+            }
+            1 => signature.parameters[0] = ValueShape::integer(4, 4),
+            2 => signature.result = None,
+            3 => signature.result = Some(ValueShape::integer(8, 8)),
+            4 => {
+                signature = CallSignature {
+                    parameters: vec![ValueShape::integer(8, 8); 2],
+                    result: Some(ValueShape::integer(4, 4)),
+                }
+            }
+            5 => {
+                signature = CallSignature {
+                    parameters: vec![ValueShape::integer(16, 16); 2],
+                    result: None,
+                }
+            }
+            6 => {
+                signature = CallSignature {
+                    parameters: vec![ValueShape::integer(8, 8); 3],
+                    result: None,
+                }
+            }
+            _ => {
+                signature = CallSignature {
+                    parameters: vec![],
+                    result: None,
+                }
+            }
+        }
+        assert!(
+            evaluate_calling_policy_plan(&checked.typed, "LinuxArm64::plan", &signature).is_err(),
+            "invalid entry shape {mutation} cannot acquire a calling plan"
+        );
+    }
+}

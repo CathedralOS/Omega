@@ -137,6 +137,7 @@ pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
     MacosArm64,
     LinuxX86_64,
+    LinuxArm64,
 }
 
 impl ProgramEntryPhysicalContractPackage {
@@ -145,6 +146,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::UefiX64 => "omega::language::std::targets::uefi_x86_64::entry",
             Self::MacosArm64 => "omega::language::std::targets::macos_arm64::entry",
             Self::LinuxX86_64 => "omega::language::std::targets::linux_x86_64::entry",
+            Self::LinuxArm64 => "omega::language::std::targets::linux_arm64::entry",
         }
     }
 
@@ -153,6 +155,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::UefiX64 => "targets/uefi_x86_64/entry.omg",
             Self::MacosArm64 => "targets/macos_arm64/entry.omg",
             Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
+            Self::LinuxArm64 => "targets/linux_arm64/entry.omg",
         }
     }
 
@@ -163,6 +166,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::UefiX64 => "UEFI",
             Self::MacosArm64 => "macOS ARM64",
             Self::LinuxX86_64 => "Linux x86-64",
+            Self::LinuxArm64 => "Linux ARM64",
         }
     }
 }
@@ -445,6 +449,25 @@ impl TargetProfile {
                 Some(ProgramEntryPhysicalContractPackage::LinuxX86_64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
+            ),
+            // The Linux ARM64 hosted bridge retains the same two authored
+            // surfaces: `LinuxPhysicalEntry::enter` is the kernel process
+            // arrival (the initial process-stack image's argument-count head
+            // word is delivered at the incoming stack base; completion leaves
+            // through the exit_group supervisor call with status in w0) and
+            // `ProgramStorageEntry::enter` is the semantic continuation it
+            // adapter-maps into. The source-visible application stays
+            // `HostedApplication` with no authored storage parameters; the two
+            // internal roots are provisioned by the bridge, never hosted
+            // arguments.
+            Self::LinuxArm64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("LinuxArm64Application"),
+                Some("LinuxPhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::LinuxArm64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
             ),
             _ => (
                 ProgramEntrySchema::HostedApplication,

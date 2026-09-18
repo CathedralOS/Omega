@@ -356,6 +356,9 @@ pub(super) fn candidate_target_entry_binding(
         target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
             AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
         }
+        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
+            AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
+        }
     };
     let mut definitions = checked.traits().iter().filter(|definition| {
         definition.is_boundary
