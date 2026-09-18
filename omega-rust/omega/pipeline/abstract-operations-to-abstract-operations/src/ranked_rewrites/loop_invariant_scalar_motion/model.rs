@@ -38,10 +38,14 @@ pub enum LoopInvariantNodeResult {
         scalar_type: ScalarType,
     },
     /// A preserved structural operation result — the fresh view place a
-    /// `ByteSequenceSubslice` establishes, or the fresh storage cell an
-    /// `EstablishPrimitiveLocal` declares. The moved operation keeps it
+    /// `ByteSequenceSubslice` establishes, the fresh storage cell an
+    /// `EstablishPrimitiveLocal` declares, the fresh payload an
+    /// `EstablishScalarArray` or `EstablishRecord` binds, or the fresh sum
+    /// place an `EstablishScalarCase` declares. The moved operation keeps it
     /// byte-exact, so the transformed unit's structural custody still sees
-    /// the same producer declaring the same place.
+    /// the same producer declaring the same place — for an affine case
+    /// result the realization additionally re-spells where member edges and
+    /// returns dispose that persistent place.
     Structural(terminal_psi::StructuralOperationResult),
     /// A preserved literal place declaration — the fresh immutable view root
     /// an `EstablishByteSequenceLiteral` establishes. The moved operation

@@ -12,6 +12,11 @@ use std::collections::{BTreeMap, BTreeSet};
 mod context;
 mod prephysical_manifest;
 mod projection;
+mod scalar_case_frontiers;
+
+pub(crate) use scalar_case_frontiers::{
+    relocated_scalar_case_result_places, rewrite_relocated_case_result_frontiers,
+};
 
 pub use context::{
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
@@ -541,6 +546,439 @@ pub(crate) fn invariant_scalar_array_admission(
     member_scalar_operand_substitution(function, component, node, relocating)
 }
 
+/// An `EstablishScalarCase` is the fifth structural establishment admitted
+/// for loop-invariant motion — and the family's first member whose affine
+/// result carries a per-iteration disposal obligation the relocation must
+/// re-express rather than preserve. The node declares a fresh claim-free sum
+/// place initialized from declaration-ordered scalar case fields: it reads
+/// exactly the `fields` values in order, mutates no existing place, and
+/// carries no successors or ownership events. The node must name its own
+/// operation as the first provenance row, define no scalar value (its result
+/// is the declared sum place), use exactly its `fields` values in
+/// declaration order, and keep the result claim-free the way the
+/// cyclic-eligibility fence's `scalar_case::fields` requires — unrestricted
+/// or affine multiplicity and vacuous qualification, projection, and claim
+/// rosters — so the moved declaration still validates as an owned
+/// establishment. A bounded-integer field's `range_obligation` is not an
+/// operand position: it was discharged against the field value and operand
+/// substitution only rebinds a member parameter to the representative every
+/// reaching edge proves equal, so the obligation moves byte-exact inside the
+/// operation. Whether the field values are actually loop-invariant — and,
+/// for an affine result, whether the component contains the result's
+/// dispatch custody in a shape the relocation can re-express — is decided
+/// separately by [`invariant_scalar_case_admission`].
+pub(crate) fn admissible_invariant_scalar_case(
+    node: &OptimizationNode,
+) -> Option<terminal_psi::StructuralOperationResult> {
+    let O::EstablishScalarCase {
+        psi_operation,
+        result,
+        fields,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.is_empty()
+        && node.uses.len() == fields.len()
+        && node
+            .uses
+            .iter()
+            .zip(fields.iter())
+            .all(|(value_use, field)| value_use.value == field.value)
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+        && matches!(
+            result.multiplicity,
+            terminal_psi::StructuralMultiplicity::Unrestricted
+                | terminal_psi::StructuralMultiplicity::Affine
+        )
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty())
+    .then(|| result.clone())
+}
+
+/// The complete scalar-case-establishment admission shared by the proposal
+/// and the relocation freeze replay: `node` must carry the source-owned
+/// establishment shape ([`admissible_invariant_scalar_case`]) — which yields
+/// the declared sum place — and each scalar field value must obey the shared
+/// use-site invariance rule ([`member_scalar_operand_substitution`]). An
+/// unrestricted result is copyable custody like a record's or array's: the
+/// component must perform no place mutation or custody movement
+/// ([`component_preserves_place_observations`]) so a payload established
+/// once still reads those fields on every traversal. An affine result is the
+/// family's first relocation that rewrites retained custody: the cyclic
+/// eligibility fence already confined the fresh sum to the member block that
+/// dispatches or returns it, discarding the place on every dispatch edge, so
+/// hoisting the establishment keeps the one persistent result live through
+/// the whole component — stripping it from member-internal edges (each
+/// traversal would otherwise discard the persistent place its next
+/// traversal's dispatch inspects) and disposing it instead on every exit
+/// edge and member return that did not already carry it. That re-expressed
+/// frontier is exactly what the reconstructed ownership replay requires, and
+/// [`scalar_case_result_contained`] is the bound proving the component only
+/// ever spells the result through positions the rewrite covers. Returns the
+/// scalar substitution the relocated establishment performs on `fields`.
+pub(crate) fn invariant_scalar_case_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+) -> Option<BTreeMap<ValueId, ValueId>> {
+    let result = admissible_invariant_scalar_case(node)?;
+    if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
+        if !scalar_case_result_contained(function, component, result.place) {
+            return None;
+        }
+    } else if !component_preserves_place_observations(function, component) {
+        return None;
+    }
+    member_scalar_operand_substitution(function, component, node, relocating)
+}
+
+/// Whether the affine scalar-case result `picked` stays inside `component`'s
+/// member roster spelled only through positions the relocation's custody
+/// rewrite covers: the producing establishment itself, a `StructuralCase`
+/// dispatch or read-only inspection of the sum, a structural return's source
+/// or exit-disposal roster, and the member-internal or exit edges whose
+/// discard rosters the rewrite adjusts. The cyclic eligibility fence already
+/// proved `picked` is produced and dispatched (or returned) in one member
+/// block and discarded on every dispatch edge; once the establishment lands
+/// in the preheader the result lives through every member, so any other
+/// spelling — a store destination, a call's structural argument, a reference
+/// carrier, an edge structural binding — would move or observe custody the
+/// rewrite cannot re-express and refuses. An unmodeled member operation
+/// fails closed for the same reason. `picked` on a residual discard, or on
+/// an edge departing a non-member block, is impossible in a verified seed —
+/// the result is dead outside the roster — and refuses anyway so the replay
+/// never trusts it. A member `ReturnUnit` whose cleanup already invokes a
+/// nominal receiver has no `DiscardRoot` slot the rewrite can spell, so that
+/// one terminator shape refuses; every other member terminator is
+/// expressible: member `Return`/`ReturnUnit` blocks insert
+/// `DiscardRoot(picked)` in schedule order, a member `ReturnStructural`
+/// either returns `picked` outright or lists it in `trivial_affine_discards`,
+/// and a `Crash` carries only claims.
+fn scalar_case_result_contained(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    picked: PlaceId,
+) -> bool {
+    let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+    for block in &function.blocks {
+        for node in &block.nodes {
+            let member = members.contains(&block.id);
+            let confined = match &node.operation {
+                // The producer spells its own result — a declaration, not a
+                // use of an existing place — and only a member node can
+                // produce it inside this component.
+                O::EstablishScalarCase { result, .. } if result.place == picked => member,
+                // Dispatch, inspection, and structural-return positions keep
+                // the result inside re-expressible custody when they live
+                // inside the roster.
+                O::StructuralCase { source, .. }
+                | O::StructuralCaseMembership { source, .. }
+                | O::IntegerStructuralField { source, .. }
+                | O::BooleanStructuralField { source, .. }
+                | O::PrimitiveScalarRead { source, .. }
+                | O::ByteSequenceRead { source, .. }
+                | O::ByteSequenceSubslice { source, .. }
+                | O::ByteSequenceLength { source, .. }
+                | O::StructuralByteSequenceFieldLength { source, .. }
+                    if *source == picked =>
+                {
+                    member
+                }
+                // A member structural return disposes `picked` through its
+                // exit roster or returns it outright — either shape is
+                // expressible — while a non-member return cannot name a
+                // place that is dead outside the member roster.
+                O::ReturnStructural { source, .. } => member || *source != picked,
+                operation => {
+                    // Every modeled operation spelling `picked` outside the
+                    // whitelist — a store destination, a call argument, a
+                    // produced root collision — refuses. An operation this
+                    // scan cannot model could spell it anywhere, so a member
+                    // occurrence fails closed; a non-member operation cannot
+                    // spell `picked` in a verified seed at all.
+                    let mut references = BTreeSet::new();
+                    if member_place_references(operation, &mut references) {
+                        !references.contains(&picked)
+                    } else {
+                        !member
+                    }
+                }
+            };
+            if !confined {
+                return false;
+            }
+            if !member {
+                continue;
+            }
+            // A member `Return`/`ReturnUnit` cleanup invoking a nominal
+            // receiver has no `DiscardRoot` slot for `picked` — the cleanup
+            // shape requires all-nominal actions once any appear — so the
+            // custody rewrite could not express its disposal and the
+            // relocation refuses.
+            if let O::Return {
+                cleanup_actions, ..
+            }
+            | O::ReturnUnit {
+                cleanup_actions, ..
+            } = &node.operation
+                && cleanup_actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                    )
+                })
+            {
+                return false;
+            }
+            for edge in &node.successors {
+                if edge
+                    .residual_affine_discards
+                    .iter()
+                    .any(|discard| discard.place == picked)
+                    || edge.structural_bindings.iter().any(|binding| {
+                        binding.parameter == picked || binding.argument.place == picked
+                    })
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    // `picked` on an edge departing outside the member roster is dead-place
+    // custody a verified seed cannot carry — refuse rather than trust it.
+    function
+        .blocks
+        .iter()
+        .filter(|block| !members.contains(&block.id))
+        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+        .all(|edge| {
+            !edge.trivial_affine_discards.contains(&picked)
+                && !edge
+                    .residual_affine_discards
+                    .iter()
+                    .any(|discard| discard.place == picked)
+        })
+}
+
+/// Rewrite one retained member node's edge and cleanup custody for the
+/// relocated affine scalar-case results in `case_results`: strip each such
+/// place from every member-internal edge — the persistent preheader result
+/// stays live across the traversal where the source's fresh place died at
+/// dispatch — and insert it, in the Terminal cleanup schedule's order, on
+/// every exit edge that did not already dispose it, in every member
+/// `Return`/`ReturnUnit` cleanup roster, and in a member `ReturnStructural`'s
+/// `trivial_affine_discards` when some other root is returned. The operation's
+/// own edge lists, the `successors` mirror, and the `Cleanup` ownership
+/// mirror are rewritten in lockstep so the transformed node still satisfies
+/// `successors_match_operation` and `expected_ownership`. The same rewrite
+/// normalizes the seed's retained nodes inside the relocation freeze replay,
+/// so the fence compares the admitted transformed spelling against the same
+/// re-derived custody rather than trusting it.
+pub(crate) fn rewrite_scalar_case_custody(
+    structural_places: &[terminal_psi::StructuralPlaceDeclaration],
+    members: &BTreeSet<BlockId>,
+    case_results: &BTreeSet<PlaceId>,
+    node: &mut OptimizationNode,
+) {
+    if case_results.is_empty() {
+        return;
+    }
+    match &mut node.operation {
+        O::Jump {
+            target,
+            trivial_affine_discards,
+            ..
+        } => {
+            rewrite_case_edge_discards(
+                structural_places,
+                members,
+                *target,
+                case_results,
+                trivial_affine_discards,
+            );
+        }
+        O::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => {
+            for successor in [when_true, when_false] {
+                rewrite_case_edge_discards(
+                    structural_places,
+                    members,
+                    successor.target,
+                    case_results,
+                    &mut successor.trivial_affine_discards,
+                );
+            }
+        }
+        O::StructuralCase { cases, .. } => {
+            for case in cases {
+                rewrite_case_edge_discards(
+                    structural_places,
+                    members,
+                    case.target,
+                    case_results,
+                    &mut case.trivial_affine_discards,
+                );
+            }
+        }
+        O::Return {
+            cleanup_actions, ..
+        }
+        | O::ReturnUnit {
+            cleanup_actions, ..
+        } => {
+            for place in case_results {
+                insert_case_cleanup_discard(structural_places, cleanup_actions, *place);
+            }
+        }
+        O::ReturnStructural {
+            source,
+            trivial_affine_discards,
+            ..
+        } => {
+            for place in case_results {
+                if *source != *place {
+                    insert_case_discard_ordered(structural_places, trivial_affine_discards, *place);
+                }
+            }
+        }
+        _ => {}
+    }
+    for edge in &mut node.successors {
+        rewrite_case_edge_discards(
+            structural_places,
+            members,
+            edge.target,
+            case_results,
+            &mut edge.trivial_affine_discards,
+        );
+    }
+    for event in &mut node.ownership {
+        if let OwnershipEvent::Cleanup(actions) = event {
+            for place in case_results {
+                insert_case_cleanup_discard(structural_places, actions, *place);
+            }
+        }
+    }
+}
+
+/// Adjust one edge's `trivial_affine_discards` for relocated scalar-case
+/// results: a member-internal target keeps the persistent place live, so its
+/// discard is stripped; an exit target disposes it at the position the
+/// Terminal cleanup schedule assigns — operation-result places precede
+/// locals and parameters, ordered by descending producer.
+fn rewrite_case_edge_discards(
+    structural_places: &[terminal_psi::StructuralPlaceDeclaration],
+    members: &BTreeSet<BlockId>,
+    target: BlockId,
+    case_results: &BTreeSet<PlaceId>,
+    discards: &mut Vec<PlaceId>,
+) {
+    if members.contains(&target) {
+        discards.retain(|place| !case_results.contains(place));
+    } else {
+        for place in case_results {
+            insert_case_discard_ordered(structural_places, discards, *place);
+        }
+    }
+}
+
+/// Insert `place` into an ordered `trivial_affine_discards` roster at the
+/// slot the Terminal cleanup schedule assigns: every relocated case result
+/// is an operation-result place, and the schedule sorts results by
+/// descending producer with declaration order breaking ties, ahead of every
+/// local and parameter. A roster already listing `place` — a dispatch edge
+/// that exits the component — is left byte-exact.
+fn insert_case_discard_ordered(
+    structural_places: &[terminal_psi::StructuralPlaceDeclaration],
+    discards: &mut Vec<PlaceId>,
+    place: PlaceId,
+) {
+    if discards.contains(&place) {
+        return;
+    }
+    let Some(key) = case_result_schedule_key(structural_places, place) else {
+        return;
+    };
+    let position = discards
+        .iter()
+        .position(|existing| {
+            case_result_schedule_key(structural_places, *existing)
+                .is_none_or(|existing_key| existing_key >= key)
+        })
+        .unwrap_or(discards.len());
+    discards.insert(position, place);
+}
+
+/// Insert `DiscardRoot(place)` into a `Return`/`ReturnUnit` cleanup roster at
+/// the same schedule slot [`insert_case_discard_ordered`] computes: ahead of
+/// the first action that is not an operation-result root with a strictly
+/// earlier schedule key, which keeps it inside the leading root run ahead of
+/// any residual or parameter actions.
+fn insert_case_cleanup_discard(
+    structural_places: &[terminal_psi::StructuralPlaceDeclaration],
+    actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>,
+    place: PlaceId,
+) {
+    if actions.iter().any(|action| {
+        matches!(
+            action,
+            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(existing)
+                if *existing == place
+        )
+    }) {
+        return;
+    }
+    let Some(key) = case_result_schedule_key(structural_places, place) else {
+        return;
+    };
+    let position = actions
+        .iter()
+        .position(|action| {
+            !matches!(
+                action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(existing)
+                    if case_result_schedule_key(structural_places, *existing)
+                        .is_some_and(|existing_key| existing_key < key)
+            )
+        })
+        .unwrap_or(actions.len());
+    actions.insert(
+        position,
+        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
+    );
+}
+
+/// The schedule key `expected_trivial_affine_discards` assigns an
+/// operation-result place: `Reverse(producer)` — later producers discard
+/// first — with the `structural_places` declaration index preserving the
+/// roster's stable order for equal producers. Locals and parameters have no
+/// key and always sort after the operation-result run.
+fn case_result_schedule_key(
+    structural_places: &[terminal_psi::StructuralPlaceDeclaration],
+    place: PlaceId,
+) -> Option<(std::cmp::Reverse<OperationId>, usize)> {
+    structural_places
+        .iter()
+        .enumerate()
+        .find_map(|(index, declaration)| {
+            (declaration.id == place).then_some(match declaration.kind {
+                StructuralPlaceKind::OperationResult { producer, .. } => {
+                    (std::cmp::Reverse(producer), index)
+                }
+                _ => return None,
+            })
+        })
+}
+
 /// The storage root an admitted place observation, byte read, or subslice
 /// names — whichever observation gate the node's operation shape admits
 /// through. `same_relocated_node` needs the expected root to replay the
@@ -651,8 +1089,10 @@ pub(crate) fn component_preserves_place_observations(
 /// root over constant bytes, a primitive-local establishment declares
 /// only a fresh claim-free storage cell, a record establishment binds
 /// its initializers into a fresh root — a structural field copies an
-/// unrestricted source without moving it — and a scalar-array establishment
-/// binds its scalar leaves into a fresh root, so no existing place mutates,
+/// unrestricted source without moving it — a scalar-array establishment
+/// binds its scalar leaves into a fresh root, and a scalar-case
+/// establishment binds scalar fields into a fresh sum root, so no existing
+/// place mutates,
 /// and a
 /// fresh member-produced root anchors another parameter's invariant
 /// representative only when its producer relocates in the same run; control
@@ -661,7 +1101,7 @@ pub(crate) fn component_preserves_place_observations(
 /// scalar `Call` has no place or claim surface at all; and a unit or scalar
 /// call that moves no claims and passes only shared-borrow structural
 /// arguments cannot mutate any place it could observe. Every other variant —
-/// stores, case, and affine-local establishments, dynamic-dispatch
+/// stores, affine-local establishments, dynamic-dispatch
 /// and structural
 /// calls, boundary calls, atomic events, descriptor stores — fails closed.
 fn node_preserves_place_observations(operation: &O) -> bool {
@@ -717,6 +1157,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::EstablishScalarArray { .. }
+        | O::EstablishScalarCase { .. }
         | O::EstablishRecord { .. }
         | O::Call { .. } => true,
         O::CallUnit {
@@ -2629,6 +3070,16 @@ pub(crate) fn substitute_invariant_scalar_operands(
         O::EstablishScalarArray { elements, .. } => {
             for element in elements {
                 substitute(element, substitution);
+            }
+        }
+        // A relocated scalar-case establishment rebinds each case-field value
+        // through the same invariant-parameter substitution — the declared
+        // place, structural type, result case, result custody, field
+        // identities, and bounded-integer range obligations stay byte-exact
+        // inside the moved operation.
+        O::EstablishScalarCase { fields, .. } => {
+            for field in fields {
+                substitute(&mut field.value, substitution);
             }
         }
         // A relocated record establishment rebinds each scalar field

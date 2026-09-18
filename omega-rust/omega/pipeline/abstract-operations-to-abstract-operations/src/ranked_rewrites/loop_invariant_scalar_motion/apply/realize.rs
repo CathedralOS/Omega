@@ -5,7 +5,9 @@ use super::super::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use std::collections::BTreeMap;
+use abstract_operations::AbstractOperation as O;
+use semantic_vocabulary::PlaceId;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Remove every planned scalar node at its exact source location, rebind any
 /// invariant-parameter operands to their entry representatives, and insert the
@@ -132,10 +134,65 @@ pub(crate) fn realize(
         .checked_sub(1)
         .and_then(|jump| jump.checked_sub(certificate_tail))
         .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
+    // An affine scalar-case result the run relocates keeps one persistent
+    // preheader place live through the whole component where the source
+    // established — and discarded — a fresh place at every traversal's
+    // dispatch.
+    let case_results: BTreeSet<PlaceId> = nodes
+        .iter()
+        .filter_map(|node| match &node.operation {
+            O::EstablishScalarCase { result, .. }
+                if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine =>
+            {
+                Some(result.place)
+            }
+            _ => None,
+        })
+        .collect();
     for (offset, node) in nodes.into_iter().enumerate() {
         preheader.nodes.insert(insertion + offset, node);
     }
+    if !case_results.is_empty() {
+        // Rebuild the retained member nodes' edge and cleanup custody for the
+        // relocated results: member-internal edges keep the persistent place
+        // live while exit edges and member returns dispose it — the same
+        // rewrite the relocation freeze replays against the seed.
+        let members: BTreeSet<semantic_vocabulary::BlockId> =
+            component.members.iter().copied().collect();
+        let structural_places = function.structural_places.clone();
+        for member in &component.members {
+            let block = function
+                .blocks
+                .iter_mut()
+                .find(|block| block.id == *member)
+                .ok_or(LoopInvariantScalarMotionError::MissingNode {
+                    machine,
+                    block: *member,
+                    node: 0,
+                })?;
+            for node in &mut block.nodes {
+                crate::validation::rewrite_scalar_case_custody(
+                    &structural_places,
+                    &members,
+                    &case_results,
+                    node,
+                );
+            }
+        }
+    }
     refresh_coordinates_effects_and_facts(function)?;
+    if !case_results.is_empty() {
+        // Re-express each relocated result's verifier-frontier membership
+        // through the transformed custody: production at the establishing
+        // operation's exit, must-own joins across the component, and removal
+        // at each disposal the custody rewrite spelled. The context
+        // projection re-derives this same delta when it checks the attached
+        // catalog, so the rewritten facts are evidence, not authority.
+        let relocated = BTreeMap::from([(machine, case_results)]);
+        let mut facts = std::mem::take(&mut output.ownership_frontier_facts);
+        crate::validation::rewrite_relocated_case_result_frontiers(&mut facts, &output, &relocated);
+        output.ownership_frontier_facts = facts;
+    }
     output.identity = recompute_psi_optimization_unit_identity(&output);
     Ok(output)
 }

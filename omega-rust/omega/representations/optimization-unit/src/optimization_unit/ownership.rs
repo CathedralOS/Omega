@@ -45,9 +45,13 @@ pub struct OwnershipFrontierSnapshot {
     pub partial_custody: Vec<OwnershipFrontierPartialCustody>,
 }
 
-/// One immutable source ownership fact projected from the retained verifier
-/// context. Rewrites preserve this catalog; analyses bind usable rows to the
-/// current unit revision rather than manufacturing new ownership authority.
+/// One source ownership fact projected from the retained verifier context.
+/// Analyses bind usable rows to the current unit revision rather than
+/// manufacturing new ownership authority. Rewrites preserve the catalog's
+/// site coverage byte-exact; a relocation that re-times an affine
+/// scalar-case result's custody re-expresses that one place's membership
+/// through the transformed graph under independent re-derivation, while
+/// every untouched place and site keeps the verifier's spelling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnershipFrontierFact {
     pub identity: OwnershipFrontierFactIdentity,
