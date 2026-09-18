@@ -16,6 +16,22 @@ use optimization_core::OptimizationWorkBudget;
 
 use crate::StagedOptimizedAllocationLegality;
 
+/// Borrow-only admission probe for this stage: the same source custody check
+/// and fixed/precolored derivation the consuming entry runs, without taking
+/// custody of the legality chain. A composing route runs it to observe a
+/// capacity decline (`capacity_decline()` on the reported error: placement
+/// pressure or front-end work-budget exhaustion) before the sequence commits
+/// — every other reported failure is exactly the error the staged entry
+/// would return, so callers lose no fidelity by probing first.
+pub fn probe_optimized_fixed_precolored_segment_homes(
+    source: &StagedOptimizedAllocationLegality,
+    budget: OptimizationWorkBudget,
+) -> Result<(), OptimizedFixedPrecoloredSegmentHomeCustodyError> {
+    validation::validate_source(source)?;
+    compute::derive(source, budget)?;
+    Ok(())
+}
+
 pub fn stage_optimized_fixed_precolored_segment_homes(
     source: StagedOptimizedAllocationLegality,
     budget: OptimizationWorkBudget,

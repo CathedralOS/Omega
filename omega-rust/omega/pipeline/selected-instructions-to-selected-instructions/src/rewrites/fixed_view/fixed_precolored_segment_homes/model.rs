@@ -70,6 +70,40 @@ pub enum OptimizedFixedPrecoloredSegmentHomeCustodyError {
     ReceiptMismatch,
 }
 
+/// The capacity verdict a borrow-only segment-home probe can report before
+/// the sequence commits: placement reached a domain with no viable physical
+/// view (`SegmentPressure`), or a front-end derivation exceeded its per-pass
+/// work budget (`BudgetExceeded`) before homes could be assigned. Both mean
+/// the sequence cannot serve the program while runtime-spill recovery still
+/// can; shape and custody rejections are not declines and keep the staged
+/// error surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FixedPrecoloredSegmentHomeDecline {
+    SegmentPressure,
+    BudgetExceeded,
+}
+
+impl OptimizedFixedPrecoloredSegmentHomeCustodyError {
+    /// The capacity verdict this failure reports, when it is one: segment
+    /// placement pressure and front-end work-budget exhaustion are the only
+    /// outcomes a composing route may answer with a different recovery.
+    pub fn capacity_decline(&self) -> Option<FixedPrecoloredSegmentHomeDecline> {
+        match self {
+            Self::SegmentHomes(FixedPrecoloredSegmentHomeError::SegmentPressure { .. }) => {
+                Some(FixedPrecoloredSegmentHomeDecline::SegmentPressure)
+            }
+            Self::FixedIntervals(FixedPrecoloredIntervalError::BudgetExceeded { .. })
+            | Self::SplitRequirements(FixedPrecoloredSplitRequirementError::BudgetExceeded {
+                ..
+            })
+            | Self::SegmentHomes(FixedPrecoloredSegmentHomeError::BudgetExceeded { .. }) => {
+                Some(FixedPrecoloredSegmentHomeDecline::BudgetExceeded)
+            }
+            _ => None,
+        }
+    }
+}
+
 impl std::fmt::Display for OptimizedFixedPrecoloredSegmentHomeCustodyError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

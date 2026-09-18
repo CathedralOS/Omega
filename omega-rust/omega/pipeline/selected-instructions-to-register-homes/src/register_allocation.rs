@@ -7,7 +7,12 @@
 //! homes, splits authenticated entry-fixed-view transitions through the
 //! leaf-local fixed/precolored sequence in `assignment::recovery`, or, on
 //! `NoCompatibleHome` pressure, enters `assignment::runtime_spill`.
-//! Every branch publishes one `RetainedAllocation`.
+//! A declared fixed-view rule whose segment-home probe reports a capacity
+//! decline — segment pressure or front-end work-budget exhaustion — hands
+//! the still-owned legality to `assignment::runtime_spill` before the
+//! sequence consumes custody, and residual `NoCompatibleHome` after
+//! materialized copies enters it through the post-copy reanalysis — both
+//! compositions publish one `RetainedAllocation` like every other branch.
 
 #[cfg(test)]
 mod route_tests;

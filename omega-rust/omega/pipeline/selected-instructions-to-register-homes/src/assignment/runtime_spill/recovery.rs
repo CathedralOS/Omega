@@ -316,6 +316,23 @@ pub(crate) fn recover_after_fixed_view_copies(
     recover_over(RuntimeSpillSource::FixedViewCopies(reanalysis))
 }
 
+/// A declared fixed-view sequence whose segment-home probe reported a
+/// capacity decline hands custody here before the sequence consumes it:
+/// recovery runs over the original legality, and the declined policy and
+/// verdict stay recorded so retained replay re-proves the probe outcome and
+/// still binds the declared selection.
+pub(crate) fn recover_after_declined_fixed_view_probe(
+    legality: StagedOptimizedAllocationLegality,
+    policy: crate::FixedViewCopyPolicy,
+    decline: crate::FixedPrecoloredSegmentHomeDecline,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    recover_over(RuntimeSpillSource::DeclinedFixedView {
+        legality,
+        policy,
+        decline,
+    })
+}
+
 fn recover_over(
     source: RuntimeSpillSource,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {

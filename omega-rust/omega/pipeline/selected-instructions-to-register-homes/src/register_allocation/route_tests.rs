@@ -77,6 +77,59 @@ fn default_path_routes_entry_transitions_into_the_leaf_local_fixed_view_sequence
 }
 
 #[test]
+fn shared_entry_route_probes_segment_homes_before_committing_the_sequence() {
+    let source = include_str!("../assignment/recovery.rs");
+    let entrance = source
+        .split("fn fixed_view_allocation")
+        .nth(1)
+        .expect("the composing sequence body");
+    let gate = entrance
+        .find("SharedEntryAfterCompareBeforeBranchV1")
+        .expect("the shared-entry policy gate");
+    let probe = entrance
+        .find("probe_optimized_fixed_precolored_segment_homes")
+        .expect("the borrow-only segment-home probe");
+    let decline = entrance
+        .find("recover_after_declined_fixed_view_probe")
+        .expect("the declined-sequence spill hand-off");
+    let sequence = entrance
+        .find("fixed_view_reanalysis(legality, policy)")
+        .expect("the custody-consuming sequence");
+    let post_copy = entrance
+        .find("recover_after_fixed_view_copies")
+        .expect("the post-copy spill arm");
+    // The probe runs before custody is consumed and the decline hand-off
+    // precedes the staged sequence; the post-copy arm stays the later leg.
+    assert!(gate < probe && probe < decline && decline < sequence);
+    assert!(sequence < post_copy);
+}
+
+#[test]
+fn declined_fixed_view_recovery_reproves_the_segment_home_probe() {
+    let source = include_str!("../assignment/runtime_spill/model.rs");
+    let manifest = source
+        .split("fn upstream_manifest")
+        .nth(1)
+        .expect("the source-manifest revalidation");
+    let arm = manifest
+        .find("Self::DeclinedFixedView")
+        .expect("the declined-source arm");
+    let probe = manifest
+        .find("probe_optimized_fixed_precolored_segment_homes")
+        .expect("the replayed probe");
+    let verdict = manifest
+        .find("capacity_decline()")
+        .expect("the required capacity-verdict reproduction");
+    let mismatch = manifest
+        .find("RuntimeSpillAllocationError::ProbeMismatch")
+        .expect("the unearned-policy rejection");
+    // Retained replay re-runs the front-end probe and admits only the same
+    // recorded capacity verdict; any other outcome rejects the recorded
+    // policy.
+    assert!(arm < probe && probe < verdict && verdict < mismatch);
+}
+
+#[test]
 fn retained_replay_binds_leaf_local_evidence_to_no_declared_recovery_selection() {
     let source = include_str!("../output/retained.rs");
     let check = source
