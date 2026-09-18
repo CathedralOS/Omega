@@ -4,7 +4,7 @@ use crate::tests::fixtures::hosted::hosted_custody;
 
 #[test]
 fn ordinary_and_explicit_optimizer_lowering_share_the_verified_entry() {
-    let (artifact, _, _) = hosted_custody();
+    let (artifact, ..) = hosted_custody();
     let ordinary = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: artifact.semantic_bytes(),

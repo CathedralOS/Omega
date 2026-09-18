@@ -1,6 +1,6 @@
 //! Opaque callback custody across successful and rejected native realization.
 
-use crate::tests::fixtures::hosted::hosted_custody;
+use crate::tests::fixtures::hosted::{hosted_custody, paired_calling_plan_parts};
 use crate::{
     NativeProgramEntrySettlement, NativeRealizationRequest,
     current_compiler_intrinsic_terminal_authority_policy,
@@ -9,7 +9,7 @@ use crate::{
 
 #[test]
 fn native_realization_returns_exact_ordered_callback_custody_on_success() {
-    let (artifact, _, source) = hosted_custody();
+    let (artifact, _, source, plans) = hosted_custody();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -25,7 +25,11 @@ fn native_realization_returns_exact_ordered_callback_custody_on_success() {
             profile: &profile,
             terminal_authority_policy: current_compiler_intrinsic_terminal_authority_policy(),
             terminal_authority_permission_policy: current_terminal_authority_permission_policy(),
-            program_entry: NativeProgramEntrySettlement::new(&source, None, &[]),
+            program_entry: NativeProgramEntrySettlement::new(
+                &source,
+                Some(paired_calling_plan_parts(&plans)),
+                &[],
+            ),
             optimization_selections: &optimizations,
             selected_provider_plans: &providers,
             external_binding_rows: &[],
@@ -53,7 +57,7 @@ fn native_realization_returns_exact_ordered_callback_custody_on_success() {
 
 #[test]
 fn native_realization_rejection_returns_callback_custody_without_reordering() {
-    let (artifact, _, source) = hosted_custody();
+    let (artifact, _, source, plans) = hosted_custody();
     let profile = proof_admission::AdmissionProfile::default();
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     let providers = effects::SelectedProviderPlanFacts::default();
@@ -76,7 +80,11 @@ fn native_realization_rejection_returns_callback_custody_without_reordering() {
             profile: &profile,
             terminal_authority_policy: current_compiler_intrinsic_terminal_authority_policy(),
             terminal_authority_permission_policy: current_terminal_authority_permission_policy(),
-            program_entry: NativeProgramEntrySettlement::new(&source, None, &[]),
+            program_entry: NativeProgramEntrySettlement::new(
+                &source,
+                Some(paired_calling_plan_parts(&plans)),
+                &[],
+            ),
             optimization_selections: &optimizations,
             selected_provider_plans: &providers,
             external_binding_rows: &[],
