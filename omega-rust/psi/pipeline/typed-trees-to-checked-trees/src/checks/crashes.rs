@@ -155,8 +155,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         }
         // The declaration classification is a program roster and the mutable
         // primitive parameters are machine facts; the guard-consequence
-        // derivations below reread both per checked site and per checked
-        // call. Build each once, on first need, because neither answer can
+        // derivations below reread both per state hosting checked work.
+        // Build each once, on first need, because neither answer can
         // change during this pass.
         let integer_types =
             integer_types.get_or_insert_with(|| IntegerTypeClassification::build(program));
@@ -176,103 +176,65 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             integer_types,
         );
 
+        // Sites and calls hosted in one state see the same incoming-guard
+        // set, so the entry-meaning admission, canonical identities,
+        // structural consequences, and the closed integer-order relations
+        // derived from those guards are identical for all of them. Classify
+        // each state that hosts checked work once and let every site and call
+        // extend the shared seed with its own fallthrough and coverage join;
+        // the stored fields are sorted sets, so the shared derivation is
+        // outcome-identical to the former per-site recomputation.
+        let mut classified_states = crash_plan
+            .checked_sites()
+            .iter()
+            .map(|site| site.location().state())
+            .chain(
+                crash_plan
+                    .checked_calls()
+                    .iter()
+                    .map(|call| call.location().state()),
+            )
+            .collect::<Vec<_>>();
+        classified_states.sort_by_key(|state| (state.arena_index(), state.generation()));
+        classified_states.dedup();
+        let state_classifications: std::collections::HashMap<
+            symbols::SymbolHandle,
+            StateGuardClassification,
+        > = classified_states
+            .iter()
+            .map(|&state| {
+                (
+                    state,
+                    classify_state_guards(
+                        program,
+                        machine,
+                        state,
+                        incoming,
+                        &eval_sites,
+                        &parameter_names,
+                        &content_conservation,
+                        integer_types,
+                    ),
+                )
+            })
+            .collect();
         let checked_sites = crash_plan
             .checked_sites()
             .iter()
             .map(|site| {
                 let mut covering = site.guard_covering_buckets().to_vec();
-                let applicable_guards = incoming
+                let classification = &state_classifications[&site.location().state()];
+                let fallthrough = source_fallthrough
                     .iter()
-                    .filter(|guard| guard.applies_at(site.location().state()))
-                    .flat_map(|guard| {
-                        entry_guards::entry_meaning_conjuncts(
-                            program,
-                            machine,
-                            &eval_sites,
-                            guard.guard(),
-                            guard.is_negated(),
-                            &parameter_names,
-                            &content_conservation,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let mut path_guard_conjuncts = applicable_guards
-                    .iter()
-                    .map(|&(guard, negated)| {
-                        crate::facts::canonical_crash_path_predicate(
-                            program,
-                            guard,
-                            negated,
-                            &parameter_names,
-                            &content_conservation,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                path_guard_conjuncts.extend(entry_requirements.conjuncts.iter().cloned());
-                let mut path_predicates = entry_requirements.consequences.clone();
-                let mut order_relations = Vec::new();
-                let mut integer_disequalities = Vec::new();
-                for (guard, negated) in applicable_guards {
-                    collect_structural_guard_consequences(
-                        program,
-                        guard,
-                        negated,
-                        &parameter_names,
-                        &content_conservation,
-                        integer_types,
-                        &mut path_predicates,
-                    );
-                    collect_integer_order_relations(
-                        program,
-                        guard,
-                        negated,
-                        &parameter_names,
-                        &content_conservation,
-                        integer_types,
-                        &mut order_relations,
-                        &mut integer_disequalities,
-                    );
-                }
-                if let Some(fallthrough) = source_fallthrough
-                    .iter()
-                    .find(|fallthrough| fallthrough.location == site.location())
-                {
-                    for &(guard, negated) in &fallthrough.guards {
-                        path_guard_conjuncts.push(crate::facts::canonical_crash_path_predicate(
-                            program,
-                            guard,
-                            negated,
-                            &parameter_names,
-                            &content_conservation,
-                        ));
-                        collect_structural_guard_consequences(
-                            program,
-                            guard,
-                            negated,
-                            &parameter_names,
-                            &content_conservation,
-                            integer_types,
-                            &mut path_predicates,
-                        );
-                        collect_integer_order_relations(
-                            program,
-                            guard,
-                            negated,
-                            &parameter_names,
-                            &content_conservation,
-                            integer_types,
-                            &mut order_relations,
-                            &mut integer_disequalities,
-                        );
-                    }
-                }
-                push_transitive_integer_order_consequences(
+                    .find(|fallthrough| fallthrough.location == site.location());
+                let (path_guard_conjuncts, mut path_predicates) = site_path_classification(
                     program,
-                    &mut order_relations,
-                    &integer_disequalities,
+                    classification,
+                    fallthrough,
+                    &entry_requirements,
                     &parameter_names,
                     &content_conservation,
-                    &mut path_predicates,
+                    integer_types,
                 );
                 path_predicates.sort();
                 path_predicates.dedup();
@@ -300,102 +262,23 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             .checked_calls()
             .iter()
             .map(|call| {
-                let applicable_guards = incoming
-                    .iter()
-                    .filter(|guard| guard.applies_at(call.location().state()))
-                    .flat_map(|guard| {
-                        entry_guards::entry_meaning_conjuncts(
-                            program,
-                            machine,
-                            &eval_sites,
-                            guard.guard(),
-                            guard.is_negated(),
-                            &parameter_names,
-                            &content_conservation,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let mut path_guard_conjuncts = applicable_guards
-                    .iter()
-                    .map(|&(guard, negated)| {
-                        crate::facts::canonical_crash_path_predicate(
-                            program,
-                            guard,
-                            negated,
-                            &parameter_names,
-                            &content_conservation,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                path_guard_conjuncts.extend(entry_requirements.conjuncts.iter().cloned());
-                let mut path_guard_consequences = entry_requirements.consequences.clone();
-                let mut order_relations = Vec::new();
-                let mut integer_disequalities = Vec::new();
-                for (guard, negated) in applicable_guards {
-                    collect_structural_guard_consequences(
-                        program,
-                        guard,
-                        negated,
-                        &parameter_names,
-                        &content_conservation,
-                        integer_types,
-                        &mut path_guard_consequences,
-                    );
-                    collect_integer_order_relations(
-                        program,
-                        guard,
-                        negated,
-                        &parameter_names,
-                        &content_conservation,
-                        integer_types,
-                        &mut order_relations,
-                        &mut integer_disequalities,
-                    );
-                }
+                let classification = &state_classifications[&call.location().state()];
                 // A call inside a statement holds the same unselected-arm
                 // facts a crash exit there does: each leaf's entry provenance
                 // was already resolved where the guard ran.
-                if let Some(fallthrough) = source_fallthrough.iter().find(|fallthrough| {
+                let fallthrough = source_fallthrough.iter().find(|fallthrough| {
                     fallthrough.location.state() == call.location().state()
                         && fallthrough.location.statement_ordinal()
                             == call.location().statement_ordinal()
-                }) {
-                    for &(guard, negated) in &fallthrough.guards {
-                        path_guard_conjuncts.push(crate::facts::canonical_crash_path_predicate(
-                            program,
-                            guard,
-                            negated,
-                            &parameter_names,
-                            &content_conservation,
-                        ));
-                        collect_structural_guard_consequences(
-                            program,
-                            guard,
-                            negated,
-                            &parameter_names,
-                            &content_conservation,
-                            integer_types,
-                            &mut path_guard_consequences,
-                        );
-                        collect_integer_order_relations(
-                            program,
-                            guard,
-                            negated,
-                            &parameter_names,
-                            &content_conservation,
-                            integer_types,
-                            &mut order_relations,
-                            &mut integer_disequalities,
-                        );
-                    }
-                }
-                push_transitive_integer_order_consequences(
+                });
+                let (path_guard_conjuncts, path_guard_consequences) = site_path_classification(
                     program,
-                    &mut order_relations,
-                    &integer_disequalities,
+                    classification,
+                    fallthrough,
+                    &entry_requirements,
                     &parameter_names,
                     &content_conservation,
-                    &mut path_guard_consequences,
+                    integer_types,
                 );
                 call.clone()
                     .with_path_guard_conjuncts(path_guard_conjuncts)
@@ -409,6 +292,179 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             .with_checked_calls(checked_calls)
             .expect("path-conditioned coverage retains valid checked-call identity");
     }
+}
+
+/// Guard-derived path classification shared by every checked site and checked
+/// call hosted in one state. `applies_at` keys the incoming-guard set by
+/// state, so all sites and calls there admit the same entry-meaning
+/// conjuncts, encode the same canonical identities, and derive the same
+/// structural consequences and integer-order relations. Deriving that
+/// classification per statement repeated the admission and encoding work once
+/// per site; the per-site stored fields are sorted sets, so starting from the
+/// shared seed is outcome-identical.
+struct StateGuardClassification {
+    /// Canonical identities of the state's applicable entry-meaning
+    /// conjuncts, in conjunct order.
+    conjunct_identities: Vec<checked_trees::CrashPredicateIdentity>,
+    /// Structural consequences of the applicable conjuncts plus the full
+    /// transitive order-relation consequences, excluding the machine entry
+    /// requirements each site joins separately.
+    consequences: Vec<checked_trees::CrashPredicateIdentity>,
+    /// The closed order-relation set, retained so a statement-local
+    /// fallthrough can extend it without rediscovering the incoming-guard
+    /// relations.
+    order_relations: Vec<IntegerOrderRelation>,
+    disequalities: Vec<IntegerDisequality>,
+}
+
+/// Derive one state's shared guard classification: the applicable incoming
+/// guards' entry-meaning conjuncts, their canonical identities, and the
+/// structural plus transitive integer-order consequences they establish.
+#[allow(clippy::too_many_arguments)]
+fn classify_state_guards(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: symbols::SymbolHandle,
+    incoming: &[super::ranges::incoming_guards::IncomingGuard],
+    eval_sites: &[(
+        typed_trees::expression::ExpressionHandle,
+        symbols::SymbolHandle,
+        usize,
+    )],
+    parameter_names: &[String],
+    content_conservation: &[validation::ContentConservationSourcePlan],
+    integer_types: &IntegerTypeClassification,
+) -> StateGuardClassification {
+    let conjuncts = incoming
+        .iter()
+        .filter(|guard| guard.applies_at(state))
+        .flat_map(|guard| {
+            entry_guards::entry_meaning_conjuncts(
+                program,
+                machine,
+                eval_sites,
+                guard.guard(),
+                guard.is_negated(),
+                parameter_names,
+                content_conservation,
+            )
+        })
+        .collect::<Vec<_>>();
+    let conjunct_identities = conjuncts
+        .iter()
+        .map(|&(guard, negated)| {
+            crate::facts::canonical_crash_path_predicate(
+                program,
+                guard,
+                negated,
+                parameter_names,
+                content_conservation,
+            )
+        })
+        .collect();
+    let mut consequences = Vec::new();
+    let mut order_relations = Vec::new();
+    let mut disequalities = Vec::new();
+    for &(guard, negated) in &conjuncts {
+        collect_structural_guard_consequences(
+            program,
+            guard,
+            negated,
+            parameter_names,
+            content_conservation,
+            integer_types,
+            &mut consequences,
+        );
+        collect_integer_order_relations(
+            program,
+            guard,
+            negated,
+            parameter_names,
+            content_conservation,
+            integer_types,
+            &mut order_relations,
+            &mut disequalities,
+        );
+    }
+    push_transitive_integer_order_consequences(
+        program,
+        &mut order_relations,
+        &disequalities,
+        parameter_names,
+        content_conservation,
+        &mut consequences,
+    );
+    StateGuardClassification {
+        conjunct_identities,
+        consequences,
+        order_relations,
+        disequalities,
+    }
+}
+
+/// One checked site's or call's stored path-guard fields: the shared state
+/// classification joined with the machine entry requirements and any
+/// statement-local fallthrough. When a fallthrough contributes its own
+/// guards, the order relations are reopened over the union; the seed's
+/// already-closed relations are a subset of the recomputed fixpoint, so the
+/// joined consequences equal a from-scratch derivation.
+fn site_path_classification(
+    program: &TypedTrees,
+    classification: &StateGuardClassification,
+    fallthrough: Option<&source_fallthrough::SiteFallthrough>,
+    entry_requirements: &entry_requirements::EntryRequirements,
+    parameter_names: &[String],
+    content_conservation: &[validation::ContentConservationSourcePlan],
+    integer_types: &IntegerTypeClassification,
+) -> (
+    Vec<checked_trees::CrashPredicateIdentity>,
+    Vec<checked_trees::CrashPredicateIdentity>,
+) {
+    let mut path_guard_conjuncts = classification.conjunct_identities.clone();
+    path_guard_conjuncts.extend(entry_requirements.conjuncts.iter().cloned());
+    let mut path_guard_consequences = entry_requirements.consequences.clone();
+    path_guard_consequences.extend(classification.consequences.iter().cloned());
+    if let Some(fallthrough) = fallthrough {
+        let mut order_relations = classification.order_relations.clone();
+        let mut integer_disequalities = classification.disequalities.clone();
+        for &(guard, negated) in &fallthrough.guards {
+            path_guard_conjuncts.push(crate::facts::canonical_crash_path_predicate(
+                program,
+                guard,
+                negated,
+                parameter_names,
+                content_conservation,
+            ));
+            collect_structural_guard_consequences(
+                program,
+                guard,
+                negated,
+                parameter_names,
+                content_conservation,
+                integer_types,
+                &mut path_guard_consequences,
+            );
+            collect_integer_order_relations(
+                program,
+                guard,
+                negated,
+                parameter_names,
+                content_conservation,
+                integer_types,
+                &mut order_relations,
+                &mut integer_disequalities,
+            );
+        }
+        push_transitive_integer_order_consequences(
+            program,
+            &mut order_relations,
+            &integer_disequalities,
+            parameter_names,
+            content_conservation,
+            &mut path_guard_consequences,
+        );
+    }
+    (path_guard_conjuncts, path_guard_consequences)
 }
 
 pub(crate) fn check_published_ceiling_coverage(

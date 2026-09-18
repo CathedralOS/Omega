@@ -170,3 +170,60 @@ claimed. All crash-guard positive and negative coverage for parameters,
 locals, and fields is exercised by the crate's existing checking tests; the
 route passed acceptance and stale-binding rejection on both implementations.
 Release timings were not measured.
+
+## macOS package-review state-shared guard classification
+
+On 2026-09-17, macOS ARM64, mbx 1.11.0, base
+`cec67dc6783664c11e6d13a2a7cd64aaebcd4f6c27`, the hosted-consumer review test
+ran under per-pass counters appended inside
+`infer_path_conditioned_guard_coverage` (the counters were removed before
+landing; both runs carried the same counter code shape). The test target is
+now `suite` and the test path gained the `semantic_binding_review::` module
+prefix:
+
+```sh
+RUST_MIN_STACK=67108864 mbx nextest run -p package-manager --test suite \
+  --no-fail-fast -E 'test(=semantic_binding_review::macos_entry::target_entry_dependency_discovery_requires_explicit_consumer_acceptance)'
+```
+
+The route performs 18 checked compilations (the application plus standard
+library under discovery, missing-acceptance, exact-acceptance, and
+stale-binding review); each appends one counter line. Per-pass medians on the
+two program shapes and route totals:
+
+| Counter | Per-call derivation (base) | Per-state classification |
+| --- | ---: | ---: |
+| Large-program pass elapsed | ~190.7 ms ×10 | ~99.4 ms ×10 |
+| Small-program pass elapsed | ~23.6 ms ×8 | ~11.3 ms ×8 |
+| Coverage inference route total | 2,098 ms | 1,094 ms |
+| Checked crash sites / calls | 0 / 8,376 | 0 / 8,376 |
+| Entry-meaning conjuncts consumed | 2,838 | 2,838 (identical) |
+| Classification derivations | 8,376 (one per call) | 3,736 (one per state) |
+| Conjunct derivations | 2,838 | 1,730 |
+| Transitive-closure element scans | 11,746 | 5,254 |
+| Test execution (instrumented) | 788.525 s | 832.957 s |
+
+Every checked call previously re-admitted its state's applicable incoming
+guards through the entry-meaning provenance filter, re-encoded each conjunct's
+canonical path predicate, and re-ran the integer-order transitive closure —
+although `IncomingGuard::applies_at` keys the whole set by state. The landed
+slice builds one `StateGuardClassification` per state hosting checked work
+(3,736 builds for 8,376 calls) and lets each site or call clone the shared
+conjunct identities and closed consequence set; only the statement-local
+fallthrough still derives per site. The stored fields are sorted sets, so the
+join is outcome-identical. The paired executions differ by less than the
+observed run-to-run variance, so the ~1.0-second removal is a phase-level
+result, not a claimed route speedup.
+
+Remaining attribution within the pass after the slice (per large-program
+pass): per-state classification ~66 ms (entry-meaning provenance walks and
+canonical encodings, now one per state), per-machine guard/fallthrough/entry
+collections ~15 ms, content-conservation plans ~5.6 ms per pass, the integer
+roster ~0.4 ms once per pass, and the per-call join ~4.4 ms. Coverage
+inference is about 1.1 s of the ~540–830 s route (~0.15%), confirming the
+item's earlier finding that crash-guard classification is a minor share; the
+named remaining candidates `validate_specialized_program` and
+`build_flow_facts` sit outside `checks/crashes.rs` and were not measured here.
+The `omega --check` whole-route probe on
+`tests/omega/pass/terminal_psi/integer_control_contract` stayed at a 4.63 s
+median over 5 warm debug runs (documented baseline 4.90 s).
