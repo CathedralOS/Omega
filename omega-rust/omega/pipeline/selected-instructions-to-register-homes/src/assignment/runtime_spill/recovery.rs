@@ -225,10 +225,16 @@ fn interferes(
 // The failed id is a tied-domain leader, not necessarily an admissible payload.
 // Prefer it only while it remains in the original roster; ordinary admission
 // still rejects terminal/edge uses, and removal restores the same fallback order.
+// Among the remaining overlapping candidates the choice coalesces the same
+// split-domain evidence the pressure predicate widened: the victim covering
+// the most member fragments of the failed domain — a member fragment covering
+// itself, an outsider covering every member it interferes with — relieves the
+// most of the failed requirement per step. Equal relief keeps roster order.
 fn candidate_position(
     failure: &crate::RegisterHomeError,
     roster: &[(usize, VirtualRegisterId)],
-    overlaps: impl FnMut(&(usize, VirtualRegisterId)) -> bool,
+    mut overlaps: impl FnMut(&(usize, VirtualRegisterId)) -> bool,
+    relief: impl Fn(&(usize, VirtualRegisterId)) -> usize,
 ) -> Option<usize> {
     let crate::RegisterHomeError::NoCompatibleHome { function, register } = failure else {
         return None;
@@ -236,7 +242,58 @@ fn candidate_position(
     roster
         .iter()
         .position(|candidate| *candidate == (*function, VirtualRegisterId(*register)))
-        .or_else(|| roster.iter().position(overlaps))
+        .or_else(|| {
+            roster
+                .iter()
+                .enumerate()
+                .filter(|(_, candidate)| overlaps(candidate))
+                .map(|(position, candidate)| (position, relief(candidate)))
+                .min_by_key(|(position, relief)| (std::cmp::Reverse(*relief), *position))
+                .map(|(position, _)| position)
+        })
+}
+
+// One candidate's relief against the failed domain: the member fragments it
+// covers across the split points, counting membership itself — a member's own
+// split dissolves its share of the shared-home requirement — plus every other
+// member it interferes with. Zero means the candidate is not a pressure victim
+// at all, so callers keep the predicate and the score from one reconstruction.
+fn split_domain_relief(
+    failure: &crate::RegisterHomeError,
+    ranges: &crate::ValidatedLiveRanges,
+    function: usize,
+    register: VirtualRegisterId,
+) -> usize {
+    let crate::RegisterHomeError::NoCompatibleHome {
+        function: failed_function,
+        register: failed_register,
+    } = failure
+    else {
+        return 0;
+    };
+    let Some(function_ranges) = ranges.plan().functions.get(*failed_function) else {
+        return 0;
+    };
+    if function != *failed_function {
+        return 0;
+    }
+    member_relief(
+        function_ranges,
+        VirtualRegisterId(*failed_register),
+        register,
+    )
+}
+
+fn member_relief(
+    ranges: &crate::FunctionLiveRanges,
+    failed: VirtualRegisterId,
+    register: VirtualRegisterId,
+) -> usize {
+    split_domain_members(ranges, failed)
+        .iter()
+        .copied()
+        .filter(|member| *member == register || interferes(ranges, register, *member))
+        .count()
 }
 
 pub(crate) fn recover(
@@ -269,9 +326,12 @@ fn recover_over(
     let mut roster = candidates(source.base().plan());
     let mut current_ranges = source.ranges().clone();
     let mut current_liveness = source.liveness().clone();
-    while let Some(position) = candidate_position(&failure, &roster, |(function, register)| {
-        overlaps_pressure(&failure, &current_ranges, *function, *register)
-    }) {
+    while let Some(position) = candidate_position(
+        &failure,
+        &roster,
+        |(function, register)| overlaps_pressure(&failure, &current_ranges, *function, *register),
+        |(function, register)| split_domain_relief(&failure, &current_ranges, *function, *register),
+    ) {
         let (function, register) = roster.remove(position);
         let selected = steps
             .last()
