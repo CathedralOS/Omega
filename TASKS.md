@@ -2598,282 +2598,145 @@ Owners include
 
 - **OPERATOR-MACHINE-SUPPLY.** Implement the
   [machine token-binding and executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
-  across Psi parsing, resolution, checked body construction, evaluation,
-  lowering, Terminal codec/verifier/interpreter, and native call realization.
-  Accept an optional fixed token after `machine`; remove the separate operator
-  declaration introducer rather than retaining two permanent source forms.
-  Ordinary direct declarations own checked machine bodies. Reuse ordinary body,
-  state, contract, and call machinery instead of adding an operator evaluator
-  or searching for a unique satisfier. Bodyless requirements retain explicit
-  trait/provider supply; exact compiler primitives retain automatic catalog
-  supply and proof/runtime eligibility. Migrate core/library/canary declarations,
-  including tokenless compiler primitives to ordinary named machines and
-  tokenless boundary requirements to the existing required-body form. Preserve
-  exact semantic identities or reject stale schema artifacts explicitly; do
-  not match a compiler primitive by leaf name or legacy declaration kind.
+  from Psi parsing through native call realization, and remove the separate
+  `operator` introducer instead of keeping two permanent source forms. A fixed
+  token after `machine` already reaches every declaration representation.
+  Resolution rejects duplicate owner-local shapes and operand tuples without a
+  semantic home (`lowering/machine/token_bindings.rs` in symbol resolution),
+  use sites select by operand type, and the checked stage rewrites each
+  resolved binary use into an ordinary call on the declaration's entry state
+  (`typed-trees-to-checked-trees/src/operators/token_bound_machine_calls.rs`).
+  Token-bearing `boundary machine` signatures lower to the existing boundary
+  slot, bare bodyless signatures are admitted only by exact catalog custody,
+  and a bodyless nonboundary machine rejects at its declaration. That does not
+  establish the contract: the introducer still parses, 208 `operator`
+  declarations remain in `.omg` sources, only binary positions have body
+  supply, both pass canaries are checked-only, and the three settled rules
+  below are not enforced.
 
-  Enforce the common [call-precondition rule](wiki/spec/language/machines.md#call-preconditions)
-  in `typed-trees-to-checked-trees/src/checks/contracts.rs` and its mathematical
-  application/citation consumers. Remove the proof-to-proof exemption; repair
-  valid induction by carrying premises for the exact recursive arguments, not
-  by exempting recursive-component calls. Premise and descent obligations are
-  both checked; satisfying one does not automatically discharge the other.
-  Neither may rely on the current call's own conclusions. Automatic prover limits
-  cannot waive an obligation.
+  Remaining work:
 
-  Migrate `core/nat.omg`'s `Nat::{subtract,less_or_equal}` to declaration-owned
-  machine bodies through that shared route. Exact subtraction retains
-  `right <= left`; the separate total `Nat::saturating_sub` keeps clamping.
-  Do not preserve a legacy operator-only prover or silently weaken exact
-  subtraction because the underlying helper is total.
-
-  Acceptance: retain `nat_exact_subtraction_requires_order` rejection and add
-  its named-call twin; both spellings accept with established order, including
-  equal operands and predecessor at one. Both reject absent order even when the
-  result is only mentioned in a proof term, discarded, or erased. Explicit
-  saturation accepts underflow and produces zero. Valid requires-bearing
-  induction still checks; a decreasing recursive call with an unmet premise and
-  a premise-satisfied call without descent both fail. Use a runtime-representable
-  contracted machine to check the same named/operator obligations across runtime,
-  admitted evaluation, and proof use; this does not grant recursive Nat a layout.
-  Preserve exact evidence and substitution through the applicable Terminal replay.
-
-  Replace open-index unique-satisfier discovery with ordinary explicit trait
-  evidence under [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  A consumer requiring operand reordering requires the operation's commutativity
-  trait; the caller supplies a checked conformance. Require associativity only
-  for reassociation and other laws only for transformations that use them.
-  Reuse conformance binders, operation selection, and checked law slots; add no
-  domain `using` clause, per-expression binder, or index-operation registry.
-  Owners include `validation/src/value_custody/type_references/open_index_expressions.rs`
-  and the structural judgment's algebra-evidence join. Remove the implicit scan
-  and migrate the four `IndexAlgebra::plus` fixtures from bodyless root slots to
-  trait requirements and named conformances. Do not fix them by injecting a new
-  operator into the compiler-owned bare `u64` family.
-
-  Acceptance: preserve open computed-result compatibility and exact local-fact
-  compatibility through source checking and applicable retained evidence.
-  Missing selection, an unproved law, or evidence for a different operation
-  rejects the attempted normalization. A commutativity-only conformance permits
-  swapping but not reassociation without separate evidence; a noncommutative
-  operation remains usable when no such rewrite is needed. Keep the constant-three
-  operation as a control: AC does not imply zero identity or integer addition.
-  An unrelated visible conformance cannot change selection or introduce ambiguity;
-  exact selected operation/law identities survive generic substitution and replay.
-
-  Indexing uses [ordinary receiver borrowing](wiki/spec/language/expressions.md#indexing-and-ranges),
-  not a new automatic borrow of every first operand. Wire attached `[]`/`[..]`
-  receiver selection through the same loan formation as named method calls;
-  preserve ordinary explicit-parameter and core collection adaptations. Revise
-  `indexed_operand_access_preserves_shared_collection_and_owned_index` to express
-  receiver ergonomics with an attached receiver and retain a separate ordinary
-  parameter control. Do not restore wildcard operand re-seeding to hide the join.
-  Acceptance: `buffer[index]` and its named attached call agree for a custom
-  record, with once-only collection/index evaluation, a shared collection loan,
-  and an owned index transferred once. Include computed by-value results and
-  borrowed views; cover mutable receiver authority, returned-loan lifetimes,
-  bounds rejection, conflicting borrows, and ambiguous adapted candidates.
-  Ordinary non-receiver parameters must not acquire receiver-only adaptation.
-  Carry the exact call/loan identity through independent Terminal replay and
-  interpreter/native execution; this settlement is not evidence of implementation.
-
-  Enforce closed-family semantic-home ownership and owner-local duplicate checks.
-  At c797755f12 `tests/omega/pass/expressions/declared_operator_match_result/main.omg`
-  authors the test-owned `Wrapped` type with
-  `machine + Wrapped::add(&Wrapped, &Wrapped) -> u64` owning its body in place
-  of the legacy `u8::sum` declaration-plus-satisfier pair; the interpreter leg
-  `declared_operator_match_result_canary_interprets_both_arms` returns 260
-  in the selected true arm, 1 in the false arm without invoking the
-  operator, and 260 through the named call. Operands are borrowed because
-  by-value data operands inside a match arm still stop at the owned-match
-  custody join (MATCH-SELECTIVE-LOWERING), and the fixture stays
-  checked-only until native admission of borrowed local data arguments to a
-  free machine lands. Keep the selected-call join in
-  `typed-trees-to-checked-trees/src/values/scalar/computations.rs`,
-  `computations/integers.rs`, and
-  `checked-trees-to-lowered-psi/src/scalar_graph/scalar_source_custody` compositional.
+  - [Call preconditions](wiki/spec/language/machines.md#call-preconditions).
+    `typed-trees-to-checked-trees/src/checks/contracts.rs` skips
+    `check_call_requires` when caller and callee are both proof machines.
+    Remove that skip and its mathematical application/citation counterparts;
+    repair valid induction by carrying premises for the exact recursive
+    arguments, not by exempting recursive-component calls. Then migrate
+    `core/nat.omg`'s `Nat::{subtract,less_or_equal}` from `operator` plus
+    `satisfies` pairs to declaration-owned bodies; `Nat::saturating_sub` stays
+    the separate total operation. Controls:
+    `proofs/nat_exact_subtraction_requires_order` and a named-call twin reject
+    absent order even when the result is only mentioned in a proof term,
+    discarded or erased; equal operands and predecessor at one accept; a
+    decreasing recursive call with an unmet premise and a premise-satisfied
+    call without descent both fail; a runtime-representable contracted machine
+    owes the same obligations in runtime, admitted evaluation and proof use.
+  - [Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
+    `validation/src/value_custody/type_references/open_index_expressions.rs`
+    still finds its operation through `resolve_satisfied_checked_operator`,
+    and the structural judgment's algebra-evidence join consumes the result.
+    Require the caller's explicit conformance instead: commutativity for
+    reordering, associativity for reassociation, each other rewrite its own
+    law. Reuse conformance binders, operation selection and checked law slots;
+    add no `using` clause, per-expression binder or index-operation registry.
+    Migrate the four `IndexAlgebra::plus` fixtures
+    (`generics/open_index_local_fact`,
+    `generics/open_computed_quantity_result`,
+    `fail/generics/open_index_unestablished_equality`,
+    `fail/generics/open_index_unlicensed_algebra`) to trait requirements and
+    named conformances, not to an operator injected into bare `u64`.
+    Controls: missing selection, an unproved law or another operation's
+    evidence rejects; commutativity alone does not reassociate; a
+    noncommutative operation stays usable without rewrites; the constant-three
+    operation shows AC implies neither zero identity nor integer addition.
+  - Body supply outside binary expressions. `token_bound_machine_calls.rs`
+    rejects `[]`, `[..]` and match-arm equality selections of a token-bearing
+    machine, and a token use inside a build machine fails closed. Indexing uses
+    [ordinary receiver borrowing](wiki/spec/language/expressions.md#indexing-and-ranges):
+    route attached `[]`/`[..]` through the loan formation named method calls
+    use. Re-author the recorded failure
+    `tests/multiplicity/borrowed_observations.rs::indexed_operand_access_preserves_shared_collection_and_owned_index`
+    ([baseline note](wiki/drafts/known_baseline_failures.md)) with an attached
+    receiver and a separate ordinary-parameter control; do not restore
+    wildcard operand re-seeding. Controls: `buffer[index]` and its named
+    attached call agree on once-only evaluation, a shared collection loan and
+    an owned index moved once; computed and borrowed results, mutable receiver
+    authority, returned-loan lifetimes, bounds rejection, conflicting borrows
+    and ambiguous adapted candidates are covered; ordinary parameters gain no
+    receiver adaptation.
+  - Closed-family ownership across packages. The current check is owner-local
+    within one program. A free binding needs its home typed (which declared
+    operand type owns the family), and only that home's owning package may
+    publish it; an unauthorized declaration rejects at its declaration, not at
+    a use.
+    `validation/src/value_custody/expression_types/operator_validation.rs`
+    must query the complete operand tuple: `Wrapped + u64` with only a
+    `(Wrapped, Wrapped)` binding reports a builtin overflow obligation instead
+    of a missing operator.
+  - Package review. The callable identity carries the token
+    (`capture/semantics/conformances/policy_callables.rs`);
+    `CheckedPackageCallableReview` rows and trait `StateSignature` identities
+    do not, and need record/encoding extensions.
+  - Native execution. `expressions/declared_operator_match_result` and
+    `expressions/token_bound_machine_operand_selection` stay in
+    `CHECKED_ONLY_PASS_CANARIES` because native admission rejects borrowed and
+    by-value local data arguments to a free machine, independently of token
+    supply (**STATE-LOCAL-VALUE-FRONTIER**); by-value operands in a match arm
+    also wait on **MATCH-SELECTIVE-LOWERING**'s owned-match custody join. Keep
+    the selected-call join in `values/scalar/computations.rs` (checked stage)
+    and `scalar_graph/scalar_computations/source_custody.rs` (lowered Psi)
+    compositional.
+  - Introducer retirement. `operator` parses in
+    `tokens-to-syntax-trees/src/declarations/{parse_declaration,operator,domain,trait_definition}.rs`,
+    and trait and domain bodies accept a token only through it. 171 of the 208
+    declarations are tokenless `boundary operator` rows (124 in
+    `core/float_operations.omg`, 29 generic rows in
+    `core/{slice,vec,array,fixed_vec,ptr}.omg`, 18 in `tests/omega`); they
+    move to `boundary requirement` through **TOP-LEVEL-BOUNDARY-REQUIREMENTS**,
+    which executes only public nongeneric receiver-free requirements today.
+    The two fused-multiply-add rows already use the requirement-side intrinsic
+    bridge (`provider-planning/src/compiler_intrinsics/requirement_view.rs`).
+    The two `Nat` and four `IndexAlgebra` declarations follow the first two
+    bullets. The other 31, all in `tests/omega` (`operators/` overload and
+    duplicate controls, `generics/closed_indexed_quantity`,
+    `termination/custom_ranking_*`,
+    `termination/computed_measure_authored_operator`,
+    `terminal_psi/structural_scalar_trait_operator`), take declaration-owned
+    bodies or trait `machine <token>` requirements, as do about 360
+    declarations embedded in 95 Rust test files. Then invert
+    `typed_trees::operator::SpelledOperator` to wrap machine signatures;
+    provider planning, build-time `machine_execution/selected_operators.rs`,
+    evidence `capture/callables/boundary_operators.rs` and result-domain
+    overload dispatch read `OperatorDefinition` today. Preserve exact semantic
+    identities or reject stale schema artifacts explicitly.
 
   Acceptance: wrapped 250 + 10 yields 260u64 in the selected true Match arm,
-  the false arm yields 1 without invoking the operator, and independent Terminal
-  replay and native execution agree. Cover token and named calls, generic and
-  stateful bodies, once-only ordered operands, private helpers behind a public
-  declaration, qualifiers and ordinary contract rejection. Missing body,
+  the false arm yields 1 without invoking the operator, the named call returns
+  260, and checked interpretation, independent Terminal replay and native
+  execution agree. Cover token and named calls, generic and stateful bodies,
+  once-only ordered operands, private helpers behind a public declaration,
+  qualifiers and ordinary contract rejection. Missing body,
   bodyless-plus-satisfier, foreign primitive-family injection, duplicate owner
-  shapes, and forged compiler primitive identity reject. Unrelated imports
-  cannot change selection or cause a collision. Trait conformance selection,
-  target-default/overridden float provider execution, and canonical compiler
-  float-meaning evaluation retain their separate supply routes. Unsupported
-  migration/execution paths must fail closed, not fall back to builtin arithmetic.
+  shapes and forged compiler primitive identity reject. An unrelated import or
+  visible conformance cannot change selection or cause a collision. Selected
+  operation, law and call/loan identities survive generic substitution and
+  replay. Unsupported paths fail closed, never falling back to builtin
+  arithmetic or matching a compiler primitive by leaf name.
 
-  Front slice landed (linw1, parser admission only): `parse_machine` accepts an
-  optional closed-vocabulary token after `machine`, records it as
-  `syntax_trees::item::Machine::spelling`, and rejects tokens on `satisfies`
-  realizations, `boundary requirement`, and conformance members
-  (`tokens-to-syntax-trees/src/declarations/machines.rs`, `declarations/parse_declaration.rs`,
-  `declarations/conformance.rs`; tests in
-  `tests/properties_and_requirements.rs`). The token now reaches every
-  declaration representation: symbol-resolved, typed, and checked machines
-  carry `spelling: Option<OperatorSpelling>` (`None` is the tokenless named
-  form) and snapshots print it, and symbol resolution rejects two direct
-  machines binding the same token to the same normalized operand shape
-  under one owner at the second declaration
-  (`syntax-trees-to-symbol-resolved-trees/src/lowering/machine/token_bindings.rs`;
-  distinct shapes overload, distinct owners and tokens never collide). A
-  token-bearing machine still lowers and executes exactly like its named
-  form. At 735d4638bf/648f10c57e use sites select `machine + Owner::name`
-  declarations by operand type through a typed operator-signature view
-  under the machine's own symbol (`TypedTreeRoots::machine_token_bindings`,
-  `lower_token_binding_view`), and resolution rejects a binding whose
-  operand tuple omits its semantic home (the attached data, or any
-  declared type/domain for a free machine) before the duplicate check
-  (`expressions/token_bound_machine_{operand_selection,
-  duplicate_shape_rejected,foreign_family_rejected}`). At
-  0002df3b6a/c4af6429cc the checked stage binds every resolved binary use
-  of a token-bearing machine to an ordinary compiler-synthesized call on
-  that declaration's entry state (`operators/token_bound_machine_calls.rs`;
-  finalization settles the `Operator` occurrence to the machine symbol),
-  `[]`/`[..]`/match-equality selections reject fail-closed, and the pass
-  canary executes through the checked interpreter returning 260
-  (`token_bound_machine_operand_selection_exit_canary_interprets`). It
-  stays checked-only because the native route rejects borrowed (macOS
-  receiver bridge) and by-value (Unit-plan admission) local data
-  arguments to a free machine independently of token supply, and
-  build-time evaluation does not run the binding (a token use inside a
-  build machine fails closed). A mixed `Wrapped + u64` operand with only a
-  `(Wrapped, Wrapped)` binding reports a builtin overflow obligation
-  instead of "no operator" because
-  `value_custody/expression_types/operator_validation.rs` asks the
-  receiver-only spelling query. At ad9966541f the package-review callable
-  identity (`capture/semantics/conformances/policy_callables.rs`) wraps the
-  overload coordinate as `token-bound(...)` for a token-bearing machine
-  only, so a token-only revision reviews as differing policy and as
-  decision-requiring acceptance rows for token-bearing admission claims,
-  while tokenless identities stay byte-identical (`package-evidence`
-  `fixed_token_binding_joins_the_callable_identity_and_only_when_present`,
-  `package-manager` `token_binding_revision`); the Psi overload identity
-  stays token-blind because a token never distinguishes named overloads.
-  Still open there: the token in the review projection rows
-  (`CheckedPackageCallableReview`) and in trait `StateSignature`
-  identities, which need record/encoding extensions. Next frontier: cross-package closed-family
-  semantic-home ownership (the current check is owner-local within one
-  program; the unqualified operand-tuple home needs typing), then `operator` introducer
-  removal, supply-mode wiring, Terminal codec, and native call realization
-  per the acceptance above. Retirement map (inventory at 36e670e3d0):
-  349 `operator` declarations (81 token-bearing), all bodyless because
-  `parse_operator` requires `;`. By class: boundary requirements with a
-  token respell now, because at d3f038f029 a top-level bodyless
-  `boundary machine <token> Owner::name(...);` lowers to the same
-  resolved boundary-operator slot the introducer produces
-  (`lowering/operator.rs::lower_token_bearing_boundary_signature`;
-  machine-only clauses such as `reaches` reject on it), so `satisfies`,
-  provider selection, evidence and Terminal lowering are unchanged and
-  `providers/checked_fixed_operator_dispatch_exit` passes identically in
-  that spelling (2676523303); at 16d5b516d4 every token-bearing boundary
-  declaration in `tests/omega` except two and all 22 in
-  `core/float_operations.omg` and `core/slice.omg` spell
-  `boundary machine <token> Owner::name(...);` with identical check and
-  harness outcomes and a normalized std review policy byte-identical
-  modulo core's content digest (`evidence/tests/operators/fixed_token_checked_adapters.rs`
-  pins that both spellings project identically); a bodyless machine head
-  parses a fact-free `crashes Cause;` at b3658b99b9 so
-  `fail/operators/selected_crash_invocation` spells the slot too;
-  `fail/generics/authored_const_operator_requires_selection` waits on
-  `has_no_authored_spelling` in
-  `preparation/generic_data/const_evaluation/anonymous.rs` ignoring a
-  token-bearing `Item::Machine`; `core/nat.omg`'s
-  `Nat::{subtract,less_or_equal}` satisfier pairs are ordinary
-  proof-number operators with no catalog identity whose bodied migration
-  awaits the shared call-precondition repair above (current proof-to-proof
-  exemption would lose the operator's formation premise); it is no longer
-  design-blocked. The four `IndexAlgebra::plus` satisfier pairs in `generics/`
-  await the ordinary trait/conformance migration above, replacing their implicit
-  unique-satisfier search; no owner decision remains. Tokenless boundary requirements (155
-  library, 18 tests) wait on the named `boundary requirement`
-  provider/interpreter/Terminal route (TOP-LEVEL-BOUNDARY-REQUIREMENTS):
-  at 79a9a2d084/8920cffc24 an intrinsic (or other `via`) satisfier of a
-  top-level requirement no longer restates the requirement's contract
-  (`conformance/machine_conformance.rs`, mirroring the operator
-  satisfier rule) and a direct call to a requirement whose selected plan
-  is not a checked adapter fails closed naming the plan
-  (`boundary_dispatch.rs::reject_unselected_direct_requirement_calls`),
-  but the 126 `F32/F64/I*/U*::*` rows in `core/float_operations.omg`
-  (78 float rows with `ensures`, 48 integer-conversion rows, 32 of them
-  carrier-qualified) stay on the operator spelling because the
-  named-float intrinsic execution bridge is operator-keyed end to end:
-  `selected_dispatch/float_intrinsic/*` plans rewrites only from
-  `facts.operators.named_uses`, realizations resolve by
-  `OperatorDefinition`, review evidence
-  (`capture/providers/application_realizations.rs`), D29 coverage
-  (`checked-compilation-to-terminal-artifact/application_coverage`) and
-  the native proposal (`checked_boundary_operator_scope`) key intrinsic
-  rows on operator symbols, and a rewritten requirement call would leave
-  its `FlowCallFact` live; migrating them needs an intrinsic requirement
-  signature view shared by operators and top-level requirements,
-  plan-commitment stamping for direct requirement calls, flow-fact
-  retirement, requirement-keyed coverage/proposal/evidence rows, and the
-  7 `named_float_rewrites.rs` harness tests moved to requirement-side
-  evidence (a user package cannot witness the shape: only toolchain
-  custody supplies catalog identity); and the representation inversion (`SpelledOperator` wrapping machine
-  signatures directly) needs the provider-planning, build-time
-  `selected_operators.rs`, evidence `capture/callables/boundary_operators.rs`
-  and result-domain overload dispatch owners (the named-requirement
-  execution route now exists for the public receiver-free shape, see
-  TOP-LEVEL-BOUNDARY-REQUIREMENTS); tokenless compiler
-  primitives (68 library, 28 tests) need the catalog keyed on exact
-  declaration/signature identity: at c1fe789968/88939ee7d6/f01d11ded7
-  the primitive form is a bare bodyless tokenless `machine` signature
-  admitted only by exact declaration custody (Toolchain-origin
-  `float_operations.omg` plus a catalog path, lowered to the sealed
-  projection declaration), `Float::meaning32/64` in core use it with the
-  float harness legs identical, and a user-package lookalike rejects
-  ("merely naming a declaration `Float::meaning32` grants no primitive",
-  `fail/float/float_meaning_lookalike_grants_no_primitive`); at
-  1cd2e7d1ed/d23557f541/2b3882430d the 65 `FloatSemantics::*` definitions
-  are bare catalog signatures selected by exact normalized callable
-  identity (`numerics/src/float_semantics_catalog.rs`, signature-keyed
-  rows so the `from_integer` carriers never collide, identity-only with
-  the discharge binding as FLOAT-PROVIDERS' extension point) under the
-  same custody rule, with typed shape validation rejecting drift and the
-  float harness, std check and std policy (modulo core's digest)
-  identical; the lookalike control
-  `fail/float/float_semantics_lookalike_grants_no_primitive` is
-  rostered. At da974222c6/10cc6e4b62/e9cc9afdcc `Nat::Descending` is a
-  bare catalog signature in `core/nat.omg` with a declaration custody row
-  in `language-semantics` (`RankingViewId::catalog_declaration`), the
-  checker keys `-> View` on the catalog identity and consults every
-  declaration at that path so a user lookalike never becomes the builtin
-  (`fail/termination/nat_descending_lookalike_grants_no_primitive`), and
-  the termination harness, std check and rosters are identical
-  before/after; `Nat::BoundedDistance`, `Slice::Length` and
-  `Nat::IncreasingTo` have no core declaration and stay spelling-only
-  builtins. The corpus surface fixtures (`operators/*surface*`,
-  `*overload_signature*`) still author tokenless `operator`; bodyless domain-family and
-  carrier-qualified semantic declarations (5 library, 26 tests) migrate
-  to declaration-owned bodies with their relational `ensures`, since the
-  supply table admits no other nonboundary supply (at c74c9adcbf a
-  token-bearing machine attached to a domain, `machine +
-  Quantity::Additive::add`, homes in the domain's carrier, gives the
-  domain its denotation role, selects as a `DomainPending` family
-  candidate under the existing binding-site law and binds its own body
-  when selected; the 17 `pass|fail/domains` fixtures and
-  `fail/operators/duplicate_spelling_binding` author that form, with two
-  expected fragments reworded; bindings whose owner is a compiler-owned
-  carrier cannot take the machine form as authored, so at 929e3d5700 the
-  five `arithmetic/authored_*`, `field_singleton_authored_equality` and
-  `collections/authored_*` fixtures bind their token through a
-  fixture-local domain on the compared operand with every fragment kept,
-  and at de44f6a2a6 `std/units.omg`'s five `Quantity` bindings are bodied
-  `machine <token> Quantity::name` declarations whose bodies compute the
-  carrier arithmetic re-qualified with the result unit, with
-  generic-domain bindings homing through domain-qualified operands and
-  indexed arguments distinguishing operand shapes (d376002425;
-  `runtime_std_units_exit` interprets to 70 through the bodies);
-  `termination/computed_measure_authored_operator` still authors
-  `operator`); the `IndexAlgebra::plus`
-  satisfier pairs (4) migrate through explicitly selected trait requirements,
-  not unqualified operand-tuple home typing;
-  `[]`/`[..]`/comparison positions still reject fail-closed at body
-  supply.
+  Trait conformance selection, target-default or overridden float provider
+  execution (**FLOAT-PROVIDERS**) and canonical compiler float-meaning
+  evaluation keep their separate supply routes.
+
+  Flag: `unique_provider_rebinding` in
+  `build-time-evaluation/src/machine_execution/admission/selection_authority.rs`
+  (called from `const_evaluation/const_generic_calls.rs`) scans every machine
+  for exactly one `satisfies` provider of a boundary operator requirement and
+  rebinds the use to that body without an authored selection;
+  `generics/authored_const_call_operator_selected_provider` has no
+  `build.omg`. That is the implicit unique-satisfier search the supply
+  contract forbids, and a second provider in an unrelated package turns the
+  accepted program into a rejection. The general mechanism is the explicit
+  provider selection `machine_execution/selected_operators.rs` consumes.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
