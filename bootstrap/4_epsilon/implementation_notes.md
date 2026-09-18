@@ -613,7 +613,10 @@ observation.
 - validate every Epsilon expression, statement, state, trap, and Console
   execution rule; implemented dispatch paths do not establish refinement;
 - define one exact physical evaluator request and observation profile binding
-  evaluator source, Epsilon source, stdin, resources, and maximal execution;
+  evaluator source, Epsilon source, stdin, resources, and maximal execution
+  ([`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md) derives the composed
+  diagnostic edge's explicit profile and refusal witnesses; the final
+  section-11 envelope remains open);
 - compile the evaluator through the selected Delta and Gamma route;
 - compose it with the exact Epsilon-written Omega D source;
 - reconstruct Epsilon source and evaluator semantics independently; and
