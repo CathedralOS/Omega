@@ -3483,11 +3483,29 @@ Owners include
   geometry.
 
   Next edges, named by the package's own sources rather than inferred.
-  (1) Multi-page installation: `install` writes one entry per level for a
-  single virtual base and activates the root, and `remove` clears exactly
-  that one leaf slot, so both cover only the mapping's first page; iterating
-  the leaf write and clear across the mapped length reuses `level_index` and
-  `TableEntry::terminal` and needs no new vocabulary. (2) Demand-grown
+  (1) Multi-page installation is blocked by checked
+  termination ranking, not by spelling -- the earlier note here claiming it
+  "needs no new vocabulary" was wrong and is corrected by measurement.
+  `install` writes one entry per level for a single virtual base and
+  activates the root, and `remove` clears exactly that one leaf slot, so both
+  cover only the mapping's first page. Iterating needs a ranked loop whose
+  body performs one boundary store per page, and that is exactly what the
+  ranking refuses: "a write, call, or alias invalidates the entry-relative
+  ranking; runtime calls must be tail, and every complete cycle must decrease
+  the shared `terminates by ...` ranking". Measured 2026-09-18 with eight
+  probes against `pass_canaries_compile`, each paired with a control that
+  moved one variable. A ranked cycle with no call in its body compiles, in
+  both the named-state form and the two-machine call-component form, and so
+  does one carrying a disjoint scratch write (mirroring
+  `pass/termination/rank_range_call_scratch_input_write`). It fails the
+  moment any runtime call appears in the cycle: an ordinary pure call
+  (`level_index`), a boundary crossing before the component call, and the
+  crossing moved into tail position all reject identically. So the blocker is
+  any intervening call, not boundary crossings specifically and not the
+  `invokes` clause, which parses and ranks fine when the body makes no call.
+  Do not re-attempt by respelling the loop; the shapes above are already
+  exhausted. This is the same ranking surface
+  **TERMINATION-RANKING-CHECKS** owns. (2) Demand-grown
   intermediate tables: minting a level when a walk meets an empty slot needs
   the same split/conservation surface the bump allocator's package uses, so
   it inherits that item's open questions. Reading an entry back is
