@@ -10,6 +10,7 @@
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
 use crate::bytes::write_u64;
+use crate::dynamic_executable::checked::{checked_product, checked_sum, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tags::{
     ElfDynamicAddressTarget, ElfDynamicTagContents, ElfDynamicValue, ValidatedElfDynamicTagPlan,
 };
@@ -379,22 +380,6 @@ fn read_u64(bytes: &[u8], offset: usize, context: &'static str) -> Result<u64, D
         .and_then(|value| value.try_into().ok())
         .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
     Ok(u64::from_le_bytes(value))
-}
-
-fn checked_product(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_mul(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
-fn checked_sum(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_payload_compatibility_fingerprint(

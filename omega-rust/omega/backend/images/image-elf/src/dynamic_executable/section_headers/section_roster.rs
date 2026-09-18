@@ -10,6 +10,7 @@
 //! [section header]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [`e_shstrndx`]: https://gabi.xinuos.com/elf/02-eheader.html#elf-header
 
+use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionInfo, ElfProcedureLinkageSectionKind, ElfProcedureLinkageSectionLink,
@@ -603,16 +604,6 @@ fn validate_references(contents: &ElfDynamicSectionRosterContents) -> Result<(),
             && row(ElfDynamicRosterSectionKind::DynamicTable)?.link == 2,
         "numeric ELF link/info relationships do not resolve to the canonical roster",
     )
-}
-
-fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_roster_compatibility_fingerprint(

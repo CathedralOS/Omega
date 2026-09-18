@@ -6,7 +6,8 @@ use crate::dynamic_executable::section_headers::section_roster::{ElfDynamicRoste
 use diagnostics::{Diagnostic};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageStorage, ValidatedElfResolvedProcedureLinkage};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::compatibility_fingerprint::{non_authoritative_resolved_linkage_compatibility_fingerprint};
-use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::storage_fields::{checked_sum_usize, checked_u32, decode_rejoins_target, encode_field, indexed_payloads, indexed_row_bytes, load_layout, public_kind, public_storage, public_target, read_field, require, semantic_target_address, storage_address, storage_bytes, storage_bytes_mut, upstream_storage_bytes, write_field};
+use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::storage_fields::{checked_sum_usize, decode_rejoins_target, encode_field, indexed_payloads, indexed_row_bytes, load_layout, public_kind, public_storage, public_target, read_field, semantic_target_address, storage_address, storage_bytes, storage_bytes_mut, upstream_storage_bytes, write_field};
+use crate::dynamic_executable::checked::{checked_u32, require};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfResolvedProcedureLinkageContents {

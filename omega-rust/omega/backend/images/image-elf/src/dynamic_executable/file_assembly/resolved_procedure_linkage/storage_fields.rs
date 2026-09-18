@@ -1,5 +1,6 @@
 //! Storage addresses, encoded fields and storage byte access.
 
+use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::candidates::ElfResolvedProcedureLinkageContents;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
@@ -495,10 +496,6 @@ pub(crate) fn indexed_payloads(
     load_layout(envelope).relative().payloads().contents()
 }
 
-pub(crate) fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
-}
-
 pub(crate) fn checked_sum_usize(
     left: usize,
     right: usize,
@@ -516,10 +513,4 @@ fn checked_sum_u64(left: u64, right: u64, context: &'static str) -> Result<u64, 
 fn checked_product_u64(left: u64, right: u64, context: &'static str) -> Result<u64, Diagnostic> {
     left.checked_mul(right)
         .ok_or_else(|| Diagnostic::error(format!("{context} overflows Elf64_Xword")))
-}
-
-pub(crate) fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }

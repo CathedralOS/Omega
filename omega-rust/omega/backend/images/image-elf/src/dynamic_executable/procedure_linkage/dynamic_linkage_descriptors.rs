@@ -14,6 +14,7 @@
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/dl.tex
 //! [AArch64 System V ABI]: https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#procedure-linkage-table
 
+use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ValidatedElfProcedureLinkageTemplatePlan;
 use diagnostics::Diagnostic;
 use target::TargetProfile;
@@ -485,21 +486,6 @@ fn validate_name(
         tail.get(..terminator) == Some(row.kind.name()),
         "ELF linkage sh_name does not select its exact semantic name",
     )
-}
-
-fn checked_sum(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows usize")))
-}
-
-fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_descriptor_compatibility_fingerprint(

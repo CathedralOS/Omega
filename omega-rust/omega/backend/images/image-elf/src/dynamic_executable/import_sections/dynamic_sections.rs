@@ -16,6 +16,7 @@
 //! [`DT_GNU_HASH` implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 //! [LSB symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
+use crate::dynamic_executable::checked::checked_u32;
 use crate::dynamic_executable::import_sections::dynamic_link::PlannedElfDynamicLinkInputs;
 use crate::imports::ElfImportLocator;
 use diagnostics::Diagnostic;
@@ -716,10 +717,6 @@ fn require_equal(condition: bool, message: &'static str) -> Result<(), Diagnosti
     condition
         .then_some(())
         .ok_or_else(|| Diagnostic::error(message))
-}
-
-fn checked_u32(value: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Word")))
 }
 
 fn elf_hash(bytes: &[u8]) -> u32 {

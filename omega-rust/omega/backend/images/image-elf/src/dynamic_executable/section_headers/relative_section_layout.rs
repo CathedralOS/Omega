@@ -7,6 +7,7 @@
 //! absolute file offset or virtual address, resolve a section-header fixup,
 //! emit a program header, or mutate an image.
 
+use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::section_headers::section_payload_roster::ValidatedElfIndexedSectionPayloadPlan;
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
@@ -363,12 +364,6 @@ fn checked_align(value: u64, alignment: u64, context: &'static str) -> Result<u6
 fn checked_sum(left: u64, right: u64, context: &'static str) -> Result<u64, Diagnostic> {
     left.checked_add(right)
         .ok_or_else(|| Diagnostic::error(format!("{context} overflows Elf64_Off")))
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 fn non_authoritative_layout_compatibility_fingerprint(
