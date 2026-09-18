@@ -1,6 +1,7 @@
 use super::{
-    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, crossed_edge,
-    instruction, mutated_chained, place, settlement, settlement_at, sink, successor,
+    BETWEEN, KILLER, PACKED_SCRATCH, POINTER, SCRATCH, STORE, VALUE, access, budget, chained,
+    crossed_edge, instruction, mutated_chained, pack_store, place, settlement, settlement_at, sink,
+    successor,
 };
 use crate::rewrites::store_motion::{
     StoreMutationMotionError, sink_selected_store_mutation, validate_store_mutation_motion,
@@ -147,6 +148,198 @@ fn cross_block_walk_crosses_converging_legs_and_intermediate_blocks() {
     assert!(function.blocks[1].instructions.is_empty());
     assert_eq!(
         function.blocks[2]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![STORE, KILLER]
+    );
+}
+
+/// The packed store crosses the edge like the plain store, but its
+/// early-clobber scratch definition crosses with it: an edge transport
+/// reading the scratch moves a use across the moved definition, and one
+/// rewriting it is a second definition the moved store's would overtake —
+/// each lands the store at the crossed block's end. On a flag-publishing
+/// target a flag-reading terminator keeps the store on the publishing side
+/// of the edge even when every leg reaches the covering block, while a
+/// target whose packed row publishes no condition state crosses the same
+/// terminator freely.
+#[test]
+fn cross_block_packed_stores_carry_their_scratch() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The packed store sinks across the edge to the covering block's head.
+    let packed = mutated_chained(target, |function, environment| {
+        pack_store(function, environment);
+    });
+    let result = sink(&packed, &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    assert_eq!(
+        function.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    assert_eq!(
+        function.blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![STORE, KILLER]
+    );
+    validate_store_mutation_motion(
+        &packed,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // An edge transport reading the scratch moves a use across the moved
+    // definition, so the store lands at the crossed block's end.
+    let scratch_argument = mutated_chained(target, |function, environment| {
+        pack_store(function, environment);
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: PACKED_SCRATCH,
+                parameter: SCRATCH,
+            },
+        });
+    });
+    let result = sink(&scratch_argument, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // An edge transport rewriting the scratch is a second definition the
+    // moved store's would overtake.
+    let scratch_parameter = mutated_chained(target, |function, environment| {
+        pack_store(function, environment);
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: SCRATCH,
+                parameter: PACKED_SCRATCH,
+            },
+        });
+    });
+    let result = sink(&scratch_parameter, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // A case-payload register transport reading the scratch bounds the same
+    // crossing.
+    let payload = mutated_chained(target, |function, environment| {
+        pack_store(function, environment);
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(9).unwrap(),
+                place: PlaceId::new(2).unwrap(),
+            },
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: vec![SelectedCasePayloadBinding {
+                semantic: legalized_operations::LegalizedStructuralCasePayload {
+                    field: StructuralFieldId::new(1).unwrap(),
+                    field_byte_offset: 0,
+                    parameter: legalized_operations::LegalizedValueDefinition {
+                        value: ValueId::new(5).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        ),
+                        definition_site: ValueDefinitionSite::BlockParameter {
+                            block: BlockId::new(2).unwrap(),
+                            position: 0,
+                        },
+                    },
+                },
+                transport: SelectedCasePayloadTransport::Registers {
+                    argument: PACKED_SCRATCH,
+                    parameter: SCRATCH,
+                },
+            }],
+            trivial_affine_discards: Vec::new(),
+        });
+    });
+    let result = sink(&payload, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // A flag-reading terminator keeps the packed store on the publishing
+    // side of the edge even when every leg reaches the covering block.
+    let flagged = |target: NativeTarget| {
+        mutated_chained(target, |function, environment| {
+            pack_store(function, environment);
+            let branch = environment
+                .constraint(environment.selected_keys().conditional_branch)
+                .unwrap();
+            let SelectedTerminator::Jump {
+                successor: edge, ..
+            } = &function.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            let edge = edge.clone();
+            function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(6),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: edge,
+                when_zero: successor(1),
+            };
+        })
+    };
+    let result = sink(&flagged(target), &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // On a target whose packed row publishes no condition state the same
+    // flag-reading terminator does not couple, and the packed store crosses.
+    let flag_free_target = NativeTarget::linux_arm64();
+    let flag_free_environment = baseline_target_register_environment(flag_free_target).unwrap();
+    let result = sink(&flagged(flag_free_target), &flag_free_environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[1]
             .instructions
             .iter()
             .map(|instruction| instruction.id)

@@ -4,7 +4,9 @@
 //! its value operand through the referent pointer — or through the
 //! materialized address of the place's own local storage, its
 //! `StructuralParameter`/`StructuralBlockParameter` slot or the producing
-//! operation's `Structural` home, which a `Store64` also writes directly.
+//! operation's `Structural` home, which a `Store64` also writes directly. A
+//! `StorePacked { byte_offset, width }` takes the same pointer routes for
+//! the odd fragment widths the plain store cannot encode.
 //! Sinking the store later along the control-flow path defers the write
 //! inside the window where nothing can observe the place's old bytes: every
 //! instruction the store slides past must leave the relative order of the
@@ -13,7 +15,12 @@
 //! ordered after it — the first roster access on the moved place, a call or
 //! hosted effect, a redefinition of a carried register, an unaccounted
 //! memory-capable instruction, or a boundary settlement — or at the end of
-//! the last block the walk can prove it still reaches on every path.
+//! the last block the walk can prove it still reaches on every path. The
+//! packed form's early-clobber scratch `Def` and its declared clobbers move
+//! with the instruction, so the same coupling that guards the carried reads
+//! also proves their custody: a window instruction may not read or rewrite
+//! the scratch, nor read or publish a condition-state unit the moved row
+//! clobbers, and neither may a crossed edge transport or terminator.
 //!
 //! The alias decision is borrow-aware: it comes from the validated
 //! `memory_accesses` roster, not from pointer-register equality. Each access
