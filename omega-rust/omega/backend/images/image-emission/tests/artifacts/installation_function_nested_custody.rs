@@ -4273,7 +4273,7 @@ fn installation_function_unit_continuations_reject_every_one_field_substitution(
         (
             "unit_continuations[0].bindings::insert-duplicate",
             Box::new(|row| {
-                let binding = row.unit_continuations[0].bindings[0].clone();
+                let binding = row.unit_continuations[0].bindings[0];
                 row.unit_continuations[0].bindings.push(binding);
             }),
             InstallationError::InvalidUnitAffineCleanup(machine_id(1)),

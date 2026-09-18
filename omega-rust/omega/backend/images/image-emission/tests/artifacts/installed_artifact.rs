@@ -555,7 +555,7 @@ fn installed_artifact_join_replays_typed_relocation_over_complete_macho_image() 
 
     // A resolver that substitutes a different in-extent callee address
     // materializes a different `bl` and cannot join the bound image.
-    let callee_relocation = relocations[0].clone();
+    let callee_relocation = relocations[0];
     let mut misresolved = stub_addresses.clone();
     let (_, address) = misresolved
         .iter_mut()

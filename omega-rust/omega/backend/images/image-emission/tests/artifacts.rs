@@ -8,8 +8,12 @@
 mod acyclic_control_flow;
 #[path = "artifacts/dynamic_and_cleanup_plans.rs"]
 mod dynamic_and_cleanup_plans;
+#[path = "artifacts/fragment_container.rs"]
+mod fragment_container;
 #[path = "artifacts/hosted_exit_runtime.rs"]
 mod hosted_exit_runtime;
+#[path = "artifacts/hosted_receiver.rs"]
+mod hosted_receiver;
 #[path = "artifacts/installation_field_substitutions.rs"]
 mod installation_field_substitutions;
 #[path = "artifacts/installation_function_nested_custody.rs"]
