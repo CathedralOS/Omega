@@ -5223,9 +5223,21 @@ Owners include
   `builder.depend(...)`/`depend_as("omega_language_std", ...)` declaration
   that would add the edge (witnessed by
   `removing_the_standard_library_dependency_rejects_the_console_consumer` on
-  macOS ARM64). Remaining gap: the Console provider selection gets no
+  macOS ARM64). Remaining gap: the Console provider selection has no
   diagnostic of its own because source assembly stops at the import (a
-  selection without the import is not a checkable shape).
+  selection without the import is not a checkable shape). The
+  console-semantic acceptance is met on current main: both
+  `standard_library_package_resolution.rs` standard-library targets pass, and
+  the rejection names the missing dependency edge rather than an unresolvable
+  root-relative source path. Letting source assembly continue past the missing
+  edge so build evaluation could name the selection regresses
+  `standard_library_alias_has_no_undeclared_bundled_fallback`: the imported
+  type is left undefined in the assembled tree and the rejection shifts to a
+  later stage that drops the missing-edge diagnostic. The provider selection
+  rides on the import edge and is not independently checkable, so the
+  missing-edge diagnostic is the complete rejection for the selection; a
+  separate selection diagnostic is an architectural follow-up beyond this
+  shape.
 
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
   while keeping deployment/update policy in runtime packages or Cathedral. Componentization must
