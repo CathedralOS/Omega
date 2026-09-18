@@ -697,7 +697,6 @@ pub(crate) fn derive_static_manifest(
                     execution_scope: scope,
                     containment: Vec::new(),
                 }),
-                ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
                 ProviderBinding::Import { .. }
                 | ProviderBinding::VtableSlot { .. }
                 | ProviderBinding::VtableField { .. }
@@ -797,7 +796,6 @@ fn opaque_binding(binding: &ProviderBinding) -> Option<OpaqueInProcessBinding> {
         ProviderBinding::Import { evaluated } => Some(OpaqueInProcessBinding::Import {
             evaluated: evaluated.clone(),
         }),
-        ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
         ProviderBinding::VtableSlot { index } => {
             Some(OpaqueInProcessBinding::VtableSlot { index: *index })
         }

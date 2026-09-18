@@ -33,7 +33,6 @@ pub(super) fn project(
                 producer: producer(compilation, row)?,
             }
         }
-        ProviderBinding::StringBackedImportBootstrap { retired } => match *retired {},
         ProviderBinding::Syscall { number } => {
             let evaluated = evaluated_row(compilation, requirement, realization)?
                 .map(|row| {
