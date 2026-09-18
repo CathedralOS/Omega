@@ -906,108 +906,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   point when that is cheaper than one per use) should replace this selection,
   not gain a sibling per CFG arrangement.
 
-- **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the landed
-  CFG families: red-zone policy, probing, unwind
-  information, stable-address loans, and dynamic-allocation constraints.
-  General calls need target-owned frame, callee-save, link-register, and
-  call-site alignment plans. Witnessed: the ordinary three-block/two-return
-  fixture replays through frame application, relocation-free object
-  construction, and validated ordinary callable publication on x86-64 and
-  AArch64, and the cyclic loop-carried runtime-spill fixture (six emitted
-  blocks, backward branch, nonzero local spill storage) replays the same
-  boundary on all five admitted targets
-  (`runtime_spill_pressure::loop_carried_spill_frame_replays_private_accesses_through_callable_publication`).
-  A scalar caller passing one argument past each target's register capacity
-  now replays its exact outgoing-ABI-area write and the callee's exact
-  incoming-activation read against the validated frame geometry through the
-  same publication boundary on all four targets
-  (`register_arity::stack_argument_calls_replay_frame_accesses_through_callable_publication`).
-  Probing is landed: a caller whose outgoing ABI area exceeds one
-  stack-commit granule commits its frame through an exact per-granule
-  touch roster recorded in the validated layout and replays through
-  ordinary callable publication on all five admitted targets
-  (`stack_probe_commit::wide_outgoing_area_commits_through_exact_probe_roster_and_publication`).
-  x86-64 emits move-and-touch chunks; AAPCS64 emits a
-  shifted-then-unshifted `sub sp` pair per chunk followed by an
-  `ldr xzr, [sp]` touch of each newly entered page, and `FrameAddress`
-  forms every displacement a committable frame resolves through the same
-  add pair (both Darwin's 16 KiB unprobed granule and Linux's 4 KiB
-  probed granule publish). The red-zone policy is landed: a leaf whose
-  fixed-register divide pressure recovers through runtime spill keeps its
-  whole addressed extent resident below the unadjusted entry stack pointer
-  on System V AMD64 — empty prologue and epilogue spans, signed
-  below-RSP displacements replayed row by row against the validated
-  geometry — while the same program stays an ordinary committed frame on
-  every other admitted ABI, a suppressed or invented resident extent
-  replays false, and the artifact still publishes as an ordinary callable
-  on all five admitted targets
-  (`red_zone_resident_frame::resident_leaf_spill_frame_publishes_through_ordinary_callable_entry`).
-  Stable-address loans are landed: a caller that establishes a `Pair`
-  record in activation-local storage and calls its borrowed `total`
-  receiver materializes that slot's stable address across the call, and
-  the validated layout records the exact loaned-local roster —
-  canonically ascending, duplicate-free, closed over declared local
-  slots, and excluding private spill reload windows — while replay
-  independently recovers the same roster from the physical
-  `FrameAddress` operations rather than the producer's claims. Every
-  materialized activation-local address resolves only through a
-  rostered slot's committed coordinates; an omitted, invented,
-  reordered, or misattributed loan fails closed, and the artifact still
-  reaches ordinary callable publication on all five admitted targets
-  (`stable_address_loans::loaned_local_addresses_replay_through_ordinary_callable_entry`).
-  Unwind information is landed: the validated layout records each
-  frame's exact unwind roster — the ordered view restorations the
-  epilogue performs, with a saved link register first and every
-  preservation slot in reverse save order so the roster is strictly
-  descending frame offset — plus the committed extent the unwind
-  releases and the return-address custody the continuation is
-  recovered through, so the record alone is a complete unwind
-  description. Frame identity moves to v10 and binds the roster;
-  replay recovers the same roster from the validated preservation
-  storage and custody rather than the producer's claims, and the
-  frame protocol's emitted epilogue performs exactly the recorded
-  sequence byte for byte on all five admitted targets. An omitted,
-  invented, reordered, or misattributed restore — or a wrong release
-  or custody restatement — fails closed, epilogue bytes that do not
-  encode the validated roster reject, and the artifact still reaches
-  ordinary callable publication on all five admitted targets
-  (`unwind_roster::unwind_restore_roster_replays_through_ordinary_callable_entry`).
-  The call-site stack contract is landed: a calling frame records the
-  selected preservation convention's declared stack alignment as both
-  its pre-call boundary and its ABI restatement, and commits an extent
-  carrying the (architecture, convention) pair's call-entry residue —
-  eight bytes of call-pushed return address on x86-64, zero on AArch64
-  — so the post-prologue stack pointer meets the declared boundary
-  before any call site runs rather than a literal the frame allocator
-  happened to know. An undeclared pair answers no contract instead of
-  borrowing another row's constants. A caller keeping values live
-  across three scalar calls replays the emitted prologue's exact
-  commit and the epilogue's matching release against the recorded
-  fields through ordinary callable publication on all five admitted
-  targets; a row recording a borrowed alignment or a residue-breaking
-  extent fails closed under independent replay
-  (`call_site_alignment::call_site_stack_contract_replays_through_ordinary_callable_entry`).
-  Acceptance: every admitted frame policy
-  replays its exact physical accesses through callable publication;
-  requirements artifacts remain non-authoritative until that replay
-  succeeds. General-call legs are landed: the frame resolves its
-  target-owned policy and call-site stack contract through declared
-  (Architecture, ObjectFormat) pair matrices, the callee-save plan is
-  recorded and independently replayed, saved-link-register restore
-  order rides the unwind roster (frame identity v10), and call-site
-  alignment rejects residue-breaking rows under replay. Remaining:
-  dynamic-allocation constraints only, which are blocked upstream —
-  no runtime-sized stack-allocation representation exists (every
-  selected local/outgoing slot resolves to a static byte extent), so
-  this leg waits on a language/Terminal-Psi alloca-style contract
-  rather than on frame-layout work itself. The coverage remainder is
-  landed: the register_arity and general_cfg_fixed_frame rosters
-  replay on all five admitted targets, and the realization stage's
-  remaining frame-policy rosters — ordinary-callable ABI replay,
-  fixed-frame custody/substitution and foreign-machine rejection, and
-  the exit-contract mutation replay — now run on every admitted
-  target as well
-  (`callable_entry`, `fixed_frame_callable_entry`, `exit_replay`).
+- **FRAME-LAYOUT.** Complete exact nonzero-frame realization. Red-zone policy,
+  stack probing, unwind information, stable-address loans, the general-call
+  frame/callee-save/link-register/call-site-alignment plans, and the
+  realization stage's frame-policy rosters all replay through ordinary
+  callable publication on the admitted targets.
+
+  Remaining: dynamic-allocation constraints, blocked upstream. Every selected
+  local and outgoing slot resolves to a static byte extent, so there is no
+  runtime-sized stack allocation to constrain. This leg waits on a
+  language and Terminal Psi contract for runtime-sized activation storage,
+  not on frame-layout work; open that contract before resuming here.
+
+  Acceptance: a program with a runtime-sized activation allocation publishes a
+  frame whose committed extent, probe roster and unwind information replay
+  against the validated layout on every admitted target, and a suppressed or
+  invented extent replays false.
 
 ## Machine optimization
 
