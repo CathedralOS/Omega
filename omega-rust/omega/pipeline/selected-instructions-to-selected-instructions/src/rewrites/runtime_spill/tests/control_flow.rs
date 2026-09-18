@@ -3,6 +3,7 @@
 
 mod cyclic_parameters_and_replays;
 mod edge_snapshots_and_reloads;
+mod slot_reuse;
 
 use crate::ValidatedRuntimeSpill;
 use crate::rewrites::runtime_spill::admission;
