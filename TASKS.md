@@ -1785,15 +1785,29 @@ Owners include
   the slice end to end: `x / self.place` with `place` initialized before
   the loop lowers, reload-verifies, and interprets to its `done` trace.
 
-  The remaining probe stop is the guarded-exit lockstep form: `digit_div`'s
-  `self.sq / self.place` reads `place` written by a previous iteration.
-  Neither plain `place >= 1` nor `p < 3 -> IntegerField(place) >= 1` alone
-  is inductive: the latter admits `p = 0, place = 1`, whose update reaches
-  `p = 1, place = 0`. The producer needs a stronger counter/divisor
-  relationship, independently checked at updates and every arrival.
-  `cyclic_field_divisor_awaits_storage_observation_invariants` retains the
-  `OperationProofUnavailable` control; next acceptance is its unchanged
-  source publishing, reload-verifying and interpreting successfully.
+  The guarded-exit divisor bound is no longer the probe stop: it landed at
+  `4823e93ea7` as the counter lockstep family, which recognizes the
+  divide-by-ten/bump-counter update pair and rewrites the guarded bound into
+  `counter < k -> B * d^(N-k) <= divisor` for `k` in `1..=N`. The control this
+  paragraph used to name, `cyclic_field_divisor_awaits_storage_observation_invariants`,
+  exists nowhere in the tree; five `cyclic_field_divisor_*` tests in
+  `checked-trees-to-lowered-psi/src/tests/cyclic_byte_literal_calls.rs` now
+  pass, reload, independently verify and interpret.
+
+  The blocker moved. Measured 2026-09-18 on macOS ARM64: the acceptance
+  customer `tests/omega/pass/text/runtime_number_to_decimal_exit` compiles
+  under `pass_canaries_compile`, but its own run test
+  `content_text_and_carriers::runtime_number_to_decimal_exit_canary_runs` fails
+  before the native run. Terminal production refuses `Main::main` with
+  `InvalidUnitMachinePlan`, reason "attached Unit closure is missing a checked
+  transitive machine plan", omission "`Main::main` has no admitted body (local
+  construction stopped at statement sequence: scalar field store sequence,
+  state 7)". The state index is the position in the `machine_states` span,
+  whose slot 0 carries the entry body (it supplies `states[0].return_type`), so
+  state 7 is `digit_write` -- three scalar field stores plus the
+  runtime-indexed carrier write -- and not `digit_div`. Resume at the
+  field-store sequence; do not re-derive a counter/divisor invariant that has
+  already landed.
   Existing order transitivity, exact equality bridges and closed literal
   predicate denotation already discharge incompatible integer guards;
   no new contradiction rule is needed. Equality-cited bounds now join that
