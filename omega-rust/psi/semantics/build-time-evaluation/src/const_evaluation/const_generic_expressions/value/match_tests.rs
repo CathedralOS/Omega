@@ -200,6 +200,38 @@ fn nonconstant_divisor_lattices_prove_all_arm_integrality() {
 }
 
 #[test]
+fn independent_dispatch_operands_retain_each_exact_fractional_warning() {
+    // Both sides of the division dispatch independently. The surviving
+    // fractional history must still name each exact intermediate and the
+    // integer it lands as — without enumerating arm combinations.
+    let (program, expression) = program(
+        "((match true { true -> 7 / 2, false -> 0 }) * 4) / (match true { true -> -2, false -> 2 })",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let (value, warnings) = evaluate(
+        &program,
+        machine,
+        state,
+        expression,
+        PrimitiveType::I32,
+        None,
+    )
+    .expect("independent dispatches keep exact warning evidence");
+    assert_eq!(value.display, "-7");
+    assert_eq!(warnings.len(), 2, "{warnings:?}");
+    for result in ["-7", "7"] {
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.message.contains("`7/2`")
+                    && warning.message.contains(&format!("integer `{result}`"))),
+            "{warnings:?}"
+        );
+    }
+}
+
+#[test]
 fn nonzero_divisor_proof_retains_each_result_hulls_own_lattice_gap() {
     // The joined lattice of the divisor's whole sum is 1Z and cannot exclude
     // zero, but the zero-spanning sign pair (-5+4Z)+{4} keeps its own odd
