@@ -32,6 +32,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
+    pre_contexts: HandleSpan<FlowSemanticContextRef>,
     exit: &mut CallFlowContexts,
 ) {
     let Some(site) = crate::semantic_calls::find_call_site(
@@ -117,30 +118,72 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
             continue;
         };
         // Facts live on storage places: an argument spelled through a local
-        // reference re-seeds its exact origin, and an ambiguous origin seeds
-        // nothing rather than guessing which candidate the callee received.
-        let Some(mut storage) = crate::flow::rebase_exact_local_place(
+        // reference re-seeds its exact origin. A reference bound from a
+        // checked reference result names one of finitely many candidates;
+        // the callee guarantees the rows only on the candidate it received,
+        // and the others were merely retired conservatively, so a candidate
+        // gets a row back exactly when that row was live before the call.
+        // Any other ambiguity seeds nothing.
+        let self_symbol = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.is_self)
+            .map(|parameter| parameter.symbol);
+        let exact = crate::flow::rebase_exact_local_place(
             program,
             state.symbol,
             borrow_call.statement_index,
-            actual,
+            actual.clone(),
             ctx.call_frames,
-        ) else {
-            continue;
+        );
+        let targets: Vec<(crate::flow::CanonicalPlace, bool)> = match exact {
+            Some(storage) => vec![(storage, false)],
+            None => {
+                let PlaceRoot::Symbol(root) = actual.root else {
+                    continue;
+                };
+                let Some(candidates) = crate::flow::reference_result_candidates_before_statement(
+                    program,
+                    state.symbol,
+                    borrow_call.statement_index,
+                    root,
+                    ctx.call_frames,
+                ) else {
+                    continue;
+                };
+                candidates
+                    .into_iter()
+                    .map(|mut candidate| {
+                        candidate.segments.extend_from_slice(&actual.segments);
+                        (candidate, true)
+                    })
+                    .collect()
+            }
         };
-        // Machine storage canonicalizes to the machine-symbol root; the
-        // seeded field facts and their consumers spell it as `self`.
-        if storage.root == PlaceRoot::Symbol(machine.symbol)
-            && let Some(self_symbol) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.is_self)
-                .map(|parameter| parameter.symbol)
-        {
-            storage.root = PlaceRoot::Symbol(self_symbol);
-        }
-        for (path, domain_symbol) in paths {
-            rows.push((storage.clone(), path, domain_symbol));
+        for (mut storage, requires_prior_row) in targets {
+            // Machine storage canonicalizes to the machine-symbol root; the
+            // seeded field facts and their consumers spell it as `self`.
+            if storage.root == PlaceRoot::Symbol(machine.symbol)
+                && let Some(self_symbol) = self_symbol
+            {
+                storage.root = PlaceRoot::Symbol(self_symbol);
+            }
+            for (path, domain_symbol) in &paths {
+                if requires_prior_row
+                    && !row_was_live(
+                        program,
+                        semantic,
+                        ctx,
+                        pre_contexts,
+                        &storage,
+                        path,
+                        *domain_symbol,
+                    )
+                {
+                    continue;
+                }
+                rows.push((storage.clone(), path.clone(), *domain_symbol));
+            }
         }
     }
     if rows.is_empty() {
@@ -203,6 +246,32 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
             FlowConstraintKind::SemanticContext { context },
         );
     }
+}
+
+/// Whether `storage + path in domain` was live in the contexts active before
+/// the call.
+fn row_was_live(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &FlowBuildContext,
+    pre_contexts: HandleSpan<FlowSemanticContextRef>,
+    storage: &crate::flow::CanonicalPlace,
+    path: &[PlaceSegment],
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let mut place = storage.clone();
+    place.extend_segments(path);
+    let place =
+        crate::semantic_places::append_place_with_segments(semantic, place.root, &place.segments);
+    ctx.contexts
+        .semantic_context_refs
+        .span_or_empty(pre_contexts)
+        .iter()
+        .any(|reference| {
+            semantic
+                .context_view(semantic.contexts.get(reference.context))
+                .proves_place_domain_membership_in_program(program, place, domain_symbol)
+        })
 }
 
 /// The `(field path, domain)` rows of a machine's seeded `MachineFieldDomain`

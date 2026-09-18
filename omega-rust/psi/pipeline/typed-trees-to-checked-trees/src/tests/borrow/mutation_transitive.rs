@@ -361,17 +361,22 @@ fn shared_boundary_resolver_preserves_exact_and_opaque_storage_frames() {
             validation::CallFrameResolver::new(&program).as_ref(),
         );
         assert_eq!(writes, fresh, "sharing cannot change the frame for {name}");
+        // Without a shared resolver the frame falls back to the declared
+        // signature ceiling (receiver plus exclusive actuals), never to an
+        // empty write set.
         assert!(
-            call_mutated_places(
-                &program,
-                machine.symbol,
-                state.symbol,
-                &facts,
-                call,
-                &cache,
-                None,
-            )
-            .is_none(),
+            !matches!(
+                call_mutated_places(
+                    &program,
+                    machine.symbol,
+                    state.symbol,
+                    &facts,
+                    call,
+                    &cache,
+                    None,
+                ),
+                Some(places) if places.is_empty()
+            ),
             "an unavailable boundary resolver is not an empty write frame",
         );
         if name == "Main::bad" {

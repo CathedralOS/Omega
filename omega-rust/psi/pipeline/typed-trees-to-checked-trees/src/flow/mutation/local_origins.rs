@@ -154,7 +154,20 @@ pub(super) fn assignment_storage_places(
     }
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
-    match resolver.assignment_write_target(machine, statement)? {
+    let Some(target) = resolver.assignment_write_target(machine, statement) else {
+        // The resolver cannot classify a write through a reference local it
+        // has no origin for; a local of finite candidate origins still names
+        // exactly those places (`rebase_local_write_places`), anything else
+        // stays unknown.
+        return rebase_local_write_places(
+            program,
+            state_symbol,
+            statement_index,
+            direct?,
+            call_frames,
+        );
+    };
+    match target {
         validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
             direct.map(|place| vec![place])
         }
@@ -271,7 +284,7 @@ pub(crate) fn rebase_exact_local_place(
     Some(canonical)
 }
 
-pub(crate) fn rebase_local_write_places(
+pub(super) fn rebase_local_write_places(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -300,8 +313,18 @@ pub(crate) fn rebase_local_write_places(
     })?;
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
-    let origins =
-        resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?)?;
+    let Some(origins) =
+        resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?)
+    else {
+        return reference_result_candidate_places(
+            program,
+            state_symbol,
+            statement_index,
+            root,
+            &place,
+            call_frames,
+        );
+    };
     let mut projected = Vec::new();
     let mut retains_private_storage = true;
     for origin in origins.iter().filter(|origin| origin.local_symbol == root) {
@@ -328,6 +351,35 @@ pub(crate) fn rebase_local_write_places(
         projected.push(place);
     }
     Some(projected)
+}
+
+/// A reference local bound from a checked reference result names one of
+/// finitely many candidate origins (flow/reference_places); a write through
+/// it lands on every candidate's corresponding place.
+fn reference_result_candidate_places(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    root: SymbolHandle,
+    place: &CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CanonicalPlace>> {
+    let candidates = crate::flow::reference_result_candidates_before_statement(
+        program,
+        state_symbol,
+        statement_index,
+        root,
+        call_frames,
+    )?;
+    Some(
+        candidates
+            .into_iter()
+            .map(|mut candidate| {
+                candidate.segments.extend_from_slice(&place.segments);
+                candidate
+            })
+            .collect(),
+    )
 }
 
 pub(crate) fn place_from_origin_path(

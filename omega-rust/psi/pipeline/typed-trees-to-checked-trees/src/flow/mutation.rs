@@ -10,6 +10,7 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;
+mod ceiling;
 mod local_origins;
 mod operand_coordinates;
 mod receiver;
@@ -19,7 +20,6 @@ pub(crate) use local_origins::close_storage_places_over_aliases_with_resolver;
 pub(crate) use local_origins::origin_place;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
-pub(crate) use local_origins::rebase_local_write_places;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
 };
@@ -63,6 +63,9 @@ pub(crate) fn call_mutated_places(
     ) {
         return None;
     }
+    // An unknown frame retires no more than the declared-signature ceiling
+    // (mutation/ceiling.rs); only an unrepresentable ceiling stays unknown
+    // and retires every live fact.
     call_write_places(
         program,
         caller_machine_symbol,
@@ -73,6 +76,15 @@ pub(crate) fn call_mutated_places(
         WritePlaceNamespace::Storage,
         call_frames,
     )
+    .or_else(|| {
+        ceiling::signature_ceiling_places(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow_call,
+            call_frames,
+        )
+    })
 }
 
 /// The access route retains the local loan owner; storage rebasing must not
@@ -364,14 +376,19 @@ pub(crate) fn statement_storage_writes(
             call_frames,
         )?
     };
+    // When the resolver cannot enumerate this state's local origins (a
+    // reference local of finite candidate origins is such a state), borrow
+    // exclusivity already forbids a second live alias of the written
+    // storage, so the places stand without the closure.
     local_origins::close_storage_places_over_aliases_with_resolver(
         program,
         machine_symbol,
         state_symbol,
         statement_index,
-        places,
+        places.clone(),
         call_frames,
     )
+    .or(Some(places))
 }
 
 /// Project a shared complete call frame into the exact caller storage namespace.

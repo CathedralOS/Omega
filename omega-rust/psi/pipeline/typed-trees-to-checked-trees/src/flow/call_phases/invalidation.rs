@@ -36,14 +36,19 @@ pub(in crate::flow) fn call_storage_writes(
         ctx.call_frames,
     )
     .and_then(|places| {
+        // When the resolver cannot enumerate this state's local origins (a
+        // reference local of finite candidate origins is such a state),
+        // borrow exclusivity already forbids a second live alias of the
+        // written storage, so the places stand without the closure.
         close_storage_places_over_aliases_with_resolver(
             program,
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
-            places,
+            places.clone(),
             ctx.call_frames,
         )
+        .or(Some(places))
     })
 }
 
@@ -59,13 +64,7 @@ pub(in crate::flow) fn apply_call_invalidations(
     active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> CallInvalidationResult {
-    // An unknown frame retires no more than the declared-signature ceiling
-    // (call_phases/ceiling.rs); only an unrepresentable ceiling still retires
-    // every live fact.
-    let mutated_places = call_storage_writes(program, borrow, ctx, machine, state, borrow_call)
-        .or_else(|| {
-            super::ceiling::signature_ceiling_places(program, ctx, machine, state, borrow_call)
-        });
+    let mutated_places = call_storage_writes(program, borrow, ctx, machine, state, borrow_call);
     let invalidations_start = ctx.invalidations.events.len();
     let post_contexts = match mutated_places {
         None => HandleSpan::empty(),

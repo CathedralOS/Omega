@@ -13,17 +13,25 @@
 //! and the caller keeps retiring every live fact as before.
 
 use crate::flow::CanonicalPlace;
-use crate::flow::FlowBuildContext;
 use checked_trees::BorrowCallFact;
+use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 
+/// The storage an unknown-frame call may write, with each exclusive actual's
+/// own alias place beside its storage so facts keyed on the alias retire
+/// too. The alias closure runs in the caller (`call_storage_writes`).
 pub(super) fn signature_ceiling_places(
     program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == caller_machine_symbol)?;
+    let state = crate::semantic_calls::find_state(program, caller_state_symbol)?;
     // A builtin function (`min`, `max`, `sqrt`, the float classifiers, the
     // asm intrinsics) takes scalar values and owns no caller storage; its
     // ceiling is empty even though it declares no state parameters.
@@ -53,7 +61,7 @@ pub(super) fn signature_ceiling_places(
         return None;
     }
     let mut owned_frames = None;
-    let resolver = crate::flow::shared_call_frames_or(ctx.call_frames, program, &mut owned_frames);
+    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
     let mut places = Vec::new();
     let mut argument_index = 0usize;
     for parameter in parameters {
@@ -87,26 +95,22 @@ pub(super) fn signature_ceiling_places(
                 argument,
             )?
         };
-        for storage in crate::flow::rebase_local_write_places(
+        for storage in super::local_origins::rebase_local_write_places(
             program,
             state.symbol,
             borrow_call.statement_index,
-            actual,
-            ctx.call_frames,
+            actual.clone(),
+            call_frames,
         )? {
             if !places.contains(&storage) {
                 places.push(storage);
             }
         }
+        if !places.contains(&actual) {
+            places.push(actual);
+        }
     }
-    crate::flow::close_storage_places_over_aliases_with_resolver(
-        program,
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        places,
-        ctx.call_frames,
-    )
+    Some(places)
 }
 
 fn is_exclusive_reference(
