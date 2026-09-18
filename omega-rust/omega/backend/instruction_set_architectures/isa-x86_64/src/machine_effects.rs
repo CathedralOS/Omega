@@ -463,6 +463,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallAggregate
+        | MachineSemanticKind::NormalizedForeignCall
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
         | MachineSemanticKind::LoadPacked3
@@ -707,6 +708,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         }
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallAggregate
+        | MachineSemanticKind::NormalizedForeignCall
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
         | MachineSemanticKind::LoadPacked3

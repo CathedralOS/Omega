@@ -218,6 +218,14 @@ pub enum SelectedInstructionKind {
     CallScalar {
         callee: MachineId,
     },
+    /// Direct evaluated normalized foreign call. The constraint row owns the
+    /// exact ABI views and complete call clobbers; `boundary` retains
+    /// publication custody while the function's foreign-call roster carries
+    /// the evaluated locator, entry plan, and provider execution.
+    NormalizedForeignCall {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        ordinal: u32,
+    },
     /// Ordinary call defining every direct aggregate result fragment.
     CallAggregate {
         callee: MachineId,

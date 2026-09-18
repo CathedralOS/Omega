@@ -98,7 +98,8 @@ pub(in crate::text_placement) fn prove_none(
                 }
                 MachineAlternativeFamily::CallScalar
                 | MachineAlternativeFamily::CallUnit
-                | MachineAlternativeFamily::CallAggregate => {
+                | MachineAlternativeFamily::CallAggregate
+                | MachineAlternativeFamily::NormalizedForeignCall => {
                     return Err(TextPlacementError::UnsupportedRelocationShape);
                 }
                 MachineAlternativeFamily::CompareI64Zero

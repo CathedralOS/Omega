@@ -660,6 +660,7 @@ pub(crate) fn validate_decoded(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::NormalizedForeignCall { .. }
         | SelectedInstructionKind::CallScalar { .. } => false,
     };
     if valid {
@@ -836,6 +837,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::NormalizedForeignCall { .. }
         | SelectedInstructionKind::CallScalar { .. } => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();

@@ -137,6 +137,10 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallAggregate
             | MachineSemanticKind::ReturnAggregate => return None,
+            // Normalized foreign calls carry their ABI views on a per-plan
+            // constraint row roster, not a single fixed key; no target declares
+            // a row yet, so the semantic fails closed at declaration lookup.
+            MachineSemanticKind::NormalizedForeignCall => return None,
             MachineSemanticKind::Jump => self.jump,
         })
     }

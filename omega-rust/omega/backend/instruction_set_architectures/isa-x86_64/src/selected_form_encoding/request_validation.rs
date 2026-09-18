@@ -180,6 +180,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::NormalizedForeignCall { .. }
         | SelectedInstructionKind::CallScalar { .. } => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }

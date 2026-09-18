@@ -138,6 +138,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 12,
         SelectedInstructionKind::CallScalar { .. } => 13,
+        SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::LoadPacked { .. } => 46,
@@ -284,6 +285,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::CallAggregate { callee }
         | SelectedInstructionKind::CallUnit { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
+        }
+        SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.extend_from_slice(&ordinal.to_le_bytes());
         }
     }
 }

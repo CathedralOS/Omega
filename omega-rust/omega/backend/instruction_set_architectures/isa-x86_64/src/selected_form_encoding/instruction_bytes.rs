@@ -418,6 +418,7 @@ pub(crate) fn encode_unchecked(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::NormalizedForeignCall { .. }
         | SelectedInstructionKind::CallScalar { .. } => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }

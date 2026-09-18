@@ -84,10 +84,11 @@ pub enum MachineSemanticKind {
     SaturatingAdd(SaturatingCarrier),
     SaturatingSubtract(SaturatingCarrier),
     SaturatingDivide(SaturatingCarrier),
+    NormalizedForeignCall,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 82] = [
+    pub const ALL: [Self; 83] = [
         Self::CopyBytes,
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
@@ -170,6 +171,7 @@ impl MachineSemanticKind {
         Self::SaturatingDivide(SaturatingCarrier::U16),
         Self::SaturatingDivide(SaturatingCarrier::U32),
         Self::SaturatingDivide(SaturatingCarrier::U64),
+        Self::NormalizedForeignCall,
     ];
 }
 
@@ -236,6 +238,7 @@ pub enum MachineAlternativeFamily {
     SaturatingAdd(SaturatingCarrier),
     SaturatingSubtract(SaturatingCarrier),
     SaturatingDivide(SaturatingCarrier),
+    NormalizedForeignCall,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -311,6 +314,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::Store64 => Self::Store64,
             MachineSemanticKind::FrameAddress => Self::FrameAddress,
             MachineSemanticKind::CallUnit => Self::CallUnit,
+            MachineSemanticKind::NormalizedForeignCall => Self::NormalizedForeignCall,
         }
     }
 }

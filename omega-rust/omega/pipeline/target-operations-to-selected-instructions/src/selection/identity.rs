@@ -177,6 +177,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CompareI64Immediate { .. } => 53,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::CallScalar { .. } => 12,
+        SelectedInstructionKind::NormalizedForeignCall { .. } => 57,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
@@ -323,6 +324,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CallScalar { callee }
         | SelectedInstructionKind::CallUnit { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
+        }
+        SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.extend_from_slice(&ordinal.to_le_bytes());
         }
     }
     encode_constraint_key(bytes, instruction.constraint);

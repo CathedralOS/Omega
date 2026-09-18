@@ -366,5 +366,8 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
         SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
         SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,
+        SelectedInstructionKind::NormalizedForeignCall { .. } => {
+            MachineSemanticKind::NormalizedForeignCall
+        }
     }
 }
