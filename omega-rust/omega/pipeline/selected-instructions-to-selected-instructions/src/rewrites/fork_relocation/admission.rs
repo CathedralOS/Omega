@@ -262,6 +262,10 @@ pub(super) fn admit<'source>(
                 landing_block: target_index,
                 landing_index,
                 landing: dead_path::Landing::Executed,
+                // The vacated index stays silent: every position behind it
+                // in the head that could observe the missing write is a
+                // crossed window position the hazard audit already owns.
+                vacated: dead_path::Vacated::Silent,
             },
             dead_path::Start::Edges(&skipped_edges),
         )

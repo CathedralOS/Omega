@@ -255,6 +255,10 @@ pub(super) fn admit<'source>(
                 landing_block: target_index,
                 landing_index,
                 landing: dead_path::Landing::Speculated,
+                // The vacated index stays silent: every walked path
+                // reaching the arm crossed the head's new position first,
+                // so the member's write is never missing there.
+                vacated: dead_path::Vacated::Silent,
             },
             dead_path::Start::Edges(&skipped_edges),
         )

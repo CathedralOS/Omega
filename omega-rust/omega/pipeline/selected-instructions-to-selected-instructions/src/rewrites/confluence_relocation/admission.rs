@@ -230,6 +230,10 @@ pub(super) fn admit<'source>(
             landing_block: target_index,
             landing_index,
             landing: dead_path::Landing::Speculated,
+            // The vacated index stays silent: every position behind it in
+            // the member's own block is a crossed window position the
+            // hazard audit already owns.
+            vacated: dead_path::Vacated::Silent,
         },
         dead_path::Start::Block(target_index),
     ) {
