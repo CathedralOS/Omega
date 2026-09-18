@@ -10,7 +10,7 @@
 // so the fix keeps the slot for a CALL-result local the scan would otherwise elide.
 // Writes "hello" via the chain, then Main reopens + asserts the file is 5 bytes.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

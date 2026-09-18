@@ -3,7 +3,7 @@
 // (> 1e9), and both files share a NONZERO st_dev (@0) — the device of /tmp.
 // Proves the ctime and dev fields decode from the real stat record on macOS.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

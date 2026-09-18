@@ -3,7 +3,7 @@
 // (u16 @4) by byte-assembly; the owner-write bit (0o200 = 128) must be clear.
 // Exercises the stat op + runtime bitwise |, <<, and & on real macOS syscalls.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

@@ -3,7 +3,7 @@
 // create "abcXYZ", close; reopen with flags=2; read 3 ("abc"); seek to 0;
 // overwrite with "ZZZ"; close; reopen read-only; read back "ZZZXYZ". Prints PASS.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

@@ -3,7 +3,7 @@
 // reports EACCES (13). Proves chmod takes effect on real macOS syscalls and the
 // kernel enforces the mode. Prints PASS iff the write-open fails with EACCES.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

@@ -9,7 +9,7 @@
 // Prints PASS iff all three match. Proves chown/fchown lower + execute with real
 // kernel permission semantics.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

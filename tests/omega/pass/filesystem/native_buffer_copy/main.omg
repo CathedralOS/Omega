@@ -5,7 +5,7 @@
 // source bytes ("hello", first byte 'h'). Proves `write(fd, buffer)` marshals a
 // fixed array as a {address, length} slice on real macOS syscalls.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

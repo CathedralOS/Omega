@@ -15,7 +15,7 @@
 // caller's dispatch — the remaining through-field wrinkle (TASKS_FS.md step 14 /
 // tests/omega/run/filesystem/wrapper_write_all_through_field).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

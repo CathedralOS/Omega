@@ -5,7 +5,7 @@
 // system; a freshly-created regular file is S_IFREG (0o100000 = 32768). Proves
 // is_char_device()/is_file() decode real device nodes, not just regular files.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

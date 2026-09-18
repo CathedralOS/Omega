@@ -3,7 +3,7 @@
 // reports ENOENT (2). Proves the value-returning-with-pointer-deref host call
 // works end-to-end. Prints PASS iff errno == 2.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

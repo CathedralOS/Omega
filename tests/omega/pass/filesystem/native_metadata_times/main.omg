@@ -5,7 +5,7 @@
 // 2001). Exercises the stat op + three independent i64 byte-assemblies on real
 // macOS syscalls.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {

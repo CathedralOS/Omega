@@ -1,7 +1,7 @@
 // NATIVE fs set_len (Rust File::set_len) via _ftruncate. Writes 20 bytes,
 // truncates to 5, then seeks to end to confirm the size is 5. Prints PASS.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

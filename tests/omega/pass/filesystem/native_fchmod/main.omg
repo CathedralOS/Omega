@@ -3,7 +3,7 @@
 // of the path fails with EACCES (13). Proves fchmod takes effect on the real
 // inode via the open fd. Prints PASS iff the write-open fails with EACCES.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

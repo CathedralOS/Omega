@@ -11,13 +11,13 @@
 // over the guarded result. Prints PASS when correct (false), FAIL if either half
 // regresses (returns true).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Probe {
     host: FilesystemHost;
 }
 
-machine Probe::check(&mut self) -> bool {
+machine Probe::check(&mut self) -> bool reaches FilesystemHost {
     let rc: i32 = self.host.close(-1);
     transition rc == 0 { true -> yes() _ -> no() }
     state yes(&mut self) -> bool { true }

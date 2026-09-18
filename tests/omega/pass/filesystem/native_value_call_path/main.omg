@@ -9,7 +9,7 @@
 // failed. Creates a file (raw), reopens it through the value-call, reads it back.
 // PASS iff the reopen finds the 3 bytes ("xyz", first byte 'x' = 120).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

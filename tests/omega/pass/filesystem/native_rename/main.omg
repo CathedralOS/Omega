@@ -3,7 +3,7 @@
 // then opens B for reading (proving the rename moved it) and reads it back.
 // Prints PASS. NOT registered in ACTIVE_PASS_CANARIES yet.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

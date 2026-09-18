@@ -11,7 +11,7 @@
 // the fix the forwarded slice materialized len 0 -> an empty write. PASS iff the
 // file holds the 5 forwarded bytes (seek-to-end == 5).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

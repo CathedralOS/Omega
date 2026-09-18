@@ -8,7 +8,7 @@
 // fails. This is exactly the mechanism native `remove_dir_all` will use (its
 // extracted names are NUL-terminated the same way).
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

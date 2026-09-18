@@ -4,7 +4,7 @@
 // names share one inode). Proves the nlink field decodes from the real stat
 // record on macOS syscalls.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
 
 data Main {
