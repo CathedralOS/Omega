@@ -1,0 +1,18 @@
+// PASS CANARY. A bare scalar formal arrives packed inside a record
+// literal: `wrap` claims `remaining`'s entry role at `Wrap`'s unique
+// natural leaf, so the produced rank reads `wrap.remaining`. The literal
+// rebuild transports the same role to the next `wrap` while the leaf
+// strictly descends.
+data Wrap { remaining: u32; label: bool; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> iterate(Wrap { remaining: remaining, label: false }) }
+    state iterate(wrap: Wrap) {
+        transition wrap.remaining > 0 {
+            true -> iterate(Wrap { remaining: wrap.remaining - 1, label: wrap.label })
+            false -> wrap.remaining
+        }
+    }
+}

@@ -1,0 +1,19 @@
+// FAIL CANARY. `holder` offers two slice leaves to the `items` role:
+// `holder.bag.items` and `holder.side.items` are equally valid readings
+// of the same produced length, so no coordinate forms rather than
+// guessing which leaf carried the collection.
+data Bag { items: &[u32]; }
+data Pair { bag: Bag; side: Bag; }
+
+machine walk(items: &[u32], spare: &[u32], capacity: u64)
+requires items.len <= capacity && spare.len <= capacity;
+terminates by items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(Pair { bag: Bag { items: items }, side: Bag { items: spare } }, capacity) }
+    state step(holder: Pair, bound: u64) {
+        transition holder.bag.items.len > 0 {
+            true -> step(Pair { bag: Bag { items: holder.bag.items[1..] }, side: holder.side }, bound)
+            false -> 0
+        }
+    }
+}

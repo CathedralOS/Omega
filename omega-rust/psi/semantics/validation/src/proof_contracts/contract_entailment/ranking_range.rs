@@ -5,6 +5,7 @@ use super::{
     Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
     StrictArithmeticSymbolBinding, TypedTrees, inductive_judgment,
 };
+use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
@@ -267,24 +268,74 @@ fn subject_field_coordinates<'program>(
 ) -> Option<field_coordinates::FieldCoordinates<'program>> {
     let mut coordinates = field_coordinates::FieldCoordinates::empty();
     for subject in subjects {
-        let Some(coordinate) = fields::FieldCoordinate::resolve_projection(program, root, *subject)
-        else {
+        if let Some(coordinate) =
+            fields::FieldCoordinate::resolve_projection(program, root, *subject)
+        {
+            let coordinate = match entry_parameters {
+                Some(entries) => coordinate.at_arrival(
+                    program,
+                    RankingRangeState {
+                        state,
+                        entry_parameters: entries,
+                    },
+                    coordinate.parameter.symbol,
+                )?,
+                None => coordinate,
+            };
+            coordinates.include(coordinate);
             continue;
-        };
-        let coordinate = match entry_parameters {
-            Some(entries) => coordinate.at_arrival(
-                program,
-                RankingRangeState {
-                    state,
-                    entry_parameters: entries,
-                },
-                coordinate.parameter.symbol,
-            )?,
-            None => coordinate,
-        };
-        coordinates.include(coordinate);
+        }
+        // A bare subject can still name a coordinate at this state: its entry
+        // role may arrive packed inside a record carrier, which holds the
+        // subject's value at the record's unique natural leaf.
+        if let Some(entries) = entry_parameters
+            && let Some(coordinate) =
+                carried_subject_coordinate(program, root, state, entries, *subject)
+        {
+            coordinates.include(coordinate);
+        }
     }
     Some(coordinates)
+}
+
+/// The natural coordinate a bare scalar `subject` takes at `state` when a
+/// record formal claims its entry role: the record's unique owned-path
+/// natural leaf, of the subject formal's exact width. A subject spelled as a
+/// member chain, an unclaimed or contested role, and a record without one
+/// matching leaf all keep no coordinate.
+fn carried_subject_coordinate<'program>(
+    program: &'program TypedTrees,
+    root: &'program State,
+    state: &'program State,
+    entry_parameters: &[symbols::SymbolHandle],
+    subject: ExpressionHandle,
+) -> Option<fields::FieldCoordinate<'program>> {
+    let formal = fields::parameter(program, root, subject)?;
+    let carrier = fields::unique_entry_carrier(program, state, entry_parameters, formal.symbol)?;
+    carried_natural_coordinate(program, root, carrier, formal.symbol)
+}
+
+/// The natural coordinate `parameter`'s record assigns to `entry`'s role:
+/// the unique owned-path natural leaf whose exact width matches the entry
+/// formal's own carrier. A bare slot, a record with no such leaf or two, and
+/// a width the typed arrival could never carry all keep no coordinate.
+fn carried_natural_coordinate<'program>(
+    program: &'program TypedTrees,
+    root: &'program State,
+    parameter: &'program StateParameter,
+    entry: symbols::SymbolHandle,
+) -> Option<fields::FieldCoordinate<'program>> {
+    let entry_formal = program
+        .state_parameters(root)
+        .iter()
+        .find(|formal| !formal.is_self && formal.symbol == entry)?;
+    if entry_formal.is_const {
+        return None;
+    }
+    let width = exact_integer_parameter(program, entry_formal.type_reference)?;
+    let coordinate = fields::integer_leaf_coordinate(program, parameter)?;
+    (exact_integer_parameter(program, coordinate.field.type_reference) == Some(width))
+        .then_some(coordinate)
 }
 
 fn prove_edge(
@@ -423,7 +474,17 @@ fn prove_edge(
                     };
                     Some(lengths::SliceCoordinates::new(coordinate))
                 }
-                None => None,
+                // A bare slice formal can name a coordinate at this state
+                // when its entry role arrives packed inside a record carrier:
+                // the record holds the collection at its unique slice leaf.
+                None => match (entry_parameters, lengths::parameter(program, root, subject)) {
+                    (Some(entries), Some(formal)) => {
+                        fields::unique_entry_carrier(program, state, entries, formal.symbol)
+                            .and_then(|carrier| lengths::slice_leaf_coordinate(program, carrier))
+                            .map(lengths::SliceCoordinates::new)
+                    }
+                    _ => None,
+                },
             }
         }
         _ => None,
@@ -514,16 +575,26 @@ fn prove_edge(
                 // copy or infer equality from their shared entry ancestry.
                 continue;
             }
-            let Some(binding) = bindings
+            let value = match bindings
                 .iter()
                 .find(|binding| binding.symbol == parameter.symbol)
-            else {
-                // An unrelated payload contributes no arithmetic fact. The
-                // strict engine cannot normalize either omitted symbol, even
-                // inside an expression that would otherwise cancel to zero.
-                continue;
+            {
+                Some(binding) => binding.value.clone(),
+                // A record formal carries a bare integer entry role through
+                // the unique natural leaf its declaration names: the role
+                // binds the produced coordinate there, not the record itself.
+                None => match carried_natural_coordinate(program, root, parameter, *entry_symbol) {
+                    Some(coordinate) => StrictArithmeticBindingValue::Atom {
+                        identity: coordinate.identity.clone(),
+                        unsigned: true,
+                    },
+                    // An unrelated payload contributes no arithmetic fact. The
+                    // strict engine cannot normalize either omitted symbol,
+                    // even inside an expression that would otherwise cancel
+                    // to zero.
+                    None => continue,
+                },
             };
-            let value = binding.value.clone();
             if let Some(existing) = bindings
                 .iter()
                 .find(|binding| binding.symbol == *entry_symbol)
@@ -567,7 +638,7 @@ fn prove_edge(
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }
-    let length_bindings = lengths::bindings(program, state, entry_parameters);
+    let length_bindings = lengths::bindings(program, machine, state, entry_parameters);
     if !length_bindings.is_empty() || field_rank.is_some() || slice_rank.is_some() {
         let expressions = projections::expressions(
             program,
@@ -806,11 +877,7 @@ fn prove_edge(
             .iter()
             .find(|(symbol, _)| *symbol == source_symbol)
         {
-            if !lengths::is_slice(program, parameter.type_reference) {
-                return None;
-            }
-            substitutions.insert(
-                identity.clone(),
+            let actual = if lengths::is_slice(program, parameter.type_reference) {
                 lengths::actual(
                     program,
                     machine,
@@ -818,8 +885,23 @@ fn prove_edge(
                     *argument,
                     &length_bindings,
                     &mut engine,
-                )?,
-            );
+                )?
+            } else {
+                // The destination slot is a record carrier: the produced
+                // length arrives at the record's unique slice leaf, read off
+                // the actual exactly as a projected subject does.
+                let coordinate = lengths::slice_leaf_coordinate(program, parameter)?;
+                coordinate.arrived(
+                    program,
+                    machine,
+                    state,
+                    &mut engine,
+                    *argument,
+                    coordinate.borrowed,
+                    &length_bindings,
+                )?
+            };
+            substitutions.insert(identity.clone(), actual);
             continue;
         }
         let Some(binding) = bindings
@@ -831,7 +913,14 @@ fn prove_edge(
         let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
             return None;
         };
-        let actual = engine.normalize(*argument)?;
+        let actual = match fields::integer_leaf_coordinate(program, parameter) {
+            // The destination slot is a record carrier: the role's produced
+            // value is the leaf its declaration names, read off the actual.
+            Some(coordinate) => {
+                coordinate.actual(program, state, &mut engine, *argument, coordinate.borrowed)?
+            }
+            None => engine.normalize(*argument)?,
+        };
         if let Some(existing) = substitutions.get(identity) {
             // Source copies remain independent atoms. Their established
             // equality may prove this arrival, but destination copies never
@@ -1203,9 +1292,13 @@ fn validate_mapping(
         let entry = root_parameters
             .iter()
             .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
+        // A record slot has no integer carrier of its own: it may still carry
+        // a bare integer entry role when its declaration holds that role's
+        // value at one unique natural leaf of the entry's exact width.
         if entry.is_const
-            || exact_integer_parameter(program, entry.type_reference)
+            || (exact_integer_parameter(program, entry.type_reference)
                 != exact_integer_parameter(program, parameter.type_reference)
+                && carried_natural_coordinate(program, root, parameter, *entry_symbol).is_none())
         {
             return None;
         }

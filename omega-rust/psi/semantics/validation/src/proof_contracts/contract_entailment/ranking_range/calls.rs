@@ -133,7 +133,7 @@ pub(crate) fn prove_ranking_range_call_entry(
             None
         };
         let length_bindings = if matches!(measure, RankingRangeMeasure::SliceLength(_)) {
-            lengths::bindings(program, state, None)
+            lengths::bindings(program, member.machine, state, None)
         } else {
             Vec::new()
         };
@@ -320,7 +320,12 @@ pub(crate) fn prove_ranking_range_call(
             source,
             caller_site.entry_parameters,
         )?;
-        telescoped_bindings(program, source, caller_site.entry_parameters)?
+        telescoped_bindings(
+            program,
+            caller.machine,
+            source,
+            caller_site.entry_parameters,
+        )?
     };
     let mut engine = Engine::strict_with_symbol_bindings(program, caller.machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
@@ -331,15 +336,19 @@ pub(crate) fn prove_ranking_range_call(
     // Install the same projections the named-state judgment uses so a `.len`
     // inside a guard, actual, endpoint, or requires fact names the same atom.
     let mut length_bindings = if matches!(source_measure, RankingRangeMeasure::SliceLength(_)) {
-        lengths::bindings(program, source, None)
+        lengths::bindings(program, caller.machine, source, None)
     } else {
         Vec::new()
     };
     if !at_entry {
         // The ranked slice subject stays entry-spelled: alias its entry
         // parameter to the site carrier's length atom.
-        let (roles, equalities) =
-            telescoped_length_bindings(program, source, caller_site.entry_parameters);
+        let (roles, equalities) = telescoped_length_bindings(
+            program,
+            caller.machine,
+            source,
+            caller_site.entry_parameters,
+        );
         carrier_equalities.extend(equalities);
         for (symbol, identity) in roles {
             if !length_bindings.iter().any(|(bound, _)| *bound == symbol) {
@@ -462,7 +471,7 @@ pub(crate) fn prove_ranking_range_call(
     // entry scope and re-resolved onto the site's carrier. Bare slice
     // formals keep the `length_bindings` coordinate installed above.
     let slice_ranks = if let RankingRangeMeasure::SliceLength(subject) = source_measure {
-        match lengths::SliceCoordinate::resolve(program, entry, subject) {
+        let resolved = match lengths::SliceCoordinate::resolve(program, entry, subject) {
             Some(coordinate) => {
                 let coordinate = if at_entry {
                     coordinate
@@ -476,6 +485,25 @@ pub(crate) fn prove_ranking_range_call(
                         coordinate.parameter.symbol,
                     )?
                 };
+                Some(coordinate)
+            }
+            // A bare slice subject can still name a coordinate at this site:
+            // its entry role may arrive packed inside a record carrier's
+            // unique slice leaf.
+            None if !at_entry => lengths::parameter(program, entry, subject)
+                .and_then(|formal| {
+                    fields::unique_entry_carrier(
+                        program,
+                        source,
+                        caller_site.entry_parameters,
+                        formal.symbol,
+                    )
+                })
+                .and_then(|carrier| lengths::slice_leaf_coordinate(program, carrier)),
+            None => None,
+        };
+        match resolved {
+            Some(coordinate) => {
                 let mut coordinates = lengths::SliceCoordinates::new(coordinate);
                 let mut expressions = vec![subject];
                 if caller.range.is_valid()
@@ -1161,9 +1189,11 @@ fn rank_coordinate(
 /// contribute an explicit equality hypothesis rather than a second binding.
 fn telescoped_bindings(
     program: &TypedTrees,
+    machine: &Machine,
     state: &State,
     entry_parameters: &[SymbolHandle],
 ) -> Option<(Vec<StrictArithmeticSymbolBinding>, Vec<Comparison>)> {
+    let root = program.machine_states(machine).first()?;
     let mut bindings = integer_bindings(program, state)?;
     let mut equalities = Vec::new();
     let formals = program
@@ -1178,14 +1208,24 @@ fn telescoped_bindings(
         if !role.is_valid() {
             continue;
         }
-        let Some(binding) = bindings
+        let (identity, unsigned) = match bindings
             .iter()
             .find(|binding| binding.symbol == formal.symbol)
-        else {
-            continue;
-        };
-        let StrictArithmeticBindingValue::Atom { identity, unsigned } = &binding.value else {
-            continue;
+        {
+            Some(binding) => {
+                let StrictArithmeticBindingValue::Atom { identity, unsigned } = &binding.value
+                else {
+                    continue;
+                };
+                (identity.clone(), *unsigned)
+            }
+            // A record formal carries a bare integer entry role through the
+            // unique natural leaf its declaration names; the role binds the
+            // produced coordinate there rather than the record itself.
+            None => match super::carried_natural_coordinate(program, root, formal, *role) {
+                Some(coordinate) => (coordinate.identity.clone(), true),
+                None => continue,
+            },
         };
         if let Some(existing) = bindings.iter().find(|binding| binding.symbol == *role) {
             let StrictArithmeticBindingValue::Atom {
@@ -1194,7 +1234,7 @@ fn telescoped_bindings(
             else {
                 return None;
             };
-            if *existing != *identity {
+            if *existing != identity {
                 equalities.push((
                     BinaryOperator::Equal,
                     Polynomial::atom(existing.clone()),
@@ -1205,10 +1245,7 @@ fn telescoped_bindings(
         }
         bindings.push(StrictArithmeticSymbolBinding {
             symbol: *role,
-            value: StrictArithmeticBindingValue::Atom {
-                identity: identity.clone(),
-                unsigned: *unsigned,
-            },
+            value: StrictArithmeticBindingValue::Atom { identity, unsigned },
         });
     }
     Some((bindings, equalities))
@@ -1221,12 +1258,14 @@ fn telescoped_bindings(
 /// or diverging claimant was already demoted by discovery.
 fn telescoped_length_bindings(
     program: &TypedTrees,
+    machine: &Machine,
     state: &State,
     entry_parameters: &[SymbolHandle],
 ) -> (Vec<(SymbolHandle, String)>, Vec<Comparison>) {
-    let bindings = lengths::bindings(program, state, None);
+    let bindings = lengths::bindings(program, machine, state, None);
     let mut roles: Vec<(SymbolHandle, String)> = Vec::new();
     let mut equalities = Vec::new();
+    let root = program.machine_states(machine).first();
     for (formal, role) in program
         .state_parameters(state)
         .iter()
@@ -1236,12 +1275,31 @@ fn telescoped_length_bindings(
         if !role.is_valid() {
             continue;
         }
-        let Some((_, identity)) = bindings.iter().find(|(symbol, _)| *symbol == formal.symbol)
-        else {
-            continue;
+        let identity = match bindings.iter().find(|(symbol, _)| *symbol == formal.symbol) {
+            Some((_, identity)) => identity.clone(),
+            // A record carrier holds the collection at its declaration's
+            // unique slice leaf; the role binds the produced length there
+            // only when the role's own entry formal is a slice.
+            None => {
+                let Some(root_formal) = root.and_then(|root| {
+                    program
+                        .state_parameters(root)
+                        .iter()
+                        .find(|formal| !formal.is_self && formal.symbol == *role)
+                }) else {
+                    continue;
+                };
+                if !lengths::is_slice(program, root_formal.type_reference) {
+                    continue;
+                }
+                let Some(coordinate) = lengths::slice_leaf_coordinate(program, formal) else {
+                    continue;
+                };
+                coordinate.identity.clone()
+            }
         };
         if let Some((_, existing)) = roles.iter().find(|(symbol, _)| *symbol == *role) {
-            if *existing != *identity {
+            if *existing != identity {
                 equalities.push((
                     BinaryOperator::Equal,
                     Polynomial::atom(existing.clone()),
@@ -1250,7 +1308,7 @@ fn telescoped_length_bindings(
             }
             continue;
         }
-        roles.push((*role, identity.clone()));
+        roles.push((*role, identity));
     }
     (roles, equalities)
 }
@@ -1287,23 +1345,32 @@ fn member_subject_coordinates<'program>(
 ) -> Option<field_coordinates::FieldCoordinates<'program>> {
     let mut coordinates = field_coordinates::FieldCoordinates::empty();
     for subject in subjects {
-        let Some(coordinate) =
+        if let Some(coordinate) =
             fields::FieldCoordinate::resolve_projection(program, authored, *subject)
-        else {
+        {
+            let coordinate = match entry_parameters {
+                Some(entries) => coordinate.at_arrival(
+                    program,
+                    RankingRangeState {
+                        state: site,
+                        entry_parameters: entries,
+                    },
+                    coordinate.parameter.symbol,
+                )?,
+                None => coordinate,
+            };
+            coordinates.include(coordinate);
             continue;
-        };
-        let coordinate = match entry_parameters {
-            Some(entries) => coordinate.at_arrival(
-                program,
-                RankingRangeState {
-                    state: site,
-                    entry_parameters: entries,
-                },
-                coordinate.parameter.symbol,
-            )?,
-            None => coordinate,
-        };
-        coordinates.include(coordinate);
+        }
+        // A bare subject can still name a coordinate at this site: its entry
+        // role may arrive packed inside a record carrier's unique natural
+        // leaf, exactly as at a named-state edge.
+        if let Some(entries) = entry_parameters
+            && let Some(coordinate) =
+                super::carried_subject_coordinate(program, authored, site, entries, *subject)
+        {
+            coordinates.include(coordinate);
+        }
     }
     Some(coordinates)
 }

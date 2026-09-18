@@ -700,7 +700,7 @@ pub(super) fn record_referent(
     .then_some((*symbol, borrowed))
 }
 
-fn parameter<'program>(
+pub(super) fn parameter<'program>(
     program: &'program TypedTrees,
     state: &State,
     expression: ExpressionHandle,
@@ -901,4 +901,127 @@ pub(super) fn collect_record_paths(
         paths,
         0,
     );
+}
+
+/// Every field path under `from`'s declaration that lands on a leaf `accept`
+/// names, reached through owned exact record steps exactly as
+/// `collect_record_paths` descends. A bare formal's role packed inside a
+/// record literal is legible only while that leaf path is unique: two
+/// candidate leaves make the carriage ambiguous, so collection stops at two
+/// and callers keep no coordinate rather than guess which leaf holds the
+/// role.
+pub(super) fn collect_leaf_paths(
+    program: &TypedTrees,
+    from: SymbolHandle,
+    accept: impl Fn(&TypedTrees, &DataField) -> bool,
+    paths: &mut Vec<Vec<SymbolHandle>>,
+) {
+    fn visit(
+        program: &TypedTrees,
+        owner: SymbolHandle,
+        accept: &dyn Fn(&TypedTrees, &DataField) -> bool,
+        visiting: &mut Vec<SymbolHandle>,
+        path: &mut Vec<SymbolHandle>,
+        paths: &mut Vec<Vec<SymbolHandle>>,
+        depth: usize,
+    ) {
+        if paths.len() >= 2 || depth >= 16 {
+            return;
+        }
+        let Some(declaration) = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == owner)
+        else {
+            return;
+        };
+        visiting.push(owner);
+        for member in program.data_members(declaration) {
+            let DataMember::Field(field) = member else {
+                continue;
+            };
+            path.push(field.symbol);
+            if accept(program, field) {
+                paths.push(path.clone());
+            } else if let TypeReferenceNode::Named { symbol: next, .. } = program
+                .type_reference_table
+                .type_reference(unwrap_constraint_shells(program, field.type_reference))
+                && program
+                    .data_definitions()
+                    .iter()
+                    .any(|data| data.symbol == *next)
+                && !visiting.contains(next)
+            {
+                // A reference boundary or a scalar leaf ends the descent,
+                // matching `for_parameter`'s chain resolution; a path through
+                // an already-crossed record reads a slot this path left.
+                visit(program, *next, accept, visiting, path, paths, depth + 1);
+            }
+            path.pop();
+            if paths.len() >= 2 {
+                break;
+            }
+        }
+        visiting.pop();
+    }
+    visit(
+        program,
+        from,
+        &accept,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        paths,
+        0,
+    );
+}
+
+/// The natural coordinate a bare integer entry role takes inside
+/// `parameter`'s record: the declaration must carry exactly one exact
+/// unsigned leaf reachable through owned record steps. The claim only locates
+/// the leaf -- membership, endpoints, and descent still prove independently,
+/// and a second admissible leaf keeps no coordinate rather than guessing.
+pub(super) fn integer_leaf_coordinate<'program>(
+    program: &'program TypedTrees,
+    parameter: &'program StateParameter,
+) -> Option<FieldCoordinate<'program>> {
+    let (root, _) = record_referent(program, parameter.type_reference)?;
+    let mut paths = Vec::new();
+    collect_leaf_paths(
+        program,
+        root,
+        |program, field| {
+            matches!(
+                exact_integer_parameter(program, field.type_reference),
+                Some(
+                    PrimitiveType::U8
+                        | PrimitiveType::U16
+                        | PrimitiveType::U32
+                        | PrimitiveType::U64
+                )
+            )
+        },
+        &mut paths,
+    );
+    let [path] = paths.as_slice() else {
+        return None;
+    };
+    FieldCoordinate::for_parameter(program, parameter, path, true)
+}
+
+/// The unique non-self formal of `state` whose telescope slot claims `entry`,
+/// or none when the role is unclaimed or contested by a second carrier.
+pub(super) fn unique_entry_carrier<'program>(
+    program: &'program TypedTrees,
+    state: &'program State,
+    entry_parameters: &[SymbolHandle],
+    entry: SymbolHandle,
+) -> Option<&'program StateParameter> {
+    let mut carriers = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .zip(entry_parameters)
+        .filter_map(|(parameter, claimed)| (*claimed == entry).then_some(parameter));
+    let carrier = carriers.next()?;
+    carriers.next().is_none().then_some(carrier)
 }

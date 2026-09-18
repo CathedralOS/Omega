@@ -1,7 +1,7 @@
 //! Exact slice metadata coordinates, kept separate from scalar parameter values.
 use super::fields::{
-    declared_field, member_chain, nested_arrival_chain, record_referent, rooted_carrier,
-    unique_literal_field,
+    collect_leaf_paths, declared_field, member_chain, nested_arrival_chain, record_referent,
+    rooted_carrier, unique_literal_field,
 };
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
@@ -58,6 +58,7 @@ pub(super) fn parameter<'program>(
 
 pub(super) fn bindings(
     program: &TypedTrees,
+    machine: &Machine,
     state: &State,
     entry_parameters: Option<&[SymbolHandle]>,
 ) -> Vec<(SymbolHandle, String)> {
@@ -91,6 +92,45 @@ pub(super) fn bindings(
                     == 1
             {
                 bindings.push((entry, identity));
+            }
+        }
+    }
+    // A bare slice formal may arrive packed inside a record literal: the
+    // formal claiming its entry role then holds the collection at the
+    // record's unique slice leaf, so the role's produced length reads the
+    // projected coordinate there rather than a guessed path.
+    let Some(root) = program.machine_states(machine).first() else {
+        return bindings;
+    };
+    if let Some(entries) = entry_parameters {
+        for (parameter, entry) in program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .zip(entries)
+        {
+            if !entry.is_valid()
+                || entries
+                    .iter()
+                    .filter(|candidate| **candidate == *entry)
+                    .count()
+                    != 1
+                || bindings.iter().any(|(symbol, _)| *symbol == *entry)
+            {
+                continue;
+            }
+            let Some(root_formal) = program
+                .state_parameters(root)
+                .iter()
+                .find(|formal| !formal.is_self && formal.symbol == *entry)
+            else {
+                continue;
+            };
+            if !is_slice(program, root_formal.type_reference) {
+                continue;
+            }
+            if let Some(coordinate) = slice_leaf_coordinate(program, parameter) {
+                bindings.push((*entry, coordinate.identity.clone()));
             }
         }
     }
@@ -515,6 +555,30 @@ impl<'program> SliceCoordinate<'program> {
         chain.extend(self.chain().into_iter().skip(depth));
         Self::for_parameter(program, carrier, &chain)
     }
+}
+
+/// The produced-length coordinate a bare slice entry role takes inside
+/// `parameter`'s record: the declaration must hold exactly one slice leaf
+/// reachable through owned exact record steps. The claim only locates the
+/// leaf -- the arrival's field value, membership, and strict descent still
+/// prove independently -- and a second slice leaf keeps no coordinate rather
+/// than guessing which collection holds the role.
+pub(super) fn slice_leaf_coordinate<'program>(
+    program: &'program TypedTrees,
+    parameter: &'program StateParameter,
+) -> Option<SliceCoordinate<'program>> {
+    let (root, _) = record_referent(program, parameter.type_reference)?;
+    let mut paths = Vec::new();
+    collect_leaf_paths(
+        program,
+        root,
+        |program, field| is_slice(program, field.type_reference),
+        &mut paths,
+    );
+    let [path] = paths.as_slice() else {
+        return None;
+    };
+    SliceCoordinate::for_parameter(program, parameter, path)
 }
 
 /// The projected slice coordinates one range judgment reads: the produced

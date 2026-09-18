@@ -33,7 +33,7 @@ pub fn arithmetic_entry_requirement_is_covered(
         return false;
     };
     let mut engine = Engine::strict_with_symbol_bindings(program, machine, &bindings);
-    let lengths = lengths::bindings(program, root, None);
+    let lengths = lengths::bindings(program, machine, root, None);
     lengths::install(program, machine, root, root, &lengths, &mut engine, &[goal]).is_some()
         && engine.strict_symbol_bindings_are_valid()
         && engine.collect_comparisons(&[goal], &mut Vec::new())
@@ -125,8 +125,8 @@ fn prove(
         &expressions,
     )?;
     goal_fields.install(program, target, target, None, &mut goal_engine, &[goal])?;
-    let source_lengths = lengths::bindings(program, caller_state, None);
-    let goal_lengths = lengths::bindings(program, target, None);
+    let source_lengths = lengths::bindings(program, caller, caller_state, None);
+    let goal_lengths = lengths::bindings(program, callee, target, None);
     lengths::install(
         program,
         caller,
