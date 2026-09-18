@@ -3441,46 +3441,47 @@ Owners include
   owns residual cleanup. Replace remaining flat guarded-call hoisting with the
   same evaluation graph, not another source-order family.
 
-  Extend the ordinary producer/consumer join in
-  `effects/structural_callback_reach` to extracted projections, freshly
-  established returned claims and claims from distinct owned inputs, including
-  mixed scalar/structural operands. Returning a whole fixed array with several
-  indexed claims is the regression baseline in `projected.omg`;
-  matching claim identities cannot substitute for checked content guarantees.
+  Remaining work:
 
-  Complete caller-specific saved-argument and result facts: nonliteral contract
-  arithmetic, borrowed collection lengths, dependent/public-trait results and
-  subslice bounds need exact entry observations and substitutions. Mutable
-  formals/storage must distinguish their incoming value from subsequent writes.
-  **CRASH-CONTRACT** shares the capture path; case-qualified, indexed, generic,
-  reference-valued and floating entry predicates need exact identities/totality.
-  Unchanged entry observations may justify published routes; later writes and
-  current body facts may not. Ranked-loop crash guards require independently
-  checked all-path invariants, never first-pass facts ignoring backedges.
-
-  Finish [exact anonymous division/landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
-  across generic/evidence-adapted and boundary calls, aggregate/parameter/constant
-  destinations, numeric policies, floats and proof consumers. Preserve result
-  carrier/policy custody, exact rational intermediates and warning origins
-  through suppression/reporting; coordinate selected result types with
-  **MATCH-SELECTIVE-LOWERING**. Acceptance: `7 / 2 * 2` is 7 with a warning,
-  `7 / 2` cannot land in an integer, and typed integer division truncates.
-  `(4097 / 4096) * 4096` is 4097 with a warning; its `4097u32` form is 4096.
-
-  Complete [typed quotient/remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
-  in resolution, selected constant execution and symbolic proof replay.
-  `generic_data/const_evaluation/` and
-  `build-time-evaluation/src/admission/selection_authority.rs` must retain
-  authored selection across helper calls instead of folding builtin meaning.
-  Use the `authored_const_operator_requires_selection` and
-  `authored_const_call_operator_requires_selection` controls: next positive
-  acceptance evaluates the selected zero-returning provider to `Buffer<0>`,
-  while unrelated declarations leave builtin arithmetic unchanged.
-  **OPERATOR-MACHINE-SUPPLY** owns executable supply. Nonconstant proof `Int`
-  terms need independent evidence beyond source entailment in
-  `validation/src/contract_entailment/arithmetic_judgment.rs`.
-  Positive/negative dividend/divisor combinations satisfy the paired integer
-  law; zero divisors reject and exact anonymous division remains unchanged.
+  - Extend the ordinary producer/consumer join exercised by
+    `tests/omega/pass/effects/structural_callback_reach` to extracted
+    projections, freshly established returned claims and claims from distinct
+    owned inputs, including mixed scalar/structural operands. Returning a
+    whole fixed array with several indexed claims is the regression baseline
+    in its `projected.omg`; matching claim identities cannot substitute for
+    checked content guarantees.
+  - Complete caller-specific saved-argument and result facts: nonliteral
+    contract arithmetic, borrowed collection lengths, dependent/public-trait
+    results and subslice bounds need exact entry observations and
+    substitutions. Mutable formals/storage must distinguish their incoming
+    value from subsequent writes. **CRASH-CONTRACT** shares the capture path;
+    case-qualified, indexed, generic, reference-valued and floating entry
+    predicates need exact identities/totality. Unchanged entry observations
+    may justify published routes; later writes and current body facts may
+    not. Ranked-loop crash guards require independently checked all-path
+    invariants, never first-pass facts ignoring backedges.
+  - Finish [exact anonymous division/landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
+    across generic/evidence-adapted and boundary calls,
+    aggregate/parameter/constant destinations, numeric policies, floats and
+    proof consumers. Preserve result carrier/policy custody, exact rational
+    intermediates and warning origins through suppression/reporting;
+    coordinate selected result types with **MATCH-SELECTIVE-LOWERING**.
+    Acceptance: `7 / 2 * 2` is 7 with a warning, `7 / 2` cannot land in an
+    integer, and typed integer division truncates. `(4097 / 4096) * 4096` is
+    4097 with a warning; its `4097u32` form is 4096.
+  - Complete [typed quotient/remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
+    in resolution, selected constant execution and symbolic proof replay.
+    `syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/`
+    and `build-time-evaluation/src/machine_execution/admission/selection_authority.rs`
+    must retain authored selection across helper calls instead of folding
+    builtin meaning. Controls: `fail/generics/authored_const_operator_requires_selection`,
+    `fail/generics/authored_const_call_operator_requires_selection` and
+    `pass/generics/authored_const_call_operator_selected_provider`.
+    **OPERATOR-MACHINE-SUPPLY** owns executable supply. Nonconstant proof
+    `Int` terms need independent evidence beyond source entailment in
+    `validation/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
+    Positive/negative dividend/divisor combinations satisfy the paired integer
+    law; zero divisors reject and exact anonymous division remains unchanged.
 
   Overall acceptance: selected arguments execute left-to-right once; skipped
   calls never execute; serialized/replayed guards and saved values agree with
@@ -3490,6 +3491,27 @@ Owners include
   borrowed loop formals and mutable scalar carriers use ordinary joins.
   Stale writes, mismatched result origins and wrong normal-exit guarantees
   reject; callee-local IDs and rereads cannot replace captured values.
+
+  Flag: the checked-to-lowered seam is still organized as source-shape
+  producer families. `checked_trees/flow/terminal/*_plans.rs` declares 14
+  `Checked*MachinePlan` structs, most named for one source shape (for example
+  `CheckedPayloadlessGuardedCallReturnMachinePlan`), and
+  `checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/routing.rs`
+  picks among five producers by state count and first terminator kind
+  (`closed_sum`, `prefixed_control` for four or more states that start with a
+  Jump, `nested_control` for four or more states, the shared `state_graph`
+  closure, and a default route for fewer states). No board item names their
+  removal. The
+  general mechanism is one checked evaluation/control graph lowered by one
+  producer, with each family deleted as the graph covers it.
+
+  Flag: 4cd64b462b met the `Buffer<0>` acceptance by rebinding an authored
+  binary operator use to the evaluated program's only `satisfies` machine
+  inside Psi admission (`rebind_selected_provider_operators`), before any
+  provider plan exists; two providers reject. Provider selection is Omega's,
+  and the evaluation README's stated route is the deferred continuation that
+  Omega completes with the actual plan. Uniqueness in one program is not that
+  selection; **TARGET-SEMANTIC-APPLICATIONS** owns exact selected execution.
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Finish ordinary generic
   `drop<T>` and runtime cleanup invocation after exact owner-attached hook
