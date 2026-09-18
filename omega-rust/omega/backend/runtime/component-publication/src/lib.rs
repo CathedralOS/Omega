@@ -90,6 +90,13 @@ impl InstalledRunnableComponent {
         self.external_stack_provision.as_ref()
     }
 
+    #[cfg(test)]
+    pub fn external_stack_provision_mut_for_test(
+        &mut self,
+    ) -> &mut Option<ProvisionedExternalStackSet> {
+        &mut self.external_stack_provision
+    }
+
     /// Admit the provider-owned stack provision for this exact installed
     /// occurrence.
     ///
