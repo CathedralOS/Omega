@@ -3617,28 +3617,53 @@ Owners include
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
-  calls, and partial initialization. Cleanup follows reverse establishment and
-  exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
-  occurrence disappears, duplicates, or is cleaned after transfer.
-  Implement native boundary call-result residual cleanup, including result homes
-  and projected copies;
-  whole-result disposal does not cover a projected result's residuals.
-  Extend anonymous projected helper-result operands to multiple producers and
-  other effects within one consumer's argument list and non-Unit consumers,
-  preserving each temporary's exact dying continuation. Extend native
-  Terminal Jump residual cleanup beyond acyclic Unit fallthrough with ordinary
-  direct-register results and parameter roots: computed scalar bindings, boundary-result
-  projections, and cyclic control need their own storage and edge replay without
-  delaying cleanup until final return. Extend entry-origin scalar continuation
-  storage to operation-result values and their exact defining identities;
-  per-call argument shuffle snapshots do not preserve a result across earlier
-  calls.
-  Extend the
-  type-directed record/array complement in
-  [ownership contract](wiki/spec/terminal-psi/ownership.md) to construction-local
-  roots and mixed dying-root schedules, preserving maximal untouched subtrees,
-  empty complements, and reverse establishment order without runtime liveness
-  flags. Entry-parameter cleanup alone cannot dispose a temporary's remainder.
+  calls, and partial initialization, under the
+  [ownership contract](wiki/spec/terminal-psi/ownership.md). Cleanup follows
+  reverse establishment and exact residual custody; trap/abort edges clean
+  nothing. Psi owners: `typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
+  and `checked-trees-to-lowered-psi/src/unit/unit_cleanup/`. Omega owner:
+  `abstract-operations-to-target-operations/src/lowering/`.
+
+  Terminal production carries partial affine residuals on returns, call
+  continuations and Jumps for the bounded forms listed in its
+  [cleanup note](omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup).
+  Native lowering does not realize them: `lowering/function/mod.rs` rejects a
+  function containing any Jump with `residual_affine_discards`
+  (`UnsupportedPartialAffineContinuation`), and return cleanup admits only
+  whole-root `DiscardRoot` actions (`plain_home_cleanup` in
+  `lowering/control_flow/terminator.rs`).
+
+  Remaining work:
+
+  - Native: realize residual cleanup on return, Jump and conditional edges of
+    the common control graph, including boundary call-result homes and
+    projected copies; whole-result disposal does not cover a projected
+    result's residuals. Computed scalar bindings, boundary-result projections,
+    and cyclic control need their own storage and edge replay without
+    delaying cleanup until final return.
+  - Native: extend entry-origin scalar continuation storage to
+    operation-result values and their exact defining identities; per-call
+    argument shuffle snapshots do not preserve a result across earlier calls.
+  - Psi: extend anonymous projected helper-result operands to multiple
+    producers and other effects within one consumer's argument list and to
+    non-Unit consumers, preserving each temporary's exact dying continuation.
+  - Psi: extend the type-directed record/array complement to
+    construction-local roots and mixed dying-root schedules, preserving
+    maximal untouched subtrees, empty complements, and reverse establishment
+    order without runtime liveness flags. Entry-parameter cleanup alone cannot
+    dispose a temporary's remainder.
+
+  Acceptance: no affine occurrence disappears, duplicates, or is cleaned after
+  transfer.
+
+  Flag: `lowering/unobserved_owned.rs::accepts` admits native cleanup of owned
+  parameters only when the whole function passes an allowlist of operation
+  kinds (integer constants, compares, exact add/subtract, calls, primitive
+  locals) and every parameter type is a plain record or array. That is a
+  whole-function recognizer, which the stage README says no longer supplies
+  support. The general mechanism is a per-action cleanup realization keyed by
+  the action's root home on the control-graph successor, which already
+  carries `cleanup_actions`.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary evaluation/value transport
   in Psi argument normalization, checked scalar computations, call/result plans
