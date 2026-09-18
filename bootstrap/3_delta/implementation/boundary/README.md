@@ -458,6 +458,37 @@ payload refusal. Do not keep doubling this family as if a heap failure were
 established or required. Remaining allocation work needs a separately justified
 source path or a whole-producer bound, not an invented general DCOUT heap code.
 
+### Wide-constructor allocation probe
+
+A separately justified family stresses declaration width rather than
+arithmetic repetition: one `data W` whose single constructor carries 65,000
+`Int` fields, seven functions whose matches each bind all 65,000 fields, one
+10,000-parameter function, and an ordinary `Bytes -> Bytes` main. The
+3,837,573-byte source (SHA-256
+`acbf6908b5cac63c7dc6ba2852f125a7cbd2f8c3aba6eb4a3b8094ed4cb0c7e4`) stays inside
+every authored-row provision — one constructor, one nominal type, nine
+functions, at most 65,000 active pattern binders and 10,000 parameters — and
+inside the 4-MiB request extent and the 1,024 expression-depth profile.
+
+Run through canonical DCREQ profile 1 on macOS arm64 under the unchanged
+selected evaluator tape and the packed closure pinned in
+`tests/delta/resource-boundary/compiler.tsv`, compilation ended in 650.7
+seconds with status 2, empty stderr, and only the 40-byte DCOUT frame:
+`Incomplete` resource 7, Delta-source coordinate 76,595, limit 114,294,752,
+requested 114,294,760. The coordinate is the atom start of the constructor's
+19,147th field-type atom: the cumulative ledger still held the complete
+balanced parse, and the grammar pending-batch group anchored at that field
+carried the request eight bytes past the arena. This is the same canonical
+code-7 row the balanced constructions exercise, reached on a different
+admitted shape.
+
+Because the refusal fires in the retained-syntax ledger, census, declaration
+resolution, typing, lowering, normalization, and emission never run on this
+source. The measurement neither closes the open pair-arena allocation
+question for post-frontend phases nor witnesses a missing DCOUT resource; it
+is one 650.7-second stress observation, not a bootstrap-chain timing or a
+whole-producer bound.
+
 ### Producer invariants rather than arbitrary corruption coverage
 
 Declaration metadata's owner and body-start checks in
