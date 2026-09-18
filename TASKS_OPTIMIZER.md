@@ -117,11 +117,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Product pruning and rollout
 
-- **WORKSPACE-ROLLOUT.** Keep every rule explicit opt-in until the frozen-tree
-  command `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace
-  --no-fail-fast` passes. Do not replace it with `--all-targets`, which omits
-  doctests. Acceptance: the command passes from a clean checkout and every
-  promoted exact rule has its required rollout evidence.
+- **WORKSPACE-ROLLOUT.** Keep every rule explicit opt-in and `Experimental` in
+  the [exact-rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
+  until the frozen-tree command `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test
+  --workspace --no-fail-fast` passes. Do not replace it with `--all-targets`,
+  which omits doctests. The command cannot pass today: `AGENTS.md` records a
+  full `canary_suite` run as red, and
+  [known baseline failures](wiki/drafts/known_baseline_failures.md) lists open
+  library and native-differential failures. No
+  [promotion record](omega-rust/omega/representations/optimization-core/promotions/README.md)
+  exists yet; `omega-architecture-test`'s
+  `exact_rule_rollout_is_complete_and_promotion_gated` keeps the inventory and
+  any record in step.
+  Acceptance: the command passes from a clean checkout and every promoted
+  exact rule has the evidence the
+  [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+  requires.
 
 ## Validation, translation, and publication
 
