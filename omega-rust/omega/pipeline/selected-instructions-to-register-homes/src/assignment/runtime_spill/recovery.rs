@@ -79,7 +79,10 @@ pub(super) fn analyze(
 // incoming path, and an entry-bound register — a scalar or structural
 // parameter, or the hidden aggregate-result destination — only while the
 // entry boundary itself stores it; presence here grants neither that storage
-// nor a home.
+// nor a home. Instruction-defined structural registers — field observations
+// and transport pointers — join by origin so a pressured structural plan can
+// spill them like any other value; admission still rejects the ones defined
+// by address-producing instructions.
 // Reloads from either recovery form never become new candidates.
 pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualRegisterId)> {
     plan.functions
@@ -93,6 +96,8 @@ pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualR
                         register.origin,
                         VirtualRegisterOrigin::InstructionResult { .. }
                             | VirtualRegisterOrigin::BlockParameter { .. }
+                            | VirtualRegisterOrigin::StructuralObservation { .. }
+                            | VirtualRegisterOrigin::AbiTransport { .. }
                     ) || body.is_entry_register(register)
                 })
                 .map(move |register| (function, register.id))
