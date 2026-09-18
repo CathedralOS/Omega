@@ -3444,135 +3444,67 @@ Owners include
   need explicit live coverage for their declared field predicates, transported
   through indexing, views, copies, and calls. Mutable calls must preserve or
   establish the appropriate returned field facts; an unchanged nominal type
-  annotation cannot restore evidence retired by a write. Acceptance: the
-  dungeon's `RoomLookup`, `MazeBuilder`, and game-state calls satisfy default
-  field obligations, while corrupted elements and stale aliased fields reject
-  at calls, transitions, and returns. Do not encode universal coverage as an
-  unresolved index or assume arbitrary incoming storage is zero-initialized.
-  Unknown scalar parameters and locals now bound conversion results by their
-  primitive carrier (`values/bounds/sources.rs`; regression
-  `unknown_scalar_inputs_bound_conversion_results_by_their_carrier`, Linux
-  `cargo nextest run -p typed-trees-to-checked-trees`). Unselected call
-  arguments now bound captured scalar return ranges by their declared formals
-  — immutable formals by the declared type, mutable formals by the lent
-  place's live snapshot first — retained pure scalar operands keep Unit calls
-  nested inside a captured callee transparent to stored values, and exact and
-  trapping cast bounds meet the operand interval with the proved spelling
-  range and destination carrier (`flow/transfers/scalar_values`,
-  `values/bounds.rs`; regressions
-  `mutable_formal_call_results_read_the_lent_places_incoming_value` and
-  `effectful_nested_call_arguments_keep_the_return_bounds_live`, Linux `cargo
-  nextest run -p typed-trees-to-checked-trees`). Ensured call-result bounds
-  now propagate through bound names — `let i: u64 = idx()`, `i = idx()`, and
-  `self.slot = idx()` seed the callee's literal `result` bounds on the bound
-  name's label, retired by reassignment like any label-keyed bound
-  (`checks/ranges/statements/aliases.rs`; regression
-  `call_result_alias_carries_the_ensured_result_bounds`, macOS arm64 `mbx
-  nextest run -p typed-trees-to-checked-trees`). Unknown-length slice indexes
-  now consult the same contract: a call's ensured inclusive high meets the
-  collection's `minimum_length`/`exact_length` floor like a folded literal —
-  directly for `s[idx()]`, through bound names' label-keyed bounds,
-  guard-seeded `i < K` bounds, inclusive and exclusive range ends, and `len -
-  idx()` subtrahends — while an ensured `>= 0` conjunct supplies the signed
-  lower half (`checks/ranges/proofs.rs`, `indexes/validation/lower_bounds.rs`,
-  `facts/proofs.rs`; regressions
-  `call_index_on_unknown_slice_meets_ensured_bounds_against_length_facts`,
-  `unknown_slice_index_meets_label_upper_bounds_against_length_facts`,
-  `unknown_slice_index_meets_guard_seeded_upper_bounds_against_length_facts`,
-  `length_difference_offset_reads_ensured_result_bounds`, macOS arm64 `mbx
-  nextest run -p typed-trees-to-checked-trees`). Statement transports keep one
-  context per exact storage coordinate, so a view element write retires that
-  element's facts and not its siblings' (`flow/transfers.rs`; regressions
-  `view_literal_index_write_keeps_sibling_element_coverage` and
-  `view_element_corruption_retires_only_that_element`). A machine's normal
-  return is now a default-domain consumption point for its readable `&mut`
-  referents, `self` included, and for a readable reference return's returned
-  place: the exit re-proves the same `StateParameterDomain` and
-  `MachineFieldDomain` rows the self-transition arrival check re-proves,
-  establishment-gated domains (`established by ..`) excluded
-  (`checks/contracts/exits/result_domains.rs`, exits recorded in
-  `proof/contracts/calls.rs`; regressions
-  `tests/omega/fail/dependent/{mutable_referent_alias_corruption_return_rejected,reference_return_alias_corruption_rejected}`,
-  `tests/omega/pass/dependent/mutable_referent_alias_corruption_restored_compile`),
-  and `flow/call_phases/referents.rs` hands those rows back after
-  `apply_call_invalidations` on each readable `&mut` actual's exact storage
-  and on a `&mut self` receiver, while `flow/transfers` establishes a write
-  through a local `&mut` alias on the aliased storage
-  (`AssignmentWriteTarget::Storage`). The dungeon probe (`omega --check
-  --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`, macOS
-  ARM64, 6c3a89f196 after the sample acknowledged its blocking game loop)
-  reports 962 diagnostics against 1731 at dd06a082c2 (2891 with the return
-  point alone): 113 `Dungeon::use_event` and 4x112 `MazeBuilder::*` return
-  rows plus 3x112 `clear_level`/`carve_room`/`room_mut` call rows over
-  `level.rooms[*]`, 14+14+7 `RoomLookup`/`append_exit`/`apply_room` rows, 4
-  index rows; `cargo nextest run -p typed-trees-to-checked-trees` 4127 passed
-  with the same 3 failures as 6ef27bae4f, and the pass corpus fails the same
-  212 fixtures as before. An unknown call frame now retires only the
-  declared-signature ceiling -- each `&mut`/`&write` actual's exact storage
-  and a `&mut self` receiver, empty for a builtin function -- and only an
-  unrepresentable ceiling (a by-value argument that may carry a reference, an
-  exclusive actual through a reference local with no single origin) still
-  retires every live fact (`flow/call_phases/ceiling.rs`;
-  `tests/contracts/call_ceilings.rs`), and the write-frame isolation walk
-  treats the `UInt`/`Int` atoms as values so `RandomState { calls: UInt }`
-  locals have a frame
-  (`validation/write_frames/{isolation,type_capabilities}.rs`). The probe
-  reports 503 diagnostics (738 with the atom repair alone): 3x112
-  `MazeBuilder::{carve_room,connect,force_quiet_room}` return rows and 112
-  `room_mut` call rows over `level.rooms[*]`, 14+14+14+7
-  `find_room_mut`/`find_room`/`append_exit`/`apply_room` rows, 4 index rows, 2
-  `roll_event`/`clear_event` rows; ttct 4135 passed with the same 3 failures,
-  validation 843 with its 1 known failure, pass corpus the same 212. A `&mut`
-  local bound from a checked reference result now carries the callee's finite
-  candidate origins over the caller's actuals
-  (`flow/reference_places/result_candidates.rs`: every entry-state exit
-  returning an exclusive-parameter projection through field/case/literal index
-  segments, so `level.room_mut(cell)` names `level.rooms[0..15]`; sub-state
-  routes, runtime indexes and unresolved callee locals keep the conservative
-  treatment). `rebase_local_write_places` consults them, so the unknown-frame
-  ceiling (now `flow/mutation/ceiling.rs` inside `call_mutated_places`) and an
-  unclassified alias write retire exactly the candidates, the referents
-  hand-back and an alias write re-establish a candidate's declared rows only
-  where they were live before, and an alias closure that cannot enumerate
-  local origins no longer turns a frame unknown
-  (`tests/contracts/call_ceilings.rs`). The probe reports 55 diagnostics: 14
-  `RoomLookup::find_room_mut` return rows and 14 `find_room` call rows
-  (runtime-indexed copies through a sub-state loop), 14 `append_exit` + 7
-  `apply_room` + 2 `roll_event`/`clear_event` call rows whose nominal-input
-  check still proves through one exact origin, 4 index rows; ttct 4149 passed
-  with the same 3 failures, validation 851 with its 1 known failure, pass
-  corpus the same 212. Resume order: (1) the call-side nominal-input and
-  `reference_domains` proofs
-  (`checks/contracts/{nominal_inputs,reference_domains}.rs`,
-  `local_reference_storage_at_call`) resolve an actual through one exact
-  origin only; proving a row on every candidate would close the 23
-  `append_exit`/`apply_room`/`roll_event`/`clear_event` call rows; (2)
-  `RoomLookup::find_room{,_mut}` loop through a sub-state over a runtime
-  index, which the candidate trace refuses (28 rows) -- sample side (4) or a
-  candidate family for the element loop; (3) `&mut self` receivers hand back
-  only the ZII-seeded `MachineFieldDomain` rows: a callee's `self` entry
-  assumption is ZII-gated, so its return cannot guarantee non-ZII rows and a
-  caller's non-ZII receiver facts survive a method call only through frame
-  precision -- widening needs a contract decision, not a flow change; (4)
-  `checks/ranges` retires a slice view's length after a call through one
-  element (`clear_room(&mut rooms[0], ..)` then `rooms[1]`), 15 rows; (5)
-  sample side: `RoomLookup` copies an element at a runtime index and passes an
-  uninitialized readable `&mut Room` out-parameter where write-only `&write
-  Room` is the intended spelling but validation rejects it for constrained
-  records, and unbounded `room_count` leaves 4 index rows. Fallout on main at
-  b13f81f6bb: thirteen `checked-trees-to-lowered-psi` unit tests are red from
-  this tightening -- ten `tests::boundary_byte_buffers::*` (including
-  `checked_provider::*`),
-  `tests::attached_unit_cases::attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_pro..`,
-  `tests::byte_sequence_write::guarded_mutable_byte_write_keeps_original_field_extent_and_tail`
-  and
-  `tests::byte_write_loop::byte_write_loop_empty_initialized_view_never_writes`.
-  Bisected to 1544a206ec as the first bad commit (its parent 90cde5211e
-  passes, macOS ARM64); that commit updated
-  `tests/contracts/element_fields.rs`, `tests/range_byte_live_lengths.rs` and
-  `tests/element_field_flow_probe.rs` but not these, whose machines return
-  while holding readable `&mut` byte buffers and now owe the referent's
-  declared field domains.
+  annotation cannot restore evidence retired by a write. Do not encode
+  universal coverage as an unresolved index or assume arbitrary incoming
+  storage is zero-initialized. Owner: `typed-trees-to-checked-trees`
+  `checks/{contracts,ranges}/` and
+  `flow/{call_phases,mutation,reference_places,transfers}`.
+
+  Already in place; reuse it. A machine's normal return re-proves the declared
+  default-domain rows of its readable `&mut` referents, `self`, and a returned
+  reference place, establishment-gated domains excluded
+  (`checks/contracts/exits/result_domains.rs`). Calls hand those rows back on
+  each readable `&mut` actual and `&mut self` receiver
+  (`flow/call_phases/referents.rs`). An unknown call frame retires only its
+  declared-signature ceiling (`flow/mutation/ceiling.rs`). A `&mut` local
+  bound from a checked reference result carries the callee's finite candidate
+  origins (`flow/reference_places/result_candidates.rs`; sub-state routes,
+  runtime indexes and unresolved callee locals stay conservative). A view
+  element write retires only that element's facts.
+
+  Customer probe: `omega --check --target linux_x86_64
+  samples/cli/games/dungeon_crawler_cli/main.omg`. At b2ea74973c (macOS ARM64)
+  it reported 55 diagnostics: 14 `RoomLookup::find_room_mut` return rows, 14
+  `find_room` call rows, 14 `append_exit` + 7 `apply_room` + 2
+  `roll_event`/`clear_event` call rows, and 4 index rows. Rerun it before
+  relying on these counts.
+
+  Remaining work, in resume order:
+
+  1. The call-side nominal-input and `reference_domains` proofs
+     (`checks/contracts/{nominal_inputs,reference_domains}.rs`,
+     `local_reference_storage_at_call`) resolve an actual through one exact
+     origin only. Proving a row on every candidate origin would close the 23
+     `append_exit`/`apply_room`/`roll_event`/`clear_event` call rows.
+  2. `RoomLookup::find_room{,_mut}` loop through a sub-state over a runtime
+     index, which the candidate trace refuses (28 rows). Close it on the
+     sample side (item 5) or with a candidate family for the element loop.
+  3. `&mut self` receivers hand back only the ZII-seeded `MachineFieldDomain`
+     rows: a callee's `self` entry assumption is ZII-gated, so its return
+     cannot guarantee non-ZII rows, and a caller's non-ZII receiver facts
+     survive a method call only through frame precision. Widening needs a
+     contract decision, not a flow change; none is recorded in
+     `OWNER_QUESTIONS.md` yet.
+  4. `checks/ranges` retired a slice view's length after a call through one
+     element (`clear_room(&mut rooms[0], ..)` then `rooms[1]`). The 55-row
+     probe lists no such rows although the sample still has the pattern;
+     confirm with a focused fixture and drop this item if it is closed.
+  5. Sample side: `RoomLookup` copies an element at a runtime index and passes
+     an uninitialized readable `&mut Room` out-parameter where write-only
+     `&write Room` is the intended spelling, but validation rejects `&write`
+     for constrained records. Unbounded `room_count` leaves the 4 index rows.
+
+  Acceptance: the dungeon's `RoomLookup`, `MazeBuilder`, and game-state calls
+  satisfy default field obligations, while corrupted elements and stale
+  aliased fields reject at calls, transitions, and returns.
+
+  Flag: `checks/ranges/state_arguments/statements.rs` replays each statement
+  to collect transition-argument facts with its own copy of the seeding that
+  `checks/ranges/statements.rs` performs in the checking pass. 6c5329be03,
+  2267dd4da1 and 154de8c5a1 each repaired one seed the replay had missed
+  (ensured call results, name aliases, member stores and subslice windows).
+  One statement transfer shared by both passes removes that class of
+  divergence; adding a mirror per missed seed does not.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
