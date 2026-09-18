@@ -2,9 +2,10 @@
 
 Two instances of `Counter<T>` retain independent fields and method selections:
 the integer counter records twice, and the Boolean counter records once. The
-program exits **16** without printing. Its Console field uses the canonical
-`Service<Console> in Bound` carrier; the selected entry must establish that exact
-service occurrence.
+program exits **16** without printing. Its Console field must be an established
+`Service<Console>` supplied by the selected entry. The source currently retains
+the compiler's old separate qualification; `ENTRY-CONTENT-ROOTS` owns migrating
+it to intrinsic service validity without changing the counter behavior.
 
 Run from the repository root on macOS ARM64:
 

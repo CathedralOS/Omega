@@ -48,10 +48,16 @@ successful reclamation.
 [Provider planning](../../../build/provider-planning/src/provider_planning.rs) retains mode
 through selected-plan provenance but rejects Independent before publishing
 checked/package-review facts until the component closure and routed installation
-exist. The Fused source carrier is toolchain-owned affine `Service<R> in Bound`
+exist. The current Fused implementation recognizes `Service<R> in Bound`
 with one public closed nongeneric, lifetime-free requirement. Exact typed
 carrier/base/domain/requirement and full plan digest rejoin erasure authorization;
 lookalikes, extra qualifications, or provenance substitution cannot erase it.
+
+The [service contract](../../../../../wiki/spec/build/component_publication.md#service-bindings-and-era-entry)
+now makes establishment intrinsic to compiler-known `Service<R>`, without an
+authored qualification. `ENTRY-CONTENT-ROOTS` owns retiring the separate domain
+and migrating recognition/evidence; exact occurrence and selected-plan checking
+remain mandatory. Bare boundary-trait fields are not an alternate carrier.
 
 The bounded direct-parameter lane permits one owned service carrier in an
 attached or free one-state Unit machine, with an authored-order primitive input
@@ -59,9 +65,9 @@ partition feeding direct Unit boundary calls. One free whole-root forwarding
 edge into a direct-calling helper has a separate exact receipt. Multiple
 carriers, repeated/scalar-bearing forwarding, borrowing, projections, wider
 control, installed-provider scalar ABI, and runtime publication remain outside
-these entrances. Multiple distinct `Service` applications additionally need a
-carrier-aware Terminal domain-application identity: one domain ID bound to one
-carrier cannot safely describe both `Service<A>` and `Service<B>`.
+these entrances. Multiple distinct `Service` applications must retain exact
+carrier/requirement identity: the migration must not conflate `Service<A>` and
+`Service<B>` when removing the domain-based identity join.
 
 Selected attached ProgramEntry receiver fields use separate source-free
 establishment rows joined to source signature/slot, receiver/attachment,

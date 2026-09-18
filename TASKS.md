@@ -98,8 +98,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   and subsequent native/provider failures. Do not restart isolated getter/setter
   helper milestones: the ordinary/composed Psi route now serves this application.
   Preserve its operation order, complete package graph and independent evidence;
-  the current `console: Console` field also needs reconciliation with canonical
-  `Service<Console> in Bound` establishment. Canonical service eligibility and
+  the current `console: Console` field must migrate to `Service<Console>` under
+  the intrinsic binding-validity contract. Existing service eligibility and
   exact field establishment already work; do not add another eligibility path
   or make a missing row authorize an erased-field fallback.
 
@@ -116,7 +116,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   explicit missing/stale bindings reject. Automatic source seeding preserves
   ordinary supplier identity rather than relabeling it toolchain-owned.
   Next: finish the relocated application's explicit review, reconcile canonical
-  Bound service establishment, and rerun the outer command through the next
+  intrinsic service establishment, and rerun the outer command through the next
   native/provider failure. Do not rebuild the already integrated bridge or
   replace the unified package workflow. These probes do not establish Squalr
   acceptance.
@@ -254,7 +254,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   project review, and execute the exit-16 oracle on Linux x86-64/AArch64 and
   Windows x86-64. At `838a868432` (2026-09-14 UTC), the macOS ARM64
   compiler-library oracle passes with explicit test-owned acceptance after the
-  canonical Bound Console migration; both counter instances and their logic are
+  established Console service migration; both counter instances and their logic are
   unchanged. `RUST_MIN_STACK=67108864 OMEGA_SAMPLE_RUNTIME_FILTER=generic_counters
   cargo nextest run -p compiler --test samples_compile --no-fail-fast
   -E 'test(=samples_with_documented_exit_run_correctly)'` exercises that route.
@@ -335,9 +335,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   provisions its `[copy]` record and buffer once the Console field is
   spelled `Service<Console> in Bound`, and the unchanged sample then exits
   70 (macOS ARM64, ab5f28700d, probe reverted). The bare `console: Console;`
-  instance field has no establishment row by contract, which is
-  [owner question 1](OWNER_QUESTIONS.md); do not migrate the sample or add
-  an eligibility path before that answer. `print_squares` now stops at
+  field is not a service carrier. **ENTRY-CONTENT-ROOTS** owns migrating it to
+  `Service<Console>` and removing the implementation's separate qualification
+  requirement while retaining exact establishment. `print_squares` now stops at
   `UnsupportedScalarOperation(WrappingIntegerMultiply { u32 })`: no integer
   multiply reaches legalization for any width (641 `*` sites across 238
   sample and corpus files), the next arithmetic family after saturation.
@@ -359,7 +359,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   -E 'test(=cli_mvp_preserves_both_lines_with_eof_and_enter)'` for exact output
   and both input cases. Installed provider calls share ordinary call transport
   while retaining independently checked provider selection, original boundary
-  operands, result and completion custody. Preserve the canonical Bound Console,
+  operands, result and completion custody. Preserve the established Console service,
   both writes and original 256-byte input buffer when closing the remaining routes.
 
   **STATE-LOCAL-VALUE-FRONTIER** still owns runtime-indexed primitive storage,
@@ -486,7 +486,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   914fad6e23 (2026-09-17 UTC): all 81 declare a bare `console: Console;` as the
   first `data Main` field, so every decline is the bridge's
   missing-Fused-establishment-row guard (`hosted_receiver.rs:600`,
-  [owner question 1](OWNER_QUESTIONS.md)) and none reaches a storage guard;
+  **ENTRY-CONTENT-ROOTS** service-carrier migration) and none reaches a storage guard;
   with that row, only `runtime_float_constant_store_exit` (f32/f64 leaves)
   tripped the storage-shape guard (`hosted_receiver.rs:632`) until 26484b4162
   admitted IEEE float leaves, while the
@@ -539,7 +539,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   count, 13 non-call statement without a unit call), write-frame agreement 27,
   call statements 24, unconsumed nested calls 8, trivial affine locals 4,
   signature 3, provider attachment requirements 2. Outside plan construction:
-  79 hosted receiver bridge (owner question 1), 66 exact-arithmetic
+  79 hosted receiver bridge (**ENTRY-CONTENT-ROOTS**), 66 exact-arithmetic
   obligations, 55 borrowed-storage transfers, 37 select no exact program
   entry, 24 fail selected legalization at physical staging (wrapping
   shifts/subtracts and `SourceCustodyMismatch`, the **WRITE-ONLY-BORROW**
@@ -579,7 +579,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   their exclusively borrowed argument places, and a `statement sequence: call:
   call operation` family of 57 is now separated out of what the earlier run
   recorded as 24 undifferentiated call statements. Outside plan construction
-  the owners are unchanged: 79 hosted receiver bridge (owner question 1), 67
+  the owners are unchanged: 79 hosted receiver bridge (**ENTRY-CONTENT-ROOTS**), 67
   exact-arithmetic obligations, 55 borrowed-storage transfers, 37 select no
   exact program entry, 24 selected legalization at physical staging, 22
   `MacosPhysicalEntry::enter` schema, 16 attached Unit closures with no
@@ -1325,6 +1325,33 @@ Owners include
   `native-realization/src/native_realization.rs`. Targetless checks select
   no entry; deployment cannot substitute a semantic machine for a physical adapter.
 
+  Implement [intrinsic service binding validity](wiki/spec/build/component_publication.md#service-bindings-and-era-entry):
+  `Service<R>` is the compiler-known established carrier, not shorthand for
+  `Service<R> in Bound`. Retire the service-only core `Bound` declaration and
+  qualification-based recognition; do not add a general default-domain feature
+  or a bare-trait alias. Reuse exact service/occurrence/selected-plan custody
+  through typing, checked/Terminal evidence, erasure, native settlement and
+  independent replay, keyed by the exact closed `Service<R>` application rather
+  than a qualification ID. Owners also include `core/service.omg`, typed-tree
+  service classification, validation, package service review and terminal-production.
+  Migrate bare boundary-trait fields and explicitly qualified service carriers
+  in library, samples, fixtures and the Squalr application through that route;
+  remove superseded acceptance paths/tests, retaining rejection coverage. This
+  changes Omega, not Epsilon's separately specified sealed Console field.
+
+  Acceptance: `number_guess` with `console: Service<Console>` executes with exit
+  70 on the supported hosted route, and cli_mvp/generic_counters retain their
+  behavior without a service qualification. Missing/incompatible build supply
+  rejects at compilation; bare trait fields reject during source checking.
+  Zeroed storage, omitted service fields in ordinary literals, same-spelled
+  lookalikes, and package-authored construction cannot create a binding. Moving
+  or borrowing an established service and forwarding it through a record preserve
+  exact custody; source declarations of unused types alone demand no provider.
+  Missing/substituted occurrence or plan evidence still rejects after erasure
+  and retained-artifact replay. Keep distinct `Service<A>`/`Service<B>` identities,
+  affine movement, and runtime installation's existing lifecycle checks; do not
+  implement the deferred Independent route merely to migrate Fused carriers.
+
   Complete the remaining hosted bridges and receiver lifecycle, not another
   metadata-only calling-plan milestone. The macOS contract is
   `source/library/std/targets/macos_arm64/entry.omg`; its physical arrival and
@@ -1347,7 +1374,7 @@ Owners include
   admitted plain-record/primitive-array shapes. Corpus demand at 914fad6e23
   (2026-09-17 UTC, the 81 bridge-declined canaries read only): every one is
   blocked first by the row-less bare `console: Console;` field
-  ([owner question 1](OWNER_QUESTIONS.md)), not by storage; after that the
+  (the service-carrier migration above), not by storage; after that the
   corpus needs nothing else new: the IEEE float leaves it demands
   (`runtime_float_constant_store_exit`, f32/f64) are admitted as top-level,
   array-element and nested zero-valid record storage (zero-filled bits are the
@@ -1405,10 +1432,9 @@ Owners include
   `selected-dispatch/src/service_custody/root.rs`, and therefore rejected by
   `image-emission/src/hosted_receiver.rs` (exactly the
   `hosted_receiver_rejects_bare_interface_without_bound_establishment`
-  canary). Whether that field is establishable is
-  [owner question 1](OWNER_QUESTIONS.md); if it is, the route is a positive
-  Psi eligibility witness carried through `NativeProgramEntrySettlement` and
-  checked at the bridge, never a missing-row fallback.
+  canary). Reject bare fields earlier and migrate callers to `Service<R>`;
+  preserve positive Psi eligibility evidence through `NativeProgramEntrySettlement`
+  and bridge replay. Never turn the missing row into a fallback.
   Acceptance: execute an authored receiver entry as a published process with no
   test-supplied `self`. Reject redirected continuation/receiver identities,
   non-ZII state, insufficient/misaligned backing, overlapping partitions, stale
@@ -4168,7 +4194,7 @@ Owners include
   `image-emission/src/hosted_receiver.rs:600` ("macOS hosted receiver bridge
   lost exact contract, storage, or entry custody") whenever the entry
   retains its receiver (states or attached fields), which is
-  OWNER_QUESTIONS.md question 1, not a value-generic gap. Three scenarios do
+  **ENTRY-CONTENT-ROOTS** service-carrier migration, not a value-generic gap. Three scenarios do
   not execute natively yet; each non-generic control stops identically, so
   none is value-generic specific. (1) A receiver method whose realized
   subject owes a `requires` contract (`Main::at<Count: u8>(&self) requires
@@ -4518,7 +4544,7 @@ Owners include
   because no attempt carries the constrained `open_path_handle` acquisition.
   The build vocabulary offers no facet that issues that chain and the raw
   boundary is refused from `build.omg` by a settled rule, so this is
-  [owner question 9](OWNER_QUESTIONS.md), not a fixture. The settlement
+  the [constrained build-filesystem chain question](OWNER_QUESTIONS.md), not a fixture. The settlement
   wiring itself needs no further change. The broad summary retires at the
   `FilesystemHostService` arm of
   `packages/review/evidence/src/capture/authority.rs::dangerous_authority_class`,
@@ -4556,7 +4582,7 @@ Owners include
   coordinate (`terminal_authority_policy/filesystem.rs`); the reviewer admits
   the constrained close under either role. Next leg: the settlement wiring landed; what is
   missing is any authored route that produces a retained occurrence at all,
-  which is [owner question 9](OWNER_QUESTIONS.md). `filesystem/native_close` reaches the
+  which is the [constrained build-filesystem chain question](OWNER_QUESTIONS.md). `filesystem/native_close` reaches the
   attached-Unit gate on the same route but needs a different repair from
   `windows_canonicalize_exit`, so the two are not one gap: the former stored
   a scalar field from its own call result and now compiles past that gate,

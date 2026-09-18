@@ -2,7 +2,9 @@
 
 The original state-machine loop computes `gcd(48, 36)`, prints its result
 message, waits for input (or EOF), and exits with code **12**. The hosted entry
-declares its provisioned console as `Service<Console> in Bound`.
+uses a provisioned `Service<Console>`. The source still carries the implementation's
+separate qualification; `ENTRY-CONTENT-ROOTS` owns its removal under the settled
+intrinsic binding-validity contract.
 
 Run the native sample regression from the repository root:
 

@@ -40,30 +40,7 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-1. **Bare boundary-trait instance fields on a program-entry receiver.** The
-   language guide ratifies `console: Console;` as an instance binding
-   (chapter 1 Hello World, chapter 19 service bindings), and 136 maintained
-   samples spell their Console field that way against 4 using
-   `console: Service<Console> in Bound`. The [entry contract](wiki/spec/build/entry_roots.md)
-   defines occurrence evidence only for `Service<R> in Bound` receiver
-   fields, so the hosted receiver bridge has no establishment row for a bare
-   instance field and rejects the entry ("macOS hosted receiver bridge lost
-   exact contract, storage, or entry custody"); TASKS.md forbids admitting an
-   erased field without a row. Witness (macOS ARM64, ab5f28700d): unchanged
-   `samples/cli/basics/number_guess` fails there, and the same program with
-   only that field respelled `Service<Console> in Bound` compiles and exits
-   70. Decision needed: (a) a bare instance field on the entry receiver is
-   establishable, which requires Psi eligibility to record provider-backed
-   erased fields as a positive witness that settlement and the bridge check
-   (no erased-field fallback); or (b) `Service<R> in Bound` is the only
-   establishable receiver spelling, in which case chapter 1's Hello World and
-   the 136 samples migrate (precedent: cli_mvp 70f1ebe6cd, generic_counters
-   838a868432) and the guide's instance-binding examples stay valid only for
-   non-entry data. Motivating customers: SAMPLE-CORPUS `number_guess` and
-   the `cli/basics` cohort; ENTRY-CONTENT-ROOTS owns the implementation
-   either way.
-
-2. **Board hygiene: items the spec does not ask for, or that duplicate
+1. **Board hygiene: items the spec does not ask for, or that duplicate
    another item.** A read-only pass on 2026-09-17 traced every TASKS.md
    item to `wiki/spec`; 64 of 75 rest on a normative clause and twelve are
    named by the spec itself. The remainder need an owner decision because
@@ -112,7 +89,7 @@ must be surfaced before relying on them.
      entrypoints. Keep the item; decide whether that split is spec (add the
      clause) or an owner architecture decision recorded here.
 
-3. **Is a token-bound proof-machine `requires` a formation obligation at
+2. **Is a token-bound proof-machine `requires` a formation obligation at
    the selecting use?** (named decision: `proof-operator-requires-formation`).
    `core/nat.omg` states that subtraction is partial at formation with its
    premise carried by the operator contract, and
@@ -156,7 +133,7 @@ must be surfaced before relying on them.
    Until answered, the `core/nat.omg` satisfier pairs stay on `operator`
    and OPERATOR-MACHINE-SUPPLY's map marks them design-blocked.
 
-4. **Which explicit binder selects an indexed domain's index operation
+3. **Which explicit binder selects an indexed domain's index operation
    contract?** (named decision: `open-index-operation-selection`). The
    [executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
    retires bodyless root `operator` slots and states that "any required
@@ -198,7 +175,7 @@ must be surfaced before relying on them.
    this is distinct from the proof-machine `requires` question, which concerns
    formation-time `requires` rather than the selection binder.
 
-5. **Which boot protocol issues the AP startup vector, and who owns it?**
+4. **Which boot protocol issues the AP startup vector, and who owns it?**
    (named decision: `ap-startup-protocol-ownership`). The [executable
    installation contract](wiki/spec/build/executable_installation.md) says AP
    startup "installs a compiler-produced low-memory trampoline and invokes a
@@ -224,7 +201,7 @@ must be surfaced before relying on them.
    start until one of these edges exists; AP-BRINGUP owns the implementation
    either way.
 
-6. **Is `alpha_bootstrap` an ordinary target profile of the differential
+5. **Is `alpha_bootstrap` an ordinary target profile of the differential
    compiler, and what happens to a root row owned by a profile the comparator
    does not catalogue?** (named decision: `alpha-bootstrap-target-profile`).
    The [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain)
@@ -270,7 +247,7 @@ must be surfaced before relying on them.
    Until answered, the product check stops on this row once the calling-policy
    admission bug is fixed; everything before that stop is engineering.
 
-7. **Which route admits the complete Beta-encoding certificate, or does the
+6. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:
     `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
     acceptance requires the produced
@@ -322,7 +299,7 @@ must be surfaced before relying on them.
     certificate measured but inadmissible, and the chain retains its
     explicit assumption that the selected evaluator implements Gamma.
 
-8. **Does a transported contract instantiate its `FloatMeaning` projections
+7. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,
@@ -380,7 +357,7 @@ must be surfaced before relying on them.
     open with the Terminal identities, codec tags and verifier rejoins landed
     and unreachable from any producer.
 
-9. **May the compiler-owned build vocabulary offer a constrained
+8. **May the compiler-owned build vocabulary offer a constrained
    filesystem open/query/close chain?** The two-axis review's remaining
    acceptance is a witness that an ordinary compile earns the evidence-bound
    explicit-empty release row. No authored source can produce the retained

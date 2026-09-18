@@ -1,9 +1,13 @@
 # process-exit
 
 Capability-bearing fixture. Its public API reaches the exact ordinary-package
-`Console` boundary supplied by `host-services`, through an affine `Service<Console> in Bound`
+`Console` boundary supplied by `host-services`, through an affine `Service<Console>`
 parameter. `Console` includes process termination at trait granularity; the
 invocation remains rooted at public parameter zero for package review.
+
+The source retains the compiler's old separate service qualification until
+`ENTRY-CONTENT-ROOTS` migrates it to intrinsic binding validity. Review must still
+retain the exact established service identity after that migration.
 
 Expected package evidence:
 

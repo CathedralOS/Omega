@@ -71,9 +71,13 @@ follow that reconstruction; an observed length is not a checked bound.
 
 ## Service receipts
 
-An erased `Service<R> in Bound` parameter is not an ordinary empty record.
+An erased `Service<R>` parameter is not an ordinary empty record.
 Its source receipt binds typed parameter symbol and authored position, normalized
-carrier and qualification, exact requirement, and selected-plan digest. The
+carrier, exact requirement, and selected-plan digest. The current implementation
+also requires the separate service qualification; `ENTRY-CONTENT-ROOTS` owns
+retiring that requirement under the
+[intrinsic binding contract](../../../../wiki/spec/build/component_publication.md#service-bindings-and-era-entry),
+without losing establishment evidence. The
 raw producer checks typed custody; final compiler admission additionally rejoins
 selection provenance and an ordered call/checked-operation bijection.
 

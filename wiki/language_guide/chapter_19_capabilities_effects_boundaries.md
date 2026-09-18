@@ -129,24 +129,36 @@ one another.
 ## Service Bindings
 
 A trait is an interface, not a runtime carrier. Local dynamic dispatch uses
-`dyn Trait`; authority for a selected boundary service uses `Service<R> in Bound`:
+`dyn Trait`; access to an established boundary service uses `Service<R>`:
 
 ```omega
 data Application {
-    logging: Service<LoggingService> in Bound;
+    logging: Service<LoggingService>;
 }
 
 machine Application::start(
-    logging: Service<LoggingService> in Bound
+    logging: Service<LoggingService>
 ) -> Application
 {
     Application { logging }
 }
 ```
 
-Installation/publication establishes `Bound`; a record literal, zeroed storage,
-or the existence of a provider cannot. A fused build may erase the carrier and
-dispatch directly. An independently emitted call acquires one published provider
+`Service` is an opaque declaration in `omega::core` with compiler-known binding
+semantics. Every usable value has an established binding; no additional domain
+annotation is needed. For an entry receiver, the build selects the provider and
+entry initialization establishes the exact field before calling the machine.
+Missing or incompatible supply is a compile error. A bare `Console` names an
+interface, not a field carrier; write `Service<Console>`.
+
+Other code receives an existing service or one produced by authorized runtime
+installation/publication. Merely declaring a local service field does not inject
+a provider into it. The literal above transfers `logging`; zeroed storage or the
+existence of a provider cannot manufacture it. Library-provided authority still
+uses ordinary domains and establishment routes.
+
+A fused build may erase the carrier and dispatch directly. An independently
+emitted call acquires one published provider
 era and retains it through the call. Rebinding the slot does not rewrite every
 service value.
 
@@ -162,7 +174,7 @@ proxy can bridge the two:
 
 ```omega
 data LoggingProxy {
-    service: Service<LoggingService> in Bound;
+    service: Service<LoggingService>;
 }
 
 ComponentLogger:
@@ -216,7 +228,7 @@ including when exported. For example, with a Console binding in entry state:
 
 ```omega
 data App {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine App::greet(&mut self)
@@ -233,7 +245,8 @@ machine App::start(&mut self) {
 `greet` must declare Console because it calls the boundary directly. `start`
 automatically publishes Console reach through `greet`. Provider selection and
 any required runtime authority remain separate obligations. This example uses
-an instance binding, not a requirement that every service be a runtime object.
+an established service binding, not a requirement that every service be a runtime
+object.
 The same reach rule applies to receiver-free static boundary calls; provider
 selection is not creation of a global mutable Console object.
 
