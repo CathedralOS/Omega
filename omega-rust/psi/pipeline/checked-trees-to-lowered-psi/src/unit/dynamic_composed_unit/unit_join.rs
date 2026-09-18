@@ -454,7 +454,7 @@ fn plan_contains_realization(
     plan.realization_callables.iter().any(|callable| {
         callable.realization_machine == realization.source_machine
             && callable.realization_state == realization.source_state
-            && callable.realization_identity == realization.callable_identity
+            && callable.realization_identity == realization.checked_identity
     })
 }
 

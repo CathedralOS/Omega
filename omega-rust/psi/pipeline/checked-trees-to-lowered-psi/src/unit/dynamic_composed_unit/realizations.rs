@@ -38,13 +38,17 @@ pub(crate) fn collect_dynamic_realizations(
             let ordinal = u64::try_from(ordinal).map_err(|_| {
                 LoweringError::Unsupported("dynamic realization ordinal exceeds u64")
             })?;
-            let identity = evidence_lowering::checked_evidence_machine_identity(
+            let checked_identity = evidence_lowering::checked_dynamic_machine_identity(
                 checked,
                 callable.realization_machine,
             )?;
-            if identity != callable.realization_identity {
+            if checked_identity != callable.realization_identity {
                 return unsupported("dynamic realization callable identity drifted");
             }
+            let callable_identity = evidence_lowering::checked_evidence_machine_identity(
+                checked,
+                callable.realization_machine,
+            )?;
             let result = terminal_callable_result(callable.result_type)?;
             let machine = machine_id(ordinal.checked_add(first_machine).ok_or(
                 LoweringError::Unsupported("dynamic realization machine identity overflowed"),
@@ -52,7 +56,8 @@ pub(crate) fn collect_dynamic_realizations(
             Ok(LoweredDynamicRealization {
                 source_machine: callable.realization_machine,
                 source_state: callable.realization_state,
-                callable_identity: identity,
+                checked_identity,
+                callable_identity,
                 machine,
                 result,
             })
@@ -65,10 +70,20 @@ pub(crate) fn retain_realizations_for_lane(
     plan: &CheckedDynamicScalarCallPlan,
     lane: DynamicLoweringLane<'_>,
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
+    // Rebound descriptors and forwarded descriptor parameters both expose the
+    // complete table: every expanded family row must bind a callable, so the
+    // full roster is retained. A strictly local direct dispatch names its
+    // selected callable outright; its application keeps the unselected family
+    // rows as evidence without materializing their instances.
+    let retains_full_roster = matches!(lane, DynamicLoweringLane::Rebound(_))
+        || matches!(
+            plan.origin,
+            checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
+        );
     let retained = all
         .iter()
         .filter(|candidate| {
-            matches!(lane, DynamicLoweringLane::Rebound(_))
+            retains_full_roster
                 || (candidate.source_machine == plan.realization_machine
                     && candidate.source_state == plan.realization_state)
         })
@@ -102,7 +117,7 @@ pub(crate) fn materialize_dynamic_realizations(
                 .filter(|candidate| {
                     candidate.realization_machine == realization.source_machine
                         && candidate.realization_state == realization.source_state
-                        && candidate.realization_identity == realization.callable_identity
+                        && candidate.realization_identity == realization.checked_identity
                 })
                 .collect::<Vec<_>>();
             let [callable] = matching.as_slice() else {

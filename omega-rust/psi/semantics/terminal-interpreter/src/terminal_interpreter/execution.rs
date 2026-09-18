@@ -151,13 +151,18 @@ pub(crate) struct SuspendedCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RuntimeDynamicDescriptorTemplate {
     pub(crate) source: StructuralArgument,
-    pub(crate) callables: Vec<MachineId>,
+    /// Positional callable table parallel to the selection's conformance
+    /// application rows. A lane that materializes only its selected
+    /// realization leaves the other roster rows unbound evidence, so entries
+    /// are sparse; verified descriptor-capable selections bind every row.
+    pub(crate) callables: Vec<Option<MachineId>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RuntimeDynamicDescriptor {
     pub(crate) source: TerminalStructuralValue,
-    pub(crate) callables: Vec<MachineId>,
+    /// See [`RuntimeDynamicDescriptorTemplate::callables`].
+    pub(crate) callables: Vec<Option<MachineId>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -413,16 +418,14 @@ impl TerminalExecution {
                     .rows
                     .iter()
                     .map(|row| {
-                        let identity = row
-                            .realization_callable_identity
-                            .as_ref()
-                            .expect("verified dynamic row has one callable identity");
-                        application
-                            .realization_callables
-                            .iter()
-                            .find(|callable| callable.source_callable_identity == *identity)
-                            .map(|callable| callable.machine)
-                            .expect("verified dynamic row has one callable")
+                        row.realization_callable_identity.as_ref().map(|identity| {
+                            application
+                                .realization_callables
+                                .iter()
+                                .find(|callable| callable.source_callable_identity == *identity)
+                                .map(|callable| callable.machine)
+                                .expect("verified dynamic row has one callable")
+                        })
                     })
                     .collect();
                 (

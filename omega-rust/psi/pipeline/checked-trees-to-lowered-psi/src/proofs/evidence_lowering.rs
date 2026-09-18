@@ -121,32 +121,6 @@ pub(crate) fn checked_evidence_requirement_identity(
     Ok(exact_trait_requirement(checked, declaring_trait, requirement)?.overload_identity)
 }
 
-/// The canonical family tuple one closed conformance table row carries for
-/// its requirement; dispatch rows copy the tuple from the row they select.
-///
-/// A Terminal table or dispatch row names `(declaring trait, complete
-/// requirement overload, canonical value tuple)`. Lanes that can express only
-/// one row per requirement — the dynamic-composed-Unit application surfaces —
-/// call this source and still reject a requirement that declares local
-/// binders rather than lowering an empty-tuple row that merely looks
-/// nongeneric. Lanes that carry tuple coordinates expand a checked row
-/// through [`checked_requirement_family_rows`] instead.
-pub(crate) fn checked_requirement_family_tuple(
-    checked: &CheckedTrees,
-    declaring_trait: symbols::SymbolHandle,
-    requirement: symbols::SymbolHandle,
-) -> Result<Vec<String>, LoweringError> {
-    if exact_trait_requirement(checked, declaring_trait, requirement)?
-        .declares_local_generic_binders
-    {
-        return unsupported(
-            "conformance requirement declares requirement-local generic binders without a \
-             family tuple producer",
-        );
-    }
-    Ok(Vec::new())
-}
-
 /// One lowered conformance-table row a checked requirement row contributes:
 /// the canonical value tuple and the exact realization that tuple selects.
 pub(crate) struct CheckedRequirementFamilyRow {
@@ -315,6 +289,41 @@ fn exact_trait_requirement<'a>(
             .state_signature_type_parameters(signature)
             .is_empty(),
     })
+}
+
+/// The checked-side callable identity of one realization machine: the bare
+/// normalized overload identity `CheckedDynamic*CallPlan` and
+/// `CheckedDynamic*RealizationCallablePlan` retain in `realization_identity`.
+/// Terminal row coordinates consume [`checked_evidence_machine_identity`]
+/// instead, which wraps a specialization instance's bare identity in its
+/// specialization-application commitment so sibling tuple instances of one
+/// template cannot satisfy one another's rows.
+pub(crate) fn checked_dynamic_machine_identity(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    let mut matches = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.symbol == machine);
+    let machine = matches.next().ok_or(LoweringError::Unsupported(
+        "dynamic realization row has no exact machine",
+    ))?;
+    if matches.next().is_some() {
+        return unsupported("dynamic realization row has an ambiguous machine");
+    }
+    let identity = checked
+        .typed
+        .normalized_machine_overload_identity(machine)
+        .ok_or(LoweringError::Unsupported(
+            "dynamic realization has no callable identity",
+        ))?
+        .identity();
+    if identity.is_empty() {
+        return unsupported("dynamic realization has an empty machine identity");
+    }
+    Ok(identity)
 }
 
 pub(crate) fn checked_evidence_machine_identity(

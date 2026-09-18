@@ -158,7 +158,7 @@ pub(super) fn lower(
     let realization_machine = selected_realization.machine;
     let callable_identity = selected_realization.callable_identity.clone();
     if selected_realization.result != terminal_callable_result(plan.result.primitive_type)?
-        || callable_identity != plan.realization_identity
+        || selected_realization.checked_identity != plan.realization_identity
     {
         return unsupported("direct dynamic selected realization callable drifted");
     }

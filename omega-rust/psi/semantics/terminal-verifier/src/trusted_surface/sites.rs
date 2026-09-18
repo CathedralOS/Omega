@@ -709,7 +709,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/dynamic_dispatch.rs",
-        sha256: Some("92f17cae099e0c12526dae257865746399008b31c0996bd325455ebc2e4c93d4"),
+        sha256: Some("7b45141a41353a58015c17895e43c8cf68bfb91446d5f3c1c7e2fb3c34dc0141"),
         inventory_machinery: false,
     },
     ImplementationSite {

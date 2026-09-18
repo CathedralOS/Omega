@@ -71,45 +71,50 @@ pub(crate) fn lower_initial_rebound_application(
     if closed_rows.len() != initial.fact.rows.len() {
         return unsupported("initial dynamic selection row map is incomplete");
     }
-    let rows = closed_rows
-        .iter()
-        .zip(&initial.fact.rows)
-        .map(|(closed, retained)| {
-            let requirement_identity = evidence_lowering::checked_evidence_requirement_identity(
-                checked,
-                closed.declaring_trait,
-                closed.requirement,
-            )?;
-            let realization_identity = evidence_lowering::checked_evidence_machine_identity(
-                checked,
-                closed.realization_machine,
-            )?;
-            let family_tuple = evidence_lowering::checked_requirement_family_tuple(
-                checked,
-                closed.declaring_trait,
-                closed.requirement,
-            )?;
-            if closed.declaring_trait != retained.declaring_trait
-                || closed.requirement != retained.requirement
-                || closed.realization_machine != retained.realization_machine
-                || closed.realization_state != retained.realization_state
-                || requirement_identity != retained.requirement_identity
-                || realization_identity != retained.realization_identity
-            {
-                return unsupported("initial dynamic selection row map drifted from checking");
-            }
-            Ok(ClosedConformanceRow {
+    let mut rows = Vec::new();
+    for (closed, retained) in closed_rows.iter().zip(&initial.fact.rows) {
+        let requirement_identity = evidence_lowering::checked_evidence_requirement_identity(
+            checked,
+            closed.declaring_trait,
+            closed.requirement,
+        )?;
+        let realization_identity = evidence_lowering::checked_evidence_machine_identity(
+            checked,
+            closed.realization_machine,
+        )?;
+        if closed.declaring_trait != retained.declaring_trait
+            || closed.requirement != retained.requirement
+            || closed.realization_machine != retained.realization_machine
+            || closed.realization_state != retained.realization_state
+            || requirement_identity != retained.requirement_identity
+            || realization_identity != retained.realization_identity
+        {
+            return unsupported("initial dynamic selection row map drifted from checking");
+        }
+        // The retained row names the provider template; the table needs one
+        // row per declared roster tuple, each naming the tuple's bare
+        // specialization instance state.
+        for family_row in evidence_lowering::checked_requirement_family_rows(
+            checked,
+            closed.declaring_trait,
+            closed.requirement,
+            closed.realization_machine,
+            closed.realization_state,
+        )? {
+            rows.push(ClosedConformanceRow {
                 declaring_trait_identity: checked
                     .symbols
                     .display_path(closed.declaring_trait, "::"),
-                public_requirement_identity: requirement_identity,
-                family_tuple,
+                public_requirement_identity: requirement_identity.clone(),
+                family_tuple: family_row.family_tuple,
                 requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
-                realization_identity: checked.symbols.display_path(closed.realization_state, "::"),
+                realization_identity: checked
+                    .symbols
+                    .display_path(family_row.realization_state, "::"),
                 realization_callable_identity: None,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            });
+        }
+    }
     let mut application = ClosedConformanceApplication {
         owner,
         declaration_identity: checked.symbols.display_path(conformance_symbol, "::"),
@@ -195,11 +200,6 @@ pub(crate) fn lower_exact_application(
             checked,
             closed.realization_machine,
         )?;
-        let family_tuple = evidence_lowering::checked_requirement_family_tuple(
-            checked,
-            closed.declaring_trait,
-            closed.requirement,
-        )?;
         if closed.declaring_trait != retained.declaring_trait
             || closed.requirement != retained.requirement
             || closed.realization_machine != retained.realization_machine
@@ -209,36 +209,63 @@ pub(crate) fn lower_exact_application(
         {
             return unsupported("direct dynamic selection row map drifted from checking");
         }
-        let selected = closed.declaring_trait == plan.declaring_trait
-            && closed.requirement == plan.requirement
-            && closed.realization_machine == plan.realization_machine
-            && closed.realization_state == plan.realization_state;
-        let matching_realizations = lowered_realizations
-            .iter()
-            .filter(|candidate| {
-                candidate.source_machine == closed.realization_machine
-                    && candidate.source_state == closed.realization_state
-                    && candidate.callable_identity == realization_identity
-            })
-            .collect::<Vec<_>>();
-        let matching_realization = match matching_realizations.as_slice() {
-            [] if !selected => None,
-            [matching] => Some(*matching),
-            _ => return unsupported("dynamic conformance row callable is absent or ambiguous"),
-        };
-        let row = ClosedConformanceRow {
-            declaring_trait_identity: checked.symbols.display_path(closed.declaring_trait, "::"),
-            public_requirement_identity: requirement_identity,
-            family_tuple,
-            requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
-            realization_identity: checked.symbols.display_path(closed.realization_state, "::"),
-            realization_callable_identity: matching_realization
-                .map(|matching| matching.callable_identity.clone()),
-        };
-        if selected && selected_row.replace(row.clone()).is_some() {
-            return unsupported("direct dynamic selected row is duplicated");
+        // The retained row names the provider template. A finite generic
+        // requirement expands to one table row per declared roster tuple, each
+        // naming the tuple's bare specialization instance; the call's
+        // `family_tuple` selects exactly one of them.
+        for family_row in evidence_lowering::checked_requirement_family_rows(
+            checked,
+            closed.declaring_trait,
+            closed.requirement,
+            closed.realization_machine,
+            closed.realization_state,
+        )? {
+            let family_realization_identity = evidence_lowering::checked_evidence_machine_identity(
+                checked,
+                family_row.realization_machine,
+            )?;
+            let selected = closed.declaring_trait == plan.declaring_trait
+                && closed.requirement == plan.requirement
+                && family_row.family_tuple.as_slice() == plan.family_tuple.as_ref()
+                && family_row.realization_machine == plan.realization_machine
+                && family_row.realization_state == plan.realization_state;
+            let matching_realizations = lowered_realizations
+                .iter()
+                .filter(|candidate| {
+                    candidate.source_machine == family_row.realization_machine
+                        && candidate.source_state == family_row.realization_state
+                        && candidate.callable_identity == family_realization_identity
+                })
+                .collect::<Vec<_>>();
+            // A lane that retains only the selected realization still emits
+            // the complete row catalog; rows the lane did not materialize
+            // stay unbound evidence. A row whose callable is absent from the
+            // checked roster is drift, so only a retained-lane gap may pass.
+            let matching_realization = match matching_realizations.as_slice() {
+                [] if !selected => None,
+                [matching] => Some(*matching),
+                _ => {
+                    return unsupported("dynamic conformance row callable is absent or ambiguous");
+                }
+            };
+            let row = ClosedConformanceRow {
+                declaring_trait_identity: checked
+                    .symbols
+                    .display_path(closed.declaring_trait, "::"),
+                public_requirement_identity: requirement_identity.clone(),
+                family_tuple: family_row.family_tuple,
+                requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
+                realization_identity: checked
+                    .symbols
+                    .display_path(family_row.realization_state, "::"),
+                realization_callable_identity: matching_realization
+                    .map(|matching| matching.callable_identity.clone()),
+            };
+            if selected && selected_row.replace(row.clone()).is_some() {
+                return unsupported("direct dynamic selected row is duplicated");
+            }
+            rows.push(row);
         }
-        rows.push(row);
     }
     let selected_row = selected_row.ok_or(LoweringError::Unsupported(
         "direct dynamic selected row is absent",
@@ -279,6 +306,54 @@ pub(crate) fn lower_exact_application(
         closed_conformance_application_report_fingerprint(&application);
     application.commitment = closed_conformance_application_commitment(&application);
     Ok((application, selected_row))
+}
+
+/// Count the family-expanded rows a retained checked selection roster
+/// contributes that one dynamic plan's exact dispatch coordinates select.
+///
+/// The retained checked rows still name the provider template machine/state;
+/// expanding each through `checked_requirement_family_rows` names the bare
+/// specialization instance each roster tuple selects — the same coordinate a
+/// plan's `realization_machine`/`realization_state` store for a generic
+/// requirement. A nongeneric requirement expands to its own empty-tuple row,
+/// so this degenerates to the direct symbol comparison. Exactly one expanded
+/// row must match: zero means the tuple or instance drifted from the retained
+/// roster, and more than one means the roster is ambiguous.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn count_selected_family_rows(
+    checked: &CheckedTrees,
+    retained_rows: &[checked_trees::DynamicConformanceRowFact],
+    declaring_trait: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+    requirement_identity: &str,
+    family_tuple: &[String],
+    realization_machine: symbols::SymbolHandle,
+    realization_state: symbols::SymbolHandle,
+) -> Result<usize, LoweringError> {
+    let mut selected = 0_usize;
+    for row in retained_rows {
+        if row.declaring_trait != declaring_trait
+            || row.requirement != requirement
+            || row.requirement_identity != requirement_identity
+        {
+            continue;
+        }
+        selected += evidence_lowering::checked_requirement_family_rows(
+            checked,
+            row.declaring_trait,
+            row.requirement,
+            row.realization_machine,
+            row.realization_state,
+        )?
+        .iter()
+        .filter(|family_row| {
+            family_row.family_tuple.as_slice() == family_tuple
+                && family_row.realization_machine == realization_machine
+                && family_row.realization_state == realization_state
+        })
+        .count();
+    }
+    Ok(selected)
 }
 
 pub(crate) fn validate_empty_contract(

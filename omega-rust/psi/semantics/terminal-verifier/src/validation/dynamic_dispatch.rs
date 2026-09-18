@@ -403,6 +403,9 @@ fn validate_dynamic_descriptor_parameters(
                         && !requirement.declaring_trait_identity.is_empty()
                         && !requirement.public_requirement_identity.is_empty()
                 });
+        // One requirement slot names a `(declaring trait, requirement
+        // overload, canonical family tuple)` coordinate: sibling finite-family
+        // tuples share the two identities and remain distinct slots.
         let requirement_identities = parameter
             .requirements
             .iter()
@@ -410,6 +413,7 @@ fn validate_dynamic_descriptor_parameters(
                 (
                     requirement.declaring_trait_identity.as_str(),
                     requirement.public_requirement_identity.as_str(),
+                    requirement.family_tuple.as_slice(),
                 )
             })
             .collect::<BTreeSet<_>>();
