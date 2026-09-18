@@ -1,0 +1,1 @@
+a preserving cycle has no strict measure DECREASE

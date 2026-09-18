@@ -6,8 +6,9 @@ use super::super::{
 };
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
-    Polynomial, PrimitiveType, RankingRangeMeasure, State, TypedTrees, collect_guard,
-    entry_comparisons, exact_integer_parameter, integer_bindings, lengths, meanings,
+    MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, RankingRangeState, State,
+    TypedTrees, collect_guard, entry_comparisons, exact_integer_parameter, field_coordinates,
+    fields, find_declared_measure, integer_bindings, lengths, meanings, measure_body_shape,
     parameter_comparisons, projections, validate_mapping,
 };
 use symbols::SymbolHandle;
@@ -56,11 +57,34 @@ pub(crate) fn prove_ranking_range_call_entry(
         let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
             return None;
         };
+        if matches!(measure, RankingRangeMeasure::Field { .. }) {
+            // A field-view endpoint keeps the state-edge owner's formation
+            // bar: an exact u64 formal, an exact declared projection, or a
+            // bounded integer expression -- never a selected computation.
+            fields::endpoints_formed(program, member.machine, state, range)?;
+        }
         let bindings = integer_bindings(program, state)?;
         let mut engine = Engine::strict_with_symbol_bindings(program, member.machine, &bindings);
         if !engine.strict_symbol_bindings_are_valid() {
             return None;
         }
+        // A field-view rank is the exact coordinate atom; authored member
+        // projections inside endpoints and requires facts bind to it before
+        // any hypothesis normalizes them.
+        let field_rank = if let RankingRangeMeasure::Field { subject, measure } = measure {
+            let coordinate = fields::FieldCoordinate::resolve(program, state, subject, measure)?;
+            let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
+            let mut expressions = vec![range.start, range.end, subject];
+            expressions.extend(projections::entry_expressions(
+                program,
+                member.machine,
+                state,
+            ));
+            coordinates.install(program, state, state, None, &mut engine, &expressions)?;
+            Some(coordinates)
+        } else {
+            None
+        };
         let length_bindings = if matches!(measure, RankingRangeMeasure::SliceLength(_)) {
             lengths::bindings(program, state, None)
         } else {
@@ -88,6 +112,9 @@ pub(crate) fn prove_ranking_range_call_entry(
         }
         let mut comparisons =
             entry_comparisons(program, member.machine, state, &mut engine, &bindings)?;
+        if let Some(coordinates) = &field_rank {
+            comparisons.extend(coordinates.comparisons(program));
+        }
         comparisons.extend(length_bindings.iter().map(|(_, identity)| {
             (
                 BinaryOperator::GreaterOrEqual,
@@ -99,6 +126,7 @@ pub(crate) fn prove_ranking_range_call_entry(
             RankingRangeMeasure::SliceLength(subject) => {
                 length_coordinate(program, state, subject, &length_bindings)?
             }
+            RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
             _ => rank_coordinate(program, member.machine, &mut engine, measure)?,
         };
         let floor = engine.normalize(range.start)?;
@@ -141,25 +169,27 @@ pub(crate) fn prove_ranking_range_call(
     let (entry, source_measure) = scalar_entry(program, &caller)?;
     let (destination, destination_measure) = scalar_entry(program, &callee)?;
     let source = caller_site.state;
-    if !matches!(
-        (source_measure, destination_measure),
+    if !match (source_measure, destination_measure) {
+        (RankingRangeMeasure::Single(_), RankingRangeMeasure::Single(_))
+        | (RankingRangeMeasure::IncreasingTo { .. }, RankingRangeMeasure::IncreasingTo { .. })
+        | (RankingRangeMeasure::Distance { .. }, RankingRangeMeasure::Distance { .. })
+        | (RankingRangeMeasure::SliceLength(_), RankingRangeMeasure::SliceLength(_))
+        | (RankingRangeMeasure::Computed { .. }, RankingRangeMeasure::Computed { .. }) => true,
+        // A field-view pair shares one produced coordinate only through the
+        // same declared measure; same-shaped projections of different
+        // declarations name different orders.
         (
-            RankingRangeMeasure::Single(_),
-            RankingRangeMeasure::Single(_)
-        ) | (
-            RankingRangeMeasure::IncreasingTo { .. },
-            RankingRangeMeasure::IncreasingTo { .. }
-        ) | (
-            RankingRangeMeasure::Distance { .. },
-            RankingRangeMeasure::Distance { .. }
-        ) | (
-            RankingRangeMeasure::SliceLength(_),
-            RankingRangeMeasure::SliceLength(_)
-        ) | (
-            RankingRangeMeasure::Computed { .. },
-            RankingRangeMeasure::Computed { .. }
-        )
-    ) {
+            RankingRangeMeasure::Field {
+                measure: source_measure,
+                ..
+            },
+            RankingRangeMeasure::Field {
+                measure: destination_measure,
+                ..
+            },
+        ) => source_measure == destination_measure,
+        _ => false,
+    } {
         return None;
     }
     let admit_source =
@@ -171,6 +201,22 @@ pub(crate) fn prove_ranking_range_call(
     // subordinate state.
     admit_member(program, &caller, entry, source_measure)?;
     admit_member(program, &callee, destination, destination_measure)?;
+    // A field-view authored range keeps the state-edge owner's endpoint
+    // formation bar on both sides: an exact u64 formal, an exact declared
+    // projection, or a bounded integer expression, each in its own entry
+    // scope -- never a selected computation smuggled through the call.
+    if matches!(source_measure, RankingRangeMeasure::Field { .. }) {
+        for (machine, state, range) in [
+            (caller.machine, entry, caller.range),
+            (callee.machine, destination, callee.range),
+        ] {
+            if range.is_valid()
+                && let ExpressionNode::Range(range) = program.expression_table.expression(range)
+            {
+                fields::endpoints_formed(program, machine, state, range)?;
+            }
+        }
+    }
     for &(guard, _) in guards {
         admit_source(guard)?;
     }
@@ -241,6 +287,55 @@ pub(crate) fn prove_ranking_range_call(
             &expressions,
         )?;
     }
+    // A field-view member's rank is its record's exact projection coordinate:
+    // a fresh atom per carrier formal, shared with every authored
+    // `record.field` chain the site can read. Resolve the measure's chain on
+    // the member's entry formal, then through this site's telescope onto the
+    // formal that actually carries the role -- an unmapped or duplicated
+    // carrier resolves nothing, so the coordinate cannot borrow a foreign
+    // record's lineage. Install it like the named-state judgment so a member
+    // projection inside a guard, actual, endpoint, or requires fact names
+    // the same atom.
+    let field_ranks = if let RankingRangeMeasure::Field { subject, measure } = source_measure {
+        let coordinate = fields::FieldCoordinate::resolve(program, entry, subject, measure)?;
+        let coordinate = if at_entry {
+            coordinate
+        } else {
+            coordinate.at_arrival(
+                program,
+                RankingRangeState {
+                    state: source,
+                    entry_parameters: caller_site.entry_parameters,
+                },
+                coordinate.parameter.symbol,
+            )?
+        };
+        let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
+        let mut expressions = vec![subject];
+        if caller.range.is_valid()
+            && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
+        {
+            expressions.extend([range.start, range.end]);
+        }
+        expressions.extend(arguments.iter().copied());
+        expressions.extend(guards.iter().map(|(guard, _)| *guard));
+        expressions.extend(projections::entry_expressions(
+            program,
+            caller.machine,
+            source,
+        ));
+        coordinates.install(
+            program,
+            source,
+            entry,
+            (!at_entry).then_some(caller_site.entry_parameters),
+            &mut engine,
+            &expressions,
+        )?;
+        Some(coordinates)
+    } else {
+        None
+    };
     let mut comparisons = if at_entry {
         entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?
     } else {
@@ -259,6 +354,11 @@ pub(crate) fn prove_ranking_range_call(
             Polynomial::default(),
         )
     }));
+    if let Some(coordinates) = &field_ranks {
+        // The produced coordinate's own natural bounds and declared field
+        // constraints are hypotheses, as at a named-state edge.
+        comparisons.extend(coordinates.comparisons(program));
+    }
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
@@ -266,6 +366,7 @@ pub(crate) fn prove_ranking_range_call(
         RankingRangeMeasure::SliceLength(subject) => {
             length_coordinate(program, entry, subject, &length_bindings)?
         }
+        RankingRangeMeasure::Field { .. } => field_ranks.as_ref()?.value()?,
         _ => rank_coordinate(program, caller.machine, &mut engine, source_measure)?,
     };
     let view_bound = match source_measure {
@@ -330,6 +431,26 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.bind_strict_arguments(&actuals) {
         return None;
     }
+    // A field-view callee's authored range may read fields of its record
+    // formals; each member projection binds to the value its exact actual
+    // installs there, so `pending.limit` denotes the same atom a forward,
+    // borrow, or rebuilt literal supplied. A member the coordinate cannot
+    // read stays unbound and fails endpoint normalization below.
+    if matches!(destination_measure, RankingRangeMeasure::Field { .. })
+        && callee.range.is_valid()
+        && let ExpressionNode::Range(range) = program.expression_table.expression(callee.range)
+    {
+        for endpoint in [range.start, range.end] {
+            bind_destination_fields(
+                program,
+                destination,
+                source,
+                &mut engine,
+                arguments,
+                endpoint,
+            )?;
+        }
+    }
     let next_rank = match destination_measure {
         // The callee's ranked slice formal arrives as this call's exact
         // actual; its produced length is the actual's own coordinate, not a
@@ -350,6 +471,30 @@ pub(crate) fn prove_ranking_range_call(
                 &mut engine,
             )?
         }
+        // The callee's ranked record formal arrives as this call's exact
+        // actual; its produced coordinate is the shared measure's chain
+        // walked over that actual -- a forwarded carrier, a borrow of one, a
+        // prefix member of a larger carrier, or a literal rebuilt declaration
+        // by declaration. The destination formal's own reference boundary
+        // decides whether the actual reads under one `&`.
+        RankingRangeMeasure::Field { subject, measure } => {
+            let destination_coordinate =
+                fields::FieldCoordinate::resolve(program, destination, subject, measure)?;
+            let position = program
+                .state_parameters(destination)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .position(|parameter| {
+                    parameter.symbol == destination_coordinate.parameter.symbol
+                })?;
+            destination_coordinate.arrived(
+                program,
+                source,
+                &mut engine,
+                arguments[position],
+                destination_coordinate.borrowed,
+            )?
+        }
         _ => rank_coordinate(program, caller.machine, &mut engine, destination_measure)?,
     };
     let pinned_view_bound = match (view_bound, destination_measure) {
@@ -359,6 +504,7 @@ pub(crate) fn prove_ranking_range_call(
         (None, RankingRangeMeasure::Single(_))
         | (None, RankingRangeMeasure::Computed { .. })
         | (None, RankingRangeMeasure::Distance { .. })
+        | (None, RankingRangeMeasure::Field { .. })
         | (None, RankingRangeMeasure::SliceLength(_)) => None,
         _ => return None,
     };
@@ -495,6 +641,7 @@ fn arrival_invariant(
         RankingRangeMeasure::Single(_)
         | RankingRangeMeasure::Computed { .. }
         | RankingRangeMeasure::Distance { .. }
+        | RankingRangeMeasure::Field { .. }
         | RankingRangeMeasure::SliceLength(_) => {
             facts.push((
                 BinaryOperator::GreaterOrEqual,
@@ -508,7 +655,6 @@ fn arrival_invariant(
             facts.push((below_ceiling, Polynomial::default(), ceiling.clone()));
             facts.push((below_ceiling, rank.clone(), ceiling.clone()));
         }
-        RankingRangeMeasure::Field { .. } => {}
     }
     if let RankingRangeMeasure::Computed { carrier, .. } = measure
         && let Some(maximum) = super::carrier_maximum(carrier)
@@ -531,11 +677,12 @@ fn membership(
     };
     let slack = i64::from(!inclusive);
     match measure {
-        // A slice length is already the produced natural coordinate; its
-        // membership shape matches the scalar views.
+        // A slice length or a field projection is already the produced
+        // natural coordinate; its membership shape matches the scalar views.
         RankingRangeMeasure::Single(_)
         | RankingRangeMeasure::Computed { .. }
         | RankingRangeMeasure::Distance { .. }
+        | RankingRangeMeasure::Field { .. }
         | RankingRangeMeasure::SliceLength(_) => {
             prove(coordinate.clone(), 0)
                 && prove(coordinate.sub(floor), 0)
@@ -548,8 +695,65 @@ fn membership(
                 && prove(ceiling.clone(), slack)
                 && prove(ceiling.sub(coordinate), slack)
         }
-        _ => false,
     }
+}
+
+/// Bind every exact member projection inside `expression` that is rooted at a
+/// `destination` record formal to the value its call actual installs: the
+/// resolved chain re-resolved over the actual's own carrier. Members that do
+/// not resolve -- or whose actual the coordinate cannot read -- stay unbound,
+/// so an opaque endpoint still fails `normalize` rather than borrowing a
+/// foreign record's lineage.
+fn bind_destination_fields(
+    program: &TypedTrees,
+    destination: &State,
+    source: &State,
+    engine: &mut Engine<'_>,
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> Option<()> {
+    let mut pending = vec![(expression, 0usize)];
+    while let Some((expression, depth)) = pending.pop() {
+        if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => {
+                if let Some(coordinate) =
+                    fields::FieldCoordinate::resolve_projection(program, destination, expression)
+                    && let Some(position) = program
+                        .state_parameters(destination)
+                        .iter()
+                        .filter(|parameter| !parameter.is_self)
+                        .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
+                    && let Some(actual) = coordinate.arrived(
+                        program,
+                        source,
+                        engine,
+                        arguments[position],
+                        coordinate.borrowed,
+                    )
+                    && !engine.bind_strict_projection(expression, actual)
+                {
+                    return None;
+                }
+                pending.push((member.receiver, depth + 1));
+            }
+            ExpressionNode::Borrow(borrow) => pending.push((borrow.target, depth + 1)),
+            ExpressionNode::Binary(binary) => {
+                pending.push((binary.left, depth + 1));
+                pending.push((binary.right, depth + 1));
+            }
+            ExpressionNode::Unary(unary) => pending.push((unary.operand, depth + 1)),
+            ExpressionNode::Atomic(atomic) => pending.push((atomic.value, depth + 1)),
+            ExpressionNode::Range(range) => {
+                pending.push((range.start, depth + 1));
+                pending.push((range.end, depth + 1));
+            }
+            _ => {}
+        }
+    }
+    Some(())
 }
 
 /// The produced length coordinate of a slice-typed entry parameter: the
@@ -745,18 +949,50 @@ fn scalar_entry<'program>(
         {
             return None;
         }
-        let view = super::declared_scalar_view(program, state, *subject, &witness.view_path)?;
-        entry_scalar_parameter(program, state, *subject)?;
-        let measure = match view.computation {
-            None => RankingRangeMeasure::Single(member.subject),
-            Some(computation) => RankingRangeMeasure::Computed {
-                subject: member.subject,
-                parameter: computation.parameter,
-                body: computation.body,
-                carrier: view.carrier,
-            },
+        if let Some(view) =
+            super::declared_scalar_view(program, state, *subject, &witness.view_path)
+        {
+            entry_scalar_parameter(program, state, *subject)?;
+            let measure = match view.computation {
+                None => RankingRangeMeasure::Single(member.subject),
+                Some(computation) => RankingRangeMeasure::Computed {
+                    subject: member.subject,
+                    parameter: computation.parameter,
+                    body: computation.body,
+                    carrier: view.carrier,
+                },
+            };
+            return Some((state, measure));
+        }
+        // A declared field view produces the measure's exact `u64`
+        // projection of the subject's record. The coordinate owner
+        // re-resolves the chain against the subject formal's own
+        // declaration; a non-formal subject or a foreign record has no
+        // scalar transport either.
+        let path = witness
+            .view_path
+            .split("::")
+            .filter(|member| !member.is_empty())
+            .collect::<Vec<_>>();
+        let Some(measure) = find_declared_measure(program, &path) else {
+            return None;
         };
-        return Some((state, measure));
+        if measure.lexicographic
+            || !matches!(
+                measure_body_shape(program, measure),
+                Some(MeasureBodyShape::FieldProjection { .. })
+            )
+        {
+            return None;
+        }
+        fields::FieldCoordinate::resolve(program, state, *subject, measure.symbol)?;
+        return Some((
+            state,
+            RankingRangeMeasure::Field {
+                subject: member.subject,
+                measure: measure.symbol,
+            },
+        ));
     }
     let measure = match witness.ranking_view {
         language_semantics::RankingViewId::NAT_DESCENDING

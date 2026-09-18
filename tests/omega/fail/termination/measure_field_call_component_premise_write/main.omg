@@ -1,0 +1,36 @@
+// FAIL CANARY. `scan_b` writes through its ranked record before the
+// transition, so the entry-relative premise the call edge reads no longer
+// describes the arrival; the component fails closed on the invalidated
+// premise.
+data Countdown {
+    remaining: u64 [0..=5];
+}
+
+measure Countdown::Remaining(countdown: Countdown) -> u64 {
+    countdown.remaining
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(Countdown { remaining: 2 }) }
+}
+
+machine Main::scan_a(&mut self, countdown: Countdown)
+terminates by countdown -> Countdown::Remaining in 0..=5;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> self.scan_b(countdown)
+        false -> countdown.remaining
+    }
+}
+
+machine Main::scan_b(&mut self, mut pending: Countdown)
+terminates by pending -> Countdown::Remaining in 0..=5;
+-> u64 {
+    pending.remaining = 5;
+    transition pending.remaining > 0 {
+        true -> self.scan_a(Countdown { remaining: pending.remaining - 1 })
+        false -> pending.remaining
+    }
+}

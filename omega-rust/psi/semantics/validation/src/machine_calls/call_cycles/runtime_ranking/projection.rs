@@ -1,5 +1,6 @@
 use crate::proof_contracts::contract_entailment::{
-    RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
+    MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
+    find_declared_measure, measure_body_shape, unwrap_constraint_shells,
 };
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
@@ -45,6 +46,15 @@ pub(super) enum RankOrder {
         measure: SymbolHandle,
         primitive: PrimitiveType,
         computation: ScalarViewComputation,
+    },
+    /// A declared measure whose body projects a `u64` field of its record
+    /// parameter (`measure_body_shape`'s `FieldProjection`). The produced rank
+    /// is that exact coordinate of the subject's record, reached through at
+    /// most one reference boundary. Members share this order only through the
+    /// same measure; each call edge re-resolves the chain against the exact
+    /// formals' declarations and walks the actual's forward or literal.
+    CustomStructView {
+        measure: SymbolHandle,
     },
     Lexicographic {
         measure_index: usize,
@@ -225,6 +235,50 @@ impl RankProjection {
                 paired_subject: ExpressionHandle::invalid(),
                 range: custody.rank_range.unwrap_or_default(),
                 measure: Some(measure),
+            });
+        }
+        // A declared field view produces the exact `u64` projection its
+        // measure body declares. The subject must be the entry formal whose
+        // (possibly referenced) record the chain starts at; the call judgment
+        // re-resolves that chain against each formal's own declaration, so
+        // this selection never supplies the coordinate itself.
+        let declared_path = witness
+            .view_path
+            .split("::")
+            .filter(|member| !member.is_empty())
+            .collect::<Vec<_>>();
+        if let Some(measure) = find_declared_measure(program, &declared_path)
+            && !measure.lexicographic
+            && let Some(MeasureBodyShape::FieldProjection { path, owner, .. }) =
+                measure_body_shape(program, measure)
+        {
+            let root = path.first().map_or(owner, |step| step.owner);
+            let mut reference = unwrap_constraint_shells(program, parameter.type_reference);
+            if let TypeReferenceNode::Reference { referee, .. } =
+                program.type_reference_table.type_reference(reference)
+            {
+                reference = unwrap_constraint_shells(program, *referee);
+            }
+            if !matches!(
+                program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Named { symbol, .. } if *symbol == root
+            ) {
+                return None;
+            }
+            return Some(Self {
+                order: RankOrder::CustomStructView {
+                    measure: measure.symbol,
+                },
+                parameter: parameter.symbol,
+                paired_parameter: SymbolHandle::default(),
+                argument_position,
+                subject: *subject,
+                paired_subject: ExpressionHandle::invalid(),
+                range: custody.rank_range.unwrap_or_default(),
+                measure: Some(RankingRangeMeasure::Field {
+                    subject: *subject,
+                    measure: measure.symbol,
+                }),
             });
         }
         if custody.rank_range.is_some() {

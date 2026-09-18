@@ -127,9 +127,10 @@ pub(super) fn check_component(
     // rank-invariant premise set both premise modes share (an entry
     // invariant attempt protects a superset). An unranged member's
     // computed claimants stay role-less rather than borrowing equality
-    // evidence no judgment ran for. Runtime members never select a
-    // record-subject struct view, so there is no fresh-record carrier to
-    // prefer.
+    // evidence no judgment ran for. A record-subject struct view also
+    // names its fresh-record carrier: a dependency-free literal arrival
+    // into the unique record-typed slot still claims the role the field
+    // coordinate reads.
     let member_discovery = component
         .iter()
         .enumerate()
@@ -146,6 +147,10 @@ pub(super) fn check_component(
                     .into_iter()
                     .filter(|symbol| symbol.is_valid())
                     .collect(),
+            };
+            let record_subject = match &rank.order {
+                RankOrder::CustomStructView { .. } => rank.parameter,
+                _ => SymbolHandle::default(),
             };
             let required = if rank.range.is_valid() {
                 rank.measure.and_then(|measure| {
@@ -164,7 +169,7 @@ pub(super) fn check_component(
                 program,
                 machine,
                 &preferred,
-                SymbolHandle::default(),
+                record_subject,
                 &required,
             )?;
             Some((mappings, required))
@@ -188,7 +193,12 @@ pub(super) fn check_component(
     let mut member_mappings = Vec::with_capacity(member_discovery.len());
     for (position, index) in component.iter().enumerate() {
         let (mappings, required) = &member_discovery[position];
-        let bounds = carrier_bounds(program, &program.machines()[*index], mappings);
+        let bounds = carrier_bounds(
+            program,
+            &program.machines()[*index],
+            mappings,
+            &ranks[position],
+        );
         let mut filtered = mappings.clone();
         for (state_position, slots) in filtered.iter_mut().enumerate() {
             // Required carriers keep a computed claimant only while a sibling
@@ -377,6 +387,7 @@ pub(super) fn check_component(
                                 | projection::RankOrder::SliceLength
                                 | projection::RankOrder::DeclaredIdentity { .. }
                                 | projection::RankOrder::DeclaredComputation { .. }
+                                | projection::RankOrder::CustomStructView { .. }
                         ) {
                             match prove_ranking_range_call(
                                 program,
@@ -554,6 +565,10 @@ fn carrier_direction(rank: &RankProjection, role: SymbolHandle) -> CarrierBound 
     if role == rank.parameter {
         match &rank.order {
             RankOrder::IncreasingTo(_) | RankOrder::BoundedDistance(_) => CarrierBound::AtLeast,
+            // A record role names WHICH record the slot holds, never a moved
+            // scalar: `carrier - positive` cannot typecheck on a record, and
+            // a rebuilt literal still denotes the rank coordinate exactly.
+            RankOrder::CustomStructView { .. } => CarrierBound::Equal,
             _ => CarrierBound::AtMost,
         }
     } else if role == rank.paired_parameter && matches!(rank.order, RankOrder::BoundedDistance(_)) {
@@ -571,6 +586,7 @@ fn carrier_bounds(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     mappings: &[Vec<SymbolHandle>],
+    rank: &RankProjection,
 ) -> Vec<Vec<CarrierBound>> {
     let states = program.machine_states(machine);
     let mut bounds = mappings
@@ -604,6 +620,7 @@ fn carrier_bounds(
                     source_slots,
                     arguments.get(slot).copied(),
                     *role,
+                    rank,
                 );
                 bounds[*destination][slot] = bounds[*destination][slot].meet(arrival);
             }
@@ -619,6 +636,12 @@ fn carrier_bounds(
 /// `carrier - positive`/`carrier + positive` step keeps the matching side.
 /// Any other shape -- arithmetic over several inputs, a projection, a
 /// literal, an operand call -- names no bound this judgment can read.
+/// A record-subject role under a custom struct view is exact-or-nothing:
+/// scalar arithmetic cannot reach it, so a bare forward or borrow of a
+/// role-carrying formal inherits, while a rebuilt literal or a record-typed
+/// projection keeps `Equal` -- the member's own edge judgment already
+/// proved that arrival's rank coordinate, and the slot's fresh atom is what
+/// the site reads.
 fn carrier_arrival_bound(
     program: &TypedTrees,
     source: &typed_trees::state::State,
@@ -626,6 +649,7 @@ fn carrier_arrival_bound(
     source_slots: &[SymbolHandle],
     argument: Option<ExpressionHandle>,
     role: SymbolHandle,
+    rank: &RankProjection,
 ) -> CarrierBound {
     let Some(argument) = argument else {
         return CarrierBound::None;
@@ -651,6 +675,36 @@ fn carrier_arrival_bound(
         }
         _ => None,
     };
+    if role == rank.parameter && matches!(rank.order, RankOrder::CustomStructView { .. }) {
+        // The record role tracks WHICH record the slot holds, not a scalar
+        // bound. Every arrival shape a field-view member's own edge judgment
+        // can prove -- a forward of the slot still carrying the role, a
+        // borrow of one, a rebuild literal, or a prefix projection of the
+        // coordinate's chain -- keeps the slot's claim exact. An operand
+        // call or an index read is a record only through a shape no field
+        // coordinate walks, so it strips the role as always.
+        return match program
+            .expression_table
+            .expression(projection::unwrapped(program, argument))
+        {
+            ExpressionNode::Name(name)
+                if name.symbol.is_valid() && name.head_symbol == name.symbol =>
+            {
+                formal_bound(name.symbol)
+            }
+            ExpressionNode::Borrow(borrow) => carrier_arrival_bound(
+                program,
+                source,
+                source_bounds,
+                source_slots,
+                Some(borrow.target),
+                role,
+                rank,
+            ),
+            ExpressionNode::StructLiteral(_) | ExpressionNode::Member(_) => CarrierBound::Equal,
+            _ => CarrierBound::None,
+        };
+    }
     match program
         .expression_table
         .expression(projection::unwrapped(program, argument))

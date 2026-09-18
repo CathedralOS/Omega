@@ -1,0 +1,37 @@
+// PASS CANARY. The same field-view component with subjects behind a shared
+// borrow: forwarding `card` keeps the referent's coordinate, and the strict
+// edge borrows a rebuilt literal. The field declares no store range, so the
+// entry requirement bounds the produced rank.
+data Card {
+    power: u64;
+}
+
+measure Card::PowerOrder(card: Card) -> u64 {
+    card.power
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(&Card { power: 2 }, 5) }
+}
+
+machine Main::scan_a(&mut self, card: &Card, ceiling: u64 [0..=5])
+requires card.power <= ceiling;
+terminates by card -> Card::PowerOrder in 0..=ceiling;
+-> u64 {
+    transition card.power > 0 {
+        true -> self.scan_b(card, ceiling)
+        false -> card.power
+    }
+}
+
+machine Main::scan_b(&mut self, pending: &Card, upper: u64 [0..=5])
+requires pending.power <= upper;
+terminates by pending -> Card::PowerOrder in 0..=upper;
+-> u64 {
+    transition pending.power > 0 {
+        true -> self.scan_a(&Card { power: pending.power - 1 }, upper)
+        false -> pending.power
+    }
+}

@@ -285,6 +285,67 @@ impl<'program> FieldCoordinate<'program> {
         engine.normalize(current)
     }
 
+    /// The value `expression` installs for this coordinate's chain when it
+    /// arrives at ANOTHER formal of the same record -- a cross-machine call
+    /// actual, where `self.parameter` is the callee's formal rather than the
+    /// carrier named here. A bare forward or a member actual re-resolves the
+    /// chain behind the actual's own resolved prefix; a borrow unwraps the
+    /// destination formal's `&`; a literal is rebuilt declaration by
+    /// declaration. Every carrier route still requires the exact record this
+    /// coordinate's chain starts at: a same-shaped record elsewhere in the
+    /// actual's projection is not its carrier.
+    pub(super) fn arrived(
+        &self,
+        program: &'program TypedTrees,
+        state: &State,
+        engine: &mut Engine<'_>,
+        expression: ExpressionHandle,
+        arrival_borrowed: bool,
+    ) -> Option<Polynomial> {
+        let mut current = expression;
+        if arrival_borrowed
+            && let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current)
+        {
+            // `&x` supplies the record `x` denotes; an actual already behind a
+            // reference arrives as its own carrier without a borrow node.
+            current = borrow.target;
+        }
+        if let Some((carrier, prefix)) = rooted_carrier(program, state, current) {
+            let (carrier_root, _) = record_referent(program, carrier.type_reference)?;
+            let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1);
+            let mut owner = carrier_root;
+            for (symbol, _) in &prefix {
+                let (_, field) = declared_field(program, owner, *symbol)?;
+                // A prefix step must land on an exact declared record so this
+                // coordinate's chain resumes at one nominal root.
+                let TypeReferenceNode::Named { symbol: next, .. } = program
+                    .type_reference_table
+                    .type_reference(unwrap_constraint_shells(program, field.type_reference))
+                else {
+                    return None;
+                };
+                chain.push(*symbol);
+                owner = *next;
+            }
+            if owner != self.root {
+                return None;
+            }
+            chain.extend(self.chain());
+            return Some(Self::for_parameter(program, carrier, &chain)?.value());
+        }
+        let mut owner = self.root;
+        for field in self.steps.iter().chain([&self.field]) {
+            current = unique_literal_field(program, current, owner, field)?;
+            if let TypeReferenceNode::Named { symbol, .. } = program
+                .type_reference_table
+                .type_reference(unwrap_constraint_shells(program, field.type_reference))
+            {
+                owner = *symbol;
+            }
+        }
+        engine.normalize(current)
+    }
+
     /// `expression` is exactly `parameter.steps[..depth]`: the same formal
     /// projected through the first `depth` steps of this chain.
     fn is_prefix_projection(
@@ -358,6 +419,23 @@ fn member_chain<'program>(
     }
     chain.reverse();
     Some((parameter(program, state, cursor)?, chain))
+}
+
+/// The formal `expression` is rooted at plus its resolved member chain: `x`
+/// is `(x, [])`, `x.a.b` is `(x, [a, b])`. Any other shape is a computed
+/// value with no carrier root.
+fn rooted_carrier<'program>(
+    program: &'program TypedTrees,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(
+    &'program StateParameter,
+    Vec<(SymbolHandle, &'program Identifier)>,
+)> {
+    if let Some(parameter) = parameter(program, state, expression) {
+        return Some((parameter, Vec::new()));
+    }
+    member_chain(program, state, expression)
 }
 
 /// The record a formal's type declares, directly or as the referent of one
