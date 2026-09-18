@@ -197,7 +197,7 @@ data Main {{
     buffer: [u8; 2];
 }}
 
-machine Main::main(&mut self) {{
+machine Main::main(&mut self) reaches Console + FilesystemHost {{
     self.fd = self.fs.create("{file}", 438);
     self.count = self.fs.write(self.fd, "abcdef");
     self.count = self.fs.close(self.fd);
@@ -818,7 +818,7 @@ data IgnoredOperandProbe {{
     fd: i32;
 }}
 
-machine IgnoredOperandProbe::run(&mut self, build: &mut Build) {{
+machine IgnoredOperandProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.dividend = 1;
     self.divisor = 0;
     self.fd = self.fs.create(
@@ -834,7 +834,7 @@ data InvalidOutputProbe {{
     n: i64;
 }}
 
-machine InvalidOutputProbe::run(&mut self, build: &mut Build) {{
+machine InvalidOutputProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.n = self.fs.read_link("{outside}", &mut self.buffer, 2);
     build.target_index = 9;
 }}
@@ -845,7 +845,7 @@ data CanonicalizeOutputProbe {{
     result: i64;
 }}
 
-machine CanonicalizeOutputProbe::run(&mut self, build: &mut Build) {{
+machine CanonicalizeOutputProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.result = self.fs.canonicalize("{outside}", &mut self.buffer);
     build.target_index = 11;
 }}
@@ -858,7 +858,7 @@ data CrossDomainProbe {{
     result: i32;
 }}
 
-machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
+machine CrossDomainProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.descriptor = self.fs.open("{cross_domain_file}", 2);
     self.handle = self.descriptor as i64;
     self.result = self.fs.set_file_time(self.handle, 0, &self.filetime, &self.filetime);
@@ -1057,7 +1057,7 @@ data SourceReadProbe {{
     buffer: [u8; 16];
 }}
 
-machine SourceReadProbe::run(&mut self, build: &mut Build) {{
+machine SourceReadProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.flags = 0;
     self.capacity = 16;
     self.fd = self.fs.open("{source}/input.txt", self.flags);
@@ -1068,7 +1068,7 @@ machine SourceReadProbe::run(&mut self, build: &mut Build) {{
 
 data MissingParentProbe {{ fs: FilesystemHost; fd: i32; error: i64; }}
 
-machine MissingParentProbe::run(&mut self, build: &mut Build) {{
+machine MissingParentProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.fd = self.fs.create("{out}/missing/artifact", 438);
     self.error = self.fs.errno();
     build.target_index = self.error;
@@ -1076,7 +1076,7 @@ machine MissingParentProbe::run(&mut self, build: &mut Build) {{
 
 data ResourceProbe {{ fs: FilesystemHost; fd: i32; written: i64; }}
 
-machine ResourceProbe::run(&mut self, build: &mut Build) {{
+machine ResourceProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.fd = self.fs.create("{out}/artifact", 438);
     self.written = self.fs.write(self.fd, "12345");
     build.target_index = self.written;
@@ -1540,7 +1540,7 @@ data Main {{
     e: i64;
 }}
 
-machine Main::main(&mut self) {{
+machine Main::main(&mut self) reaches Console + FilesystemHost {{
     self.mode = 438;
     self.fd = self.fs.create("{base}/x.txt", self.mode);
     self.n = self.fs.close(self.fd);
