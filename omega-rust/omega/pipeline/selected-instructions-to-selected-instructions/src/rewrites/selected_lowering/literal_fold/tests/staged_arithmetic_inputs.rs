@@ -1758,6 +1758,21 @@ pub(super) fn staged_remainder_zero_dividend_inputs(target: NativeTarget) -> Inp
     )
 }
 
+/// A `MaterializeI64` victim producing `Unsigned(u64::MAX)` — the
+/// normalized-i64 divisor `-1` — feeding operand 1 of a
+/// `WrappingRemainderI64` consumer: `x % -1` is `0` for every `x`,
+/// including the `i64::MIN` dividend the kind's semantics defines to
+/// produce zero rather than trap. The fold's fault discharge is the
+/// folded divisor literal itself, not the consumer's carried obligation.
+pub(super) fn staged_remainder_minus_one_inputs(target: NativeTarget) -> Inputs {
+    staged_remainder_family_inputs(
+        target,
+        1,
+        IntegerValue::Unsigned(u128::from(u64::MAX)),
+        LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1,
+    )
+}
+
 /// One `WrappingRemainderI64` consumer whose `literal_operand` `Use`
 /// position binds the `MaterializeI64` victim's register
 /// `VirtualRegisterId(1)` carrying `literal_value`, with the other `Use`
