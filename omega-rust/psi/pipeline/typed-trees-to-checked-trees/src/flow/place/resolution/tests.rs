@@ -4,6 +4,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::name::Identifier;
 use symbols::SymbolHandle;
 use typed_trees::expression::TableMemberExpression;
+use typed_trees::statement::StatementNode;
 
 fn fixture() -> (typed_trees::TypedTrees, TableMemberExpression) {
     let source = r#"
@@ -622,4 +623,157 @@ fn case_qualified_payload_does_not_fall_back_when_qualification_is_missing() {
     member.member = Identifier::generated("absent");
     assert!(!effective_member_symbol(&program, member.receiver, &member).is_valid());
     assert!(!effective_member_symbol(&program, ExpressionHandle::invalid(), &original).is_valid());
+}
+
+/// The `Second`-qualified `count` member inside `observe`'s transition, plus
+/// its state symbol and the transition's statement index — the contextual
+/// walk's local-prefix window. The demanded member is a destructure-bound
+/// payload projection: `member.member` names the field and
+/// `member.case_variant` names the case that owns it.
+fn second_qualified_member(
+    program: &typed_trees::TypedTrees,
+) -> (ExpressionHandle, SymbolHandle, usize) {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .expect("observe machine");
+    let state = &program.machine_states(machine)[0];
+    let member_handle = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            member
+                .case_variant
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "Second")
+                .then_some(handle)
+        })
+        .expect("Second-qualified member expression");
+    let statement_index = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .position(|statement| matches!(statement, StatementNode::Transition(_)))
+        .expect("the case-qualified member lives in the transition statement");
+    (member_handle, state.symbol, statement_index)
+}
+
+#[test]
+fn place_member_resolution_scopes_a_case_qualified_member_to_its_variant() {
+    let (mut program, _) = fixture();
+    let expected = field(&program, "Outcome", "Second");
+    let second = facts::payload_variant_for_field(&program, expected)
+        .expect("Second::count's owning variant");
+    let (member_handle, state_symbol, statement_index) = second_qualified_member(&program);
+    let member = match program.expression_table.expression(member_handle) {
+        ExpressionNode::Member(member) => member.clone(),
+        _ => unreachable!(),
+    };
+    // `First::count` and `Second::count` share one spelling. Strip the
+    // receiver's retained symbols so only the place walk can name the field,
+    // and the demanded case is the only thing distinguishing them.
+    strip_receiver_symbols(&mut program, member.receiver);
+    assert!(
+        !effective_member_symbol(&program, member.receiver, &member).is_valid(),
+        "the stripped receiver must leave the expression route unanswered"
+    );
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("a parameter-rooted case-qualified member place resolves");
+    assert_eq!(
+        place.segments,
+        [
+            facts::PlaceSegment::Case { variant: second },
+            facts::PlaceSegment::Field { symbol: expected },
+        ]
+    );
+}
+
+#[test]
+fn place_member_resolution_rejects_a_case_qualified_member_outside_its_variant() {
+    // `First` and `Second` declare different payload spellings, so demanding
+    // `count` under `Second` must fail closed: the sibling case's field is
+    // never the selected one.
+    let source = r#"
+        data Outcome { case First(count: u64); case Second(total: u64); }
+        machine observe(value: Outcome) {
+            transition value {
+                Outcome::Second { total } -> done(total)
+                Outcome::First { count } -> done(count)
+            }
+            state done(count: u64) {}
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let mut program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let (member_handle, state_symbol, statement_index) = second_qualified_member(&program);
+    let member = match program.expression_table.expression(member_handle) {
+        ExpressionNode::Member(member) => member.clone(),
+        _ => unreachable!(),
+    };
+    strip_receiver_symbols(&mut program, member.receiver);
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(member_handle)
+    else {
+        unreachable!();
+    };
+    member.member = Identifier::generated("count");
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("the place walk still builds");
+    assert!(matches!(
+        place.segments.last(),
+        Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
+    ));
+}
+
+#[test]
+fn place_member_resolution_rejects_an_absent_case_qualification() {
+    let (mut program, _) = fixture();
+    let (member_handle, state_symbol, statement_index) = second_qualified_member(&program);
+    let member = match program.expression_table.expression(member_handle) {
+        ExpressionNode::Member(member) => member.clone(),
+        _ => unreachable!(),
+    };
+    strip_receiver_symbols(&mut program, member.receiver);
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(member_handle)
+    else {
+        unreachable!();
+    };
+    member.case_variant = Some(Identifier::generated("Absent"));
+
+    let place = crate::flow::contextual_canonical_place_from_expression(
+        &program,
+        state_symbol,
+        statement_index,
+        member_handle,
+    )
+    .expect("the place walk still builds");
+    // `Absent` names no variant of `Outcome`: the demanded field stays
+    // unresolved rather than borrowing the first same-spelled payload field.
+    assert!(matches!(
+        place.segments.last(),
+        Some(facts::PlaceSegment::Field { symbol }) if !symbol.is_valid()
+    ));
 }

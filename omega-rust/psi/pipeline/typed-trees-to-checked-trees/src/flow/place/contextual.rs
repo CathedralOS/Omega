@@ -52,7 +52,12 @@ pub(crate) fn contextual_canonical_place_from_expression(
                     .copied()
                     .filter(|symbol| symbol.is_valid())
                     .or_else(|| {
-                        resolve_member_symbol_from_place(program, &place, member_name.as_str())
+                        resolve_member_symbol_from_place(
+                            program,
+                            &place,
+                            member_name.as_str(),
+                            None,
+                        )
                     })
                     .unwrap_or_else(SymbolHandle::invalid);
                 push_field_place_segments(program, &mut place.segments, symbol);
@@ -71,8 +76,13 @@ pub(crate) fn contextual_canonical_place_from_expression(
                 if symbol.is_valid() {
                     symbol
                 } else {
-                    resolve_member_symbol_from_place(program, &place, member.member.as_str())
-                        .unwrap_or_else(SymbolHandle::invalid)
+                    resolve_member_symbol_from_place(
+                        program,
+                        &place,
+                        member.member.as_str(),
+                        member.case_variant.as_ref().map(|variant| variant.as_str()),
+                    )
+                    .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
             push_field_place_segments(program, &mut place.segments, symbol);
@@ -136,10 +146,16 @@ fn resolve_contextual_name_path_root(
         })
 }
 
+/// Resolve the demanded member on the place walk's leaf. `case_variant`
+/// carries the member expression's destructure qualification when it has
+/// one: payload spellings repeat across cases, so a qualified demand is
+/// answered only by the field that exact variant declares — an unqualified
+/// name search would mint a sibling case's same-named field for it.
 fn resolve_member_symbol_from_place(
     program: &typed_trees::TypedTrees,
     place: &CanonicalPlace,
     member_name: &str,
+    case_variant: Option<&str>,
 ) -> Option<SymbolHandle> {
     let mut position = match place.root {
         facts::PlaceRoot::Symbol(symbol) => resolution::symbol_type_position(program, symbol)?,
@@ -210,5 +226,13 @@ fn resolve_member_symbol_from_place(
     }
 
     let current = resolution::position_leaf_symbol(program, position);
-    resolve_member_symbol_from_type_symbol(program, current, member_name)
+    match case_variant {
+        Some(variant) => resolution::resolve_case_member_symbol_from_type_symbol(
+            program,
+            current,
+            variant,
+            member_name,
+        ),
+        None => resolve_member_symbol_from_type_symbol(program, current, member_name),
+    }
 }

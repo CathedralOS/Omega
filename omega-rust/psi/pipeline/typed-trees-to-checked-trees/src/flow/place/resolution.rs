@@ -289,6 +289,41 @@ pub(crate) fn effective_member_symbol(
     SymbolHandle::invalid()
 }
 
+/// A case-qualified member hop resolves inside the selected variant only:
+/// payload spellings repeat across cases, so the demanded field is the one
+/// the named case declares — never the first same-named field a sibling
+/// variant carries. This is the place-route counterpart of the selected-case
+/// lookup `effective_member_symbol` performs when the receiver's type is
+/// known; a variant that is absent or declares no such payload field yields
+/// no symbol rather than borrowing a same-shaped row.
+pub(super) fn resolve_case_member_symbol_from_type_symbol(
+    program: &typed_trees::TypedTrees,
+    type_symbol: SymbolHandle,
+    case_name: &str,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    let declaration = program
+        .data_definitions()
+        .iter()
+        .find(|row| row.symbol == type_symbol)?;
+    let variant = program
+        .data_members(declaration)
+        .iter()
+        .find_map(|row| match row {
+            typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == case_name =>
+            {
+                Some(variant)
+            }
+            _ => None,
+        })?;
+    program
+        .data_payload_fields(variant)
+        .iter()
+        .find(|field| field.name.as_str() == member_name)
+        .map(|field| field.symbol)
+}
+
 pub(crate) fn resolve_member_symbol_from_type_symbol(
     program: &typed_trees::TypedTrees,
     type_symbol: SymbolHandle,
