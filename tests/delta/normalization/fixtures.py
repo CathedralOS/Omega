@@ -125,6 +125,19 @@ def fixtures(full_width=False):
               b"(def main ((source Bytes)) Bytes (select source))\n")
     cases.append(("profile depth captures remain singular", source,
                   0, PAYLOAD, True, 2, None, None, 1))
+    chain = lambda name: (b"(if 1 " * 260 + name + b" (bytes_empty))" * 260)
+    source = (b"(def join3 ((a Bytes) (b Bytes) (c Bytes)) Bytes "
+              b"(bytes_concat a (bytes_concat b c)))\n"
+              b"(def main ((source Bytes)) Bytes "
+              b"(let x Bytes source (let y Bytes (bytes_concat source source) "
+              + b"(if 1 " * 260
+              + b"(join3 " + chain(b"x") + b" " + chain(b"y") + b" "
+              + chain(b"x") + b")"
+              + b" (bytes_empty))" * 260 + b")))\n")
+    cases.append(("sibling helper batches merge in balanced passes", source,
+                  0, PAYLOAD * 4, True, 2, None,
+                  "48bf16edefff19ea178903bce5c2affa3ffe29d03768559c589e04e9f8e5b93d",
+                  2))
     source = (b"(def score ((value Int)) Int " + b"(+ 1 " * 1023
               + b"value" + b")" * 1023 + b")\n"
               b"(def main ((source Bytes)) Bytes "

@@ -152,25 +152,30 @@ For the current counted-list implementation, in pairs:
 - Sorting `n >= 1` direct entries allocates at most
   `(2.5 * ceil(log2(n)) + 1) * n` pairs. Existing helper batches are not sorted.
 
-`capture_finish` merges a fragment's `k` completed helper batches into its
-sorted direct-reference batch through `capture_merge_batches`, then subtracts
-owned binders once. Union `i` consumes at most `|merged(i-1)| + |b(i)|`
-entries: each step removes at least one element and stops when either side is
-exhausted, and the running union never exceeds `d`, the fragment's distinct
-referenced-or-batched bindings, so `q <= d + |b(i)|`. One collection's merges
-and final difference therefore allocate at most `(2*d + 1) * (k + 1) + 2*E`
-pairs, where `E` totals the `k` batches' entry occurrences and
-`d <= R + E` is bounded by reference and batch-entry occurrences in the
-fragment. `d` is not bounded by the 68,608 simultaneously-active-environment
-allowance: fragment-owned binders can be numerous even though the difference
-removes them once. Overlapping helper batches are covered by the same
-accounting — an entry duplicated across `s` batches adds `s` to `E` but one to
-`d`, and the union deduplicates it — but the `k*d` product is where many
-similar-sized batches can still multiply prefix copies. Whether every admitted
-shape keeps that product below the selected pair arena is not established by
-this accounting. A collection runs once per extraction; authored definitions
-are never captured. The program-wide merge allocation is
-`sum((2*d + 1) * (k + 1) + 2*E)` over at most `J` collections.
+`capture_finish` prepends the fragment's sorted direct references to its `k`
+completed helper batches and merges the `k + 1` sorted lists through
+`capture_merge_all`, then subtracts owned binders once. Each tail pass unions
+adjacent sorted lists pairwise; a surviving list feeds exactly one union in the
+next pass, so an entry occurrence is emitted at most once per pass and at most
+`ceil(log2(k + 1))` passes run before one sorted union remains. Union is
+associative and commutative on sorted unique lists, so the result is the same
+sorted batch the earlier left fold produced; every receipt byte is unchanged.
+With `T = R + E` total entry occurrences across the fragment's sorted
+references and `k` batches, one collection's merges and final difference
+therefore allocate at most `(2*T + 2)*ceil(log2(k + 1)) + 2*(k + 1) + 1` pairs:
+two per emitted entry plus join, one survivor cons and pass record per pass,
+and the two-pair input prepend. The previous left fold's `k*d` product —
+many batches each rescanning an accumulated union of up to `d` distinct
+bindings — is replaced by this per-occurrence logarithmic term. `d <= T`
+remains unbounded by the 68,608 simultaneously-active-environment allowance:
+fragment-owned binders can be numerous even though the difference removes them
+once. What is still not established below the selected pair arena is the
+aggregate `T` itself: each completed helper forwards its parameter list into
+its parent's collection, so program-wide `sum(T)` depends on nested helper
+captures as well as plan size. A collection runs once per extraction; authored
+definitions are never captured. The program-wide merge allocation is
+`sum((2*T + 2)*ceil(log2(k + 1)) + 2*(k + 1) + 1)` over at most `J`
+collections.
 
 Earlier checking/lowering frames and rebuilt nodes also allocate or perform
 work; the [checking audit](../checking/README.md#traversal-and-rebuild-pairs)
@@ -321,7 +326,8 @@ pairs, where `A`, `C`, and `L` are argument edges and descended call and let
 occurrences, with `A + C + L <= 2*G`. This charges every normalizer frame and
 rebuild to the plan being traversed. `G` is produced by lowering, so the bound
 reduces the normalizer term to the earlier-phase plan size; it is not a fixed
-byte budget, and it does not bound the capture `k*d` merge term above.
+byte budget, and it does not bound the capture merge term's aggregate `T`
+above.
 
 ## Phase and receipt boundaries
 
