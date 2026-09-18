@@ -579,6 +579,171 @@ fn structural_result_call_plan() -> abstract_operations::AbstractOperationPlan {
     }
 }
 
+/// A caller that owns a record carrier with one reference leaf, moves it into
+/// a callee that returns the same carrier, and returns the result itself. The
+/// callee's declared result maps its `reference` leaf back to the owned
+/// ingress parameter, so the retained `StructuralResultCall` must carry one
+/// `reference_results` row resolved through caller custody: path
+/// `[reference]`, root the caller's parameter place.
+fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
+    let primitive = StructuralTypeId::new(1).unwrap();
+    let reference = StructuralTypeId::new(2).unwrap();
+    let carrier = StructuralTypeId::new(3).unwrap();
+    let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let caller_machine = MachineId::new(1).unwrap();
+    let callee_machine = MachineId::new(2).unwrap();
+    let caller_place = PlaceId::new(1).unwrap();
+    let callee_place = PlaceId::new(20).unwrap();
+    let result_place = PlaceId::new(12).unwrap();
+    let leaf_path = || {
+        vec![terminal_psi::StructuralPathSegment::Field(
+            "reference".into(),
+        )]
+    };
+    let ingress = |place| StructuralArgument {
+        place,
+        path: vec![
+            terminal_psi::StructuralPathSegment::Field("reference".into()),
+            terminal_psi::StructuralPathSegment::Referent,
+        ],
+        access: StructuralAccess::MutableBorrow,
+    };
+    let parameter = |place| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type: carrier,
+        multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let declaration = |place, source| terminal_psi::StructuralResultDeclaration {
+        place,
+        structural_type: carrier,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: vec![terminal_psi::StructuralReferenceResultSource {
+            path: leaf_path(),
+            source,
+        }],
+    };
+    let result = |place| terminal_psi::StructuralOperationResult {
+        place,
+        structural_type: carrier,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    let block = |raw| AbstractBlockEntry {
+        structural_parameters: Vec::new(),
+        block: BlockId::new(raw).unwrap(),
+        parameters: Vec::new(),
+        operation_offset: 0,
+    };
+    let return_structural = |raw, source| AbstractOperation::ReturnStructural {
+        psi_edge: EdgeId::new(raw).unwrap(),
+        source,
+        returned_claims: Vec::new(),
+        trivial_affine_locals: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    AbstractOperationPlan {
+        psi: super::support::identity(),
+        entry: caller_machine,
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: primitive,
+                identity: "u64".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(unsigned),
+            },
+            StructuralTypeDeclaration {
+                id: reference,
+                identity: "&mut u64".into(),
+                shape: StructuralTypeShape::Reference {
+                    referent: primitive,
+                    access: StructuralAccess::MutableBorrow,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: carrier,
+                identity: "Carrier".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "payload".into(),
+                            relevance: terminal_psi::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(unsigned),
+                        },
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(2).unwrap(),
+                            identity: "reference".into(),
+                            relevance: terminal_psi::BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(reference),
+                        },
+                    ],
+                },
+            },
+        ]
+        .into(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            AbstractFunction {
+                machine: caller_machine,
+                attachment: None,
+                entry: BlockId::new(1).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(caller_place)],
+                result: AbstractFunctionResult::Structural(declaration(
+                    PlaceId::new(97).unwrap(),
+                    ingress(caller_place),
+                )),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block(1)],
+                operations: vec![
+                    AbstractOperation::CallStructural {
+                        psi_operation: OperationId::new(12).unwrap(),
+                        result: result(result_place),
+                        callee: callee_machine,
+                        arguments: Vec::new(),
+                        structural_arguments: vec![StructuralArgument {
+                            place: caller_place,
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        }],
+                        claim_transfers: Vec::new(),
+                        returned_claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                        selected_evidence: Vec::new(),
+                    },
+                    return_structural(1, result_place),
+                ],
+            },
+            AbstractFunction {
+                machine: callee_machine,
+                attachment: None,
+                entry: BlockId::new(2).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(callee_place)],
+                result: AbstractFunctionResult::Structural(declaration(
+                    PlaceId::new(98).unwrap(),
+                    ingress(callee_place),
+                )),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block(2)],
+                operations: vec![return_structural(2, callee_place)],
+            },
+        ],
+    }
+}
+
 /// A descriptor stored into an aggregate field and later called through it.
 /// The retained rows are one `StoreDynamicDescriptor` plus one
 /// `StoredDynamicScalarCall` whose plan and source argument replay the
@@ -1453,6 +1618,128 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
                 crate::validate_abstract_to_target_translation(&source, native, &mutated),
                 Err(expected.clone()),
                 "embedded callee plan detail"
+            );
+        }
+    }
+}
+
+#[test]
+fn structural_result_call_replays_reference_result_custody() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let source = reference_result_call_plan();
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .unwrap();
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let call = target.functions[0]
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| matches!(operation, TargetUnitOperation::StructuralResultCall { .. }))
+            .expect("retained structural result call");
+        let TargetUnitOperation::StructuralResultCall {
+            result,
+            reference_results,
+            ..
+        } = call
+        else {
+            unreachable!("structural result row");
+        };
+        assert_eq!(result.place, PlaceId::new(12).unwrap());
+        // The moved owned carrier's `reference` leaf lands at the declared
+        // result path and still suspends the caller's ingress root.
+        assert_eq!(
+            reference_results.as_slice(),
+            [target_operations::TargetReferenceResult {
+                path: vec![terminal_psi::StructuralPathSegment::Field(
+                    "reference".into()
+                )],
+                root: PlaceId::new(1).unwrap(),
+            }]
+            .as_slice()
+        );
+    }
+}
+
+#[test]
+fn structural_result_call_rejects_forged_reference_result_rows() {
+    let source = reference_result_call_plan();
+    let expected =
+        crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+            machine: MachineId::new(1).unwrap(),
+            operation: OperationId::new(12).unwrap(),
+        };
+    let is_result_call = |operation: &TargetUnitOperation| {
+        matches!(operation, TargetUnitOperation::StructuralResultCall { .. })
+    };
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .unwrap();
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        for mutation in [
+            // A different suspended root: the caller parameter place is the
+            // only honest referent identity.
+            Box::new(|operation: &mut TargetUnitOperation| {
+                let TargetUnitOperation::StructuralResultCall {
+                    reference_results, ..
+                } = operation
+                else {
+                    unreachable!()
+                };
+                reference_results[0].root = PlaceId::new(77).unwrap();
+            }) as Box<dyn FnOnce(&mut TargetUnitOperation)>,
+            // A different leaf path inside the same result carrier.
+            Box::new(|operation: &mut TargetUnitOperation| {
+                let TargetUnitOperation::StructuralResultCall {
+                    reference_results, ..
+                } = operation
+                else {
+                    unreachable!()
+                };
+                reference_results[0].path =
+                    vec![terminal_psi::StructuralPathSegment::Field("payload".into())];
+            }),
+            // A deeper projection that no declared result leaf occupies.
+            Box::new(|operation: &mut TargetUnitOperation| {
+                let TargetUnitOperation::StructuralResultCall {
+                    reference_results, ..
+                } = operation
+                else {
+                    unreachable!()
+                };
+                reference_results[0]
+                    .path
+                    .push(terminal_psi::StructuralPathSegment::FixedIndex(0));
+            }),
+            // A second forged row beside the honest one.
+            Box::new(|operation: &mut TargetUnitOperation| {
+                let TargetUnitOperation::StructuralResultCall {
+                    reference_results, ..
+                } = operation
+                else {
+                    unreachable!()
+                };
+                let forged = reference_results[0].clone();
+                reference_results.push(forged);
+            }),
+            // Dropping the roster entirely is not an equivalent row.
+            Box::new(|operation: &mut TargetUnitOperation| {
+                let TargetUnitOperation::StructuralResultCall {
+                    reference_results, ..
+                } = operation
+                else {
+                    unreachable!()
+                };
+                reference_results.clear();
+            }),
+        ] {
+            let mutated = mutate_call_row(&target, is_result_call, mutation);
+            assert_eq!(
+                crate::validate_abstract_to_target_translation(&source, native, &mutated),
+                Err(expected.clone()),
+                "forged reference result row"
             );
         }
     }
