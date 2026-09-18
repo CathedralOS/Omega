@@ -53,7 +53,7 @@ fn lower_multi(sources: &[(&str, &str)]) -> Result<SymbolResolvedTrees, String> 
     })
 }
 
-fn const_named<'program>(program: &'program SymbolResolvedTrees, name: &str) -> String {
+fn const_named(program: &SymbolResolvedTrees, name: &str) -> String {
     let declaration = program
         .const_declarations
         .iter()
@@ -305,4 +305,130 @@ fn domain_and_case_same_leaf_contest_rejects_ambiguous() {
         error.contains("ambiguous membership `Choice::Some`"),
         "unexpected diagnostic: {error}"
     );
+}
+
+#[test]
+fn constrained_const_discharges_against_module_local_domain() {
+    // Both `units` and `mine` declare a `u64::Pos`; `use units` makes the
+    // foreign spelling reachable, so the leaf is contested and module-local
+    // precedence must own it. The foreign fact (`self > 9`) would refute
+    // `3`, while the module-local fact (`self > 0`) discharges — resolving
+    // proves the constraint evaluated against the exact local owner.
+    let program = lower_multi(&[
+        (
+            "units.omg",
+            "module units; pub domain u64::Pos requires self > 9;",
+        ),
+        (
+            "mine.omg",
+            "module mine; use units; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 3;",
+        ),
+    ])
+    .expect("module-local domain discharges the constrained const");
+    assert_eq!(const_named(&program, "X"), "mine::X");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::X")
+        .expect("mine::X");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "a discharged constrained const publishes compatibility identity"
+    );
+}
+
+#[test]
+fn constrained_const_reaches_foreign_domain_through_import_and_qualified_spelling() {
+    // `units` owns the only `Pos` requiring `self > 0`; `decoys` owns a
+    // same-leaf sibling whose fact would refute `3` — but nothing imports it,
+    // so it never enters the pool. Both the carrier-qualified leaf spelling
+    // (through `use units`) and the complete qualified spelling must select
+    // `units`' exact owner and discharge.
+    for (tag, declaring) in [
+        (
+            "imported",
+            "module mine; use units; const X: u64 in u64::Pos = 3;",
+        ),
+        (
+            "qualified",
+            "module mine; const X: u64 in units::u64::Pos = 3;",
+        ),
+    ] {
+        let program = lower_multi(&[
+            (
+                "units.omg",
+                "module units; pub domain u64::Pos requires self > 0;",
+            ),
+            (
+                "decoys.omg",
+                "module decoys; pub domain u64::Pos requires self > 9;",
+            ),
+            ("mine.omg", declaring),
+        ])
+        .unwrap_or_else(|e| panic!("{tag} foreign domain selection: {e}"));
+        assert_eq!(const_named(&program, "X"), "mine::X", "{tag}");
+    }
+}
+
+#[test]
+fn constrained_const_rejects_refuted_domain_fact() {
+    // The selected module-local owner evaluates `self > 0` at `0` and refutes
+    // the declaration — a precise rejection, not the generic fence.
+    let error = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 0;",
+    )])
+    .expect_err("a refuted constrained const rejects");
+    assert!(
+        error.contains("domain constraint `u64::Pos` for const `X` is false")
+            || error.contains("is false"),
+        "unexpected diagnostic: {error}"
+    );
+}
+
+#[test]
+fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
+    for (tag, sources) in [
+        // `Pos` exists only inside the unimported sibling `units`; the
+        // carrier-qualified leaf cannot reach it from `mine`.
+        (
+            "unreachable foreign leaf",
+            &[
+                (
+                    "units.omg",
+                    "module units; pub domain u64::Pos requires self > 0;",
+                ),
+                ("mine.omg", "module mine; const X: u64 in u64::Pos = 3;"),
+            ][..],
+        ),
+        // Two imported foreign owners contest the leaf with no module-local
+        // candidate: the pool declines rather than guess.
+        (
+            "contested foreign owners",
+            &[
+                ("a.omg", "module a; pub domain u64::Pos requires self > 0;"),
+                ("b.omg", "module b; pub domain u64::Pos requires self > 0;"),
+                (
+                    "mine.omg",
+                    "module mine; use a; use b; const X: u64 in u64::Pos = 3;",
+                ),
+            ][..],
+        ),
+        // A closed index application on a domain family still owes its
+        // open-template membership proof.
+        (
+            "indexed domain family",
+            &[(
+                "mine.omg",
+                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<8> = 3;",
+            )][..],
+        ),
+    ] {
+        let error = lower_multi(sources).expect_err("{tag} must stay fenced");
+        assert!(
+            error
+                .contains("constrained const declarations require declaration-site proof checking"),
+            "{tag}: unexpected diagnostic: {error}"
+        );
+    }
 }

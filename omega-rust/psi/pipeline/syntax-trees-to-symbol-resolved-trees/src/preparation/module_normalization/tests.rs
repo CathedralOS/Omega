@@ -801,10 +801,11 @@ fn same_leaf_generic_family_declines_constrained_argument_identity() {
 
 #[test]
 fn module_generic_carrier_constants_defer_value_admission_with_exact_base_selection() {
-    // A generic carrier holds no canonical const-index identity before its
-    // closed instance exists, so admission defers to lowering as at root —
-    // while the base template still selects exactly in the declaring source,
-    // preferring the module-local `Box` over the imported same-leaf one.
+    // A generic carrier admits its value through the closed instance's
+    // evaluation at lowering as at root — while the base template still
+    // selects exactly in the declaring source, preferring the module-local
+    // `Box` over the imported same-leaf one. The declaration's canonical
+    // identity is the closed `Box<u64>` instance's encoding.
     let syntax = parse(&[
         "module other; pub data Box<T> { value: T; }",
         "module mine; use other::Box; data Box<T> { value: T; } const B: Box<u64> = Box { value: 3 };",
@@ -817,8 +818,8 @@ fn module_generic_carrier_constants_defer_value_admission_with_exact_base_select
         .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::B")
         .expect("the module constant resolved");
     assert!(
-        declaration.canonical_value_encoding.is_none(),
-        "a generic carrier cannot publish canonical const-index identity"
+        declaration.canonical_value_encoding.is_some(),
+        "a closed generic carrier publishes the instance's canonical identity"
     );
     let symbol_resolved_trees::types::TypeReference::Generic(application) =
         &declaration.declared_type
@@ -834,8 +835,9 @@ fn module_generic_carrier_constants_defer_value_admission_with_exact_base_select
 
 #[test]
 fn module_generic_carrier_arrays_share_the_deferral() {
-    // `[Box<u64>; 2]` peels to the same generic-leaf gate: no canonical
-    // identity, and the base still lands on the declaring module's template.
+    // `[Box<u64>; 2]` peels to the same generic-leaf gate: the declaration's
+    // canonical identity is the closed instance encoding, and the base still
+    // lands on the declaring module's template.
     let syntax = parse(&[
         "module mine; data Box<T> { value: T; } const BS: [Box<u64>; 2] = [Box { value: 1 }, Box { value: 2 }];",
     ]);
@@ -847,8 +849,8 @@ fn module_generic_carrier_arrays_share_the_deferral() {
         .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::BS")
         .expect("the module constant resolved");
     assert!(
-        declaration.canonical_value_encoding.is_none(),
-        "an array of generic carriers cannot publish canonical identity either"
+        declaration.canonical_value_encoding.is_some(),
+        "an array of generic carriers publishes the closed instance identity too"
     );
     let symbol_resolved_trees::types::TypeReference::FixedArray(array) = &declaration.declared_type
     else {
@@ -919,23 +921,94 @@ fn module_generic_carrier_constants_reject_unselected_or_ineligible_bases() {
             &["module mine; data Box { value: u64; } const B: Box<u64> = Box { value: 3 };"][..],
             "does not select a generic data template",
         ),
-        // A constrained carrier keeps its declaration-site proof fence.
+    ] {
+        let syntax = parse(sources);
+        let diagnostics = crate::resolve(crate::ResolutionRequest::new(&syntax))
+            .expect_err("an unselected or ineligible carrier still rejects");
+        assert!(
+            diagnostics[0].message.contains(fragment),
+            "{sources:?}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn module_generic_carrier_constants_publish_public_identity() {
+    // Public constants owe canonical declaration identity: a public
+    // generic-carrier const publishes the closed instance's encoding rather
+    // than deferring value admission the way a private one may.
+    let syntax = parse(&[
+        "module mine; data Box<T> { value: T; } pub const B: Box<u64> = Box { value: 3 };",
+    ]);
+    let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("a public generic-carrier const publishes canonical identity");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::B")
+        .expect("the module constant resolved");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "the public declaration identity is the closed instance's encoding"
+    );
+}
+
+#[test]
+fn module_constrained_consts_discharge_domain_facts_at_declaration_site() {
+    // `X`'s constrained carrier selects the module-local `Pos` — never the
+    // same-leaf foreign or root sibling — and replays its facts with `self`
+    // bound to the canonical value before publishing identity.
+    let syntax = parse(&[
+        "domain u64::Pos requires self > 5;",
+        "module other; domain u64::Pos requires self > 9;",
+        "module mine; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 3;",
+    ]);
+    let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("the module-local domain owns and discharges the fact");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::X")
+        .expect("the module constant resolved");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "a discharged constrained const publishes canonical identity"
+    );
+}
+
+#[test]
+fn module_constrained_consts_reject_refuted_or_unproved_domains() {
+    for (sources, fragment) in [
+        // The module-local owner refutes `0 > 0`.
         (
-            &["module mine; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 3;"][..],
+            &["module mine; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 0;"][..],
+            "is false",
+        ),
+        // `Pos` exists only inside the unimported sibling `other`; the leaf
+        // cannot reach it from `mine`, so no owner discharges the constraint.
+        (
+            &[
+                "module other; domain u64::Pos requires self > 0;",
+                "module mine; const X: u64 in u64::Pos = 3;",
+            ][..],
             "constrained const declarations require declaration-site proof checking",
         ),
-        // Public constants still owe canonical declaration identity; the
-        // deferral only covers private value admission.
+        // A closed index application on a domain family still owes its
+        // open-template membership proof.
         (
-            &["module mine; data Box<T> { value: T; } pub const B: Box<u64> = Box { value: 3 };"][..],
-            "canonical declaration identity",
+            &[
+                "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<8> = 3;",
+            ][..],
+            "constrained const declarations require declaration-site proof checking",
         ),
     ] {
         let syntax = parse(sources);
         let diagnostics = crate::resolve(crate::ResolutionRequest::new(&syntax))
-            .expect_err("an unselected, ineligible, or identity-owing carrier still rejects");
+            .expect_err("a refuted or unproved constrained const still rejects");
         assert!(
-            diagnostics[0].message.contains(fragment),
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(fragment)),
             "{sources:?}: {diagnostics:?}"
         );
     }

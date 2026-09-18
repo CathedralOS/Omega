@@ -1,7 +1,7 @@
 //! Constant evaluation: facts.
 use super::super::{
-    Diagnostic, ExpressionHandle, ExpressionNode, HashMap, Item, ProofFact, SyntaxTrees,
-    TypeReferenceNode,
+    CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
+    Item, ProofFact, SyntaxTrees, TypeConstraintNode, TypeReferenceNode,
 };
 
 use crate::preparation::generic_data::ConstFactValue;
@@ -278,6 +278,99 @@ pub(in crate::preparation::generic_data) fn evaluate_named_const_domain(
         warnings.truncate(warning_start);
     }
     result
+}
+
+/// The shared fence for constrained const declarations whose carrier's
+/// constraints cannot be proved at declaration site.
+const CONSTRAINED_CONST_FENCE: &str = "constrained const declarations require declaration-site proof checking before they can publish compatibility identity";
+
+/// Discharge a constrained const declaration's domain constraints at its
+/// canonical value — the declaration-site proof a constrained carrier owes
+/// before it may publish compatibility identity. Every constraint must be an
+/// unindexed `Domain` application whose authored spelling selects one exact
+/// owner under module name law (the same selection the resolver later applies
+/// to the declaration's retained type); its facts then replay with `self`
+/// bound to the value through the same evaluator `where`-membership discharge
+/// uses. Indexed applications, non-domain constraints, non-integer values,
+/// and contested or unreachable owners keep the declaration fenced rather
+/// than publishing identity against a guessed or absent owner.
+///
+/// Without a `ConstantSelection` (source-free canonicalization) the evaluator
+/// falls back to exact declared-name matching, which cannot see module
+/// ownership. That fallback may only select an unmoduled domain declared
+/// exactly once — a module-owned or duplicated leaf match stays fenced rather
+/// than borrowing an owner the name alone cannot establish.
+pub(in crate::preparation::generic_data) fn prove_declared_const_domain_constraints(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    constraints: &[TypeConstraintNode],
+    value: &CanonicalConstValue,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+) -> Result<(), String> {
+    let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+        type_name: carrier,
+        value: integer,
+    }) = value.decode_encoding()
+    else {
+        return Err(CONSTRAINED_CONST_FENCE.to_owned());
+    };
+    let const_values =
+        crate::preparation::generic_data::module_constants::lexical_integer_const_values(syntax);
+    let mut warnings = Vec::new();
+    for constraint in constraints {
+        let TypeConstraintNode::Domain(domain) = constraint else {
+            return Err(CONSTRAINED_CONST_FENCE.to_owned());
+        };
+        if !domain.arguments.is_empty() {
+            // A closed index application on a domain family still owes its
+            // open-template membership proof; keep the declaration fenced.
+            return Err(CONSTRAINED_CONST_FENCE.to_owned());
+        }
+        if selection.is_none() {
+            let expanded = if domain.name.as_str().contains("::") {
+                domain.name.as_str().to_owned()
+            } else {
+                format!("{carrier}::{}", domain.name.as_str())
+            };
+            let mut matches = syntax.root_items().filter_map(|item| match item {
+                Item::Domain(domain) if domain.name.as_str() == expanded => Some(domain),
+                _ => None,
+            });
+            let unmoduled_unique = matches.next().is_some_and(|domain| {
+                matches.next().is_none()
+                    && crate::preparation::generic_data::module_constants::module_path(
+                        syntax,
+                        domain.name.source_span().source_id,
+                    )
+                    .is_none()
+            });
+            if !unmoduled_unique {
+                return Err(CONSTRAINED_CONST_FENCE.to_owned());
+            }
+        }
+        match evaluate_named_const_domain(
+            syntax,
+            domain.name.as_str(),
+            &carrier,
+            integer,
+            &const_values,
+            &mut Vec::new(),
+            domain.name.source_span(),
+            selection,
+            &mut warnings,
+        )? {
+            Some(true) => {}
+            Some(false) => {
+                return Err(format!(
+                    "domain constraint `{}` for const `{}` is false",
+                    domain.name.as_str(),
+                    super::qualified_const_name(definition),
+                ));
+            }
+            None => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
+        }
+    }
+    Ok(())
 }
 
 pub(in crate::preparation::generic_data) fn evaluate_const_domain_expression(

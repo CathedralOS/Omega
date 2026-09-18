@@ -203,8 +203,11 @@ fn unique_domain_index_parameters<'syntax>(
 ///
 /// This is the narrow handoff used by declaration/API retention. The returned
 /// value's structural encoding is semantic material; its display text remains
-/// diagnostic-only. Constrained public constants stay unsupported until their
-/// declaration-site proof obligations are checked rather than erased here.
+/// diagnostic-only. A constrained carrier canonicalizes at its base and then
+/// owes declaration-site proof: each unindexed domain constraint must
+/// discharge against the canonical value through the same exact owner
+/// selection and fact evaluator `where`-membership uses, or the declaration
+/// stays fenced rather than publishing an unproved identity.
 pub fn canonicalize_declared_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
@@ -217,19 +220,26 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     definition: &ConstDefinition,
     selection: Option<&constant_selection::ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
-    if matches!(
-        syntax
-            .tables
-            .type_references
-            .type_reference(definition.type_reference),
-        TypeReferenceNode::Constrained { .. }
-    ) {
-        return Err(
-            "constrained const declarations require declaration-site proof checking before they can publish compatibility identity"
-                .to_owned(),
-        );
+    let value = canonicalize_selected_const_definition(
+        syntax,
+        definition,
+        definition.type_reference,
+        selection,
+    )?;
+    if let TypeReferenceNode::Constrained { constraints, .. } = syntax
+        .tables
+        .type_references
+        .type_reference(definition.type_reference)
+    {
+        prove_declared_const_domain_constraints(
+            syntax,
+            definition,
+            syntax.tables.type_references.constraints(*constraints),
+            &value,
+            selection,
+        )?;
     }
-    canonicalize_selected_const_definition(syntax, definition, definition.type_reference, selection)
+    Ok(value)
 }
 
 /// Find `Base<Args..>` spellings in FIELD type position where `Base` is a

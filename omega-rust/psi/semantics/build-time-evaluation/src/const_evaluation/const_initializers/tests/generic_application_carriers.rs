@@ -216,23 +216,43 @@ fn float_literal_module_const_stays_literal() {
 }
 
 #[test]
-fn module_owned_constrained_const_still_fences() {
-    // Residual: a module-owned const with a constrained carrier cannot publish
-    // compatibility identity until declaration-site proof checking exists, so
-    // the module gate rejects it once module validation actually runs (the
-    // float sibling is what makes this evaluation batch nonempty).
-    let errors = evaluate_files(&[
+fn module_owned_constrained_const_discharges_at_declaration_site() {
+    // A module-owned const with a constrained carrier publishes compatibility
+    // identity once its value is proved against the selected domain's facts:
+    // `3 > 0` discharges under `m`'s own `Pos` at declaration site. The float
+    // sibling keeps the evaluation batch nonempty so module validation runs.
+    let evaluated = evaluate_files(&[
         (
             "m.omg",
             "module m; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 3;",
         ),
         ("f.omg", "module f; const F: f64 = 1.5;"),
     ])
-    .expect_err("module-owned constrained const still fences");
+    .expect("module-owned constrained const discharges its domain facts");
+    let definition = constant(&evaluated, "X");
+    assert!(matches!(
+        evaluated.expressions.expression(definition.value),
+        ExpressionNode::Integer(_)
+    ));
+}
+
+#[test]
+fn module_owned_constrained_const_rejects_a_refuted_domain() {
+    // The same gate rejects when the selected domain's facts refute the
+    // declared value: `0 > 0` is false, so no identity may publish. The float
+    // sibling again keeps the evaluation batch nonempty.
+    let errors = evaluate_files(&[
+        (
+            "m.omg",
+            "module m; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 0;",
+        ),
+        ("f.omg", "module f; const F: f64 = 1.5;"),
+    ])
+    .expect_err("a refuted constrained const still rejects");
     assert!(
-        errors.iter().any(|error| error
-            .message
-            .contains("constrained const declarations require declaration-site proof checking")),
+        errors
+            .iter()
+            .any(|error| error.message.contains("is false")),
         "unexpected diagnostics: {errors:?}"
     );
 }

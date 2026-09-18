@@ -10,7 +10,6 @@ use crate::preparation::generic_data::collect_type_reference_positions;
 use crate::preparation::generic_data::consider_generic_spelling;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use crate::preparation::generic_data::evaluate_const_membership_fact;
-use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::normalize_generic_template_const_expressions;
 use crate::preparation::generic_data::qualified_const_name;
 use crate::preparation::generic_data::relabel_closed_data_uses_in_exact_assignments;
@@ -27,7 +26,6 @@ use numerics::literals::IntegerLiteral;
 use numerics::literals::IntegerRadix;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ConstDefinition;
 use syntax_trees::item::DataDefinition;
@@ -233,32 +231,7 @@ pub(super) fn desugar_generic_data_instances_with_selection(
             Some((qualified_const_name(definition), definition.clone()))
         })
         .collect();
-    let const_values: HashMap<String, i128> = syntax
-        .root_items()
-        .filter_map(|item| {
-            let Item::Const(definition) = item else {
-                return None;
-            };
-            if super::module_constants::is_module_constant(syntax, definition) {
-                return None;
-            }
-            let ExpressionNode::Integer(value) = syntax.expressions.expression(definition.value)
-            else {
-                return None;
-            };
-            let value = integer_literal_value(value)?;
-            let qualified_name = if definition.scope.as_str().is_empty() {
-                definition.name.as_str().to_string()
-            } else {
-                format!(
-                    "{}::{}",
-                    definition.scope.as_str(),
-                    definition.name.as_str()
-                )
-            };
-            Some((qualified_name, value))
-        })
-        .collect();
+    let const_values = super::module_constants::lexical_integer_const_values(syntax);
 
     canonicalize_closed_domain_indices(
         syntax,
