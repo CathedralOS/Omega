@@ -1,6 +1,7 @@
 use super::{
-    BETWEEN, LOAD, OUTPUT, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, crossed_edge,
-    fixture, forward, instruction, mutated_chained, place, sequence_pair, successor,
+    BETWEEN, LOAD, MATERIALIZE_READ_INDEX, OUTPUT, POINTER, READ_INDEX, SCRATCH, SEQUENCE_INDEX,
+    STORE, VALUE, access, budget, chained, crossed_edge, define_index, define_index_as, fixture,
+    forward, instruction, mutated_chained, place, sequence_pair, sequence_write, successor,
 };
 use crate::{
     StoredLoadForwardingError, forward_selected_stored_load, validate_stored_load_forwarding,
@@ -1953,5 +1954,255 @@ fn cross_block_byte_sequence_load_forwards_across_the_edge() {
     assert_eq!(
         forward(&storeless, &environment).unwrap_err(),
         StoredLoadForwardingError::UnsupportedPair
+    );
+}
+
+/// The constant-index treatment crosses an edge the same way it walks a
+/// block: the resolved read byte is a fixed position, a resolved sequence
+/// write in the predecessor lands on or off it, and an edge transport
+/// redefining the index's carrier keeps the read dynamic — the resolved
+/// `MaterializeI64` is no longer the value's only definition.
+#[test]
+fn cross_block_constant_index_rows_land_on_fixed_positions() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The read's index materializes to 3 against payload base 8 — the byte
+    // is fixed at 11 — so the exact one-byte `Store` in the predecessor
+    // sources the forward across the edge.
+    let exact = mutated_chained(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            1,
+            0,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == STORE)
+            {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 11,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            }
+        }
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
+        };
+    });
+    let result = forward(&exact, &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    let rewritten = function.blocks[1]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.kind, SelectedInstructionKind::ZeroExtendU8);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    assert_eq!(
+        function
+            .memory_accesses
+            .iter()
+            .map(|access| (access.instruction, access.byte_offset, access.role))
+            .collect::<Vec<_>>(),
+        vec![(STORE, 11, SelectedMemoryAccessRole::WritePlace)]
+    );
+    validate_stored_load_forwarding(
+        &exact,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A resolved sequence write in the predecessor landing off the read
+    // byte — base 4 plus index 8 lands on 12 — walks past to the source.
+    let walks_past = mutated_chained(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            1,
+            0,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == STORE)
+            {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 11,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            }
+        }
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
+        };
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace),
+        );
+        sequence_write(function, environment, BETWEEN, 1, 4, 9, SCRATCH);
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            8,
+        );
+    });
+    let result = forward(&walks_past, &environment).unwrap();
+    let rewritten = result.transformed().functions[0].blocks[1]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    validate_stored_load_forwarding(
+        &walks_past,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // Landing on the read byte instead makes the intervening write the last
+    // writer: it sources the forward with its own stored register across
+    // the edge.
+    let lands_on = mutated_chained(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            1,
+            0,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace),
+        );
+        sequence_write(function, environment, BETWEEN, 1, 4, 9, SCRATCH);
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            7,
+        );
+    });
+    let result = forward(&lands_on, &environment).unwrap();
+    let rewritten = result.transformed().functions[0].blocks[1]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.operands[0].virtual_register, SCRATCH);
+    validate_stored_load_forwarding(
+        &lands_on,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // An edge transport defining the index's carrier leaves the resolved
+    // `MaterializeI64` no longer the value's only definition: the audit
+    // keeps the read index runtime, so the exact one-byte writer cannot
+    // source the runtime-placed byte.
+    let redefined = mutated_chained(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            1,
+            0,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == STORE)
+            {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 11,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            }
+        }
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
+        };
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: SCRATCH,
+                parameter: READ_INDEX,
+            },
+        });
+    });
+    assert_eq!(
+        forward(&redefined, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
     );
 }

@@ -1,6 +1,7 @@
 use super::{
-    BETWEEN, LOAD, OUTPUT, POINTER, SCRATCH, STORE, VALUE, access, budget, chained, fixture,
-    forward, instruction, mutated, narrowed, place, sequence_pair,
+    BETWEEN, LOAD, MATERIALIZE_READ_INDEX, OUTPUT, POINTER, READ_INDEX, SCRATCH, SEQUENCE_INDEX,
+    STORE, VALUE, access, budget, chained, define_index, define_index_as, fixture, forward,
+    instruction, mutated, narrowed, place, sequence_pair, sequence_write,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::{
@@ -13,7 +14,9 @@ use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionId, SelectedInstructionKind,
     SelectedLocalStorageSlot, SelectedMemoryAccess, SelectedMemoryAccessRole, VirtualRegisterId,
 };
-use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType, ValueId,
+};
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -1626,6 +1629,665 @@ fn byte_sequence_walk_obeys_the_dynamic_extent_rule() {
     });
     assert_eq!(
         forward(&address, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+}
+
+/// A byte-sequence row whose `index` resolves through the same carrier
+/// audit the dead-store covering routes run touches exactly one byte —
+/// `byte_offset + index` — wherever its payload base sits. The indexed
+/// load's own index decides the same way: resolving it collapses the read
+/// extent to that one fixed byte before the walk, so an exact one-byte
+/// `Store` at the resolved position or a sequence write whose resolved
+/// index lands on it each sources the forward, while a resolved write
+/// landing anywhere else walks past to the real source.
+#[test]
+fn constant_index_read_collapses_to_a_fixed_byte() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The read's index materializes to 3 against payload base 8: the read
+    // byte is fixed at 11, so the exact one-byte `Store` there — never a
+    // dynamic read's writer — sources the forward.
+    let exact = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == STORE)
+            {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 11,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            }
+        }
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
+        };
+    });
+    let result = forward(&exact, &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    let rewritten = function.blocks[0]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.kind, SelectedInstructionKind::ZeroExtendU8);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+    // Only the read row drops; the covering write row survives.
+    assert_eq!(
+        function
+            .memory_accesses
+            .iter()
+            .map(|access| (access.instruction, access.byte_offset, access.role))
+            .collect::<Vec<_>>(),
+        vec![(STORE, 11, SelectedMemoryAccessRole::WritePlace)]
+    );
+    validate_stored_load_forwarding(
+        &exact,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A sequence write whose own index resolves lands on one byte; landing
+    // on the read byte — payload base 4 plus index 7 — sources the forward
+    // even though neither payload base nor index value matches the read's.
+    let sequence = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        function.memory_accesses[0].byte_offset = 4;
+        let SelectedMemoryAccessRole::WriteByteSequence { index, .. } =
+            &mut function.memory_accesses[0].role
+        else {
+            unreachable!()
+        };
+        *index = ValueId::new(9).unwrap();
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            7,
+        );
+    });
+    let result = forward(&sequence, &environment).unwrap();
+    let rewritten = result.transformed().functions[0].blocks[0]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.kind, SelectedInstructionKind::ZeroExtendU8);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    validate_stored_load_forwarding(
+        &sequence,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // The same landing decides a fixed-offset byte load's forward: a
+    // resolved sequence write landing on its byte sources it.
+    let fixed_load = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        let load8 = environment
+            .constraint(environment.selected_keys().load8.unwrap())
+            .unwrap();
+        let mut rewritten = instruction(
+            LOAD,
+            SelectedInstructionKind::Load8 { byte_offset: 11 },
+            load8,
+            &[POINTER, OUTPUT],
+        );
+        rewritten.provenance.operations = vec![OperationId::new(2).unwrap()];
+        rewritten.provenance.values = vec![ValueId::new(4).unwrap()];
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == LOAD)
+            {
+                block.instructions[position] = rewritten.clone();
+            }
+        }
+        function.memory_accesses[1] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(LOAD, 2, place(), 11, SelectedMemoryAccessRole::ReadPlace)
+        };
+        function.memory_accesses[0].byte_offset = 4;
+        let SelectedMemoryAccessRole::WriteByteSequence { index, .. } =
+            &mut function.memory_accesses[0].role
+        else {
+            unreachable!()
+        };
+        *index = ValueId::new(9).unwrap();
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            7,
+        );
+    });
+    let result = forward(&fixed_load, &environment).unwrap();
+    let rewritten = result.transformed().functions[0].blocks[0]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.kind, SelectedInstructionKind::ZeroExtendU8);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    validate_stored_load_forwarding(
+        &fixed_load,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // An intervening sequence write whose resolved index lands off the read
+    // byte — base 4 plus index 8 lands on 12 — walks past to the source.
+    let walks_past = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == STORE)
+            {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 11,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            }
+        }
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
+        };
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace),
+        );
+        sequence_write(function, environment, BETWEEN, 1, 4, 9, SCRATCH);
+        define_index(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            8,
+        );
+    });
+    let result = forward(&walks_past, &environment).unwrap();
+    let rewritten = result.transformed().functions[0].blocks[0]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    validate_stored_load_forwarding(
+        &walks_past,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // Landing on the read byte instead makes the intervening write the last
+    // writer: it sources the forward with its own stored register.
+    let lands_on = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace),
+        );
+        sequence_write(function, environment, BETWEEN, 1, 4, 9, SCRATCH);
+        define_index(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            7,
+        );
+    });
+    let result = forward(&lands_on, &environment).unwrap();
+    let rewritten = result.transformed().functions[0].blocks[0]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.operands[0].virtual_register, SCRATCH);
+    validate_stored_load_forwarding(
+        &lands_on,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A wider exact write containing the read byte still cannot produce it
+    // from one register — covering is not sourcing.
+    let wider = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == STORE)
+            {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 11,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            }
+        }
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
+        };
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == BETWEEN)
+            {
+                block.instructions[position] = instruction(
+                    BETWEEN,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 10,
+                        byte_size: 4,
+                    },
+                    store,
+                    &[POINTER, SCRATCH],
+                );
+            }
+        }
+        function.memory_accesses.insert(
+            1,
+            SelectedMemoryAccess {
+                byte_count: 4,
+                ..access(
+                    BETWEEN,
+                    3,
+                    place(),
+                    10,
+                    SelectedMemoryAccessRole::WritePlace,
+                )
+            },
+        );
+    });
+    assert_eq!(
+        forward(&wider, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // An unresolved sequence write whose payload base sits at or below the
+    // fixed read byte can still land on it — it interferes and cannot be
+    // the byte-exact source.
+    let runtime_writer = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == STORE)
+            {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 11,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            }
+        }
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
+        };
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 8, SelectedMemoryAccessRole::WritePlace),
+        );
+        sequence_write(function, environment, BETWEEN, 1, 8, 9, SCRATCH);
+    });
+    assert_eq!(
+        forward(&runtime_writer, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+}
+
+/// A read index staying runtime keeps the dynamic extent, but a sequence
+/// write whose own `index` resolves to a byte below the payload base is
+/// provably disjoint from every byte the read can touch — it walks past to
+/// the real source. A resolved landing at or past the base still meets the
+/// read and, not being the byte-exact source, rejects.
+#[test]
+fn constant_index_writer_against_a_dynamic_read() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // The read byte sits anywhere at or past base 8; the intervening
+    // sequence write's resolved index lands it on byte 6 — provably below
+    // the read's reach — so the walk continues to the matching sequence
+    // store and forwards its register.
+    let below = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace),
+        );
+        sequence_write(function, environment, BETWEEN, 1, 4, 9, SCRATCH);
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            2,
+        );
+    });
+    let result = forward(&below, &environment).unwrap();
+    let rewritten = result.transformed().functions[0].blocks[0]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.kind, SelectedInstructionKind::ZeroExtendU8);
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    validate_stored_load_forwarding(
+        &below,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // Landing at the base — byte 8 — still meets the read's reach, and a
+    // landing there cannot source a runtime-placed read byte.
+    let at_base = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace),
+        );
+        sequence_write(function, environment, BETWEEN, 1, 4, 9, SCRATCH);
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            4,
+        );
+    });
+    assert_eq!(
+        forward(&at_base, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // Distinct index values still spell the read byte when both resolve to
+    // constants whose `byte_offset + index` sums agree — here the read's
+    // own index resolves to a position no u32 names, so the extent stays
+    // dynamic and the write's equal sum sources it.
+    let equal_sums = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            u64::from(u32::MAX),
+        );
+        function.memory_accesses[0].byte_offset = 4;
+        let SelectedMemoryAccessRole::WriteByteSequence { index, .. } =
+            &mut function.memory_accesses[0].role
+        else {
+            unreachable!()
+        };
+        *index = ValueId::new(9).unwrap();
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            u64::from(u32::MAX) + 4,
+        );
+    });
+    let result = forward(&equal_sums, &environment).unwrap();
+    let rewritten = result.transformed().functions[0].blocks[0]
+        .instructions
+        .iter()
+        .find(|instruction| instruction.id == LOAD)
+        .unwrap();
+    assert_eq!(rewritten.operands[0].virtual_register, VALUE);
+    validate_stored_load_forwarding(
+        &equal_sums,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // Distinct index values whose resolved sums disagree land on different
+    // bytes — the write never spells the read's byte.
+    let unequal_sums = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            u64::from(u32::MAX),
+        );
+        function.memory_accesses[0].byte_offset = 4;
+        let SelectedMemoryAccessRole::WriteByteSequence { index, .. } =
+            &mut function.memory_accesses[0].role
+        else {
+            unreachable!()
+        };
+        *index = ValueId::new(9).unwrap();
+        define_index(
+            function,
+            environment,
+            0,
+            2,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            u64::from(u32::MAX) + 5,
+        );
+    });
+    assert_eq!(
+        forward(&unequal_sums, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
+    // A resolved index still needs the clean carrier audit: two
+    // `InstructionResult` registers claiming the index value leave it
+    // ambiguous, so the write's reach stays runtime and — payload base at
+    // or below the read's — it still interferes.
+    let ambiguous = mutated(target, |function, environment| {
+        sequence_pair(function, environment, 8, 5);
+        define_index_as(
+            function,
+            environment,
+            0,
+            1,
+            MATERIALIZE_READ_INDEX,
+            READ_INDEX,
+            ValueId::new(5).unwrap(),
+            3,
+        );
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == STORE)
+            {
+                block.instructions[position] = instruction(
+                    STORE,
+                    SelectedInstructionKind::Store {
+                        byte_offset: 11,
+                        byte_size: 1,
+                    },
+                    store,
+                    &[POINTER, VALUE],
+                );
+            }
+        }
+        function.memory_accesses[0] = SelectedMemoryAccess {
+            byte_count: 1,
+            ..access(STORE, 1, place(), 11, SelectedMemoryAccessRole::WritePlace)
+        };
+        function.memory_accesses.insert(
+            1,
+            access(BETWEEN, 3, place(), 4, SelectedMemoryAccessRole::WritePlace),
+        );
+        sequence_write(function, environment, BETWEEN, 1, 4, 9, SCRATCH);
+        define_index(
+            function,
+            environment,
+            0,
+            3,
+            SEQUENCE_INDEX,
+            ValueId::new(9).unwrap(),
+            8,
+        );
+        function
+            .virtual_registers
+            .push(selected_instructions::VirtualRegister {
+                id: VirtualRegisterId(20),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+                class: function.virtual_registers[0].class,
+                origin: selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                    instruction: SelectedInstructionId(9),
+                    source_value: ValueId::new(9).unwrap(),
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            });
+    });
+    assert_eq!(
+        forward(&ambiguous, &environment).unwrap_err(),
         StoredLoadForwardingError::AliasingWrite
     );
 }
