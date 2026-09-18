@@ -19,6 +19,8 @@ mod optimization_execution_custody;
 mod pcc;
 #[path = "artifact/pcc_custody.rs"]
 mod pcc_custody;
+#[path = "artifact/placed_view_input_custody.rs"]
+mod placed_view_input_custody;
 #[path = "artifact/proof_section.rs"]
 mod proof_section;
 #[path = "artifact/proof_section_custody.rs"]
