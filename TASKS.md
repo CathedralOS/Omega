@@ -3511,15 +3511,34 @@ Owners include
   transactional arguments, park/resume lowering, and the suspension-safe loan
   subset. Bind an authoritative possibly-suspending crossing roster so coordinated
   deletion of both a Terminal site and plan cannot erase a required crossing.
+  Follow the [task runtime contract](wiki/spec/build/task_runtime.md) and the
+  [call/outcome contract](wiki/spec/terminal-psi/calls_and_outcomes.md) through
+  `task-plans`, `provider-planning/src/task_plans/`, provider admission, and a
+  real selected runtime.
+
+  Static carriers exist: `task_plans/stack_graphs.rs` derives a sealed WCSU
+  `StackPlan` over exact checked-body call edges and rejects a
+  possibly-suspending call that has no canonical crossing, and the `task-plans`
+  ledger issues a plan-bound `StackLease` and returns the moved arguments and
+  the lease whole on every start rejection. Per the
+  [task-plans note](omega-rust/omega/representations/task-plans/README.md),
+  routed source `Task<T>` establishment, argument marshalling, stack
+  provisioning, cancellation conformance and real runtime execution remain.
+
   Acceptance: stack/control custody is never compiler-owned or lost across a
-  suspension edge, and missing crossing demand rejects under the
-  [call/outcome contract](wiki/spec/terminal-psi/calls_and_outcomes.md).
-  Follow the [task runtime contract](wiki/spec/build/task_runtime.md) through
-  `task-plans`, provider admission, and a real selected runtime. Acceptance also
-  exercises concurrent start/park/resume/finish, rejection returning every moved
-  argument and lease, cross-instance settlement rejection, and fresh storage
-  eras on reuse. Static plans and lifecycle ledger tests alone do not establish
-  executable activation or argument conservation.
+  suspension edge, and missing crossing demand rejects. Exercise concurrent
+  start/park/resume/finish, rejection returning every moved argument and lease,
+  cross-instance settlement rejection, and fresh storage eras on reuse. Static
+  plans and lifecycle ledger tests alone do not establish executable activation
+  or argument conservation.
+
+  Flag: `stack_graphs.rs` adds a child frame only when a call target resolves
+  to a checked-body machine state. Requirement slots, machine parameters,
+  dynamic descriptor calls and non-checked supply `continue` with no edge, no
+  `AdmittedSameStack` contribution (only tests construct one) and no
+  rejection, so a frame they place on this stack adds zero bytes to a bound
+  published as exact whole-call-graph WCSU. A worst-case bound needs an
+  admitted contribution or a rejection for every call it cannot resolve.
 
 - **ATOMIC-MEMORY-MODEL.** Complete the formal atomic/fence axioms and checked
   target refinement under the
