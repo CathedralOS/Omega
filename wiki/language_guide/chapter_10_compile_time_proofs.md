@@ -212,6 +212,29 @@ Ordinary `Nat - Nat` likewise requires the right operand to be no greater than
 the left. Clamping is explicit `Nat::saturating_sub(left, right)`. Conversion
 from `Int` to `Nat` requires nonnegativity.
 
+The machine contract is the same whether you execute it or use it in a proof:
+
+```omega
+machine remaining(total: Nat, used: Nat) -> Nat
+requires used <= total;
+{
+    transition { _ -> (total - used) }
+}
+```
+
+The premise permits exact subtraction. Replacing the body expression with
+`Nat::subtract(total, used)` has exactly the same obligation; removing the
+premise without supplying other evidence rejects either spelling. Being a `Nat`
+means nonnegative, not that one operand is at least the other. `Nat` includes
+zero, so exact `n - 1` requires `n >= 1`. If clamping is intended, name
+`Nat::saturating_sub`: it returns zero on underflow in every admitted use.
+
+For a recursive theorem call, prove both that its arguments satisfy `requires`
+and that its ranking decreases. A smaller argument is not automatically an
+argument satisfying the theorem's hypotheses. Evidence can come from the current
+premises, a guard, or checked lemmas; inability to find it does not prove the
+claim false and does not allow the call.
+
 Floats use `Float::meaning32` or `Float::meaning64`, not integer embedding.
 `FloatMeaning` preserves finite rational value, signed zero, infinity, and NaN.
 Its structural proof equality is not IEEE equality: its NaN case is reflexive,

@@ -144,6 +144,12 @@ introduced under those exact binders, conclusions proved under them, and the
 premises discharged at abstraction; application supplies their proof at the exact
 substitution. Nested hypotheses use the same rule and ordinary lexical scope.
 
+This premise supply is also required for named proof-machine calls and
+result-bearing mathematical machine applications, under the common
+[call-precondition rule](../language/machines.md#call-preconditions). Forming a
+result without citing its guarantees is not a bypass. Recursive citations must
+establish both the substituted premises and the independent descent obligation.
+
 This does not generalize executable static callback selection. A logical
 hypothesis cannot promise an observed Type result, runtime mutation, ownership
 transfer, authority acquisition/consumption, scheduling or other executable action.

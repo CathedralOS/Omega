@@ -15,6 +15,12 @@ conclusions, a caller establishes the assumptions under the exact argument
 substitution. Naming a condition does not prove it; failed proof search does
 not prove its negation.
 
+The same [call-precondition rule](../language/machines.md#call-preconditions)
+also governs forming a mathematical result term, even if none of the callee's
+conclusions is used. Proof-to-proof calls have no exemption. Named calls and
+operator syntax retain the same selected contract; erasure, normalization, or
+knowledge that the underlying body is total cannot remove its `requires`.
+
 A theorem-only machine has no Type result. Resultless law slots do not need dummy
 returned witnesses. A Type-valued mathematical operation may instead denote a
 value without an executable algorithm; it is not a resultless theorem or an
@@ -100,6 +106,11 @@ All integer/address carriers embed into signed proof `Int`, so subtraction is
 ordinary signed subtraction even for unsigned source values. Exact conversion
 to `Nat` requires nonnegativity. Ordinary `Nat - Nat` requires right <= left;
 explicit `Nat::saturating_sub` instead denotes `max(left - right, 0)`.
+`Nat` includes zero: forming exact `n - 1` needs `1 <= n`, not `1 < n`.
+The two operands being natural numbers alone does not establish their order.
+Named `Nat::subtract(left, right)` has the same order premise as `left - right`;
+the total saturating operation remains a distinct contract. This choice of
+subtraction meaning is identical in proof and executable uses wherever admitted.
 Target-relative bounds retain the exact observation dependency. An exclusive
 one-past address bound may be representable in proof mathematics without fitting
 the runtime address carrier.
@@ -123,14 +134,19 @@ primitive's meaning; an authored crash guard only bounds its possible failures.
 
 ## Citation and induction
 
-An ordinary statement call cites a checked theorem. Import its `ensures` under
-exact operand substitution; erase the call if fact-only. Imports do not activate
-global rewrite rules. Diagnostics may suggest lemmas, but the citation belongs
+An ordinary statement call cites a checked theorem. Establish its `requires`
+under exact operand substitution before importing its `ensures`; erase the call
+if fact-only. Imports do not activate global rewrite rules. Diagnostics may
+suggest lemmas, but the citation belongs
 in source.
 
-A recursive citation may use the recursive contract only after its exact edge
-proves strict decrease under the component's well-founded ranking. This applies
-to resultless, discarded, and nested calls whenever their conclusions are used.
+A recursive citation may use the recursive contract only after the caller
+establishes its premises for the recursive arguments and its exact edge proves
+strict decrease under the component's well-founded ranking. Descent licenses
+induction, not arbitrary preconditions; there is no recursive-component exemption
+from premise checking. The citation's own conclusions cannot establish its
+premises or license its own descent. This applies to resultless, discarded, and
+nested calls whenever their conclusions are used.
 Mutual recursion requires a joint ranking; citation cycles cannot justify
 themselves.
 
