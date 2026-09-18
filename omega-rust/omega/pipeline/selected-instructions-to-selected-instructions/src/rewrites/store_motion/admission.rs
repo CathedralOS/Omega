@@ -1,12 +1,26 @@
-//! Shared admission for store mutation motion: locate the named `Store`,
-//! prove its exact `WritePlace` row and `[use pointer, use value]` operand
-//! surface, then walk forward to the latest position that keeps the write
-//! ordered before every access that could observe it.
+//! Shared admission for store mutation motion: locate the named store,
+//! prove its single exact write row and operand surface, then walk forward
+//! to the latest position that keeps the write ordered before every access
+//! that could observe it.
+//!
+//! The moved store writes the place's storage by one of the routes the other
+//! memory rewrites admit: the exact-width `Store` through the referent
+//! pointer carrying `WritePlace`, or a write into the place's own local
+//! storage carrying `WriteLocal` — a `Store` through the slot's materialized
+//! address, or the always-eight-byte `Store64` into that slot directly. The
+//! place's own storage is its `StructuralParameter`/`StructuralBlockParameter`
+//! slot or the producing operation's `Structural` home — the place's
+//! declaration names that producer. A `Structural` slot the declaration does
+//! not charge to that operation only stages bytes that name the place (a
+//! call's staged view descriptor) under its own slot coordinates, so its
+//! write is not a place write and stays inadmissible as the moved store.
+//! A `StorePacked` stays inadmissible too: moving it moves the early-clobber
+//! scratch `Def`, whose custody the window walk does not prove.
 //!
 //! Sinking the store delays the write inside the window where the delay is
 //! unobservable. The scan stops before the first position that must stay
 //! ordered after the store: a roster row touching the moved byte range or the
-//! place's dynamic storage, a call or hosted effect, a redefinition of either
+//! place's dynamic storage, a call or hosted effect, a redefinition of a
 //! carried register, a memory-capable instruction with no roster row, or a
 //! boundary settlement. The store lands immediately before that position;
 //! every kept event still observes the write in the same relative order.
@@ -27,7 +41,7 @@
 //! proven path is still a real motion.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
+use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
@@ -35,10 +49,12 @@ use selected_instructions::{
     SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::PlaceId;
+use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoreMutationMotionError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::place_storage::{local_slot_is_place_storage, structural_place_declarations};
 use crate::rewrites::window_hazards::is_barrier;
 
 pub(super) struct Admission<'source> {
@@ -101,19 +117,38 @@ pub(super) fn admit<'source>(
         .ok_or(StoreMutationMotionError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let moved_store = &block.instructions[store_index];
-    let SelectedInstructionKind::Store {
-        byte_offset,
-        byte_size,
-    } = moved_store.kind
-    else {
-        return Err(StoreMutationMotionError::UnsupportedInstruction);
+    // The moved store's encoded byte range and, for the direct slot route,
+    // the slot it writes. `StorePacked` stays unsupported: its early-clobber
+    // scratch `Def` would move with the store, and this admission proves no
+    // scratch custody across the window.
+    let (encoded_offset, encoded_size, direct_slot) = match moved_store.kind {
+        SelectedInstructionKind::Store {
+            byte_offset,
+            byte_size,
+        } => {
+            if !matches!(byte_size, 1 | 2 | 4 | 8) {
+                return Err(StoreMutationMotionError::UnsupportedInstruction);
+            }
+            (byte_offset, u32::from(byte_size), None)
+        }
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset,
+        } => (byte_offset, 8, Some(slot)),
+        _ => return Err(StoreMutationMotionError::UnsupportedInstruction),
     };
-    if !matches!(byte_size, 1 | 2 | 4 | 8) {
-        return Err(StoreMutationMotionError::UnsupportedInstruction);
-    }
     // The write's semantic identity: exactly one roster row, one place root,
-    // and the same bytes the instruction encodes. The row names the store by
-    // instruction identity, so the move retains the roster unchanged.
+    // and the same bytes the instruction encodes. The row's role must match
+    // the route the instruction takes to the place's storage: `WritePlace`
+    // for the referent-pointer store, or `WriteLocal` on the place's own
+    // storage slot for the local-storage routes — the direct `Store64`'s row
+    // naming the same slot the instruction encodes. An operation-owned
+    // `Structural` slot is that storage only when the place's declaration
+    // names the operation as its producer; a slot that merely stages bytes
+    // naming the place never moves the place's bytes, so a store through it
+    // is not the moved place write. The row names the store by instruction
+    // identity, so the move retains the roster unchanged.
+    let structural_places = structural_place_declarations(function);
     let mut rows = function
         .memory_accesses
         .iter()
@@ -121,10 +156,20 @@ pub(super) fn admit<'source>(
     let write = rows
         .next()
         .ok_or(StoreMutationMotionError::UnsupportedInstruction)?;
+    let storage_route = match (write.role, direct_slot) {
+        (SelectedMemoryAccessRole::WritePlace, None) => true,
+        (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
+            local_slot_is_place_storage(slot, write.place, structural_places)
+        }
+        (SelectedMemoryAccessRole::WriteLocal { slot }, Some(encoded)) => {
+            slot == encoded && local_slot_is_place_storage(slot, write.place, structural_places)
+        }
+        _ => false,
+    };
     if rows.next().is_some()
-        || write.role != SelectedMemoryAccessRole::WritePlace
-        || write.byte_offset != byte_offset
-        || write.byte_count != u32::from(byte_size)
+        || !storage_route
+        || write.byte_offset != encoded_offset
+        || write.byte_count != encoded_size
     {
         return Err(StoreMutationMotionError::UnsupportedPair);
     }
@@ -133,10 +178,17 @@ pub(super) fn admit<'source>(
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
     };
-    // The moved instruction must be the target's plain two-use place store;
-    // an exotic operand surface would make the motion contract unclear.
-    place_store_shape(moved_store, environment)?;
-    let (pointer, value) = carried_registers(moved_store)?;
+    // The moved instruction must carry the operand surface its route
+    // declares: the plain `[use pointer, use value]` place store — the
+    // pointer being the referent pointer or the slot's materialized
+    // address — or the direct slot store's single `[use value]` row. An
+    // exotic surface would make the motion contract unclear.
+    if direct_slot.is_some() {
+        local_store_shape(moved_store, environment)?;
+    } else {
+        place_store_shape(moved_store, environment)?;
+    }
+    let carried = carried_surface(moved_store)?;
     // Walk forward to the latest provable position. Scanning a block stops
     // before the first instruction or settlement position that must stay
     // ordered after the store; reaching a block's end cleanly crosses only a
@@ -150,7 +202,7 @@ pub(super) fn admit<'source>(
         let current = &function.blocks[cursor];
         let mut stop = None;
         for (index, candidate) in current.instructions.iter().enumerate().skip(start) {
-            if instruction_stops(candidate, &moved, function, pointer, value)
+            if instruction_stops(candidate, &moved, function, &carried, structural_places)
                 || settlement_before(function, current.id, index)
             {
                 stop = Some(index);
@@ -185,11 +237,9 @@ pub(super) fn admit<'source>(
         // edges, so a moved-place row or a carried-register definition on it
         // lands the store at the block's end before it runs.
         let terminator = terminator_instruction(&current.terminator);
-        if function
-            .memory_accesses
-            .iter()
-            .any(|access| access.instruction == terminator.id && interferes(&moved, access))
-            || defines_carried(terminator, pointer, value)
+        if function.memory_accesses.iter().any(|access| {
+            access.instruction == terminator.id && interferes(&moved, access, structural_places)
+        }) || defines_carried(terminator, &carried)
         {
             let insert = if cursor == block_index { end - 1 } else { end };
             break (cursor, insert);
@@ -223,10 +273,7 @@ pub(super) fn admit<'source>(
         {
             break land_at_end(if cursor == block_index { end - 1 } else { end });
         }
-        if edges
-            .iter()
-            .any(|edge| edge_stops(edge, &moved, pointer, value))
-        {
+        if edges.iter().any(|edge| edge_stops(edge, &moved, &carried)) {
             break land_at_end(if cursor == block_index { end - 1 } else { end });
         }
         interval = interval
@@ -293,35 +340,79 @@ fn place_store_shape(
     Ok(())
 }
 
-/// The two carried registers the move keeps identical: the referent pointer
-/// and the stored value. A third operand of any access would move its
-/// definition or read along with the store, so the surface is exactly
-/// `[operand 0 pointer, operand 1 value]` and nothing else.
-fn carried_registers(
+/// The direct slot store's operand surface: the target's declared `store64`
+/// row — exactly `[use value]` — and the instruction carrying just that one
+/// use. The move defines nothing, so no custody check is needed.
+fn local_store_shape(
     instruction: &SelectedInstruction,
-) -> Result<(VirtualRegisterId, VirtualRegisterId), StoreMutationMotionError> {
-    if instruction.operands.len() != 2
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<(), StoreMutationMotionError> {
+    if environment.selected_keys().store64 != Some(instruction.constraint) {
+        return Err(StoreMutationMotionError::ConstraintMismatch);
+    }
+    let row = environment
+        .constraint(instruction.constraint)
+        .ok_or(StoreMutationMotionError::ConstraintMismatch)?;
+    if row.operands.len() != 1
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || instruction.operands.len() != 1
         || instruction.operands[0].operand != 0
         || instruction.operands[0].access != RegisterOperandAccess::Use
-        || instruction.operands[1].operand != 1
-        || instruction.operands[1].access != RegisterOperandAccess::Use
-        || !instruction.implicit_uses.is_empty()
-        || !instruction.implicit_defs.is_empty()
-        || !instruction.clobbers.is_empty()
     {
+        return Err(StoreMutationMotionError::ConstraintMismatch);
+    }
+    Ok(())
+}
+
+/// The locations the move keeps identical: the virtual registers the store
+/// reads — the referent pointer or materialized slot address plus the stored
+/// value for a place store, or just the stored value for the direct
+/// `Store64` — plus the physical units its implicit uses read, like the
+/// frame base a `Store64` resolves its slot against. An implicit definition
+/// or clobber on the moved store would itself write state inside the window,
+/// so it stays inadmissible.
+struct Carried {
+    registers: Vec<VirtualRegisterId>,
+    units: Vec<RegisterUnitId>,
+}
+
+/// Collect the moved store's read surface. Every operand must be the use its
+/// position declares — a definition carried inside the window would change
+/// what the moved store reads at its new position — and the instruction may
+/// carry implicit uses as reads, but never implicit writes or clobbers.
+fn carried_surface(instruction: &SelectedInstruction) -> Result<Carried, StoreMutationMotionError> {
+    if !instruction.implicit_defs.is_empty() || !instruction.clobbers.is_empty() {
         return Err(StoreMutationMotionError::UnsupportedPair);
     }
-    Ok((
-        instruction.operands[0].virtual_register,
-        instruction.operands[1].virtual_register,
-    ))
+    let mut registers = Vec::with_capacity(instruction.operands.len());
+    for (index, operand) in instruction.operands.iter().enumerate() {
+        if operand.access != RegisterOperandAccess::Use || operand.operand != index as u16 {
+            return Err(StoreMutationMotionError::UnsupportedPair);
+        }
+        registers.push(operand.virtual_register);
+    }
+    Ok(Carried {
+        registers,
+        units: instruction.implicit_uses.clone(),
+    })
 }
 
 /// Whether one roster row touches the moved bytes or the place's dynamic
-/// storage. Exact rows must intersect the moved range; dynamic extents and
-/// place-backed local slots always reach it. Outgoing-area storage never
-/// aliases a referent place.
-fn interferes(moved: &Moved, access: &SelectedMemoryAccess) -> bool {
+/// storage. Exact rows must intersect the moved range; dynamic extents
+/// always reach it. A `WriteLocal` row names an exact range on a slot: when
+/// the slot is the moved place's own storage, range intersection decides; a
+/// slot that only stages bytes naming the place holds none of the place's
+/// bytes at any offset, so its writes never stop the walk. A materialized
+/// local address could reach the same storage by a route the roster does
+/// not bound, so it stops the walk when its slot is the place's storage; a
+/// staged slot's address reaches only the staged bytes. Outgoing-area
+/// storage never aliases a referent place.
+fn interferes(
+    moved: &Moved,
+    access: &SelectedMemoryAccess,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> bool {
     match access.role {
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
             access.place == moved.place && moved.intersects(access)
@@ -330,9 +421,12 @@ fn interferes(moved: &Moved, access: &SelectedMemoryAccess) -> bool {
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. } => access.place == moved.place,
-        SelectedMemoryAccessRole::WriteLocal { slot }
-        | SelectedMemoryAccessRole::AddressLocal { slot } => {
-            slot.structural_place() == Some(moved.place)
+        SelectedMemoryAccessRole::WriteLocal { slot } => {
+            local_slot_is_place_storage(slot, moved.place, structural_places)
+                && moved.intersects(access)
+        }
+        SelectedMemoryAccessRole::AddressLocal { slot } => {
+            local_slot_is_place_storage(slot, moved.place, structural_places)
         }
         SelectedMemoryAccessRole::WriteOutgoing { .. }
         | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
@@ -345,8 +439,8 @@ fn instruction_stops(
     candidate: &SelectedInstruction,
     moved: &Moved,
     function: &SelectedFunction,
-    pointer: VirtualRegisterId,
-    value: VirtualRegisterId,
+    carried: &Carried,
+    structural_places: &[StructuralPlaceDeclaration],
 ) -> bool {
     let mut has_row = false;
     for access in function
@@ -355,12 +449,12 @@ fn instruction_stops(
         .filter(|access| access.instruction == candidate.id)
     {
         has_row = true;
-        if interferes(moved, access) {
+        if interferes(moved, access, structural_places) {
             return true;
         }
     }
     is_barrier(candidate)
-        || defines_carried(candidate, pointer, value)
+        || defines_carried(candidate, carried)
         || (!has_row && unaccounted_kind(candidate))
 }
 
@@ -422,17 +516,20 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
     )
 }
 
-/// A definition of a carried register anywhere in the interval would change
-/// the value the moved store reads at its new position.
-fn defines_carried(
-    instruction: &SelectedInstruction,
-    pointer: VirtualRegisterId,
-    value: VirtualRegisterId,
-) -> bool {
+/// A write to anything the moved store reads anywhere in the interval would
+/// change what it observes at its new position: a definition of a carried
+/// register, or an implicit definition or clobber of a carried unit — the
+/// same read/write meeting the sibling walks enforce between paired
+/// instructions.
+fn defines_carried(instruction: &SelectedInstruction, carried: &Carried) -> bool {
     instruction.operands.iter().any(|operand| {
         operand.access != RegisterOperandAccess::Use
-            && (operand.virtual_register == pointer || operand.virtual_register == value)
-    })
+            && carried.registers.contains(&operand.virtual_register)
+    }) || instruction
+        .implicit_defs
+        .iter()
+        .chain(instruction.clobbers.iter())
+        .any(|unit| carried.units.contains(unit))
 }
 
 /// A boundary settlement at a position in the crossed interval would observe
@@ -491,16 +588,13 @@ fn reaches_visited(function: &SelectedFunction, start: usize, visited: &[bool]) 
 /// A crossed edge must not move the carried registers or touch the moved
 /// place's storage. Register transports and case payload parameters name the
 /// one register the edge defines; structural destinations, the case custody
-/// slot, and custody discards write or retire place storage on the edge.
-fn edge_stops(
-    successor: &SelectedSuccessor,
-    moved: &Moved,
-    pointer: VirtualRegisterId,
-    value: VirtualRegisterId,
-) -> bool {
+/// slot, and custody discards write or retire place storage on the edge —
+/// the same conservative structural-place test the sibling memory walks keep
+/// on edges, since an edge transport's destination role is not decided here.
+fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -> bool {
     for binding in &successor.bindings {
         if let SelectedValueTransport::Registers { parameter, .. } = binding.transport
-            && (parameter == pointer || parameter == value)
+            && carried.registers.contains(&parameter)
         {
             return true;
         }
@@ -527,7 +621,7 @@ fn edge_stops(
                 SelectedCasePayloadTransport::Unmaterialized { parameter }
                 | SelectedCasePayloadTransport::Registers { parameter, .. } => parameter,
             };
-            if parameter == pointer || parameter == value {
+            if carried.registers.contains(&parameter) {
                 return true;
             }
         }
