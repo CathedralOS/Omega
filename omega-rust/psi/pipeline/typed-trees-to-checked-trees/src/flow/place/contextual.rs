@@ -177,9 +177,33 @@ fn resolve_member_symbol_from_place(
                     }
                 };
             }
-            facts::PlaceSegment::FixedIndex { .. }
-            | facts::PlaceSegment::FixedRange { .. }
-            | facts::PlaceSegment::Index { .. } => {
+            facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
+                // The index hop lands on an element, not on the collection
+                // itself: replay the reaching reference through the same
+                // element projection `expression_type_position` applies to an
+                // `Indexed` node, so `values[i]` resumes at the element
+                // position with the collection's generic arguments still
+                // bound. A position that does not project to an element keeps
+                // no position rather than minting the collection's own for
+                // the element; a declaration position names a record, which
+                // has no element to resume at.
+                position = match position {
+                    resolution::MemberPosition::Reference(reference) => {
+                        resolution::MemberPosition::Reference(
+                            crate::flow::project_type_reference_from_segments(
+                                program,
+                                reference,
+                                std::slice::from_ref(segment),
+                            )?,
+                        )
+                    }
+                    resolution::MemberPosition::Declaration(_) => return None,
+                };
+            }
+            facts::PlaceSegment::FixedRange { .. } => {
+                // A range hop produces a slice of the collection, not one
+                // element; the projection has no range shape to replay, so
+                // the demanded member stays unresolved here.
                 return None;
             }
         }
