@@ -7,8 +7,8 @@ use crate::machine_calls::calls::write_frames::alias_bindings::{
     rebind_stable_local_mutable_alias_origin, stable_local_mutable_alias_rebinding_is_representable,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::{
-    stable_alias_initializer_origin, stable_assignment_target_path,
-    stable_local_reference_alias_origin,
+    stable_alias_initializer_origin, stable_alias_initializer_origins,
+    stable_assignment_target_path, stable_local_reference_alias_origin,
 };
 use crate::machine_calls::calls::write_frames::assignment_targets::expression_is_effectful_indexed_place;
 use crate::machine_calls::calls::write_frames::boundary_calls::{
@@ -203,7 +203,8 @@ fn walk_state_write_prefix_inner(
         return None;
     }
 
-    for statement in program.statement_table.statements(state.statement_nodes) {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    for (statement_index, statement) in statements.iter().enumerate() {
         if matches!(query, Some(StateWriteQuery::Before(before) | StateWriteQuery::ReferenceBefore(before)) if std::ptr::eq(before, statement))
         {
             return Some(StateWritePrefix {
@@ -555,10 +556,14 @@ fn walk_state_write_prefix_inner(
                 let nested_writes = if wire_codecs::is_wire_codec_call(program, nested_call) {
                     wire_codecs::known_wire_codec_call_written_paths(program, nested_call)
                 } else {
+                    // Each argument contributes its proven candidate set: a
+                    // divergent helper result or conditional actual keeps the
+                    // exact finite union, and the callee's parameter writes
+                    // instantiate through every route it admits.
                     let argument_origins = arguments
                         .iter()
                         .map(|argument| {
-                            stable_alias_initializer_origin(
+                            stable_alias_initializer_origins(
                                 program,
                                 machine,
                                 &machine_symbols,
@@ -705,10 +710,36 @@ fn walk_state_write_prefix_inner(
                     });
                     if let Some(origin) = origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));
-                    } else {
-                        let origins = declared_stored_origins?;
+                    } else if let Some(origins) = declared_stored_origins {
                         inference.record_local(&origins);
                         stored.push(origins);
+                    } else {
+                        // A binding the transfer cannot name stays opaque —
+                        // unless every later mention re-exports it intact
+                        // through a pure tail return, which transports its
+                        // referent set wholesale while the result relation
+                        // resolves it through this same initializer. Any
+                        // other mention — a write through it, a reborrow, or
+                        // a transport into another binding — loses the set.
+                        let mut reexported = false;
+                        for later in &statements[statement_index + 1..] {
+                            if !local_aliases::statement_mentions_place_roots(
+                                program,
+                                later,
+                                &[local.name.as_str().to_owned()],
+                            ) {
+                                continue;
+                            }
+                            if !alias_bindings::statement_returns_reference_without_effects(
+                                program, state, later,
+                            ) {
+                                return None;
+                            }
+                            reexported = true;
+                        }
+                        if !reexported {
+                            return None;
+                        }
                     }
                 } else if stored_origins::has_aggregate_case_shape(program, local.type_reference)
                     && let Some(origins) = stored_origins::declaration_origins(

@@ -11,7 +11,7 @@ use super::place_paths::{
 };
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
-use crate::machine_calls::calls::write_frames::transparent_results::transparent_place_expression_origin;
+use crate::machine_calls::calls::write_frames::transparent_results::transparent_place_expression_origins;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -61,7 +61,7 @@ pub(super) fn instantiate_written_path_with_origins(
     locals: &[String],
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
+    argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     let (root, suffix) = split_place_root(relative);
     if root == "self" {
@@ -97,16 +97,26 @@ pub(super) fn instantiate_written_path_with_origins(
                 inference,
             );
         }
-        let base = argument_origins
-            .and_then(|origins| origins.get(argument_index))
-            .and_then(Clone::clone)
+        // A proven argument contributes its finite candidate set: a divergent
+        // helper result or conditional actual may route the write to any of
+        // its named storage, so each origin instantiates its own caller path.
+        let bases = argument_origins
+            .and_then(|origins| origins.get(argument_index).cloned())
+            .flatten()
             .or_else(|| {
-                transparent_place_expression_origin(program, argument, symbols, inference)
+                transparent_place_expression_origins(program, argument, symbols, inference)
             })?;
-        return Some(vec![match base.precision {
-            FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
-            FramePathPrecision::CollectionCoarse => base.path,
-        }]);
+        let mut paths = Vec::new();
+        for base in bases {
+            let path = match base.precision {
+                FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
+                FramePathPrecision::CollectionCoarse => base.path,
+            };
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+        return Some(paths);
     }
     if locals.iter().any(|local| local == root) {
         return Some(Vec::new());

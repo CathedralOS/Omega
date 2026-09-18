@@ -115,7 +115,7 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
 ) -> bool {
     complete_expression_tree(
         program,

@@ -368,8 +368,9 @@ fn merge_result_arm(
                     .or_else(|| {
                         super::reference_subjects::unknown_readonly_origin(program, reference, "")
                     })
+                    .map(|origin| vec![origin])
                 } else {
-                    super::reference_origins::exclusive_reference_origin(
+                    super::reference_origins::exclusive_reference_origins(
                         program, machine, expression, symbols, inference,
                     )
                 }
@@ -561,8 +562,9 @@ fn merge_named_edge(
                     .or_else(|| {
                         super::reference_subjects::unknown_readonly_origin(program, reference, "")
                     })
+                    .map(|origin| vec![origin])
                 } else {
-                    super::reference_origins::exclusive_reference_origin(
+                    super::reference_origins::exclusive_reference_origins(
                         program, machine, actual, symbols, inference,
                     )
                 }

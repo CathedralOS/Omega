@@ -7,7 +7,7 @@
 
 use super::super::path_instantiation::aggregate_arguments::reference_leaves_with_origins;
 use super::super::place_paths::append_place_suffix;
-use super::super::reference_origins::exclusive_reference_origin;
+use super::super::reference_origins::exclusive_reference_origins;
 use super::super::reference_subjects;
 use super::super::{FrameInference, FramePlaceOrigin, Machine, TopLevelSymbols, TypedTrees};
 use super::frozen_bindings::binding_source;
@@ -103,8 +103,9 @@ pub(in crate::machine_calls::calls::write_frames) fn assigned_stored_origins(
                     implicit_borrow,
                 )
                 .or_else(|| reference_subjects::unknown_readonly_origin(program, reference, ""))
+                .map(|origin| vec![origin])
             } else {
-                exclusive_reference_origin(program, machine, expression, symbols, inference)
+                exclusive_reference_origins(program, machine, expression, symbols, inference)
             }
         },
         &|expression, reference, _| {

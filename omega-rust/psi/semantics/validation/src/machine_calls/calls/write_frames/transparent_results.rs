@@ -1,7 +1,7 @@
 //! Origins of transparent call results and the calls that preserve them.
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
-use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origin;
+use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
 use crate::machine_calls::calls::write_frames::assignment_targets::{
     assignment_target_type, expression_is_effectful_indexed_place,
     transparent_assignment_target_effect_is_structural,
@@ -29,9 +29,11 @@ use crate::machine_calls::calls::write_frames::parameter_aliases::{
     ParameterRelativeFrameOrigin, parameter_relative_alias_position,
 };
 use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origin;
+use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origins;
+use crate::machine_calls::calls::write_frames::parameter_relative_origins::single_parameter_relative_origin;
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, same_place_origin,
-    split_place_root,
+    FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path,
+    push_unique_origin, same_place_origin, single_place_origin, split_place_root,
 };
 use crate::machine_calls::calls::write_frames::transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
@@ -49,9 +51,10 @@ use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
 
-/// Recover one deliberately structural value-call relation. The helper may be
+/// Every proven caller route one deliberately structural value-call result
+/// may alias. The helper may be
 /// free or attached, but must be acyclic at the result surface, return a reference,
-/// and have one terminal result expression rooted in one reference
+/// and have terminal result expressions rooted in one reference
 /// parameter -- either a trailing expression or the lone ordinary `Always`
 /// value transition an authored single-arm return desugars to -- or rooted in
 /// a declared exclusive reference leaf of one by-value carrier parameter whose
@@ -70,25 +73,32 @@ use typed_trees::statement::{StatementNode, TableCall};
 /// lifetime elision: a reference-bearing scratch local, opaque computed rebind,
 /// unsupported discarded/statement call, recursive helper relation, named-state route, or
 /// alternate result fails closed.
-pub(crate) fn transparent_call_result_origin(
+///
+/// Conditional result arms each contribute the candidate origins of their
+/// selected actual, so a divergent helper result keeps the exact finite union
+/// rather than selecting one arm. A candidate whose own actual cannot be
+/// resolved leaves the whole result opaque: the union must cover every route
+/// the callee admits. Consumers that need one binding collapse the set
+/// through `single_place_origin`.
+pub(crate) fn transparent_call_result_origins(
     program: &TypedTrees,
     call: &TableCallExpression,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    resolve_actual_origin: impl FnOnce(
+    resolve_actual_origins: impl Fn(
         &Machine,
         &StateParameter,
         &FramePlaceOrigin,
         ExpressionHandle,
         &mut FrameInference,
-    ) -> Option<FramePlaceOrigin>,
-) -> Option<FramePlaceOrigin> {
+    ) -> Option<Vec<FramePlaceOrigin>>,
+) -> Option<Vec<FramePlaceOrigin>> {
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
     if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
         return None;
     }
 
-    let result_origin = transparent_callee_result_origin(
+    let result_origins = transparent_callee_result_origins(
         program,
         callee_machine,
         callee_state,
@@ -96,47 +106,55 @@ pub(crate) fn transparent_call_result_origin(
         inference,
     )?;
     let parameters = program.state_parameters(callee_state);
-    let result_parameter = parameters
-        .iter()
-        .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
-    let (_, result_suffix) = split_place_root(&result_origin.place.path);
-    let actual = if result_parameter.is_self {
-        if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
-            return None;
-        }
-        call.receiver
-    } else {
-        let (argument_index, _) = parameters
+    let mut origins = Vec::new();
+    for result_origin in result_origins {
+        let result_parameter = parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
-            .enumerate()
-            .find(|(_, parameter)| parameter.symbol == result_parameter.symbol)?;
-        *program
-            .expression_table
-            .expression_handles(call.arguments)
-            .get(argument_index)?
-    };
-    let argument_origin = resolve_actual_origin(
-        callee_machine,
-        result_parameter,
-        &result_origin.place,
-        actual,
-        inference,
-    )?;
-    let source = argument_origin
-        .source
-        .append_relative(&result_origin.place.source);
-    Some(match argument_origin.precision {
-        FramePathPrecision::Exact => FramePlaceOrigin {
-            path: append_place_suffix(&argument_origin.path, result_suffix),
-            precision: result_origin.place.precision,
-            source,
-        },
-        FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
-            source,
-            ..argument_origin
-        },
-    })
+            .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
+        let (_, result_suffix) = split_place_root(&result_origin.place.path);
+        let actual = if result_parameter.is_self {
+            if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
+                return None;
+            }
+            call.receiver
+        } else {
+            let (argument_index, _) = parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .enumerate()
+                .find(|(_, parameter)| parameter.symbol == result_parameter.symbol)?;
+            *program
+                .expression_table
+                .expression_handles(call.arguments)
+                .get(argument_index)?
+        };
+        for argument_origin in resolve_actual_origins(
+            callee_machine,
+            result_parameter,
+            &result_origin.place,
+            actual,
+            inference,
+        )? {
+            let source = argument_origin
+                .source
+                .append_relative(&result_origin.place.source);
+            push_unique_origin(
+                &mut origins,
+                match argument_origin.precision {
+                    FramePathPrecision::Exact => FramePlaceOrigin {
+                        path: append_place_suffix(&argument_origin.path, result_suffix),
+                        precision: result_origin.place.precision,
+                        source,
+                    },
+                    FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
+                        source,
+                        ..argument_origin
+                    },
+                },
+            );
+        }
+    }
+    (!origins.is_empty()).then_some(origins)
 }
 
 /// Recover a transparent returned-place origin without imposing a caller
@@ -151,71 +169,103 @@ pub(crate) fn transparent_place_expression_origin(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<FramePlaceOrigin> {
-    match program.expression_table.expression(expression) {
+    single_place_origin(transparent_place_expression_origins(
+        program, expression, symbols, inference,
+    )?)
+}
+
+/// Every proven place the expression may name, in caller spelling. Direct
+/// places keep their single origin; transparent helper results and divergent
+/// match arms contribute their candidate union. Any unresolvable route fails
+/// the expression rather than dropping a possible referent.
+pub(crate) fn transparent_place_expression_origins(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let origins = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
-            transparent_place_expression_origin(program, inner.target, symbols, inference)
+            transparent_place_expression_origins(program, inner.target, symbols, inference)?
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
                 return None;
             }
-            let mut origin = transparent_place_expression_origin(
-                program,
-                indexed.collection,
-                symbols,
-                inference,
-            )?;
-            origin.source = origin
-                .source
-                .projected(program, expression, indexed.collection);
-            origin.precision = FramePathPrecision::CollectionCoarse;
-            Some(origin)
+            transparent_place_expression_origins(program, indexed.collection, symbols, inference)?
+                .into_iter()
+                .map(|mut origin| {
+                    origin.source =
+                        origin
+                            .source
+                            .projected(program, expression, indexed.collection);
+                    origin.precision = FramePathPrecision::CollectionCoarse;
+                    origin
+                })
+                .collect()
         }
         ExpressionNode::Member(member) => {
-            let origin =
-                transparent_place_expression_origin(program, member.receiver, symbols, inference)?;
-            let source = origin
-                .source
-                .projected(program, expression, member.receiver);
-            Some(match origin.precision {
-                FramePathPrecision::Exact => FramePlaceOrigin {
-                    path: format!("{}.{}", origin.path, member.member.as_str()),
-                    precision: FramePathPrecision::Exact,
-                    source,
-                },
-                FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..origin },
-            })
+            transparent_place_expression_origins(program, member.receiver, symbols, inference)?
+                .into_iter()
+                .map(|origin| {
+                    let source = origin
+                        .source
+                        .projected(program, expression, member.receiver);
+                    match origin.precision {
+                        FramePathPrecision::Exact => FramePlaceOrigin {
+                            path: format!("{}.{}", origin.path, member.member.as_str()),
+                            precision: FramePathPrecision::Exact,
+                            source,
+                        },
+                        FramePathPrecision::CollectionCoarse => {
+                            FramePlaceOrigin { source, ..origin }
+                        }
+                    }
+                })
+                .collect()
         }
         ExpressionNode::Call(call) => {
             if call_is_transparent_mutable_slice_view(program, call) {
-                return transparent_place_expression_origin(
+                transparent_place_expression_origins(program, call.receiver, symbols, inference)?
+            } else {
+                transparent_call_result_origins(
                     program,
-                    call.receiver,
+                    call,
                     symbols,
                     inference,
-                );
+                    |_, _, _, actual, inference| {
+                        transparent_place_expression_origins(program, actual, symbols, inference)
+                    },
+                )?
             }
-            transparent_call_result_origin(
-                program,
-                call,
-                symbols,
-                inference,
-                |_, _, _, actual, inference| {
-                    transparent_place_expression_origin(program, actual, symbols, inference)
-                },
-            )
         }
-        _ => frame_place_path(program, expression),
-    }
+        ExpressionNode::Match(dispatch) => {
+            let mut selected = Vec::new();
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                for origin in
+                    transparent_place_expression_origins(program, arm.value, symbols, inference)?
+                {
+                    push_unique_origin(&mut selected, origin);
+                }
+            }
+            selected
+        }
+        _ => vec![frame_place_path(program, expression)?],
+    };
+    (!origins.is_empty()).then_some(origins)
 }
 
-pub(crate) fn transparent_callee_result_origin(
+/// Every proven parameter-relative route the callee's result may alias.
+/// Conditional arms keep their exact finite union; an arm that cannot name a
+/// caller-reachable parameter root fails the whole relation closed, and a
+/// re-entered state keeps recursive helper results explicitly opaque.
+pub(crate) fn transparent_callee_result_origins(
     program: &TypedTrees,
     callee_machine: &Machine,
     callee_state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<ParameterRelativeFrameOrigin> {
+) -> Option<Vec<ParameterRelativeFrameOrigin>> {
     if inference.active_states.contains(&callee_state.symbol)
         || !type_reference_is_reference(program, callee_state.return_type)
     {
@@ -259,14 +309,22 @@ pub(crate) fn transparent_callee_result_origin(
         for statement in prefix {
             match statement {
                 StatementNode::LocalData(local) => {
+                    // The isolated-initializer write fence rebases a written
+                    // path through a binding's single proven place. A
+                    // divergent binding has none, so its name stays opaque:
+                    // any write through it could land on a non-isolated
+                    // candidate and fails closed rather than picking a route.
                     let stable_aliases = local_aliases
                         .iter()
-                        .map(
-                            |(name, _, origin): &(
+                        .filter_map(
+                            |(name, _, origins): &(
                                 String,
                                 SymbolHandle,
-                                ParameterRelativeFrameOrigin,
-                            )| { (name.clone(), origin.place.clone()) },
+                                Vec<ParameterRelativeFrameOrigin>,
+                            )| {
+                                single_parameter_relative_origin(origins.clone())
+                                    .map(|origin| (name.clone(), origin.place))
+                            },
                         )
                         .collect::<Vec<_>>();
                     if type_is_caller_isolated_local(program, local.type_reference)
@@ -314,7 +372,11 @@ pub(crate) fn transparent_callee_result_origin(
                     if !type_reference_is_reference(program, local.type_reference) {
                         return None;
                     }
-                    let origin = parameter_relative_place_origin(
+                    // A reference binding keeps every proven route its
+                    // initializer admits: a transparent helper result or
+                    // divergent match arms bind the exact finite union so a
+                    // returned alias re-exports all of them.
+                    let origins = parameter_relative_place_origins(
                         program,
                         callee_machine,
                         local.initial_value,
@@ -330,7 +392,7 @@ pub(crate) fn transparent_callee_result_origin(
                         if !diagnostics.is_empty() {
                             return None;
                         }
-                        let place = stable_alias_initializer_origin(
+                        let places = stable_alias_initializer_origins(
                             program,
                             callee_machine,
                             &machine_symbols,
@@ -343,16 +405,27 @@ pub(crate) fn transparent_callee_result_origin(
                             true,
                             &[],
                         )?;
-                        let (root, _) = split_place_root(&place.path);
-                        isolated_local_roots
+                        // A caller-isolated route composes inside the helper
+                        // but cannot be exported; every admitted candidate
+                        // must root in one, or the binding mixes private and
+                        // caller-visible storage this relation cannot name.
+                        places
                             .iter()
-                            .any(|local| local == root)
-                            .then_some(ParameterRelativeFrameOrigin {
-                                place,
-                                parameter_symbol: SymbolHandle::invalid(),
+                            .all(|place| {
+                                let (root, _) = split_place_root(&place.path);
+                                isolated_local_roots.iter().any(|local| local == root)
+                            })
+                            .then(|| {
+                                places
+                                    .into_iter()
+                                    .map(|place| ParameterRelativeFrameOrigin {
+                                        place,
+                                        parameter_symbol: SymbolHandle::invalid(),
+                                    })
+                                    .collect::<Vec<_>>()
                             })
                     })?;
-                    local_aliases.push((local.name.as_str().to_owned(), local.symbol, origin));
+                    local_aliases.push((local.name.as_str().to_owned(), local.symbol, origins));
                 }
                 StatementNode::Assignment(assignment) => {
                     if expression_is_effectful_for_transparent_result(program, assignment.target)
@@ -400,7 +473,7 @@ pub(crate) fn transparent_callee_result_origin(
                             assignment.target,
                             &local_aliases,
                         )?;
-                        let replacement = parameter_relative_place_origin(
+                        let replacement = parameter_relative_place_origins(
                             program,
                             callee_machine,
                             assignment.value,
@@ -432,7 +505,7 @@ pub(crate) fn transparent_callee_result_origin(
                 _ => return None,
             }
         }
-        parameter_relative_place_origin(
+        parameter_relative_place_origins(
             program,
             callee_machine,
             result,
@@ -443,15 +516,20 @@ pub(crate) fn transparent_callee_result_origin(
         )
         // A returned place may also be rooted in a by-value carrier
         // parameter's declared exclusive reference leaf.
-        .or_else(|| carrier_leaf_result_origin(program, result, parameters, prefix))
-        .filter(|origin| {
-            origin.parameter_symbol.is_valid()
-                && parameters.iter().any(|parameter| {
-                    parameter.symbol == origin.parameter_symbol
-                        && (origin.place.source.root == parameter.symbol
-                            || (parameter.is_self
-                                && origin.place.source.root == callee_machine.symbol))
-                })
+        .or_else(|| carrier_leaf_result_origins(program, result, parameters, prefix))
+        // Every admitted route must export an actual parameter root; a
+        // candidate that reaches only helper-private storage means the result
+        // may escape to a referent this relation cannot name.
+        .filter(|origins| {
+            origins.iter().all(|origin| {
+                origin.parameter_symbol.is_valid()
+                    && parameters.iter().any(|parameter| {
+                        parameter.symbol == origin.parameter_symbol
+                            && (origin.place.source.root == parameter.symbol
+                                || (parameter.is_self
+                                    && origin.place.source.root == callee_machine.symbol))
+                    })
+            })
         })
     })();
     inference.active_states.pop();
@@ -474,7 +552,7 @@ fn statement_call_preserves_transparent_result(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
 ) -> bool {
     if call.discards_result
         && !discarded_primitive_internal_call_is_relationally_neutral(program, call, symbols)
@@ -523,7 +601,7 @@ fn statement_call_preserves_transparent_result(
     let argument_origins = arguments
         .iter()
         .map(|argument| {
-            parameter_relative_place_origin(
+            parameter_relative_place_origins(
                 program,
                 current_machine,
                 *argument,
@@ -532,7 +610,12 @@ fn statement_call_preserves_transparent_result(
                 symbols,
                 inference,
             )
-            .map(|origin| origin.place)
+            .map(|origins| {
+                origins
+                    .into_iter()
+                    .map(|origin| origin.place)
+                    .collect::<Vec<_>>()
+            })
         })
         .collect::<Vec<_>>();
     known_call_written_paths_for_parts_with_origins(
@@ -597,61 +680,71 @@ fn statement_call_preserves_transparent_result(
 /// carrier actual exactly like a parameter-rooted place. The projected path
 /// must land on a declared exclusive leaf of the parameter's own type; the
 /// declaration walk has already enforced owned referent storage, so a private
-/// or doubly-loaded slot cannot be named here. Conditional result arms keep
-/// the leaf only when every arm selects the same one.
+/// or doubly-loaded slot cannot be named here. Conditional result arms each
+/// contribute their own carrier leaf, keeping the exact finite union; an arm
+/// that names no declared leaf fails the whole route closed.
 ///
 /// The carrier binding must also stay frozen across the prefix: reassigning
 /// or rebinding the parameter, or lending any place rooted in it through an
 /// exclusive borrow, would leave the exported leaf describing a binding the
 /// helper no longer holds.
-fn carrier_leaf_result_origin(
+fn carrier_leaf_result_origins(
     program: &TypedTrees,
     result: ExpressionHandle,
     parameters: &[StateParameter],
     prefix: &[StatementNode],
-) -> Option<ParameterRelativeFrameOrigin> {
-    let (parameter_symbol, place) = carrier_leaf_place(program, result, parameters)?;
-    if prefix
-        .iter()
-        .any(|statement| statement_rebases_carrier_root(program, statement, parameter_symbol))
-    {
+) -> Option<Vec<ParameterRelativeFrameOrigin>> {
+    let leaves = carrier_leaf_places(program, result, parameters)?;
+    // Every selected carrier's binding must stay frozen across the prefix:
+    // rebasing any one of them leaves that route's exported leaf describing
+    // storage the helper no longer holds.
+    if leaves.iter().any(|(parameter_symbol, _)| {
+        prefix
+            .iter()
+            .any(|statement| statement_rebases_carrier_root(program, statement, *parameter_symbol))
+    }) {
         return None;
     }
-    Some(ParameterRelativeFrameOrigin {
-        place,
-        parameter_symbol,
-    })
+    Some(
+        leaves
+            .into_iter()
+            .map(|(parameter_symbol, place)| ParameterRelativeFrameOrigin {
+                place,
+                parameter_symbol,
+            })
+            .collect(),
+    )
 }
 
-/// Resolve a result expression to `(carrier parameter, place)` when it spells
-/// a declared exclusive reference leaf beneath one by-value parameter.
-/// Conditional arms must all converge on the same leaf; divergent routes stay
-/// opaque rather than selecting one side of the case analysis.
-fn carrier_leaf_place(
+/// Resolve a result expression to its `(carrier parameter, place)` routes
+/// when every producing arm spells a declared exclusive reference leaf
+/// beneath a by-value parameter. Divergent arms keep the exact finite union;
+/// an arm that names no declared leaf fails the whole route closed.
+fn carrier_leaf_places(
     program: &TypedTrees,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
-) -> Option<(SymbolHandle, FramePlaceOrigin)> {
+) -> Option<Vec<(SymbolHandle, FramePlaceOrigin)>> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => carrier_leaf_place(program, inner.target, parameters),
+        ExpressionNode::Borrow(inner) => carrier_leaf_places(program, inner.target, parameters),
         ExpressionNode::Match(dispatch) => {
-            let mut selected = None;
+            let mut selected = Vec::new();
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                let leaf = carrier_leaf_place(program, arm.value, parameters)?;
-                match &selected {
-                    None => selected = Some(leaf),
-                    Some((parameter_symbol, place))
-                        if *parameter_symbol == leaf.0 && same_place_origin(place, &leaf.1) => {}
-                    Some(_) => return None,
+                for leaf in carrier_leaf_places(program, arm.value, parameters)? {
+                    if !selected.iter().any(|(parameter_symbol, place)| {
+                        *parameter_symbol == leaf.0 && same_place_origin(place, &leaf.1)
+                    }) {
+                        selected.push(leaf);
+                    }
                 }
             }
-            selected
+            Some(selected)
         }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            carrier_leaf_place(program, cast.value, parameters)
+            carrier_leaf_places(program, cast.value, parameters)
         }
         _ => {
             let place = frame_place_path(program, expression)?;
@@ -676,7 +769,7 @@ fn carrier_leaf_place(
                         &leaf.local_segments,
                     )
                 })
-                .then_some((parameter.symbol, place))
+                .then_some(vec![(parameter.symbol, place)])
         }
     }
 }

@@ -5,7 +5,7 @@ use super::super::path_instantiation::aggregate_arguments::{
     AggregateResolver, ReferenceResolver, reference_leaves_with_origins,
 };
 use super::super::reference_origins::{
-    exclusive_reference_origin, exclusive_reference_referee, owned_receiver_origin,
+    exclusive_reference_origins, exclusive_reference_referee, owned_receiver_origin,
     referent_has_only_owned_storage,
 };
 use super::super::stored_origins::{declared_origins_for_query, place_suffix, source_reaches_leaf};
@@ -38,17 +38,17 @@ pub(super) fn instantiate_source(
         if relative.precision != FramePathPrecision::Exact {
             return None;
         }
-        let origin = resolve_reference(actual, parameter.type_reference, true, inference)?;
+        let origins = resolve_reference(actual, parameter.type_reference, true, inference)?;
         let (_, suffix) = split_place_root(&relative.path);
-        return Some(vec![compose_source(
-            origin,
-            suffix,
-            relative.precision,
-            &relative.source,
-        )]);
+        return Some(
+            origins
+                .into_iter()
+                .map(|origin| compose_source(origin, suffix, relative.precision, &relative.source))
+                .collect(),
+        );
     }
     if let Some(referee) = exclusive_reference_referee(program, parameter.type_reference) {
-        let origin = if parameter.is_self {
+        let origins = if parameter.is_self {
             let definition = program
                 .data_definitions()
                 .iter()
@@ -57,20 +57,26 @@ pub(super) fn instantiate_source(
             {
                 return None;
             }
-            owned_receiver_origin(program, caller_machine, actual, symbols, inference)?
+            vec![owned_receiver_origin(
+                program,
+                caller_machine,
+                actual,
+                symbols,
+                inference,
+            )?]
         } else {
             if !referent_has_only_owned_storage(program, referee) {
                 return None;
             }
-            exclusive_reference_origin(program, caller_machine, actual, symbols, inference)?
+            exclusive_reference_origins(program, caller_machine, actual, symbols, inference)?
         };
         let (_, suffix) = split_place_root(&relative.path);
-        return Some(vec![compose_source(
-            origin,
-            suffix,
-            relative.precision,
-            &relative.source,
-        )]);
+        return Some(
+            origins
+                .into_iter()
+                .map(|origin| compose_source(origin, suffix, relative.precision, &relative.source))
+                .collect(),
+        );
     }
     if parameter.is_self
         || super::super::type_reference_is_reference(program, parameter.type_reference)
