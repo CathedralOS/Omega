@@ -3663,21 +3663,39 @@ Owners include
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
   receives one borrowed two-word descriptor, forwards it once, invokes a
-  requirement, and uses its result across computations and branches. Target-only
-  consolidation is paused: two composition milestones left this native customer
-  unsupported. The missing dependency is an ordinary indirect-call operand and
-  its ABI, clobber, effect, and reach contract, not another whole-body recognizer.
-  Owners: abstract-to-target signature/graph lowering; legalized/selected call
-  representations and target-to-selected replay; ISA selected encoding/decoding
-  and post-allocation emission; native-artifact/image table and relocation custody.
+  requirement, and uses its result across computations and branches. The
+  dependency is an ordinary indirect-call operand and its ABI, clobber, effect,
+  and reach contract, not another whole-body recognizer. Do not resume
+  target-only descriptor composition: two such milestones left this native
+  customer unsupported.
+
+  `abstract-operations-to-target-operations` now lowers that source customer's
+  descriptor parameter to `DynamicParameter{Scalar,Unit}Call` with two pointer
+  words per descriptor, and independently replays roster binding, requirement
+  slot, dispatch plan, table offset, obligations and result home
+  (`lowering/unit/parameter_dynamic.rs`, `tests/dynamic_parameters.rs`). No
+  later stage names those operations.
+
+  Remaining work, by owner:
+
+  - `target-operations-to-selected-instructions`: legalized/selected call
+    representations and target-to-selected replay for the indirect call.
+  - ISA crates: selected encoding/decoding and post-allocation emission.
+  - `native-artifact` and image crates: table and relocation custody.
+  - Delete the superseded Unit/scalar parameter recognizers with that closure.
+    Candidates: `machine_code::ForwardedDynamicParameterCallRecord`, which no
+    non-test producer fills, and image-emission's
+    `object_artifact/replay/dynamic/forwarded_{descriptor,parameter}.rs`, which
+    admit at most one forwarded call per function. Do not substitute raw
+    function pointers or unproved devirtualization.
+
   Acceptance: a source-rooted closed-conformance native differential fixture
   publishes and independently replays Linux x86-64/AArch64, executes on matching
   hosts, selects distinct table implementations at runtime, and preserves the
   original referent and surrounding calculations. Reject substituted instance,
-  table, slot, ABI, access, and code-span custody. Delete the superseded Unit/scalar
-  parameter recognizers with that closure; do not substitute raw function pointers
-  or unproved devirtualization. Receiver-backed executable entry provisioning
-  remains a separate dependency for the existing receiver-entry canary.
+  table, slot, ABI, access, and code-span custody. Receiver-backed executable
+  entry provisioning remains a separate dependency for the existing
+  receiver-entry canary.
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Complete typed target observations,
   hermetic const evaluation, and [selected realization coverage](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children). Finish
