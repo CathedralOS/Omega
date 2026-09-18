@@ -13,6 +13,10 @@
 //! sequence consumes custody, and residual `NoCompatibleHome` after
 //! materialized copies enters it through the post-copy reanalysis — both
 //! compositions publish one `RetainedAllocation` like every other branch.
+//! The declared active-resident rule composes the same way: its proven
+//! rematerialization sweep stays a validated prefix, and residual
+//! `NoCompatibleHome` over the rebuilt facts hands that prefix — not the
+//! original legality — to `assignment::runtime_spill`.
 
 #[cfg(test)]
 mod route_tests;
@@ -68,8 +72,7 @@ pub fn stage_register_allocation(
                 stage_shared_entry_fixed_view_register_allocation(legality)
             }
             Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1 => {
-                RetainedAllocation::try_from(stage_active_resident_register_allocation(ranges)?)
-                    .map_err(RegisterAllocationError::Replay)
+                stage_active_resident_register_allocation(ranges)
             }
             _ => Err(RegisterAllocationError::UnsupportedComposition),
         };

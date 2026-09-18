@@ -9,21 +9,22 @@ use optimization_core::OptimizationWorkBudget;
 
 use crate::StagedOptimizedAllocationLegality;
 
-use super::custody::custody_receipt;
+use super::custody::{custody_receipt, pressure_custody_receipt};
 use super::model::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
+    StagedOptimizedActiveResidentRematerializationPressure,
 };
 use super::validation::validate_source;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compute_active_resident_rematerialization(
+pub(super) fn compute_active_resident_rematerialization_pressure(
     source: StagedOptimizedAllocationLegality,
     choice_policy: SpillChoicePolicy,
     classification_policy: RecoveryClassificationPolicy,
     rematerialization_policy: PressureRematerializationPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    StagedOptimizedActiveResidentRematerialization,
+    StagedOptimizedActiveResidentRematerializationPressure,
     OptimizedActiveResidentRematerializationError,
 > {
     if choice_policy != SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1
@@ -108,18 +109,50 @@ pub(super) fn compute_active_resident_rematerialization(
             },
         );
     }
-    let homes = assign_register_homes(
-        &legality,
+    let custody = pressure_custody_receipt(
+        source_receipt,
+        &choices,
+        &classifications,
+        &rematerialization,
+        &liveness,
         &ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    )
-    .map_err(OptimizedActiveResidentRematerializationError::Homes)?;
+        &legality,
+    );
+    Ok(StagedOptimizedActiveResidentRematerializationPressure {
+        source,
+        choices,
+        classifications,
+        rematerialization,
+        liveness,
+        ranges,
+        legality,
+        custody,
+    })
+}
+
+/// Terminal completion over a proven pressure prefix: the caller supplies the
+/// homes a successful assignment produced, so residual `NoCompatibleHome`
+/// pressure is a route decision — it hands the prefix to runtime-spill
+/// recovery — not a failure this function interprets.
+pub(super) fn complete_active_resident_rematerialization(
+    pressure: StagedOptimizedActiveResidentRematerializationPressure,
+    homes: crate::ValidatedRegisterHomes,
+) -> Result<
+    StagedOptimizedActiveResidentRematerialization,
+    OptimizedActiveResidentRematerializationError,
+> {
+    let StagedOptimizedActiveResidentRematerializationPressure {
+        source,
+        choices,
+        classifications,
+        rematerialization,
+        liveness,
+        ranges,
+        legality,
+        custody: prefix_custody,
+    } = pressure;
     let manifest = project_post_allocation_optimization_manifest(
-        source_receipt.manifest(),
+        prefix_custody.source().manifest(),
         &[
             PostAllocationSelectedTransformation::PressureRematerialization(
                 rematerialization.receipt().identity(),
@@ -131,7 +164,7 @@ pub(super) fn compute_active_resident_rematerialization(
     )
     .map_err(OptimizedActiveResidentRematerializationError::Manifest)?;
     let custody = custody_receipt(
-        source_receipt,
+        prefix_custody.source(),
         &choices,
         &classifications,
         &rematerialization,
@@ -141,7 +174,7 @@ pub(super) fn compute_active_resident_rematerialization(
         &homes,
         &manifest,
     );
-    let staged = StagedOptimizedActiveResidentRematerialization {
+    Ok(StagedOptimizedActiveResidentRematerialization {
         source,
         choices,
         classifications,
@@ -152,6 +185,42 @@ pub(super) fn compute_active_resident_rematerialization(
         homes,
         manifest,
         custody,
-    };
-    Ok(staged)
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn compute_active_resident_rematerialization(
+    source: StagedOptimizedAllocationLegality,
+    choice_policy: SpillChoicePolicy,
+    classification_policy: RecoveryClassificationPolicy,
+    rematerialization_policy: PressureRematerializationPolicy,
+    budget: OptimizationWorkBudget,
+) -> Result<
+    StagedOptimizedActiveResidentRematerialization,
+    OptimizedActiveResidentRematerializationError,
+> {
+    let pressure = compute_active_resident_rematerialization_pressure(
+        source,
+        choice_policy,
+        classification_policy,
+        rematerialization_policy,
+        budget,
+    )?;
+    let environment = pressure
+        .source
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    let homes = assign_register_homes(
+        &pressure.legality,
+        &pressure.ranges,
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &environment.allocation_constraint_keys(),
+    )
+    .map_err(OptimizedActiveResidentRematerializationError::Homes)?;
+    complete_active_resident_rematerialization(pressure, homes)
 }

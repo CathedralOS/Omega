@@ -130,6 +130,35 @@ fn declined_fixed_view_recovery_reproves_the_segment_home_probe() {
 }
 
 #[test]
+fn active_resident_route_composes_residual_pressure_into_runtime_spill() {
+    let source = include_str!("../assignment/recovery.rs");
+    let entrance = source
+        .split("fn stage_active_resident_register_allocation")
+        .nth(1)
+        .expect("the active-resident route body");
+    let prefix = entrance
+        .find("stage_optimized_active_resident_rematerialization_pressure")
+        .expect("the proven rematerialization prefix");
+    let assignment = entrance
+        .find("crate::assign_register_homes(")
+        .expect("the post-prefix assignment probe");
+    let completion = entrance
+        .find("complete_optimized_active_resident_rematerialization")
+        .expect("the terminal completion");
+    let spill = entrance
+        .find("recover_after_active_resident_rematerialization")
+        .expect("the residual-pressure spill arm");
+    let typed = entrance
+        .rfind("OptimizedActiveResidentRematerializationError::Homes(error)")
+        .expect("the unrecovered assignment error surface");
+    // The sweep is proven before assignment runs; a residual `NoCompatibleHome`
+    // hands the same prefix to runtime spill; every other failure keeps the
+    // rematerialization-wrapped homes error the one-shot sweep produced.
+    assert!(prefix < assignment && assignment < completion && completion < spill);
+    assert!(spill < typed);
+}
+
+#[test]
 fn retained_replay_binds_leaf_local_evidence_to_no_declared_recovery_selection() {
     let source = include_str!("../output/retained.rs");
     let check = source

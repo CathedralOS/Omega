@@ -4,9 +4,9 @@ use crate::{
     SpillChoicePolicy,
 };
 use crate::{
-    RetainedAllocation, StagedOptimizedActiveResidentRematerialization,
-    StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
-    stage_optimized_active_resident_rematerialization, stage_optimized_allocation_legality,
+    RetainedAllocation, StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
+    stage_optimized_active_resident_rematerialization_pressure,
+    stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
     stage_optimized_selected_reanalysis,
@@ -164,9 +164,18 @@ pub fn stage_leaf_local_fixed_view_register_allocation_composing(
     fixed_view_allocation(legality, FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1)
 }
 
+/// The declared active-resident route in its composing form: the sweep is
+/// proven as a validated prefix — transformed program plus rebuilt
+/// liveness, ranges, and legality — then assignment runs over those rebuilt
+/// facts. A residual `NoCompatibleHome` verdict does not fail the route or
+/// discard the proven rematerialization: the same prefix becomes
+/// runtime-spill recovery's source, so the recorded sweep stays first in
+/// the produced manifest and the declared selection binds through replayed
+/// custody evidence. Every other failure keeps the existing typed error
+/// surface.
 pub fn stage_active_resident_register_allocation(
     ranges: StagedOptimizedLiveRanges,
-) -> Result<StagedOptimizedActiveResidentRematerialization, RegisterAllocationError> {
+) -> Result<RetainedAllocation, RegisterAllocationError> {
     let budget = ranges
         .liveness_stage()
         .selected_stage()
@@ -174,11 +183,44 @@ pub fn stage_active_resident_register_allocation(
         .optimized()
         .budget_per_pass();
     let legality = stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges).map_err(RegisterAllocationError::Legality)?;
-    stage_optimized_active_resident_rematerialization(
+    let pressure = stage_optimized_active_resident_rematerialization_pressure(
         legality,
         SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
         RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
         PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
         budget,
-    ).map_err(RegisterAllocationError::Rematerialization)
+    ).map_err(RegisterAllocationError::Rematerialization)?;
+    let environment = pressure
+        .source()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    match crate::assign_register_homes(
+        pressure.legality(),
+        pressure.ranges(),
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &environment.allocation_constraint_keys(),
+    ) {
+        Ok(homes) => RetainedAllocation::try_from(
+            crate::complete_optimized_active_resident_rematerialization(pressure, homes)
+                .map_err(RegisterAllocationError::Rematerialization)?,
+        )
+        .map_err(RegisterAllocationError::Replay),
+        Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => RetainedAllocation::try_from(
+            crate::assignment::runtime_spill::recover_after_active_resident_rematerialization(
+                pressure,
+            )
+            .map_err(RegisterAllocationError::RuntimeSpill)?,
+        )
+        .map_err(RegisterAllocationError::Replay),
+        // Any other assignment failure keeps the surface the one-shot sweep
+        // produced: the homes error wrapped under the rematerialization arm.
+        Err(error) => Err(RegisterAllocationError::Rematerialization(
+            crate::OptimizedActiveResidentRematerializationError::Homes(error),
+        )),
+    }
 }
