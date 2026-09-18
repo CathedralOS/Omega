@@ -428,7 +428,12 @@ prerequisite to every lower-rung milestone.
   `tests/bootstrap/{alpha,beta,gamma,delta,epsilon,omega,proofs}-identity.sh`
   (identity and refusal coverage for every bound subject — seed container,
   flat-edge source and tape, entry, manifest, member, composed record,
-  driver, and receipt — without executing the rungs; seed execution
+  driver, and receipt — plus cross-pin agreement for every repository
+  record of a bound subject: gate pins, rung READMEs, edge profiles,
+  owner records, the Beta language subject table, the proofs subject
+  statements, and `execution_storage.md`; the sweep already corrected one
+  stale packed-development record in `tests/delta/staged-compiler/README.md`
+  — without executing the rungs; seed execution
   needs macOS arm64 or Windows x64). Every test gate consuming a canonical
   closure now reaches it through the bound materializers or their
   `require_*_identity` checks; only gate-local diagnostic closures and
