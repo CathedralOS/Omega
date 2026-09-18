@@ -4380,6 +4380,32 @@ Owners include
   operations. No structural or effectful observer crosses the quotient unless
   its law is explicit and checked. Custody-bearing quotients remain fenced.
 
+  Validation composes the canonical correspondence row on the ordinary path
+  and dispatches one bridged form from the composed certificate's evidence, so
+  checking and source erasure cannot disagree about which row a request earns,
+  and a selection whose representative or selected theorem has a transitive
+  closure reaching an admitted or boundary machine rejects. Every request still
+  rejects, and admitting one needs three things: the sealed `Quotient`
+  namespace resolving in ordinary call and name validation (today
+  `machine_calls/machine_parameters.rs` reports "supplies static machine
+  arguments, but its generic callee did not resolve", the value-call path
+  resolves nothing, and expression scanning reports an undeclared `Quotient`),
+  a production caller of `install_non_executable_quotient_correspondences`,
+  and quotient handling in `typed-trees-to-checked-trees`, which bails out of
+  every value path carrying a quotient operation. Six rule sources wait on that
+  resolution in `validation/tests/quotient_blocked_sources`, where they pin
+  their rule from real source; the three the typing stage owns are corpus
+  canaries.
+
+  Remaining after that: a canonical wire payload for congruence-only
+  `lift<F, Congruence>`, whose language-semantics, codec, verifier and review
+  rows belong to **PROOF-CONTRACT-MIGRATION**; general adapted lift with
+  result computation, beyond the omission, permutation, repetition and closed
+  literals the direct rung covers; the conversion-independent closure over
+  helper types and statements; and generic or private applications,
+  preconditioned `define`, result aliases and forwarded result flow, none of
+  which has a canonical row.
+
 - **EVALUATED-FOREIGN-BINDINGS.** Replace string-backed import bootstrap with
   typed compile-time locator values for PE, versioned ELF, and Darwin/Mach-O.
   Carry normalized locator, evaluated plan, target applicability, and producer
