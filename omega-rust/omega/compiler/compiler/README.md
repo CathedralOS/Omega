@@ -42,8 +42,13 @@ that frontier until the final child consumes it; it is not a persistent cache.
 
 [Native compilation](src/compiler/native.rs) prepares and realizes the native
 product; it is not owned by optional optimization or report writing. Re-entry
-from retained Terminal Psi uses `RetainedNativeRealizationRequest`, with the
-receiving policy and image request supplied explicitly. `CompileOutcomes` returns
+from retained Terminal Psi uses `RetainedNativeRealizationRequest`. The current
+API threads a receiving policy alongside the image request; separating its
+mandatory admission gate from ordinary production is tracked by
+`TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`. The
+[product contract](../../../../wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
+requires no receiving policy merely to emit an artifact. Explicit ecosystem
+admission still checks its supplied policy. `CompileOutcomes` returns
 one ordinary `CompileReport` or diagnostic result per target, without hiding failed
 siblings. Single-product consumers explicitly use `into_single_report`, which
 rejects any other cardinality. Executable publication remains a later operation.

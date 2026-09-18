@@ -417,6 +417,11 @@ scratch cache is implicitly visible to a build.
 
 Additional real-host access is opt-in under independently accepted consumer and
 executor policy. Requests by downloaded code cannot grant themselves authority.
+Install/update must expose direct and transitive restricted build requests before
+executing them. The consuming project's `omega.lock` retains accepted request
+meaning under [restricted-build acceptance](../packages/acceptance.md#restricted-build-acceptance);
+the invocation supplies actual grants separately. No dependency's own lock,
+runtime acceptance, or ordinary resolution refresh substitutes for that decision.
 Specify operation, root/object scope, lifetime, bounds, and observation/replay
 requirements; do not use an undifferentiated "trust this package" flag. A host
 grant does not propagate automatically to dependency builds or sibling helpers.

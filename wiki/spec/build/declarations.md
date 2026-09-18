@@ -5,6 +5,13 @@ It is distinct from the hermetic semantic evaluator for constants, proofs,
 plans, and generators. Host effects need admitted build authority; there is no
 second configuration grammar or ambient runtime service.
 
+The default build environment is the benign confined snapshot/staging protocol.
+Checked declarations and transitive build contracts expose restricted host
+requests for [project acceptance](../packages/acceptance.md#restricted-build-acceptance)
+in `omega.lock`; they cannot approve those requests themselves. Build selections
+also cannot choose an external ecosystem's receiving policy. Producing a binary
+requires no such policy declaration.
+
 ## Project role
 
 A selected `build.omg` has exactly one free

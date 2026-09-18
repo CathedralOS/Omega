@@ -347,7 +347,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   | Customer/dependency | Remaining work and owning route |
   | --- | --- |
-  | `cli_mvp` ordinary CLI and hosted matrix | Finish real project package review with explicit owner acceptance, then run the documented CLI command. macOS ARM64 at `69fca41bda` (2026-09-16 UTC): `omega update --project samples/cli/basics/cli_mvp --target macos_arm64` renders three audit-recommended decision rows — the std external-realization `callable`, the Console `external_supply`, and the `FilesystemHost` `dangerous_capability` — and accepting them via `omega update --resume --project samples/cli/basics/cli_mvp` publishes `omega.lock`. The documented command then passes package acceptance and stops inside native production with `receiving terminal-authority permission policy has no exact row for Console::exit_process` (exit 1): `operations/compile_project.rs` defaults to the empty deny-by-absence receiving policy and no CLI input supplies consumer permission rows. That independently supplied receiving axis is **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** scope; do not mirror accepted package rows into it ([acceptance spec](wiki/spec/packages/acceptance.md) keeps it distinct). At e2447086af the package axis proposes and accepts the exit-permission row, so the command now stops at "omits the accepted permission"; the declaration that selects the receiving policy package is design-blocked on the `receiving-policy-selection` owner question. The macOS ARM64 compiler-library test already publishes and executes the unchanged source with exact two-line output, EOF and Enter, and exit 0. Establish the same customer behavior on the remaining hosted targets; cross-lowering alone is not runtime evidence. Linux x86-64 resume (`5c450f11ff`): the runtime probe passes checked semantics and Terminal publication, then native realization rejects the retained `&mut self` entry — no root-backed bridge provisions receiver storage (`native-realization/src/native_realization.rs` admits only macOS; `source/library/std/targets/` has no `linux_x86_64/entry.omg`). **ENTRY-CONTENT-ROOTS** owns the remaining hosted-receiver bridges ("realize retained receivers on both Linux targets"); the harness's test-owned entry binding is likewise macOS-only (`tests/support/macos_entry_acceptance.rs`). |
+  | `cli_mvp` ordinary CLI and hosted matrix | Finish real project package review with explicit owner acceptance, then run the documented CLI command. The accepted lock passes package review, but native production still stops at "receiving terminal-authority policy omits the accepted permission for Console::exit_process". **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** must remove this misplaced receiving-policy gate from ordinary production under the [artifact/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission); do not add a policy switch or mirror project acceptance into receiver permissions. The macOS ARM64 compiler-library test already publishes and executes unchanged source with exact two-line output, EOF and Enter, and exit 0. Establish that behavior through the ordinary CLI and remaining hosted targets; cross-lowering alone is not runtime evidence. Linux x86-64 resume (`5c450f11ff`): checked semantics and Terminal publication pass, but native realization rejects the retained `&mut self` entry without a root-backed receiver bridge. **ENTRY-CONTENT-ROOTS** owns the remaining hosted-receiver bridges; test-owned acceptance does not close the real-project route. |
   | `print_squares` closure | Checked transitive Unit plans, byte-field presentation and storage-observation invariant scope are available. The probe still stops at `OperationProofUnavailable` for guarded-exit field obligations requiring a stronger counter/divisor invariant, and indexed bounds/increment overflow. Integer contradictions and saved field facts already have checked routes; do not invent another contradiction primitive or rebuild snapshot handling. **GENERAL-CYCLIC-EXECUTION** owns cyclic completion; **NOMINAL-FIELD-FLOW** owns declared field facts. Linux x86-64 resume (`5c450f11ff`): checked semantics pass and Terminal production stops at `OperationProofUnavailable(ObligationId(25))` — the nonzero-divisor obligation `1 <= self.place` on `digit_div`'s `self.sq / self.place`, the guarded-exit lockstep gap named above. |
   | Fixed-range Console input/output | Compose the selected source provider and real byte leaves with original receiver storage, exact returned cases/prefix, once-only effects, and cleanup. Use the ordinary graph and provider replay, not the deleted Unit/boundary planner. Windows byte I/O still needs imported-call/fixup/frame custody; Linux runtime evidence requires matching hosts. |
   | Receiver and aggregate operations | Finish shared/indexed projections, owned/local roots, scalar-result receiver calls, nested sum results and whole replacements, including mixed foreign-result assignments. Extend the shared statement sequencer; **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, and **CML4** own the corresponding joins. |
@@ -1259,7 +1259,7 @@ other terminal services are not prerequisites.
   accepting it publishes a lock whose accepted policy carries the row, so
   `omega --target macos_arm64` on a downstream application now stops only
   at the empty CLI receiving policy ("omits the accepted permission"),
-  which is TWO-AXIS-TERMINAL-AUTHORITY-REVIEW's receiving-axis input
+  which is TWO-AXIS-TERMINAL-AUTHORITY-REVIEW's misplaced production gate
   (`PreparedLocalProjectNativeRequest::with_receiving_terminal_authority_permission_policy`
   has no caller under `omega-rust/omega/src`) rather than test-owned
   acceptance (`package_commands console_exit_permission`,
@@ -1273,9 +1273,9 @@ other terminal services are not prerequisites.
   byte row (`review::candidate::compilation::tests::discovery_proposes_*`,
   1 against 3 rows), and console-exit-app now writes a line, accepts 3 rows
   into the lock and stops at the empty receiving policy for all three
-  (4121d83206). The surface that selects the receiving
-  policy package is design-blocked on the `receiving-policy-selection`
-  owner question. Open: the CLI receiving policy,
+  (4121d83206). Remove that mandatory gate from ordinary compilation;
+  explicit ecosystem admission still checks its independent policy. No new
+  policy-selection surface is required. Open: the production/admission split,
   remaining hosts' physical runs, root-return/task-custody survivor
   contracts, and general completion syntax.
 
@@ -4124,11 +4124,30 @@ Owners include
   without exposing private types or hiding admissions. Resource capacity and
   classification-specific boundary-route restrictions remain unchanged.
 
-- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
+- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Separate ordinary artifact production
+  from [explicit receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission).
+  Remove the default empty receiving-policy gate from source-to-native and
+  retained-Terminal production, including `operations/compile_project.rs` and
+  the native request/realization join. Absence means no receiver verdict, not
+  deny-all, allow-all, or a policy fabricated from accepted package rows. Preserve
+  project acceptance, proof/provider/lowering checks, build-host grants, and
+  requested physical exclusions. Keep the independent receiver policy at actual
+  admission/installation and explicit deployment-compatibility checking.
+
+  Acceptance: after ordinary package acceptance, the unchanged `cli_mvp`,
+  console-exit-app, Squalr native route, and Cathedral native smoke no longer
+  need receiving-policy input merely to emit. Report remaining unrelated
+  blockers rather than claiming their end-to-end completion. The same artifact
+  must reject at explicit admission under a denying policy and admit under a
+  sufficient accepted policy; absent policy must never yield an admission receipt.
+  Forged classifications, invalid proofs, and violated requested physical
+  exclusions still reject. No PCC request becomes mandatory.
+
+  Finish receiver permission rows and
   exact target-mechanism classification under the settled [filesystem
   control/lifecycle
   policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
-  Acceptance: every admitted leaf has one exact mechanism/contract row;
+  Receiver-admission acceptance: every admitted leaf has one exact mechanism/contract row;
   unknowns and duplicates reject; exercised classes fit independently supplied
   service permissions. Explicit empties retain service reach and exact review
   identity. Retire the transitional broad `Filesystem` summary only after
@@ -4781,6 +4800,26 @@ Owners include
   later resolution stratum. Authored source may not resolve forward into output
   generated by its own build. Acceptance includes replay after serialization
   and drift rejection for the full activation.
+
+  Wire [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
+  through compiler-derived review, package-manager install/update/audit,
+  normalized lock comparison, recoverable review/resume, and build execution.
+  Surface direct/transitive build-host requests separately from product authority
+  before running them; retain accepted request meaning in `omega.lock`, with
+  actual invocation grants separate. Benign snapshot/staging builds need no
+  restricted-action approval. Do not implement an arbitrary recursive build API
+  or new host protocol as part of this acceptance join.
+
+  Acceptance controls: initial install and an update adding a restricted helper
+  request both stop before its host effect and show package, dependency path,
+  operation, logical scope, bounds, and profile/target. Resume with acceptance
+  plus a real grant executes, then reviews generated source; rejection or missing
+  grant performs no restricted action. Audit-only inspection never adds grants.
+  Unchanged requests need no recurring approval; widened/transitive requests do.
+  Resolution-only updates preserve approval meaning, source changes remain audit
+  visible, and dependency-owned lock decisions cannot authorize host access.
+  Exercise interrupted review/publication and stale candidates without retaining
+  secrets or machine-specific grant paths in the lock.
 
   Finish compiler-owned publication of the retained native product built with
   generated source. Bind the exact application root, authored declaration role,

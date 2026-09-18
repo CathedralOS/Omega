@@ -29,6 +29,12 @@ resolution do not certify compiler artifacts. V1 accepts resolved source, not
 preaccepted compiled dependency instances; adding the latter requires a new
 request version, not a zero or omitted row interpreted as acceptance.
 
+External admissions cover the assumptions and authority required by the requested
+compilation, including actual build execution. Ordinary artifact production does
+not require ecosystem receiving-policy input or claim permission to execute the
+result. Explicit receiver admission remains a separate operation under
+[service permission](permissions.md#artifact-production-versus-receiver-admission).
+
 Discovery, retrieval, ambient traversal, and host defaults are outside the
 standalone compiler. Compiler-injected build vocabulary belongs to compiler
 identity, not host-supplied source. The compiler derives providers, roots,

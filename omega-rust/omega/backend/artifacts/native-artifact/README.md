@@ -6,8 +6,10 @@ provider projections, and replay evidence together.
 
 Its lifecycle is visible there: `from_emitted_parts` derives physical evidence,
 `from_replayed_parts` reconstructs retained custody, and `validate` replays the
-joins before the artifact can be returned. Receiving-policy checks remain
-explicit; structural validation alone grants no receiving authority.
+joins before the artifact can be returned. Receiving-policy checks belong to
+explicit ecosystem admission, not a default deny-all gate on emission. Structural
+validation alone grants no receiving authority; the mandatory producer gate's
+removal is tracked by `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`.
 
 Follow its subordinate owners for:
 

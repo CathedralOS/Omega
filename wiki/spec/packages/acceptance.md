@@ -31,7 +31,7 @@ owns the physical format.
 ## Review and publication
 
 1. Resolve the complete candidate and exact sources.
-2. Check it, including generated source and transitive authority.
+2. Check the build closure and review restricted build requests before their execution; after authorized build work, check generated source and transitive product authority.
 3. Compare the exact risk-bearing projection against compact lock acceptance.
 4. Resolve required decisions for that exact comparison.
 5. Publish the declaration/lock pair with interruption recovery.
@@ -75,6 +75,40 @@ line, algorithm-work, trace-memory, and output limits. Binary/non-UTF-8 changes
 remain commitment-visible but incomplete for model review; recommend standalone
 audit. Exceeding a packet limit rejects rather than silently truncating evidence.
 
+## Restricted-build acceptance
+
+`omega install`, `omega update`, and package audit expose restricted build-time
+requests separately from product/runtime authority. Include direct and transitive
+requests, their originating package and dependency path, build purpose,
+operation, logical resource scope, bounds, and applicable execution profile and
+target. The audit explains what may run during compilation, not merely what the
+eventual binary may do. Broad risk labels or a package's own assurances cannot
+replace these checked requests.
+
+Before executing a restricted build action, compare its complete normalized
+request against the consuming project's accepted lock policy. New or widened
+requests require explicit acceptance through the ordinary install/update review
+and resume workflow; removals and other changes remain visible under the existing
+comparison rules. An unchanged accepted request needs no recurring approval.
+Changed source remains audit-visible even when its requested authority is unchanged.
+Benign snapshot/staging work requires no restricted-action decision.
+
+When candidate checking needs an unaccepted action, stop before that action and
+present the pending build requests with the audit marked incomplete. On resume,
+recheck the exact candidate, decision scope, and executor grants before running
+it, then finish generated-source and product review. Acceptance for that build
+phase is not acceptance of unchecked generated code. Keep explicit decisions in
+the recoverable review transaction and publish them in `omega.lock` only through
+the checked declaration/lock publication flow; rejection leaves the prior lock
+unchanged. Already executed host effects have no implicit rollback.
+
+Ordinary compilation consumes those decisions but cannot invent or widen them.
+Actual invocation grants must also provide the accepted scoped resources; a
+missing grant rejects before use. Dependency locks, runtime permissions, and
+resolver credentials cannot authorize the dependency's build-host access.
+The lock stores decisions, not credentials, machine-specific absolute paths,
+ephemeral capabilities, or a second ecosystem admission policy.
+
 ## Authority boundaries
 
 Build execution may perform its admitted scoped effects even if later checking
@@ -100,8 +134,11 @@ receipts belong to their artifacts or concrete caches, not ordinary lock accepta
 
 Native preparation compares fresh findings against the same accepted project
 acceptance projection. Unchanged accepted policy needs no second native approval
-file; unmatched risk-bearing rows use ordinary package review. This does not waive compiler proof checks,
-build-execution grants, or independently supplied receiving permission policy.
+file; unmatched risk-bearing rows use ordinary package review. This does not waive
+compiler proof checks or actual build-execution grants. Ecosystem receiving
+policy applies separately at explicit admission/installation, not as a required
+input to ordinary compilation. No receiver policy means no receiver-admission
+claim, rather than a deny-all production gate or inferred execution permission.
 
 Acceptance binds permission and assumption meaning, not diagnostic wording or
 incidental presentation. Unknown semantic-schema compatibility requires full

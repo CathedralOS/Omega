@@ -1,8 +1,9 @@
 # Build execution and generated source
 
 [Build declarations](declarations.md) define project discovery and the
-activation-scoped build facets. Build execution is effectful, admitted work;
-it is not the hermetic evaluator used for constants and proofs.
+activation-scoped build facets. Build execution uses the benign confined
+snapshot/staging baseline by default; effects outside that baseline require
+explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
 
 ## Admission before execution
 
@@ -11,7 +12,7 @@ The order is:
 1. Project the root role, both dependency scopes, and output mode from retained source.
 2. Resolve the purpose-specific immutable closures and capture inputs under resolver/sponsor custody.
 3. Check the host build entry and helpers; freeze the authored product-selection frontier.
-4. Admit the complete build contract, then execute its prepared projection.
+4. Surface restricted build requests for project acceptance, join actual executor grants, and admit the complete build contract before executing its prepared projection.
 5. Incorporate generated source, resolve final selections, and finish all requested product checks, including behavior exclusions.
 6. Check required-output completion and commit one immutable result set.
 
@@ -45,6 +46,39 @@ resolver credentials nor the root's filesystem, process, secret, or acceptance
 authority. Each dependency build gets its own admitted package scope. Runtime
 provider selection is not a route around the compiler-owned build facets;
 additional host effects require explicit protocol operations and policy.
+
+## Restricted build requests
+
+Ordinary computation, admitted immutable inputs, private staged outputs, and
+bounded diagnostics use the [default build protocol](scoped_execution.md).
+They do not require an unsafe-build approval merely because a dependency supplies
+the code. This baseline does not provide arbitrary live filesystem, process,
+network, credential, or resolver access. Unsupported host operations remain
+unsupported; acceptance cannot create a missing execution protocol.
+
+Checked build contracts expose requests outside that baseline, including requests
+reached through imported helpers or prerequisite dependency build activations.
+No nested call, dependency edge, or accepted runtime permission hides or authorizes
+a build-host action. Retain the originating package, build purpose, operation,
+logical resource scope, bounds, and applicable profile/target context. Delegation
+uses explicitly supplied capabilities and cannot widen their authority.
+
+[Install/update review](../packages/acceptance.md#restricted-build-acceptance)
+surfaces those requests before restricted execution. Explicit project decisions
+are retained in `omega.lock`; the executor separately supplies actual scoped
+resources. Neither lock acceptance nor a callee's own lock manufactures a host
+grant. A root's grant is not automatically available to dependency builds.
+
+Discovery and audit cannot run an unaccepted restricted action merely to learn
+what it requests. Check the authored build closure first; if further checking
+needs such an action, retain a pending review/incomplete audit until acceptance
+and actual grants permit continuation. Generated source is then checked and
+audited normally, not trusted because its generator was accepted. Benign work
+needs no approval ceremony; unchanged accepted requests need no recurring approval.
+
+This governs existing helper delegation and dependency build scheduling; it adds
+no recursive build API or permission to import another activation's build entry.
+The executor, not the offered program, enforces actual host confinement.
 
 ## Generated-source boundary
 

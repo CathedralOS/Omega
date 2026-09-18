@@ -19,8 +19,10 @@ Expected package evidence on `macos_arm64`:
   accepting every other row keeps the lock unpublished;
 - an accepted lock retains the three rows, and the accepted package permission
   policy projected for native realization contains exactly those rows, so
-  `omega --target macos_arm64` passes the package permission axis and stops at
-  the independently supplied receiving policy for each of them.
+  ordinary compilation must pass package acceptance without an ecosystem
+  receiving policy. The current native route still stops at that misplaced gate;
+  TWO-AXIS-TERMINAL-AUTHORITY-REVIEW owns its removal. Explicit receiver admission
+  must still reject the emitted artifact under an insufficient independent policy.
 
 The package CLI test copies this fixture and rewrites the std location to the
 repository checkout; the relative location above resolves from this directory.

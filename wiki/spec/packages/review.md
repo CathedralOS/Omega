@@ -15,10 +15,27 @@ selected-program reach.
 
 This full fresh report is distinct from retained project acceptance. The lock
 keeps only exact admission-claim/external-realization callable rows, external
-supplies, dangerous capabilities, and terminal permissions. Complete-row meaning
+supplies, dangerous capabilities, terminal permissions, and accepted restricted
+build requests. Complete-row meaning
 is retained for those risks; other API, provider, representation, dependency,
 and symbolic-demand findings remain fresh audit material. Comparing acceptance
 does not reconstruct an old compiler report or compile historical source.
+
+Install/update audits distinguish product/runtime findings from actions requested
+on the build host. Before any restricted build action, derive its request from
+the checked build closure, including transitive helpers and dependency build
+activations. Show the originating package, dependency path, operation, logical
+scope, bounds, applicable profile/target, and accepted-versus-candidate change.
+Keep suspicious changes and unchanged-authority source changes visible for code
+audit; only explicit project decisions accept blocking requests.
+
+This pre-execution request report does not claim a complete final product review.
+If further findings depend on unaccepted execution, mark them unavailable/pending
+and follow [restricted-build acceptance](acceptance.md#restricted-build-acceptance).
+An audit must not perform the very action it is asking the owner to approve.
+An inspection command never grants new authority; existing acceptance still needs
+actual executor grants before any restricted evaluation. Final generated-source
+and product findings remain independently checked.
 
 Unknown authority, unresolved boundary ownership, omitted transitive effects,
 and unsupported proof forms reject rather than becoming empty rows. Generic

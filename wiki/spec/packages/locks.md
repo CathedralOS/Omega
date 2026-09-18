@@ -13,8 +13,23 @@ commit/tree/content and member selections, source requests, requester-local alia
 edges, compact normalized acceptance policy, and explicit project decisions.
 Each package retains exact canonical rows for admission-claim and external-
 realization callables, external executable supplies, dangerous capabilities,
-and supplied terminal permissions, scoped to each actually reviewed target.
+supplied terminal permissions, and accepted restricted build requests, scoped
+to their reviewed purpose, execution profile, and product target where applicable.
 Every retained row preserves its complete readable meaning, not only a digest.
+
+Restricted-build rows bind the exact package and permission meaning, operation,
+logical resource scope, bounds, and applicable context. They record the consuming
+project's explicit acceptance, not authority supplied by a dependency's own lock.
+Fresh checked contracts reconstruct the direct/transitive requests at each use;
+the existing comparison rules decide whether retained acceptance still applies.
+Resolution-only updates cannot add or widen approval. Unchanged accepted requests
+need no recurring approval, while source changes remain visible in the audit.
+
+Host resources and credentials are supplied separately at invocation. The lock
+contains no secrets, machine-specific absolute grant paths, or temporary host
+capabilities. Logical resource names are reviewable request data, not authority
+to resolve an arbitrary host path. See
+[restricted-build acceptance](acceptance.md#restricted-build-acceptance).
 
 The lock does not retain the complete public API, ordinary checked callables,
 selected-provider tables, representation snapshots, source-semantic dependency

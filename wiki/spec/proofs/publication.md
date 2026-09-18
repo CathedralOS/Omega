@@ -82,6 +82,15 @@ the content binding rather than treating adjacency as evidence.
 
 ## Receiver-owned requirements
 
+Receiver policy belongs to the ecosystem accepting an artifact, not to ordinary
+artifact production. An OS, loader, registry, or deployment service may require
+PCC and select a policy package; emitting an artifact or its requested companion
+does not require selecting an ecosystem policy. Producers may explicitly request
+a compatibility check against a supplied deployment policy. Without one, no
+receiver-admission claim is made; production does not substitute a deny-all or
+allow-all policy. Producing evidence is not permission to execute, and an
+application's `build.omg` cannot choose the receiving ecosystem's policy.
+
 Both products distinguish receiver-required safety guarantees from
 producer-published application guarantees. The receiver fixes its requirements;
 the producer cannot choose a weaker question by supplying annotations or an

@@ -39,7 +39,7 @@ The root supplies finite sets of exact exclusions. Their meanings are distinct:
 | --- | --- |
 | Crash cause | No possible semantic outcome of that cause, initially `Trap` or `Abort`. |
 | Abstract service | No possible invocation of the exact boundary service, using the existing nominal identity and boundary-parent closure. |
-| Physical authority class | No selected mechanism exercises the named terminal class under the existing receiving-policy classification. |
+| Physical authority class | No selected mechanism exercises the named terminal class under the shared mechanism-classification semantics. |
 
 An abstract Console invocation still counts when its selected Console provider
 is silent. An ordinary no-op logger that never invokes Console can satisfy a
@@ -65,7 +65,10 @@ dependency-discovery declarations. They may be assembled by authorized helpers
 within the root's admitted build. Repeated selections combine by set union;
 duplicates are idempotent, order cannot change the result, and later selections
 cannot remove earlier restrictions. No added exclusion is implied by omission.
-Existing target, source, authority, and receiving-policy restrictions still apply.
+Existing target, source, and authority restrictions still apply. Receiver-policy
+restrictions apply at explicit admission, not by default to artifact production.
+Physical exclusion checking reuses classification, not the receiver's permission
+grant table.
 
 There is no intrinsic debug/release switch. An application may select a checking
 implementation in one configuration and a no-op implementation plus a Trap
