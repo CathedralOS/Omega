@@ -518,7 +518,23 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   (`CallStructural`) currently have no admitted relocation evidence; the
   remaining establishments still need an admitted cyclic source shape —
   scalar-graph arrays only emit as call arguments — before admission
-  work can begin.
+  work can begin. Cycle-admission evidence (linw2): the verifier's
+  cyclic-operation whitelist `unranked_cycles::eligible` admits none of
+  the remaining establishments — `EstablishScalarArray` is also fenced
+  by `block_graph`'s once-per-activation array rule, while
+  `EstablishRecord` and `EstablishTrivialAffineLocal` fall to the
+  scalar-result fallthrough — and admits `EstablishScalarCase` and
+  place-result `CallStructural` only bound to the same block's
+  `StructuralCase`/`ReturnStructural` terminator, whose edges trivially
+  discard the result place, so a hoisted establishment leaves later
+  traversals dispatching a disposed place. Synthetic fixtures cannot
+  bypass the fence: optimizer admission replays
+  `verify_module_for_optimization`. Profitability likewise has no
+  bounded leg — every operation and terminator costs one fuel unit, so
+  no zero-cost speculation exists beyond the constant-leaf exemption —
+  and motion past the shared preheader needs new blocks or run
+  duplication the frozen block roster and unique-occurrence freeze
+  reject. The remaining work therefore starts upstream in psi.
 
   Region custody constrains every remaining motion family: the counted-loop
   `LoopRegion` is projected from validated Terminal-SCC custody, never from a
