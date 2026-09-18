@@ -616,24 +616,31 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/` and
-  `validation/src/machine_calls/call_cycles/runtime_ranking.rs`.
-  Transfers with diverging copies of rank inputs, and call components with
-  internal state arrivals, or slice-length,
-  bounded-distance, or custom views need
+  `validation/src/machine_calls/call_cycles/runtime_ranking.rs`. Transfers
+  with diverging copies of rank inputs, and call components with internal
+  state arrivals, or slice-length, bounded-distance, or custom views need
   exact arrival mappings and preserved premises for ranked subjects and pinned
-  endpoints. Mutable premises need live write-frame evidence.
-  Custom struct-view ranges involving borrowed or nested projections,
-  constrained measure parameters, duplicated record roles, and dependency-free
-  initial record arrivals need exact view-application evidence.
-  Retire generated operand-call states through
-  STATE-LOCAL-VALUE-FRONTIER's checked computation route rather than add ranking
-  provenance for those artificial edges. Flow-dependent computed
-  endpoint formation needs its own arithmetic proof, not an unchecked
-  polynomial. Non-polynomial endpoint substitutions beyond exact input
-  forwarding need their own equality evidence.
-  Scalar views beyond bare unsigned identity forwarding, and slice lengths
-  over projected storage need their produced-rank facts.
-  These are implementation gaps, not grounds to weaken the range obligation.
+  endpoints. Mutable premises need live write-frame evidence. Custom
+  struct-view ranges involving borrowed or nested projections, constrained
+  measure parameters, duplicated record roles, and dependency-free initial
+  record arrivals need exact view-application evidence. Retire generated
+  operand-call states through STATE-LOCAL-VALUE-FRONTIER's checked computation
+  route rather than add ranking provenance for those artificial edges.
+  Flow-dependent computed endpoint formation needs its own arithmetic proof,
+  not an unchecked polynomial. Non-polynomial endpoint substitutions beyond
+  exact input forwarding need their own equality evidence. Scalar views beyond
+  bare unsigned identity forwarding, and slice lengths over projected storage
+  need their produced-rank facts. These are implementation gaps, not grounds
+  to weaken the range obligation. Red note (macOS ARM64, measured at
+  d3b56ac3f1, 2026-09-18): three tests in this lane fail on main --
+  `tests::termination::rank_ranges::computed_field_limits`,
+  `tests::termination::rank_ranges::field_coordinates` and
+  `tests::termination::rank_ranges::field_endpoint_arithmetic`. They are not
+  range read-set fallout: no commit from that lane touches
+  `checks/termination` or `src/tests/termination`, while this subsystem took
+  six commits in the preceding day, most recently 9212a5df9e and deb315f98d on
+  progress premises, with the test module last moved at f5d4abc290. Recorded
+  for this item's owner.
 
   Acceptance: named-state and call-component rank ranges accept proved
   constraints while changed endpoints and intervening writes invalidate their
