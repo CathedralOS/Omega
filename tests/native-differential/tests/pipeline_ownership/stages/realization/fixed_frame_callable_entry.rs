@@ -33,26 +33,44 @@ fn fixed_frame_rejects_a_machine_from_another_allocation_before_encoding() {
         )
         .unwrap()
     };
-    let allocation = allocate(NativeTarget::linux_x64());
-    let other = allocate(NativeTarget::linux_arm64());
-    let machine =
-        register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan(
-            &other.current(),
-        )
-        .unwrap();
-    assert!(matches!(
-        stage_fixed_frame_function_relative_realization(
-            allocation,
-            machine,
-            selected_lowering_budget()
-        ),
-        Err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine(_))
-    ));
+    let foreign = |target: NativeTarget| match target.architecture {
+        target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+        target::Architecture::Aarch64 => NativeTarget::linux_x64(),
+    };
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let allocation = allocate(target);
+        let other = allocate(foreign(target));
+        let machine =
+            register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan(
+                &other.current(),
+            )
+            .unwrap();
+        assert!(matches!(
+            stage_fixed_frame_function_relative_realization(
+                allocation,
+                machine,
+                selected_lowering_budget()
+            ),
+            Err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine(_))
+        ));
+    }
 }
 
 #[test]
 fn fixed_frame_retains_original_allocation_and_rejects_current_program_substitution() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         for replace_selected in [false, true] {
             let selected = staged_exact_add_conditional(target);
             let ranges =
@@ -164,7 +182,13 @@ fn staged_fixed_frame_callable(
 
 #[test]
 fn fixed_frame_source_reaches_ordinary_callable_on_both_isas() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (callable, application) = staged_fixed_frame_callable(target);
         assert_eq!(
             validate_optimized_ordinary_callable_entry(&callable).unwrap(),
