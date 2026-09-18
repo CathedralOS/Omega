@@ -373,6 +373,11 @@ fn entry_operand_at(
         ExpressionNode::Integer(value) => {
             Some(CrashPredicateExpression::Integer(value.text().to_owned()))
         }
+        // A float literal is already an entry value: its closed spelling
+        // transports like the integer literal beside it.
+        ExpressionNode::Float(value) => {
+            Some(CrashPredicateExpression::Float(value.text().to_owned()))
+        }
         ExpressionNode::Unary(unary)
             if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
         {
@@ -959,6 +964,7 @@ pub(super) fn substitute_entry(
         // callee spelling into caller coordinates.
         CrashPredicateExpression::Boolean(_)
         | CrashPredicateExpression::Integer(_)
+        | CrashPredicateExpression::Float(_)
         | CrashPredicateExpression::Name(_) => expression.clone(),
         CrashPredicateExpression::Binary {
             operator,
@@ -1042,6 +1048,7 @@ pub(super) fn substitute_entry_projected(
         }
         CrashPredicateExpression::Boolean(_)
         | CrashPredicateExpression::Integer(_)
+        | CrashPredicateExpression::Float(_)
         | CrashPredicateExpression::Name(_) => expression.clone(),
         CrashPredicateExpression::Binary {
             operator,

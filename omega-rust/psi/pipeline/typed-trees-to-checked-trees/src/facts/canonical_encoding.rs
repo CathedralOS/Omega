@@ -254,6 +254,14 @@ fn encode_expression_canonical(
             out.push(4);
             out.push(u8::from(*value));
         }
+        // Float literals carry their exact suffix-free spelling like
+        // `Integer` — the same tag `CrashPredicateExpression::Float` writes,
+        // so checked identities and canonical route bytes stay equal.
+        ExpressionNode::Float(value) => {
+            out.push(0x0a);
+            out.extend(value.text().as_bytes());
+            out.push(0);
+        }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             // A bare parameter name normalizes to its POSITION -- renames

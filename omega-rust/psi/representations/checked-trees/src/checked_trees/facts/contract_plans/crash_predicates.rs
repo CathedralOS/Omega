@@ -35,6 +35,11 @@ pub enum CrashPredicateExpression {
         operand: Box<Self>,
     },
     Integer(String),
+    /// A float literal's exact source spelling (the `FloatLiteral` text:
+    /// suffix-free, text-only identity like the integer carrier). The literal
+    /// is a closed leaf — no formal can hide inside it — so entry
+    /// substitution transports it the same way it transports `Integer`.
+    Float(String),
     Boolean(bool),
     Name(Vec<String>),
     Member {
@@ -143,6 +148,11 @@ impl CrashPredicateExpression {
             Self::Boolean(value) => {
                 out.push(4);
                 out.push(u8::from(*value));
+            }
+            Self::Float(value) => {
+                out.push(0x0a);
+                out.extend(value.as_bytes());
+                out.push(0);
             }
             Self::Name(members) => {
                 out.push(5);

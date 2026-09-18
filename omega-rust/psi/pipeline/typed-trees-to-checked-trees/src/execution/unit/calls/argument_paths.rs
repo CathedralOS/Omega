@@ -670,6 +670,7 @@ pub(crate) fn crash_expression_mentions_parameter_outside_member_path(
         | CrashPredicateExpression::Opaque(_)
         | CrashPredicateExpression::ContentConservation(_) => true,
         CrashPredicateExpression::Integer(_)
+        | CrashPredicateExpression::Float(_)
         | CrashPredicateExpression::Boolean(_)
         | CrashPredicateExpression::Name(_) => false,
     }
