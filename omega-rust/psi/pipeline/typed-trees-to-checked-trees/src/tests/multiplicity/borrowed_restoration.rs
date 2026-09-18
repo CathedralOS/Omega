@@ -237,6 +237,33 @@ fn wrong_place_replacement_leaves_the_debt_open() {
 }
 
 #[test]
+fn wrong_type_replacement_does_not_discharge_the_window() {
+    // Assignment typing pins the stored value's type to the place's declared
+    // type; a differently-typed "repair" is refused before it can pretend to
+    // close the window, and the window still demands the exact moved type.
+    let diagnostics = match check_source(
+        r#"
+        data Inventory { slots: i32; }
+        data Other { tag: i32; }
+        data Main { inventory: Inventory; }
+        machine Main::main(&mut self) {
+            let replacement: Inventory = self.inventory;
+            self.inventory = move Other { tag: 1 };
+        }
+        "#,
+    ) {
+        Ok(_) => panic!("a differently-typed value cannot close the hole"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("incompatible data types")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn repeated_extraction_while_absent_rejects() {
     let diagnostics = match check_source(
         r#"
