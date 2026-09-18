@@ -11,8 +11,8 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{SelectedFunction, SelectedInstructionId};
 
 use super::CommutingInterchangeError;
-use super::accesses;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::commuting_accesses as accesses;
 use crate::rewrites::place_storage::structural_place_declarations;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
 

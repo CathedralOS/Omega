@@ -1,12 +1,15 @@
-//! Memory-roster commutation for the pair interchange under proven access
-//! independence: which two recorded accesses may trade order without either
-//! observing the other's effect, and the row permutation that keeps the
-//! roster in execution order when they do.
+//! Memory-roster commutation for the scheduling rewrites under proven
+//! access independence: which two recorded accesses may trade order
+//! without either observing the other's effect, and the row permutation
+//! that keeps the roster in execution order when they do. The commuting
+//! interchange families — `commuting_interchange` at pair granularity and
+//! `commuting_run_interchange` at run granularity — share this one audit;
+//! the families that keep recorded accesses in place never consult it.
 //!
 //! The overlap reading is the roster's own: the dead-store and store-motion
 //! walks ask `local_slot_is_place_storage` whether a local-slot row reaches a
 //! place's bytes and compare byte extents only inside one place or slot.
-//! This family applies the same reading symmetrically between two rows.
+//! This audit applies the same reading symmetrically between two rows.
 use selected_instructions::{
     LocalStorageSlotId, OutgoingArgumentSlotId, SelectedFunction, SelectedInstructionId,
     SelectedMemoryAccess, SelectedMemoryAccessRole,

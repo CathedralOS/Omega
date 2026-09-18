@@ -13,12 +13,12 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
-use super::accesses;
 use super::{
     CommutingInterchangeError, CommutingInterchangeReceipt, ValidatedCommutingInterchange,
     admission,
 };
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::commuting_accesses as accesses;
 
 /// Independently consume the proposed program: admission re-derives the
 /// admitted window from the source, the touched block must place exactly

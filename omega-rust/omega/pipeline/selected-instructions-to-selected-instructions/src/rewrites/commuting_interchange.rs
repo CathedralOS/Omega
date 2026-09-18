@@ -65,7 +65,6 @@
 //! window and the roster's window rows to equal the independently
 //! computed interchange, and restores the complete source by content.
 
-mod accesses;
 mod admission;
 mod rewrite;
 mod validation;
