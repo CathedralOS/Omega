@@ -2085,8 +2085,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   selection-vocabulary member — admission is an explicit per-victim
   validated call — so the disabled-policy axis stays absent.
   Every exact rule in the current phase set now carries the full matrix,
-  re-verified on Linux x86-64: 117 `lowered-psi-to-lowered-psi` tests,
-  502 `selected-instructions-to-selected-instructions` lib tests, 378
+  re-verified on Linux x86-64: 142 `lowered-psi-to-lowered-psi` tests —
+  the six selection rules plus the shared `retained_identities` family
+  (proposition-carried proof values, machine crash routes, operation
+  crash continuations, crash-site guards, recorded source-call joins,
+  and ranked-scc coverage), which carries the same matrix through
+  helper, consumer, and public-entrance legs — 1392
+  `selected-instructions-to-selected-instructions` lib tests, 413
   `abstract-operations-to-abstract-operations` lib tests, 17
   `resolved-layout-to-resolved-layout` tests, and the 20 checked-tree
   product-pruning legs all pass. No uncovered exact-rule family remains:
