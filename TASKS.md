@@ -3077,11 +3077,32 @@ Owners include
   admitted `qualification_authorization`, so that promise never becomes a
   caller fact and the pass fixture proves `view` from the `let`'s
   declared-type seeding (`flow/transfers.rs`), not from the ensures.
-  Remaining on this route: for the same reason a restating `let` of a
-  bodyless indexed domain from a call whose `ensures` carries no instance
-  of that family is still admitted with no establishment evidence (`place`
-  ensuring only `result in Granted` while the caller restates
-  `Resident<SlotPlacement, Slot>` compiles). Next
+  That gap is now closed (macOS ARM64): the same collector refuses a
+  restating write whose declared type names an indexed instance of a
+  bodyless family when the value is a call carrying no instance of that
+  family at all, so `place` ensuring only `result in Granted` no longer
+  admits `let placed: Extent in Granted & Resident<SlotPlacement, Slot> =
+  storage.place(..)`. Establishment is read from the call itself -- its
+  declared return type or an `ensures` on the reserved `result` -- because
+  `domains.md` keeps establishment on the value's own route and
+  `placed_access.md` fixes `Resident`'s whole route set (initialization
+  from `Vacant` and an owned `T`, a `ResidentContentTransfer<P, T>`
+  issuance occurrence with its receipt, or forwarding existing custody);
+  a declared local type is an obligation, not evidence. Predicate-bearing
+  domains keep their `checks/contracts/writes.rs` discharge, and every
+  evidenced restatement still compiles: the pass canary above,
+  `pass/memory/bump_allocator_canary`, and the `Quantity`/`Indexed`
+  fixtures, whose instances arrive from a declared return type, a cast,
+  or a declared field. `fail/contracts/
+  proof_fact_indexed_domain_application_unevidenced` pins the refusal and
+  is registered beside `_mismatch` in `canary_suite.rs` (one roster line,
+  that file still under a live claim). Remaining on this route: a cast can
+  still introduce a bodyless indexed instance (`as Extent in Granted &
+  Resident<P, T>`), which `placed_access.md` does not list as an
+  establishment route; refusing it needs the compiler-owned routed
+  classification that the library declaration (`pub domain<P, T>
+  Extent::Resident<P, T>;`, no `established by`) does not carry, so it is
+  a spec/library question rather than an implementation gap. Next
   acceptance: a `Vec<T>`-style container over the chain, which still
   needs compiler-owned `Initialize`/placed-view establishment (plan
   evaluation of `P` over `T`, Stable-supply admission).

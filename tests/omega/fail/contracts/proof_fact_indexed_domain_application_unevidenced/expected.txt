@@ -1,0 +1,1 @@
+declared instance `Resident<SlotPlacement, Slot>` has no establishment: the call establishes no instance of domain family `Resident`
