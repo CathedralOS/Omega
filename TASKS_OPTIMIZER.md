@@ -1782,13 +1782,31 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `ZeroExtendU8` of the stored register — an exact or local range
   cannot contain a runtime-placed byte, and a sequence write at
   another offset or index may land on a different byte entirely
-  (crate `nextest`: 1289 pass on macOS x86-64). Remaining: staging
-  `Structural` slots still cannot die, cover, source, or move — a
-  `Structural` slot the place's declaration does not charge to its
-  producer only stages bytes that name the place — dynamic-extent
-  rows still cannot cover an exact dead range, and legs whose
-  paths resolve to different writers or never resolve stay
-  unproven.
+  (crate `nextest`: 1289 pass on macOS x86-64). Dead-store covering
+  also admits the `CopyBytes` route into the dead place — the one
+  covering write whose roster holds several rows: the destination
+  `WriteByteSpan` must be the single row reaching the dead range,
+  and its dynamic extent covers the exact dead range when the
+  count register carries the row's `length` value and resolves to
+  a clean `MaterializeI64`, so the span writes a compile-time
+  `count` bytes at its fixed `byte_offset` and containment decides
+  on constants. The copy's source `ReadByteSpan` rides on another
+  place under place exclusivity, while a reaching source read or
+  second row on the dead place, a short or unmaterialized count, a
+  count register naming another source value, a second definition
+  or an edge transport on the count, a nonzero recorded byte
+  count, and a `CopyBytes` kind off the target's `copy_bytes` row
+  each reject — and a byte-sequence dead store still needs the
+  byte-exact sequence write since no fixed span contains a
+  runtime-placed byte (crate `nextest`: 1302 pass on macOS
+  x86-64). Remaining: staging `Structural` slots still cannot die,
+  cover, source, or move — a `Structural` slot the place's
+  declaration does not charge to its producer only stages bytes
+  that name the place — a sequence row cannot cover an exact dead
+  range, a dynamic dead extent still needs the byte-exact sequence
+  write, a span's unmaterialized count leaves its reach unproven,
+  and legs whose paths resolve to different writers or never
+  resolve stay unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
