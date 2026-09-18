@@ -461,7 +461,28 @@ pub(crate) fn substitute_checked_boolean_expression(
                 case: case.clone(),
             }
         }
-        CheckedBooleanExpression::StructuralParameterField { .. } => return None,
+        // A standalone Boolean field read is the same frozen structural leaf
+        // the atomic propositions carry: the callee position binds the
+        // actual's caller parameter and member spine, and the leaf path
+        // appends below it. The lowering rechecks the re-rooted path ends at
+        // a retained Boolean field before emitting the scalar term, so a
+        // redirected leaf stays fail-closed downstream.
+        CheckedBooleanExpression::StructuralParameterField {
+            parameter_position,
+            path,
+        } => {
+            let leaf = substitute_structural_parameter_field(
+                &checked_trees::CheckedStructuralParameterField {
+                    parameter_position: *parameter_position,
+                    path: path.clone(),
+                },
+                fields,
+            )?;
+            CheckedBooleanExpression::StructuralParameterField {
+                parameter_position: leaf.parameter_position,
+                path: leaf.path,
+            }
+        }
         CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
             substitute_checked_boolean_expression(operand, arguments, fields)?,
         )),
