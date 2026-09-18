@@ -566,6 +566,26 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   receiver root fails state-relative visibility; the codec route is now closed
   as recorded above.
 
+  One decision-17 member was decided on 2026-09-18 and the finding
+  generalizes: `proofs/proof_inductive_climbing_sum` was an unsound fixture,
+  not a checker regression. Its recursive transition argument `acc + 1`
+  added to an unbounded `u64` formal with no `requires`, and
+  [numeric values](wiki/spec/language/numeric_values.md) refuses the
+  fixture's own excuse that the contract's `embed` made the arithmetic
+  mathematical: "a safe final result, mathematical substitution, or unknown
+  analysis endpoint cannot excuse an unsafe intermediate", while
+  [contracts](wiki/spec/proofs/contracts.md) has `embed` retain the exact
+  carrier range rather than re-domain the argument that produced the value.
+  The gate went red at 9571353f69 (2026-09-05), which added the u64
+  unsigned-ceiling check and rewrote three other fixtures that relied on its
+  absence while missing this one. Repaired by bounding the accumulator, with
+  each conjunct verified necessary by removing it one at a time and the
+  `ensures` checked non-vacuous against a stalled accumulator, and the
+  unbounded spelling registered as
+  `fail/proofs/inductive_climbing_sum_unbounded_accumulator`. Read the rest
+  of that bucket the same way before reaching for the engine: an operand
+  with no provable range is the fixture's obligation.
+
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/` and
