@@ -4,27 +4,11 @@ use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::signature::StateParameter;
 
 /// Render an operator contract expression with each formal parameter replaced
-/// by its concrete operand. This is shared by requires discharge and by flow
-/// introduction of ensures facts so both sides use one canonical caller-term
-/// representation.
-pub(crate) fn instantiate_operator_contract_expression_label(
-    program: &TypedTrees,
-    parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
-    expression: ExpressionHandle,
-) -> String {
-    let operand_labels = operands
-        .iter()
-        .map(|operand| program.render_proof_expression(*operand, ProofSubstitutions::None))
-        .collect::<Vec<_>>();
-    instantiate_operator_contract_expression_label_with_labels(
-        program,
-        parameters,
-        &operand_labels,
-        expression,
-    )
-}
-
+/// by its concrete operand label. This is shared by requires discharge and by
+/// flow introduction of ensures facts so both sides use one canonical
+/// caller-term representation. Callers supply the operand labels directly: a
+/// spelled use renders its operands as written, while a named call names the
+/// referent under a reference formal.
 pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
     program: &TypedTrees,
     parameters: &[StateParameter],
