@@ -2180,118 +2180,73 @@ Owners include
 ## P5 - Cathedral over general Omega primitives
 
 - **BUMP-ALLOCATOR-CANARY.** Build a package-level allocator over one qualified
-  `Extent`, supporting two coexisting allocations, exact cleanup/recomposition,
-  and reset only after full return under the
-  [allocation contract](wiki/spec/resources/allocation.md). Use it to discover the real `Vec<T>`
-  contract; do not add allocator semantics to the compiler.
-  Landed at 4d45081529: `tests/omega/pass/memory/bump_allocator_canary` checks
-  two coexisting allocations and full-return recomposition over a package
-  `ExtentPartition` boundary (Linux x86-64,
-  `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile`).
-  `exercise` now chains `allocate`/`reset` as ordinary package machines with
-  conserved custody, beside the direct-boundary `exercise_boundary` control.
-  Discovered contract edges, recorded in the canary header: a record returned
-  by a call does not surface its fields' `in Granted` facts on the result's
-  field places, so each qualified field is restated through an exactly typed
-  `let`, and the restated fields of one record share custody — consuming a
-  restated sibling retires the record's other restated facts, so a container
-  must order custody or keep the family in one record consumed atomically;
-  an ordinary machine cannot restate a boundary's `separate` law as its own
-  `ensures`; multi-input recomposition is admitted only through one record
-  parameter at a boundary. The bounded-request slice adds the contract's
-  counted byte residual to `Bump` and puts the exact capacity requirement on
-  `allocate` (`requires length <= strategy.remaining`); new edges: `split`'s
-  conservation law never pins `result.taken.length`, a content-carrying
-  machine's `ensures` admits only qualification/content-projection/`separate`
-  clauses (no scalar residual equality), a `requires` bound does not
-  propagate a subtraction's lower bound, and entry `requires` facts do not
-  survive the first request's consumption of the backing — so each request's
-  residual is a caller-stated premise. At 16fee936df the canary
-  establishes, reads and retires one resident element through a package
-  `ResidentStorage` boundary (`place` -> `Occupied { storage: Extent in
-  Granted & Resident<SlotPlacement, Slot> }`, borrowed `read`, owned
-  `retire` -> `Granted & Vacant`), the `ResidentContentTransfer<P,T>`
-  provider-issuance route spelled as one concrete application; fail
-  canaries `memory/bump_allocator_{reset_with_live_resident,
-  resident_dropped,place_into_occupied}` pin the rejections. At
-  921c76263e a typed-let restating `Extent in Granted & Resident<P,T>`
-  carries the interned instance identity (`facts/field_domain.rs`,
-  `flow/transfers.rs`), so `exercise_resident_restated` proves `view` and
-  `retire_view` at call `requires` and restating under another index is
-  refused as distinct normalized instances
-  (`fail/memory/bump_allocator_restated_resident_index_mismatch`). An
-  indexed domain application in proof-fact position (`ensures result in
-  Granted & Resident<P, T>`) is carried by argument (macOS ARM64): the
-  syntax and symbol-resolved `ProofMembershipFact` retain the argument span
-  read with the type-position grammar
-  (`tokens-to-syntax-trees/src/contracts/facts.rs`); the resolver lowers
-  the arguments as child type references and binds them in the owning
-  machine, trait-requirement, operator, domain, or data scope
-  (`syntax-trees-to-symbol-resolved-trees/src/lowering/domain.rs`,
-  `symbols/contracts.rs`, `symbols/domain_facts.rs`); and
-  `symbol-resolved-trees-to-typed-trees/src/contracts/proof_facts.rs`
-  lowers the arguments, checks their count against the family's index
-  binders, and interns `semantic_domain` in a finish pass beside
-  domain-constraint normalization
-  (`lowerer/tests/machine_contracts.rs` proves the fact's identity equals
-  the return constraint's for a closed `Resident<SlotPlacement, Slot>` and
-  a generic `Quantity<To>` bound to the requirement's own binder).
-  `pass/contracts/proof_fact_indexed_domain_application` compiles the
-  shape end to end (`place` ensures the instance; the caller restates it
-  through an exactly typed `let` and proves `view`/`retire_view`);
-  `fail/contracts/proof_fact_indexed_domain_application_arity` pins the
-  count rejection; a `|` alternative and a compiler carry permission still
-  reject an application by name. A restating write of a call result now
-  joins the callee's `ensures` membership by exact instance (macOS ARM64):
-  `typed-trees-to-checked-trees/src/facts/index_compatibility.rs` reads the
-  typed `ProofMembershipFact` (`semantic_domain`, `domain_arguments`) on
-  the whole reserved `result` from the call's contract row
-  (`ProofFacts.contract_calls[..].ensures`) as the value's actual instance
-  beside its declared return type, so `let placed: Extent in Granted &
-  Resident<OtherPlacement, Slot> = storage.place(..)` where `place` ensured
-  `Resident<SlotPlacement, Slot>` is refused at the `let` as distinct
-  normalized instances even when `view`/`retire_view` are declared over the
-  restated index
-  (`fail/contracts/proof_fact_indexed_domain_application_mismatch`, to be
-  registered beside `_arity` in `canary_suite.rs`, which was under two
-  live claims when the fixture landed). The join could not live in
-  `checks/contracts/writes.rs` (`predicate_domain_constraint_identities`
-  keeps predicate domains only, so a bodyless family never reaches
-  `value_proves_domain`) nor on the semantic `ContractDomainMembership`
-  fact: `facts/qualification_evidence.rs::call_contract_evidence` drops an
-  `ensures result in D` membership at a boundary requirement without an
-  admitted `qualification_authorization`, so that promise never becomes a
-  caller fact and the pass fixture proves `view` from the `let`'s
-  declared-type seeding (`flow/transfers.rs`), not from the ensures.
-  That gap is now closed (macOS ARM64): the same collector refuses a
-  restating write whose declared type names an indexed instance of a
-  bodyless family when the value is a call carrying no instance of that
-  family at all, so `place` ensuring only `result in Granted` no longer
-  admits `let placed: Extent in Granted & Resident<SlotPlacement, Slot> =
-  storage.place(..)`. Establishment is read from the call itself -- its
-  declared return type or an `ensures` on the reserved `result` -- because
-  `domains.md` keeps establishment on the value's own route and
-  `placed_access.md` fixes `Resident`'s whole route set (initialization
-  from `Vacant` and an owned `T`, a `ResidentContentTransfer<P, T>`
-  issuance occurrence with its receipt, or forwarding existing custody);
-  a declared local type is an obligation, not evidence. Predicate-bearing
-  domains keep their `checks/contracts/writes.rs` discharge, and every
-  evidenced restatement still compiles: the pass canary above,
-  `pass/memory/bump_allocator_canary`, and the `Quantity`/`Indexed`
-  fixtures, whose instances arrive from a declared return type, a cast,
-  or a declared field. `fail/contracts/
-  proof_fact_indexed_domain_application_unevidenced` pins the refusal and
-  is registered beside `_mismatch` in `canary_suite.rs` (one roster line,
-  that file still under a live claim). Remaining on this route: a cast can
-  still introduce a bodyless indexed instance (`as Extent in Granted &
-  Resident<P, T>`), which `placed_access.md` does not list as an
-  establishment route; refusing it needs the compiler-owned routed
-  classification that the library declaration (`pub domain<P, T>
-  Extent::Resident<P, T>;`, no `established by`) does not carry, so it is
-  a spec/library question rather than an implementation gap. Next
-  acceptance: a `Vec<T>`-style container over the chain, which still
-  needs compiler-owned `Initialize`/placed-view establishment (plan
-  evaluation of `P` over `T`, Stable-supply admission).
+  `Extent` under the [allocation contract](wiki/spec/resources/allocation.md):
+  two coexisting allocations, exact cleanup/recomposition, and reset only after
+  full return. Use it to discover the real `Vec<T>` contract; do not add
+  allocator semantics to the compiler.
+
+  `tests/omega/pass/memory/bump_allocator_canary` checks that chain, a guarded
+  fallible request, a one-buffer `BumpVec` reservation and one resident
+  place/read/retire; five `fail/memory/bump_allocator_*` controls pin the
+  rejections. Its header records the contract edges found so far (the note that
+  an indexed domain application does not parse in proof-fact position is stale
+  since `pass/contracts/proof_fact_indexed_domain_application`). This is source
+  checking only: the fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster,
+  `Main::main` is empty, and `ExtentPartition`/`ResidentStorage` are
+  fixture-local boundary traits with no conformer or selected provider.
+  Split/merge conservation and resident establishment are asserted boundary
+  laws, and nothing lowers or executes.
+
+  Remaining work:
+
+  - Container. A `Vec<T>`-style owner needs elements, a length and growth.
+    Elements need the source `Initialize`/view/retire route of
+    [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)
+    (evaluated plan of `P` over `T`, Stable-supply admission), which
+    `PLAN-LAID-VIEWS` owns. `source/library` declares neither that family nor
+    `ResidentContentTransfer<P, T>`; the fixture's `ResidentStorage` is a
+    stand-in to replace when the route exists.
+  - Custody-carrying sums. A destructured case payload and a call-result
+    record's fields do not surface their declared `in Granted` domains. A
+    sum-typed fallible request, an optional retired slot and a retired-buffer
+    list construct but cannot be consumed, and each record field is restated
+    through an exactly typed `let` whose siblings then share custody.
+    `NOMINAL-FIELD-FLOW` owns declared-field evidence; repair it there.
+  - Counted residual. `split`'s law never pins `result.taken.length`, a
+    content-carrying machine's `ensures` admits no scalar equality, and a
+    `requires` bound neither carries a subtraction's lower bound nor survives
+    consumption of the backing. Each request's residual is a caller-stated
+    premise, and post-reset reuse is reachable only through a runtime guard.
+  - Partition theorems. No checked body splits one `Granted` extent into two;
+    the fixture delegates that step to a boundary. Returning `Granted` custody
+    from two consumed qualified inputs rejects as ambiguous at a boundary and
+    in a state, so merge takes one `Split` record and folding retained buffers
+    back has no spelling. Settle both with
+    `CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS`' invoked partition route.
+  - Strategy borrow. The contract has allocation borrow the strategy
+    exclusively; the fixture threads `Bump` by value because a `&mut` carve
+    rejected. Retry it through `BORROWED-STORAGE-RESTORATION`'s move-out/replace
+    window before keeping the by-value shape.
+
+  Acceptance: a package container over the bump chain places, reads and retires
+  elements and grows while retaining its old buffer until reset, with the
+  allocator still ordinary package source. It checks and executes through the
+  interpreter and a supported native host with a selected backing provider;
+  report unavailable hosts. A live allocation or resident at reset, dropped
+  custody, double placement, a wrong `Resident` index and an unrouted `Resident`
+  introduction reject. Route each new contract edge to its owning task.
+
+  Flag: `Extent::Resident<P, T>` is declared in `core/extent.omg` with no
+  predicate and no `established by`, so
+  [domains](wiki/spec/language/domains.md#exact-coercion-and-erasure) lets `as`
+  introduce it although placed access fixes its route set. The landed fence,
+  `append_unevidenced_establishment_diagnostics` in
+  `typed-trees-to-checked-trees/src/facts/index_compatibility.rs`, refuses only
+  a typed `let` whose value is an `ExpressionNode::Call`. A cast supplies its
+  own instance and passes, and any package boundary may name `Resident` in a
+  result type, as both fixtures do. The general mechanism is the existing
+  routed-qualification rule: declare the family's routes when the placed
+  operations exist, then delete the call-shaped check.
 
 - **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,
   backing, policy, installation and teardown in Omega source under
