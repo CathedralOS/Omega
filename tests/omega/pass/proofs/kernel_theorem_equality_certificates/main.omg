@@ -1,0 +1,39 @@
+// KERNEL CANARY (checked): two theorem machines whose `ensures` obligations
+// are discharged by shipped certificates the common mathematical core
+// re-decides. `equal_symmetric` proves `b == a` from `a == b`, and
+// `equal_transitive` proves `a == c` from `a == b` and `b == c`; each
+// ensures clause is a reconstructed Terminal obligation whose certificate
+// travels the proof-bundle wire and is denoted into the core's judgment
+// `Γ ⊢ t : ⟦goal⟧` and checked by the kernel at admission, never accepted
+// on the bounded rule labels alone. `main` cites both theorems at closed
+// arguments so product pruning retains them; the citations' `requires`
+// (`3 == 3`) are closed primitive judgments and the calls erase at
+// runtime. False twin: fail/proofs/kernel_theorem_equality_false_twin.
+// Checked-only: native target lowering refuses a bodyless theorem machine
+// (`UnsupportedControlFlow`), so this fixture pins the admission claim and
+// not an executed one.
+use omega_language_std::console;
+data Main { console: Console; }
+
+machine equal_symmetric(a: u64, b: u64)
+requires
+    a == b
+ensures
+    b == a
+{
+}
+
+machine equal_transitive(a: u64, b: u64, c: u64)
+requires
+    a == b
+    b == c
+ensures
+    a == c
+{
+}
+
+machine Main::main(&mut self) reaches Console {
+    equal_symmetric(3, 3);
+    equal_transitive(3, 3, 3);
+    self.console.exit_process(70);
+}
