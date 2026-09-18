@@ -23,11 +23,53 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **PIPELINE-OWNER-CONSOLIDATION.** Finish ownership in
   `omega-rust/{omega,psi}/pipeline/` and their compiler/backend coordinators.
-  Merge or delete umbrella/helper owners; put transformations in literal
-  `X-to-Y` stages and optimizations in `X-to-X` stages.
+  Every pipeline crate is already a literal `X-to-Y` or `X-to-X` stage and the
+  folders match the [connected route](omega-rust/pipeline.md#connected-program-route);
+  `tests/architecture/representation_ownership.rs` pins the `X-to-X` phase
+  directories and keeps native coordination and target setup out of the stage
+  list. That does not establish the acceptance below: validated owners with
+  public entrances still sit beside the route without being called from it.
+
+  Remaining work:
+
+  - `selected-instructions-to-selected-instructions/src/rewrites/` holds about
+    40 rewrite modules (`copy_removal`, `dead_store`, `load_forwarding`,
+    `store_motion`, `address_fold`, `literal_compare`, `redundant_extension`,
+    the relocation and interchange families) whose entrances, such as
+    `remove_selected_copy` and `eliminate_selected_dead_store`, are called only
+    from their own tests. `optimize_selected_instructions` runs
+    `run_selected_lowering_optimizations` and nothing else, and none of these
+    rewrites has an exact name in
+    [rules.md](omega-rust/omega/representations/optimization-core/rules.md).
+    Give each retained rewrite a catalog entry executed by the stage entrance,
+    or delete it. Their behavior stays with `EXACT-MACHINE-SIMPLIFICATIONS`,
+    `DECLARATIVE-PEEPHOLES` and `ALIAS-AWARE-MEMORY`.
+  - `selected-instructions-to-register-homes/src/unsequenced_spill_stages/`
+    holds 18 spill families, each with public plan and receipt records, that
+    `stage_register_allocation` never calls. `SPILL-REALIZATION` owns
+    sequencing the ones it needs; delete or merge the ones the executable
+    `assignment/runtime_spill` route has superseded.
+  - `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
+    keeps a staged record, codec and validator inside a coordinator crate.
+    `select_optimized_program_storage_semantic_wrapper_encoding` and
+    `stage_validated_optimized_program_storage_semantic_wrapper_object` have no
+    caller outside their own tests. Move the live part to its backend or
+    representation owner, or delete it.
+  - Audit the remaining stage and coordinator crates the same way: a public
+    stage entrance that no coordinator or successor stage calls is an orphan
+    output.
+
   Acceptance: folders expose the connected program sequence, no competing
   entrances or orphan outputs remain, and coordinators only sequence typed
   stages. Renaming a helper or adding a wrapper is not completion.
+
+  Flag: three owners carry validated, replayed and mutation-tested machinery
+  that no executable route reaches (about 40 selected rewrites, 18 spill
+  families, the ProgramStorage wrapper object). Each new slice adds tests and
+  board text for code the compiler never runs. The general mechanism is the
+  one [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay)
+  already names: one ordered catalog per owning stage, executed by the stage
+  entrance.
 
 - **REPRESENTATION-OWNERSHIP.** Finish
   `omega-rust/{omega,psi}/representations/`: one named program-root file beside
