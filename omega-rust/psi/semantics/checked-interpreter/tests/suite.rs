@@ -5,6 +5,7 @@
 mod anonymous_array_landing;
 mod anonymous_integer_landing;
 mod anonymous_window_landing;
+mod borrowed_restoration;
 mod borrowed_subslices;
 mod build_arguments;
 mod const_values;
