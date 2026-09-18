@@ -175,7 +175,11 @@
 //! tagged sums and non-dependent `Π` — and the reconstructed judgment
 //! `Γ ⊢ t : ⟦goal⟧` is re-decided by `verify_mathematical_certificate`.
 //! The bounded checker and this route re-decide the same certificate
-//! independently; the core route is what survives the canonical
+//! independently, and `accept_certificate` runs both: every certificate
+//! the admission discharges — including the shipped certificate for a
+//! theorem machine's `ensures` obligation — is judged by this kernel
+//! when the denotation covers it, with the decision recorded on the
+//! acceptance. The core route is what survives the canonical
 //! certificate wire, carries the exact assumption closure, and refuses
 //! — never mis-decides — the rule families it does not cover.
 //!

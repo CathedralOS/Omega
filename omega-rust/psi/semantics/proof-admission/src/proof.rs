@@ -4,12 +4,23 @@
 //! and `integer_bound_rules`. `AcceptanceBuilder` records which rules and
 //! premises a certificate used; `integer_math_normalization` bridges
 //! fixed-width and mathematical integer relations.
+//!
+//! Acceptance then consults the common mathematical core: the certificate
+//! is denoted into the core's judgment `Γ ⊢ t : ⟦goal⟧` and
+//! `verify_mathematical_certificate` re-decides it. That decision is
+//! recorded on the acceptance as [`MathematicalCoreDecision`] — the kernel
+//! judged the certificate, or refused a rule family the denotation does
+//! not cover and the bounded rules stand alone. A covered certificate the
+//! kernel rejects is rejected here too: two checkers reading one
+//! certificate must agree, and the kernel's rejection is never overridden
+//! by the rule labels.
 
 use std::collections::BTreeSet;
 pub use terminal_psi::{ProofNode, ProofRule};
 
 use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
 
+use crate::mathematical_core::{BoundedDenotationError, Budget, verify_bounded_certificate};
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitnessError, IntegerCastBoundConversionError,
     IntegerCastChainWitnessError, IntegerCorrelatedForbiddenRootConversionError,
@@ -62,6 +73,46 @@ pub struct CertificateAcceptance {
     /// introduced by an implication or case-analysis branch.
     pub assumptions: Vec<AcceptedPremise>,
     pub semantic_axioms: Vec<AcceptedPremise>,
+    /// What the common mathematical core decided about this certificate.
+    pub mathematical_core: MathematicalCoreDecision,
+}
+
+/// The common mathematical core's part in one accepted certificate.
+///
+/// This is the receiving checker's own record, never a producer claim: it
+/// is written by `accept_certificate` after the kernel ran (or refused),
+/// and a receiver reading `Refused` knows the bounded rules alone decided
+/// that certificate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MathematicalCoreDecision {
+    /// The certificate denoted into the core and the kernel re-decided the
+    /// judgment `Γ ⊢ t : ⟦goal⟧`; the receipt measures that judgment.
+    Judged(MathematicalJudgmentReceipt),
+    /// A valid rule family the denotation does not cover — named by the
+    /// payload — so the kernel decided nothing and the bounded rules stand
+    /// alone. Refusal is never a rejection.
+    Refused(&'static str),
+}
+
+/// Measurements of one judgment the kernel decided. These are the
+/// storage and closure figures the board item asks to be measured rather
+/// than assumed; none of them is authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MathematicalJudgmentReceipt {
+    /// Declarations in the judgment's signature: interned atoms, scalar
+    /// carriers, scalar terms and bounded primitive decisions.
+    pub declarations: u32,
+    /// Assumption constants the judgment's exact closure commits to,
+    /// computed over the stored signature, never from what conversion
+    /// unfolded.
+    pub assumption_closure: u32,
+    /// Premises bound in the judgment's context: the ambient assumption
+    /// roster followed by the semantic-axiom roster.
+    pub context_depth: u32,
+    /// Arena slots in use once the kernel has checked the judgment: the
+    /// elaborated terms plus the working terms checking inserted, so this
+    /// is a checking-cost measurement rather than a term size.
+    pub arena_slots: u32,
 }
 
 #[derive(Default)]
@@ -83,11 +134,12 @@ impl AcceptanceBuilder {
         record_premise(&mut self.semantic_axioms, index, proposition);
     }
 
-    fn finish(self) -> CertificateAcceptance {
+    fn finish(self, mathematical_core: MathematicalCoreDecision) -> CertificateAcceptance {
         CertificateAcceptance {
             rules: self.rules.into_iter().collect(),
             assumptions: self.assumptions,
             semantic_axioms: self.semantic_axioms,
+            mathematical_core,
         }
     }
 }
@@ -189,7 +241,44 @@ pub fn accept_certificate_with_machine_parameters(
     if &proof.conclusion != goal {
         return Err(ProofError::CertificateConclusionMismatch);
     }
-    Ok(acceptance.finish())
+    let mathematical_core =
+        re_decide_in_mathematical_core(context, goal, assumptions, semantic_axioms, proof)?;
+    Ok(acceptance.finish(mathematical_core))
+}
+
+/// Denote a certificate the bounded rules already accepted into the common
+/// mathematical core and let the kernel re-decide it.
+///
+/// The bounded traversal above has established every rule's structural
+/// premise/conclusion relation, so the only outcomes here are the
+/// kernel's own: `Judged` when the denotation covers the certificate and
+/// `check_type` accepts the elaborated judgment, `Refused` when the
+/// certificate uses a rule family the denotation does not cover. Any
+/// other error is a disagreement between the two checkers — a kernel
+/// rejection, an elaboration bound, or a structural check the denotation
+/// re-derives differently — and rejects the certificate rather than
+/// letting the rule labels outvote the kernel.
+fn re_decide_in_mathematical_core(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    proof: &ProofNode,
+) -> Result<MathematicalCoreDecision, ProofError> {
+    match verify_bounded_certificate(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        proof,
+        &mut Budget::default(),
+    ) {
+        Ok(denoted) => Ok(MathematicalCoreDecision::Judged(denoted.receipt())),
+        Err(BoundedDenotationError::Unsupported(family)) => {
+            Ok(MathematicalCoreDecision::Refused(family))
+        }
+        Err(error) => Err(ProofError::MathematicalCore(Box::new(error))),
+    }
 }
 
 mod equality_rules;
@@ -339,6 +428,11 @@ pub enum ProofError {
     CertificateConclusionMismatch,
     RuleConclusionMismatch(&'static str),
     RulePremiseMismatch(&'static str),
+    /// The bounded rules accepted the certificate but the common
+    /// mathematical core did not: the kernel rejected the denoted
+    /// judgment, the elaboration bound was exceeded, or the denotation's
+    /// structural re-derivation disagreed with the bounded traversal.
+    MathematicalCore(Box<BoundedDenotationError>),
 }
 
 impl std::fmt::Display for ProofError {

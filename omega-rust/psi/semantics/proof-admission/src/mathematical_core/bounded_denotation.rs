@@ -8,7 +8,12 @@
 //! second, independent route the board item names: the same certificate
 //! is denoted proposition-by-proposition and rule-by-rule into the common
 //! core's terms, and the resulting judgment is re-decided by
-//! [`verify_mathematical_certificate`]. Nothing producer-side is trusted:
+//! [`verify_mathematical_certificate`]. `accept_certificate` consults it
+//! on every acceptance, so a shipped certificate discharging a machine's
+//! `ensures` obligation — a theorem such as `requires a == b ensures
+//! b == a` — is judged by the kernel at admission, and the acceptance
+//! records `MathematicalCoreDecision::Judged` with the judgment's
+//! measurements or `Refused` naming the uncovered family. Nothing producer-side is trusted:
 //! each rule's premises and conclusion relation are re-derived
 //! structurally during denotation, `decide_primitive` re-decides
 //! primitive leaves, and the kernel re-decides the whole elaborated
@@ -63,7 +68,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType};
 
-use super::certificate::{MathematicalCertificate, verify_mathematical_certificate};
+use super::certificate::{
+    MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
+};
 use super::conversion::Budget;
 use super::signature::Declaration;
 use super::term::{Level, Sort, Term, TermArena, TermHandle};
@@ -71,7 +78,8 @@ use super::typing::CoreError;
 use crate::kernel::decide_primitive;
 use crate::proof::integer_math_normalization::propositions_match_under_integer_math_normalization;
 use crate::proof::{
-    AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,
+    AcceptedPremise, AcceptedProofRule, MathematicalJudgmentReceipt, ProofError, ProofNode,
+    ProofRule,
 };
 
 /// A bound on the proof nodes one denotation walks — a resource refusal,
@@ -85,14 +93,37 @@ const MAX_ELABORATION_NODES: u64 = 1 << 16;
 /// both to `encode_mathematical_certificate` for the wire or re-decides
 /// the judgment with [`verify_mathematical_certificate`]. `certificate`
 /// is producer evidence even though this module produced it: the kernel
-/// never trusts who built it. `acceptance` is the premise/rule record
-/// the denotation observed, in the same shape `accept_certificate`
-/// reports — cited ambient premises only, never discharged branch
-/// hypotheses.
+/// never trusts who built it. `rules`, `assumptions` and
+/// `semantic_axioms` are the premise/rule record the denotation observed,
+/// in the same shape `accept_certificate` reports — cited ambient
+/// premises only, never discharged branch hypotheses.
 pub struct BoundedDenotation {
     pub arena: TermArena,
     pub certificate: MathematicalCertificate,
-    pub acceptance: CertificateAcceptance,
+    pub rules: Vec<AcceptedProofRule>,
+    pub assumptions: Vec<AcceptedPremise>,
+    pub semantic_axioms: Vec<AcceptedPremise>,
+}
+
+impl BoundedDenotation {
+    /// Measure the elaborated judgment: signature size, exact assumption
+    /// closure, context depth and the arena footprint at the time of the
+    /// call — after `verify_bounded_certificate` that includes the
+    /// kernel's working terms, which is the checking cost the board asks
+    /// to be measured. The closure is computed over the stored signature
+    /// by [`certificate_assumption_closure`], never by watching what
+    /// conversion unfolded.
+    pub fn receipt(&self) -> MathematicalJudgmentReceipt {
+        let saturating = |count: usize| u32::try_from(count).unwrap_or(u32::MAX);
+        MathematicalJudgmentReceipt {
+            declarations: saturating(self.certificate.signature.len()),
+            assumption_closure: saturating(
+                certificate_assumption_closure(&self.arena, &self.certificate).len(),
+            ),
+            context_depth: saturating(self.certificate.context.len()),
+            arena_slots: saturating(self.arena.len()),
+        }
+    }
 }
 
 /// Why a bounded certificate could not be denoted and re-decided.
@@ -686,7 +717,7 @@ impl<'a> Elaboration<'a> {
                 }
                 self.rules
                     .insert(AcceptedProofRule::DisjunctionIntroduction);
-                Ok(self.disjunction_intro(*index, disjunct_term))
+                Ok(self.disjunction_intro(disjuncts.len(), *index, disjunct_term))
             }
             ProofRule::DisjunctionElimination {
                 disjunction,
@@ -1001,16 +1032,25 @@ impl<'a> Elaboration<'a> {
 
     /// `⟨zero, t⟩` for disjunct 0, `⟨one, inner⟩` for a later one — the
     /// tagged-sum introduction shape `Σ(t : Two). caseTwo(M, d₀, rest, t)`.
-    fn disjunction_intro(&mut self, index: usize, term: TermHandle) -> TermHandle {
+    /// `remaining` is how many disjuncts the sum at this level still
+    /// holds: the `one` branch of a binary sum is the bare last disjunct,
+    /// so its payload is `t` itself, while a wider sum nests another
+    /// tagged pair for the disjuncts after the first.
+    fn disjunction_intro(
+        &mut self,
+        remaining: usize,
+        index: usize,
+        term: TermHandle,
+    ) -> TermHandle {
         let tag = self.denotation.arena.insert(if index == 0 {
             Term::TwoZero
         } else {
             Term::TwoOne
         });
-        let second = if index == 0 {
+        let second = if index == 0 || remaining == 2 {
             term
         } else {
-            self.disjunction_intro(index - 1, term)
+            self.disjunction_intro(remaining - 1, index - 1, term)
         };
         self.denotation
             .arena
@@ -1100,11 +1140,9 @@ impl<'a> Elaboration<'a> {
                 term,
                 expected,
             },
-            acceptance: CertificateAcceptance {
-                rules: rules.into_iter().collect(),
-                assumptions,
-                semantic_axioms,
-            },
+            rules: rules.into_iter().collect(),
+            assumptions,
+            semantic_axioms,
         }
     }
 }
@@ -1195,16 +1233,13 @@ mod tests {
             "the judgment commits to exactly the cited atom",
         );
         assert_eq!(
-            denoted.acceptance.assumptions,
+            denoted.assumptions,
             vec![AcceptedPremise {
                 index: 0,
                 proposition: bound,
             }],
         );
-        assert_eq!(
-            denoted.acceptance.rules,
-            vec![AcceptedProofRule::Assumption],
-        );
+        assert_eq!(denoted.rules, vec![AcceptedProofRule::Assumption],);
     }
 
     /// A discharged hypothesis is a λ binder inside the evidence, never a
@@ -1263,7 +1298,7 @@ mod tests {
             "the pushed hypothesis is bound inside the term, not the context",
         );
         assert!(
-            denoted.acceptance.assumptions.is_empty(),
+            denoted.assumptions.is_empty(),
             "a discharged hypothesis is not an ambient premise",
         );
         assert_eq!(
@@ -1474,6 +1509,45 @@ mod tests {
             "the tagged sum names both disjunct atoms",
         );
 
+        // Every other position pairs `one` with the payload the sum's
+        // `one` branch actually holds: the bare last disjunct of a binary
+        // sum, or the nested tagged pair of a wider one. The kernel checks
+        // the payload at `caseTwo(M, d₀, rest, one) ≡ rest`, so a payload
+        // nested one level too deep is a type error, not a shape quibble.
+        for (disjuncts, index) in [
+            (vec![p.clone(), q.clone()], 1),
+            (vec![p.clone(), q.clone(), r.clone()], 1),
+            (vec![p.clone(), q.clone(), r.clone()], 2),
+        ] {
+            let selected = disjuncts[index].clone();
+            let disjunction = Proposition::Disjunction(disjuncts);
+            let proof = ProofNode {
+                conclusion: disjunction.clone(),
+                rule: ProofRule::DisjunctionIntroduction {
+                    disjunct: Box::new(ProofNode {
+                        conclusion: selected.clone(),
+                        rule: ProofRule::Assumption { index: 0 },
+                    }),
+                    index,
+                },
+            };
+            let denoted = verify_bounded_certificate(
+                &PropositionContext::default(),
+                &disjunction,
+                std::slice::from_ref(&selected),
+                &[],
+                &proof,
+                &mut budget(),
+            )
+            .unwrap_or_else(|error| {
+                panic!("disjunct {index} of {disjunction:?} verifies as a tagged pair: {error}")
+            });
+            let Term::Pair { first, .. } = denoted.arena.get(denoted.certificate.term) else {
+                panic!("a disjunction introduction denotes a pair");
+            };
+            assert!(matches!(denoted.arena.get(first), Term::TwoOne));
+        }
+
         // Two-branch elimination under one cited disjunction.
         let proof = ProofNode {
             conclusion: Proposition::Truth,
@@ -1527,7 +1601,7 @@ mod tests {
             BTreeSet::from([0, 1, 2]),
         );
         assert_eq!(
-            denoted.acceptance.assumptions,
+            denoted.assumptions,
             vec![AcceptedPremise {
                 index: 0,
                 proposition: disjunction,
@@ -1578,7 +1652,7 @@ mod tests {
         assert_eq!(denoted.certificate.signature.len(), 1);
         assert_eq!(denoted.certificate.context.len(), 1);
         assert_eq!(
-            denoted.acceptance.semantic_axioms,
+            denoted.semantic_axioms,
             vec![AcceptedPremise {
                 index: 0,
                 proposition: p,
@@ -1794,7 +1868,7 @@ mod tests {
             "both context bindings enter the closure even though only the first is cited",
         );
         assert_eq!(
-            denoted.acceptance.assumptions,
+            denoted.assumptions,
             vec![AcceptedPremise {
                 index: 0,
                 proposition: p,
