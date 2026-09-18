@@ -124,6 +124,53 @@ formation proofs, lifetimes, closure order, and restored-use evidence.
 [Source lifetimes](lifetimes.md) specify explicit binders, result elision, and
 structural carried-loan transport through values and state transitions.
 
+## Borrowed-storage invariant windows
+
+An owned move out of a place reached through `&mut` may temporarily leave that
+place unestablished. This is an ownership invariant window, not permanent
+ownership of the borrowed referent or a new source mode. The move transfers the
+removed value's exact custody to its destination and records a restoration
+obligation on the original place and loan. The remaining storage does not own a
+second copy. Zero-filled or stale bytes do not fill the hole.
+
+While the window is open, the absent subtree cannot be read, borrowed as a value,
+moved again, or disposed. Ancestors are unavailable for whole-value observation,
+calls, transfer, and cleanup. Disjoint established siblings remain usable under
+ordinary loan and dependent-fact rules. Existing restrictions on partial moves,
+including nominal whole-value cleanup, still apply; `&write` does not gain
+permission to extract old content.
+
+Assignment of a valid owned replacement to the exact vacant place closes the
+ownership window. The replacement need not be the removed value, but both values'
+obligations must be accounted for. There is no old field value to dispose at that
+store. Required type, domain, contained-loan, and parent-coupling obligations must
+also be restored before an observation relying on them. Predicate evidence alone
+cannot establish absent content. [Carried-loan transport](lifetimes.md#carried-loan-transport)
+tracks loans in the removed and replacement values independently.
+
+Every return or state transition from the region owing restoration, scope
+expiration releasing its custody, or restoration of the borrow to its parent
+must close the window. Calls may consume the detached value
+or use disjoint storage only when their complete access and outcome contracts
+cannot expose the incomplete owner. Unknown access is not evidence of
+non-observation. Boundary/capability calls and other
+[invariant-window fences](dependent_values.md#invariant-windows) remain in force.
+At reconvergence, predecessors must agree on the exact live ownership and open
+restoration obligations; one repaired branch does not repair another.
+
+Suspension must retain the exclusive loan, exact hole, removed-value custody,
+and restoration obligation without exposing the incomplete owner. Its resume
+and cancellation paths must satisfy their ordinary carry and cleanup contracts;
+otherwise suspension with the window open rejects. Recoverable failure does not
+cancel restoration debt. Crash and process exit follow their existing abandonment
+and survivor contracts, not an invented cleanup successor or rollback; abandoning
+a window supplies no survivor-safety theorem.
+
+This adds no placeholder value, runtime liveness flag, or special exchange-only
+syntax. Diagnostics identify the opening move and the path or observation that
+requires restoration. [Terminal ownership](../terminal-psi/ownership.md#borrowed-storage-restoration)
+must independently reconstruct the window rather than trust producer approval.
+
 ## Consumers and cleanup
 
 Ownership is determined by the receiver type: bare `self` is owned; `&self` and

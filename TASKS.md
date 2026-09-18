@@ -3344,6 +3344,30 @@ Owners include
 
 ## Parallel language and compiler lanes
 
+- **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
+  Implement [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
+  through exclusive borrows. The source checker currently rejects the guide's
+  move-out/replace pattern in `pass/ownership/move_keyword_field_assignment`;
+  the product parser avoids it by borrowing the lexer's stream. This is an
+  implementation gap, not an open ownership decision. Own the exact place/loan
+  restoration debt in `typed-trees-to-checked-trees` multiplicity and loan flow,
+  transport it through lowering, and reconstruct it independently in Terminal
+  verification before native realization. Reuse the ordinary partial-move,
+  invariant-window, store, and control-flow relationships; do not add a recognizer
+  for adjacent move/assignment statements or weaken nominal-drop restrictions.
+
+  Acceptance: the unchanged guide canary checks; a consuming transform followed
+  by replacement executes with caller-visible updated contents and exact-once
+  custody in the interpreter and supported native targets. Also exercise disjoint
+  sibling work between move and repair, repair on both branches, and contained-loan
+  transport. Reject missing repair on one returning branch, early return, stale
+  field use, overlapping borrows, wrong-place replacement, repeated extraction,
+  and whole-owner cleanup. Outcome controls must cover recoverable failure,
+  suspension/resume/cancellation custody, and crash/process-exit abandonment
+  without invented rollback or survivor guarantees. Tampered Terminal evidence
+  must fail independent replay. Keep unsupported paths rejected until their
+  evidence is implemented; do not delete the existing rejection gate wholesale.
+
 - **MATCH-SELECTIVE-LOWERING.** Complete the [value-dispatch
   contract](wiki/spec/language/patterns.md) for owned/nonnumeric results with
   parameter/projected/borrowed/linear custody, structural/case/domain patterns
@@ -4978,9 +5002,9 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   dd8bb81386, 704.0 s at a3b3ecd8c4 beside a concurrent gate check);
   that row is OWNER_QUESTIONS 8 and no product-source edit is pending
   behind it. The stops before it are retired: the parser borrows the
-  lexer's stream (b30c5ae693; the borrowed-storage owner-replacement
-  conflict with `pass/ownership/move_keyword_field_assignment` is
-  OWNER_QUESTIONS 9) and build-time member selections confine on their
+  lexer's stream (b30c5ae693; the borrowed-storage restoration gap in
+  `pass/ownership/move_keyword_field_assignment` is tracked by
+  BORROWED-STORAGE-RESTORATION) and build-time member selections confine on their
   exact owner package (43ed6089a2). The generic `selected ProgramEntry
   establishment rejoins 0 Terminal attachment identities; expected one`
   stop was a regression from 8508aec01e (std `read_line`/`read_byte`

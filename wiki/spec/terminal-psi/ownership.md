@@ -62,6 +62,29 @@ path/type/order drift. Check the required output size before enumerating array
 children: a forged huge dimension with a short residual list must not force an
 unbounded scan. No-code disposal emits no target instruction or runtime bitmap.
 
+## Borrowed-storage restoration
+
+The [source ownership window](../language/ownership.md#borrowed-storage-invariant-windows)
+requires an exact relationship between an exclusive loan, its captured place,
+the projected move, and the later establishing store. Independent verification
+reconstructs that relationship from operations, loan authority, and control flow.
+A producer assertion that the owner is restored is not evidence.
+
+The move transfers custody once and leaves restoration debt at the captured
+place. A checked store of a valid replacement clears that debt; matching a field
+name, carrier type, or bytes at another place is insufficient. Contained loans
+travel with their values, and filling vacant storage must not dispose the moved
+value again. Residual siblings and the removed value retain their own obligations.
+
+Replay checks reads, calls, joins, loan restoration, and exits against the exact
+frontier. Reject missing repair on a returning path, duplicate extraction,
+overlapping observation, wrong-place repair, whole-owner cleanup while incomplete,
+and loss of restoration debt at a join. Suspension retains the window and its
+exclusive custody under the carry contract; it cannot publish a complete owner
+or repeat the move on resume. Crash and process-exit abandonment retain their
+separate outcome rules. Lowering preserves these relationships without replacing
+the caller's storage by a staged copy.
+
 ## Roots, continuations, and order
 
 Parameter, named-local, and call-result roots retain distinct establishment

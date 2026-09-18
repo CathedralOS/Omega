@@ -73,6 +73,12 @@ selection conservatively retains all possible sources.
 
 Assignment evaluates the replacement while old loans remain active, ends the
 overwritten field's carried loans, then installs the replacement's exact loans.
+If an owned move already emptied the field under a
+[borrowed-storage invariant window](ownership.md#borrowed-storage-invariant-windows),
+its contained loans moved with the removed value; filling the hole does not end
+those loans a second time. The store installs the replacement's loans and closes
+the exact place's restoration obligation, without ending the enclosing exclusive
+loan prematurely.
 Replacing one field neither preserves its former source nor releases a sibling's
 loans. Same-carrier casts and explicit erasure of non-owning qualifications
 preserve source places and access. [Representation recasts](../layouts/recasts.md)

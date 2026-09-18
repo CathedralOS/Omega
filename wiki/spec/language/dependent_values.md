@@ -113,8 +113,17 @@ neither ZII nor layout obligations.
 ## Invariant windows
 
 An invariant window is compiler-derived proof debt, not a source `relax` mode,
-runtime poison flag, or mutable truth bit. A write known to preserve the default
-domain keeps it established. Otherwise the write opens a window on the place,
+runtime poison flag, or mutable truth bit.
+[Borrowed-storage ownership windows](ownership.md#borrowed-storage-invariant-windows)
+apply the same discipline to temporarily absent content: a move records exact
+restoration debt, and an establishing store closes it. A hole has no current value
+to reason about, unlike present contents whose domain is temporarily unproved.
+Ownership restoration and domain restoration are separate obligations; satisfying
+one cannot discharge the other. The ownership rules govern calls on detached
+values and disjoint siblings without weakening the domain fences below.
+
+A write known to preserve the default domain keeps it established. Otherwise
+the write opens a window on the place,
 whose actual new contents remain available to ordinary flow reasoning.
 The domain must be proved again at the next consumption point:
 
