@@ -556,16 +556,36 @@ fn generic_float_builtins_retain_exact_provider_evidence() {
         None,
     ))
     .expect("generic float builtins should compile to checked trees");
+    // Core spells `F32::minimum`/`maximum`/`square_root` as top-level boundary
+    // requirements, so the desugared builtin uses are retained as named
+    // requirement uses; a named operator use would carry the same custody.
     let uses = checked
         .facts
         .operators
         .named_uses()
-        .filter(|operator_use| {
+        .map(|operator_use| {
+            (
+                operator_use.expression,
+                operator_use.provider_plan_report_fingerprint,
+                operator_use.provider_plan_commitment,
+            )
+        })
+        .chain(
+            checked
+                .facts
+                .operators
+                .named_requirement_uses()
+                .map(|requirement_use| {
+                    (
+                        requirement_use.expression,
+                        requirement_use.provider_plan_report_fingerprint,
+                        requirement_use.provider_plan_commitment,
+                    )
+                }),
+        )
+        .filter(|(expression, _, _)| {
             matches!(
-                checked
-                    .typed
-                    .expression_table
-                    .expression(operator_use.expression),
+                checked.typed.expression_table.expression(*expression),
                 typed_trees::expression::ExpressionNode::Call(call)
                     if matches!(call.target.as_str(), "min" | "max" | "sqrt")
             )
@@ -576,13 +596,11 @@ fn generic_float_builtins_retain_exact_provider_evidence() {
         "direct and desugared min/max uses must be retained"
     );
     assert!(
-        uses.iter()
-            .all(|operator_use| operator_use.provider_plan_report_fingerprint != 0),
+        uses.iter().all(|(_, fingerprint, _)| *fingerprint != 0),
         "every normalized float builtin must carry its exact selected ProviderPlan"
     );
     assert!(
-        uses.iter()
-            .all(|operator_use| !operator_use.provider_plan_commitment.is_empty()),
+        uses.iter().all(|(_, _, commitment)| !commitment.is_empty()),
         "every normalized float builtin must carry its exact selected ProviderPlan commitment"
     );
 }
