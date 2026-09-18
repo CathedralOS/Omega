@@ -11,8 +11,10 @@
 //! the operand audit are one owner, matching the `window_hazards` split for
 //! the relocation rewrites. The redundant-compare admission reuses the same
 //! reaching-event walk in its set form: a cross-block shadow is sound only
-//! when every published unit's full reaching set agrees. `boundary_boolean`
-//! pairs the walk with the boundary operand audit below: it decides a
+//! when every published unit's full reaching set agrees, and its
+//! value-equivalent sibling additionally resolves operand registers through
+//! the materialization audit below. `boundary_boolean` pairs the walk with
+//! the boundary operand audit below: it decides a
 //! predicate from one pole operand alone, so its resolution keeps the other
 //! side open where `constant_operands` would refuse it.
 use std::collections::{BTreeSet, VecDeque};
@@ -56,7 +58,7 @@ fn literal_bits(value: IntegerValue) -> Option<u64> {
 
 /// The bit pattern a `CompareI64Immediate` encodes: the target forms carry
 /// an unsigned twelve-bit payload, so any other value is malformed here.
-fn immediate_bits(value: IntegerValue) -> Option<u64> {
+pub(super) fn immediate_bits(value: IntegerValue) -> Option<u64> {
     match value {
         IntegerValue::Signed(value) => u64::try_from(value).ok(),
         IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
@@ -70,7 +72,7 @@ fn immediate_bits(value: IntegerValue) -> Option<u64> {
 /// emitted `[def]` record with no unit traffic. The literal guarantee then
 /// holds wherever the compare could read the register, not only at one
 /// site.
-fn materialized_bits(
+pub(super) fn materialized_bits(
     function: &SelectedFunction,
     register: VirtualRegisterId,
 ) -> Result<u64, ConditionStateError> {

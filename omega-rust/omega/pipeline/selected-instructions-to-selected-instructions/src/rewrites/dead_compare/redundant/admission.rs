@@ -34,17 +34,18 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use register_model::RegisterUnitId;
 use selected_instructions::{
-    SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedValueTransport, VirtualRegisterId,
+    SelectedBlockId, SelectedFunction, SelectedInstructionId, VirtualRegisterId,
 };
 
 use super::super::DeadCompareError;
-use super::super::admission::{compare_operand_arity, shifted_boundary_settlements};
+use super::super::admission::{
+    audit_stable_paths, canonical_compare_operands, shifted_boundary_settlements,
+};
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{edge_surface, terminator_successors};
 use crate::rewrites::condition_state::{
-    EventSite, adjacency, backward_cone, entry_index, instruction_at, reaching_events,
+    adjacency, backward_cone, entry_index, instruction_at, reaching_events,
 };
 
 pub(super) struct Admission<'source> {
@@ -52,120 +53,6 @@ pub(super) struct Admission<'source> {
     pub block_index: usize,
     pub block: SelectedBlockId,
     pub compare_index: usize,
-}
-
-/// The plain-`Use` operand registers of a canonical flag publisher, or
-/// none: the compare kinds are admitted only in their emitted shape —
-/// canonical operand positions, no implicit uses, and a nonempty published
-/// surface — so pairwise register equality really is value equality.
-fn canonical_compare_operands(instruction: &SelectedInstruction) -> Option<Vec<VirtualRegisterId>> {
-    if compare_operand_arity(instruction.kind)? != instruction.operands.len()
-        || !instruction.implicit_uses.is_empty()
-        || instruction
-            .implicit_defs
-            .iter()
-            .chain(instruction.clobbers.iter())
-            .next()
-            .is_none()
-        || instruction
-            .operands
-            .iter()
-            .enumerate()
-            .any(|(position, operand)| {
-                operand.operand != position as u16
-                    || operand.access != RegisterOperandAccess::Use
-                    || operand.fixed_view.is_some()
-                    || operand.tied_to.is_some()
-                    || operand.early_clobber
-            })
-    {
-        return None;
-    }
-    Some(
-        instruction
-            .operands
-            .iter()
-            .map(|operand| operand.virtual_register)
-            .collect(),
-    )
-}
-
-/// Every operand register the compare reads must keep its value between
-/// one unit's last shadow execution on a path and the arrival at the
-/// compare. The exposed positions are exactly those that can reach the
-/// compare backward without crossing a site in that unit's reaching set —
-/// a shadow's execution resets the unit's binding segment because it
-/// republishes the identical flag value, so writes before it are rescued,
-/// while another unit's shadow republishes only its own unit and cannot
-/// stand in. The walk marks each visited `(block, position)` once: body
-/// positions expand to the position before them, a block's first position
-/// expands to its predecessor blocks' terminator positions, and each
-/// crossed edge's register transports face the same audit — an edge
-/// parameter the edge defines for its target is a write of the target's
-/// register.
-fn audit_stable_paths(
-    function: &SelectedFunction,
-    predecessors: &[Vec<usize>],
-    block_index: usize,
-    compare_index: usize,
-    unit_sites: &BTreeSet<EventSite>,
-    registers: &BTreeSet<VirtualRegisterId>,
-) -> Result<(), RedundantCompareError> {
-    let compare_site = (block_index, compare_index);
-    let mut visited = BTreeSet::new();
-    let mut frontier = vec![compare_site];
-    while let Some(site @ (block, position)) = frontier.pop() {
-        if !visited.insert(site) {
-            continue;
-        }
-        // The compare's own position seeds the walk and ends cyclic
-        // encounters; every other resolved shadow for the unit blocks the
-        // exposed interval from reaching behind it.
-        if site != compare_site && unit_sites.contains(&site) {
-            continue;
-        }
-        let instruction = instruction_at(function, site);
-        if instruction.operands.iter().any(|operand| {
-            registers.contains(&operand.virtual_register)
-                && (operand.access != RegisterOperandAccess::Use || operand.early_clobber)
-        }) {
-            return Err(RedundantCompareError::UnsupportedUse);
-        }
-        if position > 0 {
-            frontier.push((block, position - 1));
-            continue;
-        }
-        for &predecessor in &predecessors[block] {
-            for successor in terminator_successors(&function.blocks[predecessor].terminator) {
-                if successor.block != function.blocks[block].id {
-                    continue;
-                }
-                for binding in &successor.bindings {
-                    if let SelectedValueTransport::Registers { parameter, .. } = binding.transport
-                        && registers.contains(&parameter)
-                    {
-                        return Err(RedundantCompareError::UnsupportedUse);
-                    }
-                }
-                if let Some(case) = &successor.structural_case {
-                    for payload in &case.payloads {
-                        let parameter = match payload.transport {
-                            SelectedCasePayloadTransport::Unused => continue,
-                            SelectedCasePayloadTransport::Unmaterialized { parameter }
-                            | SelectedCasePayloadTransport::Registers { parameter, .. } => {
-                                parameter
-                            }
-                        };
-                        if registers.contains(&parameter) {
-                            return Err(RedundantCompareError::UnsupportedUse);
-                        }
-                    }
-                }
-            }
-            frontier.push((predecessor, function.blocks[predecessor].instructions.len()));
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn admit<'source>(
@@ -310,6 +197,7 @@ pub(super) fn admit<'source>(
                 compare_index,
                 &unit_sites,
                 &operand_registers,
+                RedundantCompareError::UnsupportedUse,
             )?;
         }
     }
