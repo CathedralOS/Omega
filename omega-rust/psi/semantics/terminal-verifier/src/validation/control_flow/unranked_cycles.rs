@@ -152,10 +152,10 @@ fn operation_leaves_custody(
 ) -> bool {
     let clears = |place: PlaceId| !roots.contains(&place);
     let retains = |claim: ClaimId| !identities.contains(&claim);
-    if let OperationResult::Structural(result) = &operation.result {
-        if !clears(result.place) || result.claims.iter().any(|binding| !retains(binding.claim)) {
-            return false;
-        }
+    if let OperationResult::Structural(result) = &operation.result
+        && (!clears(result.place) || result.claims.iter().any(|binding| !retains(binding.claim)))
+    {
+        return false;
     }
     match &operation.kind {
         OperationKind::EstablishReference { source } => clears(source.place),
