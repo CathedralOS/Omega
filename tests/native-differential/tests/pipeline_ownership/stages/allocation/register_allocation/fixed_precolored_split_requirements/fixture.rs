@@ -1,6 +1,7 @@
 use crate::tests::{
     NativeTarget, OptimizationWorkBudget, OptimizationWorkUsage, StagedOptimizedAllocationLegality,
-    stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
+    StagedOptimizedSelectedInstructions, stage_optimized_allocation_legality,
+    stage_optimized_live_ranges, stage_optimized_liveness, staged_chained_forwarded,
     staged_forwarded_conditional,
 };
 pub(super) const X64_EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
@@ -20,12 +21,39 @@ pub(super) const ARM64_EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsag
     iterations: 28,
 };
 
+pub(super) const X64_CHAIN_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
+    rule_evaluations: 4,
+    candidates: 9,
+    validation_steps: 104,
+    commits: 5,
+    iterations: 15,
+};
+
+pub(super) const ARM64_CHAIN_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
+    rule_evaluations: 4,
+    candidates: 9,
+    validation_steps: 209,
+    commits: 5,
+    iterations: 15,
+};
+
 pub(super) fn exact_budget(target: NativeTarget) -> OptimizationWorkBudget {
-    let usage = if target == NativeTarget::linux_x64() {
+    budget_for(if target == NativeTarget::linux_x64() {
         X64_EXACT_USAGE
     } else {
         ARM64_EXACT_USAGE
-    };
+    })
+}
+
+pub(super) fn chain_exact_budget(target: NativeTarget) -> OptimizationWorkBudget {
+    budget_for(if target == NativeTarget::linux_x64() {
+        X64_CHAIN_USAGE
+    } else {
+        ARM64_CHAIN_USAGE
+    })
+}
+
+fn budget_for(usage: OptimizationWorkUsage) -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(
         usage.rule_evaluations,
         usage.candidates,
@@ -42,7 +70,17 @@ pub(super) struct SplitFixture {
 }
 
 pub(super) fn source(target: NativeTarget) -> SplitFixture {
-    let selected = staged_forwarded_conditional(target);
+    staged(staged_forwarded_conditional(target))
+}
+
+/// The `entry -> mid -> leaf` chain: the forwarded register's source range
+/// keeps the parameter's entry view live through the pass-through middle
+/// block, so its second connector does not originate at the source fragment.
+pub(super) fn chain(target: NativeTarget) -> SplitFixture {
+    staged(staged_chained_forwarded(target))
+}
+
+fn staged(selected: StagedOptimizedSelectedInstructions) -> SplitFixture {
     let liveness = stage_optimized_liveness(selected).unwrap();
     let ranges = stage_optimized_live_ranges(liveness).unwrap();
     let source = stage_optimized_allocation_legality(ranges).unwrap();

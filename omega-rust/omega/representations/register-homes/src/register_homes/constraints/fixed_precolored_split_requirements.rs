@@ -31,8 +31,10 @@ impl FixedPrecoloredSplitRequirementPlanIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredSplitRequirementPolicy {
-    /// Partition one-block or exact single-entry fanout source ranges only
-    /// when a fixed `Use` makes the accumulated physical-view domain empty.
+    /// Partition one-block source ranges and source-rooted acyclic fragment
+    /// trees — every edge connector originates at an earlier fragment's block,
+    /// covering source fanout and deeper chains — only when a fixed `Use`
+    /// makes the accumulated physical-view domain empty.
     FixedUseBoundaryRequirementsV1,
 }
 

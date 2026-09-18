@@ -1,6 +1,6 @@
 //! Independent register partition replay.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::RegisterViewId;
 
@@ -63,17 +63,24 @@ pub(super) fn register(
         work,
     )?;
     let mut fragments = vec![first];
+    // The connector source names the fragment whose closing domain feeds the
+    // incoming point domain: keep every processed fragment's exit domain keyed
+    // by its block so deeper trees replay the producer's intersections exactly.
+    let mut closing_by_block = BTreeMap::from([(entry.source.block, source_exit)]);
     for input in topology.iter().skip(1) {
         let edge = input.incoming.expect("replayed topology has incoming edge");
+        let parent = closing_by_block
+            .get(&edge.source)
+            .expect("replayed topology admitted the connector source fragment");
         let at_entry = candidates(function, register, input.points.first())?;
-        let shared = source_exit
+        let shared = parent
             .intersection(&at_entry)
             .copied()
             .collect::<BTreeSet<_>>();
         let (domain, opening) = if shared.is_empty() {
             let first_point = input.points.first().expect("candidate point exists");
             let (site, destination_view) = cuts.boundary(function, register, first_point)?;
-            cuts.require_transition(function, register, &source_exit, site, destination_view)?;
+            cuts.require_transition(function, register, parent, site, destination_view)?;
             work.incompatible_boundary()?;
             (
                 at_entry,
@@ -89,9 +96,10 @@ pub(super) fn register(
                 FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector: edge },
             )
         };
-        let (fragment, _) = replay_fragment(
+        let (fragment, exit) = replay_fragment(
             function, register, input, domain, opening, &mut cuts, &mut id, work,
         )?;
+        closing_by_block.insert(input.source.block, exit);
         fragments.push(fragment);
     }
     cuts.finish(function, register)?;
