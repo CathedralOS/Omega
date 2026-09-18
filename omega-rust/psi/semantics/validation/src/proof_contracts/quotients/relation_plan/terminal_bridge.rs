@@ -30,7 +30,16 @@ use super::theorem_schema::{
 use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
 use super::{DirectTerminalRelationPlan, ExactQuotientRelation, InputRelation};
 
-pub(in crate::proof_contracts::quotients) fn canonical_total_define_correspondence(
+/// Compose the one canonical Terminal correspondence row this plan's own
+/// certificate licenses.
+///
+/// The bridged form is read from the composed certificate rather than from the
+/// authored request kind, so ordinary validation and the source-erasure
+/// extractor cannot disagree about which row a request earns. A congruence-only
+/// `lift`, whose Q => P authority is the automatic implication rung, has no
+/// canonical payload yet and is refused here rather than silently mapped onto
+/// the transport-backed row.
+pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
     program: &TypedTrees,
     public_machine: &Machine,
     public_state: &State,
@@ -39,6 +48,21 @@ pub(in crate::proof_contracts::quotients) fn canonical_total_define_corresponden
     representative_purity: RepresentativePurity,
     result_flow: CompleteSingleStateResultFlow,
 ) -> Result<CanonicalQuotientCorrespondence, String> {
+    let transport_lift = match plan
+        .correspondence_certificate
+        .as_ref()
+        .map(|certificate| &certificate.evidence)
+    {
+        Some(QuotientCorrespondenceEvidence::Define { .. }) => false,
+        Some(QuotientCorrespondenceEvidence::DirectLiftWithTransport { .. }) => true,
+        Some(QuotientCorrespondenceEvidence::DirectLift { .. }) => {
+            return Err(
+                "the proof-only bridge admits faithful `define` or direct transport-backed `lift` only"
+                    .to_owned(),
+            );
+        }
+        None => return Err("the complete correspondence certificate is absent".to_owned()),
+    };
     canonical_correspondence(
         program,
         public_machine,
@@ -47,28 +71,7 @@ pub(in crate::proof_contracts::quotients) fn canonical_total_define_corresponden
         plan,
         representative_purity,
         result_flow,
-        false,
-    )
-}
-
-pub(in crate::proof_contracts::quotients) fn canonical_transport_lift_correspondence(
-    program: &TypedTrees,
-    public_machine: &Machine,
-    public_state: &State,
-    request_expression: ExpressionHandle,
-    plan: &DirectTerminalRelationPlan,
-    representative_purity: RepresentativePurity,
-    result_flow: CompleteSingleStateResultFlow,
-) -> Result<CanonicalQuotientCorrespondence, String> {
-    canonical_correspondence(
-        program,
-        public_machine,
-        public_state,
-        request_expression,
-        plan,
-        representative_purity,
-        result_flow,
-        true,
+        transport_lift,
     )
 }
 
