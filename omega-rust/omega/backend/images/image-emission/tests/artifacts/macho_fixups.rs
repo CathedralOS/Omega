@@ -441,12 +441,8 @@ fn validate_complete_placement(
         &output.final_text_bytes,
     )?;
     image::validate_placed_data_region_inventory(&output.data_regions, &output.final_data_bytes)?;
-    if output
-        .executable_regions
-        .unclassified_gaps
-        .first()
-        .is_some()
-        || output.data_regions.unclassified_gaps.first().is_some()
+    if !output.executable_regions.unclassified_gaps.is_empty()
+        || !output.data_regions.unclassified_gaps.is_empty()
     {
         return Err(diagnostics::Diagnostic::error(
             "placed inventories left final bytes unclassified",
