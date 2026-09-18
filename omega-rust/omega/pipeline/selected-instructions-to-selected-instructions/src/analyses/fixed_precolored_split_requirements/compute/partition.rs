@@ -1,6 +1,6 @@
 //! Exact-view-domain partitioning for one source register.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::RegisterViewId;
 
@@ -47,7 +47,7 @@ pub(super) fn register(
         );
     }
 
-    let inputs = topology::fanout(function, range, legality)?;
+    let inputs = topology::tree(function, range, legality)?;
     let mut cuts = CutIndex::new(fixed, &legality.entry_transitions);
     let mut next_segment_id = 0u32;
     let source_input = &inputs[0];
@@ -64,18 +64,26 @@ pub(super) fn register(
         work,
     )?;
     let mut fragments = vec![source];
+    // Every fragment's accumulated closing domain is retained under its block:
+    // a deeper tree lets a later fragment's incoming connector originate at a
+    // non-source parent, so the intersection base is the connector's own
+    // source fragment, not always the first fragment.
+    let mut closing_by_block = BTreeMap::from([(source_input.fragment.block, source_closing)]);
 
     for input in &inputs[1..] {
-        let connector = input.incoming.expect("fanout topology authenticated");
+        let connector = input.incoming.expect("tree topology authenticated");
+        let parent = closing_by_block
+            .get(&connector.source)
+            .expect("tree topology admitted the connector source fragment");
         let first_domain = point_domain(function, register, input.points.first())?;
-        let compatible = source_closing
+        let compatible = parent
             .intersection(&first_domain)
             .copied()
             .collect::<BTreeSet<_>>();
         let (initial, opening) = if compatible.is_empty() {
             let first = input.points.first().expect("point domain established");
             let (site, destination_view) = cuts.boundary(function, register, first)?;
-            cuts.require_transition(function, register, &source_closing, site, destination_view)?;
+            cuts.require_transition(function, register, parent, site, destination_view)?;
             work.incompatible_boundary()?;
             (
                 first_domain,
@@ -91,7 +99,7 @@ pub(super) fn register(
                 FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector },
             )
         };
-        let (derived, _) = fragment(
+        let (derived, closing) = fragment(
             function,
             register,
             input.fragment,
@@ -102,6 +110,7 @@ pub(super) fn register(
             &mut next_segment_id,
             work,
         )?;
+        closing_by_block.insert(input.fragment.block, closing);
         fragments.push(derived);
     }
     cuts.finish(function, register)?;

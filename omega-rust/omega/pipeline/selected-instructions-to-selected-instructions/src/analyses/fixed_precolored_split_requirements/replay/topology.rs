@@ -1,6 +1,7 @@
-//! Independently reconstructed one-block or single-entry-fanout topology.
+//! Independently reconstructed one-block or source-rooted-fragment-tree
+//! topology, keyed by block identity rather than positional assumptions.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     FixedPrecoloredSplitRequirementError, LiveRangeEdgeConnector, LiveRangeFragment,
@@ -19,14 +20,14 @@ pub(super) fn reconstruct<'a>(
     legality: &'a VirtualRegisterAllocationLegality,
 ) -> Result<Vec<FragmentInput<'a>>, FixedPrecoloredSplitRequirementError> {
     let register = range.virtual_register.0;
-    let Some(entry) = range.fragments.first() else {
+    if range.fragments.is_empty() {
         return Err(
             FixedPrecoloredSplitRequirementError::MissingSourceFragment { function, register },
         );
-    };
+    }
     let mut incoming = HashMap::new();
     for edge in &range.edge_connectors {
-        if edge.source != entry.block || incoming.insert(edge.target.0, *edge).is_some() {
+        if incoming.insert(edge.target.0, *edge).is_some() {
             return cross_block(function, register);
         }
     }
@@ -35,6 +36,7 @@ pub(super) fn reconstruct<'a>(
     }
 
     let mut cursor = 0usize;
+    let mut admitted = HashSet::new();
     let mut result = Vec::with_capacity(range.fragments.len());
     for (index, source) in range.fragments.iter().enumerate() {
         let width =
@@ -58,9 +60,12 @@ pub(super) fn reconstruct<'a>(
         let edge = (index != 0)
             .then(|| incoming.remove(&source.block.0))
             .flatten();
-        if index != 0 && edge.is_none() {
-            return cross_block(function, register);
+        match edge {
+            Some(connector) if admitted.contains(&connector.source.0) => {}
+            None if index == 0 => {}
+            _ => return cross_block(function, register),
         }
+        admitted.insert(source.block.0);
         result.push(FragmentInput {
             source,
             points,

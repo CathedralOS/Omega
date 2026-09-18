@@ -1,4 +1,4 @@
-use super::fixture::{analyze, generous_budget, source, validate};
+use super::fixture::{analyze, chain, generous_budget, source, validate};
 use crate::tests::{LiveRangePoint, MachineId, NativeTarget, VirtualRegisterId};
 
 #[test]
@@ -81,6 +81,47 @@ fn independent_replay_rejects_every_output_layer() {
             Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
         );
     }
+}
+
+#[test]
+fn independent_replay_rejects_a_reparented_chain_opening() {
+    let fixture = chain(NativeTarget::linux_x64());
+    let canonical = analyze(&fixture, generous_budget()).unwrap();
+
+    // A fanout lie: the leaf fragment's opening claims its connector comes
+    // from the source fragment while the real chain parent is the middle
+    // fragment. Replay rebuilds from the live range and disagrees.
+    let mut plan = canonical.plan().clone();
+    let root = plan.functions[0].registers[1].fragments[0].block;
+    let register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { mut connector } =
+        plan.functions[0].registers[1].fragments[2].segments[0].opening
+    else {
+        panic!("chain leaf fragment opens across an incoming edge");
+    };
+    connector.source = root;
+    plan.functions[0].registers[1].fragments[2].segments[0].opening =
+        register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector };
+    assert_eq!(
+        validate(&fixture, plan),
+        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+    );
+
+    // A cycle lie: the middle fragment's opening claims its connector comes
+    // from the leaf fragment, which is later in the range.
+    let mut plan = canonical.plan().clone();
+    let leaf = plan.functions[0].registers[1].fragments[2].block;
+    let register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { mut connector } =
+        plan.functions[0].registers[1].fragments[1].segments[0].opening
+    else {
+        panic!("chain middle fragment opens across an incoming edge");
+    };
+    connector.source = leaf;
+    plan.functions[0].registers[1].fragments[1].segments[0].opening =
+        register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector };
+    assert_eq!(
+        validate(&fixture, plan),
+        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+    );
 }
 
 #[test]

@@ -1,6 +1,6 @@
 //! Exact source-fragment topology and legality-point partitioning.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     FixedPrecoloredSplitRequirementError, LiveRangeEdgeConnector, LiveRangeFragment,
@@ -13,20 +13,26 @@ pub(super) struct FragmentInput<'a> {
     pub(super) incoming: Option<LiveRangeEdgeConnector>,
 }
 
-pub(super) fn fanout<'a>(
+/// Admit a one-block range or a source-rooted fragment tree: every non-first
+/// fragment takes exactly one incoming edge connector whose source is an
+/// *earlier* fragment's block. The source-block fanout is the shallow case;
+/// deeper chains and trees qualify the same way because partition order keeps
+/// every parent fragment's closing domain available before its children.
+/// Joined, cyclic, or sourceless connectors stay unsupported.
+pub(super) fn tree<'a>(
     function: usize,
     range: &'a VirtualLiveRange,
     legality: &'a VirtualRegisterAllocationLegality,
 ) -> Result<Vec<FragmentInput<'a>>, FixedPrecoloredSplitRequirementError> {
     let register = range.virtual_register.0;
-    let source = range.fragments.first().ok_or(
-        FixedPrecoloredSplitRequirementError::MissingSourceFragment { function, register },
-    )?;
+    if range.fragments.is_empty() {
+        return Err(
+            FixedPrecoloredSplitRequirementError::MissingSourceFragment { function, register },
+        );
+    }
     let mut connectors = BTreeMap::new();
     for connector in &range.edge_connectors {
-        if connector.source != source.block
-            || connectors.insert(connector.target, *connector).is_some()
-        {
+        if connectors.insert(connector.target, *connector).is_some() {
             return Err(
                 FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange {
                     function,
@@ -44,6 +50,7 @@ pub(super) fn fanout<'a>(
     }
 
     let mut point_offset = 0usize;
+    let mut admitted = BTreeSet::new();
     let mut inputs = Vec::with_capacity(range.fragments.len());
     for (fragment_offset, fragment) in range.fragments.iter().enumerate() {
         let width =
@@ -69,14 +76,19 @@ pub(super) fn fanout<'a>(
         } else {
             connectors.remove(&fragment.block)
         };
-        if fragment_offset > 0 && incoming.is_none() {
-            return Err(
-                FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange {
-                    function,
-                    register,
-                },
-            );
+        match incoming {
+            Some(connector) if admitted.contains(&connector.source) => {}
+            None if fragment_offset == 0 => {}
+            _ => {
+                return Err(
+                    FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange {
+                        function,
+                        register,
+                    },
+                );
+            }
         }
+        admitted.insert(fragment.block);
         inputs.push(FragmentInput {
             fragment,
             points,

@@ -1,13 +1,13 @@
 //! Conditional and control-flow-cleanup artifact fixtures.
 
 use crate::tests::{
-    AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType,
-    MachineContract, MachineId, NativeTarget, Operation, OperationId, OperationKind,
+    AdmissionProfile, Block, BlockId, ContractId, EdgeId, ExplicitOptimizationRequest, IntegerSign,
+    IntegerType, MachineContract, MachineId, NativeTarget, Operation, OperationId, OperationKind,
     OperationResult, Optimization, OptimizationSelections, OptimizedTargetLoweringRequest,
     ProofBundle, ScalarType, StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
     lower_optimized_to_target_operations, optimize_artifact_sections, request,
-    stage_optimized_instruction_selection,
+    selected_lowering_budget, stage_optimized_instruction_selection,
 };
 pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(4_001).unwrap();
@@ -787,6 +787,155 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         terminal_codec::encode_module(&module).unwrap(),
         terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
+}
+
+/// A machine parameter that stays live through a pass-through middle block
+/// and is returned from the leaf: the selected register's source range is a
+/// three-fragment chain (`entry -> mid -> leaf`), not a source-block fanout.
+pub(crate) fn chained_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
+    let machine = MachineId::new(4_501).unwrap();
+    let entry = BlockId::new(4_502).unwrap();
+    let mid = BlockId::new(4_503).unwrap();
+    let leaf = BlockId::new(4_504).unwrap();
+    let forwarded = ValueId::new(4_505).unwrap();
+    let result = ValueId::new(4_506).unwrap();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let declaration = |id| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
+    let module = TerminalModule {
+        scalar_qualifications: Default::default(),
+        scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: machine,
+            attachment: None,
+            parameters: vec![declaration(forwarded)],
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(declaration(result)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry,
+            blocks: vec![
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
+                        edge: EdgeId::new(4_511).unwrap(),
+                        target: mid,
+                        arguments: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: mid,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
+                        edge: EdgeId::new(4_512).unwrap(),
+                        target: leaf,
+                        arguments: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    structural_parameters: Vec::new(),
+                    id: leaf,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(4_513).unwrap(),
+                        value: forwarded,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                id: ContractId::new(4_514).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    let proof = ProofBundle {
+        recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: Vec::new(),
+    };
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
+    )
+}
+
+pub(crate) fn staged_chained_forwarded(
+    target: NativeTarget,
+) -> StagedOptimizedSelectedInstructions {
+    let (semantic, proof) = chained_forwarded_parameter_artifact();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        // The leaf-local fixed-view sequence consumes the unit's declared
+        // per-pass budget, so the staged input carries the same capacity the
+        // other end-to-end fixtures declare.
+        ExplicitOptimizationRequest::new(
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            selected_lowering_budget(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
+    stage_optimized_instruction_selection(target).unwrap()
 }
 
 pub(crate) fn staged_forwarded_conditional(
