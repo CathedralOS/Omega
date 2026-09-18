@@ -317,10 +317,32 @@ pub(super) fn attach_checked_crash_calls(
                         arguments,
                         exact_integer_casts,
                     );
+                    // This call still has its invocation context, so a
+                    // member-projected leaf resolves the argument's entry
+                    // operand at the read projection instead of widening the
+                    // route to `Truth` when a sibling field was written.
+                    let mut resolve_entry = |ordinal: u32, members: &[String]| {
+                        crate::facts::crash_calls::route_substitution::call_argument_entry_operand(
+                            program,
+                            state_flow.machine_symbol,
+                            state_flow.state_symbol,
+                            call_flow.statement_index,
+                            target_parameters,
+                            arguments,
+                            &substitution.identity,
+                            ordinal,
+                            members,
+                        )
+                    };
                     normalize_summary_buckets(
                         summary
                             .iter()
-                            .map(|bucket| bucket.substitute(&substitution))
+                            .map(|bucket| {
+                                bucket.substitute_with_entry_resolver(
+                                    &substitution,
+                                    Some(&mut resolve_entry),
+                                )
+                            })
                             .collect(),
                     )
                 }

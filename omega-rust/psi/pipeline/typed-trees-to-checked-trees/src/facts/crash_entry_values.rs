@@ -15,7 +15,10 @@
 //! survives writes confined to disjoint siblings. Mutable bindings with
 //! unstable contents, divergent arrivals and unresolvable cycles retain no
 //! entry identity. Substitution transports a proven origin, never re-reads an
-//! initializer after later operands execute. This is source provenance, not a
+//! initializer after later operands execute. A guard leaf that reads only a
+//! member projection needs only that projection's provenance: whole-operand
+//! failure is not a reason to widen a surviving route to `Truth` when the
+//! read field's snapshot is intact. This is source provenance, not a
 //! Terminal certificate.
 
 use checked_trees::CrashPredicateExpression;
@@ -23,6 +26,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::types::TypeReferenceNode;
 use validation::has_stable_observable_contents;
 
 mod mutable;
@@ -150,6 +154,136 @@ pub(super) fn operand_entry_provenance(
             }
         }
     }
+}
+
+/// The operand's entry operand when only `leaf_projection` below its root is
+/// read — the expression-returning twin of `operand_entry_provenance`. A
+/// mutable binding written only outside the read projection still supplies
+/// the entry snapshot for that field, so a surviving route may keep the
+/// caller's per-field name instead of widening to `Truth`. The produced
+/// expression names only the operand's own member spine; the leaf's
+/// projection is applied by the substituting `Member` nodes above the
+/// `Parameter` leaf, never doubled here.
+pub(super) fn entry_operand_projected(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    operand: ExpressionHandle,
+    leaf_projection: &[PlaceSegment],
+) -> Option<CrashPredicateExpression> {
+    let mut projection = leaf_projection.to_vec();
+    let mut member_names = Vec::new();
+    let mut operand_place = operand;
+    loop {
+        if !program.expression_table.expression_is_valid(operand_place) {
+            return None;
+        }
+        match program.expression_table.expression(operand_place) {
+            ExpressionNode::Member(member)
+                if member.case_variant.is_none() && member.member_symbol.is_valid() =>
+            {
+                projection.insert(0, PlaceSegment::Field(member.member_symbol));
+                member_names.insert(0, member.member.as_str().to_owned());
+                operand_place = member.receiver;
+            }
+            ExpressionNode::Borrow(borrow)
+                if borrow.access == language_core::ReferenceAccess::Shared =>
+            {
+                operand_place = borrow.target;
+            }
+            ExpressionNode::Name(path) => {
+                let root = entry_operand_name_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    path,
+                    &projection,
+                    0,
+                )?;
+                return Some(member_names.iter().fold(root, |receiver, member| {
+                    CrashPredicateExpression::Member {
+                        receiver: Box::new(receiver),
+                        member: member.clone(),
+                    }
+                }));
+            }
+            // A non-place operand carries only whole-value provenance, and
+            // only when the leaf read it without projecting.
+            _ => {
+                return if projection.is_empty() {
+                    entry_operand_at(
+                        program,
+                        machine_symbol,
+                        state_symbol,
+                        before_statement,
+                        operand,
+                        0,
+                    )
+                } else {
+                    None
+                };
+            }
+        }
+    }
+}
+
+/// The `PlaceSegment` projection `members` spells below a formal's declared
+/// type. Each member resolves against the previous step's data declaration so
+/// the pristine-storage scan compares the same field symbols writes carry; a
+/// member that does not resolve to a plain data field — a case payload, an
+/// unresolvable or non-record step — is opaque and interferes with every
+/// write that reaches it. Resolution stops at the first opaque step: nothing
+/// below it can be separated anyway.
+pub(super) fn formal_member_projection(
+    program: &TypedTrees,
+    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    members: &[String],
+) -> Vec<PlaceSegment> {
+    let mut projection = Vec::with_capacity(members.len());
+    for member in members {
+        let data_symbol = loop {
+            match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+                TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+                TypeReferenceNode::Named { symbol, .. }
+                | TypeReferenceNode::Generic {
+                    base_symbol: symbol,
+                    ..
+                } => break *symbol,
+                _ => break SymbolHandle::invalid(),
+            }
+        };
+        let mut owners = program
+            .data_definitions()
+            .iter()
+            .filter(|data| data.symbol == data_symbol);
+        let field = owners.next().and_then(|data| {
+            (owners.next().is_none())
+                .then(|| {
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|candidate| match candidate {
+                            typed_trees::data::DataMember::Field(field)
+                                if field.name.as_str() == member.as_str() =>
+                            {
+                                Some(field)
+                            }
+                            _ => None,
+                        })
+                })
+                .flatten()
+        });
+        let Some(field) = field else {
+            projection.push(PlaceSegment::Opaque);
+            break;
+        };
+        projection.push(PlaceSegment::Field(field.symbol));
+        type_reference = field.type_reference;
+    }
+    projection
 }
 
 fn entry_operand_at(
@@ -748,6 +882,64 @@ pub(super) fn substitute_entry(
         CrashPredicateExpression::Member { receiver, member } => CrashPredicateExpression::Member {
             receiver: Box::new(substitute_entry(receiver, operands)?),
             member: member.clone(),
+        },
+        _ => return None,
+    })
+}
+
+/// Entry substitution with per-field operand provenance. `resolve(ordinal,
+/// members)` answers the operand's entry operand restricted to the member
+/// projection `members` — a contiguous `Member` spine above a `Parameter`
+/// leaf applies the authored projection to the operand's storage, so a
+/// binding whose unread sibling fields were written still supplies the read
+/// field's saved actual rather than widening the route to `Truth`. The
+/// `Member` spine re-applies its own names over the resolved root, so the
+/// resolver returns the operand's entry operand unprojected by `members`.
+/// Nodes `substitute_entry` cannot express keep the same refusal here.
+pub(super) fn substitute_entry_projected(
+    expression: &CrashPredicateExpression,
+    resolve: &mut (impl FnMut(u32, &[String]) -> Option<CrashPredicateExpression> + ?Sized),
+) -> Option<CrashPredicateExpression> {
+    Some(match expression {
+        CrashPredicateExpression::Parameter(ordinal) => resolve(*ordinal, &[])?,
+        CrashPredicateExpression::Member { .. } => {
+            // Collect the contiguous member spine root-to-leaf so the
+            // parameter at its base resolves at the full authored projection.
+            let mut members = Vec::new();
+            let mut base = expression;
+            while let CrashPredicateExpression::Member { receiver, member } = base {
+                members.push(member.clone());
+                base = receiver;
+            }
+            members.reverse();
+            let base = match base {
+                CrashPredicateExpression::Parameter(ordinal) => {
+                    resolve(*ordinal, members.as_slice())?
+                }
+                _ => substitute_entry_projected(base, resolve)?,
+            };
+            members
+                .iter()
+                .fold(base, |receiver, member| CrashPredicateExpression::Member {
+                    receiver: Box::new(receiver),
+                    member: member.clone(),
+                })
+        }
+        CrashPredicateExpression::Boolean(_) | CrashPredicateExpression::Integer(_) => {
+            expression.clone()
+        }
+        CrashPredicateExpression::Binary {
+            operator,
+            left,
+            right,
+        } => CrashPredicateExpression::Binary {
+            operator: *operator,
+            left: Box::new(substitute_entry_projected(left, resolve)?),
+            right: Box::new(substitute_entry_projected(right, resolve)?),
+        },
+        CrashPredicateExpression::Unary { operator, operand } => CrashPredicateExpression::Unary {
+            operator: *operator,
+            operand: Box::new(substitute_entry_projected(operand, resolve)?),
         },
         _ => return None,
     })

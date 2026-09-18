@@ -10,6 +10,58 @@ use crate::facts::crash_calls::summary_predicates::{
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::StateParameter;
+
+/// One call argument's entry operand under the projection a surviving guard
+/// reads. `ordinal` indexes the callee parameter telescope; `members` is the
+/// contiguous member spine above its `Parameter` leaf. A bare leaf keeps the
+/// precomputed whole-operand substitution (`whole`), while a projected leaf
+/// asks `entry_operand_projected` for exactly that field path — a mutable
+/// actual written only in a sibling field still supplies the read field's
+/// saved actual instead of widening the route to `Truth`. `is_self`
+/// parameters keep no substitution: receiver-entry identity needs retained
+/// referent custody a bare argument cannot supply.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn call_argument_entry_operand(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
+    whole: &[Option<CrashPredicateExpression>],
+    ordinal: u32,
+    members: &[String],
+) -> Option<CrashPredicateExpression> {
+    let ordinal = ordinal as usize;
+    let parameter = parameters.get(ordinal)?;
+    if members.is_empty() {
+        return whole.get(ordinal)?.clone();
+    }
+    if parameter.is_self {
+        return None;
+    }
+    // Transition/call arguments bind only the non-self parameters, in order.
+    let argument_index = parameters[..ordinal]
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+    let argument = arguments.get(argument_index).copied()?;
+    let projection = crate::facts::crash_entry_values::formal_member_projection(
+        program,
+        parameter.type_reference,
+        members,
+    );
+    crate::facts::crash_entry_values::entry_operand_projected(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        argument,
+        &projection,
+    )
+}
 
 pub(crate) enum SelectedTargetCrashRoutes<'a> {
     Published {
@@ -413,10 +465,25 @@ pub(crate) fn refine_published_crash_routes(
                     // The direct evaluator follows actuals and local initializers.
                     // Only referenced formals with retained immutable entry origins
                     // may enter it; callee meaning cannot authorize caller operators.
-                    let entry_predicate = crate::facts::crash_entry_values::substitute_entry(
-                        &predicate,
-                        &substitution.identity,
-                    );
+                    // A projected leaf keeps the per-field caller name when the
+                    // read projection stayed pristine across sibling writes.
+                    let entry_predicate =
+                        crate::facts::crash_entry_values::substitute_entry_projected(
+                            &predicate,
+                            &mut |ordinal, members| {
+                                call_argument_entry_operand(
+                                    program,
+                                    state_flow.machine_symbol,
+                                    state_flow.state_symbol,
+                                    call_flow.statement_index,
+                                    target_parameters,
+                                    arguments,
+                                    &substitution.identity,
+                                    ordinal,
+                                    members,
+                                )
+                            },
+                        );
                     let concrete_value = (builtin_meaning && entry_predicate.is_some())
                         .then(|| {
                             crate::checks::contracts::call_site_boolean_contract_expression_value(

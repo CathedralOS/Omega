@@ -651,6 +651,137 @@ fn named_call_discharge_follows_the_leafs_nested_projection() {
     );
 }
 
+/// The surviving guard for `crashes Trap !(cell.count >= 0)` over a caller
+/// whose parameter `rec` is operand 0: the entry operand is the caller's
+/// `rec` snapshot, and the leaf's `count` projection rides its own `Member`
+/// node — never doubled by the resolver.
+fn negated_count_at_least_zero() -> checked_trees::CrashPredicateExpression {
+    use checked_trees::CrashPredicateExpression;
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    CrashPredicateExpression::Unary {
+        operator: UnaryOperator::LogicalNot as u8,
+        operand: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::GreaterOrEqual as u8,
+            left: Box::new(CrashPredicateExpression::Member {
+                receiver: Box::new(CrashPredicateExpression::Parameter(0)),
+                member: "count".to_owned(),
+            }),
+            right: Box::new(CrashPredicateExpression::Integer("0".to_owned())),
+        }),
+    }
+}
+
+#[test]
+fn named_call_surviving_route_keeps_the_projected_caller_field() {
+    // `rec.other` was written, so `rec` has no whole-operand entry identity —
+    // but the guard reads only `cell.count`, whose projection stayed pristine.
+    // The surviving route names the caller's `rec.count` rather than widening
+    // to `Truth`.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine uncovered(mut rec: Rec) -> bool {
+             rec.other = 1;
+             Ns::probe(&rec)
+         }";
+    let diagnostics =
+        check(source).expect_err("the unproven route survives with an exact per-field caller name");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    let [bucket] = site.surviving.as_slice() else {
+        panic!("one surviving bucket: {:?}", site.surviving)
+    };
+    assert_eq!(
+        bucket.alternative_guards(),
+        &[checked_trees::CrashRouteGuard::Predicate(
+            checked_trees::CrashPredicateIdentity::from_expression(negated_count_at_least_zero()),
+        )],
+    );
+}
+
+#[test]
+fn named_call_surviving_route_widens_when_the_read_field_is_rewritten() {
+    // `rec.count = -1` reaches the exact projection the guard reads, so no
+    // per-field provenance survives and the route keeps its unconditional
+    // widening.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator Ns::probe(cell: &Rec) -> bool
+         crashes Trap !(cell.count >= 0);
+         pub machine drifted(mut rec: Rec) -> bool {
+             rec.count = -1;
+             Ns::probe(&rec)
+         }";
+    let diagnostics = check(source).expect_err("a rewritten read projection keeps its route");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = named_sites(&checked);
+    let [site] = sites.as_slice() else {
+        panic!("one named operator crash site")
+    };
+    let [bucket] = site.surviving.as_slice() else {
+        panic!("one surviving bucket: {:?}", site.surviving)
+    };
+    assert_eq!(
+        bucket.alternative_guards(),
+        &[checked_trees::CrashRouteGuard::Truth],
+    );
+}
+
+#[test]
+fn spelled_use_surviving_route_keeps_the_projected_caller_field() {
+    // The same per-field substitution serves a spelled use: the invoked
+    // operand capture is not what supplies the leaf projection.
+    let source = "pub data Rec { count: i32; other: i32; }
+         boundary operator + Same::add(left: Rec, right: Rec) -> bool
+         crashes Trap !(left.count >= 0);
+         pub machine uncovered(mut rec: Rec, other: Rec) -> bool {
+             rec.other = 1;
+             rec + other
+         }";
+    let diagnostics = check(source)
+        .expect_err("the unproven spelled route survives with an exact per-field caller name");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uncovered")),
+        "{diagnostics:#?}"
+    );
+    let checked = inspect(source);
+    let sites = checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .flat_map(|machine| machine.crash.checked_operators())
+        .collect::<Vec<_>>();
+    let [site] = sites.as_slice() else {
+        panic!("one operator crash site")
+    };
+    let [bucket] = site.surviving.as_slice() else {
+        panic!("one surviving bucket: {:?}", site.surviving)
+    };
+    assert_eq!(
+        bucket.alternative_guards(),
+        &[checked_trees::CrashRouteGuard::Predicate(
+            checked_trees::CrashPredicateIdentity::from_expression(negated_count_at_least_zero()),
+        )],
+    );
+}
+
 #[test]
 fn a_structural_operator_formal_keeps_its_route_identity_only() {
     // The operator reader binds scalar formals; a guard through a structural

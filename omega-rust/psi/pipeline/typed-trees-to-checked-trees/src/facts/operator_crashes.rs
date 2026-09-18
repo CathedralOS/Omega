@@ -1,7 +1,9 @@
 //! Selected operator invocations have their own occurrence and operand custody.
 //! Their source crash routes never acquire fabricated ordinary-call coordinates.
 
-use super::crash_entry_values::{entry_operand, substitute_entry};
+use super::crash_entry_values::{
+    entry_operand_projected, formal_member_projection, substitute_entry_projected,
+};
 
 use checked_trees::{
     CheckedCrashOperatorSite, CheckedOperatorFacts, CheckedOperatorOccurrence,
@@ -248,18 +250,24 @@ fn retained_operator_crash_routes(
         .iter()
         .map(|parameter| parameter.name.as_str().to_owned())
         .collect::<Vec<_>>();
-    let substitution = operands
-        .iter()
-        .map(|operand| {
-            entry_operand(
-                program,
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                *operand,
-            )
-        })
-        .collect::<Vec<_>>();
+    // A `Parameter` leaf below a member spine asks only for the operand's
+    // provenance at that projection: a mutable carrier written only in a
+    // sibling field still supplies the read field's entry operand, so the
+    // surviving route names the caller's `rec.count` rather than widening to
+    // `Truth`. A bare `Parameter` keeps the whole-operand boundary.
+    let mut resolve_entry = |ordinal: u32, members: &[String]| {
+        let operand = operands.get(ordinal as usize).copied()?;
+        let parameter = parameters.get(ordinal as usize)?;
+        let projection = formal_member_projection(program, parameter.type_reference, members);
+        entry_operand_projected(
+            program,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            operand,
+            &projection,
+        )
+    };
     let mut surviving = Vec::new();
     for bucket in &published {
         let mut guards = Vec::new();
@@ -322,7 +330,7 @@ fn retained_operator_crash_routes(
             // caller namespace or relabel a current read as an entry input.
             let Some(identity) = predicate
                 .expression()
-                .and_then(|identity| substitute_entry(identity, &substitution))
+                .and_then(|identity| substitute_entry_projected(identity, &mut resolve_entry))
             else {
                 guards.push(CrashRouteGuard::Truth);
                 continue;
