@@ -920,39 +920,35 @@ Owners include
 
 ## P2 - Materialization and placed access
 
-- **PLAN-LAID-VIEWS.** Finish checked and native placement for plan-laid views
-  without turning a physical address into semantic ownership. Layout identity,
-  backing, range, access, and lifetime must rejoin at every use. Acceptance:
-  valid views survive codec/native replay and stale plan, range, access, or
-  backing substitutions reject.
+- **PLAN-LAID-VIEWS.** Connect actual placed-view establishment, use and retirement
+  to executable and interpreter inputs under
+  [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement).
+  Existing `ArtifactSections` admission, codec replay and native-realization
+  optimization retain exact rosters; do not rebuild that evidence transport.
 
-  Continue from `artifact_admission.rs` in
-  `omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/`.
-  `ArtifactSections` carries optional exact-ledger replay; ordinary, optimizer,
-  and native admission all retain the placed-view roster. Checked extraction
-  for consumers without custody support rejects nonempty rosters. Extend the
-  existing `direct_placed_view_input_survives_codec_and_native_replay` control
-  in `compiler/tests/access_plans.rs` through native-realization optimization
-  and end-to-end native placement. The retained roster is semantic custody,
-  not backing, range, access, or lifetime authority. At 042f6f27bd that
-  control publishes the placed-entry fragment for linux_x64, linux_arm64
-  and macos_arm64, ties the derived placement to the target's first
-  pointer-argument register, and on a matching host executes it with a
-  C-lent referent of the plan's exact geometry (backing, range, access and
-  lifetime stay with the driver); stale plan/range/access/backing and
-  stale roster/artifact substitutions reject before execution (macOS
-  ARM64 ran the leg; Linux hosts not run). Executable-image realization
-  stays fail-closed at `try_into_native_input` for a nonempty roster
-  because no provider establishment route supplies the view address to an
-  image entry; that route (placed-access "Establishment and retirement")
-  is the next dependency, and `tests/architecture/layering.rs` pins the
-  `VerifiedNativeArtifactInput as NativeRealizationInput` alias any
-  plumbing must preserve. Artifact interpretation joins the same custody
-  gate: `TerminalExecution::start_verified_module` now rejects a nonempty
-  roster with `PlacedViewInputsRequireCustody`, since no scalar,
-  structural, or byte-sequence input channel can lend the referent a
-  placed row declares, so the entry machine no longer executes with that
-  declared input silently unbound.
+  Continue from `terminal-psi-to-abstract-operations/src/artifact_admission.rs`,
+  `compiler/native-realization`, and Terminal interpreter input custody.
+  `try_into_native_input` and `TerminalExecution::start_verified_module`
+  currently reject nonempty placed-view rosters because they cannot supply the
+  referent under the required custody. Add the ordinary source/provider
+  establishment route, preserving exact layout, qualified backing, range,
+  access/profile and lifetime joins; a roster or pointer is not this authority.
+  Keep unsupported consumers rejecting until they carry it. Preserve the
+  verified native-input boundary enforced by architecture checks.
+
+  Extend `compiler/tests/access_plans/source_access_policies.rs`'s
+  `direct_placed_view_input_survives_codec_and_native_replay` into a source
+  program that establishes a view, performs a checked access and retires it
+  through published native execution. That test already optimizes/emits a
+  fragment and lends backing from C, but its authored consumer is empty;
+  it does not demonstrate source establishment or access.
+
+  Acceptance: valid views retain the same semantics through codec, optimization,
+  interpretation and native execution. Stale/substituted plan, artifact, backing,
+  range, rights, occurrence or lifetime rejects before access; failed establishment
+  returns custody and retirement preserves the declared resident/vacant state.
+  Run each available supported host leg and explicitly report unavailable ones,
+  without treating cross-target emission as physical execution.
 
 - **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
   and its target-dependent realization. Preserve exact paths and bounds until
