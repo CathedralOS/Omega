@@ -83,7 +83,13 @@ fn component_candidate(
 /// establishment (declared place, type, and claim-free custody preserved
 /// byte-exact while its scalar initializer substitutes like a computation —
 /// the run orders it ahead of any `CallStructuralScalar` borrowing its
-/// root), an invariant scalar
+/// root), a record establishment (declared place, structural type, result
+/// custody, declaration order, and range obligations preserved byte-exact
+/// while each scalar field value substitutes like a computation and each
+/// structural field copy's root lands like a shared-borrow call
+/// argument's — the
+/// whole-component custody bound proving no member stores to the declared
+/// place), an invariant scalar
 /// computation (an obligated variant keeps
 /// its discharged obligation byte-exact inside the moved operation), an
 /// invariant scalar-signature call whose callee's transitive effect summary
@@ -302,6 +308,39 @@ fn admit_member_node(
         if !evidence.representable(&substitution, relocating) {
             return None;
         }
+        substitution.into_iter().collect()
+    } else if crate::validation::admissible_invariant_record(node).is_some() {
+        // A record establishment is the primitive local's multi-field
+        // sibling: it declares a fresh claim-free unrestricted record place
+        // whose declaration-ordered initializers are scalar reads or owned
+        // copies of unrestricted roots.
+        // Establishing the record performs work a bypassed traversal would
+        // not, so both halves of the non-speculative gate apply; the
+        // whole-component custody bound then proves no member stores to the
+        // declared place — the one condition under which a record
+        // established once still reads its initializers on every traversal —
+        // each scalar field value obeys the scalar substitution, and each
+        // copied root must land somewhere the run can see it: already
+        // preheader-visible, resolved through an invariant member structural
+        // parameter (rebound on the moved node), or produced by a node
+        // earlier in the same run (the argument keeps spelling the
+        // preserved place identity). The declared place, structural type,
+        // result custody, declaration order, and range obligations move
+        // byte-exact inside the moved operation.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        let (substitution, rewrites) = crate::validation::invariant_record_admission(
+            function,
+            component,
+            node,
+            relocating,
+            relocating_roots,
+        )?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        argument_rewrites = rewrites;
         substitution.into_iter().collect()
     } else if crate::validation::admissible_invariant_scalar_call(node).is_some() {
         // A scalar-signature call keeps the full non-speculative gate — it
@@ -592,6 +631,11 @@ pub(super) fn component_plan(
                         AbstractOperation::EstablishPrimitiveLocal { result, .. }
                             if crate::validation::admissible_invariant_primitive_local(node)
                                 .is_some() =>
+                        {
+                            LoopInvariantNodeResult::Structural(result.clone())
+                        }
+                        AbstractOperation::EstablishRecord { result, .. }
+                            if crate::validation::admissible_invariant_record(node).is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
                         }

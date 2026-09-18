@@ -327,6 +327,151 @@ pub(crate) fn invariant_primitive_local_admission(
     member_scalar_operand_substitution(function, component, node, relocating)
 }
 
+/// An `EstablishRecord` is the third structural establishment admitted for
+/// loop-invariant motion — the primitive local's multi-field sibling. The
+/// node declares a fresh claim-free unrestricted record place initialized
+/// from declaration-ordered field initializers: it reads exactly the scalar
+/// field values in field order, mutates no existing place, and carries no
+/// successors or ownership events. A structural field initializer copies a
+/// whole place root into the record — the cyclic-eligibility fence already
+/// proved the copy is `Owned` over an unrestricted source with an empty
+/// path, so it reads the root without moving custody — and its root's
+/// landing is decided separately by [`invariant_record_admission`]. The
+/// node must
+/// name its own operation as the first provenance row, define no scalar
+/// value (its result is the declared place), use exactly its scalar field
+/// values in declaration order, and keep the result claim-free the way
+/// `record::fields` requires for the cyclic-eligibility fence —
+/// unrestricted multiplicity and vacuous qualification, projection, and
+/// claim rosters — so the moved declaration still validates as an owned
+/// establishment. A bounded-integer field's `range_obligation` is not an
+/// operand position: it was discharged against the field value and operand
+/// substitution only rebinds a member parameter to the representative every
+/// reaching edge proves equal, so the obligation moves byte-exact inside
+/// the operation. Whether the field values are actually loop-invariant and
+/// whether the component preserves the record's fixed contents are decided
+/// separately by [`invariant_record_admission`].
+pub(crate) fn admissible_invariant_record(
+    node: &OptimizationNode,
+) -> Option<terminal_psi::StructuralOperationResult> {
+    let O::EstablishRecord {
+        psi_operation,
+        result,
+        fields,
+    } = &node.operation
+    else {
+        return None;
+    };
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+        && node.definitions.is_empty()
+        && node.uses.len()
+            == fields
+                .iter()
+                .filter(|field| {
+                    matches!(field.value, terminal_psi::RecordFieldValue::Scalar { .. })
+                })
+                .count()
+        && node
+            .uses
+            .iter()
+            .zip(fields.iter().filter_map(|field| match &field.value {
+                terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
+                terminal_psi::RecordFieldValue::Structural(_) => None,
+            }))
+            .all(|(value_use, value)| value_use.value == *value)
+        && fields.iter().all(|field| match &field.value {
+            terminal_psi::RecordFieldValue::Scalar { .. } => true,
+            terminal_psi::RecordFieldValue::Structural(argument) => {
+                argument.access == terminal_psi::StructuralAccess::Owned && argument.path.is_empty()
+            }
+        })
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty())
+    .then(|| result.clone())
+}
+
+/// The complete record-establishment admission shared by the proposal and
+/// the relocation freeze replay: `node` must carry the source-owned
+/// establishment shape ([`admissible_invariant_record`]) — which yields the
+/// declared place — the component must perform no place mutation or custody
+/// movement ([`component_preserves_place_observations`]), and each scalar
+/// field value must obey the shared use-site invariance rule
+/// ([`member_scalar_operand_substitution`]). The custody bound is what
+/// makes hoisting a *re-established-every-iteration* record sound: the
+/// source semantics hand each traversal a fresh record whose fields read
+/// the initializer values, so moving the establishment into the preheader
+/// binds those values once — only when no member stores to the declared
+/// place does the persistent record still read those fields on every
+/// traversal, which is exactly what a mutation-free component guarantees.
+/// Each structural field initializer then copies a root the relocated run
+/// must see: already visible at the unique preheader insertion point, the
+/// representative an invariant member structural parameter resolves to
+/// ([`invariant_member_place_parameters`]), or a root a node earlier in the
+/// same run produced — `relocating_roots` — because the run preserves the
+/// producer's declared place identity and orders it ahead of the record. A
+/// member-produced root the run does not cover is re-established fresh
+/// every traversal, so a record copying it cannot collapse into one
+/// preheader copy and refuses. Returns the scalar substitution plus the
+/// `(member parameter or member-produced root, preheader-visible root)`
+/// rewrites the relocated establishment performs on its structural field
+/// arguments — empty when every copied root already names a visible or
+/// run-produced place.
+pub(crate) fn invariant_record_admission(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    relocating: &BTreeSet<ValueId>,
+    relocating_roots: &BTreeSet<PlaceId>,
+) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
+    admissible_invariant_record(node)?;
+    if !component_preserves_place_observations(function, component) {
+        return None;
+    }
+    let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
+    let O::EstablishRecord { fields, .. } = &node.operation else {
+        return None;
+    };
+    let preheader_source = shared_entry_source(component)?;
+    let preheader = function
+        .blocks
+        .iter()
+        .find(|block| block.id == preheader_source)?;
+    let representatives = invariant_member_place_parameters(function, component, relocating_roots);
+    let mut rewrites = Vec::new();
+    for field in fields {
+        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+            continue;
+        };
+        // The copied root must land somewhere the relocated run can see it
+        // — the shared-borrow landing rule `borrow_call_admission` replays
+        // for a call's structural arguments: already visible at the
+        // preheader insertion point or uniquely produced by a node the same
+        // run relocated (the argument keeps spelling the preserved place),
+        // else the representative the member structural parameter resolves
+        // to under the same two landings.
+        let resolved = if place_observation_root_visible(function, preheader, argument.place)
+            || (relocating_roots.contains(&argument.place)
+                && member_root_producer_count(function, component, argument.place) == 1)
+        {
+            argument.place
+        } else {
+            let representative = *representatives.get(&argument.place)?;
+            (place_observation_root_visible(function, preheader, representative)
+                || (relocating_roots.contains(&representative)
+                    && member_root_producer_count(function, component, representative) == 1))
+                .then_some(representative)?
+        };
+        if resolved != argument.place {
+            rewrites.push((argument.place, resolved));
+        }
+    }
+    Some((substitution, rewrites))
+}
+
 /// The storage root an admitted place observation, byte read, or subslice
 /// names — whichever observation gate the node's operation shape admits
 /// through. `same_relocated_node` needs the expected root to replay the
@@ -345,11 +490,15 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// a transferred claim unless every such argument's root is exclusively the
 /// call's own, and no
 /// affine discard on any component-adjacent edge. A `ByteSequenceSubslice`,
-/// an `EstablishByteSequenceLiteral`, and an `EstablishPrimitiveLocal` are
+/// an `EstablishByteSequenceLiteral`, an `EstablishPrimitiveLocal`, and an
+/// `EstablishRecord` are
 /// the only establishments this bound tolerates: the subslice reads its
 /// source root's extent without mutating the root, the literal reads
-/// nothing at all, and the primitive local declares a fresh claim-free
-/// storage cell without mutating an existing place — each establishes only a
+/// nothing at all, the primitive local declares a fresh claim-free
+/// storage cell without mutating an existing place, and a record
+/// establishment binds its field initializers into a fresh root — its
+/// structural field copies read an unrestricted source without moving it —
+/// without mutating an existing place either. Each establishes only a
 /// fresh root, and a member-produced root can anchor a rebind only when the
 /// relocation run covers its producer
 /// ([`invariant_member_place_parameters`]), so
@@ -425,8 +574,11 @@ pub(crate) fn component_preserves_place_observations(
 /// read-only place observations cannot change what they observe; a byte
 /// subslice reads its source root's extent and establishes only a fresh view
 /// root, a byte-sequence literal establishes only a fresh immutable view
-/// root over constant bytes, and a primitive-local establishment declares
-/// only a fresh claim-free storage cell — no existing place mutates, and a
+/// root over constant bytes, a primitive-local establishment declares
+/// only a fresh claim-free storage cell, and a record establishment binds
+/// its initializers into a fresh root — a structural field copies an
+/// unrestricted source without moving it — so no existing place mutates,
+/// and a
 /// fresh member-produced root anchors another parameter's invariant
 /// representative only when its producer relocates in the same run; control
 /// nodes carry their custody on their successor edges, which the edge scan
@@ -434,7 +586,8 @@ pub(crate) fn component_preserves_place_observations(
 /// scalar `Call` has no place or claim surface at all; and a unit or scalar
 /// call that moves no claims and passes only shared-borrow structural
 /// arguments cannot mutate any place it could observe. Every other variant —
-/// stores, record and local establishments, dynamic-dispatch and structural
+/// stores, array, case, and affine-local establishments, dynamic-dispatch
+/// and structural
 /// calls, boundary calls, atomic events, descriptor stores — fails closed.
 fn node_preserves_place_observations(operation: &O) -> bool {
     match operation {
@@ -488,6 +641,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::DynamicDescriptorParameter { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishPrimitiveLocal { .. }
+        | O::EstablishRecord { .. }
         | O::Call { .. } => true,
         O::CallUnit {
             structural_arguments,
@@ -2345,6 +2499,18 @@ pub(crate) fn substitute_invariant_scalar_operands(
         O::EstablishPrimitiveLocal { value, .. } => {
             substitute(&mut value.value, substitution);
         }
+        // A relocated record establishment rebinds each scalar field
+        // initializer through the same invariant-parameter substitution —
+        // the declared place, structural type, result custody, declaration
+        // order, structural field arguments, and bounded-integer range
+        // obligations stay byte-exact inside the moved operation.
+        O::EstablishRecord { fields, .. } => {
+            for field in fields {
+                if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &mut field.value {
+                    substitute(value, substitution);
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -2379,7 +2545,8 @@ pub(crate) fn substitute_invariant_place_root(
     true
 }
 
-/// Rebind the structural-argument roots of an admitted call operation:
+/// Rebind the structural-argument roots of an admitted call operation or the
+/// structural-field argument roots of an admitted record establishment:
 /// `rewrites` maps each member-parameter root the
 /// admission resolved to the preheader-visible or run-covered root the
 /// relocated call now
@@ -2391,7 +2558,11 @@ pub(crate) fn substitute_invariant_place_root(
 /// operation the admission refused. A shared-borrow argument whose root a
 /// node earlier in the same run produced — an `EstablishPrimitiveLocal` or a
 /// byte-literal declaration — needs no rewrite at all: the run keeps the
-/// producer's declared place identity byte-exact.
+/// producer's declared place identity byte-exact. A relocated
+/// `EstablishRecord` instead rebinds the `place` of each structural field
+/// initializer whose copied root is an invariant member structural
+/// parameter — a field naming a run-produced root keeps spelling it
+/// byte-exact.
 /// Returns `true` only when every requested rewrite found at least one
 /// argument to rebind: a planned rewrite that fires on no argument means the
 /// plan drifted from the operation, which the relocation callers treat as a
@@ -2401,7 +2572,8 @@ pub(crate) fn substitute_invariant_call_roots(
     operation: &mut O,
     rewrites: &BTreeMap<PlaceId, PlaceId>,
 ) -> bool {
-    let arguments = match operation {
+    let mut applied = BTreeSet::new();
+    match operation {
         O::CallUnit {
             structural_arguments,
             ..
@@ -2413,15 +2585,25 @@ pub(crate) fn substitute_invariant_call_roots(
         | O::CallStructural {
             structural_arguments,
             ..
-        } => structural_arguments,
-        _ => return rewrites.is_empty(),
-    };
-    let mut applied = BTreeSet::new();
-    for argument in arguments.iter_mut() {
-        if let Some(root) = rewrites.get(&argument.place) {
-            applied.insert(argument.place);
-            argument.place = *root;
+        } => {
+            for argument in structural_arguments.iter_mut() {
+                if let Some(root) = rewrites.get(&argument.place) {
+                    applied.insert(argument.place);
+                    argument.place = *root;
+                }
+            }
         }
+        O::EstablishRecord { fields, .. } => {
+            for field in fields.iter_mut() {
+                if let terminal_psi::RecordFieldValue::Structural(argument) = &mut field.value
+                    && let Some(root) = rewrites.get(&argument.place)
+                {
+                    applied.insert(argument.place);
+                    argument.place = *root;
+                }
+            }
+        }
+        _ => {}
     }
     rewrites.keys().all(|from| applied.contains(from))
 }

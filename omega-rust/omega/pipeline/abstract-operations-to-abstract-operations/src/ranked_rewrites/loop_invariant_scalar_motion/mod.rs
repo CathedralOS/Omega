@@ -115,6 +115,20 @@ pub use model::{
 /// only when every mutable borrower is itself admissible under the run
 /// extended by its root, so a borrower that could read accumulated
 /// post-write contents never stays behind while its producer leaves.
+/// An `EstablishRecord` adds the family's third establishment relocation —
+/// the primitive local's multi-field sibling: it declares a fresh claim-free
+/// unrestricted record place whose declaration-ordered scalar initializers
+/// each obey the same use-site substitution, while a structural field
+/// initializer copies a whole unrestricted root whose landing obeys the
+/// shared-borrow call-argument rule — already visible at the preheader
+/// insertion point, the representative an invariant member structural
+/// parameter resolves to (rebound on the moved node), or produced by a node
+/// earlier in the same run (spelled byte-exact). The declared place,
+/// structural type, result custody, declaration order, and
+/// bounded-integer range obligations move byte-exact inside the moved
+/// operation. The same whole-component custody bound makes the hoist sound:
+/// only when no member stores to the declared place does a record
+/// established once still read its initializers on every traversal.
 /// Computation,
 /// observation, and establishment
 /// relocation is non-speculative: every successor of the unique preheader's

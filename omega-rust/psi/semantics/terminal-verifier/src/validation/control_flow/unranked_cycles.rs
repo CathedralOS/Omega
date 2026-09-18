@@ -1,4 +1,5 @@
-//! Eligibility for cyclic scalar work, owned inputs, locals, views, and receivers.
+//! Eligibility for cyclic scalar work, owned inputs, locals, views, receivers,
+//! and unrestricted record establishments.
 
 use super::super::{
     OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
@@ -126,6 +127,22 @@ fn cycle_operation_eligible(
         OperationKind::PortWrite { .. } => operation.result == OperationResult::Unit,
         OperationKind::EstablishPrimitiveLocal { .. } => {
             primitive_storage::validate_establishment(module, machine, operation).is_ok()
+        }
+        // A complete unrestricted record establishment is pure structural
+        // construction: `record::fields` proves the fresh `OperationResult`
+        // place, the declaration-paired field initializers, and a claim-free
+        // result, while the unrestricted result never carries a per-iteration
+        // disposal obligation — scalar fields read values and structural
+        // fields copy unrestricted sources, so re-establishing the same place
+        // each iteration moves no custody. An affine or claim-bearing result
+        // keeps the fence closed; the ordinary operand, liveness, and
+        // frontier checks still run after eligibility.
+        OperationKind::EstablishRecord { .. } => {
+            operation
+                .result
+                .structural()
+                .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
+                && super::super::record::fields(module, machine, operation).is_ok()
         }
         OperationKind::PrimitiveScalarRead { source, path } => {
             operation.result.scalar().is_some_and(|result| {

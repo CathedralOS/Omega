@@ -17,7 +17,13 @@
 //! claim-free result custody relocate byte-exact while its scalar
 //! initializer obeys the re-derived substitution — and whose declared root
 //! is what a `CallStructuralScalar`'s borrow argument keeps
-//! spelling),
+//! spelling), an admissible
+//! record establishment (whose declared place, structural type, result
+//! custody, declaration order, and range obligations relocate byte-exact
+//! while each scalar field value obeys the re-derived substitution and each
+//! structural field copy keeps or rebinds its root under the same
+//! preheader-landing rule a shared-borrow call argument obeys, all under
+//! the same no-member-stores custody bound),
 //! an admissible scalar-signature call (its callee's transitive effect
 //! summary proves no observable effect, crash, or suspension, and every node
 //! inside the member roster is unobservable, so hoisting the call's possible
@@ -423,6 +429,37 @@ pub(super) fn validate(
                     .unwrap_or(&no_relocated_results),
             ) {
                 Some(substitution) => (substitution, None, BTreeMap::new()),
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::admissible_invariant_record(relocation.expected).is_some() {
+            // A record establishment replays its whole admission from the
+            // seed: the whole-component place-custody bound must prove no
+            // member stores to the declared place — the one condition under
+            // which a record established once still reads its initializers
+            // on every traversal — each scalar field value obeys the same
+            // re-derived substitution a computation obeys, and each
+            // structural field's copied root must land preheader-visible,
+            // resolved through an invariant member structural parameter, or
+            // produced by a node this component's run already relocated. The
+            // declared place, structural type, result custody, declaration
+            // order, and range obligations stay byte-exact inside the moved
+            // operation, so a forged declaration, a skipped field rebind, or
+            // a forged copied-root rewrite rejects here or in
+            // `same_relocated_node`'s operation comparison.
+            match crate::validation::invariant_record_admission(
+                expected,
+                component,
+                relocation.expected,
+                relocated_results
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_results),
+                relocated_roots
+                    .get(&component.id)
+                    .unwrap_or(&no_relocated_roots),
+            ) {
+                Some((substitution, rewrites)) => {
+                    (substitution, None, rewrites.into_iter().collect())
+                }
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else {
