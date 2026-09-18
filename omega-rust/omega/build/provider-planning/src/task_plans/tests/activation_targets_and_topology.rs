@@ -106,7 +106,12 @@ fn activation_crossings_include_contained_machine_crossings() {
     let child_policy = program.facts.carry.suspension_crossings[0].effective;
     let crossings = activation_carry_crossings(&program, root).expect("exact crossing custody");
 
-    assert!(crossings.root.is_empty());
+    assert!(
+        crossings
+            .subtree
+            .iter()
+            .all(|crossing| crossing.machine != root)
+    );
     assert_eq!(crossings.subtree.len(), 2);
     assert_eq!(crossings.subtree[0].call_ordinal, 0);
     assert_eq!(crossings.subtree[1].call_ordinal, 1);

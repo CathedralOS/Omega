@@ -14,13 +14,13 @@ use crate::{
 };
 use semantic_vocabulary::SuspensionCrossingId;
 
-/// Physical fixed-stack shape retained by the existing activation sidecar.
+/// Physical fixed-stack shape retained by the activation sidecar.
 ///
-/// This three-field carrier is not WCSU admission. The compiler's current
-/// local layout bridge still produces it while whole-call-graph collection is
-/// incomplete. New foundation work must obtain the same shape from
-/// [`project_wcsu_stack_plan`] and validate it with
-/// [`validate_wcsu_activation_plan`].
+/// This three-field carrier is not WCSU admission on its own. Activation
+/// elaboration obtains the shape from [`project_wcsu_stack_plan`] over a
+/// sealed whole-call-graph demand and validates it with
+/// [`validate_wcsu_activation_plan`]; a bare tuple carries no composition
+/// evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StackPlan {
     pub bytes: u64,
