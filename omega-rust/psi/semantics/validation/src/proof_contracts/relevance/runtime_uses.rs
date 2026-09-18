@@ -10,6 +10,8 @@ use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn validate_expression(
     program: &TypedTrees,
@@ -348,6 +350,110 @@ fn validate_struct_literal(
             diagnostics,
         );
     }
+}
+
+/// A statement call's receiver is the callee's `self` operand: an address of
+/// runtime storage, plus a read for `&self`/`self` targets. The receiver is a
+/// name path with independently resolved root and leaf symbols, not an
+/// expression child of the call, so the expression walker never sees it. When
+/// the path resolves to an erased binding or projects through an erased field,
+/// the call is a runtime use of a proof-side binding and rejects exactly like
+/// a direct read. The caller runs this only when the call itself is a runtime
+/// call; a proof-machine receiver may cite erased bindings as proof material.
+pub(super) fn validate_statement_call_receiver(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCall,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Resolution binds the path's root and leaf independently
+    // (symbols/statements/routing.rs), so a one- or two-member receiver's
+    // erased endpoint is answered directly by symbol.
+    if report_runtime_erased_binding(program, state, call.receiver_root_symbol, diagnostics)
+        || report_runtime_erased_binding(program, state, call.receiver_symbol, diagnostics)
+        || report_runtime_erased_field(program, call.receiver_root_symbol, diagnostics)
+        || report_runtime_erased_field(program, call.receiver_symbol, diagnostics)
+    {
+        return;
+    }
+    // A projected member can await type-aware resolution, and a middle
+    // projection retains no symbol at all: `a.b.c.tick()` where only `b` is
+    // erased still binds just `a` and `c`. Descend the declared member types
+    // instead, checking every projected field's relevance; when a segment has
+    // no closed record owner (a generic, boundary, or namespace root) the walk
+    // stops rather than guessing by name.
+    let members = program.statement_table.name_path_members(call.receiver);
+    let Some((first, projected)) = members.split_first() else {
+        return;
+    };
+    let mut owner = if first.as_str() == "self" {
+        // `self` resolves to the machine itself, never an erased binding;
+        // its fields live on the attached data.
+        program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == machine.attached_data_symbol)
+    } else {
+        receiver_root_type(program, state, call.receiver_root_symbol).and_then(|type_reference| {
+            crate::value_custody::places::data_definition_for_type(program, type_reference)
+        })
+    };
+    for member in projected {
+        let Some(definition) = owner else {
+            return;
+        };
+        let Some(field) = crate::value_custody::places::exact_data_member_field(
+            program,
+            definition,
+            SymbolHandle::invalid(),
+            member.as_str(),
+            None,
+        ) else {
+            return;
+        };
+        if field.relevance.is_erased() {
+            diagnostics.push(Diagnostic::error(format!(
+                "erased field `{}` has no runtime value, address, read, write, or cleanup; it may be used only by proofs or another erased binding",
+                field.name
+            )));
+            return;
+        }
+        owner =
+            crate::value_custody::places::data_definition_for_type(program, field.type_reference);
+    }
+}
+
+/// The declared type of a receiver path's root binding: a parameter or `let`
+/// local of the current state, or an attached field named bare. Anything else
+/// (a namespace root, an unresolved projection) yields no owner to descend.
+fn receiver_root_type(
+    program: &TypedTrees,
+    state: &State,
+    root: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    if !root.is_valid() {
+        return None;
+    }
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root)
+    {
+        return Some(parameter.type_reference);
+    }
+    if let Some(local) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == root => Some(local),
+            _ => None,
+        })
+    {
+        return Some(local.type_reference);
+    }
+    field_by_symbol(program, root).map(|field| field.type_reference)
 }
 
 fn report_runtime_erased_field(

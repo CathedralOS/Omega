@@ -1,0 +1,18 @@
+// An `[erased]` data field contributes no runtime storage, so it cannot be
+// the receiver of a runtime statement call: `self.c.increment()` would need
+// the field's address, which erased bindings never have.
+data Counter {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(&mut self) {
+    self.value = self.value + 1;
+}
+
+data Main {
+    c [erased]: Counter;
+}
+
+machine Main::main(&mut self) {
+    self.c.increment();
+}

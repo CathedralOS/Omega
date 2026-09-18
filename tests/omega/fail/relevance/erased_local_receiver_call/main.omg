@@ -1,0 +1,19 @@
+// A statement call's receiver is a runtime place like any other read: an
+// `[erased]` local has no storage to dispatch through, so `c.increment()`
+// rejects exactly as a direct runtime read of `c` would
+// (contracts.md#explicit-erased-bindings).
+data Counter {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(&mut self) {
+    self.value = self.value + 1;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let c [erased]: Counter = Counter { value: 0 };
+    c.increment();
+}

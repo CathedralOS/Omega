@@ -21,7 +21,10 @@
 //! runtime will ever observe the result. Runtime reads of erased parameters
 //! and locals are resolved by symbol against the current state's own
 //! parameters and `let` statements; parameter positions align arguments with
-//! the callee's non-`self` parameters.
+//! the callee's non-`self` parameters. A statement call's receiver is its
+//! callee's `self` operand -- a runtime place, not a proof position -- so a
+//! runtime call through an erased binding or erased field projection rejects
+//! with the same diagnostic as a direct read.
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -89,6 +92,21 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                         } else {
                             Context::Runtime
                         };
+                        // The receiver is the callee's `self` operand: a
+                        // runtime place read or address of storage. It is a
+                        // name path with resolved root/leaf symbols, not an
+                        // expression child, so the expression walker never
+                        // sees it -- a runtime call must not receive through
+                        // an erased binding or erased field projection.
+                        if argument_context == Context::Runtime {
+                            runtime_uses::validate_statement_call_receiver(
+                                program,
+                                machine,
+                                state,
+                                call,
+                                diagnostics,
+                            );
+                        }
                         let callee_parameters = callee_parameters(program, call.target_symbol);
                         for (position, argument) in program
                             .statement_table

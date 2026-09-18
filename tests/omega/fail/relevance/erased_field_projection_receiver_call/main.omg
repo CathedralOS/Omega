@@ -1,0 +1,27 @@
+// A receiver path that projects THROUGH an erased field reads the erased
+// field to reach the deeper receiver: `inner` has no runtime storage, so
+// `self.holder.inner.c.increment()` rejects even though the final receiver
+// field `c` is relevant.
+data Counter {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(&mut self) {
+    self.value = self.value + 1;
+}
+
+data Inner {
+    c: Counter;
+}
+
+data Holder {
+    inner [erased]: Inner;
+}
+
+data Main {
+    holder: Holder;
+}
+
+machine Main::main(&mut self) {
+    self.holder.inner.c.increment();
+}

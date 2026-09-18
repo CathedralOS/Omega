@@ -1,0 +1,22 @@
+// An `[erased]` machine parameter is proof-side only: it cannot receive a
+// runtime method call because there is no runtime slot for `self` to occupy.
+// The construction site still supplies the erased argument; the callee body
+// may not call through it.
+data Counter {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(&mut self) {
+    self.value = self.value + 1;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    self.use_it(Counter { value: 0 });
+}
+
+machine Main::use_it(&mut self, c [erased]: Counter) {
+    c.increment();
+}

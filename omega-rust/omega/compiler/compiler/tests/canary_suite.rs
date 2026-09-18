@@ -880,12 +880,23 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // argument as that binding's initializer; the erased state parameter has
     // no Terminal contract term yet, so this stays Check.
     "relevance/erased_parameter_named_transition_forward",
+    // A statement call to a PROOF machine is proof computation, so an erased
+    // local may be its receiver; proof machines emit no runtime code, so this
+    // stays Check.
+    "relevance/erased_receiver_proof_machine_call",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "relevance/erased_parameter_runtime_read",
     "relevance/erased_local_runtime_read",
     "relevance/erased_state_parameter_runtime_read",
+    // A statement call's receiver is a runtime place: erased locals,
+    // parameters, fields, and projections through erased fields all reject
+    // when they receive a runtime method call.
+    "relevance/erased_local_receiver_call",
+    "relevance/erased_parameter_receiver_call",
+    "relevance/erased_field_receiver_call",
+    "relevance/erased_field_projection_receiver_call",
     "operators/operand_requires_invalidated",
     "operators/selected_crash_invocation",
     "expressions/match_float_equality_missing",
