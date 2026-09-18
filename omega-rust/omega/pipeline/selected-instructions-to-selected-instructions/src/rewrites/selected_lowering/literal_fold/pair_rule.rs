@@ -18,7 +18,9 @@
 //! [`MachineEffectDeclaration`] must satisfy, and the operand shape carries
 //! the consumer-grammar dimension: whether the folded literal is a binary
 //! consumer's right `Use` operand, a commutative binary consumer's left
-//! `Use` operand, a unary consumer's sole `Use` operand, or a binary
+//! `Use` operand, a left `Use` operand whose rewrite swaps the operand
+//! order under a preserved implicit-unit result channel — the compare
+//! grammar — a unary consumer's sole `Use` operand, or a binary
 //! consumer whose folded result is a constant of the literal alone — no
 //! `Use` operand survives, and every operand past the result is a
 //! dropped `Def` scratch or, under the divide's auxiliary grammar, a
@@ -52,7 +54,15 @@
 //! the two relationships for a may-fault consumer that also retires dead
 //! implicit definitions — the saturating divide, whose divisor-one
 //! literal discharges the encoded fault while its `nzcv` definition or
-//! scratch tail drops under the dead-definitions custody. The
+//! scratch tail drops under the dead-definitions custody.
+//! [`PairMachineEffects::OperandSwappedUnitDefs`] declares the
+//! condition-state reader-flow relationship: a consumer whose implicit
+//! unit *definitions* the rewrite keeps — the compare's target condition
+//! state — under an operand order the rewrite reverses, so the zero
+//! condition the units' equality readers observe is identical while
+//! every ordering predicate inverts, admitted only while every reader
+//! each defined unit can reach through the function's CFG is
+//! equality-sensing. The
 //! immediate bound carries whether
 //! any literal up to an encoding limit is admitted or the fold's
 //! correctness requires one exact literal value — and, for families that
@@ -79,6 +89,7 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
 use crate::machine_semantic_kind;
+use crate::rewrites::block_edges::{block_instructions, terminator_successors};
 
 /// How a pair rule's rewritten instruction delivers its output.
 ///
@@ -417,6 +428,33 @@ pub enum PairMachineEffects {
     /// fully effect-isolated: neither the discharged fault nor a retired
     /// definition may reappear.
     FaultDischargedByObligationDeadUnitDefs,
+    /// The consumer implicitly *defines* physical units the rewritten
+    /// form keeps — the target condition state a `CompareI64` publishes
+    /// and its `CompareI64Immediate` rewrite keeps publishing — while the
+    /// operand-swapped grammar changes the relation those units encode:
+    /// `literal - x` rewrites to `x - literal`, which preserves the zero
+    /// condition exactly but inverts every ordering predicate. Declaring
+    /// this surface attests that keeping the definitions under the
+    /// reversed comparison is admitted only while the inversion is
+    /// unobservable: every reader each defined unit can reach through
+    /// the function's CFG must be equality-sensing — the
+    /// `MaterializeBooleanEqual` materialization or the generic
+    /// `ConditionalBranchNonZero` terminator — a record-level fact the
+    /// `admits_swapped_condition_defs` gate re-derives from the concrete
+    /// instruction and function, not a fact any catalog declaration
+    /// attests.
+    ///
+    /// The declaration-level surface is otherwise the
+    /// [`Isolated`](Self::Isolated) contract: the eliminated producer
+    /// stays effect-isolated including every implicit unit it could have
+    /// written; the consumer declaration must be non-unit isolated — no
+    /// memory, hosted trap, barrier, call, or cleanup surface — with
+    /// alternatives that touch no memory, leave the stack unchanged,
+    /// fall through, carry no implicit uses, and keep every implicit
+    /// unit they define defined by every rewritten alternative; clobbers
+    /// are unrestricted since dropping them only narrows what may be
+    /// destroyed. The rewritten form is fully effect-isolated.
+    OperandSwappedUnitDefs,
 }
 
 impl PairMachineEffects {
@@ -432,7 +470,8 @@ impl PairMachineEffects {
             | Self::FaultDischargedByObligation
             | Self::DeadConsumerUnitDefs
             | Self::FaultDischargedByLiteralDeadUnitDefs
-            | Self::FaultDischargedByObligationDeadUnitDefs => {
+            | Self::FaultDischargedByObligationDeadUnitDefs
+            | Self::OperandSwappedUnitDefs => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
                         isolated_alternative(alternative)
@@ -475,7 +514,13 @@ impl PairMachineEffects {
         rewritten: &MachineEffectDeclaration,
     ) -> bool {
         match self {
-            Self::Isolated => {
+            // [`OperandSwappedUnitDefs`](Self::OperandSwappedUnitDefs)
+            // shares this arm: its rewrite keeps the consumer's implicit
+            // definitions — under the reversed operand order the
+            // record-level reader audit admits — so the declaration-level
+            // surface is exactly the isolated one, definitions covered by
+            // every rewritten alternative.
+            Self::Isolated | Self::OperandSwappedUnitDefs => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
                         isolated_alternative(alternative)
@@ -604,7 +649,8 @@ impl PairMachineEffects {
             | Self::IndexedPointerReadFold { .. }
             | Self::FaultDischargedByLiteral
             | Self::DeadConsumerUnitDefs
-            | Self::FaultDischargedByLiteralDeadUnitDefs => true,
+            | Self::FaultDischargedByLiteralDeadUnitDefs
+            | Self::OperandSwappedUnitDefs => true,
         }
     }
 
@@ -638,7 +684,58 @@ impl PairMachineEffects {
             Self::Isolated
             | Self::IndexedPointerReadFold { .. }
             | Self::FaultDischargedByLiteral
-            | Self::FaultDischargedByObligation => true,
+            | Self::FaultDischargedByObligation
+            | Self::OperandSwappedUnitDefs => true,
+        }
+    }
+
+    /// Whether the operand-swapped rewrite's preserved implicit
+    /// definitions stay unobservable to ordering-sensitive readers.
+    /// [`OperandSwappedUnitDefs`](Self::OperandSwappedUnitDefs) keeps the
+    /// consumer's implicit unit *definitions* on the rewritten form but
+    /// reverses the comparison's operand order — `literal - x` becomes
+    /// `x - literal` — so the zero condition each defined unit's
+    /// equality readers observe is identical while every ordering
+    /// predicate inverts. The fold is admitted only while every reader
+    /// each defined unit reaches through the CFG is equality-sensing: the
+    /// record must declare no implicit unit *uses* of its own, and
+    /// `swapped_unit_readers_equality_only` walks each defined unit
+    /// forward from the consumer until a redefinition or clobber ends the
+    /// live range this definition feeds. When both operands name the
+    /// same register the subtraction itself is unchanged — `v - v` and
+    /// the surviving `v - v` are the identical comparison — so no reader
+    /// can observe the rewrite and the audit does not apply. Every other
+    /// relationship keeps the operand order and needs no flow gate.
+    pub fn admits_swapped_condition_defs(
+        self,
+        consumer: &SelectedInstruction,
+        function: &SelectedFunction,
+        block_index: usize,
+        consumer_index: usize,
+    ) -> bool {
+        match self {
+            Self::OperandSwappedUnitDefs => {
+                let [left, right, ..] = consumer.operands.as_slice() else {
+                    return false;
+                };
+                consumer.implicit_uses.is_empty()
+                    && (left.virtual_register == right.virtual_register
+                        || consumer.implicit_defs.iter().all(|unit| {
+                            swapped_unit_readers_equality_only(
+                                function,
+                                block_index,
+                                consumer_index,
+                                *unit,
+                            )
+                        }))
+            }
+            Self::Isolated
+            | Self::IndexedPointerReadFold { .. }
+            | Self::FaultDischargedByLiteral
+            | Self::FaultDischargedByObligation
+            | Self::DeadConsumerUnitDefs
+            | Self::FaultDischargedByLiteralDeadUnitDefs
+            | Self::FaultDischargedByObligationDeadUnitDefs => true,
         }
     }
 
@@ -661,7 +758,8 @@ impl PairMachineEffects {
             Self::Isolated
             | Self::DeadConsumerUnitDefs
             | Self::FaultDischargedByLiteralDeadUnitDefs
-            | Self::FaultDischargedByObligationDeadUnitDefs => {
+            | Self::FaultDischargedByObligationDeadUnitDefs
+            | Self::OperandSwappedUnitDefs => {
                 isolated_declaration(declaration)
                     && declaration.alternatives.iter().all(|alternative| {
                         isolated_alternative(alternative)
@@ -816,6 +914,75 @@ fn implicit_unit_used(function: &SelectedFunction, unit: RegisterUnitId) -> bool
     })
 }
 
+/// Whether `kind` reads only the zero condition out of the published flag
+/// state — the one predicate the operand-swapped subtraction
+/// `register - literal` preserves from `literal - register`. The
+/// boolean-equal materialization and the generic conditional branch are
+/// its only equality consumers in the selected catalog; every ordering
+/// predicate — the `*LessThan`/`*LessOrEqual` materializations and the
+/// predicate-aware terminators — observes the inverted relation, and any
+/// other implicit reader is conservatively refused the same way.
+fn equality_sensing_reader(kind: SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::MaterializeBooleanEqual
+            | SelectedInstructionKind::ConditionalBranchNonZero
+    )
+}
+
+/// Audit one implicit unit an operand-swapped consumer defines: walk
+/// forward from the instruction after the consumer inside
+/// `function.blocks[block_index]`, requiring every reached reader of
+/// `unit` to be equality-sensing, until an implicit definition or
+/// clobber of the unit ends the live range this definition feeds. A unit
+/// still live past the terminator resumes at the head of each successor
+/// block; an edge naming a block the function does not contain leaves
+/// the unit's readers unprovable and refuses. The `(block, start)`
+/// visited set bounds the walk — a loop carrying the unit back into the
+/// consumer's own block re-scans it from its head, where the consumer's
+/// own definition ends the range.
+fn swapped_unit_readers_equality_only(
+    function: &SelectedFunction,
+    block_index: usize,
+    consumer_index: usize,
+    unit: RegisterUnitId,
+) -> bool {
+    let mut visited = std::collections::BTreeSet::new();
+    let mut frontier = vec![(block_index, consumer_index + 1)];
+    while let Some((current, start)) = frontier.pop() {
+        if !visited.insert((current, start)) {
+            continue;
+        }
+        let block = &function.blocks[current];
+        let mut killed = false;
+        for instruction in block_instructions(block).skip(start) {
+            if instruction.implicit_uses.contains(&unit)
+                && !equality_sensing_reader(instruction.kind)
+            {
+                return false;
+            }
+            if instruction.implicit_defs.contains(&unit) || instruction.clobbers.contains(&unit) {
+                killed = true;
+                break;
+            }
+        }
+        if killed {
+            continue;
+        }
+        for successor in terminator_successors(&block.terminator) {
+            let Some(target) = function
+                .blocks
+                .iter()
+                .position(|candidate| candidate.id == successor.block)
+            else {
+                return false;
+            };
+            frontier.push((target, 0));
+        }
+    }
+    true
+}
+
 /// Where the folded literal sits in the consumer's operand list, and therefore
 /// what shape the rewritten constraint row carries.
 ///
@@ -842,6 +1009,22 @@ pub enum PairOperandShape {
     /// subtraction and comparison fix the literal's role, so
     /// only those families declare a left-literal pair.
     BinaryLeftLiteral,
+    /// Binary left-literal consumer whose result channel is implicit
+    /// units and whose operands do *not* commute: the literal victim is
+    /// the operand-0 `Use`, the operand-1 `Use` survives into the
+    /// rewritten row's sole `Use` position, and the rewritten form
+    /// computes the operand-swapped operation — `literal - x` becomes
+    /// `x - literal` under the left-literal compare. Declaring this shape
+    /// attests only that the swapped result channel preserves the
+    /// equality predicate while inverting every ordering predicate; the
+    /// companion
+    /// [`OperandSwappedUnitDefs`](PairMachineEffects::OperandSwappedUnitDefs)
+    /// relationship's record-level reader audit decides whether the
+    /// inversion is observable. Only a consumer whose output is the
+    /// condition state may declare it — a scalar `Def` result would carry
+    /// the inverted subtraction to every register reader with no audit
+    /// to refuse it.
+    BinaryLeftLiteralOperandSwap,
     /// Unary consumer: the literal victim is the sole `Use` operand (operand
     /// index 0). The rewritten instruction consumes no register input — the
     /// fold recomputes the consumer's constant output directly, as in the
@@ -1055,6 +1238,24 @@ impl SelectedInstructionPairRule {
         result: PairResultDisposition::ImplicitUnits,
         unit_effects: PairUnitEffects::Isolated,
         machine_effects: PairMachineEffects::Isolated,
+    };
+    /// Eliminate `MaterializeI64` feeding the operand-0 `Use` — the
+    /// minuend — of `CompareI64`: `literal - x` rewrites to the
+    /// `CompareI64Immediate` form computing `x - literal`, the
+    /// operand-swapped subtraction whose zero condition is identical but
+    /// whose ordering predicates invert. The same catalog selection
+    /// admits both operand positions; the pair disambiguates by which
+    /// `Use` position the folded literal occupies. Under
+    /// [`OperandSwappedUnitDefs`](PairMachineEffects::OperandSwappedUnitDefs)
+    /// the rewrite keeps the consumer's implicit unit definitions — the
+    /// target condition state — bit-identical while changing the
+    /// relation they encode, admitted only while every reader each
+    /// defined unit can reach through the function's CFG is
+    /// equality-sensing.
+    pub const COMPARE_LEFT_IMMEDIATE_U12: Self = Self {
+        operand_shape: PairOperandShape::BinaryLeftLiteralOperandSwap,
+        machine_effects: PairMachineEffects::OperandSwappedUnitDefs,
+        ..Self::COMPARE_IMMEDIATE_U12
     };
 
     /// Shared base of the unary materialization folds: `MaterializeI64`
@@ -2327,6 +2528,7 @@ impl SelectedInstructionPairRule {
             | PairOperandShape::BinaryRightLiteralConstantResult
             | PairOperandShape::BinaryRightLiteralScratchDefs => 1,
             PairOperandShape::BinaryLeftLiteral
+            | PairOperandShape::BinaryLeftLiteralOperandSwap
             | PairOperandShape::BinaryLeftLiteralConstantResult
             | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
             | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs
@@ -2359,6 +2561,7 @@ impl SelectedInstructionPairRule {
         match self.operand_shape {
             PairOperandShape::BinaryRightLiteral
             | PairOperandShape::BinaryLeftLiteral
+            | PairOperandShape::BinaryLeftLiteralOperandSwap
             | PairOperandShape::BinaryRightLiteralAuxiliaryUses
             | PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs
             | PairOperandShape::BinaryRightLiteralScratchDefs

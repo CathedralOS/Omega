@@ -49,10 +49,11 @@ pub(super) fn derive_action(
         });
     }
 
-    let block = function
+    let (block_index, block) = function
         .blocks
         .iter()
-        .find(|block| block.id == candidate.block)
+        .enumerate()
+        .find(|(_, block)| block.id == candidate.block)
         .ok_or(LiteralFoldError::LiteralMismatch {
             function: function_index,
         })?;
@@ -465,6 +466,37 @@ pub(super) fn derive_action(
             }
             None
         }
+        // The operand-swapped flag-defining grammar:
+        // `[victim, subtrahend]` folds the operand-0 `Use` — the
+        // compare's literal minuend — and binds the operand-1 subtrahend
+        // `Use` into the rewritten row's sole `Use` position, computing
+        // `subtrahend - literal` for `literal - subtrahend`. The record
+        // must publish exactly the implicit unit surface the rewritten
+        // row carries: the reader audit covers the record's definitions,
+        // so those are the units the rewrite must publish, and an
+        // implicit use or clobber the row does not carry would silently
+        // stop being observed.
+        (
+            PairOperandShape::BinaryLeftLiteralOperandSwap,
+            PairResultDisposition::ImplicitUnits,
+            [victim, subtrahend],
+        ) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || subtrahend.access != RegisterOperandAccess::Use
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Use
+                || subtrahend.class != row.operands[0].class
+                || consumer.implicit_uses != row.implicit_uses
+                || consumer.implicit_defs != row.implicit_defs
+                || consumer.clobbers != row.clobbers
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            None
+        }
         // Unary consumers carry `[input, result]`; the folded literal is the
         // sole `Use` operand and the rewritten row carries only its `Def`.
         (
@@ -530,6 +562,24 @@ pub(super) fn derive_action(
             function: function_index,
         });
     }
+    // The operand-swapped unit-defs surface also needs its record-level
+    // half: under `OperandSwappedUnitDefs` the rewrite keeps the
+    // consumer's implicit definitions but reverses the comparison's
+    // operand order — the equality predicate is preserved and every
+    // ordering predicate inverts — so the fold is admitted only while
+    // every reader each defined unit reaches through the CFG is
+    // equality-sensing. The flow audit is a fact no catalog declaration
+    // can attest, so it runs here on the concrete consumer record.
+    if !pair.rule.machine_effects().admits_swapped_condition_defs(
+        consumer,
+        function,
+        block_index,
+        literal_index + 1,
+    ) {
+        return Err(LiteralFoldError::EffectSurfaceMismatch {
+            function: function_index,
+        });
+    }
     // The pair's declared machine-effect surface must hold in the bound
     // catalog for both instructions the rewrite touches: the eliminated
     // literal must be fully effect-isolated so its removal drops nothing
@@ -567,6 +617,7 @@ pub(super) fn derive_action(
     // auxiliary-`Use` grammars.
     let surviving = match pair.rule.operand_shape() {
         PairOperandShape::BinaryLeftLiteral
+        | PairOperandShape::BinaryLeftLiteralOperandSwap
         | PairOperandShape::BinaryLeftLiteralConstantResult
         | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
         | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs

@@ -60,11 +60,7 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
     )?;
     let rows = select_admitted_pairs(constraints, selected_keys, policy, effect_catalog)?;
     let (functions, transformed) = derive_function_folds(selected, recovery, &rows)?;
-    let applied = functions
-        .iter()
-        .filter(|function| function.action.is_some())
-        .count();
-    let usage = fold_usage(selected, applied)?;
+    let usage = fold_usage(selected, &functions, &rows)?;
     ensure_budget(usage, budget)?;
 
     Ok(LiteralFoldPlan {

@@ -79,7 +79,7 @@ pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
         .iter()
         .filter(|function| function.action.is_some())
         .count();
-    let usage = reconstruct_fold_usage(selected, applied_count)?;
+    let usage = reconstruct_fold_usage(selected, &expected_functions)?;
     if plan.usage != usage {
         return Err(LiteralFoldError::UsageMismatch);
     }

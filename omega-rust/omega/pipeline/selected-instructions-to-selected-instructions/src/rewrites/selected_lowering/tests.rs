@@ -103,16 +103,40 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
-    for entry in [subtract, compare] {
-        let &[pair] = entry.payload().pairs() else {
-            panic!("the subtract and compare families each declare one pair rule")
-        };
+    let &[subtract_pair] = subtract.payload().pairs() else {
+        panic!("the subtract family declares one pair rule")
+    };
+    assert_eq!(
+        subtract_pair.producer(),
+        MachineSemanticKind::MaterializeI64
+    );
+    assert_eq!(
+        subtract_pair.immediate_bound(),
+        PairImmediateBound::Encoding(4095)
+    );
+    assert!(subtract_pair.admits_immediate(4095));
+    assert!(!subtract_pair.admits_immediate(4096));
+    assert_eq!(
+        subtract_pair.operand_shape(),
+        PairOperandShape::BinaryRightLiteral
+    );
+    assert_eq!(subtract_pair.victim_operand(), 1);
+    // The compare family admits the literal at either `Use` position of the
+    // same consumer kind — the operand-1 subtrahend folds in place, the
+    // operand-0 minuend folds the operand-swapped subtraction under the
+    // reader-flow audit — through the same immediate row.
+    let &[compare_right_rule, compare_left_rule] = compare.payload().pairs() else {
+        panic!("compare declares one pair per operand grammar")
+    };
+    for pair in [compare_right_rule, compare_left_rule] {
         assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
         assert_eq!(pair.immediate_bound(), PairImmediateBound::Encoding(4095));
         assert!(pair.admits_immediate(4095));
         assert!(!pair.admits_immediate(4096));
-        assert_eq!(pair.operand_shape(), PairOperandShape::BinaryRightLiteral);
-        assert_eq!(pair.victim_operand(), 1);
+        assert_eq!(pair.consumer(), MachineSemanticKind::CompareI64);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::CompareI64Immediate);
+        assert_eq!(pair.result(), PairResultDisposition::ImplicitUnits);
+        assert_eq!(pair.unit_effects(), PairUnitEffects::Isolated);
     }
     // Exact addition commutes, so its family admits the folded literal at
     // either `Use` position of the same consumer kind and rewrites through
@@ -170,23 +194,50 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_ne!(add_rule.consumer(), subtract_rule.consumer());
 
-    let &[compare_rule] = compare.payload().pairs() else {
-        panic!("compare declares one pair rule")
-    };
     assert_eq!(
-        compare_rule,
+        compare_right_rule,
         SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12
     );
-    assert_eq!(compare_rule.consumer(), MachineSemanticKind::CompareI64);
     assert_eq!(
-        compare_rule.rewritten(),
-        MachineSemanticKind::CompareI64Immediate
+        compare_left_rule,
+        SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12
     );
+    assert_eq!(
+        compare_right_rule.operand_shape(),
+        PairOperandShape::BinaryRightLiteral
+    );
+    assert_eq!(
+        compare_right_rule.machine_effects(),
+        PairMachineEffects::Isolated
+    );
+    assert_eq!(compare_right_rule.victim_operand(), 1);
     // The compare-immediate form delivers its result through the implicit
     // physical-unit condition state, not a scalar `Def` operand.
-    assert_eq!(compare_rule.result(), PairResultDisposition::ImplicitUnits);
     assert_eq!(
-        compare_rule.rewrite_consumer(SelectedInstructionKind::CompareI64, 12, None),
+        compare_right_rule.result(),
+        PairResultDisposition::ImplicitUnits
+    );
+    assert_eq!(
+        compare_right_rule.rewrite_consumer(SelectedInstructionKind::CompareI64, 12, None),
+        Some(SelectedInstructionKind::CompareI64Immediate {
+            immediate: IntegerValue::Unsigned(12),
+        })
+    );
+    // The left grammar folds `literal - x` into `x - literal`: the operand
+    // swap preserves equality but reverses ordering, so the pair carries
+    // the operand-swapped unit-definition surface and the victim is
+    // operand 0.
+    assert_eq!(
+        compare_left_rule.operand_shape(),
+        PairOperandShape::BinaryLeftLiteralOperandSwap
+    );
+    assert_eq!(
+        compare_left_rule.machine_effects(),
+        PairMachineEffects::OperandSwappedUnitDefs
+    );
+    assert_eq!(compare_left_rule.victim_operand(), 0);
+    assert_eq!(
+        compare_left_rule.rewrite_consumer(SelectedInstructionKind::CompareI64, 12, None),
         Some(SelectedInstructionKind::CompareI64Immediate {
             immediate: IntegerValue::Unsigned(12),
         })
@@ -1886,7 +1937,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::COMPARE_V1).collect::<Vec<_>>(),
-        vec![SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12]
+        vec![
+            SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
+            SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12,
+        ]
     );
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::EXTENSION_V1).collect::<Vec<_>>(),
@@ -2017,10 +2071,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         subtract_rule.immediate_constraint_key(&keys),
         Some(keys.subtract_i64_immediate)
     );
-    assert_eq!(
-        compare_rule.immediate_constraint_key(&keys),
-        Some(keys.compare_i64_immediate)
-    );
+    for rule in [compare_right_rule, compare_left_rule] {
+        assert_eq!(
+            rule.immediate_constraint_key(&keys),
+            Some(keys.compare_i64_immediate)
+        );
+    }
     assert_eq!(indexed_rule.immediate_constraint_key(&keys), keys.load8);
     assert_eq!(
         copy_rule.immediate_constraint_key(&keys),
@@ -2141,6 +2197,10 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
             SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
             SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
+            // The operand-swapped compare grammar rewrites into the same
+            // compare-immediate row — the operand swap is
+            // instruction-level, the row's unit surface unchanged.
+            SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12,
             SelectedInstructionPairRule::LOAD8_INDEXED_U12,
             SelectedInstructionPairRule::COPY_LITERAL_FOLD,
             SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
@@ -2288,6 +2348,64 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             assert!(
                 rule.machine_effects().admits_rewritten(rewritten),
                 "{rule:?} rewritten on {target:?}"
+            );
+        }
+
+        // The operand-swapped compare pair admits its own triple on both
+        // targets under `OperandSwappedUnitDefs`: an isolated producer,
+        // the flag-publishing compare whose definitions the rewritten
+        // form keeps, and the compare-immediate declaration covering
+        // them. The declaration-level surface is the isolated one — the
+        // operand swap itself is instruction-level, and the reader-flow
+        // audit admitting it is record-level, checked separately by the
+        // producer and the replay.
+        {
+            let rule = SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12;
+            assert_eq!(
+                rule.machine_effects(),
+                PairMachineEffects::OperandSwappedUnitDefs
+            );
+            let producer = declaration(rule.producer());
+            let consumer = declaration(rule.consumer());
+            let rewritten = declaration(rule.rewritten());
+            assert!(
+                rule.machine_effects().admits_producer(producer),
+                "{rule:?} producer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_consumer(consumer, rewritten),
+                "{rule:?} consumer on {target:?}"
+            );
+            assert!(
+                rule.machine_effects().admits_rewritten(rewritten),
+                "{rule:?} rewritten on {target:?}"
+            );
+            // A consumer carrying an implicit unit use cannot fold under
+            // this surface — the rewritten row keeps the definitions but
+            // carries no uses, so one would silently stop being observed.
+            let flag_consuming = declaration(MachineSemanticKind::MaterializeBooleanEqual);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(flag_consuming, rewritten),
+                "{rule:?} flag-consuming consumer on {target:?}"
+            );
+            // Memory traffic and control flow cannot take the consumer
+            // role either: the isolated non-unit declaration surface
+            // still applies.
+            let memory_bound = declaration(MachineSemanticKind::Load64);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(memory_bound, rewritten),
+                "{rule:?} memory consumer on {target:?}"
+            );
+            let control_flow = declaration(MachineSemanticKind::Jump);
+            assert!(
+                !rule
+                    .machine_effects()
+                    .admits_consumer(control_flow, rewritten),
+                "{rule:?} control-flow consumer on {target:?}"
             );
         }
 

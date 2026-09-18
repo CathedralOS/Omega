@@ -7,6 +7,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
+use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, RecoveryClassification,
     RecoveryVictimRole, ValidatedRecoveryClassifications, ValidatedSelectedAnalysis,
@@ -103,10 +104,11 @@ fn reconstruct_action(
         });
     }
 
-    let block = function
+    let (block_index, block) = function
         .blocks
         .iter()
-        .find(|block| block.id == candidate.block)
+        .enumerate()
+        .find(|(_, block)| block.id == candidate.block)
         .ok_or(LiteralFoldError::LiteralMismatch {
             function: function_index,
         })?;
@@ -172,8 +174,20 @@ fn reconstruct_action(
             rows.subtract,
             MachineSemanticKind::ExactSubtractI64Immediate,
         ),
+        // The compare binds the same `CompareI64Immediate` row at either
+        // `Use` position, but the grammars are not interchangeable: the
+        // operand-1 subtrahend literal rewrites in place — `x - literal`
+        // keeps the operand order — while the operand-0 minuend literal
+        // rewrites the operand-swapped `x - literal` for `literal - x`,
+        // which preserves the zero condition but inverts every ordering
+        // predicate. The left grammar therefore carries the reader-flow
+        // audit the right one does not need.
         SelectedInstructionKind::CompareI64 => (
-            SourceShape::BinaryImmediate,
+            if future_use.operand == 0 {
+                SourceShape::CompareLeftImmediate
+            } else {
+                SourceShape::BinaryImmediate
+            },
             rows.compare,
             MachineSemanticKind::CompareI64Immediate,
         ),
@@ -662,7 +676,12 @@ fn reconstruct_action(
         });
     }
     let immediate = match shape {
-        SourceShape::BinaryImmediate | SourceShape::BinaryLeftImmediate => {
+        // The operand-swapped compare grammar shares the same twelve-bit
+        // bound the in-place compare grammar admits — the immediate field
+        // the rewritten form encodes is identical.
+        SourceShape::BinaryImmediate
+        | SourceShape::BinaryLeftImmediate
+        | SourceShape::CompareLeftImmediate => {
             if literal_u64 > 4095 {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
@@ -961,6 +980,34 @@ fn reconstruct_action(
                 || right.virtual_register != candidate.victim
                 || row.operands.len() != 1
                 || left.class != row.operands[0].class
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            None
+        }
+        // The operand-swapped compare grammar: `[victim, subtrahend]`
+        // folds the operand-0 `Use` — the literal minuend — and binds the
+        // operand-1 subtrahend `Use` into the rewritten row's sole `Use`
+        // position, computing `subtrahend - literal` for
+        // `literal - subtrahend`. The validator re-derives the unit
+        // surface itself: the record must publish exactly the implicit
+        // uses, definitions, and clobbers the rewritten row carries —
+        // the reader audit below covers the record's definitions, so
+        // those are the units the rewrite must publish, and an implicit
+        // use or clobber the row does not carry would silently stop
+        // being observed.
+        (SourceShape::CompareLeftImmediate, [victim, subtrahend]) => {
+            if victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || subtrahend.access != RegisterOperandAccess::Use
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Use
+                || subtrahend.class != row.operands[0].class
+                || consumer.implicit_uses != row.implicit_uses
+                || consumer.implicit_defs != row.implicit_defs
+                || consumer.clobbers != row.clobbers
             {
                 return Err(LiteralFoldError::ConsumerMismatch {
                     function: function_index,
@@ -1849,6 +1896,27 @@ fn reconstruct_action(
         });
     }
 
+    // The operand-swapped compare grammar's record-level gate, re-derived
+    // on the concrete instruction record rather than read from any
+    // producer descriptor: the rewrite keeps the consumer's implicit unit
+    // definitions — the rewritten row publishes the identical ones, which
+    // the operand-shape and declaration checks above required — but
+    // reverses the comparison's operand order, so the fold is admitted
+    // only while every reader each defined unit reaches through the CFG
+    // is equality-sensing: the boolean-equal materialization and the
+    // generic conditional branch. Ordering predicates observe the
+    // inverted relation and refuse. The validator re-walks the flow
+    // itself: the unit resumes at each live successor's head and ends at
+    // any implicit definition or clobber. The right-literal grammar
+    // replaces the operand in place and needs no reader audit.
+    if shape == SourceShape::CompareLeftImmediate
+        && !swapped_condition_flow_admitted(function, block_index, literal_index + 1, consumer)
+    {
+        return Err(LiteralFoldError::EffectSurfaceMismatch {
+            function: function_index,
+        });
+    }
+
     // The surviving operand is the register each `Use` position of the
     // rewritten row binds: the operand-0 `Use` under a right-literal grammar,
     // the operand-1 `Use` under a left-literal one. The `Use`-free unary
@@ -1858,6 +1926,7 @@ fn reconstruct_action(
     // operand 1 under the left grammars.
     let surviving = match shape {
         SourceShape::BinaryLeftImmediate
+        | SourceShape::CompareLeftImmediate
         | SourceShape::AndZeroLeft
         | SourceShape::XorZeroLeft
         | SourceShape::WrappingAddZeroLeft
@@ -1987,6 +2056,13 @@ fn reconstruct_action(
 enum SourceShape {
     BinaryImmediate,
     BinaryLeftImmediate,
+    /// The left-literal compare grammar: `literal - x` rewrites into the
+    /// operand-swapped `x - literal` — the `CompareI64Immediate` row is
+    /// the same one the right-literal compare binds, and the
+    /// preservation of the compare's implicit condition-state
+    /// definitions under the reversed subtraction is the flow-sensitive
+    /// fact the replay audits independently.
+    CompareLeftImmediate,
     UnaryExtension,
     UnaryCopy,
     DivideIdentity,
@@ -2035,6 +2111,7 @@ impl SourceShape {
             | Self::SaturatingSubtractUpperBoundSubtrahend
             | Self::SaturatingDivideOne => 1,
             Self::BinaryLeftImmediate
+            | Self::CompareLeftImmediate
             | Self::UnaryExtension
             | Self::UnaryCopy
             | Self::DivideZeroDividend
@@ -2068,6 +2145,109 @@ fn dropped_unit_defs_dead(function: &SelectedFunction, consumer: &SelectedInstru
             .implicit_defs
             .iter()
             .all(|unit| !implicit_unit_used(function, *unit))
+}
+
+/// The validator's independent re-derivation of the operand-swapped
+/// compare's record-level gate. The consumer record must declare no
+/// implicit unit *uses* — one the rewritten form does not carry would be
+/// unit state the rewrite silently stops observing — and the rewrite's
+/// preserved definitions are admitted only while every reader each
+/// defined unit can reach through the CFG reads the zero condition
+/// alone: `x - literal` inverts `literal - x`'s ordering predicates
+/// while keeping its zero condition, so an ordering-sensitive reader of
+/// a kept definition would observe the reversed relation. When both
+/// operands name the same register the subtraction is itself unchanged —
+/// `v - v` survives as `v - v` — so no reader can observe the rewrite.
+fn swapped_condition_flow_admitted(
+    function: &SelectedFunction,
+    block_index: usize,
+    consumer_index: usize,
+    consumer: &SelectedInstruction,
+) -> bool {
+    let [left, right, ..] = consumer.operands.as_slice() else {
+        return false;
+    };
+    consumer.implicit_uses.is_empty()
+        && (left.virtual_register == right.virtual_register
+            || consumer.implicit_defs.iter().all(|unit| {
+                swapped_unit_reaches_only_equality_readers(
+                    function,
+                    block_index,
+                    consumer_index,
+                    *unit,
+                )
+            }))
+}
+
+/// Walk `unit` forward through the CFG from the instruction after the
+/// operand-swapped consumer inside `function.blocks[block_index]` —
+/// `consumer_index` positions the consumer in its block's instruction
+/// list — requiring every reached implicit reader to be equality-sensing
+/// and stopping where an implicit definition or clobber ends the live
+/// range this definition feeds. A unit still live at a terminator
+/// resumes at the head of every successor block; an edge naming a block
+/// the function does not contain leaves the unit's reachability
+/// unprovable and refuses. The `(block, start)` worklist keys bound the
+/// walk: a back edge delivering the unit to the consumer's own block
+/// re-enters it at position 0, where the consumer's own definition ends
+/// the range.
+fn swapped_unit_reaches_only_equality_readers(
+    function: &SelectedFunction,
+    block_index: usize,
+    consumer_index: usize,
+    unit: RegisterUnitId,
+) -> bool {
+    let mut visited = std::collections::BTreeSet::new();
+    let mut pending = vec![(block_index, consumer_index + 1)];
+    while let Some((index, start)) = pending.pop() {
+        if !visited.insert((index, start)) {
+            continue;
+        }
+        let block = &function.blocks[index];
+        let mut ended = false;
+        for position in start..=block.instructions.len() {
+            let instruction = match block.instructions.get(position) {
+                Some(instruction) => instruction,
+                None => terminator_instruction(&block.terminator),
+            };
+            if instruction.implicit_uses.contains(&unit) && !equality_only_reader(instruction.kind)
+            {
+                return false;
+            }
+            if instruction.implicit_defs.contains(&unit) || instruction.clobbers.contains(&unit) {
+                ended = true;
+                break;
+            }
+        }
+        if ended {
+            continue;
+        }
+        for successor in terminator_successors(&block.terminator) {
+            let Some(target) = function
+                .blocks
+                .iter()
+                .position(|candidate| candidate.id == successor.block)
+            else {
+                return false;
+            };
+            pending.push((target, 0));
+        }
+    }
+    true
+}
+
+/// Whether `kind` observes only the zero condition of the flag state —
+/// the predicate the operand-swapped subtraction preserves. The
+/// boolean-equal materialization and the generic conditional branch are
+/// the only equality consumers in the selected catalog; the ordering
+/// materializations and predicate-aware terminators observe the inverted
+/// relation, and any other implicit reader is conservatively refused.
+fn equality_only_reader(kind: SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::MaterializeBooleanEqual
+            | SelectedInstructionKind::ConditionalBranchNonZero
+    )
 }
 
 /// Whether any instruction or terminator in `function` implicitly uses
