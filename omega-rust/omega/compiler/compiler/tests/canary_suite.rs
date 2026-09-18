@@ -974,6 +974,17 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "filesystem/native_metadata_readonly",
     "filesystem/native_open_create",
     "filesystem/native_symlink_metadata",
+    // The eight `struct stat` byte-assembly rows: each assembles its
+    // little-endian 64-bit field in a `u64` carrier and reinterprets once with
+    // `narrow_u64_to_i64_wrapping`, so no Exact node exceeds its carrier.
+    "filesystem/native_fstat",
+    "filesystem/native_metadata_blocks",
+    "filesystem/native_metadata_ctime_dev",
+    "filesystem/native_metadata_ino",
+    "filesystem/native_metadata_modified",
+    "filesystem/native_metadata_times",
+    "filesystem/native_set_times",
+    "filesystem/native_stat",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
