@@ -1224,7 +1224,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
   losing affine/linear custody.
 - **STATE-SPECIALIZATION.** Add state-argument/result specialization with exact
-  edge provenance.
+  edge provenance. One bounded family exists in
+  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/state_specialization/`:
+  an unconditional `Jump` that binds the parameter of a single-`Conditional`
+  dispatch block to a proven Boolean constant is fused with the resolved arm
+  and carries both edges' provenance and fuel settlements, with separate
+  proposal, validation and application. `lib.rs` exports it, but it has no
+  `PSI_PASS_CATALOG` entry, selection name, or caller outside its tests. It
+  declines every machine holding a cyclic component and does not cover
+  non-Boolean state arguments, conditional incoming edges, or result
+  specialization.
+  Acceptance: a source-produced state machine selects the rule by exact name
+  through `optimize_abstract_operations`, publishes, and replays
+  independently. Forged or stale edge provenance, a dispatch whose every
+  incoming edge is constant, and a disabled selection behave as
+  [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
+  requires.
 - **INTERPROCEDURAL-SUMMARIES.** Add proof-bound inlining and the service/call
   summaries it needs. Transitive per-function effect summaries (observable,
   structural-state, crash, suspension, services, boundaries) and the direct
