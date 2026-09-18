@@ -232,11 +232,26 @@ through checked members, explicit machine references, or its default
 instantiations. A standalone exact-requirement satisfier is not a selectable
 algebra, and similarly named lemmas do not license normalization.
 
+Computed index expressions use this ordinary trait mechanism. A consumer that
+needs to reorder operands requires a trait containing the operation and its
+commutativity law; the caller supplies a checked conformance through the existing
+explicit conformance binding. Reassociation additionally requires associativity.
+Resolve the operation and its law evidence from that same selected map and retain
+their identities through substitution. Neither a token such as `+` nor a unique
+visible satisfier supplies the evidence. No domain-specific algebra-selection
+clause, per-expression binder, or index-operation registry is introduced.
+
 Normalize only operations licensed by that instance. Associativity,
 commutativity, distributivity, and zero/one identities require their respective
 laws; one does not imply another. Connecting nullary algebra operations to
 constructor constants requires ordinary unfolding or citation. Search limits
 and unequal normal forms do not establish inequality.
+
+Having a static index does not itself require commutativity or associativity.
+Those laws are required only for transformations that consume them. Without a
+law, retain the expression and use ordinary computation or established exact
+facts where available; do not reject noncommutative index operations merely
+because a commutative normalization would have been convenient.
 
 Closed proof-static indexes are canonical values. Open indexes normalize only
 under the selected algebra and its checked public operation contract. Local

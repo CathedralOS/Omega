@@ -3863,6 +3863,29 @@ Owners include
   admitted evaluation, and proof use; this does not grant recursive Nat a layout.
   Preserve exact evidence and substitution through the applicable Terminal replay.
 
+  Replace open-index unique-satisfier discovery with ordinary explicit trait
+  evidence under [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
+  A consumer requiring operand reordering requires the operation's commutativity
+  trait; the caller supplies a checked conformance. Require associativity only
+  for reassociation and other laws only for transformations that use them.
+  Reuse conformance binders, operation selection, and checked law slots; add no
+  domain `using` clause, per-expression binder, or index-operation registry.
+  Owners include `validation/src/value_custody/type_references/open_index_expressions.rs`
+  and the structural judgment's algebra-evidence join. Remove the implicit scan
+  and migrate the four `IndexAlgebra::plus` fixtures from bodyless root slots to
+  trait requirements and named conformances. Do not fix them by injecting a new
+  operator into the compiler-owned bare `u64` family.
+
+  Acceptance: preserve open computed-result compatibility and exact local-fact
+  compatibility through source checking and applicable retained evidence.
+  Missing selection, an unproved law, or evidence for a different operation
+  rejects the attempted normalization. A commutativity-only conformance permits
+  swapping but not reassociation without separate evidence; a noncommutative
+  operation remains usable when no such rewrite is needed. Keep the constant-three
+  operation as a control: AC does not imply zero identity or integer addition.
+  An unrelated visible conformance cannot change selection or introduce ambiguity;
+  exact selected operation/law identities survive generic substitution and replay.
+
   Indexing uses [ordinary receiver borrowing](wiki/spec/language/expressions.md#indexing-and-ranges),
   not a new automatic borrow of every first operand. Wire attached `[]`/`[..]`
   receiver selection through the same loan formation as named method calls;
@@ -3987,11 +4010,9 @@ Owners include
   proof-number operators with no catalog identity whose bodied migration
   awaits the shared call-precondition repair above (current proof-to-proof
   exemption would lose the operator's formation premise); it is no longer
-  design-blocked. The four `IndexAlgebra::plus` satisfier pairs in `generics/` are
-  the PDI3 open-index operation-contract slot, supplied today by an
-  implicit unique-satisfier search over a bare `u64` tuple with no
-  semantic home, and are design-blocked on the
-  `open-index-operation-selection` owner question; tokenless boundary requirements (155
+  design-blocked. The four `IndexAlgebra::plus` satisfier pairs in `generics/`
+  await the ordinary trait/conformance migration above, replacing their implicit
+  unique-satisfier search; no owner decision remains. Tokenless boundary requirements (155
   library, 18 tests) wait on the named `boundary requirement`
   provider/interpreter/Terminal route (TOP-LEVEL-BOUNDARY-REQUIREMENTS):
   at 79a9a2d084/8920cffc24 an intrinsic (or other `via`) satisfier of a
@@ -4074,7 +4095,8 @@ Owners include
   `runtime_std_units_exit` interprets to 70 through the bodies);
   `termination/computed_measure_authored_operator` still authors
   `operator`); the `IndexAlgebra::plus`
-  satisfier pairs (4) wait on the unqualified operand-tuple home typing;
+  satisfier pairs (4) migrate through explicitly selected trait requirements,
+  not unqualified operand-tuple home typing;
   `[]`/`[..]`/comparison positions still reject fail-closed at body
   supply.
 

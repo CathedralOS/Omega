@@ -89,49 +89,7 @@ must be surfaced before relying on them.
      entrypoints. Keep the item; decide whether that split is spec (add the
      clause) or an owner architecture decision recorded here.
 
-2. **Which explicit binder selects an indexed domain's index operation
-   contract?** (named decision: `open-index-operation-selection`). The
-   [executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
-   retires bodyless root `operator` slots and states that "any required
-   conformance/provider selection is explicit, never an implicit search
-   among visible satisfying machines"; [licensed normalization](wiki/spec/proofs/contracts.md)
-   requires "an explicitly selected conformance with checked operation and
-   law slots", and [domains](wiki/spec/language/domains.md) require "the
-   exact selected checked algebra". Today the PDI3 open-index operation is
-   the bodyless root slot `operator + IndexAlgebra::plus(left: u64, right:
-   u64) -> u64;` supplied by an implicit unique-satisfier search
-   (`validation/src/value_custody/type_references/open_index_expressions.rs`
-   collects every machine whose conformances name `IndexAlgebra::plus` and
-   requires exactly one, then `structural_judgment.rs` demands its proved
-   AC algebra), and `fail/generics/open_index_unlicensed_algebra` pins
-   "requires one exact proved associative/commutative algebra instance,
-   but 0 were found". `IndexAlgebra` is a bare path prefix, not a declared
-   type or domain, and the operand tuple is bare `u64`, so the operator
-   families rule gives the declaration no semantic home and the machine
-   form rejects it as a compiler-owned-family injection. Product
-   requirement: `pass/generics/{open_computed_quantity_result,
-   open_index_local_fact}` and their two fail controls, and every
-   `domain<T, const I: u64> T::Indexed<I>` computed index. Options:
-
-   - (a) A token-bearing trait requirement (`trait IndexAlgebra { machine +
-     plus(left: Self, right: Self) -> Self; }` with `u64 satisfies
-     IndexAlgebra` realized by the provider) selected by an explicit
-     conformance named on the indexed domain declaration, for example
-     `domain<T, const I: u64> T::Indexed<I> using IndexAlgebra;`, with the
-     AC law slots on the same trait. Fits the trait row of the supply table
-     and keeps selection at the declaration. Recommended default.
-   - (b) The same trait selected at each use site through an explicit
-     proof-static binder on the computed index expression. Finer-grained
-     but repeats the selection at every index.
-   - (c) Keep these slots on a retained bodyless root form with the
-     implicit search, contradicting the explicit-selection rule.
-
-   Until answered, the four `IndexAlgebra::plus` fixtures stay on
-   `operator` and OPERATOR-MACHINE-SUPPLY's map marks them design-blocked;
-   this concerns the selection binder, not the settled
-   [call-precondition rule](wiki/spec/language/machines.md#call-preconditions).
-
-3. **Which boot protocol issues the AP startup vector, and who owns it?**
+2. **Which boot protocol issues the AP startup vector, and who owns it?**
    (named decision: `ap-startup-protocol-ownership`). The [executable
    installation contract](wiki/spec/build/executable_installation.md) says AP
    startup "installs a compiler-produced low-memory trampoline and invokes a
@@ -157,7 +115,7 @@ must be surfaced before relying on them.
    start until one of these edges exists; AP-BRINGUP owns the implementation
    either way.
 
-4. **Is `alpha_bootstrap` an ordinary target profile of the differential
+3. **Is `alpha_bootstrap` an ordinary target profile of the differential
    compiler, and what happens to a root row owned by a profile the comparator
    does not catalogue?** (named decision: `alpha-bootstrap-target-profile`).
    The [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain)
@@ -203,7 +161,7 @@ must be surfaced before relying on them.
    Until answered, the product check stops on this row once the calling-policy
    admission bug is fixed; everything before that stop is engineering.
 
-5. **Which route admits the complete Beta-encoding certificate, or does the
+4. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:
     `beta-encoding-certificate-admission`). GAMMA-DERIVATION-CHECKER's
     acceptance requires the produced
@@ -255,7 +213,7 @@ must be surfaced before relying on them.
     certificate measured but inadmissible, and the chain retains its
     explicit assumption that the selected evaluator implements Gamma.
 
-6. **Does a transported contract instantiate its `FloatMeaning` projections
+5. **Does a transported contract instantiate its `FloatMeaning` projections
     per use site?** (named decision: `float-meaning-use-site-source-identity`).
     [Terminal source identity](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     ratifies two classes with no producer: "Non-call operation result | Owner,
@@ -313,7 +271,7 @@ must be surfaced before relying on them.
     open with the Terminal identities, codec tags and verifier rejoins landed
     and unreachable from any producer.
 
-7. **May the compiler-owned build vocabulary offer a constrained
+6. **May the compiler-owned build vocabulary offer a constrained
    filesystem open/query/close chain?** The two-axis review's remaining
    acceptance is a witness that an ordinary compile earns the evidence-bound
    explicit-empty release row. No authored source can produce the retained
