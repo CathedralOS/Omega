@@ -1102,3 +1102,115 @@ fn receiver_replay_never_inherits_the_producer_admission_profile() {
     let _ = fs::remove_dir_all(&default_dir);
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// Whether `haystack` contains `needle` as a contiguous byte run.
+fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
+    !needle.is_empty()
+        && haystack.len() >= needle.len()
+        && haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
+}
+
+#[test]
+fn the_psi_request_adds_adjacent_companions_without_embedding_them() {
+    // The initial distribution form is a separate file appended to the
+    // complete artifact filename, never an embedded executable section. The
+    // same project published with and without the request keeps byte-identical
+    // program bytes and gains exactly the two companion files, neither of
+    // which appears inside the bytes they describe.
+    let dir = write_project("");
+    let out = dir.join("out");
+    let ordinary = compile_native(&dir)
+        .publish_retained_native_artifact(&out)
+        .expect("ordinary publication");
+    assert!(ordinary.pcc_publications().is_empty());
+    let executable_path = ordinary
+        .checked_native_executable_path()
+        .expect("executable")
+        .to_path_buf();
+    let ordinary_bytes = read(&executable_path);
+
+    fs::write(
+        dir.join("build.omg"),
+        build_source("    builder.pcc.psi = true;\n"),
+    )
+    .expect("request the psi pair");
+    let published = compile_native(&dir)
+        .publish_retained_native_artifact(&out)
+        .expect("psi pcc publication");
+    let [pair] = published.pcc_publications() else {
+        panic!("expected exactly one published pair")
+    };
+    assert_eq!(
+        read(&executable_path),
+        ordinary_bytes,
+        "the proof request must not change the published program bytes"
+    );
+
+    // Adjacency is a filename rule, not an evidence rule: the companions sit
+    // in the executable's own directory and append to the complete name.
+    assert_eq!(pair.artifact_path.parent(), executable_path.parent());
+    assert_eq!(pair.sidecar_path.parent(), executable_path.parent());
+    let artifact_name = pair
+        .artifact_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("artifact file name")
+        .to_owned();
+    assert_eq!(
+        pair.sidecar_path.file_name().and_then(|name| name.to_str()),
+        Some(format!("{artifact_name}.proof").as_str())
+    );
+    let mut names: Vec<String> = fs::read_dir(&out)
+        .expect("out dir")
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    let executable_name = executable_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("executable file name")
+        .to_owned();
+    let mut expected = vec![
+        executable_name,
+        artifact_name.clone(),
+        format!("{artifact_name}.proof"),
+    ];
+    expected.sort();
+    assert_eq!(names, expected, "one pair of separate files, nothing else");
+
+    // Neither companion is distributed inside the bytes it commits to, and
+    // the producer and receiver report three separate byte sizes.
+    let psi = read(&pair.artifact_path);
+    let proof = read(&pair.sidecar_path);
+    assert!(
+        !contains_bytes(&ordinary_bytes, &proof),
+        "the executable must carry no embedded proof companion"
+    );
+    assert!(
+        !contains_bytes(&ordinary_bytes, &psi),
+        "the executable must carry no embedded Psi artifact"
+    );
+    assert!(
+        !contains_bytes(&psi, &proof),
+        "the Psi artifact must carry no embedded proof companion"
+    );
+    assert_eq!(pair.artifact_byte_len, psi.len() as u64);
+    assert_eq!(pair.sidecar_byte_len, proof.len() as u64);
+    assert_ne!(pair.artifact_byte_len, pair.sidecar_byte_len);
+
+    // The separately distributed companion still binds the artifact it names.
+    let policy = receiver_policy(&PccProofSidecar::from_bytes(&proof).expect("decode"));
+    assert!(matches!(
+        verify_published_proof_pair(&psi, &proof, &policy),
+        PccVerificationOutcome::Complete(_)
+    ));
+    let _ = fs::remove_dir_all(&dir);
+}
