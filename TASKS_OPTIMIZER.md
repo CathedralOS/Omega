@@ -632,48 +632,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   any further family follows the same one-exact-named-family-at-a-time
   contract.
 
-- **SELECTED-ABI-VALIDATION.** Validate ABI operands, calls, clobbers, effects,
-  traps, provenance, cleanup, and logical fuel across every selected rule.
-  The effect catalog now pins every encoded footprint to its owning
-  semantic: `validate_declaration` binds the declared trap surface —
-  hosted trap results name their owning hosted operation, and a
-  never-faulting declaration cannot also declare a memory access — and
-  `validate_encoded_effects` binds each row's shape, so control-flow
-  rules pin their exact encoded control inside the barrier class,
-  returns and calls can no longer borrow each other's activation-stack
-  and return-address lifecycle rows, indexed-pointer and frame-storage
-  rows reject foreign semantics, and the plain fallthrough row admits no
-  hosted trap shape (crate `nextest`: 41 pass, including
-  cross-borrowing, foreign-semantic, trap-understatement, and
-  catch-all-evasion negatives; 234 isa-x86_64, isa-aarch64, and
-  register-environment lib tests confirm every real catalog row still
-  validates on Linux x86-64). Each encoded catalog row's operand custody
-  now also restates its register-constraint row exactly — external writes
-  equal the row's Def and UseDef operands and external reads equal its Use
-  and UseDef operands — with named exceptions only for returns, whose
-  result homes are placed for the caller, and the all-aliased x - x
-  subtract realization, which depends on neither input home (crate
-  `nextest`: 42 pass; the register-environment forgery sweeps moved the
-  newly structural rejections from canonical-replay mismatch to
-  `InvalidEncodedEffects`). Landed: the x86-64 `WrappingRemainderI64`
-  row no longer declares the early-clobber fixed `rdx` output that
-  liveness and fixed-precolored interval validation refuse — the divisor
-  is pinned to `rcx` (a fixed view disjoint from `rax` and the scratch)
-  so the realized form may zero `rdx` before reading it, and the `rdx`
-  scratch is an ordinary late definition; selected construction unshares
-  a dividend/divisor register through a witnessed copy that independent
-  replay mirrors, a catalog-wide invariant now proves no operand may
-  carry a fixed early-clobber view, and a liveness witness derives the
-  real `X86_64_REMAINDER_I64` and `AARCH64_REMAINDER_I64` rows and admits
-  them while the replaced shape still rejects (crate `nextest`: all
-  isa-x86_64, register-environment, target-operations, and
-  selected-instructions lib tests pass on Linux x86-64; the remainder
-  contract forgery suite now covers all-fixed rows, and the host-native
-  modulo canaries' upstream failures predate this row — verified
-  byte-identical against base `86328e9b`). Remaining: provenance,
-  cleanup, and logical-fuel dimensions; Windows and macOS runs were
-  unavailable on this host.
-
 ## Register allocation and frames
 
 - **SPILL-REALIZATION.** Extend executable spill recovery beyond dominating
