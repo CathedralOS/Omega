@@ -99,7 +99,7 @@ fn authored_affine_provider_returns_into_partial_result_cleanup() {
                 }
                 _ => panic!("Unit cleanup"),
             }
-            execute_candidates(&lowered.semantic_module, &lowered.proof_bundle);
+            execute_candidates(&checked, &lowered.semantic_module, &lowered.proof_bundle);
         }
     }
 }
@@ -113,6 +113,7 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
 }
 
 fn execute_candidates(
+    checked: &checked_trees::CheckedTrees,
     module: &terminal_psi::TerminalModule,
     proof: &terminal_verifier::ProofBundle,
 ) {
@@ -120,11 +121,34 @@ fn execute_candidates(
     assert_eq!(decode_module(&semantic).expect("decode"), *module);
     let proof = encode_proof_section(module, proof).expect("proof");
     let profile = proof_admission::AdmissionProfile::default();
+    // Provider selection compares normalized semantic overload identities, so
+    // the candidate identity is the canonical `named-callable` form rather
+    // than the authored display path.
+    let expected_identities = ["Provider::forward", "Alternative::forward"]
+        .into_iter()
+        .map(|name| {
+            let machine = checked
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .expect("authored provider machine");
+            checked
+                .typed
+                .normalized_machine_overload_identity(machine)
+                .expect("provider has a normalized overload identity")
+                .identity()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        module
+            .provider_candidates
+            .iter()
+            .map(|candidate| candidate.candidate_identity.clone())
+            .collect::<std::collections::BTreeSet<_>>(),
+        expected_identities
+    );
     for candidate in &module.provider_candidates {
-        assert!(matches!(
-            candidate.candidate_identity.as_str(),
-            "Provider::forward" | "Alternative::forward"
-        ));
         let installation = admit_provider_installation_from_artifact(
             &semantic,
             &proof,

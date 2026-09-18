@@ -554,6 +554,49 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &mut composed_machines,
     );
     omissions.record_closure(&candidates, &composed_machines, closure_omissions);
+    // A claim-free affine structural-return machine already owns its checked
+    // plan and dedicated emitter; an ordinary or composed Unit plan for the
+    // same machine is a competing body description, not a second admission.
+    // Ordinary callers and provider discovery already route such a machine
+    // through the structural-result catalog, but a retained composed body is
+    // different: its internal calls admit only Unit-roster targets, so a
+    // callee a composed plan still invokes keeps its Unit entry. Run this
+    // exclusion after closure pruning so only surviving callers count.
+    let mut composed_call_targets = composed_machines
+        .iter()
+        .flat_map(|graph| graph.states.iter())
+        .flat_map(|state| state.operation_dependencies())
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => {
+                Some(omission_key(*target_machine))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    composed_call_targets.sort_unstable();
+    composed_call_targets.dedup();
+    candidates.retain(|plan| {
+        facts
+            .flow
+            .terminal_structural_returns
+            .claim_free_affine_for_machine(plan.machine)
+            .is_none()
+            || composed_call_targets
+                .binary_search(&omission_key(plan.machine))
+                .is_ok()
+    });
+    composed_machines.retain(|graph| {
+        facts
+            .flow
+            .terminal_structural_returns
+            .claim_free_affine_for_machine(graph.machine)
+            .is_none()
+            || composed_call_targets
+                .binary_search(&omission_key(graph.machine))
+                .is_ok()
+    });
     let mut retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
