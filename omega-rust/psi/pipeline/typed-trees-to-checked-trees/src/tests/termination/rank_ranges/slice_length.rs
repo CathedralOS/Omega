@@ -183,6 +183,68 @@ fn mutable_slice_parameter_proves_only_while_the_prefix_preserves_its_path() {
     }
 }
 
+/// The ranked collection may arrive nested inside a record carrier: `holder`
+/// claims `bag`'s entry role at the unique path `bag` under `Pair`, and the
+/// produced length reads `holder.bag.items` -- never a guessed carriage.
+const NESTED: &str = r#"
+data Bag { items: &[u32]; }
+data Pair { bag: Bag; }
+
+machine walk(bag: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(Pair { bag: bag }, capacity) }
+    state step(holder: Pair, bound: u64) {
+        transition holder.bag.items.len > 0 {
+            true -> step(Pair { bag: Bag { items: holder.bag.items[1..] } }, bound)
+            false -> 0
+        }
+    }
+}
+"#;
+
+#[test]
+fn nested_record_carriers_transport_the_produced_slice_length() {
+    prove(NESTED);
+    // A borrowed carrier keeps the same mapping through its `&` boundary.
+    prove(
+        &NESTED
+            .replace(
+                "step(Pair { bag: bag }, capacity)",
+                "step(&Pair { bag: bag }, capacity)",
+            )
+            .replace("holder: Pair", "holder: &Pair")
+            .replace(
+                "step(Pair { bag: Bag { items: holder.bag.items[1..] } }, bound)",
+                "step(&Pair { bag: Bag { items: holder.bag.items[1..] } }, bound)",
+            ),
+    );
+    // A forward of the nested carriage is a move, not a step: the produced
+    // length never decreases through `holder.bag` itself.
+    reject(&NESTED.replace(
+        "Pair { bag: Bag { items: holder.bag.items[1..] } }",
+        "Pair { bag: holder.bag }",
+    ));
+    // Two `Bag` fields leave the carriage ambiguous: `holder.left` and
+    // `holder.right` are equally valid readings of the same role, so no
+    // coordinate forms rather than guessing which record arrived.
+    reject(
+        &NESTED
+            .replace(
+                "data Pair { bag: Bag; }",
+                "data Pair { left: Bag; right: Bag; }",
+            )
+            .replace("bag: Bag, capacity", "bag: Bag, other: Bag, capacity")
+            .replace("Pair { bag: bag }", "Pair { left: bag, right: other }")
+            .replace("holder.bag.items", "holder.left.items")
+            .replace(
+                "Pair { bag: Bag { items: holder.left.items[1..] } }",
+                "Pair { left: Bag { items: holder.left.items[1..] }, right: holder.right }",
+            ),
+    );
+}
+
 #[test]
 fn named_slice_arrivals_and_entry_reentry_share_the_length_rank() {
     let source = WALK

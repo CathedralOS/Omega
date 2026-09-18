@@ -1,0 +1,19 @@
+// FAIL CANARY. Forwarding the nested carriage is a move, not a step:
+// `Pair { bag: holder.bag }` keeps the produced length identical, so the
+// cyclic `step -> step` edge cannot prove strict descent even though the
+// record literal respells the carrier around the same collection.
+data Bag { items: &[u32]; }
+data Pair { bag: Bag; }
+
+machine walk(bag: Bag, capacity: u64)
+requires bag.items.len <= capacity;
+terminates by bag.items -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition { _ -> step(Pair { bag: bag }, capacity) }
+    state step(holder: Pair, bound: u64) {
+        transition holder.bag.items.len > 0 {
+            true -> step(Pair { bag: holder.bag }, bound)
+            false -> 0
+        }
+    }
+}

@@ -372,54 +372,13 @@ impl<'program> FieldCoordinate<'program> {
     }
 
     /// The chain this coordinate becomes when `parameter`'s record carries
-    /// the role at a nested path: the formal's declaration contains one of
-    /// this chain's intermediate records at a unique field path, or the
-    /// formal is itself a record this chain reaches partway. Each candidate
-    /// is a distinct reading of the same role, so zero or two stay role-less
-    /// rather than guess which record the arrival meant.
+    /// the role at a nested path; see [`nested_arrival_chain`].
     fn arrival_chain(
         &self,
         program: &'program TypedTrees,
         parameter: &'program StateParameter,
     ) -> Option<Vec<SymbolHandle>> {
-        let chain = self.chain();
-        let (formal_record, _) = record_referent(program, parameter.type_reference)?;
-        // `boundaries[i]` is the record this chain reaches after `chain[..i]`
-        // under its own root -- the owner `chain[i]` resolves against. A
-        // carrier formal can denote any of them through its own fields.
-        let mut boundaries = Vec::with_capacity(self.steps.len() + 1);
-        boundaries.push(self.root);
-        for step in &self.steps {
-            let TypeReferenceNode::Named { symbol: next, .. } = program
-                .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, step.type_reference))
-            else {
-                return None;
-            };
-            boundaries.push(*next);
-        }
-        let mut candidates: Vec<Vec<SymbolHandle>> = Vec::new();
-        for (boundary, target) in boundaries.iter().enumerate() {
-            let mut prefixes = Vec::new();
-            collect_record_paths(program, formal_record, *target, &mut prefixes);
-            for mut prefix in prefixes {
-                if boundary == 0 && prefix.is_empty() {
-                    // The direct reading was already judged by the caller.
-                    continue;
-                }
-                prefix.extend(&chain[boundary..]);
-                if !candidates.contains(&prefix) {
-                    candidates.push(prefix);
-                }
-                if candidates.len() > 1 {
-                    return None;
-                }
-            }
-        }
-        let [resolved] = candidates.as_slice() else {
-            return None;
-        };
-        Some(resolved.clone())
+        nested_arrival_chain(program, parameter, self.root, &self.steps, &self.chain())
     }
 
     pub(super) fn value(&self) -> Polynomial {
@@ -812,6 +771,60 @@ pub(super) fn unique_literal_field(
         .filter(|candidate| candidate.field_symbol == field.symbol && candidate.name == field.name);
     let value = fields.next()?.value;
     fields.next().is_none().then_some(value)
+}
+
+/// The chain a `root`-anchored coordinate becomes when `parameter`'s record
+/// carries the role at a nested path: the formal's declaration contains one
+/// of this chain's boundary records at a unique field path, or the formal is
+/// itself a record this chain reaches partway. `steps` are the chain's
+/// record-typed intermediate fields and `chain` the full resolved field
+/// symbols including the leaf. Each candidate is a distinct reading of the
+/// same role, so zero or two stay role-less rather than guess which record
+/// the arrival meant.
+pub(super) fn nested_arrival_chain(
+    program: &TypedTrees,
+    parameter: &StateParameter,
+    root: SymbolHandle,
+    steps: &[&DataField],
+    chain: &[SymbolHandle],
+) -> Option<Vec<SymbolHandle>> {
+    let (formal_record, _) = record_referent(program, parameter.type_reference)?;
+    // `boundaries[i]` is the record this chain reaches after `chain[..i]`
+    // under its own root -- the owner `chain[i]` resolves against. A carrier
+    // formal can denote any of them through its own fields.
+    let mut boundaries = Vec::with_capacity(steps.len() + 1);
+    boundaries.push(root);
+    for step in steps {
+        let TypeReferenceNode::Named { symbol: next, .. } = program
+            .type_reference_table
+            .type_reference(unwrap_constraint_shells(program, step.type_reference))
+        else {
+            return None;
+        };
+        boundaries.push(*next);
+    }
+    let mut candidates: Vec<Vec<SymbolHandle>> = Vec::new();
+    for (boundary, target) in boundaries.iter().enumerate() {
+        let mut prefixes = Vec::new();
+        collect_record_paths(program, formal_record, *target, &mut prefixes);
+        for mut prefix in prefixes {
+            if boundary == 0 && prefix.is_empty() {
+                // The direct reading was already judged by the caller.
+                continue;
+            }
+            prefix.extend(&chain[boundary..]);
+            if !candidates.contains(&prefix) {
+                candidates.push(prefix);
+            }
+            if candidates.len() > 1 {
+                return None;
+            }
+        }
+    }
+    let [resolved] = candidates.as_slice() else {
+        return None;
+    };
+    Some(resolved.clone())
 }
 
 /// Every field path under `from`'s declaration that lands on record `to`,

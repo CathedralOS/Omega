@@ -200,6 +200,78 @@ fn without_ranges(source: &str) -> String {
         .replace(" in lower..=upper", "")
 }
 
+/// A call component reads the nested carriage too: `drain`'s `bag.items`
+/// rank enters `hold`'s `pair` at its `bag` field, and `step` returns it to
+/// `drain`'s own `bag` formal through a rebuilt literal. The cycle's one
+/// strict subslice is the descent the component owes.
+const NESTED_SLICE: &str = r#"
+data Bag { items: &[u32]; }
+data Pair { bag: Bag; }
+data Main { pad: u64; }
+
+machine Main::main(&mut self) -> u64 {
+    let bag: Bag = Bag { items: &[7, 8, 9] };
+    transition {
+        _ -> self.drain(bag)
+    }
+}
+
+machine Main::drain(&mut self, bag: Bag)
+terminates by bag.items -> Slice::Length;
+-> u64 {
+    transition bag.items.len > 0 {
+        true -> hold(Pair { bag: bag })
+        false -> 0
+    }
+    state hold(pair: Pair) {
+        transition pair.bag.items.len > 0 {
+            true -> self.step(pair)
+            false -> 0
+        }
+    }
+}
+
+machine Main::step(&mut self, pair: Pair)
+terminates by pair.bag.items -> Slice::Length;
+-> u64 {
+    transition pair.bag.items.len > 0 {
+        true -> self.drain(Bag { items: pair.bag.items[1..] })
+        false -> 0
+    }
+}
+"#;
+
+#[test]
+fn nested_slice_carriers_transport_through_the_call_component() {
+    prove(NESTED_SLICE);
+    // Forwarding the nested carriage is a move, not a descent: the cycle
+    // keeps the produced length and no complete pass decreases it.
+    reject(&NESTED_SLICE.replace(
+        "self.drain(Bag { items: pair.bag.items[1..] })",
+        "self.drain(pair.bag)",
+    ));
+    // An ambiguous nested carrier -- `pair` offers two `Bag` paths to the
+    // `bag` role -- forms no coordinate rather than picking one.
+    reject(
+        &NESTED_SLICE
+            .replace(
+                "data Pair { bag: Bag; }",
+                "data Pair { left: Bag; right: Bag; }",
+            )
+            .replace(
+                "drain(&mut self, bag: Bag)",
+                "drain(&mut self, bag: Bag, other: Bag)",
+            )
+            .replace("self.drain(bag)", "self.drain(bag, bag)")
+            .replace("Pair { bag: bag }", "Pair { left: bag, right: other }")
+            .replace("pair.bag.items", "pair.left.items")
+            .replace(
+                "self.drain(Bag { items: pair.left.items[1..] })",
+                "self.drain(Bag { items: pair.left.items[1..] }, pair.right)",
+            ),
+    );
+}
+
 #[test]
 fn unranged_natural_calls_keep_nonnegative_arrivals_and_complete_cycle_descent() {
     let source = without_ranges(PAIR);
