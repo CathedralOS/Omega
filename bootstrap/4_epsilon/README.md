@@ -88,6 +88,7 @@ Active work is tracked in
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `LANGUAGE.md` and `FEATURE_LEDGER.md` | Normative contract and feature/change rationale. | Replace only with synchronized contracts and customer gates. |
+| `EVALUATOR_PROFILE.md` | Derived resource/request/observation profile of the composed diagnostic edge against the selected lower chain, with exact/adjacent refusal witnesses. | Replace only with the final section-11 envelope or a re-derived profile on a changed composition. |
 | `epsilon_compiler.delta` and `epsilon_compiler.delta.sources` | Evaluator entry and exact ordered Delta source closure. | Replace only atomically with an admitted immediate-predecessor evaluator edge. |
 | Concept-owned source files and folders below | Checking, execution, and shared representations within that closure. | Replace while preserving the exact compiler customer and required conformance evidence. |
 
@@ -105,6 +106,9 @@ The [private execution driver](../../tests/epsilon/interpreted-omega-experiment/
 preserves full `i32` exit codes, trap kinds and stdout prefixes, and rejection
 reasons and coordinates in distinct tagged results. Its transport is not a new
 normative Epsilon request or observation envelope.
+[`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md) derives that edge's explicit
+resource, request, and observation profile against the selected lower chain,
+including the exact/adjacent refusal witnesses and the sparse-storage account.
 
 ## Follow the program
 
