@@ -88,14 +88,23 @@ pub(super) fn validate(
         ..
     } = &block.terminator
     {
-        let target_block = machine
+        // An absent target block and a successor arity mismatch belong to
+        // `control_flow` (`UnknownTargetBlock`) and to the frontier's
+        // positional consume (`StructuralJumpArityMismatch`), which both run
+        // after this shape pre-pass. Rejecting them here only replaces their
+        // exact diagnostic with a cleanup-shape one; the module still fails
+        // there, so this pass leaves the projected-child contract unchecked
+        // on an edge whose parameter roster is not yet known to line up.
+        let Some(target_block) = machine
             .blocks
             .iter()
             .find(|candidate| candidate.id == *target)
-            .ok_or_else(invalid)?;
-        if structural_arguments.len() != target_block.structural_parameters.len() {
-            return Err(invalid());
-        }
+            .filter(|target_block| {
+                structural_arguments.len() == target_block.structural_parameters.len()
+            })
+        else {
+            return Ok(());
+        };
         for (argument, parameter) in structural_arguments
             .iter()
             .zip(&target_block.structural_parameters)
