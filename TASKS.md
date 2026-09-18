@@ -350,34 +350,44 @@ see its specialized empty row without consuming the original generic definition.
 
 ## Semantic reflection
 
-Implement [semantic reflection](wiki/spec/language/reflection.md) in Psi schema
-construction, hermetic evaluation, checked per-member calls, and Terminal replay,
-with ordinary library inspector/encoder policies. Use named callbacks, explicit
-context data, and existing callable-family checking; do not add a closure IR or
-format-specific compiler. Anonymous syntax is not an implementation dependency.
-First deliver owned qualified schema graphs, authorized projections, and scoped
-typed selections frozen into independently checked result snapshots. Continue
-with recursive derivation, explicit runtime metadata/adapters, and authorized
-Placed access under the same contract. Fixed callbacks can proceed independently;
-selection-dependent evaluation reach uses the Automatic service reach task above.
+Connect [semantic reflection](wiki/spec/language/reflection.md) to authored Omega
+and ordinary checked calls through Terminal replay. The schema, scoped-selection,
+and visitation-plan helpers in
+`build-time-evaluation/src/machine_execution/reflection/` exist, but their
+construction/composition callers are Rust tests rather than a source-driven
+reflection route. Reuse them where their contracts fit; helper-only tests do not
+complete this task.
 
-Acceptance: one inspector and one serializer use the same visitation mechanism;
-a 40-field record with five field types uses five reusable policy rules plus
-an explicit same-type member override. Missing, duplicate, wrong-type, stale-key,
-and insufficient-contract selections reject. Cover full qualified field types,
-ordinary predicate weakening and explicit semantic erasure in selected adapters,
-no owned-claim erasure, erased-field runtime exclusion, zero-sized runtime fields,
-empty records, distinct nullary cases, common fields once, and active payload only.
+First deliver an inspector and serializer through the same source-level query,
+policy evaluation, and per-member call mechanism. Psi owns elaboration and
+checking; ordinary library code owns encoding/inspection policy. Derive query
+authority from the actual lexical/package context, not a caller-supplied authority
+flag. Replace nominal-head/attached-name matching in `selection/requirement_resolution.rs`
+with complete selected application and callable-contract checking, preserving
+qualification, generic arguments, lifetime relationships, and explicit selection.
+Generate real field subloans, fresh context reborrows, active-case dispatch, and
+ordinary call/resource evidence; a list of resolved operation names is not that
+execution plan. Freeze only owned evaluation results and retain their dependencies
+for independent replay.
 
-Test owner-delegated visitation across three packages and reject unauthorized
-library enumeration; descriptions confer no grant or private access. Test fresh
-reborrows and escape rejection, dynamic-index schema relationships, snapshot
-independence from compiler storage, explicit exhaustion without truncation, and
-recursive reference types reusing only the exact pending derivation while still
-checking all obligations. Runtime recursive encoders use provisioned work storage,
-not hidden stack growth. Retained adapters preserve loans, resources, and exact
-Placed access; decoding and editing still require owner construction/update
-contracts. Run corruption/replay controls independently of the producer.
+Then complete recursive derivation, explicit runtime metadata/adapters, and
+authorized Placed access under the same contract. Use exact pending derivation
+identities without assuming their obligations; runtime recursion needs provisioned
+work storage. Fixed named callbacks can proceed now. Selection-dependent evaluation
+uses Automatic service reach; anonymous machines and format-specific compiler
+operations are not dependencies.
+
+Acceptance: compile and run the inspector/serializer from Omega source, publish
+and reload their Terminal product, and reject corrupted retained evidence.
+Use a 40-field/five-type record with reusable type rules and one member override;
+zero/multiple/wrong-type/stale-key/insufficient-contract selections reject.
+Exercise owner-delegated visitation across three packages and reject unauthorized
+enumeration. Include qualified and erased fields, borrowed owned claims, zero-sized
+fields, empty records, distinguishable nullary cases, common fields once, and
+active payload only. Test loan escape rejection, dynamic-index relationships,
+recursive reference types, snapshot independence, and explicit exhaustion rather
+than truncation. Descriptions never create grants or access; adapters, decoding,
+and editing still require ordinary authorized access/construction contracts.
 
 ## Scoped build execution
 
