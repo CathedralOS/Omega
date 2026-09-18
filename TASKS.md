@@ -467,76 +467,49 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   Its computed-result negative returns a forged `ProductEntryRef {}`: it must
   still reject after an independently compiler-issued result becomes supported.
 
-- **BUILD-SNAPSHOT-OUTPUTS.** In build evaluation, its host custody adapters and
-  compiler publication, implement coherent captured inventories, narrowed inputs,
-  deterministic snapshot reads, fresh append-and-seal staging, linear required
-  outputs, and direct artifact-only discovery. Define exact facet signatures and
-  protocol tags; no live-host grant extension or persistent writable cache.
-  `CheckedCompileRequest.build_snapshot` now binds a
-  `package_compilation::capture_package_source_input` inventory (one coherent
-  traversal producing both the canonical metadata index and retained bytes) to
-  the occurrence: admission materializes a fresh sealed private snapshot as the
-  Source grant root, `verify_required_outputs` enforces the declared roster
-  linearly against sealed staged-output custody before generated-source
-  selection, and the observation records `BuildCapturedSourceInventory` extent
-  evidence (schema 76). `compiler/tests/build_config_granted.rs` exercises a
-  package build reading a template through the snapshot and completing a
-  required file, plus an omitted-required rejection, on macOS. A further
-  slice landed at 17034140c0 (Linux x86-64, linw1): deterministic
-  snapshot reads, inert symlink handling, and linear required-output
-  settlement with 24 tests. The manager's review compilation
-  (`packages/manager/src/review/candidate/compilation/package_pass.rs`)
-  and the packaged `compiler::compile` route
-  (`assembled-syntax-to-checked-compilation/src/checking.rs`, whenever the
-  root binding carries the canonical Source metadata index) now bind a
-  rosterless `BuildSnapshotRequest`: required outputs stay the obligations
-  the build registers through `builder.output.require`, not a second
-  roster inferred from the declaration.
-  `omega/tests/package_commands/snapshot_outputs.rs` witnesses `omega
-  audit packages --offline` on a root that reads a template through
-  `builder.source` and completes `artifact.txt` (5-entry captured
-  inventory, one settled output, exit 0) and the never-completed control
-  (exit 1, nothing published) on macOS ARM64. Non-packaged `omega
-  main.omg` compiles still run unbound; the audit report text does not
-  surface the inventory. The `require`/`complete`/`fail` facet
-  obligations, `OutputCompletion::Retry` custody, `artifact_only()`,
-  narrowed negative lookups, deterministic reads, inert symlinks,
-  substitution and forged-marker rejection, omitted-required ordering and
-  interruption without a committed set all exist
-  (`compiler/tests/build_snapshot_outputs.rs`, 24 tests); receipts live in
-  the evaluator's private per-activation table, so one occurrence's receipt
-  cannot settle another. 4428a61d9d releases the occurrence's private
-  captured-source materialization on every exit (halted builds previously
-  left read-only `omega-captured-source-*` trees in the host temp dir),
-  witnessed through `omega audit packages --offline` for sticky `fail`,
-  mixed completion, a forged obligation and an explicit retry in
-  `omega/tests/package_commands/snapshot_outputs.rs` (macOS ARM64).
-  `omega audit packages` reports the bound snapshot per package at
-  306bf11022 (`build-snapshot captured-entries N captured-file-bytes M`,
-  `settled-outputs N` with each path, sealed entries under `--details`).
-  Retained state after `audit`/`install --offline` on the snapshot route
-  and the generated-source handoff route: 0 B temp residue, 0 B private
-  cache, lock 2837 B against 2843 B, `build/` 4763 B against 6046 B; the
-  separate build-tool-package route the spec keeps as an alternative is
-  not implemented, so no measured comparison against it exists.
-  bf8b52c77c adds the spec's cross-build comparisons to
-  `omega/tests/package_commands/snapshot_outputs.rs` on macOS x86-64:
-  two packages settling identically named `templates/banner.tmpl` inputs
-  and `artifact.txt` outputs from their own captured inventories and
-  staged custody down to each sealed entry's retained bytes, one package
-  settling an independent occurrence per requested target off the shared
-  source-preparation slot, a dependency's completed output not publishing
-  through the root's uncommitted set, and one target's uncommitted set
-  reporting its own rejection without hiding another's settlement.
-  Remaining: Windows host coverage. Acceptance: an
-  ordinary generator reads a template and completes a required file;
-  artifact-only and executable-with-companion routes both work. Exercise
-  negative lookups, ordering/metadata, symlink and substitution escapes, sealed
-  mutation, cross-occurrence receipts, failed completion/retry, omitted required
-  members, interruption, and final-check failure without a partial committed set.
-  Test isolation and failure on Windows/macOS, explicitly recording unavailable
-  hosts. Measure retained input/output state and compare the separate-tool route;
-  do not infer confinement or usability from parser tests.
+- **BUILD-SNAPSHOT-OUTPUTS.** Finish the
+  [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
+  across ordinary compilation, not only package review. Snapshot reads,
+  required-output settlement, private-staging cleanup, and audit reporting
+  already have implementations and integration tests. Remaining:
+
+  - Bind standalone builds to an explicit caller-authorized source inventory,
+    and support named immutable extra inputs assigned to exact dependency
+    occurrences. `PreparedCheckedSource::check` currently binds a snapshot
+    only when package inputs carry canonical Source metadata;
+    `BuildSnapshotRequest` carries an output roster, not a capture request or
+    named-input map. Do not silently capture the whole working directory,
+    widen a dependency's inputs, or substitute the live-host filesystem.
+  - Carry sealed completed artifacts through compiler result construction and
+    final publication for artifact-only builds and executable companions.
+    The current `build_snapshot_outputs` and CLI audit tests inspect checked
+    observations/staged custody; they do not establish a committed compiler
+    output set after all requested product checks. Preserve per-target
+    outcomes and expose no partially successful set after later failure.
+  - Complete host-backed capture/staging assurance and Windows execution
+    coverage. Validate coherent capture and race-safe confinement (or the
+    exact adequate isolation premise), logical path distinctions, inert links,
+    and failure cleanup. One traversal plus matching lengths is not by itself
+    proof of an immutable snapshot. Preserve existing macOS controls and
+    record unavailable hosts rather than treating source inspection as a pass.
+
+  Owners: `package-compilation/src/source_snapshot.rs`, the existing
+  `build-output` and `build-evaluation` custody owners, assembled checking,
+  and compiler/compilation-report publication. Reuse
+  BUILD-ADMISSION-CHECKPOINT for admitted-source/generated-source replay and
+  BUILD-DEPENDENCY-PURPOSES for occurrence identity. No second executor,
+  live-host grant extension, or persistent writable cache.
+
+  Acceptance: an acquired ordinary generator reads a narrowed template and
+  publishes a required file via both artifact-only and companion builds.
+  Run `compiler/tests/build_snapshot_outputs.rs` and
+  `omega/tests/package_commands/snapshot_outputs.rs`, then the actual
+  compilation/publication route. Cover negative lookups and metadata,
+  substitution/link escapes, sealed mutation, cross-occurrence receipts,
+  retry, omitted outputs, interruption, final-check failure, and two packages
+  or targets using identical logical names. Measure retained state and compare
+  the separate-tool route required by the spec; do not infer publication,
+  confinement, or usability from observation-only tests.
 
 ## Build-level behavior exclusions
 
