@@ -678,12 +678,16 @@ fn reassigned_view_drops_the_first_receivers_coverage() {
 
 #[test]
 fn slice_view_runtime_index_still_needs_element_coverage() {
-    // Element evidence lives at literal FixedIndex places; a runtime index is
-    // not yet discharged by the transported facts.
+    // A runtime index IS discharged by the transported whole-extent row -- but
+    // only while that coverage is live. Corrupting one element retires the
+    // source's `rows[0..usize::MAX].bytes` fact, so the view mints no whole
+    // extent and the read still rejects.
     let source = format!(
         r#"{DEFINITIONS}
+        machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
         machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
         machine caller(rows: &mut [Row; 2], index: u64[0..2]) {{
+            corrupt(&mut rows[0].bytes);
             let view: &[Row] = rows.as_slice();
             consume(&view[index]);
         }}
@@ -1237,4 +1241,117 @@ fn view_element_corruption_retires_only_that_element() {
             check_sibling_coverage_at_calls_and_corruption_at_return(&source, "rows[1].bytes");
         }
     }
+}
+
+/// A runtime `rows[index]` read narrows coverage from the whole-extent row:
+/// every element's declared fields are seeded once at `rows[0..usize::MAX]`,
+/// so whichever element the selector names is covered. The declared index
+/// range discharges the bounds half; the field coverage is what this proves.
+/// Before whole-extent seeding this read had no element fact to borrow.
+#[test]
+fn runtime_index_read_carries_whole_extent_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &[Row; 2], index: u64[0..2]) {{
+            consume(&rows[index]);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// The same narrowing through `as_slice()`/`as_mut_slice()` views: the
+/// elementwise row re-anchors element-for-element below the view local, so
+/// `view[index]` is covered exactly like `rows[index]`.
+#[test]
+fn runtime_index_reads_through_slice_views_carry_coverage() {
+    for (view, call) in [("&[Row]", "as_slice"), ("&mut [Row]", "as_mut_slice")] {
+        let source = format!(
+            r#"{DEFINITIONS}
+            machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+            machine caller(rows: &mut [Row; 2], index: u64[0..2]) {{
+                let view: {view} = rows.{call}();
+                consume(&view[index]);
+            }}
+        "#
+        );
+        check(&source, true);
+    }
+}
+
+/// A `&mut rows[index]` return hands the caller whichever element storage the
+/// selector named; the whole-extent row discharges the returned referent's
+/// declared fields at the exit, and the `rows[0]` fallback narrows the same
+/// way. This is the `find_room_mut` shape.
+#[test]
+fn mutable_reference_return_of_runtime_indexed_element_carries_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine pick(rows: &mut [Row; 2], index: u64[0..2], found: bool) -> &mut Row {{
+            transition found {{
+                true -> &mut rows[index]
+                false -> &mut rows[0]
+            }}
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// A corrupted element retires the whole-extent row along with its own, so a
+/// runtime selector that could name the corrupted element rejects: coverage
+/// can never outlive the evidence it narrows from.
+#[test]
+fn corrupted_element_retires_whole_extent_coverage_for_runtime_reads() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller(rows: &mut [Row; 2], index: u64[0..2]) {{
+            let view: &mut [Row] = rows.as_mut_slice();
+            let alias: &mut [u8; 4] = &mut view[1].bytes;
+            alias[0] = 255;
+            consume(&view[index]);
+        }}
+    "#
+    );
+    check(&source, false);
+}
+
+/// `let row: Row;` binds zeroed storage; the empty byte sequence satisfies
+/// `Utf8`, so the declared field is live evidence from the binding and the
+/// `&mut` out-parameter call discharges its entry rows. This is the
+/// `find_room(level, cell, &mut out_room)` out-parameter shape.
+#[test]
+fn uninitialized_nominal_local_carries_zii_field_coverage() {
+    let source = format!(
+        r#"{DEFINITIONS}
+        machine fill(out: &mut Row) {{ out.bytes = "okay"; out.tag = 0; }}
+        machine consume(row: &Row) ensures row.bytes in Utf8 {{ }}
+        machine caller() {{
+            let row: Row;
+            fill(&mut row);
+            consume(&row);
+        }}
+    "#
+    );
+    check(&source, true);
+}
+
+/// The ZII seed is only the zero-value gate: a field whose domain the empty
+/// byte sequence violates stays unproved until a write establishes it, so
+/// `consume(&row)` on a fresh `NonEmpty` field still rejects.
+#[test]
+fn uninitialized_local_field_with_ungated_domain_still_requires_a_write() {
+    let source = format!(
+        r#"domain [u8; 4]::NonEmpty requires non_empty(self);
+        data Gated {{ bytes: [u8; 4] in NonEmpty; }}
+        machine consume(row: &Gated) ensures row.bytes in NonEmpty {{ }}
+        machine caller() {{
+            let row: Gated;
+            consume(&row);
+        }}
+    "#
+    );
+    check(&source, false);
 }

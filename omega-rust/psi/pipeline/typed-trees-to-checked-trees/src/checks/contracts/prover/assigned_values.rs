@@ -27,12 +27,159 @@ pub(super) fn prove_domain(
     else {
         return false;
     };
-    AssignedValues {
-        program,
-        semantic,
-        contexts,
+    prove_domain_at_place(program, semantic, contexts, &subject, domain)
+}
+
+/// Whether a fact's segment chain covers the subject's elementwise: every
+/// position equal under `canonical_place_segments_equal`, or the candidate's
+/// `FixedRange` extent contains the subject's selector. `x[a..b]` covers a
+/// literal `x[i]` when `a <= i < b`, a narrower `x[c..d]` when `a <= c` and
+/// `d <= b`, and -- ONLY at the whole-extent `0..usize::MAX` row -- a runtime
+/// `x[index]` (whichever element the selector names sits inside the complete
+/// extent). A runtime selector is never itself a fact coordinate, and any
+/// element write retires the covering row through the usual overlap
+/// machinery before it can be consulted, so coverage cannot outlive its
+/// evidence.
+pub(in crate::checks::contracts) fn segments_cover_subject(
+    program: &TypedTrees,
+    candidate: &[facts::PlaceSegment],
+    subject: &[facts::PlaceSegment],
+) -> bool {
+    candidate.len() == subject.len()
+        && candidate
+            .iter()
+            .zip(subject.iter())
+            .all(|(candidate, subject)| {
+                crate::flow::canonical_place_segments_equal(*candidate, *subject)
+                    || segment_covers_subject(program, *candidate, *subject)
+            })
+}
+
+fn segment_covers_subject(
+    program: &TypedTrees,
+    candidate: facts::PlaceSegment,
+    subject: facts::PlaceSegment,
+) -> bool {
+    let facts::PlaceSegment::FixedRange { start, end } = candidate else {
+        return false;
+    };
+    if start >= end {
+        return false;
     }
-    .domain(&subject, domain, &mut Vec::new())
+    match subject {
+        facts::PlaceSegment::FixedIndex { index } => start <= index && index < end,
+        facts::PlaceSegment::FixedRange {
+            start: subject_start,
+            end: subject_end,
+        } => subject_start < subject_end && start <= subject_start && subject_end <= end,
+        facts::PlaceSegment::Index { expression } => {
+            // Only the complete extent covers an unresolved selector. A
+            // constant expression narrows from any containing extent; a
+            // non-literal selector is universal only inside `0..usize::MAX`.
+            if start == 0 && end == usize::MAX {
+                true
+            } else {
+                program
+                    .expression_table
+                    .constant_integer_value(expression)
+                    .and_then(|value| usize::try_from(value).ok())
+                    .is_some_and(|index| start <= index && index < end)
+            }
+        }
+        _ => false,
+    }
+}
+
+/// A subject carrying a `FixedRange` window is covered elementwise: prove the
+/// domain at every index inside the extent. A finite `x[a..b]` enumerates its
+/// bounds directly. The whole-extent `x[0..usize::MAX]` row enumerates the
+/// index set the seeding recorded for that collection -- the plan's
+/// `x[i].<suffix>` coordinates are exactly the fixed extent `0..N`, seeded
+/// contiguously, so a contiguous record is complete element coverage; a slice
+/// records no element coordinates and returns empty. Each element is then
+/// proved on its own evidence: the entry row where still live, or the
+/// write's re-establishment where the write was domain-carrying.
+fn prove_domain_by_extent_enumeration(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    subject: &CanonicalPlace,
+    domain: SymbolHandle,
+) -> bool {
+    let Some(position) = subject
+        .segments
+        .iter()
+        .position(|segment| matches!(segment, facts::PlaceSegment::FixedRange { .. }))
+    else {
+        return false;
+    };
+    let facts::PlaceSegment::FixedRange { start, end } = subject.segments[position] else {
+        return false;
+    };
+    let indices: Vec<usize> = if start == 0 && end == usize::MAX {
+        recorded_element_extent(program, semantic, subject, position)
+    } else {
+        (start..end).collect()
+    };
+    !indices.is_empty()
+        && indices.iter().all(|index| {
+            let mut element = subject.clone();
+            element.segments[position] = facts::PlaceSegment::FixedIndex { index: *index };
+            prove_domain_at_place(program, semantic, contexts, &element, domain)
+        })
+}
+
+/// The element indices seeded for the collection at `position` of `subject`:
+/// every fact place sharing `subject`'s root, prefix, and suffix with a
+/// `FixedIndex` at `position`. Fixed-array seeding emits exactly `0..N`
+/// contiguous element coordinates, so a contiguous record is the collection's
+/// whole extent; a gap means the coordinates came from elsewhere and are not
+/// a whole-extent claim. Never confuses a partial record with coverage.
+fn recorded_element_extent(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    subject: &CanonicalPlace,
+    position: usize,
+) -> Vec<usize> {
+    let mut indices = Vec::new();
+    for (_, fact) in semantic.facts.iter() {
+        let FactPlace::Place(place) = fact.place else {
+            continue;
+        };
+        let Some(candidate) =
+            canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
+        else {
+            continue;
+        };
+        if normalized_event_place_root(program, candidate.root)
+            != normalized_event_place_root(program, subject.root)
+            || candidate.segments.len() != subject.segments.len()
+            || !candidate
+                .segments
+                .iter()
+                .zip(&subject.segments)
+                .enumerate()
+                .all(|(at, (candidate, subject))| {
+                    if at == position {
+                        matches!(candidate, facts::PlaceSegment::FixedIndex { .. })
+                    } else {
+                        crate::flow::canonical_place_segments_equal(*candidate, *subject)
+                    }
+                })
+        {
+            continue;
+        }
+        if let facts::PlaceSegment::FixedIndex { index } = candidate.segments[position] {
+            indices.push(index);
+        }
+    }
+    indices.sort_unstable();
+    indices.dedup();
+    if indices.last().is_some_and(|max| indices.len() == max + 1) {
+        indices
+    } else {
+        Vec::new()
+    }
 }
 
 pub(in crate::checks::contracts) fn prove_domain_at_place(
@@ -59,7 +206,11 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
                     .is_some_and(|candidate| {
                         normalized_event_place_root(program, candidate.root)
                             == normalized_event_place_root(program, subject.root)
-                            && candidate.segments == subject.segments
+                            && segments_cover_subject(
+                                program,
+                                &candidate.segments,
+                                &subject.segments,
+                            )
                             && crate::facts::field_domain::domain_membership_implies(
                                 program,
                                 candidate_domain,
@@ -67,12 +218,13 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
                             )
                     })
             })
-    }) || AssignedValues {
-        program,
-        semantic,
-        contexts,
-    }
-    .domain(subject, domain, &mut Vec::new())
+    }) || prove_domain_by_extent_enumeration(program, semantic, contexts, subject, domain)
+        || AssignedValues {
+            program,
+            semantic,
+            contexts,
+        }
+        .domain(subject, domain, &mut Vec::new())
 }
 
 struct AssignedValues<'a> {

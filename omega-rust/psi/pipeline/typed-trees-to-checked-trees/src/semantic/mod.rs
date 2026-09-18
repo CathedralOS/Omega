@@ -7,8 +7,8 @@ mod points;
 use contracts::append_contract_semantic_facts;
 pub(crate) use contracts::contract_fact_place;
 use field_domains::{
-    append_local_case_payload_domain_facts, append_machine_field_domain_facts,
-    append_state_parameter_domain_facts,
+    append_local_case_payload_domain_facts, append_local_zii_field_domain_facts,
+    append_machine_field_domain_facts, append_state_parameter_domain_facts,
 };
 use points::proof_obligation_point;
 
@@ -30,6 +30,11 @@ pub(crate) fn build_semantic_facts(
     // payload forwarded as a call argument discharges; construction enforcement
     // guarantees soundness, the flow handles invalidation.
     append_local_case_payload_domain_facts(program, &mut facts);
+    // ZII locals (`let room: Room;`): the zeroed storage already satisfies
+    // every declared field domain that admits the empty byte sequence -- the
+    // same gate machine storage uses -- so those fields are live evidence
+    // from the binding onward.
+    append_local_zii_field_domain_facts(program, &mut facts);
 
     facts
 }

@@ -180,7 +180,11 @@ fn contexts_prove_domain(
                 };
                 crate::flow::normalized_event_place_root(program, candidate.root)
                     == crate::flow::normalized_event_place_root(program, source.root)
-                    && candidate.segments == source.segments
+                    && super::prover::segments_cover_subject(
+                        program,
+                        &candidate.segments,
+                        &source.segments,
+                    )
             })
     })
 }
