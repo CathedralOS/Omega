@@ -2389,279 +2389,74 @@ Owners include
   validation, which was measured and reverted rather than landed.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
-  under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing
-  proofs to create or amplify authority. Extend symbolic
-  range ordering and containment beyond exact shared immutable boundaries, then
-  admit explicit compatibility theorems over
-  already-existing places and occurrences. Acceptance: proof evidence can
-  establish disjointness/containment but cannot extend lifetime, duplicate a
-  loan, or replace ownership accounting.
+  under the [loan contract](wiki/spec/terminal-psi/loans.md): relational
+  evidence may establish disjointness or containment between existing places
+  and occurrences, and never creates, extends, duplicates or widens a loan.
+  Owners: `typed-trees-to-checked-trees/src/checks/borrows/` and the
+  certificate rows in `checked-trees/src/checked_trees/borrow.rs`.
 
-  Extend range-premise read dependencies beyond the supported selected-call,
-  selected-index, and atomic-load cases only when complete footprints and
-  operation stability are established. Explicit arguments alone do not
-  establish all callee reads;
-  preserved numeric captures must remain independent of subsequent source writes.
+  Index extents compare as normalized bounds inside one replayed selector
+  session (`overlap/indexes.rs`, `overlap/segments.rs`), `overlap/premises.rs`
+  supplies ordering premises from the forming scope's own `requires` rows, and
+  forming-loan and statement-mutation admissions retain replayable
+  `Structural` or `Premised` certificates. That is not general proof-derived
+  compatibility: a bound is one integer or one immutable symbol plus a
+  constant, exactly one premise answers a query, and certificates are
+  checked-stage records that no lowering or Terminal reader consumes.
 
-  First slice landed at e47adbb9eb: `slice_tail_strictly_decreases`
-  (`omega-rust/psi/semantics/validation/src/slice_ranking.rs`) now routes the
-  tail start and `len` guard bound through the shared immutable-integer-bound
-  normalization, admitting `param[k..]` (literal or immutable local copy,
-  `k >= 1`) when the guard proves `len >= k` — `entries[step..]` under
-  `entries.len >= step` with `let step: u64 = 2` compiles via
-  `mbx run -p omega -- --check` on Windows. Second slice landed at
-  7683795990 on macOS: `place_segments_containment`
-  (`checks/borrows/overlap/segments.rs`) now evaluates `Index` selectors as
-  normalized extents inside the shared selector-snapshot session, so
-  symbolic and `symbol ± k` windows prove directional containment, same
-  extent, and point membership; disjoint or unknown bounds stay `None`.
-  Overlap and containment record through one session, so certificates keep
-  replaying exact selector positions. Evidence only — admission still gates
-  on `non_interfering`, witnessed by
-  `proven_containment_never_licenses_a_second_mutable_loan` under
-  `tests/borrow/certificates/value_snapshots.rs`. Third slice landed at
-  b12f32b87b on macOS: compatibility theorems now carry explicit stated
-  ordering premises. `BorrowCompatibilityPremise` pins the exact
-  `ContractProofFact` identity, relation, and normalized operands consulted
-  at the formation scope (machine-entry and state `requires`; inherited
-  rows excluded), and a `Premised` derivation replays that ledger
-  positionally against current contracts — missing, reordered, or changed
-  tokens fail replay distinctly from selector-snapshot drift. The shift
-  algebra admits `L <= R`, `L < R`, and equality over immutable normalized
-  bounds with constant offsets; mutable, computed, or foreign subjects stay
-  unproven. Evidence only — resource joins, loan identity, access polarity,
-  restoration, and multiplicity stay independently enforced, witnessed by
-  the tampering cases under
-  `tests/borrow/certificates/stated_premises.rs`. Fourth slice landed at
-  821eed4fea on Linux x86-64: range-premise read dependencies now admit
-  atomic loads. `collect_reads`
-  (`checks/ranges/facts/dependencies/reads.rs`) handles
-  `ExpressionNode::Atomic` under a `Load` ordering plan: `value` names
-  the resident place itself, so its complete footprint is exactly that
-  place plus its selector reads. Operation stability is pinned by a
-  load-legal `MemoryOrdering`, canonical `Scalar` result custody, and an
-  empty `result` -- each rechecked against the ordering plan so a
-  writing axis cannot borrow the load's place-shaped footprint. Store,
-  swap, read-modify-write, and both compare-exchange shapes still return
-  an incomplete read set: their `value` wraps a stored operand or
-  instruction-shaped update, so no operand scan describes their reads.
-  Evidence only -- preservation and invalidation run through the
-  existing place algebra, witnessed by
-  `tests/range_atomic_dependencies.rs`
-  (`atomic_store_retires_only_the_resident_place_premise`) and
-  `facts/dependencies/tests/atomics.rs`: a `requires` premise on
-  `self.counter.load(NoOrdering)` survives writes to sibling fields and
-  unrelated parameters and is retired by a store to the resident place
-  or to `self`. Fifth slice landed at 126bdce303 (Linux x86-64):
-  range-premise read dependencies now cover selected calls — an exact
-  checked-call join authenticates the occurrence, and operand/receiver
-  places materialize as footprints. Selected indexing already uses
-  `collect_selected_index_reads` with exact checked statement-use custody
-  and recursive operand footprints. Preserve incomplete read sets for open
-  ranges and requires-scope operators without statement-use custody; further
-  admission needs complete footprints, not a second indexing collector.
-  Sixth slice landed at a6c15c7990: stated ordering premises now
-  discharge indexed borrow conflicts beyond loan formation — the stated
-  premise set is collected once per state in `check_flow_call_borrows` and
-  threaded through every compatibility entry point, both segment
-  expressions evaluate to one `EvaluatedIndexExtent` inside the shared
-  selector session, and a single extent comparator consults stated
-  premises only after the structural order fails. Seventh slice landed at
-  0c37e8f707 (macOS): authored `[]`/`[..]` applications admit checked read
-  dependencies when the exact checked operator-use row at the statement
-  occurrence resolves to a single stable selection; nested operands
-  recurse through the ordinary read scan, hoisted selector operands read
-  their frozen capture identities, and missing, foreign, ambiguous,
-  drifted, or requires-scope custody stays incomplete. Eighth slice
-  landed at 5f1733161a (macOS ARM64): `collect_reads` now covers builtin
-  range windows and compound operands — `items[low..high]` reads the
-  collection place plus each valid endpoint, open `items[..high]` windows
-  read only their present bounds, and fully constant half-open selectors
-  canonicalize to `FixedRange` so extent overlap and disjointness stay
-  exact. `Match` subjects, value patterns, and arm values, array-literal
-  elements, struct-literal fields, and `ExpressionNode::Range` endpoints
-  all recurse through the read scan. Range-indexed builtins are gated on
-  the collection's builtin fixed-array/slice geometry resolved under
-  `OperatorSpelling::Range` (element-result typing intentionally returns
-  none for windows), while selected authored range operators keep exact
-  checked-occurrence custody. Incomplete read sets are preserved for
-  missing or foreign custody, unresolved or ambiguous selection, and
-  absent or invalid range operands. Evidence only — disjointness and
-  preservation still run through the existing place algebra and loan
-  checks. Witnessed by
-  `facts/dependencies/tests/indexes.rs`: 34 focused dependency tests, 79
-  range-checker tests, and 231 range integration tests pass; the crate
-  suite's 14 failures reproduce identically at base 5006b9314c. Ninth
-  slice landed at 74836aa638: `collect_reads` now admits every writing
-  atomic axis through its assignment-carrier footprint. `place.store(v,
-  ord)` and the `let r = place.op(..)` forms desugar to `target = Atomic
-  { .. }`, so `collect_atomic_write_reads`
-  (`checks/ranges/facts/dependencies/reads.rs`) reads the carrier
-  statement's target as the resident place, each stored operand through
-  the operand gate (`value` for store and swap, the fetch operand for
-  read-modify-write, the expected and replacement operands for a
-  decisive compare-exchange whose `value` is the exact `prior + (prior ==
-  expected) * (replacement - prior)` model), and the current local
-  `result` destination; ordering legality, scalar result custody, and
-  result shape are rechecked per axis, and the model's prior placeholders
-  are pinned to the result symbol rather than scanned as reads.
-  Incomplete read sets are preserved for a missing carrier, an illegal
-  ordering plan, non-scalar custody, a missing or non-current result
-  destination, a substituted update model, and the single-attempt
-  observing form (`CompareExchangeOnce`). Evidence only — witnessed by
-  `facts/dependencies/tests/atomics.rs` (8 tests) and
-  `tests/range_atomic_dependencies.rs`
-  (`writing_atomic_axes_retire_only_the_resident_place_premise`): a
-  `requires` premise on `self.counter.load(NoOrdering)` survives a store,
-  swap, `fetch_add`, or `compare_exchange` on `self.other` and is retired
-  by the same axis on `self.counter`. Tenth slice: the
-  operand gate `collect_operand_reads` now admits authored bound
-  arithmetic in selectors. When a bound's subtree lacks builtin meaning
-  the gate walks it node by node: a builtin arithmetic node recurses into
-  its operands, and an authored `+`/`-`/`*`/`/`/`%` application is
-  call-shaped, so `collect_selected_arithmetic_reads` admits exactly the
-  operands its exact checked operator-use row at the statement occurrence
-  authenticates — one `selected_operator_operands` join now serves the
-  `[]`/`[..]` and arithmetic spellings (a single stable `Resolved` row,
-  valid selection, intact candidate roster, matching spelling and operand
-  count) — and each operand recurses through the gate so a nested
-  authored application proves its own custody. The builtin point-selector
-  arm of `collect_selector_reads` uses the same gate. A constant-shaped
-  application (`1u64 + 0u64`) stays incomplete even with custody because
-  `index_place_segment` folds it syntactically to builtin arithmetic's
-  coordinate; a non-constant selector keeps its conservative `Index`
-  segment, so a fixed-element write still retires the facts. Incomplete
-  read sets are preserved for missing, drifted, or requires-scope
-  custody, constant-shaped authored applications, authored comparisons
-  and other non-arithmetic spellings, and authored arithmetic at an
-  expression root (the top-level `record_dependencies` floor is
-  unchanged). Evidence only, and no source compiles differently yet:
-  window validation still needs builtin bound meaning to prove a
-  computed start bound (even builtin `items[low + 0u64..high]` reports
-  "cannot prove subslice range start bound"), so this slice closes the
-  read-set shape ahead of value semantics for authored operators.
-  Witnessed by `facts/dependencies/tests/indexes.rs` and
-  `facts/dependencies/tests.rs`: `items[low + step..high]` under an
-  authored `u64` `+` reads `low`, `step`, `high`, and the window place,
-  survives a write to `unrelated`, and is retired by a write to any
-  operand or to `items`; 130 range-checker tests pass (8 new). Eleventh
-  slice landed at 33d79f1bdf (macOS ARM64): statement-level borrow
-  admission no longer excuses a forming loan whose recorded source owner
-  merely matches an exclusive active loan's owner.
-  `checks/borrows/statements.rs` admits each forming/active pair only
-  through the replayed non-interfering verdict or a replayable
-  carried-authority edge — an exclusive active loan, a replayed
-  containment verdict placing the forming place inside it (`Same` or
-  `RightContainsLeft`), and the exact recorded provenance (a retained
-  reborrow's parent handle, or an unretained transfer's rebasing source
-  owner; a `DirectRoot` carries nothing). Every admitted pair publishes
-  a `CheckedBorrowCompatibilityCertificate`, and certificate replay
-  re-derives the edge from the loan rows, so a forged interfering
-  certificate without provenance rejects. A rejected certificate ledger
-  also no longer silences the substrate: resource and lineage replay
-  still runs on a scratch copy so its diagnostics surface beside the
-  certificate findings without publishing into a rejected pass.
-  Evidence only — no loan is created, no lifetime extended, and
-  resource/ownership accounting stays authoritative. Witnessed by
-  `checks/borrows/tests.rs` (4 new tests): carried pairs retain
-  replayable certificates across passes, an overlapping same-owner loan
-  without the edge rejects, a forged interfering certificate fails
-  replay, and the edge's truth table pins exclusivity, containment
-  direction, and lineage exactness; the crate suite's three remaining
-  failures reproduce identically at base 47e5773bb6.
+  Remaining work:
 
-  Twelfth slice landed on macOS ARM64: range-premise read dependencies now
-  admit statically applied calls. The `ExpressionNode::Call` arm of
-  `collect_reads` (`checks/ranges/facts/dependencies/reads.rs`) no longer
-  refuses every `machine_arguments` application;
-  `static_application_carries_no_caller_storage` admits an occurrence whose
-  static arguments are storage-free — a const literal, or a symbol of kind
-  `BuiltinType`, `Data`, or `Const` — because a type or const selection
-  substitutes a declaration identity or a compile-time value rather than a
-  place: "Specialization substitutes the outer selections and continues
-  through nested applications until executable calls are direct; it creates no
-  runtime dictionary" ([generics](wiki/spec/language/generics.md)). So
-  `identity<u64>(original)`, `identity<Card>(&original)` and
-  `scaled<2u64>(original)` read exactly the checked operand accesses the
-  unapplied call carries, and an applied `&self` callee still adds the
-  canonical receiver place. Incomplete read sets are preserved for a
-  machine-valued static argument (`apply<double>`, whose callable body this
-  occurrence never authenticated), a nested static application
-  (`identity<Pair<u64>>`), an evidence projection, and the unchanged static
-  binder, requirement-dispatch, quotient and private-layout guards; open
-  ranges and requires-scope operators without statement-use custody are
-  untouched. Evidence only — preservation and invalidation still run through
-  the existing place algebra. Witnessed by
-  `facts/dependencies/tests/calls.rs` (5 new tests:
-  `a_type_applied_generic_call_reads_its_established_operand_footprint`,
-  `a_const_applied_generic_call_reads_its_operand_footprint`,
-  `a_type_applied_self_receiver_call_reads_the_callers_machine_storage`,
-  `a_machine_valued_or_nested_static_application_stays_incomplete`,
-  `only_storage_free_static_selections_admit_the_applied_call_footprint`,
-  the last pinning that the selection's kind decides by retargeting one
-  admitted argument at a callable state symbol and at a nested application);
-  `cargo nextest run -p typed-trees-to-checked-trees` is 4177 tests, 4174
-  passed, 3 failed — the same three failures as base 82159a2836. Still
-  incomplete after this slice: statically dispatched requirement calls,
-  machine-valued applications, the single-attempt `CompareExchangeOnce`
-  observing form, and authored non-arithmetic operator operands, including a
-  cast or unary wrapper standing above an authored arithmetic application in a
-  selector or bound position.
+  - Admit disequality. `premises.rs` decomposes `<`, `<=`, `>`, `>=`, `==` and
+    `&&` only, so the guide's ordinary case
+    ([Borrow Facts](wiki/language_guide/chapter_2_ownership_borrowing_moves.md#borrow-facts)),
+    `&mut items[i]` beside `&mut items[j]` under in-range `i != j`, has no
+    premise form. `fail/borrows/borrow_unknown_index_pair_mut` pins the
+    unproven pair; no pass canary states the premise.
+  - Take premises from every establishment point the loan contract names, not
+    only machine-entry and state `requires`: dominating guards, callee
+    `ensures`, domain membership and theorem-call conclusions, each valid for
+    the captured value and place versions at formation. `premises.rs` states
+    that it mirrors `ranges::requirements::seed_state_requires`; read the
+    range checker's established facts (`checks/ranges/guards.rs`,
+    `incoming_guards.rs`, `requirements.rs`) through one shared reader instead
+    of growing a second collector. Mutable, computed and foreign subjects stay
+    unproven until that reader supplies version evidence.
+  - Retain certificates for call judgments. `checks/borrows/calls/` consults
+    stated premises for argument/argument, argument/loan and receiver/argument
+    conflicts and records nothing, so a premise-dependent call admission
+    cannot be replayed.
+  - Range-premise read sets (`checks/ranges/facts/dependencies/reads.rs`) stay
+    incomplete for requirement-dispatched calls, machine-valued and nested
+    static applications, quotient and private-layout operations,
+    `CompareExchangeOnce`, and authored non-arithmetic operators. Admit one
+    only with a complete footprint and operation stability: explicit arguments
+    do not establish all callee reads, and preserved numeric captures must
+    stay independent of later source writes. The builtin bound-meaning floor
+    in `record_dependencies` (`facts/dependencies.rs`) decides what may be a
+    range premise. It is not a read-set limit; do not widen it under this item.
 
-  Wrapped-operand slice landed on macOS ARM64 (ordered after the
-  statically-applied-call slice, which is now on `main`): the range-premise
-  operand gate now sees through cast and unary wrappers.
-  `collect_operand_reads` (`checks/ranges/facts/dependencies/reads.rs`) walked
-  only `Binary` once the builtin bound floor failed, so `items[(low + step) as
-  u64]` refused a footprint even though the wrapper contributes no storage of
-  its own: "Every evaluated child runs exactly once. Unary operations,
-  borrows, casts, membership tests, and member access have one immediate
-  runtime child" ([expressions](wiki/spec/language/expressions.md)), and the
-  closed token vocabulary binds no spelling to a cast or a `!`/`~`, so neither
-  node can be a selected declaration. The walk now descends through both to
-  the authored application below, which still has to prove its own exact
-  checked operator-use custody. So `items[(low + step) as u64]`, `items[~(low
-  + step)]`, `items[(low + step) as u64..high]` and `items[low..(low + step)
-  as u64]` read exactly their operands plus the selected element or window
-  place. Incomplete read sets are preserved for every family refused before:
-  an authored comparison under a wrapper (not an arithmetic spelling), a
-  constant-shaped authored application (`(1u64 + 0u64) as u64`, which the
-  place algebra folds syntactically), a drifted or ambiguous use row, a
-  wrapped operand whose call carries no checked occurrence, and requires-scope
-  occurrences without statement-use custody. Evidence only — no second
-  indexing collector, and preservation and invalidation still run through the
-  existing place algebra. Witnessed by `facts/dependencies/tests/indexes.rs`
-  (`a_wrapped_authored_arithmetic_selector_reads_every_operand`,
-  `a_wrapper_over_a_refused_operand_family_stays_incomplete`,
-  `a_requires_scope_wrapped_arithmetic_selector_has_no_statement_use_custody`)
-  and `facts/dependencies/tests/calls.rs`
-  (`a_wrapped_arithmetic_selector_still_proves_its_call_operand_footprint`);
-  `cargo nextest run -p typed-trees-to-checked-trees` is 4176 tests, 4173
-  passed, 3 failed against base 779b8eaffa's 4172 tests, 4169 passed, 3 failed
-  — the same three failing names. Next remaining family, corrected by measurement at 1d1914d599 (macOS ARM64):
-  the bare authored arithmetic point selector `items[low + step]` is NOT
-  refused and needs no work -- `syntax-trees-to-symbol-resolved-trees` hoists
-  it into `let __hoist_0 = low + step;` so the selector node is a `Name`,
-  `has_builtin_index_meaning` returns true, and the element read already
-  records a complete two-place footprint (the frozen `__hoist_0` capture plus
-  `items[Index]`), with writes to `low`/`step` correctly preserving the
-  premise and a write to `items` retiring it; the all-local variant is already
-  pinned by the tenth slice's
-  `a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservative`.
-  The actual refusal is the hoisted initializer: `let __hoist_0 = low + step;`
-  records an incomplete read set even with its exact checked operator-use row
-  present and `Resolved`, because `record_dependencies`
-  (`checks/ranges/facts/dependencies.rs`) gates every row on
-  `validation::has_builtin_bound_expression_meaning`, which a root `Binary`
-  carrying an authored `+` fails. That floor is DESIGN-BLOCKED, not
-  engineering: it defines what may be a range premise, not merely what a
-  premise's read set contains. Open question for the owner: may
-  `record_dependencies` record a range-premise row for an expression whose
-  root is a selected (authored) arithmetic application with exact checked
-  operator-use custody, or does the floor stand and the hoisted initializer
-  keep its incomplete read set? Practical stakes are low either way, since the
-  hoisted capture is frozen and the element premise is already complete and
-  conservative without it.
+  Acceptance: `tests/omega` pass canaries admit two mutable element loans
+  under `i != j`, and a write and an exclusive call operand beside a borrowed
+  symbolic window under a guard-established ordering; every admission replays
+  from its retained certificate. An absent, non-strict, stale, reordered or
+  tampered premise, a write inside the borrowed extent, and a second mutable
+  loan licensed only by proven containment all reject. No certificate extends
+  a lifetime, duplicates a loan or replaces resource accounting. Start from
+  `src/tests/borrow/checks/premised_disjoint_writes.rs` and
+  `src/tests/borrow/certificates/`. **CANARY-CORPUS** routes borrow-obligation
+  failures here.
+
+  Flag: the read-dependency part has no customer. Fourteen consecutive changes
+  each admitted one more expression form into `reads.rs` (now 1,652 lines) and
+  touched only that directory and crate unit tests; no `tests/omega` or sample
+  file changed, the authored-arithmetic change records that no source compiles
+  differently and that its witness fabricates an operator-use row production
+  never emits, and nothing under `checks/borrows/` reads `RangeFacts`. An
+  incomplete read set is conservative, because any write then retires the
+  fact. Resume from a corpus program that loses a fact it needs, not from the
+  next refused node kind. The same change recorded one candidate: builtin
+  `items[low + 0u64..high]` cannot prove its start bound in
+  `checks/ranges/indexes/validation.rs`; rerun it before relying on that.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
   selected through exact conformances and validated layout paths under the
