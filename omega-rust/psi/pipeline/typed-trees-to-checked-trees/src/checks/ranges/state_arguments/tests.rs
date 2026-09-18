@@ -468,6 +468,156 @@ fn bound_name_alias_transports_through_transition_arguments() {
     assert_eq!(index.upper_bound.get(), Some(4));
 }
 
+/// Member stores and subslice bindings record the same seeds in the
+/// collection replay that the checking pass records in the body: a folded
+/// field integer (`self.slot = 2`), an offset index bound
+/// (`self.jp = self.i + 1`), and a subslice's shrunk window floor
+/// (`let w = base[1..]`). Each keys on the target's place or the bound
+/// name's label, so a later `-> load(...)` transports the fact into the
+/// destination parameter's merged facts exactly as the body would. An
+/// unbounded or out-of-range store keeps the ordinary rejection.
+#[test]
+fn member_store_and_window_facts_transport_through_transition_arguments() {
+    for (fields, requires, prefix, argument, accepted) in [
+        // A folded field integer transports as the parameter's exact value.
+        (
+            "cells: [u8; 4]; slot: u64;",
+            "",
+            "self.slot = 2;",
+            "self.slot",
+            true,
+        ),
+        // The same folded value out of range still rejects.
+        (
+            "cells: [u8; 4]; slot: u64;",
+            "",
+            "self.slot = 9;",
+            "self.slot",
+            false,
+        ),
+        // An unbounded call store carries no folded integer.
+        (
+            "cells: [u8; 4]; slot: u64;",
+            "",
+            "self.slot = self.raw();",
+            "self.slot",
+            false,
+        ),
+        // `self.jp = self.i + 1` transports `self.i < 4` as `jp < 5`.
+        (
+            "cells: [u8; 8]; i: u64; jp: u64;",
+            "requires self.i < 4u64",
+            "self.jp = self.i + 1;",
+            "self.jp",
+            true,
+        ),
+        // An unbounded `self.i` write retires the bound `self.jp` would
+        // have inherited.
+        (
+            "cells: [u8; 8]; i: u64; jp: u64;",
+            "requires self.i < 4u64",
+            "self.i = self.raw(); self.jp = self.i + 1;",
+            "self.jp",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "data Main {{ {fields} }}
+            machine Main::raw(&self) -> u64 {{ 7 }}
+            machine Main::run(&mut self) -> u8 {requires} {{
+                {prefix}
+                transition {{ _ -> load({argument}) }}
+                state load(&mut self, index: u64) -> u8 {{ self.cells[index] }}
+            }}"
+        );
+        let result = check_source(&source);
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{requires} {prefix} | {argument}: {result:?}"
+        );
+    }
+
+    // A subslice binding transports the base's floor minus the window's
+    // start: `let w = base[1..]` under `requires base.len >= 4` gives `w` a
+    // minimum length of 3, which is exactly what `items[2]` needs. The
+    // rebinding form (`w = base[1..]`) mirrors the same window facts. A
+    // base without the floor rejects both the subslice and the index.
+    for (prefix, accepted) in [
+        ("let w: &[u8] = base[1..];", true),
+        ("let mut w: &[u8] = base[0..]; w = base[1..];", true),
+    ] {
+        let source = format!(
+            "machine Main::run(&mut self, base: &[u8]) -> u8 requires base.len >= 4u64 {{
+                {prefix}
+                transition {{ _ -> load(w) }}
+                state load(&mut self, items: &[u8]) -> u8 {{ items[2] }}
+            }}"
+        );
+        let result = check_source(&source);
+        assert_eq!(result.is_ok(), accepted, "{prefix}: {result:?}");
+    }
+    let result = check_source(
+        "machine Main::run(&mut self, base: &[u8]) -> u8 {
+            let w: &[u8] = base[1..];
+            transition { _ -> load(w) }
+            state load(&mut self, items: &[u8]) -> u8 { items[2] }
+        }",
+    );
+    assert!(result.is_err());
+
+    // The collected facts carry the transported values: the folded field
+    // integer enters `load`'s `index` parameter as the exact value 2, the
+    // offset bound enters as `jp < 5`, and the shrunk window enters as
+    // `items`'s minimum length 3.
+    let (facts, _, _) = compare_machine(
+        "data Main { cells: [u8; 4]; slot: u64; }
+        machine Main::run(&mut self) -> u8 {
+            self.slot = 2;
+            transition { _ -> load(self.slot) }
+            state load(&mut self, index: u64) -> u8 { self.cells[index] }
+        }",
+        Some("Main::run"),
+    );
+    let index = facts
+        .iter()
+        .flat_map(|facts| &facts.parameters)
+        .find(|parameter| parameter.name == "index")
+        .expect("load index parameter facts");
+    assert_eq!(index.integer.get(), Some(2));
+
+    let (facts, _, _) = compare_machine(
+        "data Main { cells: [u8; 8]; i: u64; jp: u64; }
+        machine Main::run(&mut self) -> u8 requires self.i < 4u64 {
+            self.jp = self.i + 1;
+            transition { _ -> load(self.jp) }
+            state load(&mut self, index: u64) -> u8 { self.cells[index] }
+        }",
+        Some("Main::run"),
+    );
+    let index = facts
+        .iter()
+        .flat_map(|facts| &facts.parameters)
+        .find(|parameter| parameter.name == "index")
+        .expect("load index parameter facts");
+    assert_eq!(index.upper_bound.get(), Some(5));
+
+    let (facts, _, _) = compare_machine(
+        "machine Main::run(&mut self, base: &[u8]) -> u8 requires base.len >= 4u64 {
+            let w: &[u8] = base[1..];
+            transition { _ -> load(w) }
+            state load(&mut self, items: &[u8]) -> u8 { items[2] }
+        }",
+        Some("Main::run"),
+    );
+    let items = facts
+        .iter()
+        .flat_map(|facts| &facts.parameters)
+        .find(|parameter| parameter.name == "items")
+        .expect("load items parameter facts");
+    assert_eq!(items.minimum_length.get(), Some(3));
+}
+
 #[test]
 fn grouped_scalar_meets_preserve_unseen_unknown_and_conflicting_inputs() {
     let values = [None, Some(3), Some(9)];

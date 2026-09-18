@@ -470,7 +470,7 @@ pub(super) fn assigned_local_declared_type(
     declarations.next().is_none().then_some(declared)
 }
 
-fn expression_member_name(
+pub(super) fn expression_member_name(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, Option<&str>)> {
@@ -488,7 +488,7 @@ fn expression_member_name(
 /// the derived-index pattern `arr[i + 1]` -- a `jp = self.i + 1` field then
 /// `arr[self.jp]` inside a loop where `self.i` is bounded by the loop guard
 /// (sorts, sliding windows, reversals).
-fn seed_offset_index_bound(
+pub(super) fn seed_offset_index_bound(
     program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     target: ExpressionHandle,
