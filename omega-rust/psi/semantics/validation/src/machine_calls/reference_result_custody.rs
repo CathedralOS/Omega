@@ -806,6 +806,81 @@ pub fn owned_record_argument(
         )
 }
 
+/// Resolve an authored member projection against a record type, yielding the
+/// field-identity path and the projected type. The spelling matches the leaf
+/// paths `formal_record_sources` and `local_record_loans` reconstruct, so one
+/// resolver keeps those joins from drifting.
+fn declared_field_path<'a>(
+    program: &TypedTrees,
+    mut selected: TypeReferenceHandle,
+    members: impl Iterator<Item = &'a typed_trees::expression::TableMemberExpression>,
+) -> Option<(
+    Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    TypeReferenceHandle,
+)> {
+    let mut path = Vec::new();
+    for member in members {
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(selected)
+        else {
+            return None;
+        };
+        let data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *symbol)?;
+        let field = crate::value_custody::places::exact_data_member_field(
+            program,
+            data,
+            member.member_symbol,
+            member.member.as_str(),
+            member.case_variant.as_ref().map(|case| case.as_str()),
+        )?;
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            field
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| field.name.as_str().to_owned()),
+        ));
+        selected = field.type_reference;
+    }
+    Some((path, selected))
+}
+
+/// A projected owned-record argument moves the projected subtree's captured
+/// leaves with the call. Every leaf under the projected edge must stay live
+/// until this consuming statement, and the edge must carry the record's whole
+/// leaf roster so no sibling custody strands under a consumed residual shell.
+/// `path` is the projected field-identity path exactly as
+/// `projected_argument_path` spells it.
+pub fn projected_record_argument(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    source_statement: u32,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> bool {
+    !path.is_empty()
+        && source_statement < statement_index
+        && local_record_loans(program, facts, machine, state, source_statement).is_some_and(
+            |loans| {
+                !loans.is_empty()
+                    && loans.iter().all(|(source, loan)| {
+                        source.path.starts_with(path)
+                            && record_loan_is_active(
+                                facts,
+                                machine,
+                                state.symbol,
+                                statement_index,
+                                *loan,
+                            )
+                    })
+            },
+        )
+}
+
 /// A projected argument crosses the stored carrier only after its exact local
 /// construction and active leaf loan have been reconstructed.
 pub fn record_argument(
@@ -849,33 +924,8 @@ pub fn record_argument(
     {
         return None;
     }
-    let mut reference = local.type_reference;
-    let mut path = Vec::new();
-    for member in members.into_iter().rev() {
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(reference)
-        else {
-            return None;
-        };
-        let data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)?;
-        let field = crate::value_custody::places::exact_data_member_field(
-            program,
-            data,
-            member.member_symbol,
-            member.member.as_str(),
-            member.case_variant.as_ref().map(|case| case.as_str()),
-        )?;
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned()),
-        ));
-        reference = field.type_reference;
-    }
+    let (mut path, reference) =
+        declared_field_path(program, local.type_reference, members.into_iter().rev())?;
     if program.normalized_type_identity(reference) != program.normalized_type_identity(destination)
     {
         return None;
@@ -1162,7 +1212,16 @@ pub fn result_loan(
         .expression_table
         .expression_handles(expression.arguments)
         .get(position)?;
-    let ExpressionNode::Name(actual) = program.expression_table.expression(argument) else {
+    // A declared-field projection may select the argument carrier out of an
+    // owned record local: `input.inner` moves the whole `inner` subtree.
+    // Index, case-payload and computed roots stay opaque to leaf custody.
+    let mut members = Vec::new();
+    let mut root = argument;
+    while let ExpressionNode::Member(member) = program.expression_table.expression(root) {
+        members.push(member);
+        root = member.receiver;
+    }
+    let ExpressionNode::Name(actual) = program.expression_table.expression(root) else {
         return None;
     };
     if actual.head_symbol != actual.symbol
@@ -1175,9 +1234,10 @@ pub fn result_loan(
         return None;
     }
     let expected_root = if let Some((_, leaf_source)) = leaf {
-        // The argument is an owned record local; the returned leaf's loan is
-        // the exact captured leaf loan from its construction, and this call
-        // is that loan's last use.
+        // The argument is an owned record local, possibly through one
+        // declared-field projection; the returned leaf's loan is the exact
+        // captured leaf loan under that projection, and this call is that
+        // loan's last use.
         let [
             path @ ..,
             checked_trees::CheckedUnitStructuralPathSegment::Referent,
@@ -1199,18 +1259,26 @@ pub fn result_loan(
         if input.is_mutable
             || index >= call.statement_index
             || !is_reference_record(program, input.type_reference)
-            || program
-                .state_parameters(callee)
-                .get(position)
-                .is_none_or(|parameter| {
-                    program.normalized_type_identity(parameter.type_reference)
-                        != program.normalized_type_identity(input.type_reference)
-                })
         {
             return None;
         }
+        let (mut selected_path, projected) =
+            declared_field_path(program, input.type_reference, members.iter().rev().copied())?;
+        if program
+            .state_parameters(callee)
+            .get(position)
+            .is_none_or(|parameter| {
+                program.normalized_type_identity(parameter.type_reference)
+                    != program.normalized_type_identity(projected)
+            })
+        {
+            return None;
+        }
+        selected_path.extend(path.iter().cloned());
         let loans = local_record_loans(program, facts, machine, state, u32::try_from(index).ok()?)?;
-        let mut matching = loans.iter().filter(|(source, _)| source.path == path);
+        let mut matching = loans
+            .iter()
+            .filter(|(source, _)| source.path == selected_path);
         let (_, leaf_loan) = matching.next()?;
         if matching.next().is_some() {
             return None;
@@ -1221,14 +1289,16 @@ pub fn result_loan(
         }
         leaf_loan.root_symbol
     } else {
-        if !program.state_parameters(state).iter().any(|parameter| {
-            parameter.symbol == actual.symbol
-                && !parameter.is_const
-                && !parameter.is_self
-                && parts(program, parameter.type_reference).is_some()
-                && program.normalized_type_identity(parameter.type_reference)
-                    == program.normalized_type_identity(local.type_reference)
-        }) {
+        if !members.is_empty()
+            || !program.state_parameters(state).iter().any(|parameter| {
+                parameter.symbol == actual.symbol
+                    && !parameter.is_const
+                    && !parameter.is_self
+                    && parts(program, parameter.type_reference).is_some()
+                    && program.normalized_type_identity(parameter.type_reference)
+                        == program.normalized_type_identity(local.type_reference)
+            })
+        {
             return None;
         }
         actual.symbol

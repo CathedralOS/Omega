@@ -35,7 +35,7 @@ pub(super) fn validate_structural_argument(
         borrowed_call,
         ordinary_call,
         result_projection,
-        ..
+        reference_result_call,
     } = *shape;
     if argument.path.contains(&StructuralPathSegment::Referent) {
         if matches!(call_kind, Some(OperationKind::BoundaryCall { .. })) {
@@ -241,6 +241,21 @@ pub(super) fn validate_structural_argument(
                                             } else {
                                                 StructuralMultiplicity::Affine
                                             }
+                                            && !expected.is_self
+                                            && expected.qualifications.is_empty()
+                                            && expected.projected_qualifications.is_empty()
+                                    }
+                                    // A constructed record reaches a
+                                    // reference-result call through one
+                                    // projected owned subtree: the call's
+                                    // result source map rejoins the exact
+                                    // leaf loans under that edge.
+                                    OperationKind::EstablishRecord { .. } => {
+                                        reference_result_call
+                                            && argument.access == StructuralAccess::Owned
+                                            && expected.access == argument.access
+                                            && expected.multiplicity
+                                                == StructuralMultiplicity::Affine
                                             && !expected.is_self
                                             && expected.qualifications.is_empty()
                                             && expected.projected_qualifications.is_empty()

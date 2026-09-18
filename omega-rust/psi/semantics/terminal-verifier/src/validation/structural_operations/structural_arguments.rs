@@ -96,13 +96,18 @@ pub(crate) fn linear_call_result(
 
 /// What the call's kind implies for every argument: the operation kind at
 /// the call site, whether it is a Unit call, a borrowed call, an ordinary
-/// call under the source policy, and whether results may be projected.
+/// call under the source policy, whether results may be projected, and
+/// whether the call's own result is a live reference roster.
 #[derive(Clone, Copy)]
 pub(super) struct CallShape<'a> {
     pub(super) call_kind: Option<&'a OperationKind>,
     pub(super) borrowed_call: bool,
     pub(super) ordinary_call: bool,
     pub(super) result_projection: bool,
+    /// The call returns reference custody, so its owned operands may name a
+    /// declared-field subtree of a result carrier: the callee's published
+    /// result source map rejoins each leaf loan under that exact projection.
+    pub(super) reference_result_call: bool,
 }
 
 pub(crate) fn validate_structural_arguments(
@@ -114,12 +119,12 @@ pub(crate) fn validate_structural_arguments(
     allow_projected: bool,
     source_policy: StructuralArgumentSourcePolicy,
 ) -> Result<(), ModuleError> {
-    let call_kind = caller
+    let call_operation = caller
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .find(|candidate| candidate.id == operation)
-        .map(|candidate| &candidate.kind);
+        .find(|candidate| candidate.id == operation);
+    let call_kind = call_operation.map(|candidate| &candidate.kind);
     let unit_call = matches!(call_kind, Some(OperationKind::CallUnit { .. }));
     let borrowed_call = matches!(
         call_kind,
@@ -141,12 +146,18 @@ pub(crate) fn validate_structural_arguments(
                     | OperationKind::CallStructuralWithScalarArguments { .. }
             )
         ));
-    let result_projection = allow_projected && unit_call;
+    let reference_result_call = call_operation
+        .and_then(|candidate| candidate.result.structural())
+        .is_some_and(|result| {
+            crate::validation::references::contains_reference(module, result.structural_type)
+        });
+    let result_projection = allow_projected && (unit_call || reference_result_call);
     let shape = CallShape {
         call_kind,
         borrowed_call,
         ordinary_call,
         result_projection,
+        reference_result_call,
     };
     if arguments.len() != expected.len() {
         return Err(ModuleError::StructuralArgumentArityMismatch {

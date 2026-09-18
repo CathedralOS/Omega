@@ -216,6 +216,30 @@ struct Producer<'plan> {
     construction_source: Option<checked_trees::CheckedArrayConstructionSource>,
 }
 
+/// A bare reference result's retained leaf loan proves a projected owned
+/// operand's subtree custody independently: `validate_custody` and the release
+/// boundary replay that loan against typed evidence, and the carrier's
+/// residual still dies at its own return drop. The projection must therefore
+/// name declared field edges only; referent and index projections keep the
+/// ordinary continuation-cleanup route.
+fn loaned_record_projection(
+    operation: &CheckedUnitEffectOperationPlan,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> bool {
+    !argument.path.is_empty()
+        && matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralCall { custody, .. }
+                if custody.reference_loan.is_valid()
+        )
+        && argument.path.iter().all(|segment| {
+            matches!(
+                segment,
+                checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+            )
+        })
+}
+
 impl Producer<'_> {
     fn precedes_consumer(&self, coordinate: checked_trees::CheckedUnitCallCoordinate) -> bool {
         if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
@@ -312,6 +336,10 @@ pub(crate) fn validate_usage(
     let mut consumed = false;
     let mut disposed = false;
     let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
+    // Every projected move under a still return-dropped carrier must carry
+    // its own proven leaf loan; a single unloaned projection revives the
+    // ordinary residual-continuation requirement.
+    let mut projected_residual_loaned = true;
     for (operation_index, operation) in
         caller
             .operations
@@ -669,7 +697,8 @@ pub(crate) fn validate_usage(
                 continue;
             }
             if !argument.path.is_empty() {
-                if !matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                let loaned = loaned_record_projection(operation, argument);
+                if !(matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }) || loaned)
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || result.multiplicity != Multiplicity::Affine
                     || projected_paths.iter().any(|earlier| {
@@ -681,6 +710,7 @@ pub(crate) fn validate_usage(
                     );
                 }
                 projected_paths.push(&argument.path);
+                projected_residual_loaned &= loaned;
                 continue;
             }
             if !projected_paths.is_empty()
@@ -739,7 +769,7 @@ pub(crate) fn validate_usage(
         };
     }
     if (projected_paths.is_empty() && producer.discard == (consumed || disposed))
-        || (!projected_paths.is_empty() && producer.discard)
+        || (!projected_paths.is_empty() && producer.discard && !projected_residual_loaned)
         || (producer.coordinate.call_ordinal != 0
             && !consumed
             && projected_paths.is_empty()
@@ -1189,7 +1219,9 @@ pub(crate) fn validate_consumer(
         let producer = producer(&caller.operations, binding_ordinal)?;
         let result = producer.result;
         let source_order = producer.precedes_consumer(*coordinate);
-        if (producer.discard && argument.access == checked_trees::CheckedStructuralAccess::Owned)
+        if (producer.discard
+            && argument.access == checked_trees::CheckedStructuralAccess::Owned
+            && !loaned_record_projection(operation, argument))
             || producer.operation_index >= operation_index
             || !source_order
             || matches!(operation, CheckedUnitEffectOperationPlan::StructuralCall { result: consumer, .. }
@@ -1210,7 +1242,8 @@ pub(crate) fn validate_consumer(
             || (argument.path.is_empty() && argument.type_identity != result.type_identity)
             || parameter.type_identity != argument.type_identity
             || (!argument.path.is_empty()
-                && (!matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                && (!(matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                    || loaned_record_projection(operation, argument))
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned))
             || !matches!(
                 argument.access,

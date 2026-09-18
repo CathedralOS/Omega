@@ -6,6 +6,7 @@ use crate::execution::terminal_unit::byte_subslice;
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_scalar_arguments,
     ordinary_projected_call_is_supported, projected_argument_path,
+    target_contract_mentions_projected_parameter,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, boundary_value_result_matches,
@@ -497,7 +498,7 @@ pub(in crate::execution) fn build_call_operation(
     if !boundary && target_machine.supply_mode != MachineSupplyMode::CheckedBody {
         return None;
     }
-    let structural_arguments = structural_call_arguments(
+    let Some(structural_arguments) = structural_call_arguments(
         program,
         facts,
         scalar_callees,
@@ -514,7 +515,9 @@ pub(in crate::execution) fn build_call_operation(
         true,
         allow_field_path_projection,
         caller_structural_results,
-    )?;
+    ) else {
+        return None;
+    };
     // The callee's retained scalar positions: the same authored indices its
     // own signature plan keeps, so the erased position is absent on both
     // sides and `checked_call_scalar_arguments` pairs the caller's dense
@@ -582,6 +585,14 @@ pub(in crate::execution) fn build_call_operation(
                 target_state,
                 &structural_arguments,
                 allow_field_path_projection,
+            ) || projected_reference_record_operands_supported(
+                program,
+                facts,
+                machine,
+                state,
+                target_machine,
+                target_state,
+                &structural_arguments,
             )
         };
         if !supported {
@@ -631,7 +642,7 @@ pub(in crate::execution) fn build_call_operation(
         *retained = custody;
         return Some(operation);
     }
-    let transfers = call_claim_transfers(
+    let Some(transfers) = call_claim_transfers(
         facts,
         machine.symbol,
         state.symbol,
@@ -644,7 +655,9 @@ pub(in crate::execution) fn build_call_operation(
         } else {
             PermissionEventKind::Transfer
         },
-    )?;
+    ) else {
+        return None;
+    };
 
     if boundary {
         Some(CheckedUnitEffectOperationPlan::BoundaryCall {
@@ -665,26 +678,28 @@ pub(in crate::execution) fn build_call_operation(
         )
         .is_some()
         {
-            crate::execution::terminal_unit::reference_results::result_loan(
+            let Some(loan) = crate::execution::terminal_unit::reference_results::result_loan(
                 program,
                 facts,
                 machine.symbol,
                 state,
                 call,
                 result,
-            )?
+            ) else {
+                return None;
+            };
+            loan
         } else {
             arena::Handle::invalid()
         };
         // A result signature is available before its ordinary or graph body plan.
         // The closure pass below retains this call only when that complete body
         // was produced, avoiding an authored machine-order dependency.
-        if structural_arguments
+        let args_ok = structural_arguments
             .iter()
             .enumerate()
             .all(|(argument_index, argument)| {
                 if argument.access == CheckedStructuralAccess::Owned
-                    && argument.path.is_empty()
                     && (argument.source_parameter_index().is_some()
                         || argument
                             .source_structural_result_binding_ordinal()
@@ -714,6 +729,25 @@ pub(in crate::execution) fn build_call_operation(
                                 ))
                                 && base_type_identity(program, parameter.type_reference, &[])
                                     .is_some_and(|identity| identity == argument.type_identity)
+                                // A projected owned operand names the exact
+                                // declared-field subtree whose captured leaf the
+                                // bare reference result loan already replayed.
+                                // Without that proven leaf custody the whole
+                                // carrier spelling stays mandatory.
+                                && (argument.path.is_empty()
+                                    || (reference_loan.is_valid()
+                                        && validation::reference_result_custody::is_reference_record(
+                                            program,
+                                            parameter.type_reference,
+                                        )
+                                        && argument.path.iter().all(|segment| {
+                                            matches!(
+                                                segment,
+                                                checked_trees::CheckedUnitStructuralPathSegment::Field(
+                                                    _
+                                                )
+                                            )
+                                        })))
                         })
                 {
                     return true;
@@ -729,7 +763,8 @@ pub(in crate::execution) fn build_call_operation(
                         CheckedStructuralAccess::SharedBorrow
                             | CheckedStructuralAccess::MutableBorrow
                     )
-            })
+            });
+        if args_ok
             && transfers.is_empty()
             && (reference_loan.is_valid()
                 || crate::execution::terminal_unit::reference_results::is_reference_record(
@@ -851,4 +886,94 @@ pub(in crate::execution) fn build_call_operation(
             claim_transfers: transfers,
         })
     }
+}
+
+/// A projected owned operand may select one declared-field subtree out of an
+/// earlier structural result when the target parameter is a reference-bearing
+/// record. Argument construction already replayed every captured leaf loan
+/// under that edge, and the bare reference result's loan re-derives the same
+/// ingress at the consuming call, so the projected path admits here.
+fn projected_reference_record_operands_supported(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
+    target_machine: &typed_trees::machine::Machine,
+    target_state: &typed_trees::state::State,
+    arguments: &[CheckedUnitStructuralArgumentPlan],
+) -> bool {
+    if target_machine.supply_mode != MachineSupplyMode::CheckedBody {
+        return false;
+    }
+    let target_parameters = program
+        .state_parameters(target_state)
+        .iter()
+        .filter(|parameter| {
+            !parameter.relevance.is_erased()
+                && !(parameter.is_self && is_reference(program, parameter.type_reference))
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .collect::<Vec<_>>();
+    if target_parameters.len() != arguments.len()
+        || arguments.iter().all(|argument| argument.path.is_empty())
+    {
+        return false;
+    }
+    let has_content_evidence = |machine, state| {
+        facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .iter()
+            .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+            || facts
+                .qualifications
+                .content
+                .partition_compositions
+                .iter()
+                .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+    };
+    if has_content_evidence(caller_machine.symbol, caller_state.symbol)
+        || has_content_evidence(target_machine.symbol, target_state.symbol)
+        || arguments
+            .iter()
+            .zip(&target_parameters)
+            .any(|(argument, parameter)| {
+                !argument.path.is_empty()
+                    && target_contract_mentions_projected_parameter(
+                        program,
+                        facts,
+                        target_machine,
+                        target_state,
+                        parameter,
+                    )
+            })
+    {
+        return false;
+    }
+    arguments
+        .iter()
+        .zip(&target_parameters)
+        .all(|(argument, target)| {
+            argument.path.is_empty()
+                || (argument
+                    .source_structural_result_binding_ordinal()
+                    .is_some()
+                    && argument.access == CheckedStructuralAccess::Owned
+                    && argument.path.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                        )
+                    })
+                    && !target.is_self
+                    && validation::reference_result_custody::is_reference_record(
+                        program,
+                        target.type_reference,
+                    )
+                    && base_type_identity(program, target.type_reference, &[])
+                        .is_some_and(|identity| identity == argument.type_identity))
+        })
 }

@@ -110,20 +110,51 @@ pub(super) fn argument(
     let projected = !place.segments.is_empty();
     let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;
-    let owned_reference_record = !projected
-        && access == CheckedStructuralAccess::Owned
+    // A projected owned-record operand carries its subtree's captured leaves
+    // into the call; the same resolved path both proves that custody and
+    // names the argument's projected edge below.
+    let projected_path = if projected && access == CheckedStructuralAccess::Owned {
+        projected_argument_path_with_identity(
+            program,
+            state,
+            call.statement_index,
+            place,
+            target_identity,
+        )
+    } else {
+        None
+    };
+    let owned_reference_record = access == CheckedStructuralAccess::Owned
         && validation::reference_result_custody::is_reference_record(
             program,
             parameter.type_reference,
         )
-        && validation::reference_result_custody::owned_record_argument(
-            program,
-            facts,
-            machine,
-            source_state,
-            u32::try_from(call.statement_index).ok()?,
-            result.statement_index,
-        );
+        && if projected {
+            projected_path.as_deref().is_some_and(|path| {
+                u32::try_from(call.statement_index)
+                    .ok()
+                    .is_some_and(|index| {
+                        validation::reference_result_custody::projected_record_argument(
+                            program,
+                            facts,
+                            machine,
+                            source_state,
+                            index,
+                            result.statement_index,
+                            path,
+                        )
+                    })
+            })
+        } else {
+            validation::reference_result_custody::owned_record_argument(
+                program,
+                facts,
+                machine,
+                source_state,
+                u32::try_from(call.statement_index).ok()?,
+                result.statement_index,
+            )
+        };
     // A whole linear result carries the producer's live claim, not affine
     // cleanup debt. Its exact qualification and transfer events must agree
     // with the consumer; projected and borrowed claim joins remain separate.
@@ -142,16 +173,11 @@ pub(super) fn argument(
         return None;
     }
     let path = if projected {
-        if !allow_projection || access != CheckedStructuralAccess::Owned {
+        if access != CheckedStructuralAccess::Owned || !(allow_projection || owned_reference_record)
+        {
             return None;
         }
-        projected_argument_path_with_identity(
-            program,
-            state,
-            call.statement_index,
-            place,
-            target_identity,
-        )?
+        projected_path?
     } else {
         Vec::new()
     };
@@ -362,60 +388,78 @@ pub(super) fn argument(
             access,
         });
     }
-    let mut events = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-        .filter(|event| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.source
-                    == PermissionEventSource::Call {
-                        statement_index: call.statement_index,
-                        call_ordinal: call.call_ordinal,
-                        target_symbol: call.target_symbol,
-                    }
-                && event.root == place.root
-                && event.access == PermissionAccess::Owned
-                && (linear
-                    || facts.flow.ownership.segments.span_or_empty(event.segments)
-                        == place.segments.as_slice())
-        });
-    let event = events.next()?;
-    // Non-self owned parameters transfer custody even at direct or nominal
-    // boundaries. Consume events describe terminal self/claim settlement, not
-    // an ordinary value handoff. Linear handoffs retain a known live claim;
-    // affine handoffs have neither a claim identity nor a live obligation.
-    if linear {
-        // Moving one whole aggregate transfers every live claim below it.
-        // This operand check establishes typed source events; the enclosing
-        // call's custody replay joins their complete paths and identities to
-        // the callee entry/outcome set before retaining the operation.
-        let mut claims = Vec::new();
-        for event in std::iter::once(event).chain(events) {
-            let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
-            if event.kind != PermissionEventKind::Transfer
-                || event.multiplicity != Multiplicity::Linear
-                || event.claim_identity == PermissionClaimIdentity::Unknown
-                || !event.obligation_live
-                || segments.len() != event.segments.len()
-                || claims.contains(&event.claim_identity)
-                || validation::structural_claim_path(program, parameter.type_reference, segments)
+    // A projected owned reference-record operand moves a subtree, not its
+    // still-live root, so permission production records no place-move event
+    // for it: `projected_affine` publishes projected transfer events only for
+    // plain affine contents, while a reference-bearing subtree's custody lives
+    // in its leaf-loan roster. `projected_record_argument` above already
+    // proved every captured leaf under this edge stays live until this
+    // consuming statement, and the bare reference result's `result_loan`
+    // replay pins the call as that leaf's last use; requiring the absent
+    // whole-place event here would double-count custody the loans carry.
+    if !(projected && owned_reference_record) {
+        let mut events = facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .filter(|event| {
+                event.machine_symbol == machine
+                    && event.state_symbol == state
+                    && event.source
+                        == PermissionEventSource::Call {
+                            statement_index: call.statement_index,
+                            call_ordinal: call.call_ordinal,
+                            target_symbol: call.target_symbol,
+                        }
+                    && event.root == place.root
+                    && event.access == PermissionAccess::Owned
+                    && (linear
+                        || facts.flow.ownership.segments.span_or_empty(event.segments)
+                            == place.segments.as_slice())
+            });
+        let Some(event) = events.next() else {
+            return None;
+        };
+        // Non-self owned parameters transfer custody even at direct or
+        // nominal boundaries. Consume events describe terminal self/claim
+        // settlement, not an ordinary value handoff. Linear handoffs retain a
+        // known live claim; affine handoffs have neither a claim identity nor
+        // a live obligation.
+        if linear {
+            // Moving one whole aggregate transfers every live claim below it.
+            // This operand check establishes typed source events; the enclosing
+            // call's custody replay joins their complete paths and identities to
+            // the callee entry/outcome set before retaining the operation.
+            let mut claims = Vec::new();
+            for event in std::iter::once(event).chain(events) {
+                let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
+                if event.kind != PermissionEventKind::Transfer
+                    || event.multiplicity != Multiplicity::Linear
+                    || event.claim_identity == PermissionClaimIdentity::Unknown
+                    || !event.obligation_live
+                    || segments.len() != event.segments.len()
+                    || claims.contains(&event.claim_identity)
+                    || validation::structural_claim_path(
+                        program,
+                        parameter.type_reference,
+                        segments,
+                    )
                     .is_err()
-            {
-                return None;
+                {
+                    return None;
+                }
+                claims.push(event.claim_identity);
             }
-            claims.push(event.claim_identity);
+        } else if events.next().is_some()
+            || event.kind != PermissionEventKind::Transfer
+            || event.multiplicity != result.multiplicity
+            || event.claim_identity != PermissionClaimIdentity::Unknown
+            || event.obligation_live
+        {
+            return None;
         }
-    } else if events.next().is_some()
-        || event.kind != PermissionEventKind::Transfer
-        || event.multiplicity != result.multiplicity
-        || event.claim_identity != PermissionClaimIdentity::Unknown
-        || event.obligation_live
-    {
-        return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {

@@ -1058,9 +1058,7 @@ pub(super) fn apply_operation(
     let mut moved = BTreeSet::new();
     for argument in arguments {
         if argument_owns_references(module, machine, argument) {
-            if !argument.path.is_empty()
-                || matches!(operation.kind, OperationKind::BoundaryCall { .. })
-            {
+            if matches!(operation.kind, OperationKind::BoundaryCall { .. }) {
                 return Err(invalid(
                     machine,
                     "reference-bearing owned calls require a whole internal argument",
@@ -1069,17 +1067,46 @@ pub(super) fn apply_operation(
             let signature =
                 super::structural_result_contracts::source_signature(machine, argument.place)
                     .ok_or_else(|| invalid(machine, "owned reference argument has no source"))?;
-            let paths =
-                leaf_paths(module, signature.structural_type, live.len()).ok_or_else(|| {
-                    invalid(
-                        machine,
-                        "owned argument reference roster exceeds live custody",
-                    )
-                })?;
+            // A projected owned argument moves the complete leaf roster of
+            // the declared record subtree it names: every edge must resolve
+            // as a plain field, so an index or referent hop keeps the
+            // whole-carrier requirement. Custody outside the moved subtree
+            // stays with the carrier for the frontier's residual cleanup.
+            let projected_type = if argument.path.is_empty() {
+                Some(signature.structural_type)
+            } else {
+                argument
+                    .path
+                    .iter()
+                    .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+                    .then(|| {
+                        super::resolve_structural_path(
+                            module,
+                            signature.structural_type,
+                            &argument.path,
+                        )
+                    })
+                    .flatten()
+            }
+            .ok_or_else(|| {
+                invalid(
+                    machine,
+                    "projected reference argument path is not a declared record edge",
+                )
+            })?;
+            let paths = leaf_paths(module, projected_type, live.len()).ok_or_else(|| {
+                invalid(
+                    machine,
+                    "owned argument reference roster exceeds live custody",
+                )
+            })?;
             if paths.len()
                 != live
                     .iter()
-                    .filter(|reference| reference.carrier == argument.place)
+                    .filter(|reference| {
+                        reference.carrier == argument.place
+                            && reference.carrier_path.starts_with(argument.path.as_slice())
+                    })
                     .count()
             {
                 return Err(invalid(
@@ -1088,10 +1115,13 @@ pub(super) fn apply_operation(
                 ));
             }
             for path in paths {
+                let mut carrier_path = argument.path.clone();
+                carrier_path.extend(path);
                 let reference = live
                     .iter()
                     .find(|reference| {
-                        reference.carrier == argument.place && reference.carrier_path == path
+                        reference.carrier == argument.place
+                            && reference.carrier_path == carrier_path
                     })
                     .ok_or_else(|| invalid(machine, "owned argument reference leaf is not live"))?;
                 // Abstract callee ingress promises independently available

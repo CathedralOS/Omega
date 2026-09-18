@@ -598,11 +598,8 @@ pub(crate) fn validate_transfer_shape(
             continue;
         }
         if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
-            let source = structural_result_source(
-                caller_structural_results,
-                binding_ordinal,
-                argument.access,
-            )?;
+            let source =
+                structural_result_source(caller_structural_results, binding_ordinal, argument)?;
             let StructuralPlaceKind::OperationResult {
                 structural_type, ..
             } = source.kind
@@ -973,7 +970,7 @@ pub(crate) fn lower_structural_arguments(
                 });
             }
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
-                let source = structural_result_source(structural_results, binding_ordinal, argument.access)?;
+                let source = structural_result_source(structural_results, binding_ordinal, argument)?;
                 return Ok(StructuralArgument {
                     place: source.id,
                     path: lower_structural_path(&argument.path),
@@ -1025,11 +1022,11 @@ pub(crate) fn lower_structural_arguments(
         })
 }
 
-fn structural_result_source(
-    results: &[(StructuralPlaceDeclaration, bool)],
+fn structural_result_source<'results>(
+    results: &'results [(StructuralPlaceDeclaration, bool)],
     binding_ordinal: u32,
-    access: checked_trees::CheckedStructuralAccess,
-) -> Result<&StructuralPlaceDeclaration, LoweringError> {
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> Result<&'results StructuralPlaceDeclaration, LoweringError> {
     let (source, discard) = results
         .get(usize::try_from(binding_ordinal).map_err(|_| {
             LoweringError::Unsupported("Unit structural result binding ordinal exceeds usize")
@@ -1037,7 +1034,13 @@ fn structural_result_source(
         .ok_or(LoweringError::Unsupported(
             "Unit structural result binding is not produced",
         ))?;
-    if (*discard && access == checked_trees::CheckedStructuralAccess::Owned)
+    // A whole owned move must not come from a result still marked for its
+    // return drop. A projected owned move is different: the subtree's custody
+    // was proven upstream (the bare reference result's leaf loan), and the
+    // carrier's residual legitimately keeps that return drop.
+    if (*discard
+        && argument.access == checked_trees::CheckedStructuralAccess::Owned
+        && argument.path.is_empty())
         || !matches!(source.kind, StructuralPlaceKind::OperationResult { .. })
     {
         return unsupported("Unit structural result argument disagrees with its producer cleanup");
