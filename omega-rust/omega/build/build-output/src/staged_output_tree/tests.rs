@@ -29,7 +29,9 @@ impl Session {
     }
 
     fn destination(&self, label: &str) -> PathBuf {
-        let destination = self.0.join(label);
+        // Labels name cases (`commitment::foreign-tree`); a colon is not a
+        // valid Windows path character, so the directory takes a dash.
+        let destination = self.0.join(label.replace(':', "-"));
         std::fs::create_dir(&destination).expect("create empty destination");
         destination
     }
