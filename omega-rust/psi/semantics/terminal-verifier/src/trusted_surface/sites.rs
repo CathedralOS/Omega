@@ -85,6 +85,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         module: "indexed_schemes",
     },
     TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients/quotient_derived.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients.rs",
+        module: "quotient_derived",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients/quotient_schemes.rs",
         parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients.rs",
         module: "quotient_schemes",
@@ -274,12 +279,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/lib.rs",
-        sha256: Some("af7c2755f7097dab8cc5aab260f8a41034e683230ea0190b10482eabd1bf0f1c"),
+        sha256: Some("da17575482db2750ac6ea68d86a04eae0887e7e0bf14e79bd75f5944294b7dbd"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core.rs",
-        sha256: Some("19273e6de49cfcf5dc5a491cac46d44bf67bd6618b6b8b940298a19bf664c550"),
+        sha256: Some("ceba4d99eedd93996fd37b9b99065b5d360c7f8abeb3304cf593dda20d41e571"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -304,12 +309,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/quotient.rs",
-        sha256: Some("05a720319cecaf915ef24a671fec2a021a9685af5c3171bd31af9dd7863ac8cd"),
+        sha256: Some("827d583d57882acdb0bdb75b3f67a545538f770e25d288007a7fae222efea064"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/scheme_dsl.rs",
-        sha256: Some("79df9821bfe6a9bb0a2f2e485a7e33464801ea2ee9a04ff50475de1c86b3914c"),
+        sha256: Some("26f1607b07c7543e13520ef8f1ac172ce181b2ea0784057d9c834a973d57850d"),
         inventory_machinery: false,
     },
     ImplementationSite {

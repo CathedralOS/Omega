@@ -503,8 +503,8 @@ rows! {
         "formation:crash-entry-requirements",
         SharedFormation,
         "a machine's declared entry requirements: integer-order and order-chain requirements",
-        "entry requirements validate independently so a ranked machine's crash guards can be proved without all-path invariants",
-        &["formation:crash-validation"],
+        "entry requirements validate independently so a ranked machine's crash guards can be proved without all-path invariants; each found requirement certificate is accepted by the certificate checker, whose covered decisions the mathematical-core kernel re-decides",
+        &["formation:crash-validation", "formation:mathematical-core"],
         &[tv!( "validation/crash/entry_requirements.rs"), tv!( "validation/crash/entry_requirements/integer_order.rs"), tv!( "validation/crash/entry_requirements/order_chain.rs")]
     );
     FORM_BLOCK_INVARIANTS => (

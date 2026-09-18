@@ -292,6 +292,7 @@ static FACT_BOOLEAN_POLARITY: TrustedSurfaceEntry = TrustedSurfaceEntry {
         "rule:predicate-denotation",
         "rule:equality-transitivity",
         "rule:implication-introduction",
+        "formation:mathematical-core",
     ],
     implementation: &[
         OP_FACTS_POLARITY,
@@ -517,6 +518,7 @@ static FACT_BRANCH_CONDITION_TRANSPORT: TrustedSurfaceEntry = TrustedSurfaceEntr
         "rule:value-equality-transport",
         "rule:semantic-axiom",
         "rule:assumption",
+        "formation:mathematical-core",
     ],
     implementation: &[PATH_FACTS_CONDITIONS],
     soundness: SoundnessStatus::Proved {
