@@ -24,20 +24,73 @@ pub(super) fn endpoints_formed(
     range: &typed_trees::expression::TableRangeExpression,
 ) -> Option<()> {
     for endpoint in [range.start, range.end] {
-        if projected_type(program, state, endpoint).is_some_and(|reference| {
-            exact_integer_parameter(program, reference) == Some(PrimitiveType::U64)
-        }) {
-            // An exact immutable field read performs no endpoint arithmetic.
-            continue;
+        if !endpoint_statically_formed(program, machine, state, endpoint) {
+            return None;
         }
-        if parameter(program, state, endpoint).is_some_and(|parameter| {
-            exact_integer_parameter(program, parameter.type_reference).is_some()
-        }) {
-            continue;
-        }
-        crate::immutable_integer_expression_bounds(program, machine, state, endpoint)?;
     }
     Some(())
+}
+
+/// Whether `endpoint` is known to land inside its carrier without reading any
+/// live edge hypothesis. An exact immutable u64 field read performs no
+/// arithmetic; a bare exact integer formal is already a carrier value; any
+/// other authored expression must land on declaration bounds alone. An
+/// endpoint that fails this is not malformed -- it only owes the edge judgment
+/// a flow-dependent formation proof under that edge's installed hypotheses
+/// ([`endpoint_lands_under`]).
+pub(super) fn endpoint_statically_formed(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    endpoint: ExpressionHandle,
+) -> bool {
+    if projected_type(program, state, endpoint).is_some_and(|reference| {
+        exact_integer_parameter(program, reference) == Some(PrimitiveType::U64)
+    }) {
+        return true;
+    }
+    if parameter(program, state, endpoint).is_some_and(|parameter| {
+        exact_integer_parameter(program, parameter.type_reference).is_some()
+    }) {
+        return true;
+    }
+    crate::immutable_integer_expression_bounds(program, machine, state, endpoint).is_some()
+}
+
+/// Prove `endpoint` lands inside its exact integer carrier under the engine's
+/// already-installed hypotheses. `polynomial` is that endpoint normalized in
+/// the edge's own namespace, so a requires or constrained-parameter fact that
+/// bounds a leaf reaches the result. This is the arithmetic proof the
+/// declaration-interval owner cannot see: a computed endpoint such as
+/// `record.limit + 1` forms whenever the hypotheses bound `record.limit`, not
+/// only when the field's store range does.
+pub(super) fn endpoint_lands_under(
+    engine: &Engine<'_>,
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    endpoint: ExpressionHandle,
+    polynomial: &Polynomial,
+) -> bool {
+    let carrier = match super::meanings::builtin(program, machine, state, endpoint, 0) {
+        // An anonymous endpoint is a closed value and already landed.
+        Some(None) => return true,
+        Some(Some(reference)) => reference,
+        // A non-builtin endpoint never reaches normalization; the template
+        // admission rejected it before this judgment ran.
+        None => return false,
+    };
+    let Some(primitive) = exact_integer_parameter(program, carrier) else {
+        return false;
+    };
+    let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive) else {
+        return false;
+    };
+    let prove = |difference: Polynomial| {
+        engine.prove_at_least(&engine.substituted(&difference), &BigInt::zero())
+    };
+    prove(polynomial.sub(&Polynomial::constant(minimum)))
+        && prove(Polynomial::constant(maximum).sub(polynomial))
 }
 
 /// One `u64` field reached from a state formal through an exact chain of

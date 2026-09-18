@@ -822,6 +822,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/measure_field_relational_range",
     "termination/measure_field_pinned_limit",
     "termination/measure_field_computed_limit",
+    "termination/measure_field_flow_bound_limit",
     "termination/measure_field_remainder_limit",
     "termination/rank_range_state_cycle",
     "termination/lexicographic_state_call",
