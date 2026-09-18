@@ -10,8 +10,11 @@ pub(crate) struct SelectedComparison {
 }
 
 /// The exact selected Terminal meaning of one comparison use. Each meaning
-/// emits exactly one operation whose operand order is the authored operand
-/// order and records the matching occurrence row beside it.
+/// emits one comparison operation and records the matching occurrence row
+/// beside it. IEEE comparisons carry their operation identity and therefore
+/// always keep the authored operand order; integer comparisons additionally
+/// name where that operation reads the authored operands and whether the
+/// authored meaning negates it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SelectedComparisonMeaning {
     IeeeFloat {
@@ -20,6 +23,8 @@ pub(crate) enum SelectedComparisonMeaning {
     },
     Integer {
         comparison: lowered_psi::LoweredSelectedIntegerComparisonOperation,
+        operand_order: lowered_psi::LoweredSelectedIntegerComparisonOperandOrder,
+        negated: bool,
         integer_type: semantic_vocabulary::IntegerType,
     },
 }

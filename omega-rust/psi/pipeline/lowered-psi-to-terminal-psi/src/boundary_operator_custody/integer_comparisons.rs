@@ -12,7 +12,7 @@ pub(super) fn replay(
     lowered: &LoweredPsi,
     occurrences: &mut Vec<CheckedBoundaryOperatorApplicationOccurrence>,
 ) -> Result<(), &'static str> {
-    // Unlike `IeeeFloatCompare`, the three authored-order integer comparison
+    // Unlike `IeeeFloatCompare`, the three Terminal integer comparison
     // operations are also emitted for builtin comparisons, so the Terminal
     // roster cannot count which of them were selected: a builtin `==` and an
     // unrecorded selected one look the same from the artifact. Every recorded
@@ -30,13 +30,20 @@ pub(super) fn replay(
             return unsupported("integer comparison lost its checked operator occurrence");
         }
         let operator_use = checked.facts.operators.uses.get(comparison.operator_use);
+        // The admitted roster is the producer's own, so a row claiming an
+        // operand mapping or a negation the authored spelling never emits is
+        // foreign even when it names a real operation with real operands.
         let selected_meaning = checked
             .facts
             .operators
             .selected_integer_comparison(&checked.typed, comparison.operator_use)
             .and_then(|(operation, primitive)| {
+                let (emitted, operand_order, negated) =
+                    LoweredSelectedIntegerComparisonOperation::admitted_emission(operation)?;
                 Some((
-                    authored_order_operation(operation)?,
+                    emitted,
+                    operand_order,
+                    negated,
                     integer_scalar_type(primitive)?,
                 ))
             });
@@ -46,18 +53,24 @@ pub(super) fn replay(
             || operator_use.provider_plan_commitment != comparison.provider_plan_commitment
             || comparison.provider_plan_commitment.is_empty()
             || operator_use.operands(&checked.typed).is_none()
-            || selected_meaning != Some((comparison.comparison, expected))
+            || selected_meaning
+                != Some((
+                    comparison.comparison,
+                    comparison.operand_order,
+                    comparison.negated,
+                    expected,
+                ))
         {
             return unsupported("integer comparison changed its exact selected application");
         }
         let mut matching_operations = 0;
+        let mut comparison_result = None;
         for machine in &lowered.semantic_module.machines {
             if machine.id != comparison.terminal_machine {
                 continue;
             }
             for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
-                let Some((left, right)) =
-                    authored_order_operands(&operation.kind, comparison.comparison)
+                let Some((left, right)) = emitted_operands(&operation.kind, comparison.comparison)
                 else {
                     continue;
                 };
@@ -82,11 +95,19 @@ pub(super) fn replay(
                         .any(|value| value.id == operand && value.scalar_type == expected)
                 }) {
                     matching_operations += 1;
+                    comparison_result = operation.result.scalar().map(|declaration| declaration.id);
                 }
             }
         }
         if matching_operations != 1 {
             return unsupported("integer comparison does not name one exact Terminal operation");
+        }
+        if comparison.negated
+            && !names_one_negation(lowered, comparison.terminal_machine, comparison_result)
+        {
+            return unsupported(
+                "negated integer comparison does not name one exact Terminal negation",
+            );
         }
         let mut applications = checked
             .facts
@@ -110,22 +131,36 @@ pub(super) fn replay(
     Ok(())
 }
 
-/// The one Terminal operation whose operand order is the authored operand
-/// order, mirroring the producer's admission: `!=`, `>` and `>=` record no
-/// occurrence, so a row claiming one is foreign.
-const fn authored_order_operation(
-    operation: checked_trees::expression::BinaryOperator,
-) -> Option<LoweredSelectedIntegerComparisonOperation> {
-    use checked_trees::expression::BinaryOperator;
-    match operation {
-        BinaryOperator::Equal => Some(LoweredSelectedIntegerComparisonOperation::Equal),
-        BinaryOperator::Less => Some(LoweredSelectedIntegerComparisonOperation::LessThan),
-        BinaryOperator::LessOrEqual => Some(LoweredSelectedIntegerComparisonOperation::LessOrEqual),
-        _ => None,
-    }
+/// A negated row completes as one `BooleanNot` over the emitted comparison's
+/// own result. Checking it here keeps `negated` a claim about the published
+/// module rather than an unchecked label on the row: the crash contract stays
+/// on the comparison, so nothing else would notice a missing negation.
+fn names_one_negation(
+    lowered: &LoweredPsi,
+    machine: semantic_vocabulary::MachineId,
+    comparison_result: Option<semantic_vocabulary::ValueId>,
+) -> bool {
+    let Some(comparison_result) = comparison_result else {
+        return false;
+    };
+    lowered
+        .semantic_module
+        .machines
+        .iter()
+        .filter(|candidate| candidate.id == machine)
+        .flat_map(|candidate| candidate.blocks.iter().flat_map(|block| &block.operations))
+        .filter(|operation| {
+            matches!(operation.kind, terminal_psi::OperationKind::BooleanNot { operand }
+                if operand == comparison_result)
+        })
+        .count()
+        == 1
 }
 
-const fn authored_order_operands(
+/// The emitted operation's own operand pair, in its positional order. The row
+/// names the operation actually written; where that operation reads the
+/// authored operands is the row's separate `operand_order`.
+const fn emitted_operands(
     kind: &terminal_psi::OperationKind,
     comparison: LoweredSelectedIntegerComparisonOperation,
 ) -> Option<(semantic_vocabulary::ValueId, semantic_vocabulary::ValueId)> {

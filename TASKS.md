@@ -1972,24 +1972,34 @@ Owners include
   checked `operator_use` as the IEEE roster) is recorded by
   `emission/operation_emission.rs` beside the exact `IntegerEqual` /
   `IntegerLessThan` / `IntegerLessOrEqual` it emits for a `SelectedComparison`
-  whose `selected_integer_comparison` meaning keeps the authored operand
-  order (`==`, `<`, `<=`; `!=`, `>`, `>=` would swap or compose operands
-  against the positional formal telescope the verifier reads, so they
-  fail closed at `selected integer comparison has no authored-order Terminal
-  operation to join`), and `retention/operation_crash_contracts.rs` joins a
-  site through both rosters. Control-flow cleanup keeps the joined operation
-  as a sidecar, Terminal production carries the roster on every checked
+  whose `selected_integer_comparison` meaning has an admitted emission. All
+  six authored spellings join: `==`, `<` and `<=` emit their own operation
+  over the authored order, `>` and `>=` emit the reversed
+  `IntegerLessThan`/`IntegerLessOrEqual`, and `!=` emits `IntegerEqual`
+  plus one `BooleanNot` over its result, mirroring the checked stage's own
+  comparison normalization. The row records that exact mapping
+  (`operand_order`, `negated`), and `retention/operation_crash_contracts.rs`
+  reindexes the declaration's authored formal telescope into the emitted
+  operation's positional one through it, so the verifier's positional
+  substitution is unchanged and a mapping that cannot address the emitted
+  operand roster exactly fails closed. It joins a site through both
+  rosters. Control-flow cleanup keeps the joined operation as a sidecar,
+  Terminal production carries the roster on every checked
   product (`selected_integer_comparison_occurrences()`), and Omega's
   `checked-compilation-to-terminal-artifact` refuses a nonempty roster
   (`native realization does not yet consume retained selected integer
   comparison occurrence custody`) rather than realizing a selected
   comparison as the builtin one. Regressions: `cargo nextest run -p
-  checked-trees-to-lowered-psi --lib operation_crash_contracts` (8; the
+  checked-trees-to-lowered-psi --lib operation_crash_contracts` (11; the
   guarded integer `boundary operator` route lowers through `lower_machine`
   end to end to one row at the emitted `IntegerEqual` whose continuation
-  the verifier accepts) and `--lib comparisons::tests` (integer joins and
-  the swapped/composed refusals). Where `omega inspect-terminal` on
-  `operators/crash_routes` stops now: `safe`/`may_crash` reject at
+  the verifier accepts, the `>` route to a row whose published guard names
+  the reversed operation's formal 1, and the `!=` route to a row on the
+  equality the `BooleanNot` consumes; a reordered row left in the authored
+  telescope is a verifier rejection) and `--lib comparisons::tests` (7; the
+  six admitted emissions and the operand-mapping arity refusals). Where
+  `omega inspect-terminal` on `operators/crash_routes` stops now:
+  `safe`/`may_crash` reject at
   `selected comparison has no complete provider plan evidence` (the
   fixture's `boundary machine == Comparison::equal` has no selected
   ProviderPlan, so the checked use carries an empty
@@ -2000,12 +2010,15 @@ Owners include
   (`lowered-psi-to-terminal-psi/src/boundary_operator_custody/integer_comparisons.rs`,
   keyed by the same checked `operator_use` as the float replay: exact
   application site, requirement operator, non-empty provider commitment,
-  authored-order comparison and operand type, one exact Terminal operation
-  over operands of that type, one exact checked application; a stale,
-  duplicated or foreign row rejects, and because builtin integer comparisons
-  emit the same three operation kinds the artifact cannot count which were
-  selected, so a crash-qualified use without a row stays the producer's
-  fail-closed rejection). Regression: `cargo nextest run -p
+  comparison, operand mapping, negation and operand type, one exact
+  Terminal operation over operands of that type, one `BooleanNot` over its
+  result for a negated row, one exact checked application; a stale,
+  duplicated or foreign row rejects, including one whose recorded
+  `operand_order` or `negated` is not the authored spelling's admitted
+  emission, and because builtin integer comparisons emit the same three
+  operation kinds the artifact cannot count which were selected, so a
+  crash-qualified use without a row stays the producer's fail-closed
+  rejection). Regression: `cargo nextest run -p
   checked-trees-to-lowered-psi --lib integer_comparison_replay` (4). The
   next slice supplies the provider evidence for the integer boundary
   comparison on the Omega side (a selected ProviderPlan or an explicit

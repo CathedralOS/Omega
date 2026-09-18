@@ -80,14 +80,48 @@ fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
 }
 
 #[test]
+fn the_operand_mapping_addresses_only_the_exact_emitted_pair() {
+    use lowered_psi::LoweredSelectedIntegerComparisonOperandOrder as Order;
+    assert_eq!(Order::Authored.terminal_operand_position(0, 2), Some(0));
+    assert_eq!(Order::Authored.terminal_operand_position(1, 2), Some(1));
+    assert_eq!(Order::Swapped.terminal_operand_position(0, 2), Some(1));
+    assert_eq!(Order::Swapped.terminal_operand_position(1, 2), Some(0));
+    // A roster the mapping cannot address exactly has no position, so the
+    // operation crash contract fails closed instead of publishing its routes
+    // over a guessed operand order.
+    assert_eq!(Order::Authored.terminal_operand_position(2, 2), None);
+    assert_eq!(Order::Swapped.terminal_operand_position(0, 1), None);
+    assert_eq!(Order::Swapped.terminal_operand_position(0, 3), None);
+}
+
+#[test]
 fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
-    // The integer counterpart of the IEEE join above: one authored-order
-    // Terminal operation, one occurrence naming it, carried through checked
-    // Terminal production beside the float roster.
-    for (token, name, expected) in [
-        ("==", "equal", "IntegerEqual"),
-        ("<", "less", "IntegerLessThan"),
-        ("<=", "less_or_equal", "IntegerLessOrEqual"),
+    // The integer counterpart of the IEEE join above: one Terminal operation,
+    // one occurrence naming it and recording how that operation reads the
+    // authored operands, carried through checked Terminal production beside
+    // the float roster. `>` and `>=` emit the reversed operation and `!=` the
+    // negated equality, mirroring the checked stage's own normalization of
+    // the builtin comparisons, so no spelling needs an operation of its own.
+    use lowered_psi::LoweredSelectedIntegerComparisonOperandOrder as Order;
+    for (token, name, expected, order, negated) in [
+        ("==", "equal", "IntegerEqual", Order::Authored, false),
+        ("!=", "not_equal", "IntegerEqual", Order::Authored, true),
+        ("<", "less", "IntegerLessThan", Order::Authored, false),
+        (
+            "<=",
+            "less_or_equal",
+            "IntegerLessOrEqual",
+            Order::Authored,
+            false,
+        ),
+        (">", "greater", "IntegerLessThan", Order::Swapped, false),
+        (
+            ">=",
+            "greater_or_equal",
+            "IntegerLessOrEqual",
+            Order::Swapped,
+            false,
+        ),
     ] {
         for primitive in ["i32", "u64"] {
             let source = format!(
@@ -130,20 +164,43 @@ fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
                 ref other => panic!("selected integer comparison emitted {other:?}"),
             };
             assert_eq!(kind, expected, "{source}");
+            assert_eq!(occurrence.operand_order, order, "{source}");
+            assert_eq!(occurrence.negated, negated, "{source}");
             // `left` then `right` complete as the trailing parameters of the
-            // comparison's own block: the authored operand order is the
-            // Terminal operand order.
+            // comparison's own block, in authored evaluation order; only the
+            // emitted operand roster follows the recorded mapping.
             let [.., authored_left, authored_right] = block.parameters.as_slice() else {
                 panic!("the comparison block carries both completed operands");
             };
             assert_eq!(
                 (left, right),
-                (authored_left.id, authored_right.id),
+                match order {
+                    Order::Authored => (authored_left.id, authored_right.id),
+                    Order::Swapped => (authored_right.id, authored_left.id),
+                },
                 "{source}"
             );
             assert_eq!(
                 semantic_vocabulary::ScalarType::Integer(occurrence.integer_type),
                 authored_left.scalar_type
+            );
+            // A negated spelling completes as one `BooleanNot` over the
+            // emitted comparison's own result, and nothing else does.
+            let result = operation
+                .result
+                .scalar()
+                .expect("the comparison produces a Boolean")
+                .id;
+            assert_eq!(
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|candidate| matches!(candidate.kind,
+                        OperationKind::BooleanNot { operand } if operand == result))
+                    .count(),
+                usize::from(negated),
+                "{source}"
             );
             let produced = terminal_production::TerminalProductionRequest::new(&checked, "choose")
                 .produce_checked_artifact()
@@ -154,31 +211,6 @@ fn ordinary_selected_integer_comparisons_emit_one_exact_operation() {
                 occurrence.terminal_operation
             );
         }
-    }
-}
-
-#[test]
-fn selected_integer_comparisons_without_an_authored_order_operation_fail_closed() {
-    // `!=`, `>` and `>=` have no single Terminal operation over the authored
-    // operand order, so no occurrence could name one; the use fails closed
-    // instead of lowering through a swapped or negated emission.
-    for (token, name) in [
-        ("!=", "not_equal"),
-        (">", "greater"),
-        (">=", "greater_or_equal"),
-    ] {
-        let source = format!(
-            "boundary operator {token} Comparison::{name}(left: i32, right: i32) -> bool; machine choose(left: i32, right: i32) -> bool {{ left {token} right }}"
-        );
-        let checked = checked(&source);
-        let error = crate::lower_machine(&checked, "choose")
-            .expect_err("a swapped or composed integer comparison has no join");
-        assert!(
-            format!("{error:?}").contains(
-                "selected integer comparison has no authored-order Terminal operation to join"
-            ),
-            "{source}: {error:?}"
-        );
     }
 }
 
