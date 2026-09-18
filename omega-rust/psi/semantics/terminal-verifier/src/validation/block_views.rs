@@ -160,10 +160,10 @@ pub(super) fn validate_successor(
         if expected.access == StructuralAccess::SharedBorrow {
             // A shared successor loan joins the exact referent the authored
             // borrow observed: the argument names the same root and the same
-            // projected field path, presented as `SharedBorrow`, and the
-            // path resolves to the parameter's declared referent type. No
-            // custody moves on this edge — the joined parameter can only
-            // read — and the frontier walk separately proves the root is
+            // projected field/fixed-index path, presented as `SharedBorrow`,
+            // and the path resolves to the parameter's declared referent
+            // type. No custody moves on this edge — the joined parameter can
+            // only read — and the frontier walk separately proves the root is
             // still held when the edge completes. A borrowed byte view is a
             // whole-view loan; only record joins carry a projection.
             let byte_view_parameter = module.structural_types.iter().any(|row| {
@@ -182,7 +182,7 @@ pub(super) fn validate_successor(
                 || (byte_view_parameter && !argument.path.is_empty())
                 || (!byte_view_parameter
                     && !argument.path.is_empty()
-                    && !super::is_nonempty_field_path(&argument.path))
+                    && !super::is_nonempty_exact_projection_path(&argument.path))
                 || shared_loan_root(module, machine, argument, available).and_then(|root| {
                     super::foundation::resolve_structural_path(module, root, &argument.path)
                 }) != Some(expected.structural_type)

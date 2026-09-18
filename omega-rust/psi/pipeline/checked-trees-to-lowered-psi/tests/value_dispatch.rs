@@ -6,6 +6,7 @@ use terminal_fuel::FuelChargeSite;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     MeasuredTerminalExecution, TerminalExecutionResult, TerminalScalarValue,
+    TerminalStructuralScalarFieldValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured,
 };
 use terminal_psi::{OperationKind, TerminalModule};
@@ -358,6 +359,25 @@ fn execute_machine(
     machine_name: &str,
     arguments: &[TerminalScalarValue],
 ) -> (TerminalModule, MeasuredTerminalExecution) {
+    execute_machine_with_structural_inputs(source, machine_name, arguments, |_| {
+        (Vec::new(), Vec::new())
+    })
+}
+
+/// `execute_machine` plus host-supplied structural entry contents. The
+/// callback receives the decoded module so argument carriers and field rows
+/// can name the exact structural type and field identities it declares.
+fn execute_machine_with_structural_inputs(
+    source: &str,
+    machine_name: &str,
+    arguments: &[TerminalScalarValue],
+    inputs: impl FnOnce(
+        &TerminalModule,
+    ) -> (
+        Vec<TerminalStructuralValue>,
+        Vec<TerminalStructuralScalarFieldValue>,
+    ),
+) -> (TerminalModule, MeasuredTerminalExecution) {
     let checked =
         check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
     for machine in checked.machines() {
@@ -381,12 +401,17 @@ fn execute_machine(
         .expect("independent dispatch verification");
     assert_eq!(module, lowered.semantic_module);
     assert_eq!(proof, lowered.proof_bundle);
+    let (structural_arguments, scalar_fields) = inputs(&module);
     let execution = interpret_terminal_artifact_measured(
         &semantic_bytes,
         &proof_bytes,
         &profile,
         arguments,
-        TerminalStructuralInputs::default(),
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            scalar_fields: &scalar_fields,
+            ..Default::default()
+        },
         &mut AcceptTerminalEffects,
     )
     .unwrap_or_else(|error| panic!("execution {source}: {error:#?}"));

@@ -89,9 +89,8 @@ pub(super) fn is_record_value(
             ExpressionNode::Borrow(borrow)
                 if shared_referent.is_some_and(|referent| {
                     borrow.access == language_semantics::ReferenceAccess::Shared
-                        && program
-                            .expression_table
-                            .expression_is_direct_place_path(borrow.target)
+                        && crate::flow::canonical_place_from_expression(program, borrow.target)
+                            .is_some_and(|place| canonical_place_is_borrowable(&place))
                         && borrowed_place_leaf_type(program, borrow.target).is_some_and(|leaf| {
                             program.normalized_type_identity(leaf)
                                 == program.normalized_type_identity(referent)
@@ -236,6 +235,21 @@ fn projected_leaf_type(
         _ => return None,
     };
     crate::flow::project_type_reference_from_segments(program, root, &place.segments)
+}
+
+/// The place shape a shared-borrow arm target must canonicalize to: a named
+/// root reached through record fields and literal fixed indexes only. That is
+/// exactly the carrier `borrowed_place` can rebuild into a `SharedBorrow`
+/// source -- a computed root cannot be re-derived at replay, and a dynamic
+/// index or range segment has no statically checkable ordinal.
+fn canonical_place_is_borrowable(place: &crate::flow::CanonicalPlace) -> bool {
+    matches!(place.root, facts::PlaceRoot::Symbol(_))
+        && place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
 }
 
 fn symbol_declared_type(program: &TypedTrees, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
@@ -593,8 +607,9 @@ impl Builder<'_, '_> {
     /// moving a child. `shared_record_reference` pins the referent to a
     /// carrier the pipeline can build -- a record, or a primitive whose
     /// structural shape is its own scalar -- and the target must be the exact
-    /// place semantics admitted: its projected leaf type has to equal the
-    /// declared referent.
+    /// place semantics admitted: a named root under record fields and literal
+    /// fixed indexes, whose projected leaf type has to equal the declared
+    /// referent.
     fn borrowed_place(
         &mut self,
         expression: ExpressionHandle,
@@ -604,12 +619,7 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        if borrow.access != language_semantics::ReferenceAccess::Shared
-            || !self
-                .program
-                .expression_table
-                .expression_is_direct_place_path(borrow.target)
-        {
+        if borrow.access != language_semantics::ReferenceAccess::Shared {
             return None;
         }
         let referent = shared_record_reference(self.program, expected)?;
@@ -619,8 +629,35 @@ impl Builder<'_, '_> {
             self.statement_index,
             borrow.target,
         )?;
+        if !canonical_place_is_borrowable(&place) {
+            return None;
+        }
         let facts::PlaceRoot::Symbol(symbol) = place.root else {
             return None;
+        };
+        // The root's dense structural position is its signature ordinal when
+        // the name resolves to a carried parameter, exactly as
+        // `owned_record_place` classifies owned arms; anything else is an
+        // operation-sequence local keyed by symbol.
+        let source = if let Some((index, _)) = self
+            .authored_parameters
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_const
+                    && !parameter.relevance.is_erased()
+                    && self
+                        .program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+            })
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == symbol)
+        {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(index).ok()?,
+            }
+        } else {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
         };
         let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
@@ -635,9 +672,7 @@ impl Builder<'_, '_> {
         }
         Some(CheckedStructuralValueKind::Reference {
             source: checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol,
-                },
+                source,
                 path,
                 type_identity: self
                     .program

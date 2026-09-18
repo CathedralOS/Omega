@@ -107,7 +107,10 @@ pub use error::{ContractClauseKind, ModuleError, SuspensionCallPlanError};
 use evidence::{validate_evidence_contract_lanes, validate_proposition_vocabulary};
 pub(crate) use foundation::structural_leaf_type;
 pub use foundation::{ServiceCeilingOwner, StructuralSignatureOwner};
-use foundation::{is_nonempty_field_path, resolve_structural_path, validate_structural_foundation};
+use foundation::{
+    is_nonempty_exact_projection_path, is_nonempty_field_path, resolve_structural_path,
+    validate_structural_foundation,
+};
 pub use frontier::{
     VerifiedLiveClaim, VerifiedMachineStructuralFrontiers, VerifiedOwnedStructuralPlace,
     VerifiedPartialStructuralCustody, VerifiedStructuralOwnershipFrontier,

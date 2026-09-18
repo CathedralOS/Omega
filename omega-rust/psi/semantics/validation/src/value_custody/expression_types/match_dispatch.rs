@@ -467,8 +467,9 @@ fn projected_plain_owned_source(
 /// destination: the referent's owner is never transferred, so there is no
 /// owned input custody to merge. The typed-to-checked stage replays the
 /// authored target's canonical root and path, so admission here is limited to
-/// a direct place path whose declared referent is a record the structural
-/// pipeline can carry.
+/// an exact place path -- record fields and literal fixed indexes over a named
+/// root -- whose declared referent is a record the structural pipeline can
+/// carry.
 ///
 /// That carrier rule is linear-tolerant. Owned transfer, claims, and referent
 /// cleanup cannot cross the borrowed boundary, so a linear referent's
@@ -494,9 +495,7 @@ fn selected_shared_borrow_place(
         return false;
     };
     if borrow.access != language_semantics::ReferenceAccess::Shared
-        || !program
-            .expression_table
-            .expression_is_direct_place_path(borrow.target)
+        || !shared_borrow_target_is_exact_place(program, borrow.target)
     {
         return false;
     }
@@ -536,6 +535,33 @@ fn selected_shared_borrow_place(
         .data_members(record)
         .iter()
         .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+}
+
+/// Whether a shared-borrow arm target is an exact place path the checked arm
+/// planner can canonicalize into a `SharedBorrow` source: record fields and
+/// literal fixed indexes over a named root. A dynamic index or range segment
+/// has no statically checkable ordinal, and a computed root has no place to
+/// re-derive at replay, so neither joins borrowed custody here.
+fn shared_borrow_target_is_exact_place(program: &TypedTrees, mut target: ExpressionHandle) -> bool {
+    loop {
+        match program.expression_table.expression(target) {
+            ExpressionNode::Name(_) => return true,
+            ExpressionNode::Member(member) => target = member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                if program
+                    .expression_table
+                    .constant_integer_value(indexed.index)
+                    .and_then(|index| usize::try_from(index).ok())
+                    .is_none()
+                {
+                    return false;
+                }
+                target = indexed.collection;
+            }
+            ExpressionNode::Borrow(inner) => target = inner.target,
+            _ => return false,
+        }
+    }
 }
 
 fn result_needs_custody_join(
