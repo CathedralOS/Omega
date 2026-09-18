@@ -318,6 +318,16 @@ impl<'a> Expansion<'a> {
             root.root,
             destination,
         )?;
+        if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = role {
+            calls::consume_pure_call_arguments(
+                self.checked,
+                site.bindings,
+                state,
+                statement,
+                binding_ordinal,
+                root.root,
+            )?;
+        }
         let argument = Argument::Computation(root.root);
         if self.argument_type(&argument, &site, source_types)? != result_type {
             return unsupported("scalar computation result disagrees with its destination");
