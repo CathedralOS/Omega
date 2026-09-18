@@ -19,7 +19,7 @@ use crate::storage::{RetainedStorageLane, SourceResolverStorage};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use super::acquisition::resolve_git_source_from_retained_cache_with_selection;
+use super::acquisition::resolve_git_source_from_retained_cache;
 use super::materialization::GitMaterializedSource;
 use super::selection::GitRevisionSelection;
 
@@ -131,7 +131,7 @@ where
 {
     git_lane.verify_path_identity()?;
     member_lane.verify_path_identity()?;
-    let result = resolve_git_source_from_retained_cache_with_selection(
+    let result = resolve_git_source_from_retained_cache(
         primary_git,
         package_controlled_roots,
         request,

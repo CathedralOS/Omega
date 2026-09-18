@@ -18,7 +18,7 @@ use crate::git::objects::identity::is_object_id;
 use crate::git::request::GitSourceRequest;
 use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::limits::LocalSourceLimits;
-use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
+use crate::observations::resolved::ResolvedGitSource;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -26,40 +26,10 @@ use std::path::{Path, PathBuf};
 use super::exact_revision::GitExactRevisionAcquisition;
 use super::issuance::finalize_git_resolution;
 use super::materialization::GitMaterializedSource;
-use super::repository::resolve_verified_git_cache_entry_with;
+use super::repository::resolve_verified_git_cache_entry;
 use super::selection::GitRevisionSelection;
 
-pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError>(
-    primary_git: &PrimaryGitSelection,
-    package_controlled_roots: &[PathBuf],
-    request: &GitSourceRequest,
-    cache_dir: &Path,
-    cache_directory: &CapabilityDirectory,
-    limits: LocalSourceLimits,
-    pin: Option<&GitAcquisitionPin>,
-    materialize: impl FnOnce(
-        &GitExecutor,
-        &VerifiedGitRepository,
-        &str,
-        LocalSourceLimits,
-    ) -> Result<
-        GitMaterializedSource<Evidence>,
-        GitWorkspaceProjectionError<PlannerError>,
-    >,
-) -> Result<(ResolvedGitSource, Evidence), GitWorkspaceProjectionError<PlannerError>> {
-    resolve_git_source_from_retained_cache_with_selection(
-        primary_git,
-        package_controlled_roots,
-        request,
-        cache_dir,
-        cache_directory,
-        limits,
-        GitRevisionSelection::Ordinary(pin),
-        materialize,
-    )
-}
-
-pub(super) fn resolve_git_source_from_retained_cache_with_selection<Evidence, PlannerError>(
+pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
     primary_git: &PrimaryGitSelection,
     package_controlled_roots: &[PathBuf],
     request: &GitSourceRequest,
@@ -206,7 +176,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with_selection<Evidence, Pl
         }
 
         entry_lock.verify_path_identity()?;
-        let result = resolve_verified_git_cache_entry_with(
+        let result = resolve_verified_git_cache_entry(
             &executor,
             entry_lock.parent(),
             &entry_name,

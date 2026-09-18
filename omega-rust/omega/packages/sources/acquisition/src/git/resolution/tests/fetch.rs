@@ -6,6 +6,9 @@ use super::{
     resolve_verified_git_cache_entry, run_test_git, run_test_git_with_input, temp_root,
     test_system_git_executor, verify_git_cache_root_custody,
 };
+use crate::git::resolution::materialization::materialize_whole_git_source;
+use crate::git::resolution::selection::GitRevisionSelection;
+use crate::git::workspace::GitWorkspaceProjectionError;
 #[test]
 fn git_source_fetches_only_the_selected_revision_depth() {
     let (repo, _) = create_git_source("git-shallow");
@@ -112,7 +115,7 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
         None,
     )
     .expect("create quarantined Git cache entry");
-    let error = resolve_verified_git_cache_entry(
+    let error = match resolve_verified_git_cache_entry(
         &executor,
         &cache_directory,
         entry_name,
@@ -125,8 +128,13 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
         execution_transport,
         limits,
         true,
-    )
-    .expect_err("a required blob above the source ceiling must not be acquired");
+        GitRevisionSelection::Ordinary(None),
+        materialize_whole_git_source,
+    ) {
+        Ok(_) => panic!("a required blob above the source ceiling must not be acquired"),
+        Err(GitWorkspaceProjectionError::Source(error)) => error,
+        Err(GitWorkspaceProjectionError::Planner(never)) => match never {},
+    };
 
     assert!(matches!(error, SourceResolveError::GitTreeInvalid { .. }));
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
