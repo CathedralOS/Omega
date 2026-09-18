@@ -32,7 +32,10 @@ source manifest, ordered support-member manifest, `GammaComposedV2` record,
 and repacked canonical closure and packed support section the same way
 against `bootstrap/3_delta/README.md` and `delta_compiler.composed`;
 it also checks the record names the selected evaluator tape, packed
-closure, and packed support section. `tools/bootstrap/epsilon/evaluator_env.sh` binds the
+closure, and packed support section. The same env binds the staged-compiler
+gate's `development_driver.gamma` diagnostic entry that packs on top of the
+bound member bytes; `tests/bootstrap/delta-identity.sh` covers its refusals.
+`tools/bootstrap/epsilon/evaluator_env.sh` binds the
 `epsilon_compiler.delta.sources` manifest and repacked evaluator closure
 against `bootstrap/4_epsilon/README.md`. Both refuse before writing when the
 bound bytes differ, including a changed manifest or member. The same env binds
@@ -94,7 +97,7 @@ remain under their language owner.
 | `alpha/` | Alpha seed selection and tape stamping used by current tests and tools. | Delete only when every caller has an equally direct canonical invocation. |
 | `beta/` | Trusted Beta compiler materialization with the bound-identity check, and disposable program builds. | Delete only when every caller has an equally direct canonical invocation. |
 | `gamma/evaluator_env.sh` | Selected Beta-authored functional Gamma evaluator materialization. | Delete only when every caller has an equally direct canonical invocation. |
-| `delta/compiler_env.sh` | Bound identity and canonical closure materialization for the Gamma-authored Delta compiler. | Delete only when every caller has an equally direct canonical invocation. |
+| `delta/compiler_env.sh` | Bound identity and canonical closure materialization for the Gamma-authored Delta compiler, plus the bound staged-compiler development driver entry. | Delete only when every caller has an equally direct canonical invocation. |
 | `epsilon/evaluator_env.sh` | Bound identity and canonical closure materialization for the Delta-authored Epsilon evaluator. | Delete only when every caller has an equally direct canonical invocation. |
 | `omega/compiler_env.sh` | Bound identity and canonical closure materialization for the Epsilon-written Omega compiler D. | Delete only when every caller has an equally direct canonical invocation. |
 | `proofs/sources_env.sh` | Bound identity and canonical member-closure materialization for the derivation checker and Beta encoding theory. | Delete only when every caller has an equally direct canonical invocation. |
