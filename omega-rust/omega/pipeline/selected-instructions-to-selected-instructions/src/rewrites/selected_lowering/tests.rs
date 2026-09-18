@@ -71,6 +71,7 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(policy.enables_saturating_subtract_zero_minuend());
     assert!(policy.enables_saturating_add_upper_bound());
     assert!(policy.enables_wrapping_remainder_minus_one());
+    assert!(policy.enables_saturating_subtract_upper_bound());
 }
 
 #[test]
@@ -98,6 +99,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         saturating_subtract_zero_minuend,
         saturating_add_upper_bound,
         remainder_minus_one,
+        saturating_subtract_upper_bound,
     ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
@@ -1713,6 +1715,137 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         None
     );
 
+    // The saturating-subtract upper-bound family declares one pair per
+    // unsigned carrier — a subtrahend literal of exactly the carrier's
+    // maximum at operand 1 folds a `SaturatingSubtract` into a
+    // `MaterializeI64` of the constant zero: `x -| MAX` is `0` for every
+    // `x` an unsigned carrier admits, because `x - MAX` underflows the
+    // carrier's lower bound and saturates to it for every `x < MAX` and
+    // is exactly zero at `x == MAX`. Signed carriers admit no maximum
+    // fold — `x -| MAX` there is `x - MAX` clamped to the carrier's
+    // lower bound for every negative `x`, not a constant — so the
+    // family declares no signed pair, and `MAX -| x` stays unadmitted
+    // because subtraction does not commute. The operand-0 minuend `Use`
+    // drops because the constant result never reads it. The unit and
+    // effect surfaces are the saturating family's own: the consumer's
+    // implicit unit definitions retire under `DeadConsumerUnitDefs` —
+    // aarch64's `nzcv` must stay dead across the whole function — while
+    // its `early_clobber` operand marks drop with the replaced operand
+    // list under `BoundEarlyClobberConsumerOperands`. The family shares
+    // its consumer kind and operand-1 position with the right-zero
+    // identity fold — the grammars stay disjoint on the folded literal's
+    // value — and its consumer kind with the zero-minuend fold, which
+    // stays disjoint on the folded literal's operand position.
+    let saturating_subtract_upper_bound_pairs = saturating_subtract_upper_bound.payload().pairs();
+    assert_eq!(saturating_subtract_upper_bound_pairs.len(), 4);
+    assert_eq!(
+        saturating_subtract_upper_bound.optimization(),
+        Optimization::SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization
+    );
+    for (index, pair) in saturating_subtract_upper_bound_pairs
+        .iter()
+        .copied()
+        .enumerate()
+    {
+        let carrier = unsigned_carriers[index];
+        let maximum = carrier.maximum_bits();
+        assert!(!carrier.is_signed());
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(
+            pair.consumer(),
+            MachineSemanticKind::SaturatingSubtract(carrier)
+        );
+        assert_eq!(
+            pair.operand_shape(),
+            PairOperandShape::BinaryRightLiteralConstantResult
+        );
+        assert_eq!(pair.victim_operand(), 1);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(maximum));
+        assert!(pair.admits_immediate(maximum));
+        assert!(!pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(maximum - 1));
+        if maximum < u64::MAX {
+            assert!(!pair.admits_immediate(maximum + 1));
+        }
+        // The recorded immediate is the constant the rewritten
+        // `MaterializeI64` embeds — zero.
+        assert_eq!(pair.fold_immediate(maximum), Some(0));
+        assert_eq!(pair.result(), PairResultDisposition::ScalarRegister);
+        assert_eq!(
+            pair.unit_effects(),
+            PairUnitEffects::BoundEarlyClobberConsumerOperands
+        );
+        assert_eq!(
+            pair.machine_effects(),
+            PairMachineEffects::DeadConsumerUnitDefs
+        );
+        // Every rule rewrites only its own carrier's kind into the
+        // materialized zero — the folded immediate `fold_immediate`
+        // records — while a different carrier, a signed carrier, the
+        // saturating-add or saturating-divide sibling kinds, or any
+        // other consumer kind never rewrites through it.
+        let saturating_subtract_kind = SelectedInstructionKind::SaturatingSubtract { carrier };
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, Some(u64_scalar)),
+            Some(SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(0)
+            })
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, Some(i64_scalar)),
+            Some(SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Signed(0)
+            })
+        );
+        assert_eq!(
+            pair.rewrite_consumer(saturating_subtract_kind, 0, None),
+            None
+        );
+        for other_carrier in signed_carriers {
+            assert_eq!(
+                pair.rewrite_consumer(
+                    SelectedInstructionKind::SaturatingSubtract {
+                        carrier: other_carrier
+                    },
+                    0,
+                    Some(u64_scalar)
+                ),
+                None
+            );
+        }
+        for other_carrier in unsigned_carriers {
+            if other_carrier != carrier {
+                assert_eq!(
+                    pair.rewrite_consumer(
+                        SelectedInstructionKind::SaturatingSubtract {
+                            carrier: other_carrier
+                        },
+                        0,
+                        Some(u64_scalar)
+                    ),
+                    None
+                );
+            }
+        }
+        assert_eq!(
+            pair.rewrite_consumer(
+                SelectedInstructionKind::SaturatingAdd { carrier },
+                0,
+                Some(u64_scalar)
+            ),
+            None
+        );
+        assert_eq!(
+            pair.rewrite_consumer(wrapping_add_kind, 0, Some(u64_scalar)),
+            None
+        );
+    }
+    assert_eq!(
+        saturating_subtract_upper_bound_pairs,
+        SelectedInstructionPairRule::SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS.as_slice()
+    );
+
     // Every landed rule's rewrite but the divide, remainder, and
     // saturating folds is unit-effect isolated: no implicit unit uses
     // or clobbers and no operand unit bindings beyond the declared result
@@ -1834,6 +1967,11 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(
         enabled_pair_rules(LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1).collect::<Vec<_>>(),
         vec![SelectedInstructionPairRule::WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE]
+    );
+    assert_eq!(
+        enabled_pair_rules(LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1)
+            .collect::<Vec<_>>(),
+        SelectedInstructionPairRule::SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS.to_vec()
     );
     assert_eq!(enabled_pair_rules(LiteralFoldPolicy::empty()).count(), 0);
 

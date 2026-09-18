@@ -412,24 +412,37 @@ fn reconstruct_action(
                 )
             }
         }
-        // Two disjoint families fold `SaturatingSubtract`; the folded
-        // literal's operand position names the family a fold belongs to.
-        // The right-zero identity fold admits an operand-1 literal of
-        // exactly zero on any carrier — `x -| 0` is `x`, already inside
-        // the carrier's bounds — bound to the `CopyI64` row the
-        // saturating-subtract-zero policy's own gate selected; its
-        // grammar is asymmetric — `0 -| x` is not `x` — so the
-        // right-literal shapes are that family's only shapes. The
-        // zero-minuend fold admits an operand-0 literal of exactly zero
-        // on an unsigned carrier — `0 -| x` is `0` for every `x`, because
+        // Three disjoint families fold `SaturatingSubtract`; the folded
+        // literal's operand position names the operand-0 family, and the
+        // literal's value names which of the two operand-1 families a
+        // fold belongs to. The right-zero identity fold admits an
+        // operand-1 literal of exactly zero on any carrier — `x -| 0` is
+        // `x`, already inside the carrier's bounds — bound to the
+        // `CopyI64` row the saturating-subtract-zero policy's own gate
+        // selected; its grammar is asymmetric — `0 -| x` is not `x` — so
+        // the right-literal shapes are that family's only shapes. The
+        // upper-bound subtrahend fold admits an operand-1 literal of
+        // exactly the carrier's maximum on an unsigned carrier — `x -|
+        // MAX` is `0` for every `x`, because `x - MAX` underflows the
+        // carrier's lower bound and saturates to it — bound to the
+        // `MaterializeI64` row the upper-bound policy's own gate
+        // selected, dropping the operand-0 minuend `Use` the constant
+        // result never reads. The zero-minuend fold admits an operand-0
+        // literal of exactly zero on an unsigned carrier — `0 -| x` is
+        // `0` for every `x`, because
         // `0 - x` underflows the carrier's lower bound and saturates to
         // it — bound to the `MaterializeI64` row the zero-minuend
         // policy's own gate selected, dropping the operand-1 subtrahend
         // `Use` the constant result never reads. A signed carrier's
         // operand-0 literal names no admitted grammar — `0 -| x` there is
         // `-x` clamped to the carrier's bounds, not a constant — and
-        // rejects as a future-use mismatch against the scratch shape's
-        // operand-1 victim position. Either family's consumer implicitly
+        // neither does a signed carrier's maximum subtrahend literal —
+        // `x -| MAX` there is `x - MAX` clamped to the carrier's lower
+        // bound for every negative `x`, not a constant — so each
+        // replays under the zero shapes so the family's exact-literal
+        // check rejects it; which policy rows bound decides whether that
+        // rejection reports the unadmitted literal or the unadmitted
+        // kind. Either family's consumer implicitly
         // defines the target condition state on aarch64 — every carrier's
         // realization is flag-setting — and clobbers `rflags` on x86-64;
         // the fold retires both with the folded form under the per-kind
@@ -444,6 +457,12 @@ fn reconstruct_action(
                 (
                     SourceShape::SaturatingSubtractZeroMinuend,
                     rows.saturating_subtract_zero_minuend,
+                    MachineSemanticKind::MaterializeI64,
+                )
+            } else if !carrier.is_signed() && literal_u64 == carrier.maximum_bits() {
+                (
+                    SourceShape::SaturatingSubtractUpperBoundSubtrahend,
+                    rows.saturating_subtract_upper_bound,
                     MachineSemanticKind::MaterializeI64,
                 )
             } else {
@@ -516,12 +535,16 @@ fn reconstruct_action(
     // `WrappingRemainderI64` carries the same value-disjoint structure on
     // its divisor operand — the divisor-one and minus-one families share
     // operand 1 — while its operand-0 zero-dividend family is
-    // position-disjoint like `ExactDivideU64`'s, `SaturatingSubtract`'s,
-    // and `SaturatingDivide`'s two-family splits: for those kinds the
+    // position-disjoint like `ExactDivideU64`'s and `SaturatingDivide`'s
+    // two-family splits: for those kinds the
     // position already picked the family, so its row being unbound means
     // no enabled grammar covers the position — a future-use mismatch
     // while either family of the kind is enabled, a consumer mismatch
-    // when neither is.
+    // when neither is. `SaturatingSubtract` mixes both structures: its
+    // operand-0 zero-minuend family is position-disjoint while its
+    // operand-1 subtrahend operand hosts two value-disjoint families —
+    // the right-zero identity on every carrier and the upper-bound fold
+    // on the unsigned ones.
     let row = row.ok_or_else(|| {
         let same_position_families = match consumer.kind {
             SelectedInstructionKind::BitwiseAndI64 => {
@@ -565,22 +588,49 @@ fn reconstruct_action(
                     function: function_index,
                 }
             }
+        } else if let SelectedInstructionKind::SaturatingSubtract { carrier } = consumer.kind {
+            // The zero-minuend and upper-bound grammars bind only the
+            // unsigned carriers: a signed carrier's operand positions
+            // name no admitted grammar outside the right-zero family even
+            // while an unsigned-only family is enabled, so the
+            // enabled-family check counts only the rows a
+            // `SaturatingSubtract` of this carrier can bind. Within the
+            // admitted kind the subtrahend operand hosts two
+            // value-disjoint families — a bound row missing there names a
+            // literal neither enabled subtrahend family admits, while an
+            // unbound row at any other position names a position no
+            // enabled grammar covers.
+            let kind_admitted = rows.saturating_subtract_zero.is_some()
+                || (!carrier.is_signed()
+                    && (rows.saturating_subtract_zero_minuend.is_some()
+                        || rows.saturating_subtract_upper_bound.is_some()));
+            if !kind_admitted {
+                LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                }
+            } else if future_use.operand == 1
+                && (rows.saturating_subtract_zero.is_some()
+                    || (!carrier.is_signed() && rows.saturating_subtract_upper_bound.is_some()))
+            {
+                LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                }
+            } else if future_use.operand == 0
+                && !carrier.is_signed()
+                && rows.saturating_subtract_zero_minuend.is_some()
+            {
+                LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                }
+            } else {
+                LiteralFoldError::FutureUseMismatch {
+                    function: function_index,
+                }
+            }
         } else if (matches!(
             consumer.kind,
             SelectedInstructionKind::ExactDivideU64 { .. }
         ) && (rows.divide.is_some() || rows.divide_zero.is_some()))
-            || (match consumer.kind {
-                // The zero-minuend grammar binds only the unsigned
-                // carriers: a signed carrier's operand-0 position names
-                // no admitted grammar even while the minuend family is
-                // enabled, so the enabled-family check counts only the
-                // rows a `SaturatingSubtract` of this carrier can bind.
-                SelectedInstructionKind::SaturatingSubtract { carrier } => {
-                    rows.saturating_subtract_zero.is_some()
-                        || (rows.saturating_subtract_zero_minuend.is_some() && !carrier.is_signed())
-                }
-                _ => false,
-            })
             || (matches!(
                 consumer.kind,
                 SelectedInstructionKind::SaturatingDivide { .. }
@@ -788,6 +838,30 @@ fn reconstruct_action(
         // `MaterializeI64` embeds — zero.
         SourceShape::SaturatingSubtractZeroMinuend => {
             if literal_u64 != 0 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            0
+        }
+        // The saturating-subtract upper-bound fold is the constant zero
+        // only when the subtrahend literal is exactly the carrier's
+        // maximum on an unsigned carrier — `x -| MAX` is `0` for every
+        // `x` an unsigned carrier admits, because `x - MAX` underflows
+        // the carrier's lower bound and saturates to it for every
+        // `x < MAX` and is exactly zero at `x == MAX`; any other
+        // subtrahend, and every signed carrier — where `x -| MAX` is
+        // `x - MAX` clamped to the carrier's lower bound for every
+        // negative `x`, not a constant — is a different computation the
+        // replay must not admit. The recorded immediate is the constant
+        // the rewritten `MaterializeI64` embeds — zero.
+        SourceShape::SaturatingSubtractUpperBoundSubtrahend => {
+            let SelectedInstructionKind::SaturatingSubtract { carrier } = consumer.kind else {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            };
+            if carrier.is_signed() || literal_u64 != carrier.maximum_bits() {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
                 });
@@ -1376,6 +1450,46 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
+        // The saturating-subtract upper-bound grammar: `[dropped, victim,
+        // result, scratch...]` folds the operand-1 `Use` — the
+        // carrier-maximum subtrahend — and drops the operand-0 minuend
+        // `Use` under the constant-result custody: `x -| MAX` is `0` for
+        // every `x` an unsigned carrier admits, so the constant result
+        // never reads the minuend. The rewritten row is the
+        // `MaterializeI64` constant row — a lone `Def` binding the
+        // consumer's result register — and every operand past the
+        // operand-2 `Def` result is a scratch `Def` the fold drops under
+        // the occurrence-free custody the validator independently
+        // re-derives: each dropped `Def` register must occur nowhere else
+        // in the function, because the fold discards a definition a
+        // surviving read or second definition would still observe. Only
+        // unsigned carriers reach this shape — the kind dispatch already
+        // routed a signed carrier's maximum subtrahend literal to the
+        // right-zero family, where it rejects as an unsupported immediate
+        // — and the unsigned row's operand list is exactly three long, so
+        // the scratch slice is empty in practice.
+        (
+            SourceShape::SaturatingSubtractUpperBoundSubtrahend,
+            [left, victim, result, scratch @ ..],
+        ) => {
+            if left.access != RegisterOperandAccess::Use
+                || victim.access != RegisterOperandAccess::Use
+                || victim.virtual_register != candidate.victim
+                || result.access != RegisterOperandAccess::Def
+                || row.operands.len() != 1
+                || row.operands[0].access != RegisterOperandAccess::Def
+                || result.class != row.operands[0].class
+                || !scratch.iter().all(|operand| {
+                    operand.access == RegisterOperandAccess::Def
+                        && dropped_def_is_dead(function, operand.virtual_register)
+                })
+            {
+                return Err(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                });
+            }
+            Some(result.virtual_register)
+        }
         // The saturating-divide identity grammar: `[surviving, victim,
         // result, tail...]` folds the operand-1 `Use`; the operand-0 `Use`
         // survives and binds the `CopyI64` row's `Use` position. Operands
@@ -1544,6 +1658,7 @@ fn reconstruct_action(
             | SourceShape::SaturatingSubtractZero
             | SourceShape::SaturatingSubtractZeroScratch
             | SourceShape::SaturatingSubtractZeroMinuend
+            | SourceShape::SaturatingSubtractUpperBoundSubtrahend
             | SourceShape::SaturatingDivideOne
             | SourceShape::SaturatingDivideZeroDividend
     );
@@ -1561,6 +1676,7 @@ fn reconstruct_action(
             | SourceShape::SaturatingSubtractZero
             | SourceShape::SaturatingSubtractZeroScratch
             | SourceShape::SaturatingSubtractZeroMinuend
+            | SourceShape::SaturatingSubtractUpperBoundSubtrahend
             | SourceShape::SaturatingDivideOne
             | SourceShape::SaturatingDivideZeroDividend
     );
@@ -1757,6 +1873,7 @@ fn reconstruct_action(
         | SourceShape::SaturatingAddUpperBound
         | SourceShape::SaturatingSubtractZero
         | SourceShape::SaturatingSubtractZeroScratch
+        | SourceShape::SaturatingSubtractUpperBoundSubtrahend
         | SourceShape::SaturatingDivideOne
         | SourceShape::AndOnes => consumer.operands[0].virtual_register,
     };
@@ -1881,6 +1998,7 @@ enum SourceShape {
     SaturatingSubtractZero,
     SaturatingSubtractZeroScratch,
     SaturatingSubtractZeroMinuend,
+    SaturatingSubtractUpperBoundSubtrahend,
     SaturatingDivideOne,
     SaturatingDivideZeroDividend,
 }
@@ -1901,6 +2019,7 @@ impl SourceShape {
             | Self::SaturatingAddUpperBound
             | Self::SaturatingSubtractZero
             | Self::SaturatingSubtractZeroScratch
+            | Self::SaturatingSubtractUpperBoundSubtrahend
             | Self::SaturatingDivideOne => 1,
             Self::BinaryLeftImmediate
             | Self::UnaryExtension
@@ -2459,16 +2578,20 @@ fn rebuild_function(
                 (rows.saturating_add_zero, SelectedInstructionKind::CopyI64)
             }
         }
-        // Two disjoint families fold `SaturatingSubtract`; the victim
-        // register's operand position names the family a fold belongs
-        // to — operand 0 is the unsigned zero-minuend fold. The
+        // Three disjoint families fold `SaturatingSubtract`; the victim
+        // register's operand position names the operand-0 family — the
+        // unsigned zero-minuend fold — while the removed literal's value
+        // names which of the two operand-1 subtrahend families a fold
+        // belongs to — the carrier-maximum literal is the upper-bound
+        // fold, every other admitted literal the right-zero fold. The
         // right-zero identity fold rebuilds a `CopyI64` of the surviving
         // operand bound to the `CopyI64` row the
         // saturating-subtract-zero policy gate selected. The
-        // zero-minuend fold rebuilds a `MaterializeI64` of the constant
-        // the action payload records, recomputed against the surviving
-        // result register's scalar type and bound to the `MaterializeI64`
-        // row the zero-minuend policy gate selected. Either rebuild
+        // zero-minuend and upper-bound folds each rebuild a
+        // `MaterializeI64` of the constant the action payload records,
+        // recomputed against the surviving result register's scalar type
+        // and bound to the `MaterializeI64` row the matching policy gate
+        // selected. Either rebuild
         // replaces the operand list — including the clamped rows' dropped
         // bound-scratch `Def` — and the unit surface wholesale from the
         // bound row, so the retired implicit definitions — the aarch64
@@ -2485,6 +2608,12 @@ fn rebuild_function(
                 .ok_or(LiteralFoldError::ConsumerMismatch {
                     function: function_index,
                 })?;
+            let maximum_subtrahend = matches!(
+                literal.kind,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(bits),
+                } if bits == u128::from(carrier.maximum_bits())
+            );
             if victim_position == 0 && !carrier.is_signed() {
                 let result = action.result.ok_or(LiteralFoldError::ConsumerMismatch {
                     function: function_index,
@@ -2504,6 +2633,27 @@ fn rebuild_function(
                 )?;
                 (
                     rows.saturating_subtract_zero_minuend,
+                    SelectedInstructionKind::MaterializeI64 { value },
+                )
+            } else if !carrier.is_signed() && maximum_subtrahend {
+                let result = action.result.ok_or(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                })?;
+                let scalar = function
+                    .virtual_registers
+                    .iter()
+                    .find(|register| register.id == result)
+                    .map(|register| register.scalar_type)
+                    .ok_or(LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    })?;
+                let value = materialize_value(action.immediate, scalar).ok_or(
+                    LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    },
+                )?;
+                (
+                    rows.saturating_subtract_upper_bound,
                     SelectedInstructionKind::MaterializeI64 { value },
                 )
             } else {

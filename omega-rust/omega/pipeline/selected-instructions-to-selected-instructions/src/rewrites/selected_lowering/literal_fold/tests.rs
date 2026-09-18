@@ -14,6 +14,7 @@ mod saturating_add_upper_bound_materializations;
 mod saturating_add_zero_copies;
 mod saturating_divide_one_copies;
 mod saturating_divide_zero_dividend_materializations;
+mod saturating_subtract_upper_bound_subtrahend_materializations;
 mod saturating_subtract_zero_copies;
 mod saturating_subtract_zero_minuend_materializations;
 mod staged_arithmetic_inputs;
@@ -28,6 +29,7 @@ use staged_arithmetic_inputs::{
     staged_saturating_add_upper_bound_carrier_inputs, staged_saturating_divide_carrier_inputs,
     staged_saturating_divide_inputs, staged_saturating_divide_zero_dividend_carrier_inputs,
     staged_saturating_subtract_carrier_inputs, staged_saturating_subtract_inputs,
+    staged_saturating_subtract_upper_bound_carrier_inputs,
     staged_saturating_subtract_zero_minuend_carrier_inputs, staged_subtract_inputs,
     staged_wrapping_add_inputs, staged_xor_inputs,
 };
@@ -666,6 +668,7 @@ fn policy_without_all(disabled: &[LiteralFoldPolicy]) -> LiteralFoldPolicy {
         LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
         LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
         LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1,
+        LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
     ]
     .into_iter()
     .filter(|policy| !disabled.contains(policy))

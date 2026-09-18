@@ -2035,6 +2035,81 @@ impl SelectedInstructionPairRule {
     ];
 
     /// Eliminate `MaterializeI64` feeding the operand-1 `Use` — the
+    /// subtrahend — of `SaturatingSubtract` on an unsigned carrier when
+    /// the literal is exactly the carrier's maximum: `x -| MAX` is `0`
+    /// for every `x` the carrier admits, because `x - MAX` underflows
+    /// the carrier's lower bound — saturating to it — for every
+    /// `x < MAX` and is exactly zero at `x == MAX` — so the rewrite is a
+    /// `MaterializeI64` of the constant zero at the consumer's result
+    /// register. Only unsigned carriers admit the fold: under signed
+    /// saturation `x -| MAX` is `x - MAX` clamped to the carrier's lower
+    /// bound for every negative `x`, not a constant, so the family binds
+    /// the three-operand unsigned row alone and no signed carrier ever
+    /// names an admitted maximum-subtrahend grammar. The grammar is
+    /// deliberately asymmetric: `MAX -| x` is `MAX - x`, not a constant,
+    /// so the family declares no left-literal pair and a maximum literal
+    /// recorded at operand 0 names no admitted grammar — the unsigned
+    /// `0 -| x` constant fold is the zero-minuend family, disjoint on
+    /// the folded literal's operand position. The operand-0 minuend
+    /// `Use` is dropped with the form because the constant result never
+    /// reads it, and every operand past the operand-2 `Def` result —
+    /// none on the unsigned row — would drop under the
+    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult)
+    /// grammar's occurrence-free custody. The consumer carries the same
+    /// implicit unit surface the sibling families retire: the unsigned
+    /// saturating-subtract row defines `nzcv` on aarch64 — its
+    /// flag-setting `subs` realization — while the isolated
+    /// `MaterializeI64` defines nothing, so under
+    /// [`DeadConsumerUnitDefs`](PairMachineEffects::DeadConsumerUnitDefs)
+    /// that definition may retire only while it is dead in the function,
+    /// and the consumer's clobbers retire wholesale, as the x86-64 row's
+    /// `rflags` clobber does. The consumer's operands may carry the
+    /// `early_clobber` mark the x86-64 saturating realization declares on
+    /// its result — the hazard it names exists only inside the dropped
+    /// operand list — under
+    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// The family shares its consumer kind and operand position with the
+    /// right-zero identity fold: the folded literal's value names which
+    /// `SaturatingSubtract` subtrahend family a fold belongs to.
+    const fn saturating_subtract_upper_bound(carrier: SaturatingCarrier) -> Self {
+        let rule = Self {
+            producer: MachineSemanticKind::MaterializeI64,
+            consumer: MachineSemanticKind::SaturatingSubtract(carrier),
+            rewritten: MachineSemanticKind::MaterializeI64,
+            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            immediate_bound: PairImmediateBound::Exactly(carrier.maximum_bits()),
+            result: PairResultDisposition::ScalarRegister,
+            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            machine_effects: PairMachineEffects::DeadConsumerUnitDefs,
+        };
+        assert!(
+            !carrier.is_signed()
+                && matches!(
+                    rule.immediate_bound,
+                    PairImmediateBound::Exactly(bound) if bound == carrier.maximum_bits()
+                ),
+            "the upper-bound subtrahend fold holds only for an unsigned carrier's maximum literal"
+        );
+        rule
+    }
+
+    /// The saturating-subtract upper-bound rules: one right-literal pair
+    /// for each unsigned carrier's three-operand row — `x -| MAX` is `0`
+    /// under unsigned saturation. Signed carriers admit no
+    /// maximum-subtrahend fold — `x -| MAX` there is `x - MAX` clamped
+    /// to the carrier's lower bound for every negative `x`, not a
+    /// constant — so the family declares no signed pair at all. The
+    /// family shares its consumer kind and operand position with the
+    /// right-zero identity fold; the grammars stay disjoint on the
+    /// folded literal's value.
+    pub const SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS: [Self; 4] = [
+        Self::saturating_subtract_upper_bound(SaturatingCarrier::U8),
+        Self::saturating_subtract_upper_bound(SaturatingCarrier::U16),
+        Self::saturating_subtract_upper_bound(SaturatingCarrier::U32),
+        Self::saturating_subtract_upper_bound(SaturatingCarrier::U64),
+    ];
+
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` — the
     /// divisor — of `SaturatingDivide` on `carrier` when the literal is
     /// exactly one: a saturating divide by one is the dividend — `x /| 1`
     /// is `x` inside every carrier's bounds, and the signed `MIN /| -1`
@@ -2280,7 +2355,9 @@ impl SelectedInstructionPairRule {
             // a zero dividend is always zero, an unsigned or saturating
             // divide of a zero dividend is always zero, whatever the
             // folded literal was, a bitwise-and with a zero literal is
-            // always zero at either `Use` position, and an unsigned
+            // always zero at either `Use` position, an unsigned
+            // saturating subtract whose subtrahend literal is the
+            // carrier's maximum saturates to zero, and an unsigned
             // saturating add whose literal is the carrier's maximum
             // saturates to that maximum at either `Use` position — the
             // admitted literal itself already carries the bound.
@@ -2441,10 +2518,13 @@ impl SelectedInstructionPairRule {
             // saturating divide of a zero dividend is always zero inside
             // the carrier's bounds, an unsigned saturating subtract of a
             // zero minuend is always zero — `0 -| x` saturates to the
-            // carrier's lower bound — a bitwise-and with a zero literal
-            // is always zero at either `Use` position, and an unsigned
-            // saturating add with the carrier's maximum literal is always
-            // that maximum at either `Use` position — `x +| MAX`
+            // carrier's lower bound — and an unsigned saturating
+            // subtract by the carrier's maximum is always zero — `x -|
+            // MAX` saturates to the same lower bound — a bitwise-and
+            // with a zero literal is always zero at either `Use`
+            // position, and an unsigned saturating add with the carrier's
+            // maximum literal is always that maximum at either `Use`
+            // position — `x +| MAX`
             // saturates to the carrier's upper bound: the `MaterializeI64`
             // rewrite materializes the folded constant at the result
             // register, sign-matched and admitted by its scalar type. The
@@ -2454,7 +2534,8 @@ impl SelectedInstructionPairRule {
             // divide, the exact-divide zero-dividend rule never rewrites
             // either, each saturating-divide zero-dividend rule rewrites
             // only the carrier kind its pair admits, each
-            // saturating-subtract zero-minuend rule likewise, and each
+            // saturating-subtract zero-minuend or upper-bound rule
+            // likewise, and each
             // saturating-add upper-bound rule likewise — while each pair
             // sharing a kind legitimately coexists: admission already
             // fixed which grammar applies by the folded literal's operand

@@ -2568,6 +2568,41 @@ pub(super) fn staged_saturating_subtract_zero_minuend_carrier_inputs(
     )
 }
 
+/// A `MaterializeI64` victim producing `Unsigned(carrier.maximum_bits())`
+/// feeding operand 1 — the subtrahend — of a `SaturatingSubtract`
+/// consumer on `carrier`, under the upper-bound policy: `x -| MAX` is
+/// `0` for every `x` an unsigned carrier admits, because `x - MAX`
+/// underflows the carrier's lower bound and saturates to it for every
+/// `x < MAX` and is exactly zero at `x == MAX`, so the fold rewrites the
+/// consumer into a `MaterializeI64` of zero at the result register and
+/// drops the operand-0 minuend `Use` the constant result never reads.
+/// Signed carriers admit no maximum-subtrahend fold — `x -| MAX` there
+/// is `x - MAX` clamped to the carrier's lower bound for every negative
+/// `x`, not a constant — so staging `carrier` signed produces the
+/// arrangement the family refuses. The grammar is asymmetric —
+/// `MAX -| x` is `MAX - x`, not a constant — so `literal_operand` must
+/// be 1 for an admitted fold; staging it at 0 produces the left-literal
+/// arrangement the family refuses. Every unsigned carrier binds the
+/// three-operand row — two `Use` operands and a `Def` result, no scratch
+/// tail. The consumer retires the same target-specific unit effects the
+/// sibling families do — aarch64 defines `nzcv`, x86-64 clobbers
+/// `rflags` — so `block0` chooses the block-0 terminator the same way.
+pub(super) fn staged_saturating_subtract_upper_bound_carrier_inputs(
+    target: NativeTarget,
+    carrier: SaturatingCarrier,
+    literal_operand: u16,
+    block0: BlockZeroTerminator,
+) -> Inputs {
+    staged_literal_binary_inputs(
+        target,
+        literal_operand,
+        SelectedInstructionKind::SaturatingSubtract { carrier },
+        LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
+        carrier.maximum_bits(),
+        block0,
+    )
+}
+
 /// A `MaterializeI64` victim producing `Unsigned(1)` feeding operand 1 —
 /// the divisor — of a `SaturatingDivide` consumer on the `U64` carrier:
 /// `x /| 1` is `x`. The grammar is asymmetric — `1 /| x` is not `x` —

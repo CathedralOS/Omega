@@ -737,7 +737,7 @@ fn saturating_subtract_zero_minuend_fold_rejects_consumers_the_selection_does_no
     // saturating-subtract-zero-minuend policy: every selection naming no
     // saturating-subtract family sees no admitted consumer kind —
     // including the strongest posture, every other rule enabled at once
-    // with both saturating-subtract bits closed.
+    // with all three saturating-subtract bits closed.
     let inputs = staged_saturating_subtract_zero_minuend_carrier_inputs(
         target,
         SaturatingCarrier::U64,
@@ -752,6 +752,7 @@ fn saturating_subtract_zero_minuend_fold_rejects_consumers_the_selection_does_no
         policy_without_all(&[
             LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
             LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
+            LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
         ]),
     ] {
         assert_eq!(

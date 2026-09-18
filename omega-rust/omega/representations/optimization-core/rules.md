@@ -41,6 +41,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization` | Required |
 | `SelectedIncomingSaturatingAddUpperBoundMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingSaturatingAddUpperBoundMaterialization` | Required |
 | `SelectedIncomingWrappingRemainderMinusOneZeroMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingWrappingRemainderMinusOneZeroMaterialization` | Required |
+| `SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization` | Required |
 | `CheckedTreeProductPruning` | CheckedTrees | Target-independent | Experimental | `--disable-optimization CheckedTreeProductPruning` | Required |
 <!-- exact-rule-inventory:end -->
 
