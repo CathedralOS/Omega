@@ -13,6 +13,15 @@ const PROPOSED_BUILD: &[u8] =
     b"machine build(builder: &mut Build) {\n    builder.package(\"after-publication\");\n}\n";
 const MAIN: &[u8] = b"pub const PUBLIC_LIMIT: u64 = 4;\n";
 
+/// The exact target these legs prepare and review for: the compiler host's
+/// catalogued profile when it owns one, an exact declared target otherwise
+/// (macOS x86-64 owns no host profile). Every leg needs one consistent exact
+/// target; none execute a host artifact, so an unprofiled host keeps the
+/// suite running rather than skipping.
+fn preparation_target() -> TargetProfile {
+    TargetProfile::host_if_supported().unwrap_or(TargetProfile::LinuxX64)
+}
+
 fn valid_project() -> Project {
     let project = Project::new(None);
     fs::write(project.root.join("build.omg"), ORIGINAL_BUILD).unwrap();
@@ -24,7 +33,7 @@ fn prepare_snapshot(project: &Project, build: &[u8], name: &str) -> ResolvedSour
     let prepared = prepare_local_project(
         &project.root.join("main.omg"),
         LocalProjectPreparationOptions {
-            target: TargetProfile::host(),
+            target: preparation_target(),
             offline: false,
         },
     )
@@ -50,7 +59,7 @@ fn proposed_lock(project: &Project) -> String {
     let (_, closure, _) = prepare_local_project(
         &project.root.join("main.omg"),
         LocalProjectPreparationOptions {
-            target: TargetProfile::host(),
+            target: preparation_target(),
             offline: false,
         },
     )
@@ -59,7 +68,7 @@ fn proposed_lock(project: &Project) -> String {
     .into_review_parts();
     let review = review_package_change(
         closure,
-        target::TargetProfile::host(),
+        preparation_target(),
         None,
         &project.root.join("build/check"),
     )
@@ -151,7 +160,7 @@ fn preparation_rejects_busy_transaction_and_succeeds_after_guard_release() {
         prepare_local_project(
             &project.root.join("main.omg"),
             LocalProjectPreparationOptions {
-                target: TargetProfile::host(),
+                target: preparation_target(),
                 offline: false
             }
         ),
@@ -201,7 +210,7 @@ fn missing_build_file_during_pending_publication_is_not_standalone_source() {
         prepare_local_project(
             &project.root.join("main.omg"),
             LocalProjectPreparationOptions {
-                target: TargetProfile::host(),
+                target: preparation_target(),
                 offline: false
             }
         ),

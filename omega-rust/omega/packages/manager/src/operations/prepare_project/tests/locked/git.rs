@@ -1,7 +1,7 @@
 use super::super::super::Path;
 use super::{
     ExternalSourceContext, LOCAL_PROJECT_CONTEXT, LocalSourceLimits, PackageRootSourceRequest,
-    Project, TargetProfile, fs, prepare_local_project_in_storage,
+    Project, TargetProfile, fs, preparation_target, prepare_local_project_in_storage,
 };
 use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::operations::LocalProjectPreparationOptions;
@@ -78,7 +78,7 @@ fn missing_target_precedes_git_acquisition_even_when_the_recorded_selector_moved
     let advanced =
         resolve_git_package_source(&request, &storage, LocalSourceLimits::default()).unwrap();
     let accepted = lock
-        .target(TargetProfile::host())
+        .target(preparation_target())
         .unwrap()
         .source()
         .packages()
@@ -94,7 +94,7 @@ fn missing_target_precedes_git_acquisition_even_when_the_recorded_selector_moved
     fs::rename(&repository, project.0.join("offline-repository")).unwrap();
     let other = TargetProfile::ALL
         .into_iter()
-        .find(|target| *target != TargetProfile::host())
+        .find(|target| *target != preparation_target())
         .unwrap();
     let error = prepare_local_project_in_storage(
         &project.root().join("main.omg"),

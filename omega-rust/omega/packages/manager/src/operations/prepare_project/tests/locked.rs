@@ -5,6 +5,7 @@ use super::super::{
     PackageSourceClosureLimits, PrepareLocalProjectError, TargetProfile,
     prepare_local_project_in_storage, resolve_locked_local_project_closure,
 };
+use super::preparation_target;
 
 use crate::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,
@@ -31,10 +32,10 @@ fn local_root_main_edits_preserve_locked_dependencies_and_lock_bytes() {
         let prepared = project.prepare().unwrap().unwrap();
         assert_eq!(
             prepared.accepted_target.as_ref(),
-            lock.target(TargetProfile::host())
+            lock.target(preparation_target())
         );
         assert_eq!(fs::read_to_string(&prepared.entry_path).unwrap(), edited);
-        let accepted = lock.target(TargetProfile::host()).unwrap().source();
+        let accepted = lock.target(preparation_target()).unwrap().source();
         let fresh = &prepared.source_closure;
         assert_ne!(
             fresh.custody(fresh.graph().root()).unwrap().resolution(),
@@ -121,7 +122,7 @@ fn missing_target_rejects_before_storage_or_missing_local_source_acquisition() {
     fs::remove_dir_all(project.0.join("dependency")).unwrap();
     let other = TargetProfile::ALL
         .into_iter()
-        .find(|target| *target != TargetProfile::host())
+        .find(|target| *target != preparation_target())
         .unwrap();
     let error = prepare_local_project_in_storage(
         &project.root().join("main.omg"),
@@ -178,7 +179,7 @@ fn incompatible_lock_rejects_before_acquisition() {
         let error = prepare_local_project_in_storage(
             &project.root().join("main.omg"),
             LocalProjectPreparationOptions {
-                target: TargetProfile::host(),
+                target: preparation_target(),
                 offline: false,
             },
             |_| panic!("incompatible lock must reject before acquisition"),
@@ -198,7 +199,7 @@ fn recovery_precedes_baseline_loading_and_deleted_declaration_standalone_gate() 
             prepare_local_project_in_storage(
                 &project.root().join("main.omg"),
                 LocalProjectPreparationOptions {
-                    target: TargetProfile::host(),
+                    target: preparation_target(),
                     offline,
                 },
                 |_| Ok(project.storage()),
@@ -262,7 +263,7 @@ fn historical_root_spelling_uses_physical_caller_without_relaxing_strict_api() {
     let request_path = project.root().join(".");
     let closure = project.resolve(&request_path);
     let subject = CanonicalSourceClosureSubject::from_resolved(
-        &closure.for_exact_target(TargetProfile::host()),
+        &closure.for_exact_target(preparation_target()),
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .unwrap();
