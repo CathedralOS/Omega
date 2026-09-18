@@ -1,24 +1,45 @@
 //! Evaluate the target's authored arrival policy, not a Rust reconstruction.
 
-use super::{repository_root, write_callback_package};
+use super::standard_library_root;
 use calling_conventions::{
     CallSignature, CallingPolicy, EntryStack, MachineRegime, Preemption, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
 };
 use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use provider_planning::calling_policy_plans::{BoundaryValueClass, evaluate_calling_policy_plan};
+use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
+use std::path::{Path, PathBuf};
 
-fn checked_contract(name: &str) -> compiler::CheckedCompilation {
-    let source = fs::read_to_string(
-        repository_root().join("source/library/std/targets/macos_arm64/entry.omg"),
+/// Check the real bundled contract under its own standard-library package
+/// custody: a copied fixture source would declare a second `MacosArm64` beside
+/// the bundled target implementation. The macOS ARM64 program-entry slot owns a
+/// closed physical-contract package, so every `macos_arm64` compilation already
+/// seeds `targets/macos_arm64/entry.omg`; a copy of it duplicates `MacosArm64`,
+/// `MacosPhysicalEntry`, `MacosApplication` and every `MacosArm64::*` policy
+/// machine.
+fn checked_contract(_name: &str) -> compiler::CheckedCompilation {
+    let standard_library_root = standard_library_root();
+    let package =
+        PackageKeyIdentity::from_digest([76; 32]).expect("nonzero entry fixture package identity");
+    let inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "omega-language-std",
+            standard_library_root.clone(),
+        )],
+        Vec::new(),
     )
-    .expect("real authored target contract");
-    let (path, inputs) = write_callback_package(name, &source);
+    .expect("standard-library entry fixture package graph");
     compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(inputs),
-        ..CheckedCompileRequest::new(&path, Some("macos_arm64"))
+        ..CheckedCompileRequest::new(
+            &standard_library_root.join("targets/macos_arm64/entry.omg"),
+            Some("macos_arm64"),
+        )
     })
     .expect("the real macOS entry contract and its calling applications check")
 }
@@ -181,26 +202,80 @@ fn macos_entry_policy_rejects_wrong_physical_or_storage_signatures() {
     }
 }
 
+/// Copy the whole standard library and append `declarations` to its macOS
+/// ARM64 entry contract, returning the copied contract path.
+///
+/// The wrong-shaped application has to be authored inside the standard library
+/// itself. `MacosArm64` is package-private, so a consumer package cannot name
+/// it, and the macOS ARM64 slot's closed physical-contract package seeds the
+/// authored contract into every `macos_arm64` compilation, so a fixture that
+/// carried its own copy of that contract would declare `MacosArm64`,
+/// `MacosPhysicalEntry`, `MacosApplication` and every `MacosArm64::*` policy
+/// machine twice. One copied standard library keeps exactly one of each and
+/// still reaches the authored rejection.
+fn standard_library_copy_with_entry_declarations(name: &str, declarations: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!(
+        "omega-calling-policy-std-{name}-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&root);
+    copy_source_tree(&standard_library_root(), &root);
+    let contract = root.join("targets/macos_arm64/entry.omg");
+    let authored = fs::read_to_string(&contract).expect("copied macOS entry contract");
+    fs::write(&contract, format!("{authored}\n{declarations}"))
+        .expect("append the wrong-shaped application to the copied contract");
+    contract
+}
+
+fn copy_source_tree(source: &Path, destination: &Path) {
+    fs::create_dir_all(destination).expect("create standard-library copy directory");
+    for entry in fs::read_dir(source).expect("read standard-library directory") {
+        let entry = entry.expect("standard-library directory entry");
+        let copied = destination.join(entry.file_name());
+        if entry
+            .file_type()
+            .expect("standard-library entry kind")
+            .is_dir()
+        {
+            copy_source_tree(&entry.path(), &copied);
+        } else {
+            fs::copy(entry.path(), &copied).expect("copy standard-library source");
+        }
+    }
+}
+
 #[test]
 fn macos_entry_policy_rejects_same_size_record_with_non_extent_fields() {
-    let contract = fs::read_to_string(
-        repository_root().join("source/library/std/targets/macos_arm64/entry.omg"),
-    )
-    .expect("real authored target contract");
-    let source = format!(
-        "{contract}\n{}",
+    let contract = standard_library_copy_with_entry_declarations(
+        "macos-entry-record-rejection",
         r#"
 data NotAnExtent { base: f64; length: f64; }
 boundary trait WrongStorage {
     machine enter(image: NotAnExtent, initial_storage: NotAnExtent);
 }
 boundary trait WrongMacosApplication: WrongStorage + Calling<MacosArm64> {}
-"#
+"#,
     );
-    let (path, inputs) = write_callback_package("macos-entry-record-rejection", &source);
+    let root = contract
+        .ancestors()
+        .nth(3)
+        .expect("copied standard-library root")
+        .to_path_buf();
+    let package = PackageKeyIdentity::from_digest([78; 32])
+        .expect("nonzero copied standard-library package identity");
+    let inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "omega-language-std",
+            root,
+        )],
+        Vec::new(),
+    )
+    .expect("copied standard-library package graph");
     let diagnostics = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(inputs),
-        ..CheckedCompileRequest::new(&path, Some("macos_arm64"))
+        ..CheckedCompileRequest::new(&contract, Some("macos_arm64"))
     })
     .expect_err("two floating fields have the same size but are not Extent's ABI shape");
     assert!(
