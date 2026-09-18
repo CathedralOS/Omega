@@ -1,0 +1,43 @@
+// FAIL CANARY. The member-target borrow names `deck.bottom` exactly: the
+// requires `pending.power <= upper` is still discharged (`deck.bottom.power
+// <= ceiling` is authored), but the caller only established
+// `deck.top.power <= card.power` -- the sibling member's coordinate -- so the
+// non-increase premise for `deck.bottom.power` has no evidence.
+data Card {
+    power: u64;
+}
+
+data Deck {
+    top: Card;
+    bottom: Card;
+}
+
+measure Card::PowerOrder(card: Card) -> u64 {
+    card.power
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(Card { power: 3 }, Deck { top: Card { power: 2 }, bottom: Card { power: 4 } }, 5) }
+}
+
+machine Main::scan_a(&mut self, card: Card, deck: Deck, ceiling: u64 [0..=5])
+requires card.power <= ceiling && deck.bottom.power <= ceiling && deck.top.power <= card.power;
+terminates by card -> Card::PowerOrder in 0..=ceiling;
+-> u64 {
+    transition card.power > 0 {
+        true -> self.scan_b(&deck.bottom, ceiling)
+        false -> card.power
+    }
+}
+
+machine Main::scan_b(&mut self, pending: &Card, upper: u64 [0..=5])
+requires pending.power <= upper;
+terminates by pending -> Card::PowerOrder in 0..=upper;
+-> u64 {
+    transition pending.power > 0 {
+        true -> self.scan_a(Card { power: pending.power - 1 }, Deck { top: Card { power: 0 }, bottom: Card { power: 0 } }, upper)
+        false -> pending.power
+    }
+}

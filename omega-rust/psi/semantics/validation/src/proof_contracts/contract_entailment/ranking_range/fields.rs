@@ -158,19 +158,6 @@ impl<'program> FieldCoordinate<'program> {
         spelled_as_declared.then_some(coordinate)
     }
 
-    /// This coordinate's exact chain read from another formal of the same
-    /// declared record, for a call site forwarding one record to another.
-    pub(super) fn rebased(
-        &self,
-        program: &'program TypedTrees,
-        state: &State,
-        subject: ExpressionHandle,
-    ) -> Option<Self> {
-        let parameter = parameter(program, state, subject)?;
-        let coordinate = Self::for_parameter(program, parameter, &self.chain())?;
-        (coordinate.root == self.root).then_some(coordinate)
-    }
-
     fn for_parameter(
         program: &'program TypedTrees,
         parameter: &'program StateParameter,
@@ -284,14 +271,15 @@ impl<'program> FieldCoordinate<'program> {
     }
 
     /// The value this coordinate holds after `expression` arrives in its
-    /// formal: the formal itself forwarded, a borrow of a formal naming the
-    /// same record, or the literal chain rebuilt declaration by declaration
-    /// down to the field. `arrival_borrowed` is the destination formal's own
-    /// reference boundary, so a borrowed arrival unwraps one `&` no matter
-    /// how the source slot stored its record. A forward of the exact prefix
-    /// projection at any depth keeps the remaining chain's current value; a
-    /// literal of another declaration, a foreign record, or a missing step is
-    /// not this coordinate.
+    /// formal: the formal itself forwarded, a record carrier behind the
+    /// destination's `&` or a member-target `p.f` whose projection prefix
+    /// lands on this coordinate's root, or the literal chain rebuilt
+    /// declaration by declaration down to the field. `arrival_borrowed` is
+    /// the destination formal's own reference boundary, so a borrowed arrival
+    /// unwraps one `&` no matter how the source slot stored its record. A
+    /// forward of the exact prefix projection at any depth keeps the
+    /// remaining chain's current value; a literal of another declaration, a
+    /// foreign record, or a missing step is not this coordinate.
     pub(super) fn actual(
         &self,
         program: &TypedTrees,
@@ -300,27 +288,21 @@ impl<'program> FieldCoordinate<'program> {
         expression: ExpressionHandle,
         arrival_borrowed: bool,
     ) -> Option<Polynomial> {
-        if parameter(program, state, expression)
-            .is_some_and(|parameter| parameter.symbol == self.parameter.symbol)
+        if let Some(coordinate) =
+            self.actual_coordinate(program, state, expression, arrival_borrowed)
         {
-            return Some(self.value());
+            return Some(coordinate.value());
         }
         let mut current = expression;
         if arrival_borrowed {
+            // An owned actual into a borrowed formal has no reference boundary
+            // to read through; only a `&` spelling reaches the record the
+            // destination denotes.
             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current)
             else {
                 return None;
             };
             current = borrow.target;
-            // `&x` arrives with the record `x` already denotes, so the slot
-            // reads exactly this coordinate of `x`'s own formal. The rebased
-            // atom keeps the ordinary proof burden: an unconstrained or
-            // foreign record still supplies no membership or descent
-            // evidence, and a borrow of a member projection stays a separate
-            // leg because its coordinate is not a bare formal's.
-            if let Some(coordinate) = self.rebased(program, state, current) {
-                return Some(coordinate.value());
-            }
         }
         let mut owner = self.root;
         for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
@@ -336,6 +318,69 @@ impl<'program> FieldCoordinate<'program> {
             }
         }
         engine.normalize(current)
+    }
+
+    /// The exact coordinate `expression` installs for this chain when the
+    /// actual itself denotes a record carrier: this formal forwarded, a
+    /// same-record sibling behind the destination's `&`, or a member-target
+    /// `p.f` (possibly `&p.f`) whose projection prefix lands on this
+    /// coordinate's root record so the chain resumes there. A literal or
+    /// computed actual carries no coordinate; `actual` walks those field by
+    /// field. Callers that keep a coordinate set may `include` the result so
+    /// the carrier's declared field bounds become hypotheses.
+    pub(super) fn actual_coordinate(
+        &self,
+        program: &'program TypedTrees,
+        state: &State,
+        expression: ExpressionHandle,
+        arrival_borrowed: bool,
+    ) -> Option<Self> {
+        let mut current = expression;
+        if arrival_borrowed
+            && let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current)
+        {
+            // `&x` and `&x.f` both arrive with the record their target
+            // denotes; the carrier resolution below names the same coordinate
+            // either way. An actual already behind a reference arrives as its
+            // own carrier without a borrow node.
+            current = borrow.target;
+        }
+        let (carrier, prefix) = rooted_carrier(program, state, current)?;
+        self.through_carrier(program, carrier, &prefix)
+    }
+
+    /// The coordinate this chain reads through `carrier`'s member `prefix`:
+    /// `p.f` (or a bare formal) denotes a record, and this coordinate's chain
+    /// resumes there once the prefix lands on this coordinate's own root
+    /// record. A prefix step through anything but an exact named record -- a
+    /// reference, a slice, or a primitive -- has no carrier coordinate.
+    fn through_carrier(
+        &self,
+        program: &'program TypedTrees,
+        carrier: &'program StateParameter,
+        prefix: &[(SymbolHandle, &Identifier)],
+    ) -> Option<Self> {
+        let (carrier_root, _) = record_referent(program, carrier.type_reference)?;
+        let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1);
+        let mut owner = carrier_root;
+        for (symbol, _) in prefix {
+            let (_, field) = declared_field(program, owner, *symbol)?;
+            // A prefix step must land on an exact declared record so this
+            // coordinate's chain resumes at one nominal root.
+            let TypeReferenceNode::Named { symbol: next, .. } = program
+                .type_reference_table
+                .type_reference(unwrap_constraint_shells(program, field.type_reference))
+            else {
+                return None;
+            };
+            chain.push(*symbol);
+            owner = *next;
+        }
+        if owner != self.root {
+            return None;
+        }
+        chain.extend(self.chain());
+        Self::for_parameter(program, carrier, &chain)
     }
 
     /// The value `expression` installs for this coordinate's chain when it
@@ -364,27 +409,7 @@ impl<'program> FieldCoordinate<'program> {
             current = borrow.target;
         }
         if let Some((carrier, prefix)) = rooted_carrier(program, state, current) {
-            let (carrier_root, _) = record_referent(program, carrier.type_reference)?;
-            let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1);
-            let mut owner = carrier_root;
-            for (symbol, _) in &prefix {
-                let (_, field) = declared_field(program, owner, *symbol)?;
-                // A prefix step must land on an exact declared record so this
-                // coordinate's chain resumes at one nominal root.
-                let TypeReferenceNode::Named { symbol: next, .. } = program
-                    .type_reference_table
-                    .type_reference(unwrap_constraint_shells(program, field.type_reference))
-                else {
-                    return None;
-                };
-                chain.push(*symbol);
-                owner = *next;
-            }
-            if owner != self.root {
-                return None;
-            }
-            chain.extend(self.chain());
-            return Some(Self::for_parameter(program, carrier, &chain)?.value());
+            return Some(self.through_carrier(program, carrier, &prefix)?.value());
         }
         let mut owner = self.root;
         for field in self.steps.iter().chain([&self.field]) {

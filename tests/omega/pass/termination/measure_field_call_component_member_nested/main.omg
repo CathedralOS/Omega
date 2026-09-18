@@ -1,0 +1,45 @@
+// PASS CANARY. A deeper member-target borrow `&deck.slot.card`: the carrier
+// prefix walks each declared record step and the coordinate's chain resumes
+// only when the prefix lands on the subject's own root record, so the produced
+// projection is `deck.slot.card.power` exactly.
+data Card {
+    power: u64;
+}
+
+data Wrap {
+    card: Card;
+}
+
+data Deck {
+    slot: Wrap;
+}
+
+measure Card::PowerOrder(card: Card) -> u64 {
+    card.power
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(Card { power: 3 }, Deck { slot: Wrap { card: Card { power: 2 } } }, 5) }
+}
+
+machine Main::scan_a(&mut self, card: Card, deck: Deck, ceiling: u64 [0..=5])
+requires card.power <= ceiling && deck.slot.card.power <= card.power && deck.slot.card.power <= ceiling;
+terminates by card -> Card::PowerOrder in 0..=ceiling;
+-> u64 {
+    transition card.power > 0 {
+        true -> self.scan_b(&deck.slot.card, ceiling)
+        false -> card.power
+    }
+}
+
+machine Main::scan_b(&mut self, pending: &Card, upper: u64 [0..=5])
+requires pending.power <= upper;
+terminates by pending -> Card::PowerOrder in 0..=upper;
+-> u64 {
+    transition pending.power > 0 {
+        true -> self.scan_a(Card { power: pending.power - 1 }, Deck { slot: Wrap { card: Card { power: 0 } } }, upper)
+        false -> pending.power
+    }
+}

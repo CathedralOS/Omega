@@ -1,0 +1,42 @@
+// PASS CANARY. `scan_b`'s borrowed subject arrives as a member-target borrow
+// `&deck.top`: the rank transport resolves the projection's own carrier prefix
+// to `deck.top`, and the requires bridge reads `pending.power <= upper` as the
+// exact caller-side `deck.top.power <= ceiling`, discharged by `scan_a`'s own
+// requires facts.
+data Card {
+    power: u64;
+}
+
+data Deck {
+    top: Card;
+}
+
+measure Card::PowerOrder(card: Card) -> u64 {
+    card.power
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(Card { power: 3 }, Deck { top: Card { power: 2 } }, 5) }
+}
+
+machine Main::scan_a(&mut self, card: Card, deck: Deck, ceiling: u64 [0..=5])
+requires card.power <= ceiling && deck.top.power <= card.power && deck.top.power <= ceiling;
+terminates by card -> Card::PowerOrder in 0..=ceiling;
+-> u64 {
+    transition card.power > 0 {
+        true -> self.scan_b(&deck.top, ceiling)
+        false -> card.power
+    }
+}
+
+machine Main::scan_b(&mut self, pending: &Card, upper: u64 [0..=5])
+requires pending.power <= upper;
+terminates by pending -> Card::PowerOrder in 0..=upper;
+-> u64 {
+    transition pending.power > 0 {
+        true -> self.scan_a(Card { power: pending.power - 1 }, Deck { top: Card { power: 0 } }, upper)
+        false -> pending.power
+    }
+}
