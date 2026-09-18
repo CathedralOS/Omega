@@ -178,6 +178,66 @@ terminates by remaining in 0..=5;
 }
 
 #[test]
+fn role_less_arrivals_abstain_instead_of_contesting_a_claimed_role() {
+    // The entry arrival fills `first`'s spare slots with duplicated copies of
+    // `spare`; the cyclic sibling arrival writes literals that name no
+    // dependency. A role-less proposal abstains on those slots, so the two
+    // proposals join instead of removing the state. The registered pass
+    // canary `termination/rank_range_state_cycle` is this exact shape.
+    let source = r#"
+data Payload { value: u64; }
+machine walk(remaining: u32 [0..=5], payload: Payload, spare: u32)
+terminates by remaining in 0..=5;
+-> u32 {
+    transition remaining > 2 {
+        true -> first(payload, remaining - 1, spare, spare)
+        false -> second(remaining + 0, payload)
+    }
+    state first(carried: Payload, pending: u32 [0..=5], first_spare: u32, second_spare: u32) {
+        transition pending > 0 {
+            true -> second(pending - 1, carried)
+            false -> pending
+        }
+    }
+    state second(left: u32 [0..=5], saved: Payload) {
+        transition left > 0 {
+            true -> first(saved, left - 1, 0, 1)
+            false -> left
+        }
+    }
+}
+"#;
+    prove(source);
+    // A kept role is still judged per arrival: a literal into the ranked slot
+    // substitutes the actual value, so `0` is a lawful (terminating) rank
+    // arrival while `9` falls outside the declared range.
+    prove(&source.replace("first(saved, left - 1, 0, 1)", "first(saved, 0, 0, 1)"));
+    reject(&source.replace("first(saved, left - 1, 0, 1)", "first(saved, 9, 0, 1)"));
+    // Abstention never merges two different claimed entries: once `second`
+    // carries `other` and forwards it into the spare slots, the proposals
+    // genuinely conflict over which copy those slots continue.
+    let contested = source
+        .replace("spare: u32)", "spare: u32, other: u32)")
+        .replace(
+            "second(remaining + 0, payload)",
+            "second(remaining + 0, payload, other)",
+        )
+        .replace(
+            "second(pending - 1, carried)",
+            "second(pending - 1, carried, first_spare)",
+        )
+        .replace(
+            "state second(left: u32 [0..=5], saved: Payload)",
+            "state second(left: u32 [0..=5], saved: Payload, tag: u32)",
+        )
+        .replace(
+            "first(saved, left - 1, 0, 1)",
+            "first(saved, left - 1, tag, tag)",
+        );
+    reject(&contested);
+}
+
+#[test]
 fn a_diverging_copy_of_the_rank_subject_keeps_its_equality_obligation() {
     // A computed claimant on a duplicated *required* entry is never demoted:
     // the edge judgment must prove both copies equal at every arrival, which

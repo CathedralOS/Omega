@@ -17,6 +17,10 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// Returns `None` when any state cannot compose an exact correspondence:
 /// identity arrivals anchor each telescope, computed arrivals may then reuse
 /// an already-anchored role, and conflicting proposals remove the state.
+/// Proposals join per slot: an actual that names no subject dependency --
+/// a literal, auxiliary arithmetic, or a forward of a role-less slot --
+/// abstains on that slot instead of contesting a role another arrival
+/// claimed, while two different claimed entries for one slot conflict.
 /// `required` names the entry symbols the caller's rank judgment holds equal
 /// at every arrival; a duplicated claim on any other entry resolves to its
 /// bare forward so one slot stays the unique carrier, and a duplicated
@@ -109,9 +113,42 @@ pub fn discover_state_entry_mappings_preferring(
                         }
                         continue;
                     };
-                    match &mappings[target_position] {
-                        Some(existing) if *existing != incoming => return None,
-                        Some(_) => {}
+                    match &mut mappings[target_position] {
+                        Some(existing) => {
+                            // A proposal claims a slot's role only from the
+                            // dependencies its actual names. An actual with no
+                            // subject dependency -- a literal, auxiliary
+                            // arithmetic, or a forward of a role-less slot --
+                            // abstains rather than contesting the role another
+                            // arrival established: the kept claim still reads
+                            // this arrival's own actual through the edge
+                            // judgment's substitution and equality checks.
+                            // Two different valid claims for one slot remain a
+                            // genuine conflict no correspondence can serve.
+                            if existing.len() != incoming.len() {
+                                return None;
+                            }
+                            let mut refined = false;
+                            for (claim, proposal) in existing.iter_mut().zip(incoming.iter()) {
+                                if !proposal.is_valid() {
+                                    continue;
+                                }
+                                if claim.is_valid() {
+                                    if *claim != *proposal {
+                                        return None;
+                                    }
+                                    continue;
+                                }
+                                *claim = *proposal;
+                                refined = true;
+                            }
+                            if refined {
+                                // A slot that gains a role may let this state's
+                                // own arrivals claim roles they could not name
+                                // before; revisit its outgoing proposals.
+                                pending_states.push(target_position);
+                            }
+                        }
                         None => {
                             mappings[target_position] = Some(incoming);
                             pending_states.push(target_position);
