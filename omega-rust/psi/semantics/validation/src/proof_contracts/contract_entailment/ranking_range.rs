@@ -21,6 +21,7 @@ mod telescope;
 pub use requirements::{
     arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
 };
+pub(crate) use telescope::positive_step_amount;
 pub use telescope::{discover_state_entry_mappings, discover_state_entry_mappings_preferring};
 mod identity_views;
 pub use identity_views::{

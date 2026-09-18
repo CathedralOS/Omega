@@ -11,6 +11,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// One entry parameter symbol per non-self formal of every machine state
 /// (`SymbolHandle::default()` marks a formal with no discovered entry role).
@@ -167,7 +168,8 @@ pub fn discover_state_entry_mappings_preferring(
 /// diverging transfer like `s(remaining, remaining)` followed by
 /// `s(left - 1, right)` cannot be proved while both slots carry the role.
 /// When exactly one claimant ever receives the entry through a strict
-/// `carrier +/- positive` step, that moved copy is the continuation the rank
+/// `carrier +/- positive` step -- a literal amount, or one whose declared
+/// range proves it nonzero -- that moved copy is the continuation the rank
 /// must read; a sibling whose arrivals are all bare forwards still denotes
 /// the entry's own value -- a stale snapshot, not an equal carrier -- so its
 /// claim demotes rather than forcing an equality the step broke. Naming the
@@ -282,13 +284,7 @@ fn strict_step_claim(
     ) {
         return false;
     }
-    let ExpressionNode::Integer(literal) = program
-        .expression_table
-        .expression(unwrapped(program, binary.right))
-    else {
-        return false;
-    };
-    if !literal.value_i64().is_some_and(|amount| amount > 0) {
+    if !positive_step_amount(program, source, binary.right) {
         return false;
     }
     let ExpressionNode::Name(name) = program
@@ -306,6 +302,66 @@ fn strict_step_claim(
         .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == name.symbol && !parameter.is_const)
         .is_some_and(|position| source_mapping.get(position).copied() == Some(claimed))
+}
+
+/// Whether `expression` is a proved-positive step amount evaluated in
+/// `state`: a positive integer literal, or a formal whose declared ranges
+/// include a literal floor of at least 1. The declared bound constrains every
+/// stored value of the formal -- mutable or not -- so the amount needs no
+/// hypothesis machinery at discovery time; the edge judgment still proves the
+/// descent and landing the step claims. An unbounded or zero-able operand is
+/// not divergence evidence: the copies may still hold equal values, so the
+/// claimant keeps its equality obligation.
+pub(crate) fn positive_step_amount(
+    program: &TypedTrees,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    match program
+        .expression_table
+        .expression(unwrapped(program, expression))
+    {
+        ExpressionNode::Integer(literal) => literal.value_i64().is_some_and(|amount| amount > 0),
+        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
+            program.state_parameters(state).iter().any(|parameter| {
+                !parameter.is_self
+                    && parameter.symbol == name.symbol
+                    && declared_positive_floor(program, parameter.type_reference)
+            })
+        }
+        _ => false,
+    }
+}
+
+/// The formal's declared type carries a literal range floor of at least 1:
+/// some constrained shell bounds the value above zero outright, whatever the
+/// other constraints or the base primitive say. A non-literal minimum proves
+/// nothing here -- the arrival judgment keeps its own accounting of it.
+fn declared_positive_floor(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        let positive_floor = |constraint: &TypeConstraintNode| match constraint {
+            TypeConstraintNode::Range { minimum, .. } => matches!(
+                program.expression_table.expression(*minimum),
+                ExpressionNode::Integer(literal)
+                    if literal.value_i64().is_some_and(|floor| floor >= 1)
+            ),
+            _ => false,
+        };
+        if program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .any(positive_floor)
+        {
+            return true;
+        }
+        reference = *base_type;
+    }
+    false
 }
 
 /// Strip `Atomic` wrappers, matching the call-component judgment's arrival
