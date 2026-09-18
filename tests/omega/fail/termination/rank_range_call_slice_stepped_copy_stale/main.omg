@@ -1,0 +1,46 @@
+// FAIL CANARY. `entries[1..]` names `live` the moved copy of the duplicated
+// slice carriers, demoting `saved` to a stale snapshot. `drain(saved, bound)`
+// then passes the slot that no longer carries the rank: `rest` claims no
+// `entries` role, so the call has no evidence the callee receives the
+// descended continuation.
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) -> u64 {
+    let view: &[Entry] = self.entries.as_slice();
+
+    transition {
+        _ -> self.scan(view, 4)
+    }
+}
+
+machine Main::scan(&mut self, entries: &[Entry], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 {
+        true -> pair(entries, entries[1..], capacity)
+        false -> 0
+    }
+    state pair(saved: &[Entry], live: &[Entry], bound: u64) {
+        transition live.len > 0 && saved.len <= bound {
+            true -> self.drain(saved, bound)
+            false -> 0
+        }
+    }
+}
+
+machine Main::drain(&mut self, rest: &[Entry], capacity: u64)
+requires rest.len <= capacity;
+terminates by rest -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition rest.len > 0 {
+        true -> self.scan(rest[1..], capacity)
+        false -> 0
+    }
+}

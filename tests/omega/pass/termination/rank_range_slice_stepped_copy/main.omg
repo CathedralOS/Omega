@@ -1,0 +1,21 @@
+// PASS CANARY. `live[1..]` names the moved copy among duplicated `entries`
+// carriers: `saved` still denotes the entry's pre-step value -- a stale
+// snapshot, not the continuation -- so its claim demotes and `live` keeps
+// the role, exactly as `carrier - positive` names the moved integer copy.
+// The edge judgment independently re-proves the produced length and strict
+// descent for the literal's actual.
+machine walk(entries: &[u32], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 {
+        true -> pair(entries, entries, capacity)
+        false -> 0
+    }
+    state pair(live: &[u32], saved: &[u32], bound: u64) {
+        transition live.len > 0 {
+            true -> pair(live[1..], saved, bound)
+            false -> 0
+        }
+    }
+}

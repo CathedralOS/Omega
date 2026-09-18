@@ -1,0 +1,25 @@
+// FAIL CANARY. `live[1..]` names `live` the moved copy of the duplicated
+// slice carriers, demoting `saved` to a stale snapshot. `finish(saved)`
+// then forwards the slot that no longer carries the rank: `rest` claims no
+// `entries` role, so the state cannot show the pre-step slice descends.
+machine walk(entries: &[u32], capacity: u64)
+requires entries.len <= capacity;
+terminates by entries -> Slice::Length in 0..=capacity;
+-> u64 {
+    transition entries.len > 0 {
+        true -> pair(entries, entries, capacity)
+        false -> 0
+    }
+    state pair(live: &[u32], saved: &[u32], bound: u64) {
+        transition live.len > 0 {
+            true -> pair(live[1..], saved, bound)
+            false -> finish(saved)
+        }
+    }
+    state finish(rest: &[u32]) {
+        transition rest.len > 0 {
+            true -> finish(rest[1..])
+            false -> 0
+        }
+    }
+}

@@ -1,0 +1,24 @@
+// PASS CANARY. Duplicated borrowed carriers of the ranked record: `&card`
+// forwards `card`'s role to both `live` and `saved`, and the rebuilt
+// literal `&Card { power: live.power - 1 }` is the strict step that names
+// `live` the moved copy. `saved` demotes to a stale snapshot; the field
+// view still reads the one carrier through the exact declared chain.
+data Card { power: u64; }
+
+measure Card::Remaining(card: Card) -> u64 { card.power }
+
+machine walk(card: Card, ceiling: u64)
+requires card.power <= ceiling;
+terminates by card -> Card::Remaining in 0..=ceiling;
+-> u64 {
+    transition card.power > 0 {
+        true -> pair(&card, &card, ceiling)
+        false -> 0
+    }
+    state pair(live: &Card, saved: &Card, bound: u64) {
+        transition live.power > 0 {
+            true -> pair(&Card { power: live.power - 1 }, saved, bound)
+            false -> 0
+        }
+    }
+}

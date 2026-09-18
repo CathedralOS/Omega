@@ -628,6 +628,7 @@ fn carrier_bounds(
                 }
                 let arrival = carrier_arrival_bound(
                     program,
+                    machine,
                     source_state,
                     &bounds[*source],
                     source_slots,
@@ -657,6 +658,7 @@ fn carrier_bounds(
 /// the site reads.
 fn carrier_arrival_bound(
     program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     source_bounds: &[CarrierBound],
     source_slots: &[SymbolHandle],
@@ -688,6 +690,24 @@ fn carrier_arrival_bound(
         }
         _ => None,
     };
+    // The collection a windowed arrival reads: borrows and member chains
+    // resolve to their root formal, whose bound for this role decides what
+    // the subslice inherits.
+    let carrier_root = |mut expression: ExpressionHandle| loop {
+        match program
+            .expression_table
+            .expression(projection::unwrapped(program, expression))
+        {
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Name(name)
+                if name.symbol.is_valid() && name.head_symbol == name.symbol =>
+            {
+                break Some(name.symbol);
+            }
+            _ => break None,
+        }
+    };
     // A record role tracks WHICH record the slot holds, not a scalar bound.
     // Every arrival shape the member's own edge judgment can prove for a
     // projected coordinate -- a forward of the slot still carrying the role,
@@ -711,6 +731,7 @@ fn carrier_arrival_bound(
             }
             ExpressionNode::Borrow(borrow) => carrier_arrival_bound(
                 program,
+                machine,
                 source,
                 source_bounds,
                 source_slots,
@@ -751,6 +772,23 @@ fn carrier_arrival_bound(
                 // the role through the anchored rule -- never by shape alone.
                 _ => CarrierBound::None,
             }
+        }
+        // A window's produced length never exceeds its collection's: a
+        // builtin subslice into a slice carrier weakens the collection's
+        // bound to `AtMost`, matching the direction the ranked copy moved.
+        // The member's own edge judgment still proved the arrival's exact
+        // length before this bound can carry the role to a call site.
+        ExpressionNode::Indexed(indexed)
+            if crate::value_custody::places::has_builtin_subslice_meaning(
+                program,
+                machine,
+                Some(source),
+                projection::unwrapped(program, argument),
+            ) =>
+        {
+            carrier_root(indexed.collection).map_or(CarrierBound::None, |symbol| {
+                formal_bound(symbol).meet(CarrierBound::AtMost)
+            })
         }
         _ => CarrierBound::None,
     }
