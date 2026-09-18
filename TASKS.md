@@ -3993,9 +3993,22 @@ Owners include
   Derive the inventory from the verifier's admitted module and make the scan
   exhaustive.
 
-- **FFIVAL.** After the generic callback/runtime path closes, run the Windows
-  `user32` boundary-coherence canary with no raw function pointer or Win32-only
-  compiler escape.
+- **FFIVAL.** Author and run the Windows `user32` boundary-coherence canary: an
+  Omega window procedure registered with `RegisterClassEx`, entered through
+  `CreateWindowEx`/`WM_NCCREATE` and `DispatchMessage`, and released through
+  `DestroyWindow` and `UnregisterClass`, with no raw function pointer or
+  Win32-only compiler escape. The canary does not exist yet:
+  `pass/host/runtime_gui_*` and `samples/gui/*` dispatch through predefined
+  window classes, and `fail/capabilities/blocking_beneath_no_block_root` is
+  the only fixture that names this item.
+
+  Blocked on **CALLBACK-PRIVATE-MATERIALIZATION** (no callback thunk reaches
+  machine code) and **REGISTERED-CALLBACK-LIFETIME** (no authored registration
+  route). Acceptance: on a Windows host the canary builds from its `build.omg`
+  through the generic [private-callback](wiki/spec/build/private_callbacks.md)
+  route, receives a real foreign callback, recovers per-window state without
+  an ambient closure, and unregisters before its code lease is released. Other
+  hosts report the leg unavailable.
 
 - **WIRE-RUNTIME-AND-INSTALLATION.** Complete reusable artifact validation,
   consumed placement authority, W^X/coherence, physical invocation, and
