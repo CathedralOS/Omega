@@ -933,3 +933,207 @@ fn checked_progress_rejects_excluded_roots_and_malformed_formation() {
             .any(|diagnostic| diagnostic.message.contains("owner identity drifted"))
     );
 }
+
+/// End-to-end subject reconstruction through the real checked pipeline: a
+/// premise demanded inside an inner state must name the exact caller place
+/// even when the named-transition argument that binds it is a nested call
+/// result rather than a spelled place. The lowerer materializes the
+/// `TransitionTargetNode::Named` operand into a temporary, so the shared
+/// origin replay walks the temporary's initializer back through the nested
+/// callee's returned expression. Bound value-call arguments stay inline, but
+/// result-realization validation still fences a machine call nested directly
+/// in one, so that argument shape is exercised at the unit level in
+/// `origins::tests` instead.
+mod nested_call_arguments {
+    use checked_trees::CheckedTrees;
+    use diagnostics::Diagnostic;
+    use language_semantics::TerminationGuarantee;
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+    use tokens_to_syntax_trees::parse_syntax_trees;
+
+    /// The progress-profile context every fixture shares: a `WeakFair`
+    /// admission granted through the boundary trait, so `requires ... in
+    /// WeakFair` publishes an exact subject-bearing premise and a callee's
+    /// declared `-> T in WeakFair` return discharges the requires check on a
+    /// call-result argument.
+    const PROFILE: &str = r#"
+        pub data SchedulerHandle [copy] {}
+        pub domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        pub boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+        }
+        pub data Context { scheduler: SchedulerHandle; }
+        pub machine consume(value: SchedulerHandle in WeakFair)
+        requires value in WeakFair
+        terminates;
+        -> u64 { 0 }
+        "#;
+
+    fn diagnostics(source: &str) -> Vec<Diagnostic> {
+        let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {PROFILE} {source}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize nested-argument fixture");
+        let syntax = parse_syntax_trees(&tokens).expect("parse nested-argument fixture");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("resolve nested-argument fixture");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type nested-argument fixture");
+        match crate::lower_typed_trees(typed) {
+            Ok(_) => Vec::new(),
+            Err(diagnostics) => diagnostics,
+        }
+    }
+
+    fn checked(source: &str) -> CheckedTrees {
+        let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {PROFILE} {source}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize nested-argument fixture");
+        let syntax = parse_syntax_trees(&tokens).expect("parse nested-argument fixture");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("resolve nested-argument fixture");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type nested-argument fixture");
+        crate::lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+            panic!("nested-argument fixture must reach checked trees: {diagnostics:#?}")
+        })
+    }
+
+    fn machine<'program>(
+        program: &'program CheckedTrees,
+        name: &str,
+    ) -> &'program checked_trees::checked_trees::machine::Machine {
+        program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+    }
+
+    fn summary<'program>(
+        program: &'program CheckedTrees,
+        name: &str,
+    ) -> &'program TerminationGuarantee {
+        &program
+            .facts
+            .termination
+            .for_machine(machine(program, name).symbol)
+            .unwrap_or_else(|| panic!("checked termination plan for {name}"))
+            .checked_summary
+    }
+
+    /// Assert `name`'s checked summary carries exactly one premise, rooted at
+    /// its `parameter` entry parameter with the exact projection path
+    /// `Owner::field[::Owner::field ...]`.
+    fn assert_single_premise(
+        program: &CheckedTrees,
+        name: &str,
+        parameter: &str,
+        projection_path: &str,
+    ) {
+        let TerminationGuarantee::Terminates { premises } = summary(program, name) else {
+            panic!(
+                "{name} must retain checked termination: {:#?}",
+                summary(program, name)
+            )
+        };
+        let [premise] = premises.as_slice() else {
+            panic!("{name} must carry exactly one premise: {premises:#?}")
+        };
+        let machine = machine(program, name);
+        let entry = &program.machine_states(machine)[0];
+        let entry_parameter = program
+            .state_parameters(entry)
+            .iter()
+            .find(|candidate| candidate.name.as_str() == parameter)
+            .unwrap_or_else(|| panic!("entry parameter {parameter}"));
+        assert_eq!(
+            premise.subject.root, entry_parameter.symbol,
+            "premise must root at the exact entry parameter: {premise:#?}"
+        );
+        let projections: Vec<String> = premise
+            .subject
+            .projections
+            .iter()
+            .map(|projection| program.symbols.display_path(*projection, "::"))
+            .collect();
+        assert_eq!(
+            projections.join("::"),
+            projection_path,
+            "premise must keep the exact declared-field path: {premise:#?}"
+        );
+    }
+
+    #[test]
+    fn transition_argument_call_result_derives_the_exact_entry_subject() {
+        // `pick` publishes no premise of its own; it returns its domained
+        // parameter exactly. Binding `waiting`'s `selected` to
+        // `pick(context.scheduler)` makes `consume(selected)` demand
+        // `context.scheduler` on the caller — provable only by tracing the
+        // nested call result through `pick`'s returned expression, never
+        // through a same-shaped root.
+        let program = checked(
+            r#"
+            pub machine pick(handle: SchedulerHandle in WeakFair)
+            terminates;
+            -> SchedulerHandle in WeakFair { handle }
+            pub machine process(context: &Context, ready: bool)
+            requires context.scheduler in WeakFair
+            terminates;
+            -> u64 {
+                transition ready {
+                    true -> waiting(pick(context.scheduler))
+                    false -> 0
+                }
+                state waiting(selected: SchedulerHandle in WeakFair) -> u64 { consume(selected) }
+            }
+            "#,
+        );
+        assert_single_premise(&program, "process", "context", "Context::scheduler");
+    }
+
+    #[test]
+    fn transition_argument_call_with_unresolved_route_stays_unproven() {
+        // `choose` routes through a control-flow join; neither operand is the
+        // exact origin, so the inner state's demanded premise cannot be
+        // reconstructed onto a caller subject. `process` declares `terminates`
+        // but its checked body stays unproven, so the route is rejected rather
+        // than silently accepted against a same-shaped field.
+        let diagnostics = diagnostics(
+            r#"
+            pub machine choose(
+                first: SchedulerHandle in WeakFair,
+                second: SchedulerHandle in WeakFair,
+                pick_first: bool
+            )
+            terminates;
+            -> SchedulerHandle in WeakFair {
+                transition pick_first {
+                    true -> first
+                    false -> second
+                }
+            }
+            machine process(context: &Context, spare: &Context, pick_first: bool)
+            requires context.scheduler in WeakFair
+            requires spare.scheduler in WeakFair
+            terminates;
+            -> u64 {
+                transition pick_first {
+                    true -> waiting(choose(context.scheduler, spare.scheduler, pick_first))
+                    false -> 0
+                }
+                state waiting(selected: SchedulerHandle in WeakFair) -> u64 { consume(selected) }
+            }
+            "#,
+        );
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove published termination for machine `process`")),
+            "unresolved route must stay unproven: {diagnostics:#?}"
+        );
+    }
+}

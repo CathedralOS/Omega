@@ -941,3 +941,122 @@ fn control_flow_route_helper_result_stays_unproven() {
     );
     assert_eq!(fixture.query(fixture.subject("saved", &[])), None);
 }
+
+/// A premise on `self` binds the call's receiver: when that receiver is
+/// itself a checked value-call result, the same origin replay proves which
+/// exact caller input the callee's returned expression supplied. The requires
+/// lane has no grant for a bodyless progress domain on an expression-rooted
+/// receiver yet, so this exercises the subject reconstruction directly rather
+/// than through `lower_typed_trees`.
+#[test]
+fn call_result_receiver_derives_the_exact_entry_subject() {
+    let fixture = Fixture::with_machines(
+        "let observed: u64 = forward(replacement).observe();",
+        "context.scheduler",
+        &[],
+        "machine SchedulerHandle::observe(self) -> u64 { 0 }",
+    );
+    let state = crate::semantic_calls::find_state(&fixture.program, fixture.state.state_symbol)
+        .expect("fixture state");
+    let statement = &fixture
+        .program
+        .statement_table
+        .statements(state.statement_nodes)[0];
+    let expression =
+        helper_call_expression(&fixture.program, statement).expect("observe call expression");
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        fixture.program.expression_table.expression(expression)
+    else {
+        unreachable!("observe call node")
+    };
+    let parameters =
+        crate::semantic_calls::call_target_parameters(&fixture.program, call.target_symbol)
+            .expect("observe parameters");
+    let [parameter] = parameters else {
+        unreachable!("observe self parameter")
+    };
+    let fact = FlowCallFact {
+        statement_index: 0,
+        call_ordinal: 0,
+        authored_expression: expression,
+        target_symbol: call.target_symbol,
+        ..FlowCallFact::default()
+    };
+    let machine = fixture
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == fixture.state.machine_symbol)
+        .expect("fixture machine");
+    assert_eq!(
+        crate::checks::termination::progress::machine_summaries::call_argument_subject_with_parameters(
+            &fixture.program,
+            machine,
+            &fixture.state,
+            &fact,
+            parameters,
+            parameter.symbol,
+            None,
+        ),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
+/// A premise on an ordinary parameter binds the matching argument: when that
+/// argument is itself a checked value-call result, the shared origin replay
+/// proves which exact caller input the callee's returned expression supplied
+/// — never a same-shaped root. Result-realization validation still fences a
+/// machine call nested directly inside a bound value-call argument, so this
+/// exercises the subject reconstruction directly rather than through
+/// `lower_typed_trees`.
+#[test]
+fn call_result_argument_derives_the_exact_entry_subject() {
+    let fixture = Fixture::new(
+        "let saved: SchedulerHandle = keep(pick(replacement));",
+        "context.scheduler",
+    );
+    let state = crate::semantic_calls::find_state(&fixture.program, fixture.state.state_symbol)
+        .expect("fixture state");
+    let statement = &fixture
+        .program
+        .statement_table
+        .statements(state.statement_nodes)[0];
+    let expression =
+        helper_call_expression(&fixture.program, statement).expect("keep call expression");
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        fixture.program.expression_table.expression(expression)
+    else {
+        unreachable!("keep call node")
+    };
+    let parameters =
+        crate::semantic_calls::call_target_parameters(&fixture.program, call.target_symbol)
+            .expect("keep parameters");
+    let [parameter] = parameters else {
+        unreachable!("keep handle parameter")
+    };
+    let fact = FlowCallFact {
+        statement_index: 0,
+        call_ordinal: 0,
+        authored_expression: expression,
+        target_symbol: call.target_symbol,
+        ..FlowCallFact::default()
+    };
+    let machine = fixture
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == fixture.state.machine_symbol)
+        .expect("fixture machine");
+    assert_eq!(
+        crate::checks::termination::progress::machine_summaries::call_argument_subject_with_parameters(
+            &fixture.program,
+            machine,
+            &fixture.state,
+            &fact,
+            parameters,
+            parameter.symbol,
+            None,
+        ),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
