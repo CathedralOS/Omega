@@ -628,11 +628,13 @@ fn requirement_parameter_receivers_write_their_proven_origins() {
 
 /// A requirement's exclusive result joins the caller-visible routes its
 /// retained signature admits — the runtime receiver or an exclusive
-/// argument — under the same single-candidate rule as boundary results:
-/// one proven origin forwards exactly, while disagreeing routes, a route
-/// that reaches untracked storage, or no route at all stays opaque.
+/// argument — under the same candidate rule as boundary results: one proven
+/// origin forwards exactly, several proven routes union into the bound
+/// local's divergent set so a write through it lands on every candidate,
+/// while a route that reaches untracked storage or no route at all stays
+/// opaque.
 #[test]
-fn requirement_results_bound_to_locals_join_their_proven_single_origin() {
+fn requirement_results_bound_to_locals_join_their_proven_origins() {
     for (name, body, expected) in [
         (
             "receiver_route",
@@ -672,12 +674,12 @@ fn requirement_results_bound_to_locals_join_their_proven_single_origin() {
         (
             "receiver_and_argument_routes",
             "let r: &mut u64 = self.handler.lend(&mut self.audit); r = 1;",
-            None,
+            Some(&["self.audit", "self.handler"][..]),
         ),
         (
             "two_argument_routes",
             "let r: &mut u64 = Shape::pick(&mut self.audit, &mut self.other); r = 1;",
-            None,
+            Some(&["self.audit", "self.other"][..]),
         ),
         ("no_route", "let r: &mut u64 = Shape::spawn(); r = 1;", None),
         (

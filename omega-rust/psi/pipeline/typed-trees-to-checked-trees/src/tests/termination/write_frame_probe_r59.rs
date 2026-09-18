@@ -151,23 +151,39 @@ fn convergent_carrier_match_result_retains_exact_caller_origin() {
     assert_frames(&program, Some(&["self.value"]), Some(&[]), "convergent");
 }
 
-// Divergent unions, opaque callees, literal carriers, rebound parameters, and
-// lent carrier slots all stay opaque.
+// A divergent `-> &mut` result bound to a local keeps the exact finite union
+// of its proven routes: a write through the binding lands on one candidate, so
+// the frame records every route rather than selecting one. The same union
+// composes through by-value carriers' declared reference leaves.
+#[test]
+fn divergent_result_bindings_union_their_candidate_origins() {
+    let program = probe_program(
+        "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); alias = 1; let sink: u64 = 0;",
+        "machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 { match tag { 0 -> a, _ -> b } }",
+    );
+    assert_frames(
+        &program,
+        Some(&["self.other", "self.value"]),
+        Some(&[]),
+        "divergent_reference_arms",
+    );
+    let program = probe_program(
+        "let view: View = View { body: &mut self.value }; let other: View = View { body: &mut self.other }; let alias: &mut u64 = pf(view, other, self.tag); alias = 1; let sink: u64 = 0;",
+        "machine pf(a: View, b: View, tag: u64) -> &mut u64 { match tag { 0 -> a.body, _ -> b.body } }",
+    );
+    assert_frames(
+        &program,
+        Some(&["self.other", "self.value"]),
+        Some(&[]),
+        "divergent_carrier_arms",
+    );
+}
+
+// Opaque callees, literal carriers, rebound parameters, lent carrier slots,
+// and reborrowed bindings all stay opaque.
 #[test]
 fn divergent_or_unproven_carrier_results_stay_opaque() {
     for (name, helpers, body) in [
-        // Divergent `-> &mut` result arms must not select one route.
-        (
-            "divergent_reference_arms",
-            "machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 { match tag { 0 -> a, _ -> b } }",
-            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); alias = 1; let sink: u64 = 0;",
-        ),
-        // Divergent carrier leaves must not select one route either.
-        (
-            "divergent_carrier_arms",
-            "machine pf(a: View, b: View, tag: u64) -> &mut u64 { match tag { 0 -> a.body, _ -> b.body } }",
-            "let view: View = View { body: &mut self.value }; let other: View = View { body: &mut self.other }; let alias: &mut u64 = pf(view, other, self.tag); alias = 1; let sink: u64 = 0;",
-        ),
         // A recursive helper body has no finite convergent leaf.
         (
             "opaque_recursive_result",

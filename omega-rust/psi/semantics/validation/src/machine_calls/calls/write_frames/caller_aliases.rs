@@ -456,6 +456,25 @@ fn caller_aliases_at_prefix(
     ) {
         return None;
     }
+    // A divergent binding's referent set cannot be spelled through the
+    // single-origin alias map: a call argument, reborrow, or transport that
+    // touches it at this boundary must stay opaque rather than frame the bare
+    // local alone. Result-relation queries use `Before` directly and resolve
+    // the returned name through its own initializer route instead.
+    let divergent_roots = prefix
+        .divergent
+        .iter()
+        .map(|(name, _)| name.as_str().to_owned())
+        .collect::<Vec<_>>();
+    if !divergent_roots.is_empty()
+        && super::local_aliases::statement_mentions_place_roots(
+            program,
+            statement,
+            &divergent_roots,
+        )
+    {
+        return None;
+    }
     Some((prefix.aliases, prefix.stored))
 }
 
