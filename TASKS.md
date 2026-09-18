@@ -715,131 +715,55 @@ Owners include
 `wiki/spec/resources/authority.md` and
 `wiki/spec/resources/storage.md`.
 
-- **ENTRY-CONTENT-ROOTS.** Connect the generated physical entry to the exact
-  semantic continuation under the [entry contract](wiki/spec/build/entry_roots.md).
-  Owners: target package source assembly, `target::TargetProfile::program_entry_slot`,
-  `program-entry-plan`, `external-roots`, and
-  `native-realization/src/native_realization.rs`. Targetless checks select
-  no entry; deployment cannot substitute a semantic machine for a physical adapter.
+- **ENTRY-CONTENT-ROOTS.** Finish authored receiver entry under the
+  [entry contract](wiki/spec/build/entry_roots.md), principally the settled
+  [intrinsic service validity](wiki/spec/build/component_publication.md#service-bindings-and-era-entry)
+  migration and activation/completion lifecycle. Owners: target package source
+  assembly, `program-entry-plan`, Psi `terminal-production`, Omega
+  `compiler/native-realization`, `backend/images/image-emission`, and
+  `backend/runtime/external-roots`. Targetless checks select no physical entry;
+  deployment cannot substitute a semantic continuation for the physical adapter.
 
-  Implement [intrinsic service binding validity](wiki/spec/build/component_publication.md#service-bindings-and-era-entry):
-  `Service<R>` is the compiler-known established carrier, not shorthand for
-  `Service<R> in Bound`. Retire the service-only core `Bound` declaration and
-  qualification-based recognition; do not add a general default-domain feature
-  or a bare-trait alias. Reuse exact service/occurrence/selected-plan custody
-  through typing, checked/Terminal evidence, erasure, native settlement and
-  independent replay, keyed by the exact closed `Service<R>` application rather
-  than a qualification ID. Owners also include `core/service.omg`, typed-tree
-  service classification, validation, package service review and terminal-production.
-  Migrate bare boundary-trait fields and explicitly qualified service carriers
-  in library, samples, fixtures and the Squalr application through that route;
-  remove superseded acceptance paths/tests, retaining rejection coverage. This
-  changes Omega, not Epsilon's separately specified sealed Console field.
+  - Replace qualification-based service admission with exact closed `Service<R>`
+    identity. `core/service.omg` still declares `Bound`, and
+    `typed-trees/src/typed_trees/calls/service.rs` requires it. Retire that
+    service-only domain and its acceptance paths, not general domains. Carry exact
+    requirement, occurrence and selected-plan custody through checking, Terminal,
+    erased Fused fields, native settlement and independent replay. No default-domain
+    feature, bare-trait alias or fabricated establishment row is needed.
+  - Migrate library, samples, canaries and Squalr from bare boundary-trait fields
+    and `Service<R> in Bound` to the intrinsic carrier; reject bare fields during
+    source checking rather than after native bridge planning. Preserve negative
+    controls. Epsilon's separately specified sealed Console is not this surface.
+  - Complete receiver nominal-cleanup and callback/signal occupancy through actual
+    activation/completion. Reuse `receiver_eligibility.rs`,
+    `image-emission/src/hosted_receiver.rs` and
+    `ProgramLocalRootInstallationLedger`, including installed aggregate extent
+    materialization. Do not recreate existing bridges: macOS ARM64, Linux x86-64,
+    Linux ARM64 and Windows x86-64 routes exist. Windows currently has storage-only
+    coverage; its exit-provider gap belongs to the process-exit task. Records,
+    arrays (including record arrays), IEEE leaves and zero-valid first sum cases
+    already have eligibility/bridge coverage; investigate a concrete rejected
+    receiver before adding another storage profile.
 
-  Acceptance: `number_guess` with `console: Service<Console>` executes with exit
-  70 on the supported hosted route, and cli_mvp/generic_counters retain their
-  behavior without a service qualification. Missing/incompatible build supply
-  rejects at compilation; bare trait fields reject during source checking.
-  Zeroed storage, omitted service fields in ordinary literals, same-spelled
-  lookalikes, and package-authored construction cannot create a binding. Moving
-  or borrowing an established service and forwarding it through a record preserve
-  exact custody; source declarations of unused types alone demand no provider.
-  Missing/substituted occurrence or plan evidence still rejects after erasure
-  and retained-artifact replay. Keep distinct `Service<A>`/`Service<B>` identities,
-  affine movement, and runtime installation's existing lifecycle checks; do not
-  implement the deferred Independent route merely to migrate Fused carriers.
+  Acceptance: `number_guess` with `console: Service<Console>` exits 70, and
+  `cli_mvp`/`generic_counters` retain behavior without service qualifications.
+  Run published processes with no test-supplied `self`, retaining host-gated
+  `entry_and_abi::hosted_receiver*` checks and explicit unavailable-host results.
+  Missing/incompatible supply, ordinary literal/zero-based service construction,
+  lookalikes, redirected continuations, non-ZII state, bad backing/alignment,
+  overlapping partitions and stale occurrence/epoch reject. Move/borrow/record
+  forwarding preserves distinct service applications and affine custody; unused
+  type declarations alone demand no provider.
 
-  Complete the remaining hosted bridges and receiver lifecycle, not another
-  metadata-only calling-plan milestone. The macOS contract is
-  `source/library/std/targets/macos_arm64/entry.omg`; its physical arrival and
-  `ProgramStorageEntry` are distinct applications. Provider-module imports do
-  not load that contract automatically. The `calling_policy_plans macos_entry`
-  test exercises signatures, not installed roots.
-
-  The macOS bridge already executes authored receiver processes with no
-  test-supplied pointer: scalar/array storage, disjoint record copies, captured
-  borrowed-call results, Fused Console, normal return and explicit process exit.
-  At `673d24c5e7`, macOS ARM64, `RUST_MIN_STACK=67108864 cargo nextest run -p
-  compiler --test canary_suite --no-fail-fast -E
-  'test(entry_and_abi::hosted_receiver::)'` exercises that route. Continue from
-  `native-realization/src/native_realization.rs` and
-  `image-emission/src/hosted_receiver.rs`, not from an assumed absent adapter.
-
-  Remaining: realize retained receivers on both Linux targets and Windows;
-  support executable nominal cleanup and callback/signal occupancy through the
-  actual activation/completion contract; extend receiver storage beyond the
-  admitted plain-record/primitive-array shapes. Corpus demand at 914fad6e23
-  (2026-09-17 UTC, the 81 bridge-declined canaries read only): every one is
-  blocked first by the row-less bare `console: Console;` field
-  (the service-carrier migration above), not by storage; after that the
-  corpus needs nothing else new: the IEEE float leaves it demands
-  (`runtime_float_constant_store_exit`, f32/f64) are admitted as top-level,
-  array-element and nested zero-valid record storage (zero-filled bits are the
-  exact `0.0`), witnessed on macOS ARM64 by
-  `entry_and_abi::hosted_receiver::hosted_receiver_provisions_ieee_float_leaves_for_constant_stores`
-  (`tests/omega/pass/expressions/runtime_float_receiver_storage_exit`, f64 and
-  f32 fields beside a Bound Console, exit 70), and the other 80 fit
-  plain/domain/range integers, `[u8; N]`/`[i64; N]` arrays and nested
-  zero-valid records (generic instantiations such as `Pair<bool>` and
-  `FixedBuffer<4>` included). The private-resolver-storage
-  Linux leg of the nominal machine-parameter witness
-  (`tests/omega/pass/generics/runtime_nominal_machine_parameter_satisfaction_exit`,
-  exit 70 on macOS ARM64 through
-  `generics_and_dependent_facts::runtime_nominal_machine_parameter_satisfaction_exit_canary_runs`)
-  stops at this receiver bridge on Linux x86-64 and belongs here. Keep the current unsupported
-  cases rejecting. These are implementation dependencies under the settled
-  contract, not unanswered language decisions.
-
-  Preserve the existing macOS loader-backed RW/NX partitions, private-stack
-  switch and saved physical continuation. Compose final application, bridge and
-  provider demand with any newly admitted callback occupancy; `LC_MAIN.stacksize`
-  is not remaining-stack evidence. Checked receiver eligibility binds the exact
-  source owner and retained/erased projection; erasing an unused borrow cannot
-  erase initialization, nominal cleanup or Fused establishment obligations.
-  Actual occurrence custody remains with installation, not compilation of the
-  conditional native product; the join lives in `external-roots`'s
-  `ProgramLocalRootInstallationLedger`.
-
-  Resume evidence: `cea82370e6` adds
-  `ProgramLocalExtentRegistry::materialize_aggregate`, which discharges a
-  reconstructed epoch aggregate capacity over the group's actual installed
-  backing partitions for the same occurrence/epoch. The installation ledger
-  re-derives the complete live membership, so stale, substituted,
-  foreign-lifecycle, omitted, or repeated member sets reject transactionally
-  with their inputs; each backing must equal its member's evaluated interval
-  in one shared address space, and the presented receiver partitions must
-  compose the exact reconstructed interval set — overlap rejects. Minted
-  Extents carry activation loans (`Extent::loan`/`loan_mut`) and `retire`
-  completes the occurrence, returning the partition for rejoin into installed
-  storage. Witnessed on Linux x86-64 by `cargo nextest run -p external-roots
-  --no-fail-fast` (213/213), including
-  `aggregate_materialization_discharges_reconstructed_capacity_over_installed_partitions`,
-  `aggregate_materialization_rejects_stale_substituted_and_inexact_discharge`,
-  and `counted_aggregate_capacity_cannot_discharge_extent_partitions`. The
-  native-realization entrance is sibling-owned; the receiver-side bridge and
-  macOS contract remain open below.
-
-  Witnessed at ab5f28700d (macOS ARM64): a bare boundary-trait receiver field
-  (`console: Console;`) is classified `ProviderBacked` in
-  `typed-trees-to-checked-trees/src/execution/unit/types/build_types.rs`,
-  lowered to the same Terminal `Erased` field shape as a Bound field,
-  admitted by `terminal-production/src/terminal_production/receiver_eligibility.rs`
-  without a `fused_service_fields` entry, given no
-  `ProgramEntryFusedServiceEstablishment` row by
-  `selected-dispatch/src/service_custody/root.rs`, and therefore rejected by
-  `image-emission/src/hosted_receiver.rs` (exactly the
-  `hosted_receiver_rejects_bare_interface_without_bound_establishment`
-  canary). Reject bare fields earlier and migrate callers to `Service<R>`;
-  preserve positive Psi eligibility evidence through `NativeProgramEntrySettlement`
-  and bridge replay. Never turn the missing row into a fallback.
-  Acceptance: execute an authored receiver entry as a published process with no
-  test-supplied `self`. Reject redirected continuation/receiver identities,
-  non-ZII state, insufficient/misaligned backing, overlapping partitions, stale
-  occurrence/epoch and bypassed provisioning. Retain the native admission
-  rejection for unsupported targets and lifecycles. Exercise the
-  `traits/runtime_local_named_dyn_stored_exit` customer (exit 70 on both Linux
-  targets), subject to its separate descriptor-call dependency. Preserve exact
-  symbol/text, source contract, runtime storage and continuation replay.
+  Missing/substituted service or receiver evidence must reject after erasure and
+  replay. Erased fields cannot erase initialization or cleanup obligations.
+  Compose application, bridge, provider and newly admitted callback stack demand;
+  loader stack-size metadata is not remaining-stack evidence. Preserve exact
+  target/source contracts and runtime storage/continuation joins; installation
+  owns actual occurrence custody, not compilation. Descriptor-call customers use
+  their separate descriptor dependency; do not expand into Independent service
+  installation merely to migrate Fused carriers.
 
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Finish the two-surface UEFI bridge under
   [source-owned firmware adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
