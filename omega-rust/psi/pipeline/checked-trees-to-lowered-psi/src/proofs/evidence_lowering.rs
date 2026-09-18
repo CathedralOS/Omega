@@ -11,6 +11,8 @@ mod evidence_terms;
 mod guarded_call_evidence;
 mod producer_provenance;
 mod proof_output_calls;
+#[cfg(test)]
+mod tests;
 
 use super::{
     CheckedTrees, EvidenceRoute, LoweredPsi, LoweringError, ObligationEvidence, PrimitiveJudgment,
@@ -123,13 +125,12 @@ pub(crate) fn checked_evidence_requirement_identity(
 /// its requirement; dispatch rows copy the tuple from the row they select.
 ///
 /// A Terminal table or dispatch row names `(declaring trait, complete
-/// requirement overload, canonical value tuple)`. The local dynamic surface
-/// admits only requirements without local generic binders
-/// (`DynamicSignatureIneligibility::RequirementLocalGenerics`) and the static
-/// requirement dispatch carries no tuple coordinate, so the only tuple this
-/// lowering can retain is the empty one. A requirement that declares binders
-/// has no Terminal tuple producer yet and rejects here rather than lowering
-/// as an unbound row that merely looks nongeneric.
+/// requirement overload, canonical value tuple)`. Lanes that can express only
+/// one row per requirement — the dynamic-composed-Unit application surfaces —
+/// call this source and still reject a requirement that declares local
+/// binders rather than lowering an empty-tuple row that merely looks
+/// nongeneric. Lanes that carry tuple coordinates expand a checked row
+/// through [`checked_requirement_family_rows`] instead.
 pub(crate) fn checked_requirement_family_tuple(
     checked: &CheckedTrees,
     declaring_trait: symbols::SymbolHandle,
@@ -146,20 +147,140 @@ pub(crate) fn checked_requirement_family_tuple(
     Ok(Vec::new())
 }
 
+/// One lowered conformance-table row a checked requirement row contributes:
+/// the canonical value tuple and the exact realization that tuple selects.
+pub(crate) struct CheckedRequirementFamilyRow {
+    /// Canonical const identities in the requirement's const/value binder
+    /// declaration order; empty for a nongeneric requirement.
+    pub family_tuple: Vec<String>,
+    /// The machine the row names: the row's own provider for a nongeneric
+    /// requirement, or the tuple's bare value-tuple specialization instance.
+    pub realization_machine: symbols::SymbolHandle,
+    /// The state at the row realization state's declaration position on the
+    /// realized machine.
+    pub realization_state: symbols::SymbolHandle,
+}
+
+/// The terminal table rows one checked conformance row lowers to: one row for
+/// a nongeneric requirement, or one row per declared roster tuple for a finite
+/// generic family. Each family row names the unique bare value-tuple
+/// specialization of the row's provider template that the tuple's canonical
+/// const identities select — the same coordinate
+/// `dynamic_family_realization` joins on the checked side. A tuple with no
+/// retained specialization, or with several, rejects the row rather than
+/// lowering a partial or ambiguous family.
+pub(crate) fn checked_requirement_family_rows(
+    checked: &CheckedTrees,
+    declaring_trait: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+    realization_machine: symbols::SymbolHandle,
+    realization_state: symbols::SymbolHandle,
+) -> Result<Vec<CheckedRequirementFamilyRow>, LoweringError> {
+    let exact = exact_trait_requirement(checked, declaring_trait, requirement)?;
+    // A requirement with no local binders keeps exactly one empty-tuple row
+    // even if it carries a trivially satisfiable `where` clause.
+    if !exact.declares_local_generic_binders {
+        return Ok(vec![CheckedRequirementFamilyRow {
+            family_tuple: Vec::new(),
+            realization_machine,
+            realization_state,
+        }]);
+    }
+    let tuples = match checked.typed.finite_signature_family(exact.signature) {
+        checked_trees::finite_family::FamilyProbe::Finite { tuples, .. } => tuples,
+        checked_trees::finite_family::FamilyProbe::NotFinite(_) => {
+            return unsupported(
+                "conformance requirement declares requirement-local generic binders without a \
+                 finite family roster",
+            );
+        }
+    };
+    let template = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == realization_machine)
+        .ok_or(LoweringError::Unsupported(
+            "conformance family row has no exact realization template machine",
+        ))?;
+    let state_position = checked
+        .typed
+        .machine_states(template)
+        .iter()
+        .position(|state| state.symbol == realization_state)
+        .ok_or(LoweringError::Unsupported(
+            "conformance family row has no exact realization template state",
+        ))?;
+    tuples
+        .iter()
+        .map(|tuple| {
+            let mut specializations =
+                checked
+                    .typed
+                    .machine_specializations
+                    .iter()
+                    .filter(|specialization| {
+                        specialization.template == realization_machine
+                            && specialization.const_argument_identities.as_slice()
+                                == tuple.identities.as_ref()
+                            && specialization.type_argument_identities.is_empty()
+                            && specialization.machine_arguments.is_empty()
+                            && specialization.conformance_arguments.is_empty()
+                            && specialization.inferred_conformance_arguments.is_empty()
+                            && specialization.conformance_applications.is_empty()
+                    });
+            let Some(specialization) = specializations.next() else {
+                return unsupported(
+                    "conformance family tuple has no bare value-tuple specialization of the \
+                     row's provider",
+                );
+            };
+            if specializations.next().is_some() {
+                return unsupported(
+                    "conformance family tuple resolves to ambiguous provider specializations",
+                );
+            }
+            let instance = checked
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.instance)
+                .ok_or(LoweringError::Unsupported(
+                    "conformance family specialization has no retained instance machine",
+                ))?;
+            let instance_state = checked
+                .typed
+                .machine_states(instance)
+                .get(state_position)
+                .ok_or(LoweringError::Unsupported(
+                    "conformance family specialization lost its tuple state",
+                ))?;
+            Ok(CheckedRequirementFamilyRow {
+                family_tuple: tuple.identities.to_vec(),
+                realization_machine: instance.symbol,
+                realization_state: instance_state.symbol,
+            })
+        })
+        .collect()
+}
+
 /// The exact typed requirement one `(declaring trait, requirement)` symbol
 /// pair names, projected to the facts evidence and dynamic rows consume.
-struct ExactTraitRequirement {
+struct ExactTraitRequirement<'a> {
+    /// The resolved signature; `finite_signature_family` reads its `where`
+    /// clause for the family roster.
+    signature: &'a checked_trees::signature::StateSignature,
     /// Canonical normalized overload identity; never empty.
     overload_identity: String,
     /// Whether the signature declares requirement-local generic binders.
     declares_local_generic_binders: bool,
 }
 
-fn exact_trait_requirement(
-    checked: &CheckedTrees,
+fn exact_trait_requirement<'a>(
+    checked: &'a CheckedTrees,
     declaring_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
-) -> Result<ExactTraitRequirement, LoweringError> {
+) -> Result<ExactTraitRequirement<'a>, LoweringError> {
     let mut matches = checked
         .typed
         .traits()
@@ -187,6 +308,7 @@ fn exact_trait_requirement(
         return unsupported("evidence producer row has an empty requirement identity");
     }
     Ok(ExactTraitRequirement {
+        signature,
         overload_identity,
         declares_local_generic_binders: !checked
             .typed
