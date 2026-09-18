@@ -1799,14 +1799,26 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   each reject — and a byte-sequence dead store still needs the
   byte-exact sequence write since no fixed span contains a
   runtime-placed byte (crate `nextest`: 1302 pass on macOS
-  x86-64). Remaining: staging `Structural` slots still cannot die,
-  cover, source, or move — a `Structural` slot the place's
-  declaration does not charge to its producer only stages bytes
-  that name the place — a sequence row cannot cover an exact dead
-  range, a dynamic dead extent still needs the byte-exact sequence
-  write, a span's unmaterialized count leaves its reach unproven,
-  and legs whose paths resolve to different writers or never
-  resolve stay unproven.
+  x86-64). Dead-store covering also admits the byte-sequence
+  store for an exact dead range once its index resolves constant:
+  the `index` value's sole `InstructionResult` register must hold
+  the function's one clean `MaterializeI64` definition with no
+  edge-transport or case-payload redefinition, so the write lands
+  on the one fixed byte `byte_offset + index` and a single-byte
+  dead range is covered exactly when that is the dead byte; a
+  runtime or unproduced index, a second carrier or definition, a
+  landing byte off the dead byte, a wider dead range, a
+  miscounted row, and a shifted or foreign-row store each reject
+  (crate `nextest`: 1328 pass on macOS x86-64). Remaining:
+  staging `Structural` slots still cannot die, cover, source, or
+  move — a `Structural` slot the place's declaration does not
+  charge to its producer only stages bytes that name the place —
+  a constant-index sequence row landing off the dead byte still
+  interferes rather than walking past, a dynamic dead extent
+  still needs the byte-exact sequence write, a span's
+  unmaterialized count leaves its reach unproven, and legs whose
+  paths resolve to different writers or never resolve stay
+  unproven.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
