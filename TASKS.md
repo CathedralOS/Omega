@@ -2472,149 +2472,64 @@ Owners include
 - **MATCH-SELECTIVE-LOWERING.** Complete the [value-dispatch
   contract](wiki/spec/language/patterns.md) for owned/nonnumeric results with
   parameter/projected/borrowed/linear custody, structural/case/domain patterns
-  and coverage. Owned call arms and record fields that move existing affine
-  children still need their exact residual transport. `5c986466a2` admits
-  candidate sources interleaved with other live affine owners: edge arguments
-  bind the join frontier positionally and the shared cleanup roster splices
-  residual and pass-through parameters per row in establishment order
-  (`pass/expressions/owned_match_interleaved_values`, macOS). `06b6da61d6`
-  carries that same roster across authored state joins: each ordinary
-  successor partitions residual custody per edge through the shared source-run
-  splice, transfer sources resolve rebound frontier places, and the checker's
-  state-exit locals accept the receipt-backed destination
-  (`pass/expressions/owned_match_authored_state`, macOS). `517e86d465` moves
-  projected affine children through owned match arms: a field or fixed-index
-  chain on a local record or a call's structural product becomes a
-  path-bearing owned argument, the exact residual complement dies on the
-  selected edge, and the Terminal interpreter replays the verifier's split
-  contract so the root carrier leaves storage only after every semantic path
-  is discharged (`pass/expressions/owned_match_projected_field`, macOS).
-  `9f8c787780` admits whole owned affine state parameters as match sources:
-  the checker establishes each source at state entry with its authored
-  parameter position as the source ordinal and orders parameters after
-  statement locals, lowering resolves the physical structural parameter places
-  and splices residual parameter custody through the same positional
-  selection-edge roster, and selected parameters stay out of unconditional
-  return drops (`pass/expressions/owned_match_parameter_values`, macOS).
-  `8f65df406e` projects affine children out of a prior selection's join
-  result: the chained source arrives on a join block parameter, both
-  downstream contracts root partial-affine residual custody at the target
-  block's declared parameter roster, and the chained fixture replays all four
-  input combinations with mutation coverage on the residual path, join
-  arguments, and origin receipt (macOS). The shared-borrow join is now
-  linear-tolerant: a `&T` result whose referent is a `[linear]` record joins
-  at the selection with no owned custody to merge, because owned transfer,
-  claims and referent cleanup cannot cross the borrowed boundary, so each
-  arm's owner keeps its exactly-once claim on every edge. One carrier rule in
-  three places -- `selected_shared_borrow_place`, the checked
-  `shared_record_reference`, and the lowering `shared_borrow_record_referent`
-  plus its root check -- now reads `has_linear_owned_contents`; loans, nominal
-  cleanup and recursive storage stay excluded by that same rule. Tests
-  `shared_borrow_arms_{join_a_linear_referent_without_an_owned_custody_join,
-  reject_a_linear_referent_that_holds_a_loan,
-  still_reject_exclusive_and_case_bearing_linear_referents}` in
-  `validation/src/value_custody/expression_types/match_dispatch/tests.rs`
-  (macOS ARM64). Two further commits already widened admitted owned custody
-  and were uncited here: `ac5ed74dcb` joins a linear result when every
-  reachable arm moves the same live source place -- a whole local or
-  parameter, or one projected linear child under an affine root -- with
-  residual sibling claims staying live and consumable, and `1016f39c26`
-  admits a fresh structural call product as an owned arm. The primitive
-  referent (`&u64`) now builds its carrier: the checked `shared_record_reference`,
-  `selected_shared_borrow_place` and the lowering `shared_borrow_record_referent`
-  each admit a referent that resolves to a primitive, which has no data
-  declaration for the record rule to resolve. That selection planned 0
-  `SharedBorrow` argument plans before and plans 2 now, matching an admitted
-  record projection, each arm keeping its authored root and field.
-  The `&u64` selection still does not lower, and the remaining blockers are
-  consumer gaps, not the carrier or the primitive: an unread view rejects
-  with "structural local carried a borrow event with no recorded loan" and a
-  call consumer with "machine has no source-independent checked scalar
-  control plan" -- each identical for the already-admitted `&Payload`
-  referent. The only record shape that lowers end
-  to end reads its view with a member access, and a borrowed primitive local
-  has no such spelling: `primitive_reference_read` admits only state
-  parameters, so a call is the only consumer `&u64` can have and it rejects for
-  both referents. Closing either consumer gap serves both
-  referents; a source read spelling for a borrowed primitive local is an owner
-  question rather than a carrier one. Tests
-  `borrowed_selection_{plans_a_primitive_referent_carrier,
-  call_consumers_reject_for_every_referent}` in
-  `checked-trees-to-lowered-psi/tests/value_dispatch/borrowed_results.rs` pin
-  the planned carrier and that parity, and
-  `shared_borrow_arms_{join_a_primitive_referent_without_a_data_declaration,
-  join_a_fixed_index_projection}` pin the gate (macOS ARM64).
-  Indexed and parameter-rooted borrowed joins now land end to end without
-  touching `expression_is_direct_place_path`: the admission gate, the checked
-  arm planner and the lowering replay each canonicalize the authored target
-  to a named root plus record-field and literal fixed-index segments --
-  dynamic indexes, ranges, case members and computed roots stay rejected --
-  and the verifier admits a shared-borrow successor whose nonempty projection
-  is exactly `Field`/`FixedIndex` segments, still resolving each ordinal
-  against the declared extent and the leaf against the joined type. A
-  parameter root names its dense structural position rather than a fabricated
-  local. `&x.items[0]` versus `&y.items[1]` over structural parameters
-  checks, lowers, verifies independently and executes the selected view;
-  mutating the lent element while the view is live rejects through the
-  recorded loan, and mutating the retained plan's root, path or access
-  rejects at replay. Tests
-  `borrowed_selection_{keeps_indexed_local_provenance,
-  rejoins_parameter_rooted_indexed_places,
-  indexed_loans_constrain_their_exact_elements,
-  indexed_replay_rejects_mutated_provenance}` in
-  `checked-trees-to-lowered-psi/tests/value_dispatch/borrowed_results.rs`
-  cover it (Linux x86_64). Remaining borrowed joins, each a separate question
-  rather than a wider carrier: exclusive (`&mut`) arms have affine custody of
-  their own -- "Exclusive carriers have affine custody even when their
-  referent is unrestricted" -- and case-bearing referents stay outside the
-  record-shaped frontier. The remaining linear
-  join -- a whole affine root carrying linear children, moved whole -- is
-  blocked on the receipt representation rather than on the admission gate. A
-  linear-bearing affine root gets no whole-place claim entry at all:
-  `initial_linear_places` records one place per frontier child (`[left]`,
-  `[right]`) and skips the whole-place row, so a whole-root arm, whose
-  transfer path is empty, consumes nothing. Widening only
-  `plain_local_owner_selection` was implemented and measured, then reverted:
-  the shape passes the gate and the checker then reports "linear value
-  `x.left` reaches scope exit without being consumed or transferred",
-  replacing an accurate rejection with a misleading one. Delivering the join
-  needs a transfer that names the consumed claim set (the root's whole
-  frontier) instead of one `(symbol, path)`; the next slice must also re-cut
-  the uniformity rule, which rejects `consumed.len() > 1`, and the lowering
-  verifier's rule that no two transfers share an authored expression.
-  Acceptance: that source checks, and
-  `whole_affine_root_with_linear_children_rejects_while_its_projected_child_joins`
-  in `validation/src/value_custody/expression_types/match_dispatch/tests.rs`,
-  which pins today's asymmetry and rejection (macOS ARM64), is updated to the
-  admitted form. Plus the borrowed-subject and
-  operator-result obligations below; preserve exact origins and actual death
-  edges. Owners:
+  and coverage. Owned selection already transports interleaved live owners,
+  authored state joins, projected affine children, whole state parameters,
+  chained selection results, fresh structural call products and linear sources
+  (a whole place, one projected child, or a whole carrier's claim frontier).
+  Shared-borrow joins carry record and linear-record referents over named local
+  or parameter roots with field and literal fixed-index segments, and plan a
+  primitive-referent carrier. Do not rebuild those slices. Owners:
   `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
   checked scalar computation/result continuations, Terminal production and
   canonical package-review contract/index projection. Preserve a
-  once-evaluated subject, ordered first match, branch-local execution and
-  exact result owners; do not flatten conditional ownership into a
-  statement-wide move roster.
+  once-evaluated subject, ordered first match, branch-local execution, exact
+  result owners, exact origins and actual death edges; do not flatten
+  conditional ownership into a statement-wide move roster.
 
-  Indexed affine tag observation reaches checked trees without copying the
-  element (macOS ARM64, `51dc05abf5`; `cargo nextest run -p
-  typed-trees-to-checked-trees --lib --no-fail-fast -E
-  'test(multiplicity::borrowed_case_payloads)'`). Retain the once-captured
-  borrowed subject and exact source-state loan closure when producing/replaying
-  successor plans; checker acceptance is not Terminal lifecycle publication.
-  The `dutch_flag` native command above still stops at the missing transitive
-  `Main::main` plan; preserve its exit-70 oracle and explicit copyable swap values.
+  Remaining work:
 
-  Selected-operator and semantic-domain result types need full instantiated
-  identity; input predicates are not arithmetic result facts. Indexed
-  predicate/theorem and package membership applications need exact static
-  arguments. Qualified callable-entry signatures, predicate/routed membership
-  and erasure require real transport rather than payload-only projection.
-  **OPERATOR-MACHINE-SUPPLY** owns declared operator execution;
-  **CRASH-CONTRACT** owns crash-qualified equality; numeric landing is in
-  **STATE-LOCAL-VALUE-FRONTIER**.
+  - Owned arms that forward or move existing affine custody through a call,
+    receiver-bearing and subject calls, and record arms whose fields move
+    existing affine children still need their exact residual transport; they
+    reject today.
+  - Claim-bearing bodies do not lower. The checker joins a whole affine root
+    with linear children by naming each frontier claim, but lowering stops at
+    "machine has no source-independent checked scalar control plan" for a
+    machine whose body holds claim-bearing custody
+    (`tests/value_dispatch/owned_results/linear_child_carriers.rs` pins it).
+  - Borrowed-result consumers. A `&Payload` selection forwards its joined place
+    to a call and executes. A `&u64` selection plans its carrier but has no
+    consumer: a call rejects with the same control-plan diagnostic, an unread
+    view rejects with "structural local carried a borrow event with no recorded
+    loan", and `primitive_reference_read` admits only state parameters, so a
+    borrowed primitive local has no read spelling. That spelling is an owner
+    decision `OWNER_QUESTIONS.md` does not yet carry; do not invent one here.
+    A direct `let view: &Payload = &a` outside a match builds no
+    structural-value root, so the machine has no control plan
+    (`established_reference_local_call_rejection_pins_the_checker_gap` in
+    `tests/value_dispatch/borrowed_results.rs`).
+  - Remaining borrowed joins are separate questions, not a wider carrier:
+    exclusive (`&mut`) arms have affine custody of their own, and case-bearing
+    referents stay outside the record-shaped frontier. Dynamic indexes, ranges,
+    case members and computed roots in a borrowed target stay rejected.
+  - Borrowed subject. Indexed affine tag observation reaches checked trees
+    without copying the element (`typed-trees-to-checked-trees`
+    `tests::multiplicity::borrowed_case_payloads`). Retain the once-captured
+    borrowed subject and exact source-state loan closure when producing and
+    replaying successor plans; checker acceptance is not Terminal lifecycle
+    publication. `SAMPLE-CORPUS`' `dutch_flag` native command still stops at the
+    missing transitive `Main::main` plan; preserve its exit-70 oracle and
+    explicit copyable swap values.
+  - Result types. Selected-operator and semantic-domain result types need full
+    instantiated identity; input predicates are not arithmetic result facts.
+    Indexed predicate/theorem and package membership applications need exact
+    static arguments. Qualified callable-entry signatures, predicate/routed
+    membership and erasure require real transport rather than payload-only
+    projection. **OPERATOR-MACHINE-SUPPLY** owns declared operator execution;
+    **CRASH-CONTRACT** owns crash-qualified equality; numeric landing is in
+    **STATE-LOCAL-VALUE-FRONTIER**.
 
-  Acceptance: `checked-trees-to-lowered-psi --test value_dispatch`,
+  Acceptance: `checked-trees-to-lowered-psi --test suite` (`value_dispatch::`),
   `omega-native-differential-test --test scalar_case_results`, corresponding
   checker/interpreter controls, and the
   [float Match native customer](omega-rust/omega/compiler/compiler/float_realization.md#operation-and-control-custody)
@@ -2623,6 +2538,19 @@ Owners include
   `numeric_operand_destinations` as source probes. Wrong qualifications,
   ownership, selected result types and incompatible arms must reject before an
   outer bare-carrier cast; source validity alone is not native completion.
+
+  Flag: admission here grows one source shape at a time. `is_record_value` in
+  `typed-trees-to-checked-trees/src/values/scalar/computations/structural_values.rs`
+  accepts a fixed list of arm expression kinds and admits
+  `ExpressionNode::Borrow` only beneath a `Match`, which is why the direct
+  borrowed local above cannot lower while the same borrow as a match arm can.
+  The shared-borrow carrier rule is restated in three places that must widen
+  together: validation's `selected_shared_borrow_place`, the checked
+  `shared_record_reference` and lowering's `shared_borrow_record_referent`. The
+  general mechanism is one checked place/loan establishment for a borrowed or
+  owned source in any position, consumed alike by match joins, `let` and calls,
+  which lowering and the verifier replay instead of re-canonicalizing the
+  authored target.
 
 - **OPERATOR-MACHINE-SUPPLY.** Implement the
   [machine token-binding and executable-supply contract](wiki/spec/language/expressions.md#executable-supply)
