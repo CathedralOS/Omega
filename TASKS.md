@@ -1658,40 +1658,40 @@ Owners include
 
 ## P3 - Terminal Psi, PCC, and observation
 
-- **PCC-PRODUCT-PUBLICATION.** Implement the
-  [optional proof product contract](wiki/spec/proofs/publication.md) through
-  normalized root Build, cross-invocation inputs, artifact codecs, independent
-  verification and final publication. Two independent off-by-default requests
-  produce adjacent `.proof` sidecars, never an embedded-only route or a second
-  compilation pipeline. Remove superseded embedded publication as this lands.
-  Receiver requirements come from an independently pinned policy package and
-  concrete configuration, not producer hints. Keep ordinary checking mandatory.
-  First deliver bounded supported evidence end-to-end; general claims depend on
-  `PROOF-KERNEL-CORE`, `PROOF-CERTIFICATION-BRIDGE` and completed profile rules,
-  not a new policy DSL. Acceptance: all four request combinations; separate file
-  sizes; native-only checking after source/Psi deletion; macOS inner sidecar;
-  exact omitted dependency possession; wrong bytes, premises, policy, assumptions
-  and stale sidecar reject; exhaustion reports `Incomplete`; no partial or
-  uncertified success. Extend standalone output framing explicitly for pairs.
+- **PCC-PRODUCT-PUBLICATION.** Deliver native evidence for the
+  [optional proof product contract](wiki/spec/proofs/publication.md). The Psi
+  product is delivered and pinned in `compiler/tests/pcc_publication.rs`: both
+  off-by-default requests in every combination, adjacent `.psi`/`.psi.proof`
+  files with separate sizes and no embedded route, the macOS inner placement,
+  exact omitted-dependency possession, the wrong-bytes, premise, policy,
+  assumption and stale-sidecar rejections, exhaustion as `Incomplete`,
+  receiver-owned policy package and configuration rather than producer hints,
+  and explicit pair framing.
 
-  Reuse the normalized off-by-default requests, canonical sidecar envelope,
-  receiver policy, publication receipts, and bounded Psi verifier. The Psi
-  verifier reconstructs its exact supported claim, profiles, trust closure and
-  dependency inventory; accepting a producer label is not evidence of that
-  claim. Dependency commitments bind service meanings, not module-local IDs.
+  Implement standalone native evidence and checking in `compilation-report` and
+  the native semantic and certification owners: reconstruct executable behavior
+  against the exact published bytes, covering instructions and entries,
+  incoming edges, indirect targets, premise availability and lowering
+  correspondence, or supply a direct native proof. Hashes of producer
+  validation reports and an unrelated valid Psi artifact cannot establish that
+  argument. The blockers are that one missing evidence:
+  `compilation-report/src/pcc.rs`'s `verify_native_proof_sidecar` returns
+  `Incomplete(UnsupportedEvidence { product: Native })` unconditionally after
+  claim-field checking, and `compile_report.rs` refuses every `pcc.native`
+  request before publication, so no native sidecar is ever written. Until that
+  evidence exists, native-only and both-product publication keep reporting
+  `Incomplete` rather than a custody-only success, and ordinary native and
+  Psi-only publication keep working.
 
-  Native PCC remains unsupported. Implement standalone evidence and checking in
-  `compilation-report` and the native semantic/certification owners: reconstruct
-  executable behavior against exact bytes, including instruction/entry coverage,
-  control flow and indirect targets, premises, and lowering correspondence (or a
-  direct native proof). Hashes of producer validation reports and an unrelated
-  valid Psi artifact cannot establish that argument. Until it exists, native-only
-  and both-product publication must report `Incomplete`, never a custody-only
-  success. Keep ordinary native and Psi-only publication working. Acceptance must
-  include arbitrary native bytes paired with valid Psi and recomputed producer
-  hashes; the receiver must not return `Complete`. Exercise real macOS bundle
-  placement when that production route exists; path construction alone is not a
-  runtime acceptance test.
+  Acceptance: a native `.proof` sidecar beside the flat executable and inside
+  `Contents/MacOS/`, each with its own reported size; native-only standalone
+  checking returning a real verdict from bytes, companion and pinned policy
+  after the source and Psi artifacts are deleted; and arbitrary native bytes
+  paired with valid Psi and recomputed producer hashes still refused. Claims
+  beyond the bounded `omega.terminal-verified-module.v1` guarantee depend on
+  **PROOF-KERNEL-CORE**, **PROOF-CERTIFICATION-BRIDGE** and completed profile
+  rules, not a new policy DSL. Bundle execution acceptance belongs to the GUI
+  cohort.
 
 - **PSIIR.** Extend Terminal Psi only in complete vertical slices through
   canonical encoding, independent reconstruction, verification,
