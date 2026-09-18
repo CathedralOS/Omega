@@ -99,14 +99,25 @@ fn select_targets(
     accepted: Option<&PackageLock>,
 ) -> Result<Vec<TargetProfile>, PackageInspectionError> {
     if requested.is_empty() {
-        return Ok(match accepted {
-            Some(lock) => lock
+        return match accepted {
+            Some(lock) => Ok(lock
                 .targets()
                 .iter()
                 .map(PackageLockTarget::target)
-                .collect(),
-            None => vec![TargetProfile::host()],
-        });
+                .collect()),
+            // An unlocked project defaults to the host profile. A host with no
+            // catalogued deployment profile (macOS x86-64) earns the same
+            // ordinary diagnostic the other targetless commands report rather
+            // than the panic `TargetProfile::host` retains for callers that
+            // intrinsically require it.
+            None => match TargetProfile::host_if_supported() {
+                Some(host) => Ok(vec![host]),
+                None => Err(failure(
+                    "no inspection target was requested and this host has no catalogued \
+                     Omega deployment profile; name an exact target with --target",
+                )),
+            },
+        };
     }
     requested.sort_by_key(|target| target.identity().as_str());
     if requested.windows(2).any(|pair| pair[0] == pair[1]) {

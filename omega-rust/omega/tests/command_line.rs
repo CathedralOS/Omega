@@ -195,6 +195,13 @@ fn unprofiled_host_reports_targetless_invocations_without_panicking() {
     );
     // `omega update` needs an exact target for its package review rows.
     assert_reported(&omega_in(&project, &["update", "--offline"]), "update", 1);
+    // A targetless `audit packages` on an unlocked project defaults to the
+    // host profile; it must report the same absence, not panic.
+    assert_reported(
+        &omega_in(&project, &["audit", "packages"]),
+        "audit packages",
+        1,
+    );
     // `refresh-samples` only produces host artifacts, so it has no --target
     // route; it reports the missing host profile and declines.
     let refresh = omega_in(&project, &["refresh-samples", "."]);
