@@ -27,7 +27,7 @@ non-invoked.
 
 ## Target evidence and execution
 
-The [target representation](../../../representations/target/src/uefi_system_table.rs)
+The [target representation](../../../representations/target/src/uefi_system_table/mod.rs)
 owns the known 120-byte x64 system-table prefix: eighteen ordered rows,
 24-byte header, explicit revision padding, `ConOut` at 64, and Boot Services
 at 96. Occurrence integrity validates signature, covered prefix, zero Reserved,

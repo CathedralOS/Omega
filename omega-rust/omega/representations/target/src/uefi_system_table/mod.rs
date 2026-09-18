@@ -10,6 +10,8 @@
 //! [header]: https://uefi.org/specs/UEFI/2.11/04_EFI_System_Table.html#efi-table-header
 //! [system-table]: https://uefi.org/specs/UEFI/2.11/04_EFI_System_Table.html#efi-system-table
 
+pub(crate) mod occurrence;
+
 use crate::{
     Architecture, ObjectFormat, ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
     ProgramEntryReceiverProvisioning, ProgramEntrySchema, ProgramEntrySlotDeclaration,
