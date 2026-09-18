@@ -28,8 +28,10 @@
 //! applications, from the module entry, attached or ranked machines,
 //! provider candidates, or any module-level custody or evidence row — is
 //! dropped, provided no surviving row still names a block, edge, operation,
-//! or value inside it. The verifier re-derives that machine-level relation
-//! from the rewritten module as well.
+//! or value inside it. A machine a surviving row or unsealed sidecar keeps
+//! authored is not a retention root, but the machines its own surviving
+//! transitions name stay too. The verifier re-derives that machine-level
+//! relation from the rewritten module as well.
 
 mod cleanup;
 mod machines;

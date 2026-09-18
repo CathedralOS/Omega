@@ -19,6 +19,26 @@ fn selections() -> PsiOptimizationSelections {
     PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap()
 }
 
+/// Install one valid operation crash-contract row naming `operation` inside
+/// `machine`, publishing the matching unconditional Trap route the caller
+/// coverage check requires.
+fn crash_contract(lowered: &mut lowered_psi::LoweredPsi, machine_index: usize, operation: u64) {
+    let unconditional_trap = terminal_psi::CrashRouteBucket {
+        cause: terminal_psi::CrashCause::Trap,
+        alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+    };
+    let machine = &mut lowered.semantic_module.machines[machine_index];
+    machine.contract.crash_routes = vec![unconditional_trap.clone()];
+    let machine_id = machine.id;
+    lowered.semantic_module.operation_crash_contracts =
+        vec![terminal_psi::TerminalOperationCrashContract {
+            machine: machine_id,
+            operation: common::operation_id(operation),
+            published_routes: vec![unconditional_trap.clone()],
+            crash_continuations: vec![unconditional_trap],
+        }];
+}
+
 #[test]
 fn literal_conditionals_fold_and_stranded_regions_are_removed() {
     let lowered = control_flow_fixture();
@@ -512,6 +532,127 @@ fn a_suspension_row_retains_the_operation_owner() {
 }
 
 #[test]
+fn a_crash_contract_row_retains_its_machine_and_operation() {
+    // Machine 2 is unreachable, but the module's operation crash-contract row
+    // names it and its add operation: while the row survives, both stay
+    // authored.
+    let mut lowered = two_machine_fixture();
+    let machine = &mut lowered.semantic_module.machines[1];
+    machine.parameters = vec![common::i32(111)];
+    machine.blocks[0].operations.push(common::operation(
+        112,
+        common::i32(112),
+        terminal_psi::OperationKind::WrappingIntegerAdd {
+            left: value(111),
+            right: value(111),
+        },
+    ));
+    crash_contract(&mut lowered, 1, 112);
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("a crash-contracted operation refuses removal");
+    assert_eq!(
+        optimized.lowered(),
+        &lowered,
+        "the crash contract names machine 2's operation: machine 2 stays"
+    );
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+}
+
+#[test]
+fn a_crash_contract_inside_the_stranded_region_keeps_the_conditional() {
+    // The contracted operation sits in the block the literal fold strands:
+    // removing b3 would orphan the row, so the conditional stays authored.
+    let mut lowered = control_flow_fixture();
+    lowered.semantic_module.machines[0].parameters = vec![common::i32(90)];
+    lowered.semantic_module.machines[0].blocks[2].operations[0].kind =
+        terminal_psi::OperationKind::WrappingIntegerAdd {
+            left: value(90),
+            right: value(90),
+        };
+    crash_contract(&mut lowered, 0, 30);
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("the contracted operation pins its block");
+    let machine = &optimized.lowered().semantic_module.machines[0];
+    assert_eq!(
+        machine
+            .blocks
+            .iter()
+            .map(|block| block.id)
+            .collect::<Vec<_>>(),
+        vec![
+            common::block_id(1),
+            common::block_id(2),
+            common::block_id(3),
+            common::block_id(4),
+            common::block_id(5),
+        ],
+        "removing b3 would orphan the crash contract: every block stays"
+    );
+    assert!(
+        matches!(machine.blocks[0].terminator, Terminator::Conditional { .. }),
+        "the entry conditional keeps its untaken edge"
+    );
+    assert!(
+        matches!(machine.blocks[1].terminator, Terminator::Jump { .. }),
+        "the unrelated conditional still folds: it strands nothing"
+    );
+    terminal_verifier::validate_control_flow_cleanup(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the partial rewrite");
+}
+
+#[test]
+fn an_evidence_pinned_machine_keeps_its_own_call_targets() {
+    // The suspension rows name machine 2's call operation without making the
+    // machine reachable, so they keep it authored rather than retained. The
+    // kept machine's own call to machine 3 is still a surviving transition:
+    // machine 3 stays too.
+    let mut lowered = two_machine_fixture();
+    lowered.semantic_module.machines[1].blocks[0]
+        .operations
+        .push(unit_call(111, common::machine_id(1)));
+    lowered.semantic_module.machines[1].blocks[0]
+        .operations
+        .push(unit_call(112, common::machine_id(3)));
+    lowered.semantic_module.machines.push(common::machine(
+        3,
+        Vec::new(),
+        terminal_psi::TerminalMachineResult::Unit,
+        common::block_id(21),
+        vec![common::block(
+            21,
+            Vec::new(),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: common::edge(21),
+                trivial_affine_discards: Vec::new(),
+            },
+        )],
+    ));
+    suspension_rows(
+        &mut lowered,
+        common::operation_id(111),
+        terminal_psi::TerminalSuspensionCallTarget::Machine(common::machine_id(1)),
+    );
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("the pinned machine's callee stays alive");
+    assert_eq!(
+        optimized.lowered(),
+        &lowered,
+        "machine 2's kept call transition retains machine 3"
+    );
+    assert_eq!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic()
+    );
+}
+
+#[test]
 fn a_ranked_machine_is_retained() {
     // Machine 2 is unreachable, but its ranked SCC row is execution-position
     // evidence no cleanup may drop: it stays authored. The member block shape
@@ -620,6 +761,26 @@ fn retained_machine_closure_covers_every_naming_row() {
         terminal_verifier::retained_machines(&coercion.semantic_module),
         BTreeSet::from([common::machine_id(1), common::machine_id(2)]),
     );
+
+    // An operation crash-contract row names its machine directly: the
+    // contracted machine is a retention root even with no caller left.
+    let mut contracted = two_machine_fixture();
+    contracted.semantic_module.machines[1].parameters = vec![common::i32(111)];
+    contracted.semantic_module.machines[1].blocks[0]
+        .operations
+        .push(common::operation(
+            112,
+            common::i32(112),
+            terminal_psi::OperationKind::WrappingIntegerAdd {
+                left: value(111),
+                right: value(111),
+            },
+        ));
+    crash_contract(&mut contracted, 1, 112);
+    assert_eq!(
+        terminal_verifier::retained_machines(&contracted.semantic_module),
+        BTreeSet::from([common::machine_id(1), common::machine_id(2)]),
+    );
 }
 
 #[test]
@@ -656,6 +817,33 @@ fn independent_check_rejects_unjustified_machine_removals() {
     assert!(matches!(
         terminal_verifier::validate_control_flow_cleanup(&coercion.semantic_module, &after),
         Err(terminal_verifier::ControlFlowCleanupRewriteError::InvalidModule(_)),
+    ));
+
+    // Dropping a machine whose operation a surviving crash-contract row
+    // names leaves the row dangling: module validation rejects the rewrite
+    // before the removal relation is consulted.
+    let mut contracted = two_machine_fixture();
+    contracted.semantic_module.machines[1].parameters = vec![common::i32(111)];
+    contracted.semantic_module.machines[1].blocks[0]
+        .operations
+        .push(common::operation(
+            112,
+            common::i32(112),
+            terminal_psi::OperationKind::WrappingIntegerAdd {
+                left: value(111),
+                right: value(111),
+            },
+        ));
+    crash_contract(&mut contracted, 1, 112);
+    let mut after = contracted.semantic_module.clone();
+    after.machines.pop();
+    assert!(matches!(
+        terminal_verifier::validate_control_flow_cleanup(&contracted.semantic_module, &after),
+        Err(
+            terminal_verifier::ControlFlowCleanupRewriteError::InvalidModule(
+                terminal_verifier::ModuleError::InvalidOperationCrashContract { .. }
+            )
+        ),
     ));
 }
 

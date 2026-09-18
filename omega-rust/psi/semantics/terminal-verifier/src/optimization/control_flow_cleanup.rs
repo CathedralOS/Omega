@@ -38,9 +38,9 @@ pub enum ControlFlowCleanupRewriteError {
 /// performed folds and carries nothing evidence retains: no static reach
 /// binding, no structural result or parameter row whose machine-level place
 /// declaration would orphan, and no identity the module's contract,
-/// qualification, invariant, suspension, dispatch, call-evidence, or
-/// projection carriers name. Removing any such row would leave evidence
-/// pointing at structure the module no longer contains.
+/// crash-contract, qualification, invariant, suspension, dispatch,
+/// call-evidence, or projection carriers name. Removing any such row would
+/// leave evidence pointing at structure the module no longer contains.
 ///
 /// A `before` module carrying reconstructed proof obligations admits only a
 /// rewrite the question carries verbatim: the unchanged-question check above

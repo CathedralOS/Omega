@@ -40,8 +40,8 @@ pub struct BlockLocalEvidence {
     /// Edges carrying qualification coercions or invariant arrivals.
     pub edges: BTreeSet<EdgeId>,
     /// Operations carrying suspension plans, proof-output joins, dynamic
-    /// dispatches, reborrow restorations, closed reach calls, or partition
-    /// theorem producers.
+    /// dispatches, reborrow restorations, closed reach calls, partition
+    /// theorem producers, or crash contracts.
     pub operations: BTreeSet<OperationId>,
     /// Values named inside propositions, coercion endpoints, retained
     /// suspension frontiers, float entry range parameters, or float-meaning
@@ -78,6 +78,19 @@ pub fn block_local_evidence(module: &TerminalModule) -> BlockLocalEvidence {
         retain_proposition(&invariant.predicate, &mut evidence);
         for arrival in &invariant.arrivals {
             evidence.edges.insert(arrival.edge);
+        }
+    }
+    for contract in &module.operation_crash_contracts {
+        evidence.operations.insert(contract.operation);
+        // The published roster speaks the row's own formal namespace, so
+        // only the continuations — the owning machine's actual values —
+        // pin the identities inside their guard predicates.
+        for bucket in &contract.crash_continuations {
+            for alternative in &bucket.alternatives {
+                if let terminal_psi::CrashRouteGuard::Predicate(term) = alternative {
+                    retain_proposition(term.proposition(), &mut evidence);
+                }
+            }
         }
     }
     for site in &module.suspension_call_sites {
@@ -215,7 +228,20 @@ fn evidence_bound_block(block: &terminal_psi::Block, evidence: &BlockLocalEviden
 /// row names are roots, and each retained machine then keeps the machines
 /// its call, selected-evidence, cleanup, and closed-reach transitions name.
 pub fn retained_machines(module: &TerminalModule) -> BTreeSet<MachineId> {
+    retained_machines_with_roots(module, Vec::new())
+}
+
+/// `retained_machines` closed over extra roots only a producer can name.
+/// A row the verifier's inventory cannot see — the lowering stage's
+/// unsealed checked-source and selected-IEEE sidecars — can keep a machine
+/// authored without making it a retention root, and the machines that kept
+/// machine's own surviving transitions name must stay as well.
+pub fn retained_machines_with_roots(
+    module: &TerminalModule,
+    additional_roots: impl IntoIterator<Item = MachineId>,
+) -> BTreeSet<MachineId> {
     let mut retained = machine_retention_roots(module);
+    retained.extend(additional_roots);
     let by_id: BTreeMap<MachineId, &terminal_psi::TerminalMachine> = module
         .machines
         .iter()
@@ -238,11 +264,11 @@ pub fn retained_machines(module: &TerminalModule) -> BTreeSet<MachineId> {
 }
 
 /// Every machine identity a module-level row names is a retention root:
-/// coercions, float entry ranges, invariants, suspensions, proof outputs,
-/// conformance applications, dynamic-dispatch custody, reborrow
-/// publications, placed views, float projections, evidence lanes, providers,
-/// and attached machines each keep their named machine regardless of call
-/// reachability.
+/// coercions, float entry ranges, invariants, operation crash contracts,
+/// suspensions, proof outputs, conformance applications, dynamic-dispatch
+/// custody, reborrow publications, placed views, float projections, evidence
+/// lanes, providers, and attached machines each keep their named machine
+/// regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
     roots.insert(module.entry);
@@ -254,6 +280,9 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     }
     for invariant in &module.scalar_block_invariants {
         roots.insert(invariant.machine);
+    }
+    for contract in &module.operation_crash_contracts {
+        roots.insert(contract.machine);
     }
     for site in &module.suspension_call_sites {
         if let terminal_psi::TerminalSuspensionCallTarget::Machine(machine) = site.target {
