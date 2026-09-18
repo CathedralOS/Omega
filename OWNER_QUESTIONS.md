@@ -57,9 +57,7 @@ must be surfaced before relying on them.
      [contract](wiki/spec/build/macos_application.md) is landed; what
      remains is host- and dependency-gated acceptance already listed under
      platform-gated verification. Recommend demoting to that bullet.
-   - **BOUNDARY-ISSUANCE** (four-line stub sequenced "after conservation
-     closes", same spec section) into **CONSERVATION-CONTRACT**;
-     **BOUNDED-INSTALLATION-REACH-ROWS** (only open work is the carrier
+   - **BOUNDED-INSTALLATION-REACH-ROWS** (only open work is the carrier
      COMPONENT-SUBSTRATE must supply) into **COMPONENT-SUBSTRATE**;
      **FILESYSTEM-RELEASE-CONTRACT** (same
      [permissions](wiki/spec/build/permissions.md) clause and the same

@@ -891,18 +891,32 @@ Owners include
   Keep unrepresented runtime-indexed owned extraction rejected, not approximated
   by an arbitrary element or a helper-only proof.
 
-- **BOUNDARY-ISSUANCE.** After conservation closes, derive provider issuance
-  geometry from exact invocation parameters, entry places, and results. Keep
-  ownership, aliasing, issuance, custody, and partition succession distinct;
-  providers may attest custody but not computable interval arithmetic.
+- **BOUNDARY-ISSUANCE.** Complete exact fresh-supply and receipt ingress under
+  [external roots and issuance](wiki/spec/resources/authority.md#external-roots-and-issuance).
+  This is distinct from conservation of existing accounts and from
+  `DOMAIN-ISSUER-ROUTES`'s source target selection; it need not wait for all
+  conservation integration to finish.
 
-  Review receipt ingress separately from the AP protocol implementation:
-  installation, retirement, startup, interrupt, and callback evidence must
-  originate in checked execution or an explicitly admitted provider contract
-  for the exact occurrence. A public Rust constructor alone neither proves
-  source forgeability nor establishes a sound source issuance route. Acceptance
-  rejects unjustified source construction, foreign occurrence and replay as ways
-  to acquire authority, while preserving legitimate selected-provider issuance.
+  Reuse Psi `checks/content/retained_custody.rs`, qualification evidence and
+  Terminal claims, then join provider planning/native settlement to the installed
+  occurrence. Derive geometry from exact parameters, callable-entry places and
+  result paths. Admit only the provider's backing custody/freshness premises;
+  never accept interval arithmetic as an opaque provider fact. Multiple results
+  need one separated supply relation, and transferred input is not fresh supply.
+  Preserve the existing rejection of construction that lacks an issuance witness.
+
+  Audit installation, retirement, startup, interrupt and callback receipt ingress
+  in `backend/runtime/external-roots`. Trace each accepted record to checked
+  execution or the exact selected admitted provider contract. Public Rust
+  constructors are neither proof of source forgeability nor evidence that this
+  source-to-runtime join exists; do not solve the task by changing visibility alone.
+  `AP-BRINGUP` owns its concrete arrival/cancellation state repair.
+
+  Acceptance: source-issued content retains geometry, backing, issuer, lineage,
+  route and exact occurrence through independent replay. Reject forged source
+  construction, foreign/replayed receipts, substituted geometry and duplicate
+  fresh supply, while legitimate provider issuance and identity-preserving
+  transfers succeed without re-minting capacity.
 
 ## P2 - Materialization and placed access
 
