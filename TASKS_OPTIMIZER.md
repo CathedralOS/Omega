@@ -1487,13 +1487,31 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   member-against-run interchange, and a one-member run
   stays with the commuting pair, under the same
   replayed restore-by-content validation (crate
-  `nextest`: 1132 pass).
+  `nextest`: 1132 pass). Also landed:
+  `rewrites/commuting_run_relocation` relocates the
+  contiguous run two named members bound in one block
+  onto a named destination instruction's position —
+  the run relocation's own geometry, the window
+  rotating one run-width toward the vacated span with
+  every crossed position keeping its relative order —
+  when every roster row that newly trades order
+  commutes with every row of the position it crosses,
+  so the memory roster itself follows the new
+  execution order, the window's rows rewritten in
+  place. A window whose trading pairs carry no
+  rowed-vs-rowed pair stays with the plain run
+  relocation, and a one-member run stays with the
+  commuting member relocation, under the same replayed
+  restore-by-content validation (crate `nextest`: 1152
+  pass).
   Remaining: scheduling past the proven bounded window,
-  run, member-against-run, commuting-pair, and
-  commuting-run interchanges, relocation through
-  further converging or branching control flow, and
-  compare/test selection past the landed literal folds
-  and the constant-flag boolean materialization and
+  run, member-against-run, commuting-pair,
+  commuting-run, and commuting-member-against-run
+  interchanges and the commuting member and run
+  relocations — relocation through further converging
+  or branching control flow, and compare/test
+  selection past the landed literal folds and the
+  constant-flag boolean materialization and
   conditional-branch folds.
 
 ## Proof-, ownership-, and state-aware optimization
