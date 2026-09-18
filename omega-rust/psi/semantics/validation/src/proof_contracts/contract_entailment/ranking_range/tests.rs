@@ -571,6 +571,35 @@ mod field_views {
     }
 
     #[test]
+    fn computed_endpoint_operations_land_under_the_same_hypotheses() {
+        // The normalized polynomial cannot excuse an intermediate that
+        // already escaped its carrier: `limit + u64::MAX` overflows before
+        // the trailing `- u64::MAX + 1` cancels it away.
+        let overflowing = typed(&FLOW_BOUND.replace(
+            "countdown.limit + 1",
+            "(countdown.limit + 18446744073709551615u64) - 18446744073709551615u64 + 1",
+        ));
+        assert!(!entry(&overflowing));
+        // An intermediate underflow is just as invisible to the final
+        // polynomial.
+        let underflowing =
+            typed(&FLOW_BOUND.replace("countdown.limit + 1", "countdown.limit - 6 + 8"));
+        assert!(!entry(&underflowing));
+        // A `u8` literal selects no shared carrier with the `u64` field.
+        let mixed = typed(&FLOW_BOUND.replace("countdown.limit + 1", "countdown.limit + 1u8"));
+        assert!(!entry(&mixed));
+        // `255u8 + 1u8` has no builtin carrier of its own, but its operation
+        // still computes in `u8` and cannot form `256`.
+        let anonymous_carrier = typed(&FLOW_BOUND.replace("countdown.limit + 1", "255u8 + 1u8"));
+        assert!(!entry(&anonymous_carrier));
+        // An endpoint whose every operation lands under the hypotheses still
+        // proves.
+        let landing =
+            typed(&FLOW_BOUND.replace("countdown.limit + 1", "(countdown.limit + 2) - 1"));
+        assert!(entry(&landing));
+    }
+
+    #[test]
     fn borrowed_subject_reads_its_referent_and_arrives_as_a_borrow() {
         let program = typed(BORROWED);
         assert!(entry(&program));

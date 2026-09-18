@@ -641,8 +641,14 @@ fn prove_edge(
             } else {
                 &ceiling
             };
-            if !fields::endpoint_lands_under(&engine, program, machine, root, *endpoint, polynomial)
-            {
+            if !fields::endpoint_lands_under(
+                &mut engine,
+                program,
+                machine,
+                root,
+                *endpoint,
+                polynomial,
+            ) {
                 return None;
             }
         }

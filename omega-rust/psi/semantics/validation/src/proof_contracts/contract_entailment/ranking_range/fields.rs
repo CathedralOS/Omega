@@ -49,17 +49,28 @@ pub(super) fn endpoint_statically_formed(
 /// bounds a leaf reaches the result. This is the arithmetic proof the
 /// declaration-interval owner cannot see: a computed endpoint such as
 /// `record.limit + 1` forms whenever the hypotheses bound `record.limit`, not
-/// only when the field's store range does.
+/// only when the field's store range does. The normalized polynomial alone
+/// cannot carry that proof: algebraic cancellation hides an intermediate
+/// operation that already escaped its carrier (`limit + u64::MAX - u64::MAX`
+/// normalizes to `limit`), and a typed literal like `1u8` meets a `u64`
+/// operand in a polynomial that records no carrier at all. Every operation
+/// node therefore owes its own landing under the same hypotheses before the
+/// whole endpoint is judged ([`operations_land_under`]).
 pub(super) fn endpoint_lands_under(
-    engine: &Engine<'_>,
+    engine: &mut Engine<'_>,
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     endpoint: ExpressionHandle,
     polynomial: &Polynomial,
 ) -> bool {
+    if !operations_land_under(engine, program, machine, state, endpoint) {
+        return false;
+    }
     let carrier = match super::meanings::builtin(program, machine, state, endpoint, 0) {
-        // An anonymous endpoint is a closed value and already landed.
+        // An anonymous endpoint is a closed value and already landed. A
+        // typed-literal operation such as `255u8 + 1u8` reaches here too;
+        // `operations_land_under` has already judged its own carrier.
         Some(None) => return true,
         Some(Some(reference)) => reference,
         // A non-builtin endpoint never reaches normalization; the template
@@ -72,11 +83,111 @@ pub(super) fn endpoint_lands_under(
     let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive) else {
         return false;
     };
-    let prove = |difference: Polynomial| {
-        engine.prove_at_least(&engine.substituted(&difference), &BigInt::zero())
+    let prove = |difference: &Polynomial| {
+        engine.prove_at_least(&engine.substituted(difference), &BigInt::zero())
     };
-    prove(polynomial.sub(&Polynomial::constant(minimum)))
-        && prove(Polynomial::constant(maximum).sub(polynomial))
+    prove(&polynomial.sub(&Polynomial::constant(minimum)))
+        && prove(&Polynomial::constant(maximum).sub(polynomial))
+}
+
+/// Every runtime arithmetic node inside `node` lands in the carrier its
+/// operands select, under the engine's installed hypotheses. A closed subtree
+/// is a folded constant whose landing the enclosing operation judges; a leaf
+/// or an anonymous-natural node (a builtin collection coordinate, a
+/// literal-only operation, proof-integer division) selects no primitive and
+/// defers to its typed uses. For a node whose operands do share an exact
+/// primitive, each anonymous operand's value must land in that carrier and
+/// the node's own normalized result must land in it too -- the result proof
+/// sees `x - x` as `0` within one operation, while an overflowed `limit +
+/// u64::MAX` cannot launder through a later `- u64::MAX` because that earlier
+/// node's own landing was never proved. Two known operand primitives must
+/// agree; a `u8` literal next to a `u64` operand selects no shared carrier.
+fn operations_land_under(
+    engine: &mut Engine<'_>,
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    node: ExpressionHandle,
+) -> bool {
+    if program
+        .closed_integer_value_in(node, machine.symbol)
+        .is_some()
+    {
+        return true;
+    }
+    let binary = match program.expression_table.expression(node) {
+        ExpressionNode::Atomic(atomic) => {
+            return operations_land_under(engine, program, machine, state, atomic.value);
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
+            ) =>
+        {
+            binary
+        }
+        _ => return true,
+    };
+    let left = operand_primitive(program, machine, state, binary.left);
+    let right = operand_primitive(program, machine, state, binary.right);
+    if let (Some(left), Some(right)) = (left, right)
+        && left != right
+    {
+        return false;
+    }
+    if let Some(primitive) = left.or(right) {
+        let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive) else {
+            return false;
+        };
+        // An anonymous operand carries no range of its own; its folded value
+        // must land in the operation carrier directly. A typed operand is
+        // already a value of the carrier the primitive agreement established.
+        for operand in [binary.left, binary.right] {
+            if let Some(value) = program.closed_integer_value_in(operand, machine.symbol)
+                && value.primitive.is_none()
+                && (value.value < minimum || value.value > maximum)
+            {
+                return false;
+            }
+        }
+        let Some(result) = engine.normalize(node) else {
+            return false;
+        };
+        let lower = engine.substituted(&result.sub(&Polynomial::constant(minimum)));
+        let upper = engine.substituted(&Polynomial::constant(maximum).sub(&result));
+        if !engine.prove_at_least(&lower, &BigInt::zero())
+            || !engine.prove_at_least(&upper, &BigInt::zero())
+        {
+            return false;
+        }
+    }
+    operations_land_under(engine, program, machine, state, binary.left)
+        && operations_land_under(engine, program, machine, state, binary.right)
+}
+
+/// The exact primitive `node`'s own value or selected operation carries. A
+/// closed operand keeps its landing's carrier -- `1u8` is a `u8` even where a
+/// bare literal would stay anonymous -- and an unclosed operand reads the
+/// exact parameter of its builtin meaning. Anonymous-natural coordinates and
+/// proof-level nodes carry none.
+fn operand_primitive(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    node: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    if let Some(value) = program.closed_integer_value_in(node, machine.symbol) {
+        return value.primitive;
+    }
+    match super::meanings::builtin(program, machine, state, node, 0) {
+        Some(Some(reference)) => exact_integer_parameter(program, reference),
+        _ => None,
+    }
 }
 
 /// One `u64` field reached from a state formal through an exact chain of
