@@ -358,10 +358,14 @@ fn fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence() {
         &AdmissionProfile::default(),
     )
     .unwrap();
-    let StructuralTypeShape::FixedArray { length, .. } = &mut module.structural_types[2].shape
+    // A scalar-leaf fixed array admits a zero length as an empty scalar array;
+    // the admission fence remains for an element without a scalar leaf, so the
+    // mutation also retargets the element at a record.
+    let StructuralTypeShape::FixedArray { element, length } = &mut module.structural_types[2].shape
     else {
         unreachable!()
     };
+    *element = structural_type_id(2);
     *length = 0;
     assert_eq!(extent(&module), None);
     assert_eq!(
