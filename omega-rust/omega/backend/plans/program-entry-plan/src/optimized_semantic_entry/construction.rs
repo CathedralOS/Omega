@@ -20,6 +20,8 @@ pub(super) fn construct(
         source,
         boundary,
         method,
+        semantic_application_report_fingerprint,
+        semantic_application_commitment,
         physical_contract,
     } = validated;
     let [image_source, storage_source] = source.visible_parameters() else {
@@ -46,6 +48,8 @@ pub(super) fn construct(
         source_signature: source,
         semantic_boundary_entry_plan: boundary.plan().clone(),
         semantic_calling_plan_report_fingerprint: boundary.contract_report_fingerprint(),
+        semantic_calling_application_report_fingerprint: semantic_application_report_fingerprint,
+        semantic_calling_application_commitment: semantic_application_commitment,
         roots,
         physical_contract,
         physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1,

@@ -25,6 +25,7 @@ use effects::provider_plan::{
 };
 use language_semantics::{CarryPolicy, DomainPredicateBody};
 use program_entry_plan::{
+    OptimizedProgramStorageSemanticCallingApplication,
     OptimizedProgramStorageSemanticEntryContract, ProgramEntryPhysicalContractPlan,
     ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole,
 };
@@ -171,6 +172,13 @@ fn semantic_entry_contract(
         },
     )
     .unwrap();
+    // Test-local calling-plan application identity, distinct from the raw
+    // validated plan's own report fingerprint and commitment digest.
+    let application = OptimizedProgramStorageSemanticCallingApplication::new(
+        &semantic,
+        0xE55C_CC11_1901_A005,
+        BoundaryCallingPlanCommitment::from_digest([0xE5; 32]),
+    );
     let claim = |parameter_index| ServiceEntryClaim {
         parameter_index,
         carrier_identity: EXTENT_CARRIER.into(),
@@ -186,10 +194,8 @@ fn semantic_entry_contract(
         parameter_count: 2,
         parameter_type_identities: vec![IMAGE_TYPE.into(), STORAGE_TYPE.into()],
         entry_claims: vec![claim(0), claim(1)],
-        calling_plan_report_fingerprint: Some(semantic.contract_report_fingerprint()),
-        calling_plan_commitment: Some(BoundaryCallingPlanCommitment::from_digest(
-            semantic.contract_commitment_digest(),
-        )),
+        calling_plan_report_fingerprint: Some(application.report_fingerprint()),
+        calling_plan_commitment: Some(application.commitment()),
         ..Default::default()
     };
     let slot = TargetProfile::UefiX64.program_entry_slot();
@@ -252,7 +258,7 @@ fn semantic_entry_contract(
         target::NativeTarget::uefi_x64(),
         &selected,
         &source,
-        semantic.plan(),
+        &application,
     )
     .unwrap()
 }

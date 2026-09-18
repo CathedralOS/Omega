@@ -13,20 +13,23 @@ mod tests;
 
 pub use model::*;
 
-use calling_conventions::BoundaryEntryPlan;
-
 use crate::{
     ProgramStorageEntryDiagnostic, SelectedProgramEntrySourceSignature,
     SelectedProgramStorageEntryPlan,
 };
 
 /// Bind the clean optimizer's declaration-only semantic ProgramStorage edge.
+///
+/// `semantic_application` is the exact calling-plan application custody the
+/// native binder replayed for this entry: the schema commits to that
+/// application identity, not to the raw ABI plan, so the two must arrive
+/// together.
 pub fn bind_optimized_program_storage_semantic_entry_contract(
     target: target::NativeTarget,
     selected: &SelectedProgramStorageEntryPlan,
     source: &SelectedProgramEntrySourceSignature,
-    semantic_boundary_entry_plan: &BoundaryEntryPlan,
+    semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
 ) -> Result<OptimizedProgramStorageSemanticEntryContract, ProgramStorageEntryDiagnostic> {
-    let validated = validation::validate(target, selected, source, semantic_boundary_entry_plan)?;
+    let validated = validation::validate(target, selected, source, semantic_application)?;
     Ok(construction::construct(validated))
 }

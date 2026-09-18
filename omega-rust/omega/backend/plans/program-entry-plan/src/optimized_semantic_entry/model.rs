@@ -1,10 +1,67 @@
-use calling_conventions::{BoundaryEntryPlan, ValuePlacement, ValueShape};
+use calling_conventions::{
+    BoundaryEntryPlan, ValidatedBoundaryEntryPlan, ValuePlacement, ValueShape,
+};
+use effects::provider_plan::BoundaryCallingPlanCommitment;
 use language_semantics::CarryPolicy;
 
 use crate::{
     ProgramEntryPhysicalContractPlan, ProgramEntrySourceSignatureIdentity,
     ProgramStorageEntryRootRole, SelectedProgramEntrySourceSignature,
 };
+
+/// Exact semantic calling-plan application custody carried through the native
+/// binder.
+///
+/// A schema method's `calling_plan_report_fingerprint`/`calling_plan_commitment`
+/// name the complete target-closed calling-plan *application* — the semantic
+/// signature, target, opaque representations, and canonical validated
+/// `BoundaryEntryPlan` selected by the `Calling<C>` relationship — never the
+/// raw ABI plan. Recomputing that application identity needs the build-side
+/// materialized signature, which this crate cannot name without an upward
+/// dependency, so the native binder replays its retained realization and hands
+/// this pair in beside the exact validated plan the commitment covers.
+/// Comparing the schema fields against the plan's own
+/// `contract_report_fingerprint`/`contract_commitment_digest` crosses identity
+/// namespaces and could only ever match a fabricated schema row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptimizedProgramStorageSemanticCallingApplication<'plan> {
+    boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
+    report_fingerprint: u64,
+    commitment: BoundaryCallingPlanCommitment,
+}
+
+impl<'plan> OptimizedProgramStorageSemanticCallingApplication<'plan> {
+    /// Retain the binder's replayed application identity next to the exact
+    /// canonical plan the commitment covers. The pair is data here; the
+    /// binder's replay (`BoundaryCallingPlanRealization`'s validated
+    /// application) is what proves the commitment binds this plan.
+    pub const fn new(
+        boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
+        report_fingerprint: u64,
+        commitment: BoundaryCallingPlanCommitment,
+    ) -> Self {
+        Self {
+            boundary_entry_plan,
+            report_fingerprint,
+            commitment,
+        }
+    }
+
+    /// The exact canonical ABI plan the retained application commits to.
+    pub const fn boundary_entry_plan(&self) -> &'plan BoundaryEntryPlan {
+        self.boundary_entry_plan.plan()
+    }
+
+    /// Compact report coordinate of the complete calling-plan application.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
+    }
+
+    /// Domain-separated commitment to the complete calling-plan application.
+    pub const fn commitment(&self) -> BoundaryCallingPlanCommitment {
+        self.commitment
+    }
+}
 
 /// Explicit status of the separately retained physical entry contract.
 ///
@@ -75,6 +132,12 @@ pub struct OptimizedProgramStorageSemanticEntryContract {
     pub(super) source_signature_identity: ProgramEntrySourceSignatureIdentity,
     pub(super) semantic_boundary_entry_plan: BoundaryEntryPlan,
     pub(super) semantic_calling_plan_report_fingerprint: u64,
+    /// Compact report coordinate of the exact source calling-plan application
+    /// the selected schema committed to. Kept beside, never instead of, the
+    /// raw plan coordinate above: the two live in distinct identity namespaces.
+    pub(super) semantic_calling_application_report_fingerprint: u64,
+    /// Domain-separated commitment to that same exact application.
+    pub(super) semantic_calling_application_commitment: BoundaryCallingPlanCommitment,
     pub(super) roots: [OptimizedProgramStorageSemanticRoot; 2],
     pub(super) physical_contract: ProgramEntryPhysicalContractPlan,
     pub(super) physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition,
@@ -107,6 +170,14 @@ impl OptimizedProgramStorageSemanticEntryContract {
 
     pub const fn semantic_calling_plan_report_fingerprint(&self) -> u64 {
         self.semantic_calling_plan_report_fingerprint
+    }
+
+    pub const fn semantic_calling_application_report_fingerprint(&self) -> u64 {
+        self.semantic_calling_application_report_fingerprint
+    }
+
+    pub const fn semantic_calling_application_commitment(&self) -> BoundaryCallingPlanCommitment {
+        self.semantic_calling_application_commitment
     }
 
     pub const fn roots(&self) -> &[OptimizedProgramStorageSemanticRoot; 2] {

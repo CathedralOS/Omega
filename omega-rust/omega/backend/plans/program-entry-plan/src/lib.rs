@@ -21,8 +21,10 @@ mod source_signature;
 mod uefi;
 
 pub use optimized_semantic_entry::{
-    OptimizedProgramStoragePhysicalEntryDisposition, OptimizedProgramStorageSemanticEntryContract,
-    OptimizedProgramStorageSemanticRoot, bind_optimized_program_storage_semantic_entry_contract,
+    OptimizedProgramStoragePhysicalEntryDisposition,
+    OptimizedProgramStorageSemanticCallingApplication,
+    OptimizedProgramStorageSemanticEntryContract, OptimizedProgramStorageSemanticRoot,
+    bind_optimized_program_storage_semantic_entry_contract,
 };
 pub use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,

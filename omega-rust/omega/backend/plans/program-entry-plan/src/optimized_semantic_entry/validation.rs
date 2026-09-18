@@ -1,16 +1,18 @@
 //! Admission checks for the selected semantic entry and its paired physical plan.
 
 use calling_conventions::{
-    BoundaryEntryPlan, CallSignature, CallingPolicy, ValidatedBoundaryEntryPlan, ValueShape,
+    CallSignature, CallingPolicy, ValidatedBoundaryEntryPlan, ValueShape,
     validate_boundary_entry_plan,
 };
-use effects::provider_plan::{ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod};
+use effects::provider_plan::{
+    BoundaryCallingPlanCommitment, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
+};
 use language_semantics::CarryPolicy;
 
 use crate::{
-    ProgramEntryPhysicalContractPlan, ProgramEntrySourceExtentFieldRole,
-    ProgramEntrySourceReceiverSignature, ProgramEntrySourceResultSignature,
-    ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
+    OptimizedProgramStorageSemanticCallingApplication, ProgramEntryPhysicalContractPlan,
+    ProgramEntrySourceExtentFieldRole, ProgramEntrySourceReceiverSignature,
+    ProgramEntrySourceResultSignature, ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
     SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,
 };
 
@@ -27,6 +29,8 @@ pub(super) struct ValidatedSemanticEntryInputs {
     pub(super) source: SelectedProgramEntrySourceSignature,
     pub(super) boundary: ValidatedBoundaryEntryPlan,
     pub(super) method: ServiceMethod,
+    pub(super) semantic_application_report_fingerprint: u64,
+    pub(super) semantic_application_commitment: BoundaryCallingPlanCommitment,
     pub(super) physical_contract: ProgramEntryPhysicalContractPlan,
 }
 
@@ -34,7 +38,7 @@ pub(super) fn validate(
     target: target::NativeTarget,
     selected: &SelectedProgramStorageEntryPlan,
     source: &SelectedProgramEntrySourceSignature,
-    semantic_boundary_entry_plan: &BoundaryEntryPlan,
+    semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
 ) -> Result<ValidatedSemanticEntryInputs, ProgramStorageEntryDiagnostic> {
     let slot = selected.target_slot();
     if target != target::NativeTarget::uefi_x64()
@@ -74,8 +78,11 @@ pub(super) fn validate(
         parameters: vec![image_source.value_shape(), storage_source.value_shape()],
         result: None,
     };
-    let boundary = validate_boundary_entry_plan(semantic_boundary_entry_plan.clone(), &signature)
-        .map_err(|diagnostic| {
+    let boundary = validate_boundary_entry_plan(
+        semantic_application.boundary_entry_plan().clone(),
+        &signature,
+    )
+    .map_err(|diagnostic| {
         ProgramStorageEntryDiagnostic(format!(
             "optimized semantic ProgramStorage calling plan is invalid: {diagnostic}"
         ))
@@ -91,7 +98,7 @@ pub(super) fn validate(
     }
 
     let method = selected_method(selected)?;
-    validate_method(method, &boundary, [image_source, storage_source])?;
+    validate_method(method, semantic_application, [image_source, storage_source])?;
     let physical_contract = selected.physical_contract().ok_or_else(|| {
         ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage entry lost its paired physical plan".into(),
@@ -145,6 +152,8 @@ pub(super) fn validate(
         source: source.clone(),
         boundary,
         method: method.clone(),
+        semantic_application_report_fingerprint: semantic_application.report_fingerprint(),
+        semantic_application_commitment: semantic_application.commitment(),
         physical_contract: physical_contract.clone(),
     })
 }
@@ -169,7 +178,7 @@ fn selected_method(
 
 fn validate_method(
     method: &ServiceMethod,
-    boundary: &ValidatedBoundaryEntryPlan,
+    semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
     source: [&crate::ProgramEntrySourceVisibleParameterSignature; 2],
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     if method.requirement_owner != PROGRAM_STORAGE_ENTRY_OWNER
@@ -179,9 +188,6 @@ fn validate_method(
         || method.has_result
         || method.result_type_identity.is_some()
         || !method.result_claims.is_empty()
-        || method.calling_plan_report_fingerprint != Some(boundary.contract_report_fingerprint())
-        || method.calling_plan_commitment.map(|value| value.as_bytes())
-            != Some(boundary.contract_commitment_digest())
         || !matches!(
             method.entry_claims.as_slice(),
             [image, storage] if image.parameter_index == 0 && storage.parameter_index == 1
@@ -189,6 +195,21 @@ fn validate_method(
     {
         return Err(ProgramStorageEntryDiagnostic(
             "selected semantic requirement is not exact ProgramStorageEntry::enter(Image, InitialStorage) -> Unit"
+                .into(),
+        ));
+    }
+    // The schema commits to the complete calling-plan *application* (semantic
+    // signature, target, opaque representations, canonical plan), which is a
+    // different identity namespace than the raw validated ABI plan. Exact
+    // source-application custody therefore compares against the pair the
+    // native binder replayed for the plan above — never against the plan's own
+    // `contract_report_fingerprint`/`contract_commitment_digest`, which could
+    // only match a fabricated schema row.
+    if method.calling_plan_report_fingerprint != Some(semantic_application.report_fingerprint())
+        || method.calling_plan_commitment != Some(semantic_application.commitment())
+    {
+        return Err(ProgramStorageEntryDiagnostic(
+            "selected semantic ProgramStorage requirement does not retain its exact calling-plan application"
                 .into(),
         ));
     }
