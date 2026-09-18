@@ -8,9 +8,9 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionId;
 
-use super::accesses;
 use super::{CommutingInterchangeError, ValidatedCommutingInterchange, admission};
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::commuting_accesses as accesses;
 
 /// Interchange one admitted commuting pair: the named `later` instruction
 /// takes the named `earlier` instruction's position inside their block and
