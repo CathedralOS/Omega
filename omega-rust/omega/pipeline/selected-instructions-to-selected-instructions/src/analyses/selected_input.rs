@@ -12,8 +12,9 @@ use crate::{
     ValidatedLiteralCompare, ValidatedLiteralFold, ValidatedLiteralMinuend,
     ValidatedLocalRelocation, ValidatedLocalSchedule, ValidatedPredecessorRelocation,
     ValidatedPressureRematerialization, ValidatedRedundantCompare, ValidatedRedundantExtension,
-    ValidatedRunRelocation, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding, ValidatedTriangleRelocation,
+    ValidatedRunInterchange, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
+    ValidatedRuntimeSpill, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedTriangleRelocation,
 };
 
 mod sealed {
@@ -463,6 +464,26 @@ impl ValidatedSelectedAnalysis for ValidatedLocalSchedule {
 impl sealed::Sealed for ValidatedPredecessorRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedPredecessorRelocation {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedRunInterchange {}
+
+impl ValidatedSelectedAnalysis for ValidatedRunInterchange {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
