@@ -65,6 +65,36 @@ pub(super) fn at_call(
     )
 }
 
+/// The exact caller-side place a premise-bearing call argument names. A
+/// spelled place keeps its own identity; an argument that is itself a nested
+/// call result — or a projection peeled off one, or a constructor operand —
+/// has no storage of its own, so the same `caller_argument_place` replay that
+/// resolves stored helper results proves which input supplied it. Anything
+/// the replay cannot prove stays unproven rather than borrowing a same-shaped
+/// root.
+pub(super) fn call_argument_place(
+    program: &TypedTrees,
+    state: &FlowStateFact,
+    statement_index: usize,
+    actual: ExpressionHandle,
+    declared_type: TypeReferenceHandle,
+    relative: &[PlaceSegment],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<CanonicalPlace> {
+    let mut owned_frames = None;
+    let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    caller_argument_place(
+        program,
+        frames,
+        state,
+        statement_index,
+        actual,
+        declared_type,
+        relative,
+        16,
+    )
+}
+
 /// Where the argument expressions a checked helper call binds live: inside
 /// the caller's own statement stream at the retained call row, or inside a
 /// proven callee's transition-free prefix while the proof recurses through

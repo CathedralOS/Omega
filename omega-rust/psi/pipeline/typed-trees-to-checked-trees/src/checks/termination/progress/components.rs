@@ -68,8 +68,14 @@ fn derive_component(
 ) -> Vec<CheckedProgressSummary> {
     let mut summaries = external.to_vec();
     let mut unavailable = vec![false; summaries.len()];
-    let projection_limit =
-        projections::finite_projection_limit(program, flow, semantic, component, external);
+    let projection_limit = projections::finite_projection_limit(
+        program,
+        flow,
+        semantic,
+        component,
+        external,
+        call_frames,
+    );
     for (index, machine) in program.machines().iter().enumerate() {
         if component.contains(&machine.symbol) {
             summaries[index].guarantee =

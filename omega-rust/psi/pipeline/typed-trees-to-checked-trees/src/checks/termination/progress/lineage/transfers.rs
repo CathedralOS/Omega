@@ -46,6 +46,7 @@ pub(super) fn collect(
                         call,
                         parameters,
                         destination.root,
+                        call_frames,
                     )
                     .and_then(|mut subject| {
                         subject

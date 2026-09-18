@@ -81,8 +81,14 @@ pub(crate) fn derive_machine_summary(
                     call.target_symbol,
                     callee_premise,
                 );
-                let local_instance =
-                    instantiate_call_premise(program, machine, state_flow, call, callee_premise)?;
+                let local_instance = instantiate_call_premise(
+                    program,
+                    machine,
+                    state_flow,
+                    call,
+                    callee_premise,
+                    call_frames,
+                )?;
                 if admitted_receipt_covers(
                     program,
                     flow,
@@ -281,9 +287,16 @@ fn instantiate_call_premise(
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
     premise: &ProgressPremise,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressPremise> {
-    let mut subject =
-        call_argument_subject(program, machine, state_flow, call, premise.subject.root)?;
+    let mut subject = call_argument_subject(
+        program,
+        machine,
+        state_flow,
+        call,
+        premise.subject.root,
+        call_frames,
+    )?;
     subject
         .projections
         .extend(premise.subject.projections.iter().copied());
@@ -299,6 +312,7 @@ fn call_argument_subject(
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
     parameter_symbol: SymbolHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressSubject> {
     let parameters = call_target_parameters(program, call.target_symbol)?;
     call_argument_subject_with_parameters(
@@ -308,6 +322,7 @@ fn call_argument_subject(
         call,
         parameters,
         parameter_symbol,
+        call_frames,
     )
 }
 
@@ -318,6 +333,7 @@ pub(crate) fn call_argument_subject_with_parameters(
     call: &FlowCallFact,
     parameters: &[typed_trees::signature::StateParameter],
     parameter_symbol: SymbolHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressSubject> {
     let call_site = find_call_site(
         program,
@@ -338,13 +354,29 @@ pub(crate) fn call_argument_subject_with_parameters(
         parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == non_self_count;
     let parameter = &parameters[parameter_index];
     let place = if parameter.is_self && uses_receiver {
-        crate::flow::canonical_receiver_place_for_call_site(
+        let place = crate::flow::canonical_receiver_place_for_call_site(
             program,
             machine.symbol,
             state_flow.state_symbol,
             &call_site,
             call.statement_index,
-        )?
+        )?;
+        // A receiver that is itself a value-call result has no storage to
+        // demand; the same origin replay proves which exact caller input the
+        // callee returned, carrying the receiver's own peeled projection.
+        // What it cannot prove keeps no subject.
+        match place.root {
+            facts::PlaceRoot::Expression(expression) => origins::call_argument_place(
+                program,
+                state_flow,
+                call.statement_index,
+                expression,
+                parameter.type_reference,
+                &place.segments,
+                call_frames,
+            )?,
+            _ => place,
+        }
     } else {
         let argument_index = if uses_receiver {
             parameters[..parameter_index]
@@ -354,11 +386,18 @@ pub(crate) fn call_argument_subject_with_parameters(
         } else {
             parameter_index
         };
-        crate::flow::canonical_place_from_expression_in_state(
+        // A spelled name or member path keeps its own place; an argument that
+        // is itself a value-call result or a constructor has no storage to
+        // demand, so the shared origin replay proves which exact caller input
+        // supplied it. What it cannot prove keeps no subject.
+        origins::call_argument_place(
             program,
-            state_flow.state_symbol,
+            state_flow,
             call.statement_index,
             *arguments.get(argument_index)?,
+            parameter.type_reference,
+            &[],
+            call_frames,
         )?
     };
     subject_from_place(place.root, &place.segments)

@@ -16,6 +16,7 @@ pub(super) fn finite_projection_limit(
     semantic: &facts::FactPlan,
     component: &[SymbolHandle],
     summaries: &[CheckedProgressSummary],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<usize> {
     let mut parameter_count = 0usize;
     let mut maximum_prefix_length = 0usize;
@@ -78,6 +79,7 @@ pub(super) fn finite_projection_limit(
                             call,
                             parameters,
                             parameter.symbol,
+                            call_frames,
                         ) {
                             maximum_prefix_length =
                                 maximum_prefix_length.max(subject.projections.len());
