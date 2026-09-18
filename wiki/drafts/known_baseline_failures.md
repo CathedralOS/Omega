@@ -166,8 +166,14 @@ for an obligation issued on the `machine_calls` call path, an area under live
 borrow-proof work.
 
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
-a66852a558 (2026-09-18, macOS arm64) runs the whole crate: 2023 run, 1998
-passed, 25 failed, of which the row above is one. With the
+9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
+macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed, of
+which the row above is one. The failing names group as boundary byte
+buffers, scalar-return pure source custody, the ordered-boolean guarantees
+above, crash-member byte entries, provider attachment and results, and one
+attached-unit borrowed-self case; rerun the command for the exact set rather
+than trusting this count, which moved from 25 to 20 within a day as other
+lanes landed. With the
 `validation/affine_cleanup/continuation.rs` repair recorded in the
 terminal-verifier section it is 1999 passed, 24 failed: that repair also
 restores `unit_state_graph::bindings::structural_successors_reject_missing_and_surplus_arguments`,
