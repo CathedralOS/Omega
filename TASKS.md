@@ -642,28 +642,33 @@ an implementation shortcut.
   Graph typechecking and published bytes establish neither complete component
   facts nor runtime installation; the latter belongs to the next task.
 
-- **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Build the package-owned installer and
-  Windows/macOS pipe adapters for three checked local payment processes. Depends
-  on plan verification, complete component admission, and generic executable
-  installation. Use one bounded request/response pair per binding, one outstanding
-  request, no general inheritance, dynamic delegation, discovery, or retries to
-  another peer. Acceptance: independent current request authorization, exact
-  all-import binding coverage and confined endpoints precede application entry;
-  an actual ungranted invocation and substituted mapping are refused. Preparation
-  failure returns/cleans custody; partial activation retains supervision and
-  quiesces or reports cleanup failure without a success receipt. Replacement
-  quiesces the old generation before starting the new one. Test both supported
-  hosts when available and disclose loader/OS assumptions; graph-only tests,
-  signatures, and ordinary process spawn do not prove physical confinement.
+- **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Run the
+  [three-process payment customer](wiki/spec/packages/topology.md#first-executable-realization)
+  through an Omega-authored installer and Windows/macOS providers. Dependencies:
+  `TOPOLOGY-PLAN-VERIFICATION`, `COMPONENT-SUBSTRATE`, and
+  `WIRE-RUNTIME-AND-INSTALLATION`. Keep orchestration in the package, physical
+  mechanisms in providers, and generic executable custody in its existing owner.
 
-  Reuse the Rust reference `install/` in `omega-rust/omega/packages/topology`.
-  Its supervisor-owned lifecycle issues opaque single-use authority separately
-  from copyable request intent, and replacement checks current authorization
-  before stopping the old generation. Complete the Omega-authored installer,
-  actual three-process executable/component admission and OS-backed supervisor,
-  and contract-level operation-schema checking on bounded frames. Reference
-  supervisor tests and real pipe I/O alone do not establish process confinement
-  or the three-process customer on Windows/macOS.
+  Reuse `packages/topology/src/topology_installation.rs` and its subordinate
+  mediation, frame and pipe modules. The reference has single-use authorization,
+  activation/cleanup/replacement sequencing and real pipe creation. Its
+  `a_full_installation_flows_over_real_private_pipes` test still uses
+  `SimSupervisor`; it is not three-process confinement. Supply actual executable
+  admission and the OS-backed supervisor, bind physical holders rather than
+  trusting caller-supplied instance numbers, and add operation/payload schema
+  checks beyond the existing bounded frame envelope.
+
+  Acceptance: three checked processes receive exactly their assigned endpoints,
+  with all imports covered and general inheritance disabled before entry opens.
+  One request/response pair per binding, one outstanding request, no delegation,
+  discovery or retry to another peer. Attempt an ungranted invocation and a
+  substituted mapping; both must refuse. Invalid frames/EOF/peer failure close
+  the binding. Preparation failure returns or cleans custody; partial activation
+  retains supervision until quiescence or explicit cleanup failure, never a
+  success receipt. Replacement validates current authorization before stopping
+  the old generation and quiesces it before starting the new one. Report actual
+  Windows/macOS runs and unavailable legs, with exact loader/OS assumptions;
+  ordinary process spawn, graph tests and in-process pipe I/O are insufficient.
 
 ## Process-exit contract
 
