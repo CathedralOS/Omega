@@ -218,7 +218,6 @@ fn qualification_casts_keep_import_exposure_local_to_the_author() {
 }
 
 #[test]
-#[ignore = "scalar return-domain body checking remains an independent implementation gap"]
 fn scalar_domain_returns_require_independent_membership_proofs() {
     let tree = Sources::new();
     let root = tree.package("root");
@@ -238,7 +237,405 @@ fn scalar_domain_returns_require_independent_membership_proofs() {
         );
         // The differently named module already bypasses the old identity
         // collision fence. Neither declaration promises the stronger result.
-        let _ = rejection(&root, package_inputs(&root, &library));
+        let error = rejection(&root, package_inputs(&root, &library));
+        assert!(
+            error.contains("cannot prove scalar result domain"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn scalar_domain_returns_preserve_membership_and_prove_stronger_predicates() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "domain u64::Positive requires self > 0;
+         domain u64::Large requires self > 100;
+         machine preserve(value: u64 in Positive) -> u64 in Positive { value }
+         machine strengthen(value: u64 in Positive) -> u64 in Large
+             requires value > 100
+         { value }
+         machine weaken(value: u64 in Large) -> u64 in Positive { value }
+         machine literal() -> u64 in Large { 101 }",
+    );
+    compile(&root, super::root_inputs(&root));
+}
+
+#[test]
+fn scalar_domain_returns_keep_exact_indexed_membership() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for result_limit in [8, 4] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain<const Limit: u64> u64::Below<Limit> requires self < Limit;
+                 machine forward(value: u64 in Below<8>) -> u64 in Below<{result_limit}> {{ value }}"
+            ),
+        );
+        if result_limit == 8 {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(error.contains("distinct normalized instances"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_establish_exact_indexed_predicates() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for limit in [8, 4] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain<const Limit: u64> u64::Below<Limit> requires self < Limit;
+                 machine literal() -> u64 in Below<{limit}> {{ 7 }}
+                 machine bounded(value: u64) -> u64 in Below<{limit}>
+                     requires value < 8
+                 {{ value }}"
+            ),
+        );
+        if limit == 8 {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_keep_index_binders_in_their_declaration_scope() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for lower in [6, 8] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain<const Limit: u64> u64::Below<Limit> requires self < Limit;
+                 domain<const Limit: u64> u64::Above<Limit> requires self > Limit;
+                 machine below() -> u64 in Below<8> {{ 7 }}
+                 machine above() -> u64 in Above<{lower}> {{ 7 }}"
+            ),
+        );
+        if lower == 6 {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_check_the_body_behind_a_call_result_promise() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for value in [7, 0] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain u64::Positive requires self > 0;
+                 machine producer() -> u64 in Positive {{ {value} }}
+                 machine forward() -> u64 in Positive {{ producer() }}"
+            ),
+        );
+        if value == 7 {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+            assert!(error.contains("producer"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_check_each_state_and_branch_exit() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for fallback in [7, 0] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain u64::Positive requires self > 0;
+                 machine choose(selected: bool) -> u64 in Positive {{
+                     transition selected {{ true -> later() false -> {fallback} }}
+                     state later() -> u64 in Positive {{ 7 }}
+                 }}"
+            ),
+        );
+        if fallback == 7 {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_preserve_wrapping_arithmetic_meaning() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "domain u8::Positive requires self > 0;
+         machine keep(value: u8 in Wrapping) -> u8 in Wrapping & Positive
+             requires value > 0
+         { value }",
+    );
+    compile(&root, super::root_inputs(&root));
+    Sources::write(
+        root.join("main.omg"),
+        "domain u8::Positive requires self > 0;
+         machine wrap(value: u8 in Wrapping) -> u8 in Wrapping & Positive {
+             value + 1
+         }",
+    );
+    let error = rejection(&root, super::root_inputs(&root));
+    assert!(
+        error.contains("cannot prove scalar result domain"),
+        "{error}"
+    );
+}
+
+#[test]
+fn scalar_domain_returns_check_a_states_own_result_qualification() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for value in [7, 0] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain u64::Positive requires self > 0;
+                 machine outer() -> u64 {{
+                     transition {{ _ -> inner() }}
+                     state inner() -> u64 in Positive {{ {value} }}
+                 }}"
+            ),
+        );
+        if value == 7 {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_do_not_negate_one_part_of_a_denied_conjunction() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "domain u64::Positive requires self > 0;
+         machine choose(value: u64) -> u64 in Positive requires value > 0 {
+             transition value > 0 && false { true -> 1 false -> 0 }
+         }",
+    );
+    let error = rejection(&root, super::root_inputs(&root));
+    assert!(
+        error.contains("cannot prove scalar result domain"),
+        "{error}"
+    );
+}
+
+#[test]
+fn scalar_domain_returns_require_membership_from_named_tail_calls() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for qualified in [true, false] {
+        let result = if qualified { "u64 in Positive" } else { "u64" };
+        let value = if qualified { 7 } else { 0 };
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain u64::Positive requires self > 0;
+                 machine producer() -> {result} {{ {value} }}
+                 machine outer() -> u64 in Positive {{ transition {{ _ -> producer() }} }}"
+            ),
+        );
+        if qualified {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_preserve_state_obligations_across_internal_transfers() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    // The common machine promise is proved at the eventual exit; internal
+    // destinations need not repeat it on every state signature.
+    Sources::write(
+        root.join("main.omg"),
+        "domain u64::Positive requires self > 0;
+         machine outer() -> u64 in Positive {
+             transition { _ -> inner() }
+             state inner() -> u64 { 7 }
+         }",
+    );
+    compile(&root, super::root_inputs(&root));
+    for qualified in [true, false] {
+        let result = if qualified { "u64 in Positive" } else { "u64" };
+        let value = if qualified { 7 } else { 0 };
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain u64::Positive requires self > 0;
+                 machine outer() -> u64 {{
+                     transition {{ _ -> inner() }}
+                     state inner() -> u64 in Positive {{ transition {{ _ -> last() }} }}
+                     state last() -> {result} {{ {value} }}
+                 }}"
+            ),
+        );
+        if qualified {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_preserve_independently_checked_casts() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "domain u64::Positive requires self > 0;
+         machine literal() -> u64 in Positive { 7 as u64 in Positive }
+         machine bounded(value: u64) -> u64 in Positive
+             requires value > 0
+         { value as u64 in Positive }",
+    );
+    compile(&root, super::root_inputs(&root));
+}
+
+#[test]
+fn scalar_domain_returns_require_routed_provenance() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for body in ["value", "7"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain u64::Issued established by Issuer::issue;
+                 trait Issuer {{ machine issue() -> u64 in Issued; }}
+                 machine forward(value: u64 in Issued) -> u64 in Issued {{ {body} }}"
+            ),
+        );
+        if body == "value" {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_domain_returns_preserve_authorized_issuance_and_call_results() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "domain u64::Issued established by Issuer::issue;
+         trait Issuer { machine issue() -> u64 in Issued; }
+         data Factory {}
+         machine Factory::issue() -> u64 in Issued satisfies Issuer::issue { 7 }
+         machine forward() -> u64 in Issued { Factory::issue() }",
+    );
+    compile(&root, super::root_inputs(&root));
+}
+
+#[test]
+fn scalar_domain_returns_do_not_reuse_invalidated_predicates() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "domain u64::Positive requires self > 0;
+         machine reset(mut value: u64) -> u64 in Positive
+             requires value > 0
+         { value = 0; value }",
+    );
+    let error = rejection(&root, super::root_inputs(&root));
+    assert!(
+        error.contains("cannot prove scalar result domain"),
+        "{error}"
+    );
+}
+
+#[test]
+fn scalar_domain_returns_require_a_returned_subject() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "domain u64::Positive requires self > 0;
+         machine empty() -> u64 in Positive {}",
+    );
+    let error = rejection(&root, super::root_inputs(&root));
+    assert!(error.contains("its body is empty"), "{error}");
+}
+
+#[test]
+fn scalar_domain_returns_prove_boolean_predicates() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for value in ["true", "false"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain bool::Truthy requires self;
+                 machine boolean() -> bool in Truthy {{ {value} }}"
+            ),
+        );
+        if value == "true" {
+            compile(&root, super::root_inputs(&root));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(
+                error.contains("cannot prove scalar result domain"),
+                "{error}"
+            );
+        }
     }
 }
 
@@ -313,7 +710,7 @@ fn rejection(root: &Path, inputs: PackageCompilationInputs) -> String {
         ..compiler::CheckedCompileRequest::new(&root.join("main.omg"), None)
     })
     .map(|_| ())
-    .expect_err("invalid constrained constant must reject")
+    .expect_err("invalid domain-qualified source must reject")
     .iter()
     .map(|diagnostic| diagnostic.message.as_str())
     .collect::<Vec<_>>()

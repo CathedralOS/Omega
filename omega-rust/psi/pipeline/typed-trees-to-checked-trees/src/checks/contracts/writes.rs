@@ -870,7 +870,7 @@ fn value_proves_domain(
     // implying `domain_symbol` is accepted on the same trust basis as a declared
     // param domain at a call site: the signature's domain is trusted at use
     // sites, with its establishment enforced separately (params at call sites;
-    // return bodies are the deferred returns-domain check). This is how a
+    // scalar results at ordinary exits in exits/result_domains.rs). This is how a
     // `-> &[u8] in Utf8` value-call result flows into a `&[u8] in Utf8` field.
     if value_call_return_domain_implies(program, value, domain_symbol) {
         return true;

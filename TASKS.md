@@ -3960,27 +3960,6 @@ Owners include
   (**STATE-LOCAL-VALUE-FRONTIER**) and the gate is deleted, not widened one
   destination shape at a time.
 
-- **SCALAR-DOMAIN-RETURN-PROOF.** (new-scope) Enforce a scalar result type's
-  declared domain predicates on every normal return, under
-  [domain qualification](wiki/spec/language/domains.md) and
-  [proof contracts](wiki/spec/proofs/contracts.md). A parameter carrying
-  `self > 0` cannot be returned as a distinct domain requiring `self > 100`.
-  The ignored regression
-  `module_machine_indices::indexed_domains::scalar_domain_returns_require_independent_membership_proofs`
-  keeps both different-module and same-module foreign-owner forms. Run
-  `cargo nextest run -p compiler --test module_machine_indices --run-ignored ignored-only -E 'test(scalar_domain_returns)'`.
-  It fails because checked compilation accepts the different-module form
-  with both base `b878eb6270` production and the package-aware identity repair
-  (macOS ARM64). This is not semantic-ID equality: the owners have distinct IDs.
-  `typed-trees-to-checked-trees/src/checks/contracts/{calls,writes}.rs` trust
-  declared result domains but explicitly defer their body check;
-  `checks/contracts/exits/result_domains.rs` currently proves nominal fields,
-  not the scalar result's own domain. Reuse the ordinary exit/proof mechanism,
-  including exact indexed instances and routed provenance; recheck assignments
-  in this area before editing alongside **NOMINAL-FIELD-FLOW**. Acceptance:
-  enable the regression, preserve valid same-domain propagation and proven
-  strengthening, and reject unproved scalar returns before trusting callers.
-
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements
   need explicit live coverage for their declared field predicates, transported

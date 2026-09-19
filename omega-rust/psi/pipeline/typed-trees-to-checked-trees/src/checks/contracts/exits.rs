@@ -10,9 +10,12 @@ mod result_domains;
 mod scalars;
 
 pub(super) use cyclic_headers::CyclicHeaderInvariants;
-pub(super) use result_domains::{check_mutable_referent_field_domains, check_result_field_domains};
+pub(super) use result_domains::{
+    check_mutable_referent_field_domains, check_result_field_domains, check_scalar_result_domains,
+    check_scalar_tail_result_domains,
+};
 pub(crate) use result_domains::{
-    is_readable_mutable_reference, result_domain_type, value_provable_domain,
+    is_readable_mutable_reference, result_domain_type, scalar_result_domains, value_provable_domain,
 };
 
 fn direct_result_float_meaning_reflexivity_proves_exit(
