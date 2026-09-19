@@ -1,6 +1,7 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::lower_typed_trees;
 
+mod constant_index_projection;
 mod float_patterns;
 mod owned_results;
 mod semantic_results;

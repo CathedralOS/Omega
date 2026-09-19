@@ -2650,7 +2650,21 @@ Owners include
     arguments to block parameters to `EstablishRecord`), which sits in
     `src/unit`/`src/emission`;
     `owned_match_record_arm_children_check_but_await_leaf_emission` pins the
-    boundary.
+    boundary. Owned indexed leaves share that boundary: the admission gate's
+    projected-child rule now follows `constant_integer_value`, so
+    `items[0 + 1]` joins and checks exactly like `items[1]` — the
+    `match_dispatch` admission tests and the checker's
+    `value_dispatch::constant_index_projection` pin the join and the kept
+    rejection of indexes without a fixed ordinal, while
+    `folded_index_projection` (`tests/value_dispatch/owned_results`) pins both
+    spellings stopping at the same scalar-control-plan gap. On 2026-09-19
+    (Linux x86-64, base ac1efde2f7) the scoped runs are
+    `cargo nextest run -p validation --lib
+    value_custody::expression_types::match_dispatch`,
+    `-p typed-trees-to-checked-trees --lib value_dispatch`, and
+    `-p checked-trees-to-lowered-psi --test suite value_dispatch`, all
+    passing; leaf emission still must transport the `FixedIndex` path to
+    close it.
   - Claim-bearing bodies do not lower. The checker joins a whole affine root
     with linear children by naming each frontier claim, but lowering stops at
     "machine has no source-independent checked scalar control plan" for a

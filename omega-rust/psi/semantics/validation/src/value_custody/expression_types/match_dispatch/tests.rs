@@ -289,3 +289,77 @@ fn whole_affine_root_with_linear_children_joins_like_its_projected_child() {
         );
     }
 }
+
+/// A constant-folded index names the same fixed ordinal a literal spells:
+/// the gate follows `constant_integer_value`, which is exactly the fold the
+/// checked canonicalizer bakes into a `FixedIndex` segment, so `items[0 + 1]`
+/// joins under the identical projection rule as `items[1]`. The affine leaf
+/// and the linear leaf claim ride the same widened rule.
+#[test]
+fn projected_arms_join_a_constant_folded_index_like_a_literal() {
+    for (label, source) in [
+        (
+            "affine leaf",
+            "data Cell { tag: u64; }
+             data Pack { items: [Cell; 2]; }
+             machine choose(other: bool, x: Pack, y: Pack) -> u64 {
+                 let picked: Cell = match other { true -> x.items[0 + 1], false -> y.items[1] };
+                 picked.tag
+             }",
+        ),
+        (
+            "linear leaf",
+            "data Token [linear] { code: u64; }
+             data Crate { items: [Token; 2]; }
+             machine choose(other: bool, x: Crate, y: Crate) -> u64 {
+                 let picked: Token = match other { true -> x.items[4 - 3], false -> y.items[1] };
+                 0
+             }",
+        ),
+        (
+            "nested fold under a field",
+            "data Cell { tag: u64; }
+             data Pack { items: [Cell; 2]; }
+             data Shelf { pack: Pack; }
+             machine choose(other: bool, shelf: Shelf) -> u64 {
+                 let picked: Cell = match other { true -> shelf.pack.items[(6 / 3) - 1], false -> shelf.pack.items[0] };
+                 picked.tag
+             }",
+        ),
+    ] {
+        let messages = choose_dispatch_diagnostics(source);
+        assert!(
+            messages.is_empty(),
+            "{label}: a constant fold is the same fixed ordinal a literal is: {messages:?}",
+        );
+    }
+}
+
+/// The widened index rule still names only fixed ordinals: a place read, a
+/// partially dynamic fold, or a constant fold that leaves `usize` (a
+/// negative ordinal) has no statically checkable position, so it keeps
+/// failing the join with the same rejection a dynamic index always drew.
+#[test]
+fn projected_arms_still_reject_indexes_without_a_fixed_ordinal() {
+    for (label, index) in [
+        ("place read", "slot"),
+        ("partially dynamic fold", "1 + slot"),
+        ("negative fold", "0 - 1"),
+    ] {
+        let source = format!(
+            "data Cell {{ tag: u64; }}
+             data Pack {{ items: [Cell; 2]; }}
+             machine choose(other: bool, slot: u64, x: Pack, y: Pack) -> u64 {{
+                 let picked: Cell = match other {{ true -> x.items[{index}], false -> y.items[1] }};
+                 picked.tag
+             }}"
+        );
+        let messages = choose_dispatch_diagnostics(&source);
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.contains(CUSTODY_JOIN_REJECTION)),
+            "{label}: `{index}` has no fixed ordinal and must keep rejecting: {messages:?}",
+        );
+    }
+}
