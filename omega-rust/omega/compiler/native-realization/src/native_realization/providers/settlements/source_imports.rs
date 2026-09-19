@@ -11,6 +11,8 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
+use crate::native_realization::terminal_authority_policy::TerminalAuthorityPolicyRow;
+
 struct ImportCoverageRows<'input> {
     boundary: BoundaryMachineId,
     boundary_count: usize,
@@ -31,7 +33,13 @@ pub(super) fn validate_source_evaluated_import_coverage(
     settlements: &[NativeProviderSettlement<'_>],
     native_callbacks: &[abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
     filesystem_release_contracts: &[crate::native_realization::FilesystemOrdinaryReleaseContract],
-) -> Result<Vec<AdmittedTerminalMechanism>, Vec<Diagnostic>> {
+) -> Result<
+    (
+        Vec<AdmittedTerminalMechanism>,
+        Vec<TerminalAuthorityPolicyRow>,
+    ),
+    Vec<Diagnostic>,
+> {
     let demanded = join_import_coverage_rows(
         plan,
         selected_plans,
@@ -40,6 +48,10 @@ pub(super) fn validate_source_evaluated_import_coverage(
     )?;
     let mut required_imports = BTreeSet::new();
     let mut admitted_mechanisms = Vec::new();
+    // Toolchain-settled `FilesystemHost` cohort rows emitted for demanded
+    // leaves: they classify beside the supplied receiving policy rather than
+    // requiring the receiver to spell them.
+    let mut cohort_rows: Vec<TerminalAuthorityPolicyRow> = Vec::new();
     for (requirement, rows) in demanded {
         let Some((provider_plan, row)) = rows.selected_external else {
             continue;
@@ -106,19 +118,32 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded syscall `{requirement}` has no exact checked argument contract: {error}"
                     ))]
                 })?;
-                let mechanism = classify_terminal_mechanism(
+                let cohort_row = settled_filesystem_cohort_row(provider_plan, row, mechanism);
+                let mechanism = match classify_terminal_mechanism(
                     policy,
                     mechanism,
                     ordinary_release_cohort(provider_plan, row),
                     filesystem_release_contracts,
-                )
-                .map_err(|unclassified| {
-                    vec![Diagnostic::error(format!(
-                        "receiving terminal-authority policy version {} does not classify syscall mechanism {:?} required by `{requirement}`",
-                        policy.identity().version(),
-                        unclassified.mechanism(),
-                    ))]
-                })?;
+                ) {
+                    Ok(mechanism) => mechanism,
+                    Err(unclassified) if cohort_row.is_some() => {
+                        // The toolchain-settled cohort classifies this leaf:
+                        // the receiving policy need not spell the row.
+                        unclassified.mechanism()
+                    }
+                    Err(unclassified) => {
+                        return Err(vec![Diagnostic::error(format!(
+                            "receiving terminal-authority policy version {} does not classify syscall mechanism {:?} required by `{requirement}`",
+                            policy.identity().version(),
+                            unclassified.mechanism(),
+                        ))]);
+                    }
+                };
+                if let Some(row) =
+                    cohort_row.filter(|row| !cohort_rows.contains(row))
+                {
+                    cohort_rows.push(row);
+                }
                 admitted_mechanisms.push(AdmittedTerminalMechanism {
                     boundary: rows.boundary,
                     mechanism,
@@ -177,19 +202,28 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded normalized import `{requirement}` has an invalid admitted implementation contract: {error}"
                     ))]
                 })?;
-                let mechanism = classify_terminal_mechanism(
+                let cohort_row = settled_filesystem_cohort_row(provider_plan, row, mechanism);
+                let mechanism = match classify_terminal_mechanism(
                     policy,
                     mechanism,
                     ordinary_release_cohort(provider_plan, row),
                     filesystem_release_contracts,
-                )
-                .map_err(|unclassified| {
-                    vec![Diagnostic::error(format!(
-                        "receiving terminal-authority policy version {} does not classify normalized foreign mechanism {:?} required by `{requirement}`",
-                        policy.identity().version(),
-                        unclassified.mechanism(),
-                    ))]
-                })?;
+                ) {
+                    Ok(mechanism) => mechanism,
+                    Err(unclassified) if cohort_row.is_some() => unclassified.mechanism(),
+                    Err(unclassified) => {
+                        return Err(vec![Diagnostic::error(format!(
+                            "receiving terminal-authority policy version {} does not classify normalized foreign mechanism {:?} required by `{requirement}`",
+                            policy.identity().version(),
+                            unclassified.mechanism(),
+                        ))]);
+                    }
+                };
+                if let Some(row) =
+                    cohort_row.filter(|row| !cohort_rows.contains(row))
+                {
+                    cohort_rows.push(row);
+                }
                 if rows.boundary_count != 1 {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` resolves to {} Terminal boundaries",
@@ -239,7 +273,31 @@ pub(super) fn validate_source_evaluated_import_coverage(
         ))]);
     }
     admitted_mechanisms.sort_by_key(|row| row.boundary);
-    Ok(admitted_mechanisms)
+    Ok((admitted_mechanisms, cohort_rows))
+}
+
+/// The toolchain-settled `FilesystemHost` facet cohort supplies one exact
+/// mechanism row for a demanded leaf, so classification does not require the
+/// receiving policy to spell it. Name-keyed like [`ordinary_release_cohort`]:
+/// the schema method selects the cohort, and the row binds the exact mechanism
+/// this leaf computed. Ordinary-release cohorts mint nothing here — an
+/// unconstrained generic key cannot inherit the occurrence-specific release
+/// proof — and unrecognized names mint nothing, so both still demand a
+/// receiving row or release-contract bound key.
+fn settled_filesystem_cohort_row(
+    provider_plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    mechanism: effects::TerminalMechanismIdentity,
+) -> Option<TerminalAuthorityPolicyRow> {
+    let method = provider_plan
+        .schema
+        .methods
+        .iter()
+        .find(|method| method.name == row.method)?;
+    crate::native_realization::terminal_authority_policy::filesystem_mechanism_row(
+        mechanism, method,
+    )
+    .ok()
 }
 
 /// Whether the selected row serves a canonical `FilesystemHost`

@@ -8,5 +8,7 @@
 //! mechanisms from an ordinary compile, so the board can see exactly how far
 //! that route carries the evidence today.
 
+#[path = "terminal_authority/filesystem_cohort_witness.rs"]
+mod filesystem_cohort_witness;
 #[path = "terminal_authority/filesystem_release_witness.rs"]
 mod filesystem_release_witness;
