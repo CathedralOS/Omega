@@ -148,6 +148,29 @@ fn drive(
     mut lowerer: Lowerer,
     syntax: &SyntaxTrees,
 ) -> Result<(SymbolResolvedTrees, ConstantSelection<'static>), Vec<Diagnostic>> {
+    // Top-level `let`/`boundary let` declarations parse into their own root
+    // collection (`SyntaxTreeRoots::mathematical_definitions`); their lowering
+    // is a separate PROOF-CONTRACT-MIGRATION leg. Refuse here — before item
+    // lowering — rather than silently dropping a declaration the author wrote.
+    if let Some(span) = syntax
+        .root_mathematical_definition_handles()
+        .first()
+        .map(|handle| {
+            syntax
+                .items
+                .mathematical_definition(*handle)
+                .name
+                .source_span()
+        })
+    {
+        return Err(vec![
+            Diagnostic::error(
+                "top-level `let`/`boundary let` mathematical declarations are parsed but \
+                 symbol resolution for them is not implemented yet (PROOF-CONTRACT-MIGRATION)",
+            )
+            .with_source_span(span),
+        ]);
+    }
     lowering::lower_items(&mut lowerer, syntax)?;
     let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;

@@ -8,6 +8,9 @@ pub type StateSignatureHandle = Handle<StateSignatureNode>;
 pub type StateHandle = Handle<StateNode>;
 pub type MachineHandle = Handle<MachineNode>;
 pub type TraitHandle = Handle<TraitNode>;
+pub type MathematicalDefinitionHandle = Handle<MathematicalDefinition>;
+pub type MathematicalParameterHandle = Handle<MathematicalParameterNode>;
+pub type MathematicalTypeHandle = Handle<MathematicalTypeNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
@@ -151,6 +154,111 @@ pub enum PropositionBody {
     Transparent {
         proposition: crate::expression::ExpressionHandle,
     },
+}
+
+/// A top-level mathematical declaration: `let` (a transparent checked term
+/// definition) or `boundary let` (a named assumption with no body). These are
+/// the selected source forms for named mathematical terms and assumptions
+/// under PROOF-CONTRACT-MIGRATION
+/// (wiki/spec/proofs/mathematical_bindings.md): ordinary `requires`/`ensures`
+/// contracts stay on machines, while this declaration's binders, parameter
+/// telescope and result elaborate into one proof-kernel declaration — a level
+/// arity, a statement built from nested dependent function arrows, and an
+/// optional transparent definition body. No `forall`, `exists`, `claim`,
+/// `proposition` or `implies` spelling is added.
+///
+/// This is deliberately not an [`Item`] variant yet: the symbol-resolution
+/// lowering that admits declarations is a separately owned leg, so parsed
+/// declarations live on their own root collection
+/// (`SyntaxTreeRoots::mathematical_definitions`) and resolution refuses them
+/// explicitly until that leg lands.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MathematicalDefinition {
+    pub name: Identifier,
+    pub is_public: bool,
+    /// Generic binders in declaration order. `u: core::Level` and
+    /// `A: core::Type<u>` parse as ordinary `Value` binders; the carrier's
+    /// resolved declaration is what marks a binder as a universe or type
+    /// parameter contributing to the kernel declaration's level arity. Bare
+    /// `A` and `const N: usize` keep their ordinary `Type`/`Const` kinds.
+    pub type_parameters: HandleSpan<TypeParameter>,
+    /// The ordered ordinary parameter telescope `(name: Type, ...)`. A
+    /// binder scopes over every later parameter and the result, matching the
+    /// kernel's nested Π construction.
+    pub parameters: HandleSpan<MathematicalParameterHandle>,
+    /// The declared result type after `:`, itself a [`MathematicalTypeNode`].
+    pub result: MathematicalTypeHandle,
+    pub body: MathematicalDefinitionBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MathematicalDefinitionBody {
+    /// `= term;` — a transparent checked term definition. Substitution of a
+    /// use site with this exact term is the declaration's meaning; nothing
+    /// executable is implied by it.
+    Definition(crate::expression::ExpressionHandle),
+    /// `boundary let ...;` — the bodyless named-assumption form. Its term and
+    /// transitive dependencies require the receiver's admission, keyed on
+    /// this declaration's exact identity; it is never an
+    /// implementation-search slot.
+    Assumption,
+}
+
+impl Default for MathematicalDefinitionBody {
+    fn default() -> Self {
+        // A definition with an invalid term — an unusable placeholder, never
+        // mistaken for a real assumption's authority.
+        Self::Definition(crate::expression::ExpressionHandle::invalid())
+    }
+}
+
+/// One ordinary parameter of a mathematical declaration's telescope. Unlike
+/// [`StateParameterNode`] its type is a [`MathematicalTypeHandle`] (it may be
+/// an arrow), and it carries no runtime binding facts — mathematical values
+/// are not executable data.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MathematicalParameterNode {
+    pub name: Identifier,
+    /// The binding occurrence's `[erased]` marker (contracts.md): an erased
+    /// proof reference demands no executable value while retaining trust.
+    pub relevance: language_core::BindingRelevance,
+    pub ty: MathematicalTypeHandle,
+}
+
+/// A type in mathematical-declaration position: every ordinary type form plus
+/// the dependent function former `->`. It stays separate from
+/// [`crate::types::TypeReferenceNode`] so that admitting `->` into the shared
+/// type grammar remains its own resolution decision; this leg only records
+/// the authored shape faithfully.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MathematicalTypeNode {
+    /// An ordinary type reference — `i32`, `A`, `core::Type<u>`,
+    /// `core::Squash<A>`.
+    Ordinary(crate::types::TypeReferenceHandle),
+    /// `A -> B` or `(value: A) -> F(value)` — a dependent function type
+    /// (mathematical_bindings.md: arrow types are dependent Π-types). `->`
+    /// associates right, and `binder` scopes over the codomain only.
+    Arrow {
+        binder: Option<Identifier>,
+        domain: MathematicalTypeHandle,
+        codomain: MathematicalTypeHandle,
+    },
+    /// `F(value)` / `C(x, y)` — a dependent type family applied to term
+    /// arguments, the shape a dependent codomain takes when its binder is
+    /// used. The shared `TypeReferenceNode` grammar has no value-argument
+    /// application form (its `Generic`/`ConstExpression` arguments are
+    /// `<>`-spelled), so this leg records the authored `(args)` application
+    /// here for the resolution leg to elaborate.
+    Application {
+        callee: MathematicalTypeHandle,
+        arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    },
+}
+
+impl Default for MathematicalTypeNode {
+    fn default() -> Self {
+        Self::Ordinary(crate::types::TypeReferenceHandle::invalid())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -809,6 +917,10 @@ pub struct StateSignature {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemTable {
     items: Arena<Item>,
+    /// Top-level `let`/`boundary let` declarations, kept beside `items` on
+    /// their own root collection until the separately owned resolution leg
+    /// admits them into `Item` dispatch.
+    mathematical_definitions: Arena<MathematicalDefinition>,
     state_storage: StateStorage,
     declaration_storage: DeclarationStorage,
 }
@@ -840,12 +952,16 @@ struct DeclarationStorage {
     measures: Arena<MeasureDefinition>,
     proof_facts: Arena<ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
+    mathematical_types: Arena<MathematicalTypeNode>,
+    mathematical_parameters: Arena<MathematicalParameterNode>,
+    mathematical_parameter_handles: Arena<MathematicalParameterHandle>,
 }
 
 impl ItemTable {
     pub fn new() -> Self {
         Self {
             items: Arena::new(),
+            mathematical_definitions: Arena::new(),
             state_storage: StateStorage::new(),
             declaration_storage: DeclarationStorage::new(),
         }
@@ -857,6 +973,65 @@ impl ItemTable {
 
     pub fn item(&self, handle: ItemHandle) -> &Item {
         self.items.get(handle)
+    }
+
+    pub fn mathematical_definition(
+        &self,
+        handle: MathematicalDefinitionHandle,
+    ) -> &MathematicalDefinition {
+        self.mathematical_definitions.get(handle)
+    }
+
+    pub fn append_mathematical_definition(
+        &mut self,
+        definition: MathematicalDefinition,
+    ) -> MathematicalDefinitionHandle {
+        self.mathematical_definitions.append(definition)
+    }
+
+    pub fn mathematical_type(&self, handle: MathematicalTypeHandle) -> &MathematicalTypeNode {
+        self.declaration_storage.mathematical_types.get(handle)
+    }
+
+    pub fn insert_mathematical_type(
+        &mut self,
+        node: MathematicalTypeNode,
+    ) -> MathematicalTypeHandle {
+        self.declaration_storage.mathematical_types.append(node)
+    }
+
+    pub fn mathematical_parameter(
+        &self,
+        handle: MathematicalParameterHandle,
+    ) -> &MathematicalParameterNode {
+        self.declaration_storage.mathematical_parameters.get(handle)
+    }
+
+    pub fn insert_mathematical_parameter(
+        &mut self,
+        parameter: MathematicalParameterNode,
+    ) -> MathematicalParameterHandle {
+        self.declaration_storage
+            .mathematical_parameters
+            .append(parameter)
+    }
+
+    pub fn mathematical_parameters(
+        &self,
+        span: HandleSpan<MathematicalParameterHandle>,
+    ) -> &[MathematicalParameterHandle] {
+        self.declaration_storage
+            .mathematical_parameter_handles
+            .span_or_empty(span)
+    }
+
+    pub fn append_mathematical_parameter_handle(
+        &mut self,
+        handle: MathematicalParameterHandle,
+    ) -> Handle<MathematicalParameterHandle> {
+        self.declaration_storage
+            .mathematical_parameter_handles
+            .append(handle)
     }
 
     /// In-place item rewrite, the item-level twin of
@@ -1221,6 +1396,9 @@ impl DeclarationStorage {
             measures: Arena::new(),
             proof_facts: Arena::new(),
             proof_fact_source_spans: Vec::new(),
+            mathematical_types: Arena::new(),
+            mathematical_parameters: Arena::new(),
+            mathematical_parameter_handles: Arena::new(),
         }
     }
 }

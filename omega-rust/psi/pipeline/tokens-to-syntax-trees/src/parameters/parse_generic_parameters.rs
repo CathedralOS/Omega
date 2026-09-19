@@ -27,6 +27,13 @@ pub(crate) enum GenericParameterSyntax {
     /// provider declaration where a dynamic envelope can still refuse them.
     RequirementSignature,
     MachineDeclaration,
+    /// A top-level `let`/`boundary let` mathematical declaration
+    /// (PROOF-CONTRACT-MIGRATION). `Value` binders are admitted because the
+    /// settled binder spellings `u: core::Level` and `A: core::Type<u>` are
+    /// value-shaped carriers — the universe/level reading comes from the
+    /// carrier's resolved declaration, not a binder keyword. Machine,
+    /// proposition and `satisfies` conformance binders stay excluded.
+    MathematicalDefinition,
 }
 
 pub(crate) fn parse_generic_parameters<'tokens, 'source>(
@@ -34,7 +41,10 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
     syntax: GenericParameterSyntax,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    let allow_machine_parameters = !matches!(syntax, GenericParameterSyntax::TypeAndConst);
+    let allow_machine_parameters = !matches!(
+        syntax,
+        GenericParameterSyntax::TypeAndConst | GenericParameterSyntax::MathematicalDefinition
+    );
     let allow_proposition_parameters = matches!(syntax, GenericParameterSyntax::TraitRequirements);
     let allow_conformance_binders = matches!(
         syntax,
@@ -43,7 +53,9 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     let trait_requirement_parameters = matches!(syntax, GenericParameterSyntax::TraitRequirements);
     let allow_value_parameters = matches!(
         syntax,
-        GenericParameterSyntax::RequirementSignature | GenericParameterSyntax::MachineDeclaration
+        GenericParameterSyntax::RequirementSignature
+            | GenericParameterSyntax::MachineDeclaration
+            | GenericParameterSyntax::MathematicalDefinition
     );
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((ParsedGenericParameters::default(), input));

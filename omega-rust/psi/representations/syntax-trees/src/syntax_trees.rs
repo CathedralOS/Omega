@@ -19,7 +19,10 @@ pub mod type_system;
 pub mod values;
 
 use crate::expression::ExpressionTable;
-use crate::item::{Item, ItemHandle, ItemTable, Machine, TraitDefinition};
+use crate::item::{
+    Item, ItemHandle, ItemTable, Machine, MathematicalDefinition, MathematicalDefinitionHandle,
+    TraitDefinition,
+};
 use crate::statement::StatementTable;
 use crate::types::TypeReferenceTable;
 use arena::Arena;
@@ -44,6 +47,11 @@ pub struct SyntaxTreeTables {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyntaxTreeRoots {
     pub items: Arena<ItemHandle>,
+    /// Parsed top-level `let`/`boundary let` mathematical declarations in
+    /// source order. They sit beside `items`, not inside it: the
+    /// symbol-resolution lowering that admits declarations is a separately
+    /// owned leg, and resolution refuses these explicitly until it lands.
+    pub mathematical_definitions: Arena<MathematicalDefinitionHandle>,
 }
 
 impl SyntaxTrees {
@@ -69,6 +77,35 @@ impl SyntaxTrees {
         let handle = self.insert_item(item);
         self.roots.items.append(handle);
         handle
+    }
+
+    /// Record one parsed top-level `let`/`boundary let` declaration. It is a
+    /// root in its own collection, not an [`Item`], so the `Item` consumers
+    /// unchanged by this leg never see it; resolution refuses it explicitly.
+    pub fn push_root_mathematical_definition(
+        &mut self,
+        definition: MathematicalDefinition,
+    ) -> MathematicalDefinitionHandle {
+        let handle = self.items.append_mathematical_definition(definition);
+        self.roots.mathematical_definitions.append(handle);
+        handle
+    }
+
+    pub fn root_mathematical_definition_handles(&self) -> &[MathematicalDefinitionHandle] {
+        self.roots.mathematical_definitions.storage_slice()
+    }
+
+    pub fn root_mathematical_definition(
+        &self,
+        handle: MathematicalDefinitionHandle,
+    ) -> &MathematicalDefinition {
+        self.items.mathematical_definition(handle)
+    }
+
+    pub fn root_mathematical_definitions(&self) -> impl Iterator<Item = &MathematicalDefinition> {
+        self.root_mathematical_definition_handles()
+            .iter()
+            .map(|handle| self.root_mathematical_definition(*handle))
     }
 
     pub fn root_item_handles(&self) -> &[ItemHandle] {
@@ -117,6 +154,14 @@ impl SyntaxTrees {
     pub fn extend_from(&mut self, other: &SyntaxTrees) {
         for handle in other.root_item_handles() {
             self.push_copied_root_item(other, *handle);
+        }
+        // Mathematical declarations land after all copied items; source order
+        // is retained within each root collection, and nothing this stage
+        // produces reads the interleave between the two.
+        for handle in other.root_mathematical_definition_handles() {
+            let definition = self
+                .copy_mathematical_definition(other, other.root_mathematical_definition(*handle));
+            self.push_root_mathematical_definition(definition);
         }
     }
 
