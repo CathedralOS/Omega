@@ -69,7 +69,7 @@ executes through the canonical edge. [`d_closure.py`](d_closure.py) assembles
 the six whole-member customers from the live, digest-pinned members under
 `bootstrap/5_omega/` plus the pinned customer mains under
 `tests/epsilon/interpreted-omega-experiment/customers/`, then the two
-whole-closure customers from the bound 525,334-byte packed closure and the
+whole-closure customers from the bound 558,065-byte packed closure and the
 d-composition entry sources (`main.epsilon` reading the sealed
 [`program.omg`](../d-composition/program.omg) stdin, and
 `check_only_main.epsilon`). Member and packed identities restate the bound

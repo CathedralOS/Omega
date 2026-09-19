@@ -1017,6 +1017,7 @@ data OmegaParser {
     call_start: i32;
     call_has_receiver: i32;
     call_receiver_expression: i32;
+    call_outer_group_count: i32;
     static_argument_first_path_member: i32;
     static_argument_path_member_count: i32;
     static_argument_start: i32;

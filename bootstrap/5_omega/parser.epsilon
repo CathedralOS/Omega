@@ -137,6 +137,7 @@ machine OmegaParser::parse_view(
     self.call_start = 0;
     self.call_has_receiver = 0;
     self.call_receiver_expression = 0;
+    self.call_outer_group_count = 0;
     self.static_argument_first_path_member = 0;
     self.static_argument_path_member_count = 0;
     self.static_argument_start = 0;
@@ -5540,6 +5541,8 @@ machine OmegaParser::parse_view(
         transition self.expression_consumer {
             OmegaExpressionConsumer::LocalDataInitialValue ->
                 check_call_expression_outer_frame()
+            OmegaExpressionConsumer::ExpressionStatement ->
+                check_call_expression_statement_frame()
             _ -> incomplete_root()
         }
     }
@@ -5548,6 +5551,20 @@ machine OmegaParser::parse_view(
         transition (self.expression_frame_value_count == 0) &&
             (self.expression_frame_operator_count == 0) &&
             (self.expression_group_count == 0) &&
+            (self.expression_prefix_count == 0) {
+            true -> retain_call_expression_path()
+            _ -> incomplete_root()
+        }
+    }
+
+    // A state's terminal call is spelled inside an expression group, since a
+    // statement-leading name always parses as a call statement. The call is
+    // the whole expression exactly when the outer frame is empty; enclosing
+    // groups stay open across the call's own frame reset because their bases
+    // live on the separate group stacks.
+    state check_call_expression_statement_frame() {
+        transition (self.expression_frame_value_count == 0) &&
+            (self.expression_frame_operator_count == 0) &&
             (self.expression_prefix_count == 0) {
             true -> retain_call_expression_path()
             _ -> incomplete_root()
@@ -5564,6 +5581,7 @@ machine OmegaParser::parse_view(
         self.call_start = self.members[self.argument_first_path_member].start;
         self.call_first_machine_argument = self.static_machine_argument_count;
         self.call_first_argument = self.call_argument_count;
+        self.call_outer_group_count = self.expression_group_count;
         transition self.scan.punctuation {
             OmegaPunctuationKind::Less -> begin_call_static_arguments()
             OmegaPunctuationKind::LeftParen -> call_target_available()
@@ -6361,7 +6379,7 @@ machine OmegaParser::parse_view(
         self.expression_consumer = self.call_result_consumer;
         self.expression_frame_value_count = 0;
         self.expression_frame_operator_count = 0;
-        self.expression_group_count = 0;
+        self.expression_group_count = self.call_outer_group_count;
         self.expression_prefix_count = 0;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(54) }

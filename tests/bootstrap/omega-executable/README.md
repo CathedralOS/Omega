@@ -49,6 +49,21 @@ emission, and uses the shared encoder's labels, call/return and finalization.
 Multiple admitted machines are emitted in authored order; neither the source
 filename nor the value 42 has special meaning to the compiler.
 
+The same slice admits bounded control flow. A state body is zero or more
+nullary call statements to free machines — the machine-call edge carries a
+return address and leaves the callee's `r0` — followed by exactly one
+terminal: a folded `u8` expression returning in `r0`, a grouped nullary call
+expression such as `(helper())` that returns the callee's `r0`, or a
+`transition` block. A transition targets authored states of the same
+machine; a subjectless block admits exactly one wildcard arm, and a
+subjectful block folds its subject and selects the first matching integer,
+Boolean, or wildcard arm. Every arm's target resolves and matches the
+target's parameter count before any emission, so a transition is a checked
+direct jump — no call frame, no return edge — exactly as the state contract
+specifies. Receivers, `self` paths, machine or runtime arguments,
+parameterized states, locals, assignments, `let` bindings, and non-literal
+guards stay `Incomplete` coverage refusals.
+
 The harness selects `answer`. Another source can be exercised without changing
 compiler code:
 
@@ -61,6 +76,12 @@ an unsupported form. Both require an exact failure outcome without a tape prefix
 The harness owns those diagnostic statuses; they are not new OCOUT wire numbers.
 Resource and internal failures remain distinct from successful compilation.
 
+Every invocation first reconstructs the same pinned Epsilon execution receipt —
+identical request, identical 721,484-byte output — so
+`OMEGA_EXECUTABLE_RECEIPT_CACHE=<file>` lets the controls matrix share one
+reconstruction; cached bytes still face the pinned identity check, and
+`OMEGA_EXECUTABLE_RECEIPT_SECONDS` bounds a cold reconstruction.
+
 ## Regression controls
 
 ```sh
@@ -69,14 +90,20 @@ sh tests/bootstrap/omega-executable/run.sh --controls-b
 sh tests/bootstrap/omega-executable/run.sh --controls-c
 sh tests/bootstrap/omega-executable/run.sh --controls-d
 sh tests/bootstrap/omega-executable/run.sh --controls-e
+sh tests/bootstrap/omega-executable/run.sh --controls-f
+sh tests/bootstrap/omega-executable/run.sh --controls-g
+sh tests/bootstrap/omega-executable/run.sh --controls-h
 ```
 
-The ordinary Epsilon controls reuse one compiler across thirty-five
+The ordinary Epsilon controls reuse one compiler across sixty-three
 invocations split among [controls.epsilon](controls.epsilon),
 [controls_b.epsilon](controls_b.epsilon),
 [controls_c.epsilon](controls_c.epsilon),
-[controls_d.epsilon](controls_d.epsilon), and
-[controls_e.epsilon](controls_e.epsilon): zero and maximum byte results,
+[controls_d.epsilon](controls_d.epsilon),
+[controls_e.epsilon](controls_e.epsilon),
+[controls_f.epsilon](controls_f.epsilon),
+[controls_g.epsilon](controls_g.epsilon), and
+[controls_h.epsilon](controls_h.epsilon): zero and maximum byte results,
 folded arithmetic, bitwise and shift operations with precedence and grouping,
 multiple declarations and selection of a non-first entry, duplicate names,
 missing entry, out-of-range and oversized decimal values, an out-of-range
@@ -84,19 +111,26 @@ expression operand, overflow, underflow, division and modulo by zero,
 out-of-width and overflowing shifts, an invalid unselected body, unsupported
 comparison, path, unary and other expressions and return types, a
 named-state-only machine, digit separators, malformed syntax, and successful
-reuse after failures.
+reuse after failures; then checked control flow: call statements and grouped
+terminal calls between machines with exact emitted-tape assertions,
+subjectless and literal-subject transitions into authored states, a
+forward-declared callee, machine-scoped state resolution, unresolved call
+and state targets, call and transition arity mismatches, an empty authored
+state, an unmatched subject, duplicate authored state names, an unreachable
+statement after a transition block, receiver and `self` call paths, a
+parameterized state, a multi-arm or non-wildcard subjectless block, and an
+integer arm under a Boolean subject.
 Every rejection requires an empty unsealed
 tape. A final exact literal byte comparison precedes execution of the actual
 emitted tape; the expected bytes are never used as the executable input.
 
-The split is an evaluator resource boundary, not a compiler one: each
-invocation is a fresh evaluation, and the Gamma evaluator's cumulative
-immutable pair arena — exactly 40,265,318 nodes, refused with status 252 —
-cannot retain one run through even an eighteen-invocation half of the
-matrix. Each part therefore carries seven or fewer controls and ends with
-the same `20 + 22` success compile, byte `67`, and tape publication, so
-every run checks the same observation and executes the same emitted
-program.
+The split is an evaluator-run boundary, not a compiler one: each invocation
+is a fresh evaluation. It predates the V5 pair-arena growth — the retired
+40,265,318-node arena, refused with status 252, could not retain even an
+eighteen-invocation half of the matrix — and remains the bounded evaluated
+form. Each part carries seven or fewer controls and ends with the same
+`20 + 22` success compile, byte `67`, and tape publication, so every run
+checks the same observation and executes the same emitted program.
 
 ## Execution boundary
 

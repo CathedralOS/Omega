@@ -46,6 +46,9 @@ the same invocation can request more observation time:
 OMEGA_PARSER_OBSERVATION_SECONDS=28800 sh tests/bootstrap/omega-parser/run.sh
 ```
 
+`OMEGA_PARSER_RECEIPT_SECONDS` likewise bounds the receipt reconstruction on
+contended hosts; the pinned receipt identity check is unchanged either way.
+
 This customer establishes only the tested parser behavior through the lower
 chain. It does not establish the final Epsilon envelope, complete Omega grammar,
 D semantic/lowering/emission closure, or compilation of C. Keep it separate from

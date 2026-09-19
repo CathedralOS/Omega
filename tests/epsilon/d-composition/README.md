@@ -51,8 +51,8 @@ observations are the same exact byte strings the diagnostic gate expects:
 | Omega D request invocation fields | 61,601 | `00 00000000 410a` |
 | Omega D numeric-base sums | 35,992 | `00 00000000 41` |
 | Omega D lexer | 109,611 | `00 00000000 41` |
-| Omega D complete closure | 527,093 | `00 00000000` + emitted tape ([`expected.hex`](expected.hex)) |
-| Omega D complete closure check only | 525,579 | `00 00000000` |
+| Omega D complete closure | 558,867 | `00 00000000` + emitted tape ([`expected.hex`](expected.hex)) |
+| Omega D complete closure check only | 557,353 | `00 00000000` |
 
 On macOS arm64 at the recorded revision, the six whole-member customers each
 produced their exact canonical observation in 61.336, 555.423, 668.186,
@@ -61,7 +61,7 @@ host running concurrent bootstrap work; these are host measurements, not
 bounds.
 
 The seventh customer is the complete-D composition: the whole bound
-525,334-byte packed D closure (`b507fb78…`) plus this gate's own
+558,065-byte packed D closure (`3929385b…`) plus this gate's own
 [`main.epsilon`](main.epsilon), which reads the sealed stdin section through
 `Console.read_byte`, calls D's actual `OmegaScalarCompiler::compile` on the
 [`program.omg`](program.omg) source (`machine answer() -> u8 { 42 }`,

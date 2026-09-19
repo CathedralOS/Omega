@@ -52,8 +52,8 @@ def main():
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 525334,
-                     "b507fb785ea450409f3cd1c34f3c451656a124d23ecd912f9e8f8e6e45f41c64")
+    require_identity("D", compiler, 558065,
+                     "3929385ba14a7e71557968424f4f29144f589265b9e558d5a001b8b10c898950")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("parser customer entry", entry, 4583,
                      "61f988109564e8ca58d6590941aa1aba3dfc2f07af101fb082b38ff25623e618")
@@ -66,8 +66,11 @@ def main():
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                + subject + support)
+    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "300"))
+    if receipt_timeout <= 0:
+        raise SystemExit("OMEGA_PARSER_RECEIPT_SECONDS must be positive")
     receipt = evaluate(directory, (directory / "delta_compiler.gamma").read_bytes(),
-                       request, 300, "Epsilon receipt reconstruction")
+                       request, receipt_timeout, "Epsilon receipt reconstruction")
     require_identity("Epsilon execution receipt", receipt, 721484,
                      "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082")
 
