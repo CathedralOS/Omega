@@ -5,12 +5,15 @@
 //! source spells an invocation formal and its current header binding with one
 //! parameter symbol, so a proposition relating the two cannot be a single
 //! expression read under one symbol table. This adapter lets each hypothesis
-//! and the goal carry its own roster: a parameter symbol, or the synthetic
-//! guarantee `result`, denotes a private atom or a term that is itself read
-//! under a nested roster. Atoms are shared by identity across the rosters of
-//! one implication, so the same formal named in two propositions is one
+//! and the goal carry its own roster: a parameter symbol, an exact field
+//! projection occurrence, or the synthetic guarantee `result`, denotes a
+//! private atom or a term that is itself read under a nested roster. Atoms are
+//! shared by identity across the rosters of one implication, so the same
+//! formal named in two propositions is one
 //! mathematical value. Like the strict adapter this is authority-bearing:
-//! every name must resolve through its roster, and only `Proven` succeeds.
+//! every name and projection must resolve through its roster, and only
+//! `Proven` succeeds. Projection meaning is established by the caller; this
+//! adapter never equates member occurrences by their spelling or receiver.
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 use super::inductive_judgment::negated_comparison;
@@ -22,11 +25,13 @@ use typed_trees::machine::Machine;
 #[cfg(test)]
 mod tests;
 
-/// What one scoped binding stands for: a resolved binder symbol, or the
-/// synthetic `result` name a guarantee uses for the returned value.
+/// What one scoped binding stands for: a resolved binder symbol, an exact
+/// member occurrence, or the synthetic `result` name for the returned value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopedArithmeticBinder {
     Symbol(symbols::SymbolHandle),
+    /// One exact member-expression occurrence, not an arbitrary term rewrite.
+    Projection(ExpressionHandle),
     Result,
 }
 
@@ -46,7 +51,8 @@ pub struct ScopedArithmeticBinding {
 }
 
 /// One authored expression together with the simultaneous substitution it is
-/// read under. A name the roster does not bind is outside the language.
+/// read under. A name or projection the roster does not bind is outside the
+/// language.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopedArithmeticExpression {
     pub expression: ExpressionHandle,

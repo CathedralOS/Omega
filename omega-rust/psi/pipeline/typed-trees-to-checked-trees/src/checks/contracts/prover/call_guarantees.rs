@@ -22,6 +22,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
+mod arithmetic;
+
 struct Invocation<'program> {
     site: CallSite<'program>,
     machine: &'program Machine,
@@ -61,7 +63,8 @@ pub(super) fn proves(
     {
         return false;
     }
-    contexts.iter().any(|context| {
+    let mut arithmetic_hypotheses = Vec::new();
+    let exact = contexts.iter().any(|context| {
         semantic
             .context_view(semantic.contexts.get(*context))
             .facts()
@@ -117,6 +120,14 @@ pub(super) fn proves(
                 {
                     return false;
                 }
+                if let Some(proposition) =
+                    arithmetic::at_call(program, facts, contexts, &supplied, guarantee)
+                {
+                    arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
+                        proposition,
+                        holds: true,
+                    });
+                }
                 predicates_match(
                     program,
                     semantic,
@@ -128,7 +139,17 @@ pub(super) fn proves(
                     &mut Vec::new(),
                 )
             })
-    })
+    });
+    exact
+        || arithmetic::proves(
+            program,
+            facts,
+            caller,
+            contexts,
+            &required,
+            expression,
+            arithmetic_hypotheses,
+        )
 }
 
 fn capture_preserved(
