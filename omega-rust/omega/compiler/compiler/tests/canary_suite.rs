@@ -343,6 +343,13 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "constants/lexical_aggregate_values",
     "operators/crash_routes",
     "memory/bump_allocator_canary",
+    // `drop<T>` specializations check through checked semantics and lower to
+    // terminal nominal cleanup; the native codec route is not yet realized.
+    "drops/core_drop_explicit_consume",
+    // The same generic consumer without erased members: the whole module
+    // reaches terminal and fixed-fuel, so `inspect-terminal` shows the exact
+    // owner-attached hook invoked once.
+    "drops/core_drop_owner_hook",
     "contracts/proof_fact_indexed_domain_application",
     "memory/address_translation_canary",
     "operators/operand_requires_after_effects",

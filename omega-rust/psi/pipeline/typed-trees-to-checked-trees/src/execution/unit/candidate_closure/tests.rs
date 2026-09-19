@@ -59,6 +59,7 @@ fn compare_reference(
         &boundaries,
         candidates,
         composed,
+        &[],
     );
     assert_eq!(
         *candidates, expected_candidates,

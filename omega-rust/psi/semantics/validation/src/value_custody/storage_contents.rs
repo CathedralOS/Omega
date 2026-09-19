@@ -49,6 +49,14 @@ enum ContentsRequirement {
     /// linear children are equally plain linear carriers, never a second kind
     /// of obligation the join would have to name separately.
     LinearOwned,
+    /// Owned storage a consuming machine may carry through a `drop(value)`
+    /// call: like `NumericOwned` it forbids loans, recursive carriers, and
+    /// unclassified storage, but the declaration may own an attached `::drop`
+    /// hook — the caller's transfer edge, not the classifier, proves the hook
+    /// is invoked — and `[erased]` members are admitted because they never
+    /// produce runtime contents. An erased member is still resolved so its
+    /// declared type exists; its contents never materialize.
+    CleanupOwned,
     StableObservation,
 }
 
@@ -86,6 +94,16 @@ pub fn has_plain_owned_contents_with_numeric_constraints(
     reference: TypeReferenceHandle,
 ) -> bool {
     check_contents_requirement(program, reference, &[], ContentsRequirement::NumericOwned)
+}
+
+/// Classify owned storage an affine caller may carry toward a consuming
+/// machine: plain numeric-owned contents plus declarations owning an attached
+/// `::drop` hook and `[erased]` members. The hook is admitted because cleanup
+/// attaches at the consuming edge, and erased members are admitted because
+/// they never produce runtime contents. This answers storage shape only —
+/// it does not prove the caller's transfer or the hook's invocation.
+pub fn has_cleanup_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    check_contents_requirement(program, reference, &[], ContentsRequirement::CleanupOwned)
 }
 
 /// Classify value contents that an immutable binding can retain as an entry
@@ -320,9 +338,10 @@ fn check_contents(
             matches!(ancestor, ContentType::Data(owner, _)
             if owner == symbol && resolved.size() >= ancestor.size())
         })
-        || program.machines().iter().any(|machine| {
-            machine.attached_data_symbol == *symbol && machine.name.as_str().ends_with("::drop")
-        })
+        || (requirement != ContentsRequirement::CleanupOwned
+            && program.machines().iter().any(|machine| {
+                machine.attached_data_symbol == *symbol && machine.name.as_str().ends_with("::drop")
+            }))
     {
         return false;
     }
@@ -337,9 +356,14 @@ fn check_contents(
         .collect::<Vec<_>>();
     active.push(resolved.clone());
     let mut check_field = |field: &typed_trees::data::DataField| {
-        !field.relevance.is_erased()
-            && resolve(program, field.type_reference, &substitutions, requirement)
-                .is_some_and(|field| check_contents(program, &field, active, complete, requirement))
+        if field.relevance.is_erased() {
+            // An erased member never materializes runtime contents; it still
+            // must resolve to declared storage so the semantic member exists.
+            return requirement == ContentsRequirement::CleanupOwned
+                && resolve(program, field.type_reference, &substitutions, requirement).is_some();
+        }
+        resolve(program, field.type_reference, &substitutions, requirement)
+            .is_some_and(|field| check_contents(program, &field, active, complete, requirement))
     };
     let supported = program
         .data_members(data)

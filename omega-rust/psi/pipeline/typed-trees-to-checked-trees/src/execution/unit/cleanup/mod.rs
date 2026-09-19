@@ -26,7 +26,7 @@ pub(crate) use partial_affine_cleanup::build_partial_affine_unit_cleanup_machine
 
 use super::{
     BTreeMap, CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
@@ -35,14 +35,18 @@ use super::{
     TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::{
-    ShapeCollector, control, entry_claims, is_unit, machine_binders, state_flow,
-    structural_signature,
+    ShapeCollector, control, entry_claims, free_structural_scalar_signature, is_unit,
+    machine_binders, state_flow, structural_signature,
 };
 
+/// `plans` is the checked ordinary-Unit roster this plan may join: the
+/// completed `terminal_unit_effects.machines` at finalize time, or the live
+/// candidate pool while closure pruning still needs the generic consuming
+/// machine as a resolvable call target.
 pub(super) fn build_nominal_affine_unit_cleanup_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
-    unit_effects: &CheckedUnitEffectPlans,
+    plans: &[CheckedUnitEffectMachinePlan],
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     diagnostics: &mut Vec<Diagnostic>,
@@ -68,8 +72,21 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     }
 
     let binders = machine_binders(program, machine);
-    let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders, false)?;
+    // An attached caller keeps its empty-record attachment. A free consuming
+    // machine — the generic `drop<T>` specialization — carries no attachment;
+    // its signature is the free structural roster instead.
+    let (attachment_type_identity, structural_parameters) = if machine.attached_data.is_none() {
+        let (structural, scalar) =
+            free_structural_scalar_signature(program, shapes, state, &binders)?;
+        if !scalar.is_empty() {
+            return None;
+        }
+        (None, structural)
+    } else {
+        let (attachment, structural) =
+            structural_signature(program, shapes, machine, state, &binders, false)?;
+        (Some(attachment), structural)
+    };
     let source_parameters = program.state_parameters(state);
     if source_parameters.is_empty() || source_parameters.len() != structural_parameters.len() {
         return None;
@@ -106,12 +123,14 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             return None;
         }
     }
-    let attachment_shape = shapes.types.get(&attachment_type_identity)?;
-    if !matches!(
-        &attachment_shape.shape,
-        CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
-    ) {
-        return None;
+    if let Some(attachment_type_identity) = &attachment_type_identity {
+        let attachment_shape = shapes.types.get(attachment_type_identity)?;
+        if !matches!(
+            &attachment_shape.shape,
+            CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+        ) {
+            return None;
+        }
     }
 
     let entry_claims = entry_claims(
@@ -245,7 +264,9 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         {
             return None;
         }
-        let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
+        let cleanup_target = plans
+            .iter()
+            .find(|candidate| candidate.machine == cleanup_machine.symbol)?;
         let (cleanup_return, cleanup_calls) = cleanup_target.operations.split_last()?;
         let CheckedUnitEffectOperationPlan::Complete {
             statement_index,
@@ -305,7 +326,9 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             ));
         }
         for (helper_machine, helper_state, helper_fingerprint) in cleanup_helpers {
-            let helper = unit_effects.for_machine(helper_machine)?;
+            let helper = plans
+                .iter()
+                .find(|candidate| candidate.machine == helper_machine)?;
             let helper_shape = shapes
                 .types
                 .get(helper.attachment_type_identity.as_ref()?)?;
@@ -342,7 +365,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             structural_result: None,
             machine: machine.symbol,
             state: state.symbol,
-            attachment_type_identity: Some(attachment_type_identity),
+            attachment_type_identity,
             structural_parameters,
             scalar_parameters: Vec::new(),
             provider_attachment_requirements: Vec::new(),

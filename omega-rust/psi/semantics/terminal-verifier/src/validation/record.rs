@@ -46,6 +46,13 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
         };
         active.push(root);
         let valid = fields.iter().all(|field| {
+            // An erased member carries its declaration only: proof material
+            // contributes no runtime field and needs no carrier recursion.
+            if field.relevance.is_erased()
+                && matches!(field.field_type, StructuralFieldType::Erased { .. })
+            {
+                return true;
+            }
             field.relevance == terminal_psi::BindingRelevance::Relevant
                 && match field.field_type {
                     StructuralFieldType::Structural(child) => {

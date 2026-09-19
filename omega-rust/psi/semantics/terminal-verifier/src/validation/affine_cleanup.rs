@@ -368,8 +368,11 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
     let [(block, cleanups)] = nominal_returns.as_slice() else {
         return Err(invalid(machine.entry));
     };
+    // The exact shape is what matters: one empty block, one cleanup per
+    // structural parameter, empty claims and contracts. A generic consuming
+    // member (`drop<T>`) carries the same terminator inside a caller's module
+    // while the entry machine keeps the dispatched-cleanup shape.
     if machine.result != TerminalMachineResult::Unit
-        || module.entry != machine.id
         || machine.blocks.len() != 1
         || block.id != machine.entry
         || !block.parameters.is_empty()
@@ -518,7 +521,12 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
             }
         }
     }
-    if module.machines.len() != 1 + target_ids.len() + helper_ids.len() {
+    // On the dispatched entry lane the module is exactly the entry machine plus
+    // its cleanup targets and helpers. A `drop<T>` specialization member shares
+    // its caller's module, so the closure count applies only to the entry.
+    if machine.id == module.entry
+        && module.machines.len() != 1 + target_ids.len() + helper_ids.len()
+    {
         return Err(invalid(block.id));
     }
     Ok(())

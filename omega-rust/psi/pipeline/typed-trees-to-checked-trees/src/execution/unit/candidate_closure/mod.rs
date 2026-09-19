@@ -124,6 +124,10 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 /// Prune both catalogs to the bodies whose every call dependency is available,
 /// returning one omission row per dropped body that names the stage and the
 /// direct dependency that failed.
+/// `nominal_cleanup_edges` carries each seeded nominal consuming machine to the
+/// exact owner-attached `::drop` hook its return edge will invoke. The hook is
+/// not an operation in the synthetic body, so the closure needs the edge named
+/// here: a dropped hook body drops the consuming machine with it.
 pub(super) fn retain_available(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -131,6 +135,7 @@ pub(super) fn retain_available(
     boundary_symbols: &[SymbolHandle],
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
+    nominal_cleanup_edges: &[(SymbolHandle, SymbolHandle)],
 ) -> Vec<CheckedUnitPlanOmission> {
     let mut closure = CandidateClosure::new(
         candidates
@@ -242,6 +247,29 @@ pub(super) fn retain_available(
             }
             if !closure.retained[caller_index] {
                 break;
+            }
+        }
+        if !closure.retained[caller_index] {
+            continue;
+        }
+        for (_, hook_machine) in nominal_cleanup_edges
+            .iter()
+            .filter(|(caller, _)| *caller == plan.machine)
+        {
+            let hook_state = program
+                .machines()
+                .iter()
+                .find(|candidate| candidate.symbol == *hook_machine)
+                .and_then(|hook| program.machine_states(hook).first())
+                .map(|state| state.symbol);
+            match hook_state {
+                Some(state) => closure.require_entry(caller_index, *hook_machine, state),
+                None => closure.drop_candidate(
+                    caller_index,
+                    CheckedUnitPlanOmissionStage::UnavailableCallee {
+                        target: *hook_machine,
+                    },
+                ),
             }
         }
     }

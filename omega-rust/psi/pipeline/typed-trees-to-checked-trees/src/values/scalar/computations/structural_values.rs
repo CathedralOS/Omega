@@ -829,6 +829,7 @@ impl Builder<'_, '_> {
             return None;
         };
         if !validation::has_plain_owned_contents_with_numeric_constraints(self.program, expected)
+            && !validation::has_cleanup_owned_contents(self.program, expected)
             && !validation::reference_result_custody::is_reference_record(self.program, expected)
         {
             return None;
@@ -868,14 +869,46 @@ impl Builder<'_, '_> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if authored.len() != relevant.len() {
+        let erased = declared
+            .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.relevance.is_erased() => {
+                    Some(field)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if authored.len() != relevant.len() + erased.len() {
             return None;
         }
         let mut fields = Vec::new();
         for (ordinal, initializer) in authored.into_iter().enumerate() {
-            let field = relevant
+            let erased_field = erased
                 .iter()
-                .find(|field| field.symbol == initializer.field_symbol)?;
+                .find(|field| field.symbol == initializer.field_symbol);
+            let field = if let Some(field) = erased_field {
+                *field
+            } else {
+                *relevant
+                    .iter()
+                    .find(|field| field.symbol == initializer.field_symbol)?
+            };
+            if erased_field.is_some() {
+                // The erased member stays in the checked record's field list —
+                // it carries semantic content but no runtime storage, so the
+                // checked value keeps its exact initializer for interpretation
+                // while emission skips it below the lowered representations.
+                let value = checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                    self.structural_value(initializer.value, field.type_reference, values, pure)?,
+                );
+                fields.push(checked_trees::CheckedStructuralRecordField {
+                    field: field.symbol,
+                    expression: initializer.value,
+                    type_reference: field.type_reference,
+                    value,
+                });
+                continue;
+            }
             if fields
                 .iter()
                 .any(|prior: &checked_trees::CheckedStructuralRecordField| {

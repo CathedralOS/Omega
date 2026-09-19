@@ -118,6 +118,7 @@ pub(crate) fn validate(
         || checked.normalized_type_identity(carrier).as_str() != result.type_identity
         || checked.type_multiplicity(reference) != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
+            || validation::has_cleanup_owned_contents(&checked.typed, carrier)
             || validation::reference_result_custody::is_reference_record(&checked.typed, reference))
     {
         return unsupported("structural construction substituted its owner or result type");
@@ -336,14 +337,14 @@ pub(crate) fn validate(
                 {
                     return unsupported("record establishment selected a sum");
                 }
+                // Erased members stay in the checked record's field list: they
+                // carry semantic content but no runtime storage, so this
+                // validation replays their authored initializer and declaration
+                // without producing runtime custody or operand work.
                 let declared = members
                     .iter()
                     .filter_map(|member| match member {
-                        checked_trees::data::DataMember::Field(field)
-                            if !field.relevance.is_erased() =>
-                        {
-                            Some(field)
-                        }
+                        checked_trees::data::DataMember::Field(field) => Some(field),
                         _ => None,
                     })
                     .collect::<Vec<_>>();

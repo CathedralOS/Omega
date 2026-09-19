@@ -282,6 +282,11 @@ impl Preparation<'_> {
                     "scalar record field is absent from its structural declaration",
                 ))?;
             let target = &declared_fields[position];
+            // Erased members carry no runtime field, so a record literal
+            // cannot establish them; only transfer can deliver one.
+            if matches!(target.field_type, StructuralFieldType::Erased { .. }) {
+                return unsupported("erased record member has no runtime initializer");
+            }
             let field_value = match field.value {
                 CheckedStructuralRecordFieldValue::Scalar(root) => {
                     let result_type = computations::computation_value_type(

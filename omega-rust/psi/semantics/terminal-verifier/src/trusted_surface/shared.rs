@@ -446,7 +446,7 @@ rows! {
     FORM_AFFINE_CLEANUP => (
         "formation:affine-cleanup",
         SharedFormation,
-        "the machine's affine cleanup actions and continuations, including Jump edges whose owned arguments move one projected affine child while the residual complement dies on the edge",
+        "the machine's affine cleanup actions and continuations, including Jump edges whose owned arguments move one projected affine child while the residual complement dies on the edge and member `drop<T>` specializations whose nominal return carries the same exact cleanup shape",
         "cleanup plans validate before terminators reconstruct their obligations",
         &["formation:machine-validation"],
         &[tv!( "validation/affine_cleanup.rs"), tv!( "validation/affine_cleanup/continuation.rs")]

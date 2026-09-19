@@ -241,7 +241,11 @@ pub(super) fn argument(
         || (!unrestricted
             && !linear
             && !owned_reference_record
-            && !validation::has_plain_owned_contents(program, referent))
+            && !validation::has_plain_owned_contents(program, referent)
+            // A nominal-cleanup result is discharged by the consuming call's
+            // own transfer edge, replayed below through its exact permission
+            // event, so cleanup-owned contents admit the same whole move.
+            && !validation::has_cleanup_owned_contents(program, referent))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;

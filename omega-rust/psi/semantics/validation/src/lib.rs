@@ -42,7 +42,7 @@ pub use value_custody::scalar_case_constructor::{
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::storage_contents::{
-    has_linear_owned_contents, has_plain_owned_contents,
+    has_cleanup_owned_contents, has_linear_owned_contents, has_plain_owned_contents,
     has_plain_owned_contents_with_numeric_constraints, has_plain_owned_contents_with_substitutions,
     has_stable_observable_contents,
 };
