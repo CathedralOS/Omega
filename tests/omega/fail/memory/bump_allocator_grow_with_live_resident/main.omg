@@ -1,0 +1,163 @@
+// Growth cannot carry live content: `grow` folds the old buffer into the
+// tail through `merge`, which demands `Vacant` on both parts, so a buffer
+// still holding a `Resident<SlotPlacement, Slot>` cannot even be carried in
+// `BumpVec` — rebuilding the container drops the resident's domain and
+// rejects before the merge. Retention across growth needs the placed
+// element operations plus a retained-buffer shape; see the pass-side
+// sibling `tests/omega/pass/memory/bump_allocator_canary` (`grow`,
+// `exercise_grow`).
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Split {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+
+boundary trait ExtentPartition {
+    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
+    ensures
+        Granted::content(old(&whole))
+        == separate(
+            Granted::content(&result.taken),
+            Granted::content(&result.rest),
+        );
+
+    machine merge(parts: Split) -> Extent
+    ensures
+        result in Granted & Vacant,
+        separate(
+            Granted::content(old(&parts.taken)),
+            Granted::content(old(&parts.rest)),
+        )
+        == Granted::content(&result);
+}
+
+data Bump {
+    tail: Extent in Granted & Vacant;
+    remaining: u64;
+}
+
+data BumpVec {
+    strategy: Bump;
+    buffer: Extent in Granted & Vacant;
+}
+
+data Issued {
+    strategy: Bump;
+    allocation: Extent in Granted & Vacant;
+}
+
+data Slot [copy] {
+    value: u32;
+}
+
+data SlotPlacement {}
+
+data Occupied {
+    storage: Extent in Granted & Resident<SlotPlacement, Slot>;
+}
+
+boundary trait ResidentStorage {
+    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
+    ensures
+        Granted::content(old(&storage)) == Granted::content(&result.storage);
+}
+
+machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
+requires
+    length <= strategy.remaining
+reaches ExtentPartition
+{
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let parts: Split = partition.split(tail, length);
+    let taken: Extent in Granted & Vacant = parts.taken;
+    let rest: Extent in Granted & Vacant = parts.rest;
+    Issued {
+        strategy: Bump {
+            tail: rest,
+            remaining: strategy.remaining - length,
+        },
+        allocation: taken,
+    }
+}
+
+machine grow(
+    partition: &ExtentPartition,
+    vec: BumpVec,
+    capacity: u64,
+    residual: u64
+) -> BumpVec
+requires
+    capacity <= residual
+reaches ExtentPartition
+{
+    let strategy: Bump = vec.strategy;
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let buffer: Extent in Granted & Vacant = vec.buffer;
+    let widened: Extent in Granted & Vacant = partition.merge(Split {
+        taken: buffer,
+        rest: tail,
+    });
+    let issued: Issued = allocate(
+        partition,
+        Bump { tail: widened, remaining: residual },
+        capacity,
+    );
+    let next_strategy: Bump = issued.strategy;
+    let next_tail: Extent in Granted & Vacant = next_strategy.tail;
+    let next_buffer: Extent in Granted & Vacant = issued.allocation;
+    BumpVec {
+        strategy: Bump {
+            tail: next_tail,
+            remaining: next_strategy.remaining,
+        },
+        buffer: next_buffer,
+    }
+}
+
+// Place one resident into the buffer, then attempt growth: the `BumpVec`
+// carrying `placed.storage` must drop `Resident<...>` to satisfy the
+// `Vacant` field.
+machine exercise(
+    partition: &ExtentPartition,
+    storage: &ResidentStorage,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    48 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition, ResidentStorage
+{
+    let issued: Issued = allocate(
+        partition,
+        Bump { tail: whole, remaining: capacity },
+        16,
+    );
+    let tail: Extent in Granted & Vacant = issued.strategy.tail;
+    let remaining: u64 = issued.strategy.remaining;
+    let vacant: Extent in Granted & Vacant = issued.allocation;
+    let placed: Occupied = storage.place(vacant, Slot { value: 7 });
+    let grown: BumpVec = grow(
+        partition,
+        BumpVec {
+            strategy: Bump { tail: tail, remaining: remaining },
+            buffer: placed.storage,
+        },
+        40,
+        capacity,
+    );
+    let strategy: Bump = grown.strategy;
+    let grown_tail: Extent in Granted & Vacant = strategy.tail;
+    let grown_buffer: Extent in Granted & Vacant = grown.buffer;
+    let whole_again: Extent in Granted & Vacant = partition.merge(Split {
+        taken: grown_buffer,
+        rest: grown_tail,
+    });
+    whole_again as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

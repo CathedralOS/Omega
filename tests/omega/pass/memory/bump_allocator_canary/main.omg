@@ -113,9 +113,28 @@
 //   ambiguous shape the boundary rejected. A container over this chain
 //   today is therefore `BumpVec`: one live buffer plus the strategy,
 //   opened under the exact capacity requirement and closed by recomposing
-//   buffer and tail. Growth and element `length` still wait on the
+//   buffer and tail. Element `length` still waits on the
 //   outcome/custody edges above; resident elements now have the custody
 //   route below.
+//
+// Growth (`grow`, `exercise_grow`) is spellable only as rebuffering:
+// the old buffer is folded back into the range by `merge` and a larger
+// extent is re-carved by `split`, which is exactly content-free growth —
+// nothing outlives the resize, matching what a `Vec<T>` reserve-without-
+// move can promise before element transfer exists. Two edges discovered
+// here fix its spelling:
+// - `merge` demands `Vacant` on both parts, so a buffer carrying a live
+//   resident cannot fold — content-preserving growth waits on the placed
+//   element operations, and the fence is pinned by
+//   `tests/omega/fail/memory/bump_allocator_grow_with_live_resident`.
+// - `allocate` cannot be reused for the re-carve: the requires
+//   discharger does not reduce an inline constructor's `remaining` field
+//   to the caller's `residual` premise once a sibling field binds a
+//   merge-result local (`tail: widened`), while the same constructor in
+//   `open` — whose `tail` binds a parameter — reduces fine. `grow`
+//   therefore calls the boundary `split` directly and does its own
+//   residual arithmetic, which its own `capacity <= residual` clause
+//   licenses exactly as `allocate`'s does.
 //
 // Resident custody over an issued extent (`exercise_resident`): one
 // establishment of an owned `Slot` into a `Vacant` allocation yielding
@@ -313,6 +332,43 @@ reaches ExtentPartition
     Recomposed { backing: whole }
 }
 
+// Growth as rebuffer: the old buffer is folded back into the tail — the
+// recomposed range is `buffer ++ tail`, and since the buffer is the low end
+// its length is recoverable only through merge, never through the residual.
+// The caller therefore states `residual` as the widened capacity premise,
+// exactly as `open` does. A larger buffer is then carved from the front of
+// the widened range. What this cannot express is element retention: `merge`
+// demands `Vacant` on both parts, so a buffer with a live resident cannot
+// fold (`fail/memory/bump_allocator_grow_with_live_resident`).
+machine grow(
+    partition: &ExtentPartition,
+    vec: BumpVec,
+    capacity: u64,
+    residual: u64
+) -> BumpVec
+requires
+    capacity <= residual
+reaches ExtentPartition
+{
+    let strategy: Bump = vec.strategy;
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let buffer: Extent in Granted & Vacant = vec.buffer;
+    let widened: Extent in Granted & Vacant = partition.merge(Split {
+        taken: buffer,
+        rest: tail,
+    });
+    let parts: Split = partition.split(widened, capacity);
+    let next_buffer: Extent in Granted & Vacant = parts.taken;
+    let next_tail: Extent in Granted & Vacant = parts.rest;
+    BumpVec {
+        strategy: Bump {
+            tail: next_tail,
+            remaining: residual - capacity,
+        },
+        buffer: next_buffer,
+    }
+}
+
 // Two coexisting allocations, cleanup of each, then reset to the whole range,
 // chained through the package machines `allocate` and `reset`. The caller
 // proves the exact capacity requirement at the entry — `capacity` covers the
@@ -462,6 +518,54 @@ reaches ExtentPartition
         BumpVec {
             strategy: Bump { tail: tail, remaining: remaining },
             buffer: buffer,
+        },
+    );
+    let backing: Extent in Granted & Vacant = recomposed.backing;
+    backing as Extent
+}
+
+// Growth: open a 16-byte reservation, grow it to 40 by folding the old
+// buffer into the tail and re-carving, then close. The widened residual is
+// the caller-restated premise — the backing's own `capacity`, since the
+// recomposed `buffer ++ tail` reconstitutes the whole range. The record
+// fields are restated through exactly typed locals between each custody
+// transfer, as `exercise_vec` does.
+machine exercise_grow(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    48 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition
+{
+    let vec: BumpVec = open(partition, whole, 16, capacity);
+    let strategy: Bump = vec.strategy;
+    let remaining: u64 = strategy.remaining;
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let buffer: Extent in Granted & Vacant = vec.buffer;
+    let grown: BumpVec = grow(
+        partition,
+        BumpVec {
+            strategy: Bump { tail: tail, remaining: remaining },
+            buffer: buffer,
+        },
+        40,
+        capacity,
+    );
+    let grown_strategy: Bump = grown.strategy;
+    let grown_tail: Extent in Granted & Vacant = grown_strategy.tail;
+    let grown_remaining: u64 = grown_strategy.remaining;
+    let grown_buffer: Extent in Granted & Vacant = grown.buffer;
+    let recomposed: Recomposed = close(
+        partition,
+        BumpVec {
+            strategy: Bump {
+                tail: grown_tail,
+                remaining: grown_remaining,
+            },
+            buffer: grown_buffer,
         },
     );
     let backing: Extent in Granted & Vacant = recomposed.backing;
