@@ -5,7 +5,10 @@ use super::model::StagedOptimizedFixedPrecoloredSegmentHomes;
 /// attributes to that claim alone. Every field is a nested authentic receipt,
 /// so each leg borrows the foreign donor's corresponding receipt rather than
 /// fabricating one. Every field is representable in memory; the receipt has
-/// no wire form, so no field is canonical-encoding-closed.
+/// no wire form, so no field is canonical-encoding-closed. The independent
+/// checker is `validate_optimized_fixed_precolored_segment_home_custody`: it
+/// replays the interval, requirement, and home validations from the retained
+/// legality source and rejects the substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedFixedPrecoloredSegmentHomeCustodyFieldForTest {
     Upstream,

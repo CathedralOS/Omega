@@ -11,6 +11,8 @@ fn alternate_budget() -> optimization_core::OptimizationWorkBudget {
 /// The custody matrix substitutes exactly one field per leg so a rejection
 /// attributes to that claim alone. Every field is representable in memory;
 /// the receipt has no wire form, so no field is canonical-encoding-closed.
+/// The independent checker is `validate_optimized_literal_fold_custody`: it
+/// replays every staged fold step and rejects the substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedLiteralFoldCustodyFieldForTest {
     Source,
@@ -73,6 +75,9 @@ impl StagedOptimizedLiteralFolds {
 /// The custody matrix substitutes exactly one field per leg so a rejection
 /// attributes to that claim alone. Every field is representable in memory;
 /// the receipt has no wire form, so no field is canonical-encoding-closed.
+/// The independent checker is `validate_selected_lowering_optimization_custody`:
+/// it replays the retained steps and terminal attempt against the staged
+/// legality source and rejects the substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum SelectedLoweringOptimizationCustodyFieldForTest {
     Identity,

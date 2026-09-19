@@ -136,3 +136,71 @@ fn assert_error(
         expected
     );
 }
+
+#[test]
+fn one_field_substitution_with_honest_identity_recompute_is_rejected() {
+    use crate::cost_threshold_policy::regression_manifest::test_support::OfflinePolicyRegressionManifestFieldForTest::*;
+    let fields: [(
+        &str,
+        crate::cost_threshold_policy::regression_manifest::test_support::OfflinePolicyRegressionManifestFieldForTest,
+        OfflinePolicyReferenceError,
+    ); 7] = [
+        (
+            "identity",
+            Identity,
+            OfflinePolicyReferenceError::RegressionManifestIdentityMismatch,
+        ),
+        ("corpus", Corpus, OfflinePolicyReferenceError::WrongCorpus),
+        ("model", Model, OfflinePolicyReferenceError::WrongModel),
+        (
+            "algorithm",
+            Algorithm,
+            OfflinePolicyReferenceError::WrongAlgorithm,
+        ),
+        (
+            "regression_split",
+            RegressionSplit,
+            OfflinePolicyReferenceError::WrongRegressionSplit,
+        ),
+        (
+            "expected_report",
+            ExpectedReport,
+            OfflinePolicyReferenceError::RegressionReportMismatch,
+        ),
+        (
+            "expected_summary",
+            ExpectedSummary,
+            OfflinePolicyReferenceError::RegressionSummaryMismatch,
+        ),
+    ];
+    let corpus = corpus();
+    let model = train_cost_threshold_v1(&corpus).unwrap();
+    let manifest = create_cost_threshold_v1_regression_manifest(&corpus, &model).unwrap();
+    // An authentic manifest admitted against a foreign corpus is the donor:
+    // every substituted value is genuine evidence that simply does not
+    // belong to this record.
+    let foreign_corpus = corpus_with_prefix(b"foreign-regression-manifest");
+    let foreign_model = train_cost_threshold_v1(&foreign_corpus).unwrap();
+    let donor =
+        create_cost_threshold_v1_regression_manifest(&foreign_corpus, &foreign_model).unwrap();
+    assert_ne!(
+        manifest, donor,
+        "the foreign manifest must differ on every recorded axis"
+    );
+    for (name, field, expected) in fields {
+        let mut substituted = manifest.clone();
+        substituted.substitute_field_for_test(field, &donor);
+        assert_ne!(
+            substituted, manifest,
+            "mutation `{name}` must change the manifest",
+        );
+        // Every non-identity leg recomputed its stored identity honestly, so
+        // the wire form is self-consistent: only the independent checker can
+        // reject the substituted claim.
+        assert_eq!(
+            decode_cost_threshold_v1_regression_manifest(&substituted.encode(), &corpus, &model),
+            Err(expected),
+            "independent checked decode must reject substituted manifest field {name}",
+        );
+    }
+}

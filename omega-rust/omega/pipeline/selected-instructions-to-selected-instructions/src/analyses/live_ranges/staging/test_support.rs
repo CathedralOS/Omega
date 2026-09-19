@@ -3,7 +3,9 @@ use super::model::StagedOptimizedLiveRanges;
 /// One substitutable field of [`StagedOptimizedLiveRangeCustodyReceipt`](super::StagedOptimizedLiveRangeCustodyReceipt). The custody matrix
 /// substitutes exactly one field per leg so a rejection attributes to that
 /// claim alone. Every field is representable in memory; the receipt has no
-/// wire form, so no field is canonical-encoding-closed.
+/// wire form, so no field is canonical-encoding-closed. The independent
+/// checker is `validate_optimized_live_range_custody`: it recomputes the
+/// receipt from the staged live-range evidence and rejects the substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedLiveRangeCustodyFieldForTest {
     Psi,

@@ -6,7 +6,11 @@ use super::model::{
 /// One substitutable field of [`StagedOptimizedPostLiteralFoldHomeCustodyReceipt`](super::StagedOptimizedPostLiteralFoldHomeCustodyReceipt). `Source` takes the
 /// donor's authentic foreign literal-fold custody receipt; the remaining flat
 /// fields take fixed alternates. Every field is representable in memory; the
-/// receipt has no wire form, so no field is canonical-encoding-closed.
+/// receipt has no wire form, so no field is canonical-encoding-closed. The
+/// independent checker is
+/// `validate_optimized_register_home_after_literal_fold_custody`, and joined
+/// `replay_allocation` surfaces its rejection as
+/// `AllocationReplayError::LiteralFolds`.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedPostLiteralFoldHomeCustodyFieldForTest {
     Source,
@@ -51,6 +55,10 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
 /// donor's authentic foreign selected-lowering custody receipt; the remaining
 /// flat fields take fixed alternates. Every field is representable in memory;
 /// the receipt has no wire form, so no field is canonical-encoding-closed.
+/// The independent checker is
+/// `validate_optimized_register_home_after_selected_lowering_custody`, and
+/// joined `replay_allocation` surfaces its rejection as
+/// `AllocationReplayError::SelectedLowering`.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedPostSelectedLoweringHomeCustodyFieldForTest {
     Source,

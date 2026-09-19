@@ -3,7 +3,10 @@ use crate::PostAllocationMachinePlanReceiptFieldForTest;
 
 /// One substitutable field of [`StagedOptimizedPostAllocationMachineCustodyReceipt`](super::StagedOptimizedPostAllocationMachineCustodyReceipt). The custody matrix
 /// substitutes exactly one field per leg so a rejection attributes to that
-/// claim alone.
+/// claim alone. The independent checker is
+/// `validate_optimized_post_allocation_machine_plan_custody`: it rebuilds the
+/// receipt from the retained rematerialization source and rejects the
+/// substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum PostAllocationMachineCustodyFieldForTest {
     Source,

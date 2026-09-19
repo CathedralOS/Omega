@@ -210,35 +210,25 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   tests for every remaining manifest, receipt, codec, and artifact-custody
   family, as
   [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
-  requires. 86 `*_rejects_every_one_field_substitution` tests already cover the
-  image-emission installation records, executable installation and its wire
-  container, component publication and description, external-root admission,
-  the compiler's object-artifact, object-container, realization, text-section,
-  callable-entry and fragment-emission custody, the production compilation
-  manifest, the post-allocation machine staged plan, build and package
-  records, and the Terminal codec sections. Each mutates one field, recomputes
-  the containing identity honestly, and requires independent replay to reject.
-
-  Remaining work:
-
-  - `omega-rust/omega/pipeline/` still has one-field substitution coverage for
-    only the post-allocation machine, while 15 other `Staged*CustodyReceipt`
-    families are produced there: allocation legality, liveness, live ranges,
-    register homes, post-copy, post-literal-fold and post-selected-lowering
-    homes, fixed view copy, fixed precolored segment homes, active-resident
-    rematerialization and its pressure receipt, selection, selected
-    reanalysis, literal fold, and selected-lowering optimization. Today they
-    reach replay only through the joined receipt that
-    `compiler/tests/realization_custody.rs` mutates.
-  - `OfflinePolicyRegressionManifest`
-    (`tooling/optimization-policy-offline/src/cost_threshold_policy/regression_manifest/`)
-    mutates each custody axis on the wire in
-    `codec_rejects_every_manifest_custody_axis_and_envelope_corruption`, but no
-    leg substitutes a field and honestly recomputes the stored identity.
-  - Name the independent checker for a family that never encodes. A staged
-    receipt consumed in memory has a validator, not a decoder; say which one
-    rejects the substitution, and record the fields that are unrepresentable
-    instead of leaving them unlisted.
+  requires. `*_rejects_every_one_field_substitution` and field-substitution
+  legs now cover the image-emission installation records, executable
+  installation and its wire container, component publication and description,
+  external-root admission, the compiler's object-artifact, object-container,
+  realization, text-section, callable-entry and fragment-emission custody, the
+  production compilation manifest, the post-allocation machine staged plan,
+  build and package records, the Terminal codec sections, and every
+  `Staged*CustodyReceipt` family in `omega-rust/omega/pipeline/` — selection,
+  liveness, live ranges, allocation legality, selected reanalysis,
+  fixed-precolored segment homes, fixed-view copies, the literal-fold
+  sequence, the selected-lowering run, baseline/post-copy/post-literal-fold/
+  post-selected-lowering register homes, active-resident rematerialization
+  and its pressure receipt — plus the machine plan receipt and
+  `OfflinePolicyRegressionManifest`. Each leg mutates one field through a
+  declared `*FieldForTest` inventory, recomputes the containing identity
+  honestly where the record carries one, and requires the family's named
+  independent checker to reject; each hook names its checker and lists the
+  fields closed by single-variant vocabularies instead of leaving them
+  unlisted.
 
   Acceptance: each representable field of a family changes independently, its
   containing identity recomputes honestly, and independent replay still rejects
@@ -251,12 +241,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   holds 18 of them in 6,942 lines, and six such files run 15,157 lines
   together; only the wrapper-object matrix under
   `native-realization/src/optimized_semantic_wrapper_object/tests/` is factored
-  into a reusable shape. Nothing fails when a family has no matrix, which is
-  how 16 pipeline receipts reached zero coverage. The general mechanism is one
-  substitution harness driven by each record's canonical field inventory plus a
-  per-family honest-recomputation hook, so that a new family declares its
-  fields instead of adding another several-hundred-line test, and a family with
-  no entry fails a repository gate.
+  into a reusable shape, and the pipeline families declare their inventories
+  through per-family `*FieldForTest` enums and `corrupt_custody_for_test`
+  hooks without a shared driver. Nothing fails when a family has no matrix.
+  The general mechanism is one substitution harness driven by each record's
+  canonical field inventory plus a per-family honest-recomputation hook, so
+  that a new family declares its fields instead of adding another
+  several-hundred-line test, and a family with no entry fails a repository
+  gate.
 
 ## Psi optimization and loops
 

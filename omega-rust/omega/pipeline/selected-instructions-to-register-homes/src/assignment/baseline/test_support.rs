@@ -5,7 +5,10 @@ use super::model::{
 /// One substitutable field of [`StagedOptimizedRegisterHomeCustodyReceipt`](super::StagedOptimizedRegisterHomeCustodyReceipt). The custody matrix
 /// substitutes exactly one field per leg so a rejection attributes to that
 /// claim alone. Every field is representable in memory; the receipt has no
-/// wire form, so no field is canonical-encoding-closed.
+/// wire form, so no field is canonical-encoding-closed. The independent
+/// checker is `validate_optimized_register_home_custody`, and joined
+/// `replay_allocation` surfaces its rejection as
+/// `AllocationReplayError::ReceiptMismatch`.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedRegisterHomeCustodyFieldForTest {
     Psi,
@@ -122,7 +125,11 @@ impl StagedOptimizedRegisterHomes {
 /// One substitutable field of [`StagedOptimizedPostCopyRegisterHomeCustodyReceipt`](super::StagedOptimizedPostCopyRegisterHomeCustodyReceipt). `Source` takes the donor's
 /// authentic foreign reanalysis custody receipt; the remaining flat fields
 /// take fixed alternates. Every field is representable in memory; the receipt
-/// has no wire form, so no field is canonical-encoding-closed.
+/// has no wire form, so no field is canonical-encoding-closed. The
+/// independent checker is
+/// `validate_optimized_register_home_after_fixed_view_copy_custody`, and
+/// joined `replay_allocation` surfaces its rejection as
+/// `AllocationReplayError::ReceiptMismatch`.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedPostCopyRegisterHomeCustodyFieldForTest {
     Source,

@@ -6,6 +6,9 @@ use super::model::StagedOptimizedSelectedReanalysis;
 /// custody receipt; the remaining flat fields take fixed alternates that
 /// cannot equal any honest value. Every field is representable in memory;
 /// the receipt has no wire form, so no field is canonical-encoding-closed.
+/// The independent checker is `validate_optimized_selected_reanalysis_custody`:
+/// it recomputes the receipt from the staged reanalysis evidence and rejects
+/// the substitution.
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizedSelectedReanalysisCustodyFieldForTest {
     Source,
