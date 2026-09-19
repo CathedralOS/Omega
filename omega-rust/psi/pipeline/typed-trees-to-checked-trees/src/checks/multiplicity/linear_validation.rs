@@ -30,7 +30,7 @@ use crate::checks::multiplicity::permission_events::{
     exclude_case_alternative, select_case_alternative_from_guard,
 };
 use crate::checks::multiplicity::type_multiplicity::type_carries_linear_obligation;
-use checked_trees::{CheckFacts, FlowClaimOutcomeSource, FlowPermissionEventFact};
+use checked_trees::{CheckFacts, FlowClaimOutcomeSource, FlowFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -44,14 +44,19 @@ pub(crate) fn validate_linear_permission_events(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let mut selected_replay = CheckFacts::default();
     // `record_statement` consults the borrow ledger and the statement-entry
     // constraint sets to decide whether a once-borrowed source may join a
     // selection. Those are inputs recorded by earlier passes, so the replay
     // seeds them unchanged while the ownership arenas it fills stay fresh.
-    selected_replay.borrow = facts.borrow.clone();
-    selected_replay.flow.contexts = facts.flow.contexts.clone();
-    selected_replay.flow.control = facts.flow.control.clone();
+    let mut selected_replay = CheckFacts {
+        borrow: facts.borrow.clone(),
+        flow: FlowFacts {
+            contexts: facts.flow.contexts.clone(),
+            control: facts.flow.control.clone(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
 
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(state) = crate::semantic_calls::find_state(program, state_flow.state_symbol)

@@ -130,12 +130,16 @@ impl RankProjection {
                 order: RankOrder::BoundedDistance(primitive),
                 parameter: parameter.symbol,
                 paired_parameter: upper_parameter.symbol,
-                record_subject: member_subject(program, *lower)
-                    .then_some(parameter.symbol)
-                    .unwrap_or_default(),
-                paired_record_subject: member_subject(program, *upper)
-                    .then_some(upper_parameter.symbol)
-                    .unwrap_or_default(),
+                record_subject: if member_subject(program, *lower) {
+                    parameter.symbol
+                } else {
+                    Default::default()
+                },
+                paired_record_subject: if member_subject(program, *upper) {
+                    upper_parameter.symbol
+                } else {
+                    Default::default()
+                },
                 argument_position,
                 subject: *lower,
                 paired_subject: *upper,
@@ -167,9 +171,11 @@ impl RankProjection {
                 order: RankOrder::SliceLength,
                 parameter: parameter.symbol,
                 paired_parameter: SymbolHandle::default(),
-                record_subject: member_subject(program, *subject)
-                    .then_some(parameter.symbol)
-                    .unwrap_or_default(),
+                record_subject: if member_subject(program, *subject) {
+                    parameter.symbol
+                } else {
+                    Default::default()
+                },
                 paired_record_subject: SymbolHandle::default(),
                 argument_position,
                 subject: *subject,
@@ -205,9 +211,11 @@ impl RankProjection {
                 },
                 parameter: parameter.symbol,
                 paired_parameter: SymbolHandle::default(),
-                record_subject: member_subject(program, *subject)
-                    .then_some(parameter.symbol)
-                    .unwrap_or_default(),
+                record_subject: if member_subject(program, *subject) {
+                    parameter.symbol
+                } else {
+                    Default::default()
+                },
                 paired_record_subject: SymbolHandle::default(),
                 argument_position,
                 subject: *subject,
@@ -260,9 +268,11 @@ impl RankProjection {
                 order,
                 parameter: parameter.symbol,
                 paired_parameter: SymbolHandle::default(),
-                record_subject: member_subject(program, *subject)
-                    .then_some(parameter.symbol)
-                    .unwrap_or_default(),
+                record_subject: if member_subject(program, *subject) {
+                    parameter.symbol
+                } else {
+                    Default::default()
+                },
                 paired_record_subject: SymbolHandle::default(),
                 argument_position,
                 subject: *subject,
