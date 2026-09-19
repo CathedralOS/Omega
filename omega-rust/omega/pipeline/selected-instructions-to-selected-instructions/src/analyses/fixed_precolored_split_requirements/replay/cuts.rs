@@ -128,12 +128,17 @@ impl<'a> CutRows<'a> {
         true
     }
 
+    /// Declared transitions license boundaries the legality plan permits; a
+    /// declaration whose site never fires is unused license, not an omitted
+    /// split — the segment openings are the manifest of actual boundaries.
+    /// What still must hold is the closed direction: every boundary the walk
+    /// consumed must resolve back to a declared row.
     pub(super) fn finish(
         self,
         function: usize,
         register: u32,
     ) -> Result<(), FixedPrecoloredSplitRequirementError> {
-        if self.used.len() == self.transitions.len() {
+        if self.used.iter().all(|key| self.transitions.contains(key)) {
             Ok(())
         } else {
             Err(

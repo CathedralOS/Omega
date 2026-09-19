@@ -35,6 +35,12 @@ pub enum FixedViewCopyPolicy {
     /// One flag-transparent copy after the entry compare and immediately
     /// before its conditional branch, shared by both return leaves.
     SharedEntryAfterCompareBeforeBranchV1,
+    /// One copy in the fixed-use site's own block immediately before the
+    /// instruction, for any operand `Use` site of a source-scalar `u64`
+    /// register. The site may sit mid-block or on a terminator, entry block
+    /// or leaf, and the boundary's source may be any pinned view of the
+    /// register, not only its live-in.
+    ImmediateBeforeFixedUseV1,
 }
 
 /// Authenticated authority used to discover the exact fixed-view boundaries

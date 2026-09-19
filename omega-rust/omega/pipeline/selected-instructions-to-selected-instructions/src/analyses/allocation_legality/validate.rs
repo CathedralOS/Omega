@@ -335,26 +335,34 @@ fn replay_register(
             candidates,
         });
     }
-    let entry = register.fixed_constraints.iter().find_map(|constraint| {
-        matches!(constraint.site, VirtualFixedConstraintSite::Entry).then_some(constraint.view)
-    });
-    let entry_transitions = entry
-        .map(|entry| {
-            register
-                .fixed_constraints
-                .iter()
-                .filter_map(|constraint| match constraint.site {
-                    VirtualFixedConstraintSite::Entry => None,
-                    site if constraint.view != entry => Some(EntryFixedViewTransition {
-                        from_view: entry,
+    let pinned = register
+        .fixed_constraints
+        .iter()
+        .map(|constraint| constraint.view)
+        .collect::<BTreeSet<_>>();
+    let mut entry_transitions = Vec::new();
+    if pinned.len() >= 2 {
+        for constraint in &register.fixed_constraints {
+            let site @ VirtualFixedConstraintSite::Operand {
+                access: register_model::RegisterOperandAccess::Use,
+                ..
+            } = constraint.site
+            else {
+                continue;
+            };
+            entry_transitions.extend(
+                pinned
+                    .iter()
+                    .copied()
+                    .filter(|from| *from != constraint.view)
+                    .map(|from| EntryFixedViewTransition {
+                        from_view: from,
                         to_site: site,
                         to_view: constraint.view,
                     }),
-                    _ => None,
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+            );
+        }
+    }
     Ok(VirtualRegisterAllocationLegality {
         virtual_register: register.virtual_register,
         class: register.class,

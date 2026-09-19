@@ -82,7 +82,8 @@ pub(super) fn work_usage(
     let requirements =
         u64::try_from(boundaries.len()).map_err(|_| FixedViewCopyError::WorkOverflow)?;
     let commits = match policy {
-        FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => requirements,
+        FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
+        | FixedViewCopyPolicy::ImmediateBeforeFixedUseV1 => requirements,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => boundaries
             .iter()
             .map(|boundary| boundary.function)
@@ -209,4 +210,67 @@ pub(super) fn find_leaf_block(
         function: function_index,
         instruction: instruction.0,
     })
+}
+
+/// The block owning the fixed-use site — the instruction may be an ordinary
+/// block instruction or the block terminator. The operand must still read
+/// `source` under `to_view`.
+pub(super) fn find_site_block(
+    function_index: usize,
+    function: &selected_instructions::SelectedFunction,
+    instruction: SelectedInstructionId,
+    operand: u16,
+    source: VirtualRegisterId,
+    to_view: register_model::RegisterViewId,
+) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
+    for block in &function.blocks {
+        let site = block
+            .instructions
+            .iter()
+            .find(|candidate| candidate.id == instruction)
+            .or_else(|| {
+                let destination = terminator_instruction(&block.terminator);
+                (destination.id == instruction).then_some(destination)
+            });
+        let Some(site) = site else {
+            continue;
+        };
+        let Some(site_operand) = site
+            .operands
+            .iter()
+            .find(|candidate| candidate.operand == operand)
+        else {
+            return Err(FixedViewCopyError::MissingDestination {
+                function: function_index,
+                instruction: instruction.0,
+            });
+        };
+        if site_operand.virtual_register != source
+            || site_operand.access != RegisterOperandAccess::Use
+            || site_operand.fixed_view != Some(to_view)
+        {
+            return Err(FixedViewCopyError::MissingDestination {
+                function: function_index,
+                instruction: instruction.0,
+            });
+        }
+        return Ok(block.id);
+    }
+    Err(FixedViewCopyError::MissingDestination {
+        function: function_index,
+        instruction: instruction.0,
+    })
+}
+
+fn terminator_instruction(
+    terminator: &SelectedTerminator,
+) -> &selected_instructions::SelectedInstruction {
+    match terminator {
+        SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
+        | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
+    }
 }

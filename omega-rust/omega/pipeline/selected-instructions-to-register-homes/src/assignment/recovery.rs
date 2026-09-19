@@ -139,11 +139,11 @@ pub fn stage_shared_entry_fixed_view_register_allocation(
     )
 }
 
-/// Default-path recovery for unresolved entry-fixed-view transitions. The
-/// leaf-local policy admits exactly the boundaries authenticated by recorded
-/// entry transitions — one copy in the leaf block immediately before each
-/// fixed leaf use of an entry-pinned parameter — so it needs no declared
-/// recovery selection and stays rejected for every other shape.
+/// Default-path recovery for unresolved fixed-view transitions. The
+/// immediate-site policy admits the boundaries authenticated by recorded
+/// fixed-site transitions — one copy in the site's own block immediately
+/// before the fixed use of a source-scalar register — so it needs no
+/// declared recovery selection and stays rejected for every other shape.
 ///
 /// This staged-homes form keeps post-copy assignment terminal; the production
 /// route composes residual pressure through
@@ -151,17 +151,17 @@ pub fn stage_shared_entry_fixed_view_register_allocation(
 pub fn stage_leaf_local_fixed_view_register_allocation(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<crate::StagedOptimizedRegisterHomesAfterFixedViewCopies, RegisterAllocationError> {
-    fixed_view_homes(legality, FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1)
+    fixed_view_homes(legality, FixedViewCopyPolicy::ImmediateBeforeFixedUseV1)
 }
 
-/// The leaf-local sequence in its composing form: the route the default
-/// allocation path takes on unresolved entry transitions, publishing one
+/// The immediate-site sequence in its composing form: the route the default
+/// allocation path takes on unresolved fixed-site transitions, publishing one
 /// retained allocation whether post-copy homes or the runtime-spill
 /// composition resolved the program.
 pub fn stage_leaf_local_fixed_view_register_allocation_composing(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
-    fixed_view_allocation(legality, FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1)
+    fixed_view_allocation(legality, FixedViewCopyPolicy::ImmediateBeforeFixedUseV1)
 }
 
 /// The declared active-resident route in its composing form: the sweep is
