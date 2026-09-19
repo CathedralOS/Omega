@@ -4484,8 +4484,13 @@ Owners include
     drain-or-quarantine join — `uninstall_installed` retires a complete drain
     and routes any incomplete drain to `replacement_quarantine.rs` when the
     provider supplies trapping evidence, returning every input when neither
-    ending establishes. Still open: the replacement join (live-site patching
-    through admitted fragments) has no route.
+    ending establishes — and `replacement.rs` now owns the patch-then-drain
+    replacement join: `replace_installed` demands each patched site be a
+    declared entry of the superseded artifact carrying its bound admitted
+    fragment, with instruction-fetch visibility and write re-suspension
+    established before the superseded custody drains. Still open: no provider
+    performs the patching operation itself — the receipts only record what a
+    provider would report.
   - A route from Omega source: no `.omg` file names an admitted artifact, a
     placement or installed code, so no canary reaches any of this.
 
@@ -4508,6 +4513,17 @@ Owners include
   `established_facts` must cover them, else the transition rejects and returns
   every input. Next acceptance: a provider operation that actually establishes
   those facts, and physical invocation into installed code.
+
+  Flag resolved 2026-09-19 on `devin/w9-wire-replacement-join` (crate tests
+  71/71 pass via `cargo nextest run -p executable-installation`, Linux x86-64):
+  `replacement.rs` adds the replacement join — `replace_installed` requires a
+  `ReplacementAuthority` scoped to the exact superseded and successor
+  realizations, every demanded site to be a declared entry of the superseded
+  artifact patched with its bound admitted fragment, and instruction-fetch
+  visibility plus write re-suspension plus required `ReplacementFactDigest`
+  completion facts; an established patch drains the superseded custody through
+  `uninstall_installed` toward retirement or quarantine, and every failed
+  transition returns all inputs.
 
 ## Omega-written compiler (after Rust completion)
 

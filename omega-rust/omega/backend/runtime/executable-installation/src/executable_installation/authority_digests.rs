@@ -66,6 +66,7 @@ normalized_digest!(ArtifactContentDigest);
 normalized_digest!(ProofPayloadDigest);
 normalized_digest!(FinalBytesDigest);
 normalized_digest!(InstallationFactDigest);
+normalized_digest!(ReplacementFactDigest);
 normalized_digest!(RetirementFactDigest);
 
 macro_rules! canonical_authority_digest {
@@ -253,6 +254,27 @@ impl InstallationFactDigest {
         digest.update(
             u64::try_from(canonical.len())
                 .expect("installation-fact canonical byte length fits u64")
+                .to_le_bytes(),
+        );
+        digest.update(canonical);
+        Self::from_digest(digest.finalize().into())
+    }
+}
+
+impl ReplacementFactDigest {
+    /// Derive one provider-defined completion fact from its canonical bytes.
+    ///
+    /// Replacement gates compare this complete domain-separated digest rather
+    /// than a compact provider-selected integer. The canonical bytes remain
+    /// provider vocabulary — a receiver can demand, for example, the
+    /// provider's exact patched-site cache-order or instruction-fetch
+    /// completion fact — and this layer assigns them no ambient meaning.
+    pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.replacement-fact.sha256.v1\0");
+        digest.update(
+            u64::try_from(canonical.len())
+                .expect("replacement-fact canonical byte length fits u64")
                 .to_le_bytes(),
         );
         digest.update(canonical);

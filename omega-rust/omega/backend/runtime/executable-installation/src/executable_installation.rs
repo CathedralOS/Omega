@@ -12,8 +12,9 @@
 //! derives the domain-separated authority digests, `artifacts.rs` carries
 //! artifacts and their admission, `code_placement.rs` placement claims,
 //! materialization and final validation, `installation.rs` installed code
-//! and its registry, `retirement.rs` retirement receipts, `uninstall.rs` the
-//! drain-or-quarantine join; `container.rs`, `container_bytes.rs`,
+//! and its registry, `retirement.rs` retirement receipts, `replacement.rs` the
+//! patch-then-drain replacement join, `uninstall.rs` the drain-or-quarantine
+//! join; `container.rs`, `container_bytes.rs`,
 //! `materializer.rs`, `post_handoff_writer.rs` and `replacement_quarantine.rs`
 //! carry the container, writer and quarantine.
 
@@ -25,6 +26,7 @@ mod container_bytes;
 mod installation;
 mod materializer;
 mod post_handoff_writer;
+mod replacement;
 mod replacement_quarantine;
 mod retirement;
 #[cfg(test)]
@@ -44,7 +46,7 @@ pub use authority_digests::{
     MachineFootprintId, MachineRegimeDigest, MappingQuarantineId,
     NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
     NonAuthoritativeWriterContextFingerprint64, PlacementPlanId, ProofPayloadDigest,
-    RelocationSetId, RetirementFactDigest,
+    RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
 };
 pub use code_placement::{
     CodePlacement, CodePlacementAuthority, FinalValidationCertificate, FrozenPlacement,
@@ -59,6 +61,10 @@ pub use installation::{
 };
 pub use materializer::*;
 pub use post_handoff_writer::*;
+pub use replacement::{
+    ReplacementAuthority, ReplacementError, ReplacementOutcome, ReplacementReceipt,
+    replace_installed,
+};
 pub use replacement_quarantine::*;
 pub use retirement::{
     RetiredInstallation, RetirementAuthority, RetirementError, RetirementReceipt,

@@ -16,6 +16,9 @@ Follow the subordinate protocols as needed:
   sources without granting execution authority.
 - [Post-handoff writers](src/executable_installation/post_handoff_writer.rs) own
   destination custody, resolved contexts, writing, and consumer replay.
+- [Replacement](src/executable_installation/replacement.rs) patches the declared
+  sites of a live realization with admitted fragments, then drains the
+  superseded custody.
 - [Replacement quarantine](src/executable_installation/replacement_quarantine.rs)
   retains incompletely drained installed realizations.
 
