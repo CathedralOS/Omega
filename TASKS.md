@@ -2736,8 +2736,13 @@ Owners include
   token after `machine` already reaches every declaration representation.
   Resolution rejects duplicate owner-local shapes and operand tuples without a
   semantic home (`lowering/machine/token_bindings.rs` in symbol resolution),
-  use sites select by operand type, and the checked stage rewrites each
-  resolved binary use into an ordinary call on the declaration's entry state
+  and since `9913f44891` the duplicate check spans both introducers: every
+  spelling-bearing `operator` definition — root, `boundary operator`/`boundary
+  machine` slots, and domain-homed members — joins the machine set's
+  token/owner/alpha-normalized-shape space, so a cross-form pair rejects at
+  the declaration instead of surfacing as use-site ambiguity. Use sites select
+  by operand type, and the checked stage rewrites each resolved binary use
+  into an ordinary call on the declaration's entry state
   (`typed-trees-to-checked-trees/src/operators/token_bound_machine_calls.rs`).
   Token-bearing `boundary machine` signatures lower to the existing boundary
   slot, bare bodyless signatures are admitted only by exact catalog custody,
@@ -2821,7 +2826,10 @@ Owners include
     compositional.
   - Introducer retirement. `operator` parses in
     `tokens-to-syntax-trees/src/declarations/{parse_declaration,operator,domain,trait_definition}.rs`,
-    and trait and domain bodies accept a token only through it. 171 of the 208
+    and trait and domain bodies accept a token only through it. The
+    token-binding law already spans both forms (`9913f44891`), so what remains
+    is the source migration plus erasing the `operator` representation. 171 of
+    the 208
     declarations are tokenless `boundary operator` rows (124 in
     `core/float_operations.omg`, 29 generic rows in
     `core/{slice,vec,array,fixed_vec,ptr}.omg`, 18 in `tests/omega`); they
