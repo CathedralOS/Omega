@@ -1166,30 +1166,34 @@ Owners include
 
   Remaining work:
 
-  - Resume at the indexed byte store. On 2026-09-18 (macOS ARM64)
-    `text/runtime_number_to_decimal_exit` compiled under
-    `pass_canaries_compile`, but
+  - Resume at the `check` state's conditional guard. The indexed byte store
+    landed at `a3821e0aeb`: byte-sequence store plans carry
+    `CheckedByteSequenceStoreValue` (`Pure` or `ScalarResult{position}`),
+    resolved once by `byte_store_scalar_value` for both destination lanes, so
+    `self.out[self.p] = narrow_u32_to_u8_wrapping(self.ch as u32)` replays the
+    same statement's call result and the store sequence survives state 7. On
+    2026-09-19 (Linux x86-64)
     `content_text_and_carriers::runtime_number_to_decimal_exit_canary_runs`
-    failed before the native run: Terminal production refuses `Main::main`
-    with `InvalidUnitMachinePlan`, "attached Unit closure is missing a checked
-    transitive machine plan", omission "local construction stopped at
-    statement sequence: scalar field store sequence, state 7". The index
-    counts the `machine_states` span whose slot 0 is the entry body, so state
-    7 is `digit_write`, not `digit_div`. Its
-    `self.out[self.p] = narrow_u32_to_u8_wrapping(self.ch as u32)` reaches the
-    `BoundedOwned` byte-sequence branch of
-    `execution/unit/structural_scalar_store/mod.rs`, which reads both operands
-    from the pure `scalar_expressions` plan through `bound_expression_at`:
-    `AssignmentIndex` is bound and `AssignmentValue` is not, so the store
-    sequence collapses. `values/scalar/computations.rs` does record an
-    `AssignmentValue` computation root for an `Indexed` target, and the scalar
-    field lanes of the same builder accept `Computation` and same-statement
-    `ScalarResult` values; the two byte-store lanes accept only a pure value.
-    Which gate in `values/scalar/expression_plans.rs` (target type reference,
-    `assignment_target_primitive_type`, or `lower_return_expression`) drops
-    the pure binding is unmeasured; re-probe before relying on it. Resolve the
-    store value once for every destination lane, not through a byte-store
-    call-result arm.
+    still fails before the native run with `InvalidUnitMachinePlan`, but the
+    omission advanced to "local construction stopped at state graph:
+    terminator: conditional successors: guard expression, state 8". State 8
+    is `check`, whose
+    `transition self.out == "12345" { true -> ok() _ -> bad() }` compares a
+    `BoundedOwned` byte carrier against a byte-sequence literal. No checked
+    boolean form carries it: neither the pure `scalar_expressions` `Guard`
+    row nor a `values/scalar/computations` root exists for byte-carrier `==`
+    over a literal, `CheckedBooleanExpression::ByteSequenceEqual` requires
+    `CheckedStructuralParameterField` on both sides (a literal has no
+    parameter position), and Terminal `OperationKind` has no
+    byte-content-equality leaf. Give the guard a checked form (a
+    literal-bearing boolean variant or a computation root), relax
+    `state_graph` conditional-successor admission and
+    `composed_control/state_graph` emission to carry it, and add the
+    `boolean_expression_reads_carrier` arm in `control/checked_machine.rs` —
+    foreign-claimed this wave, check `tools/claims.py status` first. Sibling
+    canaries `runtime_bounded_carrier_write_read_exit` and
+    `utf8_equals_literal_exit` already fail in this closure's custody gates
+    at base, so the equality frontier is shared, not decimal-specific.
   - Lowering still gives a live scalar call result only a `Return` or
     `LocalInitializer` role in `emission/call_source_custody.rs`, so a store
     consuming its own statement's call result has no authored destination
