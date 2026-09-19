@@ -3,6 +3,10 @@
 //! Runtime overflow analysis remains in the parent. This module owns the
 //! separate rule that every arithmetic term admitted into a proposition has a
 //! total denotation, for both concrete and abstract contract owners.
+//! Machine/state contracts also discharge selected call requirements here,
+//! through `contract_entailment::specification_calls`, before any fact enters
+//! the shared prior-fact context. A second pass after intake would permit a
+//! partial call to establish the condition needed to form itself.
 
 use super::guard_narrowing::{comparison_bound, narrow_env_by_condition};
 use super::{
@@ -346,6 +350,15 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
         );
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             let diagnostics_before = diagnostics.len();
+            crate::proof_contracts::contract_entailment::validate_specification_call_requirements(
+                program,
+                machine,
+                entry_state,
+                fact,
+                &machine_prior_facts,
+                &owner,
+                diagnostics,
+            );
             crate::proof_contracts::contract_entailment::validate_proof_fact_integer_casts(
                 program,
                 fact,
@@ -392,6 +405,9 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
             );
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 let diagnostics_before = diagnostics.len();
+                crate::proof_contracts::contract_entailment::validate_specification_call_requirements(
+                    program, machine, Some(state), fact, &state_prior_facts, &owner, diagnostics,
+                );
                 crate::proof_contracts::contract_entailment::validate_proof_fact_integer_casts(
                     program,
                     fact,

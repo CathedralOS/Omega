@@ -964,6 +964,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/mathematical_call_missing_premise",
+    "proofs/contract_call_missing_premise",
     "relevance/erased_parameter_runtime_read",
     "relevance/erased_local_runtime_read",
     "relevance/erased_state_parameter_runtime_read",
