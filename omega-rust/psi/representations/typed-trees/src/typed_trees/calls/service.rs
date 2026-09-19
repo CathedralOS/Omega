@@ -2,7 +2,11 @@
 //!
 //! A same-named package declaration is ordinary opaque data. Compiler
 //! privilege requires the complete core source, declaration shape, closed
-//! boundary requirement, and `Bound` domain identity.
+//! boundary requirement, and `Bound` domain identity. Service validity is
+//! intrinsic to the carrier: `Service<R>` already denotes establishment under
+//! the toolchain `Bound` domain, so the authored `in Bound` spelling is a
+//! tolerated transitional qualification that must name exactly that domain —
+//! not an independent admission requirement.
 
 use crate::TypedTrees;
 use crate::types::{
@@ -21,7 +25,10 @@ pub struct ExactBoundServiceCarrier {
 
 /// Classify one type shell. `Ok(None)` means it is not the exact core
 /// `Service` carrier; `Err` means it does name that carrier but violates the
-/// deliberately narrow first-rung contract.
+/// deliberately narrow first-rung contract. A bare `Service<R>` and the
+/// transitional `Service<R> in Bound` spelling resolve to the same carrier:
+/// the toolchain `Bound` domain is intrinsic to service validity, so at most
+/// one authored qualification may name it and no other domain may.
 pub fn classify_exact_bound_service_carrier(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -172,9 +179,9 @@ pub fn classify_exact_bound_service_carrier(
             }
         }
     }
-    if bound_count != 1 {
+    if bound_count > 1 {
         return Err(format!(
-            "`Service<{name}>` requires exactly one exact toolchain-owned `in Bound` qualification"
+            "`Service<{name}>` repeats the exact toolchain-owned `Bound` domain qualification"
         ));
     }
 

@@ -1,0 +1,20 @@
+// Intrinsic `Service<R>` validity admits zero or one authored `in Bound`
+// qualification; any other domain still rejects the carrier at source
+// checking rather than degrading to a structural field.
+use omega::language::core::service;
+
+pub boundary trait Ping {
+    machine ping();
+}
+data PingProvider { }
+machine PingProvider::ping() satisfies Ping::ping { }
+
+domain<T> T::Foreign;
+
+data Main {
+    service: Service<Ping> in Foreign;
+}
+
+machine Main::main(&mut self) {
+    self.service.ping();
+}

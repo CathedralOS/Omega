@@ -28,7 +28,7 @@ machine Counter::count(&self) -> i32 in Wrapping {
     transition { _ -> (self.times) }
 }
 data Main {
-    console: Service<Console> in Bound;
+    console: Service<Console>;
     score: Counter<i32>;
     flag: Counter<bool>;
 }
