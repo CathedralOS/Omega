@@ -191,6 +191,35 @@ pub(crate) fn validate_computation_calls(
                 )?;
                 pending.push((*operand, false, source));
             }
+            CheckedScalarComputationKind::BooleanToInteger {
+                source_expression,
+                operand,
+            } => {
+                // The cast occurrence owns this conversion; its operand scope
+                // is the authored cast value. The fixed 0/1 landing introduces
+                // no separate operation source.
+                let ExpressionNode::Cast(cast) =
+                    checked.expression_table.expression(*source_expression)
+                else {
+                    return unsupported(
+                        "Boolean-to-integer computation lost its authored cast occurrence",
+                    );
+                };
+                if !plans.nodes.is_valid(*operand)
+                    || plans.nodes.get(*operand).primitive_type != PrimitiveType::Bool
+                {
+                    return unsupported("Boolean-to-integer computation has a non-Boolean operand");
+                }
+                dispatch::source_scope(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
+                pending.push((*operand, false, cast.value));
+            }
             CheckedScalarComputationKind::Dispatch {
                 source_expression,
                 subject,

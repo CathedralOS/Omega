@@ -69,6 +69,7 @@ impl Context<'_> {
                             when_false,
                             ..
                         } => pending.extend([*condition, *when_true, *when_false]),
+                        Computation::BooleanToInteger { operand, .. } => pending.push(*operand),
                         _ => {}
                     }
                 }

@@ -838,7 +838,8 @@ fn collect(
                 consumed,
             )?;
         }
-        CheckedScalarComputationKind::Qualification { operand, .. } => {
+        CheckedScalarComputationKind::Qualification { operand, .. }
+        | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
             collect(
                 facts,
                 state,

@@ -243,6 +243,39 @@ impl Context<'_> {
                     && plans.nodes.get(*operand).primitive_type == node.primitive_type
                     && self.computation(*operand, active)
             }
+            // The authored occurrence is an ordinary value cast to a fixed
+            // integer target; the operand's own correspondence replays the
+            // Boolean computation at cast.value. The 0/1 landing is
+            // definitional, so no policy or literal evidence is owed here.
+            Computation::BooleanToInteger {
+                source_expression,
+                operand,
+            } => {
+                let ExpressionNode::Cast(cast) =
+                    self.checked.expression_table.expression(*source_expression)
+                else {
+                    active.pop();
+                    return false;
+                };
+                !cast.form.is_recast()
+                    && cast.semantic_domain.is_empty()
+                    && plans.nodes.is_valid(*operand)
+                    && plans.nodes.get(*operand).primitive_type == PrimitiveType::Bool
+                    && matches!(
+                        node.primitive_type,
+                        PrimitiveType::I8
+                            | PrimitiveType::I16
+                            | PrimitiveType::I32
+                            | PrimitiveType::I64
+                            | PrimitiveType::U8
+                            | PrimitiveType::U16
+                            | PrimitiveType::U32
+                            | PrimitiveType::U64
+                    )
+                    && self.checked.primitive_type_reference(cast.target_type)
+                        == Some(node.primitive_type)
+                    && self.computation(*operand, active)
+            }
             Computation::Dispatch { subject, arms, .. } => {
                 // The caller independently rejoins ordered source arms. Replay
                 // every retained child's literal/operator meaning here.

@@ -51,6 +51,23 @@ fn value_type(
         CheckedScalarComputationKind::Value(expression) => {
             bindings.expression(expression)?.value_type(source_types)?
         }
+        CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+            // The conversion result is a bare fixed-integer carrier; the
+            // Boolean operand must be unqualified, matching Select's
+            // condition convention.
+            if value_type(
+                checked,
+                qualifications,
+                *operand,
+                bindings,
+                source_types,
+                active,
+            )? != ScalarType::Boolean.into()
+            {
+                return unsupported("Boolean-to-integer operand is not a scalar Boolean");
+            }
+            terminal_scalar_type(node.primitive_type)?.into()
+        }
         CheckedScalarComputationKind::Apply { .. }
         | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::SelectedComparison { .. } => {

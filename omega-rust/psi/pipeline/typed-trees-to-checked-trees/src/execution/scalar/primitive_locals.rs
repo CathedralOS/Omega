@@ -65,7 +65,8 @@ pub(in crate::execution) fn collect(
                 CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                     pending.extend([*left, *right])
                 }
-                CheckedScalarComputationKind::Qualification { operand, .. } => {
+                CheckedScalarComputationKind::Qualification { operand, .. }
+                | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                     pending.push(*operand)
                 }
                 CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
