@@ -3,7 +3,7 @@
 // must-analysis fixpoint carries establishment across the transition
 // (established at entry of a state = established at exit of every
 // predecessor; monotone in the strict store-time model).
-use omega::language::std::console;
+use omega_language_std::console;
 data Player
 where
     health >= 1,

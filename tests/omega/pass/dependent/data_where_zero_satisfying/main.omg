@@ -2,7 +2,7 @@
 // (0 <= 0), so the type is zero-constructible -- born established, facts
 // standing. The facts store on the RESOLVED definition and stay INERT
 // until rung 3 wires entailment hypotheses + write obligations atomically.
-use omega::language::std::console;
+use omega_language_std::console;
 data MemoryMap
 where
     count <= len,

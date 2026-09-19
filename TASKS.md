@@ -4666,7 +4666,14 @@ Owners include
   `named_float_to_integer_no_context_compile` and
   `tests/omega/run/float/sqrt_probe` remain standalone), so its directed
   and twin canaries now reach the package route and expose the open
-  composed-Unit and checked-operator legs there. Structural writeback
+  composed-Unit and checked-operator legs there. The dependent
+  data-where/gated-construction set and the remaining ownership,
+  constants, calls, arithmetic, and versioning std consumers followed the
+  same edge (28 more packaged roots: dependent 34, ownership 12,
+  constants 3, calls 176, arithmetic 140, versioning 4, all checked-only);
+  proofs, generics, filesystem, host, time, and objc still hold bundled
+  imports, with `proofs/kernel_*` drift owned by the kernel items.
+  Structural writeback
   shares the blocker recorded in `WRITE-ONLY-BORROW`. Feed consumer-scoped
   Console, Filesystem, and UEFI bindings through normal package-aware
   compilation.

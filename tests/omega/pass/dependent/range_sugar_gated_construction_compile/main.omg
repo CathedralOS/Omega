@@ -1,6 +1,6 @@
 // COMPILE CANARY. A field range is default-domain sugar: excluding zero gates
 // the record, and an explicit in-range initializer establishes it.
-use omega::language::std::console;
+use omega_language_std::console;
 data Player { health: i32 [1..=100]; score: i32; }
 data Main { console: Console; }
 machine Main::main(&mut self) reaches Console {

@@ -1,7 +1,7 @@
 // Chapter 22: a format package selects checked migration machines through a
 // nominal lineage parameter. The historical shapes remain ordinary data.
 
-use omega::language::std::format_lineage;
+use omega_language_std::format_lineage;
 
 data CounterDisk {
 }
