@@ -98,7 +98,10 @@ authority demands compose into the root's published ceiling.
 
 `BuildSource`, `BuildOutput`, and `BuildLog` are compiler-owned, activation-scoped
 facets. They do not enter normalized Build output. The sponsor enforces source
-read/output write roots, containment, limits, and custody. Logging is explicit
+read/output write roots, containment, limits, and custody; the confined view
+they resolve against is specified by
+[inputs and default filesystem](scoped_execution.md#inputs-and-default-filesystem),
+so this vocabulary is not itself the containment boundary. Logging is explicit
 and captured. Selecting a runtime `FilesystemHost` or `Console` provider does
 not route it into build execution. Additional host effects require explicit
 protocol operations and policy; package code gets no resolver credentials.
