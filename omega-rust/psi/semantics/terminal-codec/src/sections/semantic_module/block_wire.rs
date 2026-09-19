@@ -215,6 +215,23 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             value,
             range_obligation,
         )?,
+        OperationKind::MoveStructuralField {
+            source,
+            path,
+            field,
+        } => storage_operations::encode_move_structural_field(writer, source, path, field)?,
+        OperationKind::StoreStructuralField {
+            destination,
+            path,
+            field,
+            value,
+        } => storage_operations::encode_store_structural_field(
+            writer,
+            destination,
+            path,
+            field,
+            value,
+        )?,
         OperationKind::EstablishScalarArray { elements } => {
             value_operations::encode_establish_scalar_array(writer, elements)?
         }
@@ -611,6 +628,12 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE => {
             storage_operations::decode_range_checked_structural_scalar_field_store(reader)?
+        }
+        operation_tags::MOVE_STRUCTURAL_FIELD => {
+            storage_operations::decode_move_structural_field(reader)?
+        }
+        operation_tags::STORE_STRUCTURAL_FIELD => {
+            storage_operations::decode_store_structural_field(reader)?
         }
         operation_tags::ESTABLISH_SCALAR_ARRAY => {
             value_operations::decode_establish_scalar_array(reader)?

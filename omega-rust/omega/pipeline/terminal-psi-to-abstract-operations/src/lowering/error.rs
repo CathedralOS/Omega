@@ -55,6 +55,10 @@ pub enum LoweringError {
     /// The dynamic-call representation has no combined scalar-and-descriptor
     /// argument carrier yet. Ordinary Unit calls retain scalar arguments.
     UnsupportedUnitCallScalarAndDynamicArguments(semantic_vocabulary::OperationId),
+    /// Terminal preserves exact borrowed-storage extraction and repair
+    /// operations, but Omega has no abstract operation realizing the
+    /// restoration-debt invariant yet.
+    UnsupportedBorrowedStorageWindow(semantic_vocabulary::OperationId),
     ScalarReturnFromUnitMachine(MachineId),
     UnitReturnFromScalarMachine(MachineId),
     /// The verified structural-result machine is wider than the exact

@@ -5,7 +5,7 @@
 use crate::terminal_interpreter::byte_sequence_binding::ByteSequenceBinding;
 use crate::terminal_interpreter::byte_sequence_view::ByteSequenceView;
 use crate::terminal_interpreter::custody::{
-    direct_scalar_field_type, resolve_structural_arguments,
+    direct_scalar_field_type, remove_affine_root, resolve_structural_arguments,
 };
 use crate::terminal_interpreter::execution::{OperationFlow, TerminalExecution};
 use crate::terminal_interpreter::scalar_operations::terminal_scalar_belongs_to_type;
@@ -16,7 +16,8 @@ use crate::terminal_interpreter::{
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 impl TerminalExecution {
@@ -351,6 +352,249 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
+    /// Move a declared structural subtree out of a borrowed root into a fresh
+    /// place. Every runtime cell beneath the hole — scalar leaves, byte
+    /// contents, cases, primitive cells, reference referents — travels to the
+    /// moved value's own opaque identity, so the borrowed root keeps the
+    /// caller's identity while its absent subtree is unreachable: reads under
+    /// it observe missing storage until a repair store reseats the exact hole.
+    pub(super) fn execute_move_structural_field(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::MoveStructuralField {
+            source,
+            ref path,
+            field,
+        } = operation.kind
+        else {
+            unreachable!("dispatched execute_move_structural_field")
+        };
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let result = operation.result.structural().ok_or_else(invalid)?;
+        if !matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        ) || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || self.structural_values.contains_key(&result.place)
+        {
+            return Err(invalid());
+        }
+        let (parent, hole) = self.structural_window_hole(source, path, field)?;
+        let StructuralFieldType::Structural(field_type) =
+            parent_field_type(&self.structural_types, parent.structural_type, field)
+                .ok_or_else(invalid)?
+        else {
+            return Err(invalid());
+        };
+        if field_type != result.structural_type {
+            return Err(invalid());
+        }
+        let moved = TerminalStructuralValue {
+            opaque_identity: self.local_structural_identities.allocate()?,
+            structural_type: result.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved));
+        self.structural_values.insert(result.place, moved);
+        if result.multiplicity == StructuralMultiplicity::Affine {
+            self.live_affine_frontier.insert(StructuralAffineDiscard {
+                place: result.place,
+                path: Vec::new(),
+                structural_type: result.structural_type,
+            });
+        }
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Reseat an open borrowed hole with a consumed whole-place value. The
+    /// value's cells relocate under the destination's opaque identity at the
+    /// exact hole path, so a caller observing the borrowed root afterward sees
+    /// the updated contents. The consumed place leaves both the value map and
+    /// the affine frontier — the store is the move's exact-once counterpart.
+    pub(super) fn execute_store_structural_field(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::StoreStructuralField {
+            destination,
+            ref path,
+            field,
+            ref value,
+        } = operation.kind
+        else {
+            unreachable!("dispatched execute_store_structural_field")
+        };
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if !matches!(operation.result, terminal_psi::OperationResult::Unit)
+            || value.access != StructuralAccess::Owned
+            || !value.path.is_empty()
+        {
+            return Err(invalid());
+        }
+        let (parent, hole) = self.structural_window_hole(destination, path, field)?;
+        let StructuralFieldType::Structural(field_type) =
+            parent_field_type(&self.structural_types, parent.structural_type, field)
+                .ok_or_else(invalid)?
+        else {
+            return Err(invalid());
+        };
+        let child = self.structural_values.get(&value.place).cloned().ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(value.place),
+        )?;
+        if child.structural_type != field_type || !child.qualifications.is_empty() {
+            return Err(invalid());
+        }
+        let affine = self
+            .live_affine_frontier
+            .iter()
+            .any(|entry| entry.place == value.place && entry.path.is_empty());
+        self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
+        self.structural_values.remove(&value.place);
+        if affine && !remove_affine_root(&mut self.live_affine_frontier, value.place) {
+            return Err(invalid());
+        }
+        Ok(OperationFlow::Advance)
+    }
+
+    /// The resolved parent carrier and runtime hole path one window operation
+    /// names: `path` walks borrowed storage to the containing record, then the
+    /// hole sits one `Field` segment deeper under the field's spelled identity.
+    fn structural_window_hole(
+        &self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[StructuralPathSegment],
+        field: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<(TerminalStructuralValue, StructuralRuntimePlace), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let parent = resolve_structural_arguments(
+            &self.structural_types,
+            &self.structural_values,
+            &[StructuralArgument {
+                place: root,
+                path: path.to_vec(),
+                access: StructuralAccess::MutableBorrow,
+            }],
+        )?
+        .pop()
+        .ok_or_else(invalid)?;
+        let identity = self
+            .structural_types
+            .get(&parent.structural_type)
+            .and_then(|declaration| match &declaration.shape {
+                StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. } => fields
+                    .iter()
+                    .find(|candidate| candidate.id == field && !candidate.relevance.is_erased()),
+                _ => None,
+            })
+            .map(|declaration| declaration.identity.clone())
+            .ok_or_else(invalid)?;
+        let mut hole = StructuralRuntimePlace::from(&parent);
+        hole.path.push(StructuralPathSegment::Field(identity));
+        Ok((parent, hole))
+    }
+
+    /// Move every runtime cell under `from` to the same subtree suffix under
+    /// `to`. Cells are staged before removal so the source region is never
+    /// partially vacated.
+    fn relocate_subtree(&mut self, from: &StructuralRuntimePlace, to: &StructuralRuntimePlace) {
+        let retarget = |parent: &StructuralRuntimePlace| {
+            (parent.opaque_identity == from.opaque_identity && parent.path.starts_with(&from.path))
+                .then(|| StructuralRuntimePlace {
+                    opaque_identity: to.opaque_identity,
+                    path: to
+                        .path
+                        .iter()
+                        .chain(&parent.path[from.path.len()..])
+                        .cloned()
+                        .collect(),
+                })
+        };
+        let staged_scalars: Vec<_> = self
+            .structural_scalar_fields
+            .iter()
+            .filter_map(|(cell, scalar)| {
+                retarget(&cell.parent).map(|parent| {
+                    (
+                        StructuralScalarRuntimeField {
+                            parent,
+                            field: cell.field,
+                        },
+                        *scalar,
+                    )
+                })
+            })
+            .collect();
+        let staged_byte_fields: Vec<_> = self
+            .structural_byte_sequence_fields
+            .iter()
+            .filter_map(|(cell, view)| {
+                retarget(&cell.parent).map(|parent| {
+                    (
+                        crate::terminal_interpreter::values::StructuralByteSequenceRuntimeField {
+                            parent,
+                            field: cell.field,
+                        },
+                        view.clone(),
+                    )
+                })
+            })
+            .collect();
+        let staged_arrays: Vec<_> = self
+            .structural_byte_arrays
+            .iter()
+            .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
+            .collect();
+        let staged_cases: Vec<_> = self
+            .structural_cases
+            .iter()
+            .filter_map(|(carrier, contents)| retarget(carrier).map(|place| (place, *contents)))
+            .collect();
+        let staged_referents: Vec<_> = self
+            .reference_referents
+            .iter()
+            .filter_map(|(carrier, referent)| {
+                retarget(carrier).map(|place| (place, referent.clone()))
+            })
+            .collect();
+        let staged_primitives: Vec<_> = self
+            .structural_primitive_storage
+            .iter()
+            .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
+            .collect();
+        self.structural_scalar_fields.retain(|cell, _| {
+            cell.parent.opaque_identity != from.opaque_identity
+                || !cell.parent.path.starts_with(&from.path)
+        });
+        self.structural_byte_sequence_fields.retain(|cell, _| {
+            cell.parent.opaque_identity != from.opaque_identity
+                || !cell.parent.path.starts_with(&from.path)
+        });
+        self.structural_byte_arrays.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
+        self.structural_cases.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
+        self.reference_referents.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
+        self.structural_primitive_storage.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
+        self.structural_scalar_fields.extend(staged_scalars);
+        self.structural_byte_sequence_fields
+            .extend(staged_byte_fields);
+        self.structural_byte_arrays.extend(staged_arrays);
+        self.structural_cases.extend(staged_cases);
+        self.reference_referents.extend(staged_referents);
+        self.structural_primitive_storage.extend(staged_primitives);
+    }
+
     pub(super) fn execute_structural_case_membership(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -545,4 +789,27 @@ impl TerminalExecution {
         );
         Ok(OperationFlow::Advance)
     }
+}
+
+/// The declared structural type of one non-erased `field` on a record or mixed
+/// parent — the only field shape a borrowed-storage window may name.
+fn parent_field_type(
+    structural_types: &std::collections::BTreeMap<
+        semantic_vocabulary::StructuralTypeId,
+        StructuralTypeDeclaration,
+    >,
+    parent: semantic_vocabulary::StructuralTypeId,
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<StructuralFieldType> {
+    structural_types
+        .get(&parent)
+        .and_then(|declaration| match &declaration.shape {
+            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+                fields
+                    .iter()
+                    .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
+                    .map(|candidate| candidate.field_type.clone())
+            }
+            _ => None,
+        })
 }

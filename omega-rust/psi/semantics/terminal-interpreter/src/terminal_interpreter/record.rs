@@ -252,6 +252,7 @@ impl TerminalExecution {
                 matches!(
                     operation.kind,
                     OperationKind::EstablishRecord { .. }
+                        | OperationKind::MoveStructuralField { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::CallStructuralWithScalarArguments { .. }
                 )

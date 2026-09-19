@@ -97,6 +97,7 @@ fn close_jump(
         blocks[target],
         structural_arguments,
         true,
+        walk.window_aliases,
     )?;
     apply_continuation_residual_discards(
         module,
@@ -158,6 +159,7 @@ fn close_conditional(
         blocks[&when_true.target],
         &when_true.structural_arguments,
         false,
+        walk.window_aliases,
     )?;
     apply_edge_trivial_affine_discards(
         module,
@@ -190,6 +192,7 @@ fn close_conditional(
         blocks[&when_false.target],
         &when_false.structural_arguments,
         false,
+        walk.window_aliases,
     )?;
     apply_edge_trivial_affine_discards(
         module,
@@ -234,6 +237,13 @@ fn close_structural_case(
     let Terminator::StructuralCase { source, cases } = &block.terminator else {
         unreachable!("dispatched close_structural_case")
     };
+    super::super::borrowed_windows::check_case_source(
+        machine,
+        block.id,
+        *source,
+        &frontier,
+        walk.window_aliases,
+    )?;
     let owned_subject = machine
         .structural_parameters
         .iter()
@@ -307,6 +317,13 @@ fn close_return_unit(
     };
     if let Some(place) = frontier.partial_custody_paths.keys().next() {
         return Err(ModuleError::PartialStructuralCustodyAtUnitReturn {
+            machine: machine.id,
+            block: block.id,
+            place: *place,
+        });
+    }
+    if let Some(place) = frontier.restoration_debt.keys().next() {
+        return Err(ModuleError::BorrowedStorageRestorationPending {
             machine: machine.id,
             block: block.id,
             place: *place,
@@ -422,6 +439,13 @@ fn close_return_unit_partial_affine(
             block: block.id,
         });
     }
+    if let Some(place) = frontier.restoration_debt.keys().next() {
+        return Err(ModuleError::BorrowedStorageRestorationPending {
+            machine: machine.id,
+            block: block.id,
+            place: *place,
+        });
+    }
     if let Some((claim, _)) = frontier
         .claims
         .iter()
@@ -458,6 +482,13 @@ fn close_return_unit_nominal_affine(
                 block: block.id,
             });
         }
+    }
+    if let Some(place) = frontier.restoration_debt.keys().next() {
+        return Err(ModuleError::BorrowedStorageRestorationPending {
+            machine: machine.id,
+            block: block.id,
+            place: *place,
+        });
     }
     if !frontier.partial_custody_paths.is_empty()
         || !frontier.claims.is_empty()
@@ -501,6 +532,13 @@ fn close_return(
             claim: *claim,
         });
     }
+    if let Some(place) = frontier.restoration_debt.keys().next() {
+        return Err(ModuleError::BorrowedStorageRestorationPending {
+            machine: machine.id,
+            block: block.id,
+            place: *place,
+        });
+    }
     validate_scalar_cleanup_actions(
         module,
         machine,
@@ -541,6 +579,13 @@ fn close_return_structural(
         *source,
         &mut frontier.references,
     )?;
+    if let Some(place) = frontier.restoration_debt.keys().next() {
+        return Err(ModuleError::BorrowedStorageRestorationPending {
+            machine: machine.id,
+            block: block.id,
+            place: *place,
+        });
+    }
     if frontier.partial_custody_paths.contains_key(source) {
         return Err(ModuleError::StructuralReturnSourcePartiallyMoved {
             machine: machine.id,

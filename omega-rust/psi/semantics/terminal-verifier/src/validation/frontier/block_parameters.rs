@@ -1,5 +1,6 @@
 //! Whole owned successor bindings consume the old roots before establishing new ones.
 
+use super::super::borrowed_windows::{WindowAliases, check_edge_arguments};
 use super::super::{StructuralArgument, StructuralPlaceKind, resolve_structural_path};
 use super::{
     EdgeId, ModuleError, StructuralAccess, StructuralMultiplicity, StructuralOwnershipFrontier,
@@ -20,6 +21,7 @@ pub(super) fn consume(
     target: &terminal_psi::Block,
     arguments: &[StructuralArgument],
     allow_projected: bool,
+    window_aliases: &WindowAliases,
 ) -> Result<(), ModuleError> {
     if arguments.len() != target.structural_parameters.len() {
         return Err(ModuleError::StructuralJumpArityMismatch {
@@ -28,6 +30,9 @@ pub(super) fn consume(
             actual: arguments.len(),
         });
     }
+    // An open restoration window cannot cross an edge under any access:
+    // the successor's binding could not name the hole this frame opened.
+    check_edge_arguments(module, machine, frontier, window_aliases, edge, arguments)?;
     for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
         if parameter.access != StructuralAccess::Owned {
             continue;

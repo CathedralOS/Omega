@@ -61,6 +61,7 @@ pub(super) fn entry_frontier(
             })
             .collect(),
         partial_custody_paths: BTreeMap::new(),
+        restoration_debt: BTreeMap::new(),
     };
     Ok(entry)
 }
@@ -90,6 +91,9 @@ pub(super) fn joined_frontier(
         || frontiers
             .iter()
             .any(|candidate| candidate.partial_custody_paths != frontier.partial_custody_paths)
+        || frontiers
+            .iter()
+            .any(|candidate| candidate.restoration_debt != frontier.restoration_debt)
     {
         return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block_id));
     }

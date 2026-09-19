@@ -125,6 +125,8 @@ pub(super) fn append_operation(
         OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+            | OperationKind::MoveStructuralField { .. }
+            | OperationKind::StoreStructuralField { .. }
     ) {
         match crate::validation::structural_field_store_write_path(module, machine, operation) {
             Some((root, written)) => {
@@ -163,15 +165,24 @@ pub(super) fn append_operation(
                 let root = match &operation.kind {
                     OperationKind::StructuralScalarFieldStore { destination, .. }
                     | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
-                    | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. } => {
-                        *destination
-                    }
+                    | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
+                    | OperationKind::StoreStructuralField { destination, .. } => *destination,
+                    OperationKind::MoveStructuralField { source, .. } => *source,
                     _ => unreachable!("store kinds are matched above"),
                 };
                 field_snapshots::retain(axioms, capture_snapshots, |proposition| {
                     !crate::validation::proposition_observes_places(proposition, &[root])
                 });
             }
+        }
+        if matches!(
+            operation.kind,
+            OperationKind::MoveStructuralField { .. } | OperationKind::StoreStructuralField { .. }
+        ) {
+            // Restoration debt is custody state, not an axiom-bearing
+            // observation: the write-path invalidation above is the whole
+            // reconstruction effect.
+            return Ok(());
         }
     }
     if let Some(equation) = crate::validation::structural_byte_sequence_field_length_equation(
@@ -431,6 +442,8 @@ pub(super) fn append_operation(
         | OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishRecord { .. }
+        | OperationKind::MoveStructuralField { .. }
+        | OperationKind::StoreStructuralField { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }

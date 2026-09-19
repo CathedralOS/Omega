@@ -90,6 +90,8 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::EstablishRecord { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::StoreDynamicDescriptor { .. }
+        | OperationKind::MoveStructuralField { .. }
+        | OperationKind::StoreStructuralField { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. } => {

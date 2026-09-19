@@ -212,6 +212,10 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::StructuralByteSequenceFieldLength { .. }
         | O::BooleanStructuralField { .. }
         | O::StructuralCaseMembership { .. }
+        // Borrowed-storage window operations move custody of structural
+        // places only; they carry no scalar operands.
+        | O::MoveStructuralField { .. }
+        | O::StoreStructuralField { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishReference { .. }

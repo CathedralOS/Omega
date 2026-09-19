@@ -508,3 +508,58 @@ pub(super) fn decode_integer_structural_field(
         field: reader.id("StructuralFieldId")?,
     })
 }
+
+pub(super) fn encode_move_structural_field(
+    writer: &mut Writer,
+    source: PlaceId,
+    path: Vec<StructuralPathSegment>,
+    field: StructuralFieldId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::MOVE_STRUCTURAL_FIELD);
+    writer.id(source);
+    encode_structural_path(writer, "structural field move path", &path)?;
+    writer.id(field);
+    Ok(())
+}
+
+pub(super) fn decode_move_structural_field(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::MoveStructuralField {
+        source: reader.id("PlaceId")?,
+        path: decode_structural_path(reader)?,
+        field: reader.id("StructuralFieldId")?,
+    })
+}
+
+pub(super) fn encode_store_structural_field(
+    writer: &mut Writer,
+    destination: PlaceId,
+    path: Vec<StructuralPathSegment>,
+    field: StructuralFieldId,
+    value: StructuralArgument,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::STORE_STRUCTURAL_FIELD);
+    writer.id(destination);
+    encode_structural_path(writer, "structural field store path", &path)?;
+    writer.id(field);
+    writer.id(value.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, value.access);
+    encode_structural_path(writer, "structural field store value path", &value.path)?;
+    Ok(())
+}
+
+pub(super) fn decode_store_structural_field(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::StoreStructuralField {
+        destination: reader.id("PlaceId")?,
+        path: decode_structural_path(reader)?,
+        field: reader.id("StructuralFieldId")?,
+        value: StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
+    })
+}

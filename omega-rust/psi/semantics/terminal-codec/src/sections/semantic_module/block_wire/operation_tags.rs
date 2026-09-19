@@ -146,3 +146,7 @@ pub(super) const PROJECTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 74;
 pub(super) const RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE: u8 = 75;
 /// `OperationKind::WriteOnlyIndexedPrimitiveStore`.
 pub(super) const WRITE_ONLY_INDEXED_PRIMITIVE_STORE: u8 = 76;
+/// `OperationKind::MoveStructuralField`.
+pub(super) const MOVE_STRUCTURAL_FIELD: u8 = 77;
+/// `OperationKind::StoreStructuralField`.
+pub(super) const STORE_STRUCTURAL_FIELD: u8 = 78;

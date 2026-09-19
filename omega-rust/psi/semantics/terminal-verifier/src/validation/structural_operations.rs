@@ -34,6 +34,6 @@ pub(crate) use structural_arguments::{
     is_unrestricted_shared_subloan, structural_access_can_supply, validate_structural_arguments,
 };
 pub(crate) use structural_paths::{
-    structural_argument_canonical_prefix, structural_field_store_write_path,
+    canonical_field_path, structural_argument_canonical_prefix, structural_field_store_write_path,
 };
 pub(crate) use unit_operation::validate_unit_operation_static;

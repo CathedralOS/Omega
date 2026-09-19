@@ -3,6 +3,8 @@
 
 #[path = "canonical/affine_and_claim_round_trips.rs"]
 mod affine_and_claim_round_trips;
+#[path = "canonical/borrowed_storage_windows.rs"]
+mod borrowed_storage_windows;
 #[path = "canonical/boundary_crashes.rs"]
 mod boundary_crashes;
 #[path = "canonical/bounded_integer_fields.rs"]

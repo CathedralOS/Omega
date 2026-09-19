@@ -283,6 +283,8 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::IntegerStructuralField { .. }
+        | OperationKind::MoveStructuralField { .. }
+        | OperationKind::StoreStructuralField { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }
         | OperationKind::ByteSequenceWrite { .. }

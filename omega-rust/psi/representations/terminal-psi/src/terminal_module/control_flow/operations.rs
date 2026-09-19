@@ -227,6 +227,35 @@ pub enum OperationKind {
         /// Required exactly for a bounded integer field; proved before mutation.
         range_obligation: Option<ObligationId>,
     },
+    /// Move one structural field subtree out of a mutable-borrowed storage root
+    /// into this operation's structural result. `path` resolves from `source` to
+    /// the record containing `field`, which must be declared `Structural`. The
+    /// moved place becomes absent — a restoration window — until a
+    /// `StoreStructuralField` of the exact declared type reseats it; while the
+    /// window is open the absent subtree cannot be observed, moved again, or
+    /// carried across a call or edge, and every non-crash machine exit must
+    /// close it. Source roots are machine parameters carrying `MutableBorrow`
+    /// authority: owned roots already have partial-custody moves, block
+    /// parameters reach the same storage through alias expansion, and shared
+    /// or write-only loans never admit extraction.
+    MoveStructuralField {
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+    },
+    /// Move one already-owned structural subtree into the exact vacant field
+    /// `path` + `field` beneath `destination`, closing the restoration window
+    /// `MoveStructuralField` opened there. The target must name that open
+    /// window exactly — a store into storage that was never vacated is a
+    /// replacement-with-cleanup contract this operation does not carry. The
+    /// moved `value` is consumed like an owned call argument, once; it is not
+    /// re-disposed at the store.
+    StoreStructuralField {
+        destination: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        value: StructuralArgument,
+    },
     /// Atomically establish one exact scalar-payload case of a declared sum.
     /// The structural operation result supplies the destination and type. The
     /// field roster is complete and ordered by declaration, with already
@@ -720,6 +749,8 @@ impl OperationKind {
             Self::EstablishReference { .. }
             | Self::ReleaseReference { .. }
             | Self::PrimitiveScalarRead { .. }
+            | Self::MoveStructuralField { .. }
+            | Self::StoreStructuralField { .. }
             | Self::StructuralCaseMembership { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::ByteSequenceLength { .. }
