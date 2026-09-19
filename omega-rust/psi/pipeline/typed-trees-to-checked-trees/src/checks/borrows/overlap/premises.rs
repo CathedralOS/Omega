@@ -1,4 +1,4 @@
-//! Explicit ordering premises stated by the forming scope's `requires`
+//! Explicit integer relations stated by the forming scope's `requires`
 //! contracts.
 //!
 //! A premised compatibility derivation consumes the same establishment point
@@ -7,9 +7,10 @@
 //! its exact `ContractProofFact` token and both operands normalized onto the
 //! immutable-bound vocabulary the selector snapshot already uses, so replay
 //! can re-derive the available set without trusting a serialized relation.
-//! Premises only ever prove a bound ordering, strictness, or equality the
-//! structural judgment could not; they cannot disprove overlap, form a loan,
-//! extend a lifetime, or widen access.
+//! Premises prove bound ordering, equality or disequality the structural
+//! judgment could not. Disequality distinguishes singleton elements without
+//! choosing an ordering; it says nothing about overlap of wider windows.
+//! No relation can form a loan, extend a lifetime, or widen access.
 
 use checked_trees::{
     BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation, ContractProofFact,
@@ -133,6 +134,7 @@ fn decompose_premise_expression(
         BinaryOperator::Greater => (Relation::StrictlyBefore, binary.right, binary.left),
         BinaryOperator::GreaterOrEqual => (Relation::LessOrEqual, binary.right, binary.left),
         BinaryOperator::Equal => (Relation::Equal, binary.left, binary.right),
+        BinaryOperator::NotEqual => (Relation::NotEqual, binary.left, binary.right),
         _ => return,
     };
     let (Some(left), Some(right)) = (
@@ -153,8 +155,8 @@ fn decompose_premise_expression(
 ///
 /// The query shifts against the premise's endpoints only within one symbol's
 /// constant-offset line or the integer line; unrelated bound pairs stay
-/// unproven. An `Equal` premise is symmetric, so its endpoints are consulted
-/// in both orientations.
+/// unproven. Equality and disequality are symmetric, so their endpoints are
+/// consulted in both orientations.
 pub fn premise_proves(
     premise: &StatedOrderingPremise,
     left: NormalizedBound,
@@ -168,15 +170,17 @@ pub fn premise_proves(
         left,
         query,
         right,
-    ) || (premise.relation == BorrowCompatibilityPremiseRelation::Equal
-        && premise_orientation_proves(
-            premise.right,
-            premise.relation,
-            premise.left,
-            left,
-            query,
-            right,
-        ))
+    ) || (matches!(
+        premise.relation,
+        BorrowCompatibilityPremiseRelation::Equal | BorrowCompatibilityPremiseRelation::NotEqual
+    ) && premise_orientation_proves(
+        premise.right,
+        premise.relation,
+        premise.left,
+        left,
+        query,
+        right,
+    ))
 }
 
 /// Whether `premise_left <premise> premise_right` proves
@@ -203,6 +207,7 @@ fn premise_orientation_proves(
         (Relation::LessOrEqual, Relation::LessOrEqual) => left_shift <= right_shift,
         (Relation::LessOrEqual, Relation::StrictlyBefore) => left_shift < right_shift,
         (Relation::LessOrEqual, Relation::Equal) => false,
+        (Relation::LessOrEqual, Relation::NotEqual) => left_shift < right_shift,
         // `L < R` is `L + 1 <= R`, so `L + d1 <= R + d2` holds when
         // `d1 <= d2 + 1`, and `L + d1 < R + d2` already when `d1 <= d2`.
         (Relation::StrictlyBefore, Relation::LessOrEqual) => right_shift
@@ -210,11 +215,18 @@ fn premise_orientation_proves(
             .is_none_or(|bound| left_shift <= bound),
         (Relation::StrictlyBefore, Relation::StrictlyBefore) => left_shift <= right_shift,
         (Relation::StrictlyBefore, Relation::Equal) => false,
+        (Relation::StrictlyBefore, Relation::NotEqual) => left_shift <= right_shift,
         // `L == R` shifts either endpoint by the same constant in every
         // comparison direction.
         (Relation::Equal, Relation::LessOrEqual) => left_shift <= right_shift,
         (Relation::Equal, Relation::StrictlyBefore) => left_shift < right_shift,
         (Relation::Equal, Relation::Equal) => left_shift == right_shift,
+        (Relation::Equal, Relation::NotEqual) => left_shift != right_shift,
+        // Translation by the same mathematical integer preserves inequality.
+        // Unequal shifts could collapse two distinct points onto one; `!=`
+        // never determines which point precedes the other.
+        (Relation::NotEqual, Relation::NotEqual) => left_shift == right_shift,
+        (Relation::NotEqual, _) => false,
     }
 }
 
@@ -314,6 +326,86 @@ mod tests {
     }
 
     use BorrowCompatibilityPremiseRelation as Relation;
+
+    #[test]
+    fn disequality_is_symmetric_and_requires_equal_translation() {
+        let distinct = premise(sym(1, 0), Relation::NotEqual, sym(2, 0));
+        for offset in [-2, 0, 3] {
+            for (left, right) in [(1, 2), (2, 1)] {
+                assert!(premise_proves(
+                    &distinct,
+                    sym(left, offset),
+                    Relation::NotEqual,
+                    sym(right, offset),
+                ));
+                for relation in [
+                    Relation::LessOrEqual,
+                    Relation::StrictlyBefore,
+                    Relation::Equal,
+                ] {
+                    assert!(!premise_proves(
+                        &distinct,
+                        sym(left, offset),
+                        relation,
+                        sym(right, offset),
+                    ));
+                }
+                assert!(!premise_proves(
+                    &distinct,
+                    sym(left, offset),
+                    Relation::NotEqual,
+                    sym(right, offset + 1),
+                ));
+            }
+        }
+        assert!(!premise_proves(
+            &distinct,
+            sym(1, 0),
+            Relation::NotEqual,
+            sym(3, 0)
+        ));
+    }
+
+    #[test]
+    fn shifted_relation_rules_hold_for_concrete_integer_interpretations() {
+        fn holds(relation: Relation, left: i64, right: i64) -> bool {
+            match relation {
+                Relation::LessOrEqual => left <= right,
+                Relation::StrictlyBefore => left < right,
+                Relation::Equal => left == right,
+                Relation::NotEqual => left != right,
+            }
+        }
+        let relations = [
+            Relation::LessOrEqual,
+            Relation::StrictlyBefore,
+            Relation::Equal,
+            Relation::NotEqual,
+        ];
+        for relation in relations {
+            let stated = premise(sym(1, 0), relation, sym(2, 0));
+            for query in relations {
+                for left_shift in -2..=2 {
+                    for right_shift in -2..=2 {
+                        if !premise_proves(&stated, sym(1, left_shift), query, sym(2, right_shift))
+                        {
+                            continue;
+                        }
+                        for left in -3..=3 {
+                            for right in -3..=3 {
+                                if holds(relation, left, right) {
+                                    assert!(
+                                        holds(query, left + left_shift, right + right_shift),
+                                        "{left} {relation:?} {right}, shifts {left_shift}/{right_shift}, query {query:?}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn stated_less_or_equal_proves_shifted_window_boundaries() {

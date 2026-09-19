@@ -13,6 +13,199 @@ use crate::tests::{
     resolve,
 };
 
+const DISEQUAL_ELEMENTS: &str = r#"
+    data Entry { value: i32; }
+    data Main { entries: [Entry; 2]; }
+
+    machine Main::main(&mut self, left_index: u64 [0..=1], right_index: u64 [0..=1])
+        requires left_index != right_index;
+    {
+        let view: &mut [Entry] = self.entries.as_mut_slice();
+        let left: &mut Entry = &mut view[left_index];
+        let right: &mut Entry = &mut view[right_index];
+        left = Entry { value: 1 };
+        right = Entry { value: 2 };
+    }
+"#;
+
+#[test]
+fn stated_disequality_certifies_distinct_mutable_elements() {
+    for relation in ["left_index != right_index", "right_index != left_index"] {
+        let mut checked =
+            checked_source(&DISEQUAL_ELEMENTS.replace("left_index != right_index", relation));
+        let certificate = checked
+            .facts
+            .borrow
+            .compatibility_certificates
+            .iter()
+            .map(|(_, certificate)| certificate)
+            .find(|certificate| {
+                certificate.derivation == checked_trees::BorrowCompatibilityDerivation::Premised
+            })
+            .expect("element pair consumes disequality");
+        assert!(certificate.conclusion.disjoint && certificate.conclusion.non_interfering);
+        assert_eq!(
+            certificate.conclusion.containment,
+            checked_trees::CapturedPlaceContainment::None
+        );
+        assert_eq!(certificate.premises.len(), 1);
+        assert_eq!(
+            certificate.premises[0].relation,
+            checked_trees::BorrowCompatibilityPremiseRelation::NotEqual
+        );
+        assert!(
+            checked
+                .facts
+                .borrow
+                .compatibility_certificate_matches_resources(certificate)
+        );
+        crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+            .expect("captured element compatibility replays independently");
+    }
+}
+
+#[test]
+fn disequality_cannot_replace_missing_strictness_or_current_subjects() {
+    for relation in [
+        "left_index <= right_index",
+        "left_index == right_index",
+        "left_index <= 1",
+    ] {
+        assert_borrow_conflict(&DISEQUAL_ELEMENTS.replace("left_index != right_index", relation));
+    }
+    assert_borrow_conflict(
+        &DISEQUAL_ELEMENTS
+            .replace("right_index: u64", "mut right_index: u64")
+            .replace("let view:", "right_index = left_index; let view:"),
+    );
+    assert_borrow_conflict(&DISJOINT_WINDOWS.replace("cut <= last", "cut != last"));
+}
+
+#[test]
+fn disequal_element_offsets_require_the_same_translation() {
+    // Shift the stated relation while leaving the captured selectors plain:
+    // computed indexed operands have a separate execution-admission limit.
+    let shifted =
+        DISEQUAL_ELEMENTS.replace("left_index != right_index", "left_index + 1 != right_index");
+    assert_borrow_conflict(&shifted);
+    let mut checked = checked_source(&shifted.replace(
+        "left_index + 1 != right_index",
+        "left_index + 1 != right_index + 1",
+    ));
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("equal translation keeps exact captured selectors replayable");
+}
+
+#[test]
+fn disequality_separates_exclusive_call_arguments_not_duplicate_elements() {
+    let source = r#"
+        data Main { items: [i32; 2]; }
+        machine write_pair(left: &mut i32, right: &mut i32) {
+            left = 1;
+            right = 2;
+        }
+        machine Main::main(&mut self, left_index: u64 [0..=1], right_index: u64 [0..=1])
+            requires left_index != right_index;
+        {
+            let view: &mut [i32] = self.items.as_mut_slice();
+            write_pair(&mut view[left_index], &mut view[right_index]);
+        }
+    "#;
+    checked_source(source);
+    let invalid = source.replace("&mut view[right_index]", "&mut view[left_index]");
+    let diagnostics = crate::lower_typed_trees(typed_source(&invalid))
+        .expect_err("a disequality premise cannot separate two uses of the same element");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("as mutable more than once")),
+        "expected conflicting call arguments: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
+    for corruption in [
+        "missing",
+        "relation",
+        "operand",
+        "fact",
+        "selectors",
+        "conclusion",
+    ] {
+        let mut checked = checked_source(DISEQUAL_ELEMENTS);
+        let handle = checked
+            .facts
+            .borrow
+            .compatibility_certificates
+            .iter()
+            .find(|(_, certificate)| {
+                certificate.derivation == checked_trees::BorrowCompatibilityDerivation::Premised
+            })
+            .expect("premised pair")
+            .0;
+        let certificate = checked
+            .facts
+            .borrow
+            .compatibility_certificates
+            .get_mut(handle);
+        let expected = match corruption {
+            "missing" => {
+                certificate.premises.clear();
+                "derivation drifted"
+            }
+            "relation" => {
+                certificate.premises[0].relation =
+                    checked_trees::BorrowCompatibilityPremiseRelation::Equal;
+                "premise tokens drifted"
+            }
+            "operand" => {
+                certificate.premises[0].right = certificate.premises[0].left;
+                "premise tokens drifted"
+            }
+            "fact" => {
+                certificate.premises[0].fact = arena::Handle::invalid();
+                "premise tokens drifted"
+            }
+            "selectors" => {
+                certificate.selector_snapshot.reverse();
+                "selector snapshot drifted"
+            }
+            _ => {
+                certificate.conclusion.containment = checked_trees::CapturedPlaceContainment::Same;
+                "conclusion drifted"
+            }
+        };
+        assert_recording_rejects(&mut checked, expected);
+    }
+}
+
+#[test]
+fn disequality_certificate_rejects_changed_requires() {
+    let mut checked = checked_source(DISEQUAL_ELEMENTS);
+    let expression = checked
+        .typed
+        .proof_facts
+        .iter()
+        .find_map(|(_, fact)| {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                return None;
+            };
+            matches!(checked.typed.expression_table.expression(*expression),
+            typed_trees::expression::ExpressionNode::Binary(binary)
+                if binary.operator == typed_trees::expression::BinaryOperator::NotEqual)
+            .then_some(*expression)
+        })
+        .expect("disequality requirement");
+    let typed_trees::expression::ExpressionNode::Binary(binary) =
+        checked.typed.expression_table.expression_mut(expression)
+    else {
+        panic!("requirement stays binary");
+    };
+    binary.operator = typed_trees::expression::BinaryOperator::Equal;
+    assert_recording_rejects(&mut checked, "premise tokens drifted");
+}
+
 /// `cut <= last` makes `[0, cut)` and `[last, 4)` provably disjoint for two
 /// distinct symbolic parameters; the structural judgment alone cannot order
 /// them.

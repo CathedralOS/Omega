@@ -67,12 +67,14 @@ pub enum BorrowCompatibilityDerivation {
 ///
 /// The same vocabulary names the premise's stated relation and each bound
 /// query the relational judgment asks of it: `LessOrEqual` for `<=`,
-/// `StrictlyBefore` for `<`, and `Equal` for `==` over integer bounds.
+/// `StrictlyBefore` for `<`, `Equal` for `==`, and `NotEqual` for `!=` over
+/// integer bounds. Disequality separates singleton elements, not windows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorrowCompatibilityPremiseRelation {
     LessOrEqual,
     StrictlyBefore,
     Equal,
+    NotEqual,
 }
 
 /// One exact stated ordering premise consumed by a `Premised` derivation.

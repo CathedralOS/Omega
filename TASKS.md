@@ -2275,12 +2275,6 @@ Owners include
 
   Remaining work:
 
-  - Admit disequality. `premises.rs` decomposes `<`, `<=`, `>`, `>=`, `==` and
-    `&&` only, so the guide's ordinary case
-    ([Borrow Facts](wiki/language_guide/chapter_2_ownership_borrowing_moves.md#borrow-facts)),
-    `&mut items[i]` beside `&mut items[j]` under in-range `i != j`, has no
-    premise form. `fail/borrows/borrow_unknown_index_pair_mut` pins the
-    unproven pair; no pass canary states the premise.
   - Take premises from every establishment point the loan contract names, not
     only machine-entry and state `requires`: dominating guards, callee
     `ensures`, domain membership and theorem-call conclusions, each valid for
@@ -2328,14 +2322,10 @@ Owners include
   `checks/ranges/indexes/validation.rs`; rerun it before relying on that.
 
   These are implementation gaps under the settled loan contract, not owner
-  design decisions. `checks/borrows/overlap/premises.rs` drops `NotEqual`, and
-  the current compatibility derivations cannot retain disequality evidence for
-  distinct singleton elements. Add checked disjointness evidence for the
-  guide's in-range `i != j` case; replay must preserve captured subjects and
-  reject missing, stale or tampered premises. Move
-  `fail/borrows/borrow_stated_index_disequality_mut` to pass unchanged when
-  supported. Existing compatibility certificates are checked-stage records;
-  their relation enum is not a persisted Terminal wire format.
+  design decisions. Preserve `pass/borrows/borrow_stated_index_disequality_mut`
+  and the unknown-index negative control while extending premise sources.
+  Existing compatibility certificates are checked-stage records; their
+  relation enum is not a persisted Terminal wire format.
 
   `checks/borrows/calls/conflicts.rs` already admits premise-dependent call
   accesses but discards their compatibility evidence. Retain the exact
