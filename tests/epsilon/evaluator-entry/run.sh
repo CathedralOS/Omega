@@ -298,7 +298,7 @@ expect_observation("large sparse array through the canonical edge",
 INCOMPLETE = {
     # status: (resource, limit, requested)
     250: ("evaluator live call contexts", 256, 257),
-    252: ("cumulative immutable pair nodes", 40265318, 40265319),
+    252: ("cumulative immutable pair nodes", 3422453760, 3422453761),
     253: ("sealed input", 4194304, None),  # requested = submitted extent
     254: ("published observation", 4194304, 4194305),
 }

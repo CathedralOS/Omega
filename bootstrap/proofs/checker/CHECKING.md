@@ -172,6 +172,29 @@ leg a buffered-output provision covering the 134,800,268-byte certificate
 against 16,777,212 today. The provisions take effect there; the recorded
 bounds already hold at the selected extent.
 
+Extent supply landed (AlphaBootstrapV5): both audited seeds obtain `M` at
+startup — `VirtualAlloc` on Windows x64, `svc #0x80` anonymous `mmap` on
+macOS arm64 — over `MEMSIZE = 0x2000000000` (128 GiB). The evaluator now
+frames the complete request at `0x10000000..0x18300000`, buffers
+135,266,304 output bytes at `0x18300000..0x20400000` (above the
+134,800,268-byte certificate), and admits 3,422,453,760 pair nodes at
+`0x20400000..0x2000000000` (above the selected 3,387,293,850 bound). The
+work counter was already a 64-bit budget and needs no extent. Seed
+identities are repinned in `tools/bootstrap/alpha/seed_env.sh`; the
+evaluator source/tape identities in `tools/bootstrap/gamma/evaluator_env.sh`.
+No opcode transition moved; `M` remains a flat zeroed array and execution
+stays a function of tape and input alone.
+
+Recorded consequences of the larger extents: the exact/adjacent pair
+boundary is no longer executable in gate time, so
+`tests/gamma/heap-boundary` and `tests/epsilon/pair-boundary` now witness
+the retired-V4-arena crossing and keep the refusal fixture pinned for
+opt-in execution; the function census's 2,097,152-row physical table is
+reachable in principle within the request frame, so the count preflight is
+now the live controlling boundary (its quadratic index insertion keeps it
+outside practical gate time). Native acceptance (Windows, macOS, QEMU) is
+required for the derived containers and remains to run on those hosts.
+
 The complete cumulative pair bound is
 `31,850,522 + 67,108,864*50 + 128 = 3,387,293,850` — the selected arena
 provision. The first term covers formation and Grounded:

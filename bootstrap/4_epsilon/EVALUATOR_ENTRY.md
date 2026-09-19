@@ -22,7 +22,7 @@ no observation can produce.
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
-| Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `ad55c3f18d3c7bd3e1189635bf34ff6595ca97c34afe85412a6127ed2d29e015` |
+| Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `00c05bedbe0eed665bc165a9165ecf09cd40627bc636034ccb8dbfb24df3919d` |
 | packed Epsilon evaluator closure | 617,354 | `4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e` |
 | canonical entry `evaluator_entry.delta` | 10,950 | `52032438c1236f51095b761afcb3111df2ae2d73ac9be7e91883bbfbd273e5e3` |
 | Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
@@ -127,7 +127,7 @@ the fields:
 | Status | Resource | Limit | Requested | Coordinate |
 | ---: | --- | ---: | --- | --- |
 | 250 | evaluator live call contexts | 256 contexts | 257 — the refused context | none |
-| 252 | cumulative immutable pair nodes | 40,265,318 nodes | 40,265,319 — the refused node | none |
+| 252 | cumulative immutable pair nodes | 3,422,453,760 nodes | 3,422,453,761 — the refused node | none |
 | 253 | sealed input bytes | 4,194,304 | the exact submitted sealed-input extent | none |
 | 254 | published observation bytes | 4,194,304 | 4,194,305 — the refused byte | none |
 
@@ -140,8 +140,8 @@ resource table below name the resource that actually binds in this
 composition. The 256-context bound trips before the 524,288-entry value stack
 or the 131,072 environment rows, and the adapter's 4,194,304-byte input and
 output bounds trip before the evaluator's own 16 MiB transport bounds — a
-request beyond 16,777,216 bytes is refused before the adapter sees its input
-and classifies as `Incomplete(complete request, 16,777,216, submitted request
+request beyond 137,363,456 bytes is refused before the adapter sees its input
+and classifies as `Incomplete(complete request, 137,363,456, submitted request
 extent)` under the same status 253. A changed evaluator or adapter
 composition must re-derive which counter behind each status binds first; the
 mapping above belongs to this exact receipt.
@@ -168,11 +168,11 @@ of the selected lower chain, now charged against the canonical receipt.
 
 | Counter | Owner | Limit | Refusal | Witness |
 | --- | --- | ---: | --- | --- |
-| complete request | Gamma evaluator | 16,777,216 bytes | `Incomplete` via status 253, empty stdout | adjacent pinned by [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md) and `tests/gamma` boundary gates |
+| complete request | Gamma evaluator | 137,363,456 bytes | `Incomplete` via status 253, empty stdout | adjacent pinned by [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md) and `tests/gamma` boundary gates |
 | sealed input | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 253, empty stdout | exact/adjacent executed in [`tests/epsilon/evaluator-entry/`](../../tests/epsilon/evaluator-entry/README.md) |
 | EREQ envelope fields | canonical entry | fixed 52-byte header, declared sections, exact end | EEOUT outcome 1 | exact/adjacent executed in the same gate |
 | published observation | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 254, empty stdout | adjacent pinned by [`tests/delta/staged-compiler/run.sh`](../../tests/delta/staged-compiler/run.sh) |
-| cumulative immutable pairs | Gamma evaluator | 40,265,318 nodes | `Incomplete` via status 252, empty stdout | exact/adjacent pinned by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md); evaluator-level refusal executed in [`tests/epsilon/pair-boundary/`](../../tests/epsilon/pair-boundary/README.md) |
+| cumulative immutable pairs | Gamma evaluator | 3,422,453,760 nodes | `Incomplete` via status 252, empty stdout | boundary no longer executable in gate time; [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md) crosses the entire retired V4 arena and [`tests/epsilon/pair-boundary/`](../../tests/epsilon/pair-boundary/README.md) retains the refused fixture for opt-in execution |
 | live call contexts | Gamma evaluator | 256 contexts | `Incomplete` via status 250, empty stdout | exact/adjacent executed in the entry gate: 34 nested calls admitted, the 35th refused |
 | temporary value stack | Gamma evaluator | 524,288 entries | `Incomplete` via status 250, empty stdout | dominated by the context bound |
 | lexical environment rows | Gamma evaluator | 131,072 rows | `Incomplete` via status 250, empty stdout | dominated likewise |

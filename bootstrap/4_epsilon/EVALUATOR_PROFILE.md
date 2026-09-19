@@ -22,7 +22,7 @@ bound, or restores an Epsilon Alpha backend.
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
-| Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `ad55c3f18d3c7bd3e1189635bf34ff6595ca97c34afe85412a6127ed2d29e015` |
+| Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `00c05bedbe0eed665bc165a9165ecf09cd40627bc636034ccb8dbfb24df3919d` |
 | packed Epsilon evaluator closure | 617,354 | `4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e` |
 | execution driver `execution_driver.delta` | 2,565 | `ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38` |
 | Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
@@ -88,26 +88,26 @@ counter names its owner, limit, refusal observation, and witness.
 
 | Counter | Owner | Limit | Refusal | Witness |
 | --- | --- | ---: | --- | --- |
-| complete request | Gamma evaluator | 16,777,216 bytes | status 253, empty stdout | adjacent executed: a 16,777,217-byte request refuses in 4.46 s |
+| complete request | Gamma evaluator | 137,363,456 bytes | status 253, empty stdout | adjacent pinned by the Gamma request-extent gates (the V4-era 16,777,217-byte witness predates AlphaBootstrapV5) |
 | sealed input | `ConformanceBytesV1` adapter | 4,194,304 bytes | status 253, empty stdout | exact/adjacent executed below |
 | driver frame fields | private driver | `frame >= 4`, `length <= frame - 4` | tag `05` | exact/adjacent executed below |
 | published observation | `ConformanceBytesV1` adapter | 4,194,304 bytes | status 254, empty stdout | adjacent refusal pinned by [`tests/delta/staged-compiler/run.sh`](../../tests/delta/staged-compiler/run.sh) (`bytes_concat` doubling over a 2,097,153-byte input) |
-| cumulative immutable pairs | Gamma evaluator | 40,265,318 nodes | status 252, empty stdout | exact/adjacent pinned by [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md); evaluator-level exhaustion executed below |
+| cumulative immutable pairs | Gamma evaluator | 3,422,453,760 nodes | status 252, empty stdout | exact boundary no longer executable in gate time; [`tests/gamma/heap-boundary/`](../../tests/gamma/heap-boundary/README.md) crosses the retired V4 arena and the evaluator-level exhaustion fixture is retained opt-in below |
 | live call contexts | Gamma evaluator | 256 contexts | status 250, empty stdout | exact/adjacent executed below |
 | temporary value stack | Gamma evaluator | 524,288 entries | status 250, empty stdout | dominated by the context bound in this composition |
 | lexical environment rows | Gamma evaluator | 131,072 rows | status 250, empty stdout | dominated likewise |
 | nested source lists | Gamma evaluator census | 255 levels | status 3 at census, before the marker classifies | fixed property of the admitted receipt source |
-| buffered output | Gamma evaluator | 16,777,212 bytes | status 254, empty stdout | unreachable here: the adapter's tighter output bound always refuses first |
+| buffered output | Gamma evaluator | 135,266,304 bytes | status 254, empty stdout | unreachable here: the adapter's tighter output bound always refuses first |
 
 Two bounds therefore dominate this composition by construction:
 
 - The adapter's 4,194,304-byte sealed-input bound binds before the request
   extent can: the largest admitted request is `4 + 721,484 + 4,194,304 =
-  4,919,792` bytes, far below 16,777,216. The request extent refuses only
+  4,919,792` bytes, far below 137,363,456. The request extent refuses only
   requests the adapter would already refuse, so it is a dominated outer
   bound - still pinned by the executed adjacent witness.
 - The adapter's 4,194,304-byte output bound binds before the evaluator's
-  16,777,212-byte buffered-output limit for the same reason.
+  135,266,304-byte buffered-output limit for the same reason.
 
 Effective Epsilon-facing extents follow directly: `source + stdin <=
 4,194,300` bytes, and a published `Exit` observation carries at most
@@ -166,7 +166,7 @@ Exact and adjacent pairs executed against the bound receipt on macOS arm64:
 | Boundary | Exact (admitted) | Adjacent (refused) |
 | --- | --- | --- |
 | sealed input extent | `4,194,304`-byte frame: status 0, tagged `02` rejection of the empty declared source (the ~4.19M-byte stdin rope fits the arena) in 664.88 s | `4,194,305`-byte frame: status 253, empty stdout in 1.42 s |
-| request extent | 16,777,216-byte request: admitted past the extent check, then the tighter adapter bound refuses (status 253, empty stdout) in 4.62 s | 16,777,217-byte request: status 253, empty stdout in 4.46 s |
+| request extent | 137,363,456-byte request frame admitted past the extent check; the tighter adapter bound always refuses first in this composition | 137,363,457-byte request frame: status 253, empty stdout (pinned by the Gamma profile; the recorded 16,777,216/16,777,217-byte executions are V4-era measurements) |
 | driver source-length field | declared length equal to the remaining frame: executes to `00` + exit 0 + `A` | declared length one beyond the remaining frame: tag `05` |
 | live call contexts | 34 nested non-tail machine calls: `00` + exit 34 + `A` | 35 nested calls: status 250, empty stdout, ~1.6 s |
 

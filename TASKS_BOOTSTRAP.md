@@ -134,13 +134,17 @@ prerequisite to every lower-rung milestone.
     (131 MiB) evaluator frame, a 67,108,864-unit (2^26) work counter, and a
     3,387,293,850-pair arena — the deeper memo key spaces moved the amortized
     ledger constant to 50 pairs per unit.
-  - Supply that extent from the Alpha realization. `M` is the static
-    container's zero-filled section today, a 1.766 GiB image sized under
-    [PE32+'s 2 GiB bound](bootstrap/0_alpha/README.md), so the seeds must
-    obtain the extent at startup instead. Alpha's semantics do not change:
-    `M` stays a flat zeroed array of `MEMSIZE` bytes, no opcode transition
-    moves, and execution stays a function of tape and input alone. Both
-    audited seed containers change and must agree on identical tape and input.
+  - Done: the Alpha realization supplies the extent. Both audited seeds now
+    obtain `M` at startup — `VirtualAlloc` on Windows x64, anonymous
+    `mmap` via `svc #0x80` on macOS arm64 — over `MEMSIZE = 0x2000000000`
+    (128 GiB) in AlphaBootstrapV5. `M` stays a flat zeroed array, no opcode
+    transition moved, and execution remains a function of tape and input.
+    The evaluator frames requests at `0x10000000..0x18300000`, buffers
+    135,266,304 output bytes at `0x18300000..0x20400000`, and admits
+    3,422,453,760 pair nodes at `0x20400000..0x2000000000`; the ledger's
+    3,387,293,850-pair and 134,800,268-byte certificate provisions hold.
+    Native acceptance on Windows/macOS/QEMU is still required and is the
+    remaining validation for the derived containers.
 
   - Produce the certificate through the selected chain from source-owned
     definitions. Today the full-subject derivation comes from the host-side
