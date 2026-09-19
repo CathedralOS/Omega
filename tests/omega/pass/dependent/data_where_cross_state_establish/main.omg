@@ -4,13 +4,14 @@
 // (established at entry of a state = established at exit of every
 // predecessor; monotone in the strict store-time model).
 use omega_language_std::console;
+use omega::language::core::service;
 data Player
 where
     health >= 1,
 {
     health: i32;
 }
-data Main { console: Console; champion: Player; }
+data Main { console: Service<Console>; champion: Player; }
 machine Main::main(&mut self) reaches Console {
     self.champion = Player { health: 50 };
     transition {

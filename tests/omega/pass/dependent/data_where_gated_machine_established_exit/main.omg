@@ -1,11 +1,12 @@
 // RUN CANARY (exit 70). Machine-owned gated data starts as inaccessible zeroed
 // storage; assigning the witness establishes it before the boundary call.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main
 where
     health >= 1,
 {
-    console: Console;
+    console: Service<Console>;
     health: i32;
 }
 machine Main::main(&mut self) reaches Console {

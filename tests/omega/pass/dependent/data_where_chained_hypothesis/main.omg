@@ -3,6 +3,7 @@
 // read of count fits u32 [0..=100] (bound_source_interval falls back to
 // the co-field's own where-fact interval, depth-capped). RUNS exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Tally
 where
     count <= mid,
@@ -12,7 +13,7 @@ where
     mid: u32;
     capacity: u32 [0..=100];
 }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let t: Tally = Tally { count: 5, mid: 20, capacity: 50 };
     let bounded: u32 [0..=100] = t.count;

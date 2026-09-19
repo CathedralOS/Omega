@@ -1,13 +1,14 @@
 // RUN CANARY (exit 70). Zero-valid default facts seed every fixed-array
 // element at its indexed path, so maps[1].value carries Map's upper bound.
 use omega_language_std::console;
+use omega::language::core::service;
 data Map
 where
     value <= 60,
 {
     value: i32;
 }
-data Main { console: Console; maps: [Map; 2]; }
+data Main { console: Service<Console>; maps: [Map; 2]; }
 machine Main::main(&mut self) reaches Console {
     let return_code: i32 = 70 + self.maps[1].value;
     self.console.exit_process(return_code);

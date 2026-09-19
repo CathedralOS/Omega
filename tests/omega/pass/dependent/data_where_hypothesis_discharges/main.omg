@@ -5,6 +5,7 @@
 // domain does proof work at the consumption site with NO spelled requires
 // -- sound because the write net is total and gated reads are gated.
 use omega_language_std::console;
+use omega::language::core::service;
 data MemoryMap
 where
     count <= len,
@@ -12,7 +13,7 @@ where
     len: u32 [0..=4096];
     count: u32;
 }
-data Main { console: Console; map: MemoryMap; }
+data Main { console: Service<Console>; map: MemoryMap; }
 machine Main::scaled(&mut self, target: &mut MemoryMap) -> u32 {
     target.count * 16
 }

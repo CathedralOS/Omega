@@ -12,8 +12,9 @@
 // with the clean cannot-prove error (probed).
 // exits: 71 = the composed read delivered the wrong element.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     pixels: [u8; 12];
     rows: u32 [0..=2];
     cols: u32 [0..=3];
