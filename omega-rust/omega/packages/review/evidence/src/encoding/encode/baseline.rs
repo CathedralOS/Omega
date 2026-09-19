@@ -2,6 +2,7 @@
 
 pub(super) mod boundary;
 mod recovery;
+pub(super) mod restricted_build;
 
 use super::{
     callable_policy, declarations, encoder::Encoder, public_api, representation,
@@ -85,6 +86,9 @@ pub(in crate::encoding) fn policy(
     })?;
     encoder.field("boundary_applications", |encoder| {
         boundary::applications(encoder, &value.boundary_applications)
+    })?;
+    encoder.field("restricted_build_requests", |encoder| {
+        encoder.sequence(&value.restricted_build_requests, restricted_build::request)
     })
 }
 

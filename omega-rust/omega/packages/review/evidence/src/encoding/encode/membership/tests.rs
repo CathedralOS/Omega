@@ -89,6 +89,7 @@ fn fixture() -> PackagePolicyBaseline {
             demands: vec![],
             realizations: vec![],
         },
+        restricted_build_requests: vec![],
     }
 }
 

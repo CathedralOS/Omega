@@ -4640,11 +4640,22 @@ Owners include
     (`omega-rust/omega/build/build-evaluation/src/admitted_build_program.rs`,
     `omega-rust/omega/packages/manager/tests/package_policy_changes/document.rs`:
     `build_host_requests_render_distinctly_from_product_authority`). Accepted
-    request meaning is not yet retained in `omega.lock`, no decision token
-    attaches to a request, review choices do not yet issue or withhold actual
-    invocation grants, and nothing gates execution on acceptance: new and
-    widened request acceptance, the benign snapshot/staging exemption, lock
-    normalization and comparison, recoverable review/resume, and the
+    request meaning now retains in `omega.lock` as a per-request
+    `restricted_build_request` decision row under baseline schema version 5 —
+    normalized operation, logical grant roots, sponsor bounds, required
+    outputs, and profiles, with no host paths, credentials, or invocation
+    grants — so a new or widened request surfaces as an Added/Changed lock row
+    requiring a decision while an unchanged accepted request needs no recurring
+    approval
+    (`omega-rust/omega/packages/review/evidence/src/record/restricted_build.rs`,
+    `document.rs`:
+    `accepted_build_requests_retain_in_lock_and_widened_requests_require_decisions`;
+    verified w9 by `cargo nextest run -p package-evidence` and
+    `cargo nextest run -p package-manager --test suite` on Linux x86-64).
+    Review choices still do not issue or withhold actual invocation grants,
+    and nothing gates execution on acceptance: new and widened request
+    acceptance through install/update commands, the benign snapshot/staging
+    exemption, recoverable review/resume, audit-only inspection, and the
     execution-time grant join all remain. Do not implement an arbitrary
     recursive build API or a new host protocol as part of this join.
   - Bind dependency purpose on checkpoints and generated handoffs, joining the

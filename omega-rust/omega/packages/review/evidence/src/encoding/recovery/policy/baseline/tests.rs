@@ -11,10 +11,17 @@ use crate::record::PackagePolicyBoundaryApplicationRealization;
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyBoundaryRealization;
 use crate::record::PackagePolicyCallableRole;
+use crate::record::PackagePolicyEvaluationSponsorLimits;
+use crate::record::PackagePolicyFilesystemSponsorLimits;
 use crate::record::PackagePolicyMachineParameterContract;
 use crate::record::PackagePolicyOperatorShape;
 use crate::record::PackagePolicyPublicApi;
 use crate::record::PackagePolicyRepresentation;
+use crate::record::PackagePolicyRestrictedBuildBounds;
+use crate::record::PackagePolicyRestrictedBuildGrant;
+use crate::record::PackagePolicyRestrictedBuildGrantRoot;
+use crate::record::PackagePolicyRestrictedBuildOperation;
+use crate::record::PackagePolicyRestrictedBuildRequest;
 use crate::record::PackagePolicySelectedProviders;
 use crate::record::PackagePolicySemanticDependency;
 use crate::record::PackagePolicySemanticDependencyConsumer;
@@ -126,6 +133,53 @@ pub(super) fn fixture() -> PackagePolicyBaseline {
             demands: vec![],
             realizations: vec![],
         },
+        restricted_build_requests: vec![],
+    }
+}
+
+/// A fully populated restricted build-host request, valid under the shared
+/// fixture's linux_x86_64 target activation.
+pub(super) fn restricted_build_request() -> PackagePolicyRestrictedBuildRequest {
+    PackagePolicyRestrictedBuildRequest {
+        operation: PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
+        read_grants: vec![
+            PackagePolicyRestrictedBuildGrant {
+                root: PackagePolicyRestrictedBuildGrantRoot::SourceInventory,
+                narrowed: true,
+                captured: true,
+            },
+            PackagePolicyRestrictedBuildGrant {
+                root: PackagePolicyRestrictedBuildGrantRoot::Other(7),
+                narrowed: false,
+                captured: false,
+            },
+        ],
+        write_grants: vec![PackagePolicyRestrictedBuildGrant {
+            root: PackagePolicyRestrictedBuildGrantRoot::StagedOutput,
+            narrowed: false,
+            captured: false,
+        }],
+        bounds: PackagePolicyRestrictedBuildBounds {
+            filesystem_sponsor_limits: Some(PackagePolicyFilesystemSponsorLimits {
+                maximum_entries: 4096,
+                maximum_total_logical_bytes: 64 * 1024 * 1024,
+                maximum_object_extent: 8 * 1024 * 1024,
+            }),
+            evaluation_sponsor_limits: Some(PackagePolicyEvaluationSponsorLimits {
+                maximum_fuel_units: 1 << 20,
+                maximum_build_log_bytes: 1 << 16,
+                maximum_filesystem_operation_attempts: 1 << 14,
+                maximum_live_filesystem_handles: 64,
+                maximum_live_cells: 1 << 18,
+                maximum_live_text_bytes: 1 << 18,
+                maximum_result_cells: 1 << 12,
+                maximum_result_text_bytes: 1 << 16,
+            }),
+            required_outputs: vec![b"payments.plan".to_vec()],
+            artifact_only: false,
+        },
+        build_execution_profile: Some(TargetProfile::LinuxX64),
+        selected_target_profile: Some(TargetProfile::LinuxX64),
     }
 }
 
@@ -147,7 +201,10 @@ pub(super) fn rejects(value: &PackagePolicyBaseline) {
 
 #[test]
 fn composed_nonempty_meaning_roundtrips_with_no_nested_envelopes() {
-    let value = fixture();
+    let mut value = fixture();
+    value
+        .restricted_build_requests
+        .push(restricted_build_request());
     let bytes = value
         .canonical_bytes()
         .expect("valid composed component fixture");
@@ -200,6 +257,18 @@ fn child_package_and_target_disagreement_is_rejected_after_recovery() {
         }
         rejects(&value);
     }
+    let mut value = original.clone();
+    value
+        .restricted_build_requests
+        .push(restricted_build_request());
+    value.restricted_build_requests[0].selected_target_profile = Some(TargetProfile::WindowsX64);
+    rejects(&value);
+    let mut value = original;
+    value
+        .restricted_build_requests
+        .push(restricted_build_request());
+    value.restricted_build_requests[0].selected_target_profile = None;
+    rejects(&value);
 }
 
 #[test]
@@ -464,7 +533,7 @@ fn unknown_envelope_versions_and_dependency_vocabulary_reject() {
     let mut changed = bytes.clone();
     changed[0] ^= 1;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
-    for version in [2_u16, 3] {
+    for version in [2_u16, 3, 4] {
         let mut previous = bytes.clone();
         previous[PACKAGE_POLICY_BASELINE_MAGIC.len()..PACKAGE_POLICY_BASELINE_MAGIC.len() + 2]
             .copy_from_slice(&version.to_le_bytes());

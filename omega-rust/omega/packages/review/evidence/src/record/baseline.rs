@@ -4,6 +4,7 @@ use crate::record::PackagePolicyCallables;
 use crate::record::PackagePolicyExternalExecutableSupply;
 use crate::record::PackagePolicyPublicApi;
 use crate::record::PackagePolicyRepresentation;
+use crate::record::PackagePolicyRestrictedBuildRequest;
 use crate::record::PackagePolicySelectedProviders;
 use crate::record::PackagePolicySemanticDependency;
 use crate::record::PackagePolicyTerminalPermissions;
@@ -33,4 +34,9 @@ pub struct PackagePolicyBaseline {
     pub(crate) slack_uses: Vec<PackageReviewDangerousAuthoritySlack>,
     pub(crate) semantic_dependencies: Vec<PackagePolicySemanticDependency>,
     pub(crate) boundary_applications: PackagePolicyBoundaryApplications,
+    /// The build-host requests this package's admitted build activation asked
+    /// before it executed, in issue order. Each retains as its own decision
+    /// row so accepted meaning survives in `omega.lock` without host paths or
+    /// live grant state.
+    pub(crate) restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
 }

@@ -1,5 +1,5 @@
 //! Complete row projection over the same typed fixture as baseline recovery.
-use super::tests::fixture;
+use super::tests::{fixture, restricted_build_request};
 use crate::encoding::PackagePolicyRecoveryLimits;
 use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyCallableRole;
@@ -245,6 +245,42 @@ fn both_semantic_exposures_are_retained_with_nonordinal_keys() {
     assert!(rows(&value).0.iter().any(|row| row.kind()
         == PackagePolicyRowKind::SemanticDependency
         && row.key_bytes() == key));
+}
+
+#[test]
+fn retained_build_requests_retain_under_ordinal_keys_as_decision_rows() {
+    let mut value = fixture();
+    let mut second = restricted_build_request();
+    second.operation =
+        crate::record::PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution;
+    value
+        .restricted_build_requests
+        .extend([restricted_build_request(), second]);
+    let projected = rows(&value).0;
+    let requests = projected
+        .iter()
+        .filter(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+        .collect::<Vec<_>>();
+    assert_eq!(requests.len(), 2);
+    assert_ne!(requests[0].key_bytes(), requests[1].key_bytes());
+    for row in &requests {
+        assert!(row.initial_requires_decision());
+        assert!(row.audit_recommended_on_change());
+        assert!(row.canonical_text().contains("restricted_build_request"));
+    }
+    value.restricted_build_requests[0]
+        .bounds
+        .required_outputs
+        .push(b"extra.txt".to_vec());
+    let changed = rows(&value).0;
+    let changed = changed
+        .iter()
+        .find(|row| {
+            row.kind() == PackagePolicyRowKind::RestrictedBuildRequest
+                && row.key_bytes() == requests[0].key_bytes()
+        })
+        .unwrap();
+    assert_ne!(changed.canonical_bytes(), requests[0].canonical_bytes());
 }
 
 #[test]
