@@ -5,7 +5,11 @@ These records support the checked [rule inventory](../rules.md), not a release d
 One file promotes one exact optimizer rule. Copy the schema below to
 `<ExactRuleName>.md`; do not create a suite-wide or optimization-level record.
 Every field must point to reviewed, reproducible evidence and must not remain
-`PENDING` when the release inventory status changes.
+`PENDING` when the release inventory status changes. A record may be staged
+while its row stays `Experimental`: carry the full schema with `PENDING`
+values, keep the `Exact rule` and `Rollback` lines exact, and leave `Approved
+status` incomplete — the architecture gate rejects a completed approval that
+the inventory does not yet reflect.
 
 ```text
 # <ExactRuleName> Promotion

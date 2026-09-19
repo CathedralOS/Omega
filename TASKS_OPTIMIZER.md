@@ -126,11 +126,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   which omits doctests. The command cannot pass today: `AGENTS.md` records a
   full `canary_suite` run as red, and
   [known baseline failures](wiki/drafts/known_baseline_failures.md) lists open
-  library and native-differential failures. No
-  [promotion record](omega-rust/omega/representations/optimization-core/promotions/README.md)
-  exists yet; `omega-architecture-test`'s
+  library and native-differential failures. The first staged record,
+  [promotions/ControlFlowCleanup.md](omega-rust/omega/representations/optimization-core/promotions/ControlFlowCleanup.md),
+  records that rule's coverage state with `Approved status`, owner approval,
+  and measurement evidence still `PENDING`; `omega-architecture-test`'s
   `exact_rule_rollout_is_complete_and_promotion_gated` keeps the inventory and
-  any record in step.
+  every staged record in step.
   Acceptance: the command passes from a clean checkout and every promoted
   exact rule has the evidence the
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
