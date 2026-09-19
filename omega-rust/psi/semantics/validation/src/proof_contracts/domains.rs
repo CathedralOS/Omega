@@ -1,4 +1,6 @@
 mod scalar_tags;
+#[cfg(test)]
+mod tests;
 pub use scalar_tags::{scalar_state_contracts_are_qualifications, scalar_type_tags};
 
 use crate::declarations::symbols::TopLevelSymbols;
@@ -221,18 +223,34 @@ fn validate_repeated_normalized_domain_identities(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let domains = program.domain_definitions();
-    for (index, domain) in domains.iter().enumerate() {
-        if domains[..index]
+    for (domain_index, domain) in domains.iter().enumerate() {
+        // Declaration namespaces and semantic identities are different checks.
+        // Capacity specializations within one owner must agree; unrelated
+        // owners may define different predicates under the same leaf. They
+        // must not, however, share an identity: implication treats equal IDs
+        // as the same qualification before inspecting declaration predicates.
+        if domain.semantic_id.is_valid()
+            && domains[..domain_index].iter().any(|prior| {
+                prior.semantic_id == domain.semantic_id
+                    && !same_normalized_domain_owner(program, prior, domain)
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain `{}` shares a normalized semantic identity with a distinct declaration owner; domain identity must retain package and module ownership",
+                domain.name,
+            )));
+        }
+        if domains[..domain_index]
             .iter()
-            .any(|prior| prior.name == domain.name)
+            .any(|prior| same_normalized_domain_owner(program, prior, domain))
         {
             continue;
         }
         let normalized_facts = normalized_domain_facts(program, fact_plan, domain.symbol);
         let mut peers = domains
             .iter()
-            .skip(index + 1)
-            .filter(|peer| peer.name == domain.name);
+            .skip(domain_index + 1)
+            .filter(|peer| same_normalized_domain_owner(program, peer, domain));
         if peers.any(|peer| {
             peer.semantic_id != domain.semantic_id
                 || peer.predicate_body != domain.predicate_body
@@ -247,6 +265,18 @@ fn validate_repeated_normalized_domain_identities(
             )));
         }
     }
+}
+
+fn same_normalized_domain_owner(
+    program: &TypedTrees,
+    left: &typed_trees::domain::DomainDefinition,
+    right: &typed_trees::domain::DomainDefinition,
+) -> bool {
+    left.name == right.name
+        && program.symbols.symbol_module(left.symbol) == program.symbols.symbol_module(right.symbol)
+        && program
+            .symbols
+            .same_symbol_source_package(left.symbol, right.symbol)
 }
 
 fn normalized_domain_facts(
