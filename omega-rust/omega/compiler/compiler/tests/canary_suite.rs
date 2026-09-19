@@ -4765,6 +4765,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // The accepted-axiom veto remains here pending its separate trust audit.
     "proofs/accepted_axiom_engine_veto",
     "proofs/ranked_accumulator_guarantee_wrong_step_twin",
+    // Checked `let`/`boundary let` declarations reach the lowering consumer;
+    // no Terminal evidence encoding carries them yet, so production refuses.
+    "proofs/mathematical_declaration_lowering_rejected",
     // The v0 freestanding-authority discharge is wired into the typed->checked
     // settlement transition, so a hosted build (no `freestanding = true` in
     // build.omg) rejects asm instructions whose catalog contract requires

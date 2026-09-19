@@ -1,0 +1,11 @@
+// FAIL CANARY: top-level `let` mathematical declarations elaborate into
+// checked records and kernel signatures, but no Terminal evidence encoding
+// carries them yet. Production must refuse loudly rather than emit an
+// artifact that silently omits the declaration (PROOF-CONTRACT-MIGRATION).
+let double(x: u64): u64 = x;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
