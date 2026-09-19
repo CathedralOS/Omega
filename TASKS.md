@@ -1678,44 +1678,43 @@ Owners include
   rejects it with "crash predicate value position is outside the selected
   scalar namespace".
 
+  Landed: erased formals carry a proof-only scalar term lane end to end.
+  `terminal-psi` contracts publish `erased_scalar_formals`; Call-family
+  operations and Jump/Conditional successors carry `erased_arguments` lanes
+  inside the contract commitment; the codec encodes them unconditionally so
+  pre-change bytes reject; the checker records erased actuals under
+  `ErasedUnitCallArgument` and erased transition actuals under
+  `TransitionArgument` keyed by authored position; lowering binds the lane from
+  the caller's erased namespace; and `terminal-verifier` substitutes each
+  erased actual into the callee's `requires` at call sites and edges
+  (`call_composition.rs`), rejecting missing, substituted or out-of-closure
+  rows. Composed-route state contracts carry `requires`, and selection admits
+  a borrowed receiver on a call bearing requirement obligations (obligations
+  are provenance-only downstream).
+
   Remaining work:
 
-  - Give Terminal contracts a proof-only scalar term for erased formals, as one
-    vertical slice: a contract erased-formal roster and per-call erased
-    arguments in `terminal-psi`, both inside the contract commitment; one codec
-    tag, with old bytes rejecting under the
-    [encoding contract](wiki/spec/terminal-psi/encoding.md); substitution of
-    the caller's erased actual for the erased formal in
-    `terminal-verifier/src/verification/call_composition.rs`; and the producer
-    mapping in `typed-trees-to-checked-trees/src/values/scalar/contract_entry.rs`
-    and `checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs`.
-    A `requires` naming an erased binding is verifier-only: an erased binding
-    cannot determine runtime data or control, so it never becomes a crash
-    route, and the interpreter and native lowering need no evaluation path. An
-    erased actual is limited to the existing `ScalarTerm` closure over
-    literals, caller values, field reads and the caller's own erased formals;
-    anything else rejects at the initializer.
-  - Give a caller's own erased formal, forwarded through a call, its erased
-    argument row.
-  - Carry `requires` on composed-route state contracts, so an erased state
-    parameter reached through a named transition has a contract term.
+  - Erased non-primitive parameters: `erased_scalar_parameter_plans` still
+    refuses typed formals such as `Nat` (the
+    `erased_proof_only_typed_parameter_exit` canary stays checked-only).
+  - The internal-calls lane still refuses requires-bearing and
+    erased-formal callees (`internal_calls` catalogs); only the
+    shared-composed route carries the lane.
+  - Dynamic-dispatch call kinds have no erased-argument lane.
   - Erased `self`, `const` and `mut` bindings refuse a checked calling plan
     (`execution/unit/types/mod.rs::strips_erased_parameter`). Keep the refusal
     unless the specification gives them a meaning.
 
-  Acceptance: `pass/relevance/erased_parameter_proof_only` and
-  `erased_parameter_named_transition_forward` leave
-  `CHECKED_ONLY_PASS_CANARIES` and run natively (the first exits 70). A call
-  whose erased actual violates the callee's `requires` rejects in source-free
-  verification. An erased actual outside the admitted closure, a missing or
-  substituted erased-argument row, and pre-change codec bytes reject. The
-  `fail/relevance/` runtime-read and receiver controls keep rejecting.
+  Acceptance now holds for the erased-term lane:
+  `pass/relevance/erased_parameter_proof_only` (exits 70) and
+  `erased_parameter_named_transition_forward` run natively; a violating erased
+  actual, an actual outside the admitted closure, a missing or substituted
+  erased-argument row, and pre-change codec bytes reject in source-free
+  verification; the `fail/relevance/` runtime-read and receiver controls keep
+  rejecting. New acceptance: an erased non-primitive formal reaches the
+  contract term lane, an internal-call callee with `requires` admits, and a
+  dynamic call carries or explicitly refuses its erased lane.
 
-  A partial build of the first slice was parked on the unpublished local branch
-  `work/terminal-erased-term-parked` (def0c1be67): per-machine
-  `erased_scalar_formals`/`erased_call_arguments` rosters with proof-only
-  `ScalarTerm::Value` identities and no new term variant. It is not on
-  `origin`; use it if reachable, otherwise build from the description above.
   Erased-field cleanup belongs to
   **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
 
