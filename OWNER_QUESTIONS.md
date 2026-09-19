@@ -40,49 +40,21 @@ must be surfaced before relying on them.
 
 ## Open questions
 
-1. **Board hygiene: items the spec does not ask for, or that duplicate
-   another item.** A read-only pass on 2026-09-17 traced every TASKS.md
-   item to `wiki/spec`; 64 of 75 rest on a normative clause and twelve are
-   named by the spec itself. The remainder need an owner decision because
-   removing or merging a board item is a scope choice, not engineering:
-   - **CANARY-CORPUS** and **SAMPLE-CORPUS**: two triage umbrellas over the
-     same "fix what the suite reports" activity, the first listing the
-     second as a dependency; neither defines a corpus the spec names beyond
-     `wiki/drafts/rust_compiler_completion.md` RC-REPRESENTATIVE-PROGRAMS.
-     Recommend one corpus row with that command as its acceptance.
-   - **FFIVAL**: a one-line host-gated canary run that restates
-     REGISTERED-CALLBACK-LIFETIME's remaining acceptance and the
-     platform-gated verification bullet. Recommend removal.
-   - **MACOS-APPLICATION-PUBLICATION**: its own first line says the
-     [contract](wiki/spec/build/macos_application.md) is landed; what
-     remains is host- and dependency-gated acceptance already listed under
-     platform-gated verification. Recommend demoting to that bullet.
-   - **BOUNDED-INSTALLATION-REACH-ROWS** (only open work is the carrier
-     COMPONENT-SUBSTRATE must supply) into **COMPONENT-SUBSTRATE**;
-     **FILESYSTEM-RELEASE-CONTRACT** (same
-     [permissions](wiki/spec/build/permissions.md) clause and the same
-     `FilesystemOrdinaryReleaseContract` evidence row) into
-     **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**;
-     **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP** split into **CML4**
-     (cleanup hook) and **PROOF-RELEVANCE-MIGRATION** (erased ownership).
-     Recommend the merges.
-   - **SYMBOLIC-MATERIALIZATION**: the mandate
-     ([plans](wiki/spec/layouts/plans.md#derived-consumers)) stands, but its
-     notes accreted recursive direct-sum and nested sum-array layout work no
-     spec text asks for, and the only stated remaining acceptance is a
-     host-gated Linux aarch64 rerun. Recommend trimming to the mandate plus
-     one platform-gated line.
-   - **EXTERNAL-ENTRY-STACK-EPOCHS** and **TR3-TR8** both own stack leases
-     and epochs ([entry stacks](wiki/spec/resources/entry_stacks.md) versus
-     [storage](wiki/spec/resources/storage.md)) with no stated boundary;
-     either could absorb the other's work. Recommend one boundary line or a
-     merge.
-   - **OMEGA-PRODUCT-COMPILER-SOURCE**: the spec assumes an Omega-written
-     compiler ([compiler request](wiki/spec/build/compiler_request.md)) and
-     AGENTS.md names `source/psi` and `source/omega`, but no spec clause
-     prescribes the two-sibling-package split or the `build.omg`/`main.omg`
-     entrypoints. Keep the item; decide whether that split is spec (add the
-     clause) or an owner architecture decision recorded here.
+1. **Is the product compiler's two-package source split specification or an
+   owner architecture decision?** (named decision:
+   `product-compiler-source-topology`). The specification assumes an
+   Omega-written compiler ([compiler request](wiki/spec/build/compiler_request.md))
+   and AGENTS.md names `source/psi` and `source/omega`, but no normative clause
+   prescribes the two-sibling-package split or its `build.omg`/`main.omg`
+   entrypoints, and OMEGA-PRODUCT-COMPILER-SOURCE builds to that shape today.
+   Either (a) the split is specification: add the clause to the compiler-request
+   contract so a product source tree is checkable against it, or (b) it is an
+   owner architecture decision: record it here as settled with its rationale,
+   and let the board item cite this named decision rather than the current
+   repository layout. Motivating customer: the Omega-written compiler, whose
+   package boundaries decide what its build declarations and entrypoints may
+   assume; the answer also fixes whether a future third package needs a
+   specification change or only this record.
 
 2. **Which route admits the complete Beta-encoding certificate, or does the
     P1 obligation change?** (named decision:

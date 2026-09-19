@@ -1039,7 +1039,9 @@ mod macos_entry_acceptance;
 /// Bound` with an explicit provider selection: a bare `console: Console`
 /// instance field has no Fused establishment row, so the hosted receiver
 /// bridge rejects any entry that retains its receiver (states or attached
-/// fields) until OWNER_QUESTIONS.md question 1 is decided. Binder carriers
+/// fields): a bare boundary-trait field rejects as a non-carrier under
+/// `wiki/spec/build/entry_roots.md` "Entry shape and arrival bridge". Binder
+/// carriers
 /// are `i32`/`u8` because the exit code is an `i32` and native realization
 /// admits their widening; `in Wrapping` retags keep the sums realizable.
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

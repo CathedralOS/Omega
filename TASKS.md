@@ -2517,8 +2517,9 @@ Owners include
   equal rows, a replayed token or era, an `Independent` component exporting an
   unresolved row, and final admission with any unresolved row reject.
 
-  The board-hygiene question in `OWNER_QUESTIONS.md` covers whether this item
-  folds into `COMPONENT-SUBSTRATE`.
+  `COMPONENT-SUBSTRATE` owns the component description these rows are
+  published from; this item owns the reach bound itself and stays separate
+  while the completion route above remains open.
 
 ## Parallel language and compiler lanes
 
