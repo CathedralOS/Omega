@@ -34,6 +34,18 @@ pub(crate) fn lower_trait_definition(
                 lowerer, argument,
             )?);
         }
+        let selected_conformance = bound
+            .selected_conformance
+            .as_ref()
+            .map(|argument| {
+                crate::expressions::expression::lower_static_machine_argument(
+                    Some(lowerer.source_trees),
+                    &mut lowerer.typed_trees,
+                    lowerer.type_reference_exposure,
+                    argument,
+                )
+            })
+            .transpose()?;
         typed_trait
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
@@ -47,10 +59,7 @@ pub(crate) fn lower_trait_definition(
                 carrier: bound.carrier,
                 carrier_name: crate::lowerer::name::lower_name(&bound.carrier_name),
                 arguments,
-                selected_conformance: bound
-                    .selected_conformance
-                    .as_ref()
-                    .map(crate::expressions::expression::lower_static_machine_argument),
+                selected_conformance,
             });
     }
 

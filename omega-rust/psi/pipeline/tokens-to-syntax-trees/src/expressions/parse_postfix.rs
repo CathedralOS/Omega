@@ -92,7 +92,8 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     loop {
         if input.at_punctuation(PunctuationKind::Less)
-            && let Some((machine_arguments, rest)) = try_parse_static_machine_arguments(input)?
+            && let Some((machine_arguments, rest)) =
+                try_parse_static_machine_arguments(syntax_trees, input)?
         {
             let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let ((arguments, evidence_arguments), rest) =
@@ -215,7 +216,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             // no generated target string becomes selection identity.
             if member.as_str() == "select_provider" && rest.at_punctuation(PunctuationKind::Less) {
                 let Some((machine_arguments, path_input)) =
-                    try_parse_static_machine_arguments(rest)?
+                    try_parse_static_machine_arguments(syntax_trees, rest)?
                 else {
                     return Err(rest.error_here(
                         "`select_provider` requires a boundary-trait type and provider type",
@@ -266,7 +267,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             // label and no value argument.
             if member.as_str() == "exclude_service" && rest.at_punctuation(PunctuationKind::Less) {
                 let Some((machine_arguments, path_input)) =
-                    try_parse_static_machine_arguments(rest)?
+                    try_parse_static_machine_arguments(syntax_trees, rest)?
                 else {
                     return Err(
                         rest.error_here("`exclude_service` requires one boundary-trait type path")
@@ -312,7 +313,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 && rest.at_punctuation(PunctuationKind::Less)
             {
                 let Some((machine_arguments, path_input)) =
-                    try_parse_static_machine_arguments(rest)?
+                    try_parse_static_machine_arguments(syntax_trees, rest)?
                 else {
                     return Err(rest.error_here(
                         "`select_representation` requires an opaque data type and named conformance",
@@ -850,16 +851,35 @@ fn validate_atomic_call_orderings(
 /// static declaration arguments; value arguments are parsed separately after
 /// the opening parenthesis.
 fn try_parse_static_machine_arguments<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(Box<[StaticMachineArgument]>, Input<'tokens, 'source>)>, ParseError> {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok(None);
     }
 
+    // `<` is also a comparison. Speculative structural parsing owns only a
+    // fresh scratch arena; failed or non-call candidates publish no nodes.
+    let mut scratch = SyntaxTrees::new(input.source_id);
+    let result = parse_static_call_arguments(&mut scratch, input);
+    let Ok(Some((arguments, rest))) = result else {
+        return Ok(None);
+    };
+    let arguments = arguments
+        .iter()
+        .map(|argument| syntax_trees.copy_static_machine_argument(&scratch, argument))
+        .collect::<Vec<_>>();
+    Ok(Some((arguments.into_boxed_slice(), rest)))
+}
+
+fn parse_static_call_arguments<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Result<Option<(Box<[StaticMachineArgument]>, Input<'tokens, 'source>)>, ParseError> {
     let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut arguments = Vec::new();
     loop {
-        let Some((argument, rest)) = try_parse_static_argument(cursor)? else {
+        let Some((argument, rest)) = try_parse_static_argument(syntax_trees, cursor)? else {
             return Ok(None);
         };
         arguments.push(argument);
@@ -881,12 +901,20 @@ fn try_parse_static_machine_arguments<'tokens, 'source>(
 }
 
 fn try_parse_static_argument<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
+    let authored = input;
+    if input.at_punctuation(PunctuationKind::LeftBracket)
+        || input.at_punctuation(PunctuationKind::Ampersand)
+    {
+        return parse_static_type_argument(syntax_trees, input).map(Some);
+    }
     if input.at_integer() {
         let (literal, rest) = input.take_integer_literal()?;
         return Ok(Some((
             StaticMachineArgument {
+                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 path: Box::default(),
                 application: None,
                 const_literal: Some(literal),
@@ -905,6 +933,7 @@ fn try_parse_static_argument<'tokens, 'source>(
         let (member, rest) = input.take_identifier()?;
         return Ok(Some((
             StaticMachineArgument {
+                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 path: Box::default(),
                 application: None,
                 const_literal: None,
@@ -927,7 +956,11 @@ fn try_parse_static_argument<'tokens, 'source>(
         input = rest;
     }
 
-    let application = if let Some((application, rest)) = try_parse_static_symbol_application(input)?
+    if input.at_punctuation(PunctuationKind::LeftBracket) || input.at_contextual("in") {
+        return parse_static_type_argument(syntax_trees, authored).map(Some);
+    }
+    let application = if let Some((application, rest)) =
+        try_parse_static_symbol_application(syntax_trees, input)?
     {
         input = rest;
         Some(application)
@@ -937,6 +970,7 @@ fn try_parse_static_argument<'tokens, 'source>(
 
     Ok(Some((
         StaticMachineArgument {
+            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
             path: path.into_boxed_slice(),
             application,
             const_literal: None,
@@ -947,6 +981,7 @@ fn try_parse_static_argument<'tokens, 'source>(
 }
 
 pub(crate) fn try_parse_static_symbol_application<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<
     Option<(
@@ -973,7 +1008,8 @@ pub(crate) fn try_parse_static_symbol_application<'tokens, 'source>(
                 cursor = rest;
             } else {
                 saw_non_lifetime = true;
-                let Some((argument, rest)) = try_parse_static_argument(cursor)? else {
+                let Some((argument, rest)) = try_parse_static_argument(syntax_trees, cursor)?
+                else {
                     return Ok(None);
                 };
                 arguments.push(argument);
@@ -999,4 +1035,22 @@ pub(crate) fn try_parse_static_symbol_application<'tokens, 'source>(
     } else {
         Ok(None)
     }
+}
+
+fn parse_static_type_argument<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Result<(StaticMachineArgument, Input<'tokens, 'source>), ParseError> {
+    let (type_reference, rest) =
+        crate::type_syntax::parse_type::parse_type_reference_handle(syntax_trees, input)?;
+    Ok((
+        StaticMachineArgument {
+            type_reference,
+            path: Box::default(),
+            application: None,
+            const_literal: None,
+            evidence_projection: None,
+        },
+        rest,
+    ))
 }

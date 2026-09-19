@@ -1,6 +1,6 @@
-//! Structural `where Binder == <type>` equations on generic data.
+//! Shared structural `where Binder == <type>` equation matching.
 //!
-//! A data template's `where` clause may equate a declared type binder with
+//! A declaration template's `where` clause may equate a declared type binder with
 //! known type structure (`Length == u64[0..=Capacity]`). Applying the
 //! template with fewer arguments than binders recovers the omitted trailing
 //! binders by matching each equation's structure against the supplied
@@ -27,9 +27,11 @@
 //! an omitted array once those binders are known. `type_structure` owns this
 //! constructor traversal; closed leaves still use `closed_argument_identity`.
 //! Runtime contents and compatible storage sizes never supply an argument.
+//! Data synthesis and machine-call preparation supply their exact selected
+//! declaration telescopes; this solver owns neither call selection nor
+//! publication. Machine preparation currently requires closed explicit calls.
 
 use crate::preparation::generic_data::ClosedArgumentIdentity;
-use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::closed_name_identity;
 use crate::preparation::generic_data::constant_selection;
@@ -49,13 +51,25 @@ use syntax_trees::types::{
 
 mod type_structure;
 
-/// One data-level `where` fact that states a type equation, by its offset in
+/// One declaration-level `where` fact that states a type equation, by its offset in
 /// the template's fact span. Instances never carry it: applying the template
 /// decides it against the complete argument tuple.
 #[derive(Clone)]
-pub(super) struct TypeEquation {
-    pub(super) fact_offset: usize,
+pub(crate) struct TypeEquation {
+    pub(crate) fact_offset: usize,
     shape: EquationShape,
+}
+
+impl TypeEquation {
+    pub(crate) fn validate_kind(&self, declaration: &str) -> Result<(), Diagnostic> {
+        if let EquationShape::KindMismatch { span, description } = &self.shape {
+            return Err(Diagnostic::error(format!(
+                "{declaration} where equation mixes type and value kinds: {description}"
+            ))
+            .with_source_span(*span));
+        }
+        Ok(())
+    }
 }
 
 /// Type-reference operands have no runtime expression representation. Syntax
@@ -110,7 +124,9 @@ pub(crate) fn validate_materialized_type_equations(
     else {
         return Ok(());
     };
-    let Some(declaration) = super::selected_data_item(syntax, selection, base_name) else {
+    let Some(declaration) =
+        crate::preparation::generic_data::selected_data_item(syntax, selection, base_name)
+    else {
         return Ok(());
     };
     let syntax_trees::item::Item::Data(definition) = syntax.root_item(declaration) else {
@@ -247,10 +263,10 @@ fn single_name(syntax: &SyntaxTrees, expression: ExpressionHandle) -> Option<&Id
     Some(member)
 }
 
-/// Classify every data-level `where` fact that equates a type binder or a
+/// Classify every declaration-level `where` fact that equates a type binder or a
 /// range shell. Facts over const binders and values alone (`Capacity > 0`)
 /// stay ordinary instantiation obligations for the const evaluator.
-pub(super) fn classify_type_equations(
+pub(crate) fn classify_type_equations(
     syntax: &SyntaxTrees,
     parameters: &[TypeParameter],
     where_facts: &[ProofFact],
@@ -486,13 +502,21 @@ fn collect_expression_binder_mentions(
     }
 }
 
-/// Recover every omitted trailing binder of `base_info` from its type
-/// equations and verify the equations against the supplied prefix. The
-/// returned tuple is complete; recovered const binders are the canonical
-/// decimal `Named` leaves literal const arguments already use.
-pub(super) fn complete_argument_tuple(
+/// Declaration-neutral inputs for structural equation completion. Data and
+/// machine applications retain their own selection and publication owners.
+#[derive(Clone, Copy)]
+pub(crate) struct EquationTemplate<'template> {
+    pub(crate) kind: &'static str,
+    pub(crate) name: &'template str,
+    pub(crate) parameters: arena::HandleSpan<TypeParameter>,
+    pub(crate) parameter_names: &'template [String],
+    pub(crate) const_parameter_types: &'template [Option<TypeReferenceHandle>],
+    pub(crate) type_equations: &'template [TypeEquation],
+}
+
+pub(crate) fn complete_equation_arguments(
     syntax: &mut SyntaxTrees,
-    base_info: &GenericData,
+    base_info: EquationTemplate<'_>,
     base_name: &Identifier,
     supplied: &[TypeReferenceHandle],
     const_values: &HashMap<String, i128>,
@@ -562,7 +586,7 @@ struct Solver<'a, 's> {
     /// Constructing an omitted type binder's range shell appends its carrier,
     /// endpoints and canonical normalization to these tables while solving.
     syntax: &'a mut SyntaxTrees,
-    base_info: &'a GenericData,
+    base_info: EquationTemplate<'a>,
     base_name: &'a Identifier,
     const_values: &'a HashMap<String, i128>,
     selection: Option<&'a constant_selection::ConstantSelection<'s>>,
@@ -574,7 +598,7 @@ struct Solver<'a, 's> {
 impl<'a, 's> Solver<'a, 's> {
     fn new(
         syntax: &'a mut SyntaxTrees,
-        base_info: &'a GenericData,
+        base_info: EquationTemplate<'a>,
         base_name: &'a Identifier,
         supplied: &[TypeReferenceHandle],
         const_values: &'a HashMap<String, i128>,
@@ -609,12 +633,15 @@ impl<'a, 's> Solver<'a, 's> {
     }
 
     fn reject(&self, message: String) -> Diagnostic {
-        Diagnostic::error(format!("generic data `{}` {message}", self.base_info.name))
-            .with_source_span(self.base_name.source_span())
+        Diagnostic::error(format!(
+            "generic {} `{}` {message}",
+            self.base_info.kind, self.base_info.name
+        ))
+        .with_source_span(self.base_name.source_span())
     }
 
     fn binder_name(&self, index: usize) -> &str {
-        &self.base_info.parameter_names[index]
+        self.base_info.parameter_names[index].as_str()
     }
 
     fn solve(&mut self, warnings: &mut Vec<Diagnostic>) -> Result<(), Diagnostic> {
@@ -708,7 +735,7 @@ impl<'a, 's> Solver<'a, 's> {
                     collect_expression_binder_mentions(
                         self.syntax,
                         *expression,
-                        &self.base_info.parameter_names,
+                        self.base_info.parameter_names,
                         &mut mentions,
                     );
                     mentions.contains(&binder).then_some(*owner)
@@ -730,7 +757,7 @@ impl<'a, 's> Solver<'a, 's> {
         while let Some(node) = stack.pop() {
             for structure in self.equations_defining(node) {
                 for mention in
-                    structure.binder_mentions(self.syntax, &self.base_info.parameter_names)
+                    structure.binder_mentions(self.syntax, self.base_info.parameter_names)
                 {
                     if mention == start {
                         return true;
@@ -762,7 +789,7 @@ impl<'a, 's> Solver<'a, 's> {
                 span,
             } => {
                 if structure
-                    .binder_mentions(self.syntax, &self.base_info.parameter_names)
+                    .binder_mentions(self.syntax, self.base_info.parameter_names)
                     .contains(binder)
                 {
                     return Err(self
@@ -1049,7 +1076,7 @@ impl<'a, 's> Solver<'a, 's> {
         collect_expression_binder_mentions(
             self.syntax,
             expression,
-            &self.base_info.parameter_names,
+            self.base_info.parameter_names,
             &mut mentions,
         );
         let mut parameter_values = HashMap::new();

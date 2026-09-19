@@ -7,7 +7,7 @@ use super::super::{BinaryOperator, Diagnostic, ExpressionHandle, SyntaxTrees};
 use super::anonymous::AnonymousNumericValue;
 use std::cmp::Ordering;
 
-pub(in crate::preparation::generic_data) enum ConstFactValue {
+pub(crate) enum ConstFactValue {
     Anonymous(AnonymousNumericValue),
     Integer(i128),
     Boolean(bool),
@@ -19,15 +19,13 @@ pub(in crate::preparation::generic_data) enum ConstFactValue {
 /// there is no anonymous rational here: declaration-site discharge binds only
 /// completed canonical values.
 #[derive(Clone, Copy)]
-pub(in crate::preparation::generic_data) enum ConstScalarValue {
+pub(crate) enum ConstScalarValue {
     Integer(i128),
     Boolean(bool),
 }
 
 impl ConstScalarValue {
-    pub(in crate::preparation::generic_data) fn from_canonical(
-        value: &super::super::CanonicalConstValue,
-    ) -> Option<Self> {
+    pub(crate) fn from_canonical(value: &super::super::CanonicalConstValue) -> Option<Self> {
         use language_semantics::const_value::DecodedCanonicalConstValue;
         match value.decode_encoding()? {
             DecodedCanonicalConstValue::Integer { value, .. } => Some(Self::Integer(value)),
@@ -36,7 +34,7 @@ impl ConstScalarValue {
         }
     }
 
-    pub(in crate::preparation::generic_data) fn into_fact_value(self) -> ConstFactValue {
+    pub(crate) fn into_fact_value(self) -> ConstFactValue {
         match self {
             Self::Integer(value) => ConstFactValue::Integer(value),
             Self::Boolean(value) => ConstFactValue::Boolean(value),
@@ -51,7 +49,7 @@ impl From<i128> for ConstScalarValue {
 }
 
 impl ConstFactValue {
-    pub(in crate::preparation::generic_data) fn into_integer(
+    pub(crate) fn into_integer(
         self,
         syntax: &SyntaxTrees,
         warnings: &mut Vec<Diagnostic>,
@@ -64,7 +62,7 @@ impl ConstFactValue {
     }
 }
 
-pub(in crate::preparation::generic_data) fn evaluate_const_fact_binary(
+pub(crate) fn evaluate_const_fact_binary(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     operator: BinaryOperator,

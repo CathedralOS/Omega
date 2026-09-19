@@ -25,9 +25,9 @@ mod const_evaluation;
 pub(crate) mod constant_selection;
 mod discovery;
 mod eligibility;
-mod equations;
+pub(crate) use crate::preparation::type_equations as equations;
 pub(crate) use equations::{template_type_equation_offsets, validate_materialized_type_equations};
-mod module_constants;
+pub(crate) mod module_constants;
 mod substitution;
 mod synthesis;
 mod uses;
@@ -43,11 +43,11 @@ mod remainder_tests;
 #[cfg(test)]
 mod sum_constructor_tests;
 
-use arguments::*;
-use const_evaluation::*;
-use discovery::*;
+pub(crate) use arguments::*;
+pub(crate) use const_evaluation::*;
+pub(crate) use discovery::*;
 use eligibility::*;
-use substitution::*;
+pub(crate) use substitution::*;
 use synthesis::desugar_generic_data_instances;
 use uses::*;
 

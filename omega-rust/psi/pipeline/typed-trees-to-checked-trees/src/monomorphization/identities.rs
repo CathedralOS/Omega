@@ -15,6 +15,20 @@ pub(super) fn encode_bound_static_argument(
     static_binders: &[(SymbolHandle, String)],
     bytes: &mut Vec<u8>,
 ) {
+    if argument.type_reference.is_valid() {
+        bytes.push(4);
+        encode_normalized_text(
+            program
+                .type_identity(TypeIdentityRequest {
+                    binders: static_binders,
+                    ..TypeIdentityRequest::ordinary(argument.type_reference)
+                })
+                .as_str(),
+            lifetime_binders,
+            bytes,
+        );
+        return;
+    }
     if let Some(literal) = &argument.const_literal {
         bytes.push(1);
         let text = literal.text();
@@ -106,6 +120,7 @@ pub(super) fn canonical_template_contract_bytes(
         })
         .collect();
     let mut bytes = Vec::new();
+    bytes.push(u8::from(machine.structural_type_equations_pending));
     bytes.extend(machine.name.as_str().as_bytes());
     bytes.push(0xff);
     bytes.push(match machine.supply_mode {

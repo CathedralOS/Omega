@@ -13,6 +13,9 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum StaticArgumentSnapshot {
+    Type {
+        type_reference: Box<TypeReferenceSnapshot>,
+    },
     Path(Vec<String>),
     Application {
         path: Vec<String>,
@@ -256,7 +259,7 @@ pub(crate) fn statement_snapshot(
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(snapshot_static_argument)
+                .map(|argument| snapshot_static_argument(program, argument))
                 .collect(),
             arguments: program
                 .tables
@@ -463,7 +466,7 @@ pub(crate) fn table_expression_snapshot(
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(snapshot_static_argument)
+                .map(|argument| snapshot_static_argument(program, argument))
                 .collect(),
             arguments: table
                 .expression_handles(call.arguments)
@@ -552,9 +555,17 @@ pub(crate) fn table_expression_snapshot(
 }
 
 pub(crate) fn snapshot_static_argument(
+    program: &SymbolResolvedTrees,
     argument: &crate::expression::StaticMachineArgument,
 ) -> StaticArgumentSnapshot {
-    if let Some(literal) = &argument.const_literal {
+    if argument.type_reference.is_valid() {
+        StaticArgumentSnapshot::Type {
+            type_reference: Box::new(type_reference_snapshot_from_program(
+                program,
+                program.child_type_reference(argument.type_reference),
+            )),
+        }
+    } else if let Some(literal) = &argument.const_literal {
         StaticArgumentSnapshot::Const(literal.text().to_owned())
     } else if let Some(projection) = &argument.evidence_projection {
         StaticArgumentSnapshot::EvidenceProjection {
@@ -568,7 +579,7 @@ pub(crate) fn snapshot_static_argument(
             arguments: application
                 .arguments
                 .iter()
-                .map(snapshot_static_argument)
+                .map(|argument| snapshot_static_argument(program, argument))
                 .collect(),
         }
     } else {

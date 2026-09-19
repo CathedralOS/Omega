@@ -334,6 +334,7 @@ pub(super) fn append_probe(
     syntax.push_root_item(Item::Machine(Machine {
         name,
         generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: false,

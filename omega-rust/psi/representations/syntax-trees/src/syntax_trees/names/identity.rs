@@ -336,7 +336,7 @@ fn count_statement_node(
             }
             count_identifier(&call.target, counts);
             for argument in &call.machine_arguments {
-                count_static_argument(argument, counts);
+                count_static_argument(syntax_trees, argument, counts);
             }
             for argument in syntax_trees.statements.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
@@ -548,7 +548,7 @@ fn count_expression_handle(
             }
             count_identifier(&call.target, counts);
             for argument in &call.machine_arguments {
-                count_static_argument(argument, counts);
+                count_static_argument(syntax_trees, argument, counts);
             }
             for argument in syntax_trees.expressions.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
@@ -611,9 +611,13 @@ fn count_expression_handle(
 }
 
 fn count_static_argument(
+    syntax_trees: &SyntaxTrees,
     argument: &crate::expression::StaticMachineArgument,
     counts: &mut AstIdentityStorageCounts,
 ) {
+    if argument.type_reference.is_valid() {
+        count_type_reference_handle(syntax_trees, argument.type_reference, counts);
+    }
     for member in &argument.path {
         count_identifier(member, counts);
     }
@@ -626,7 +630,7 @@ fn count_static_argument(
             count_identifier(lifetime, counts);
         }
         for nested in &application.arguments {
-            count_static_argument(nested, counts);
+            count_static_argument(syntax_trees, nested, counts);
         }
     }
 }

@@ -32,6 +32,10 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TypeReferenceOwner<'program> {
+    StaticMachineArgument {
+        machine: &'program str,
+        generic_depth: usize,
+    },
     DomainTarget {
         domain: &'program str,
         generic_depth: usize,
@@ -126,6 +130,13 @@ impl TypeReferenceOwner<'_> {
 
     fn generic_argument(self) -> Self {
         match self {
+            Self::StaticMachineArgument {
+                machine,
+                generic_depth,
+            } => Self::StaticMachineArgument {
+                machine,
+                generic_depth: generic_depth + 1,
+            },
             Self::DomainTarget {
                 domain,
                 generic_depth,
@@ -214,6 +225,13 @@ impl TypeReferenceOwner<'_> {
 impl fmt::Display for TypeReferenceOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let generic_depth = match self {
+            Self::StaticMachineArgument {
+                machine,
+                generic_depth,
+            } => {
+                write!(formatter, "machine `{machine}` static type argument")?;
+                *generic_depth
+            }
             Self::DomainTarget {
                 domain,
                 generic_depth,
@@ -300,6 +318,30 @@ impl fmt::Display for TypeReferenceOwner<'_> {
 
         Ok(())
     }
+}
+
+/// Check a static type argument before specialization can erase its call site.
+/// The callee need not use this type in its body: formation, qualification and
+/// lifetime obligations belong to the caller's authored argument itself.
+pub fn validate_static_type_argument(
+    program: &TypedTrees,
+    caller: &typed_trees::machine::Machine,
+    type_reference: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_type_reference_handle_with_type_parameters(
+        program,
+        type_reference,
+        symbols,
+        diagnostics,
+        TypeReferenceOwner::StaticMachineArgument {
+            machine: caller.name.as_str(),
+            generic_depth: 0,
+        },
+        program.machine_type_parameters(caller),
+        &caller.lifetime_parameters,
+    );
 }
 
 pub(crate) fn validate_type_reference_handle_with_type_parameters(

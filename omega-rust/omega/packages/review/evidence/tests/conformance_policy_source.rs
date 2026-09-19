@@ -217,6 +217,7 @@ ensures outgoing: ready<u64>()
     let selected = StaticMachineArgument {
         path: vec![declaration.alias.clone().unwrap()].into_boxed_slice(),
         application: None,
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol: declaration.symbol,

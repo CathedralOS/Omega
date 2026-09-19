@@ -63,6 +63,8 @@ pub struct MachineSnapshot {
     pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub supply: MachineSupplySnapshot,
     pub body_is_present: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    pub structural_type_equations_pending: bool,
     pub termination: TerminationInterfaceSnapshot,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub termination_witness: Option<RankingWitnessSnapshot>,
@@ -269,7 +271,7 @@ pub(crate) fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> Machi
                 selected_conformance: bound
                     .selected_conformance
                     .as_ref()
-                    .map(snapshot_static_argument),
+                    .map(|argument| snapshot_static_argument(program, argument)),
                 selected_conformance_symbol: bound
                     .selected_conformance
                     .as_ref()
@@ -278,6 +280,7 @@ pub(crate) fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> Machi
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
         body_is_present: machine.body_is_present,
+        structural_type_equations_pending: machine.structural_type_equations_pending,
         termination: termination_interface_snapshot(&machine.termination_plan.interface),
         termination_witness: machine
             .termination_plan
@@ -416,7 +419,7 @@ pub(crate) fn trait_definition_snapshot(
                 selected_conformance: bound
                     .selected_conformance
                     .as_ref()
-                    .map(snapshot_static_argument),
+                    .map(|argument| snapshot_static_argument(program, argument)),
                 selected_conformance_symbol: bound
                     .selected_conformance
                     .as_ref()

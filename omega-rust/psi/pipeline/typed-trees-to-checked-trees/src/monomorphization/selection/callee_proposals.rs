@@ -30,6 +30,13 @@ pub(crate) fn collect_machine_proposals_for_callee(
     let mut machine_index = 0usize;
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
+        if selected.type_reference.is_valid() {
+            if type_index < candidate.template.type_parameters.len() {
+                type_proposals.push((callee.candidate_index, type_index, selected.type_reference));
+            }
+            type_index += 1;
+            continue;
+        }
         // A forwarded binder occupies its explicit slot even before it has a
         // closed value. Keep this call incomplete until the caller specializes;
         // neither range inference nor a later explicit argument may fill it.

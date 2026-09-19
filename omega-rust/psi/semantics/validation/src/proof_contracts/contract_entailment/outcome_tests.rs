@@ -166,6 +166,7 @@ fn exhaustive_computed_proof_subject_requires_exact_call_identity() {
     call.machine_arguments = vec![typed_trees::expression::StaticMachineArgument {
         path: Box::new([]),
         application: None,
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol: other_symbol,

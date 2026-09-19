@@ -389,3 +389,52 @@ fn runtime_call_subject_collection_matches_lexical_owner_lookup() {
             .is_empty()
     );
 }
+
+#[test]
+fn structural_static_argument_commitments_use_normalized_type_identity() {
+    let program = typed(
+        "machine exclusive(value: u64[0..257]) -> u64 { 0 }
+         machine inclusive(value: u64[0..=256]) -> u64 { 0 }
+         machine smaller(value: u64[0..256]) -> u64 { 0 }
+         machine seven(value: [u8; 7]) -> u64 { 0 }
+         machine eight(value: [u8; 8]) -> u64 { 0 }
+         machine generic_first<T>(value: [T; 7]) -> u64 { 0 }
+         machine generic_renamed<U>(value: [U; 7]) -> u64 { 0 }",
+    );
+    let commitment = |name: &str| {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("fixture machine");
+        let state = &program.machine_states(machine)[0];
+        let argument = super::StaticMachineArgument {
+            type_reference: program.state_parameters(state)[0].type_reference,
+            path: Box::default(),
+            application: None,
+            const_literal: None,
+            evidence_projection: None,
+            symbol: SymbolHandle::invalid(),
+        };
+        let binders = program
+            .machine_type_parameters(machine)
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| (parameter.symbol, format!("$T{index}")))
+            .collect::<Vec<_>>();
+        let mut bytes = Vec::new();
+        super::identities::encode_bound_static_argument(
+            &program,
+            &argument,
+            &[],
+            &binders,
+            &mut bytes,
+        );
+        bytes
+    };
+    assert_eq!(commitment("exclusive"), commitment("inclusive"));
+    assert_ne!(commitment("exclusive"), commitment("smaller"));
+    assert_ne!(commitment("seven"), commitment("eight"));
+    assert_ne!(commitment("exclusive"), commitment("seven"));
+    assert_eq!(commitment("generic_first"), commitment("generic_renamed"));
+}

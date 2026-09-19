@@ -720,6 +720,8 @@ pub struct TableCallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticMachineArgument {
+    /// An explicit structural type argument; zero denotes another static argument kind.
+    pub type_reference: arena::Handle<crate::types::TypeReference>,
     /// Historical storage name shared by type/const/machine proposition
     /// arguments; the typed target telescope validates the category.
     pub path: Box<[DiagnosticName]>,

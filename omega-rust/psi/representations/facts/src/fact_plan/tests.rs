@@ -253,6 +253,7 @@ fn expression_places_resolve_attached_data_members() {
         suspends_keyword_source_spans: Vec::new(),
         blocks_keyword_source_spans: Vec::new(),
         body_is_present: true,
+        structural_type_equations_pending: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),

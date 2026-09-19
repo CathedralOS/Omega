@@ -32,6 +32,7 @@ fn static_argument(symbol: SymbolHandle) -> StaticMachineArgument {
     StaticMachineArgument {
         path: Box::default(),
         application: None,
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol,

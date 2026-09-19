@@ -151,6 +151,7 @@ fn lower_machine_contents(
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
         body_is_present: machine.body_is_present,
+        structural_type_equations_pending: machine.structural_type_equations_pending,
         // The authored bit and private witness copy here; the final typed
         // normalization attaches subject-bearing schemas and inherited
         // requirement guarantees after every trait has been lowered.
@@ -296,6 +297,18 @@ fn lower_machine_contents(
         for argument in lowerer.source_trees.child_type_references(bound.arguments) {
             arguments.push(lower_type_reference_into_table(lowerer, argument)?);
         }
+        let selected_conformance = bound
+            .selected_conformance
+            .as_ref()
+            .map(|argument| {
+                crate::expressions::expression::lower_static_machine_argument(
+                    Some(lowerer.source_trees),
+                    &mut lowerer.typed_trees,
+                    lowerer.type_reference_exposure,
+                    argument,
+                )
+            })
+            .transpose()?;
         typed_machine
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
@@ -309,10 +322,7 @@ fn lower_machine_contents(
                 carrier: bound.carrier,
                 carrier_name: crate::lowerer::name::lower_name(&bound.carrier_name),
                 arguments,
-                selected_conformance: bound
-                    .selected_conformance
-                    .as_ref()
-                    .map(crate::expressions::expression::lower_static_machine_argument),
+                selected_conformance,
             });
     }
 

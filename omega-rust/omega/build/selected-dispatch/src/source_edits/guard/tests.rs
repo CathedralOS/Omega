@@ -185,6 +185,7 @@ fn detached_original_static_arguments_keep_exact_const_binder_type_custody() {
     let argument = StaticMachineArgument {
         path: Box::default(),
         application: None,
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol,
@@ -257,6 +258,7 @@ fn static_argument(symbol: SymbolHandle) -> StaticMachineArgument {
     StaticMachineArgument {
         path: Box::default(),
         application: None,
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol,

@@ -7,8 +7,10 @@
 //! substitutions, and evaluation scratch are not program representations.
 
 pub(crate) mod generic_data;
+pub(crate) mod machine_equations;
 pub(crate) mod module_normalization;
 pub(crate) mod trait_defaults;
+pub(crate) mod type_equations;
 
 use diagnostics::Diagnostic;
 use source::SourceMap;

@@ -167,6 +167,7 @@ fn standalone_unit_call_requires_its_exact_ordinary_target() {
                     Box::new([typed_trees::expression::StaticMachineArgument {
                         path: Box::new([]),
                         application: None,
+                        type_reference: Default::default(),
                         const_literal: None,
                         evidence_projection: None,
                         symbol: scalar_target,

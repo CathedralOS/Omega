@@ -10,7 +10,7 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::Item;
 use syntax_trees::operator_spelling::OperatorSpelling;
 
-pub(in crate::preparation::generic_data) struct AnonymousNumericValue {
+pub(crate) struct AnonymousNumericValue {
     pub(super) value: BigRational,
     fractional: Option<(ExpressionHandle, BigRational)>,
 }

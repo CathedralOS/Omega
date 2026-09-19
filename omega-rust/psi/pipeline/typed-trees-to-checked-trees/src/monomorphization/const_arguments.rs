@@ -12,7 +12,10 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -> Option<String> {
-    if argument.application.is_some() || argument.evidence_projection.is_some() {
+    if argument.type_reference.is_valid()
+        || argument.application.is_some()
+        || argument.evidence_projection.is_some()
+    {
         return None;
     }
     if let Some(literal) = &argument.const_literal {
@@ -58,6 +61,7 @@ pub(super) fn validate_authored(
     callees: &[CalleeState],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    validate_structural_type_arguments(program, callees, &mut diagnostics);
     let mut validate = |target, name: &str, arguments: &[StaticMachineArgument]| {
         let Some(callee) = resolve_callee(callees, target, name) else {
             return;
@@ -127,7 +131,8 @@ pub(super) fn is_runtime_value_subject(
     program: &TypedTrees,
     argument: &StaticMachineArgument,
 ) -> bool {
-    argument.application.is_none()
+    !argument.type_reference.is_valid()
+        && argument.application.is_none()
         && argument.evidence_projection.is_none()
         && argument.const_literal.is_none()
         && argument.path.len() == 1
@@ -149,7 +154,8 @@ pub(super) fn resolve_runtime_subject(
     scope_limit: usize,
     argument: &StaticMachineArgument,
 ) -> Option<symbols::SymbolHandle> {
-    if argument.application.is_some()
+    if argument.type_reference.is_valid()
+        || argument.application.is_some()
         || argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
     {
@@ -198,7 +204,35 @@ fn validate_arguments(
     arguments: &[StaticMachineArgument],
 ) -> Result<(), Diagnostic> {
     let mut const_index = 0;
-    for argument in arguments {
+    for (ordinal, argument) in arguments.iter().enumerate() {
+        if argument.type_reference.is_valid() {
+            let template = &program.machines()[candidate.template.machine_index];
+            if !program
+                .machine_type_parameters(template)
+                .get(ordinal)
+                .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            {
+                return Err(Diagnostic::error(format!(
+                    "machine `{}` static argument {} requires its declared binder kind, not a structural type argument",
+                    candidate.template.template_name,
+                    ordinal + 1
+                )));
+            }
+            if !program
+                .type_reference_table
+                .contains_type_reference(argument.type_reference)
+                || !argument.path.is_empty()
+                || argument.symbol.is_valid()
+                || argument.const_literal.is_some()
+                || argument.application.is_some()
+                || argument.evidence_projection.is_some()
+            {
+                return Err(Diagnostic::error(
+                    "structural static type argument has invalid or mixed argument custody",
+                ));
+            }
+            continue;
+        }
         let declaration = program.const_declarations().iter().find(|declaration| {
             argument.symbol.is_valid() && declaration.symbol == argument.symbol
         });
@@ -208,11 +242,12 @@ fn validate_arguments(
             && forwarded_type.is_none()
             && spelling(program, argument).is_none()
         {
-            let type_shaped = argument.symbol.is_valid()
-                && matches!(
-                    program.symbols.get(argument.symbol).kind,
-                    SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
-                );
+            let type_shaped = argument.type_reference.is_valid()
+                || argument.symbol.is_valid()
+                    && matches!(
+                        program.symbols.get(argument.symbol).kind,
+                        SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
+                    );
             if !candidate.template.const_parameters.is_empty()
                 && candidate.template.type_parameters.is_empty()
                 && type_shaped
@@ -259,7 +294,10 @@ fn validate_arguments(
             )));
         };
         const_index += 1;
-        if argument.application.is_some() || argument.evidence_projection.is_some() {
+        if argument.type_reference.is_valid()
+            || argument.application.is_some()
+            || argument.evidence_projection.is_some()
+        {
             return Err(Diagnostic::error(format!(
                 "const argument `{}` must select a closed value or a const binder",
                 argument.display_name()
@@ -332,4 +370,119 @@ pub(super) fn validate_bindings(
         })?;
     }
     Ok(())
+}
+
+/// A static type is checked under the source caller even when the callee never
+/// uses its type binder. Unowned arena expressions cannot borrow another scope.
+fn validate_structural_type_arguments(
+    program: &TypedTrees,
+    callees: &[CalleeState],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    fn contains_type(arguments: &[StaticMachineArgument]) -> bool {
+        arguments.iter().any(|argument| {
+            argument.type_reference.is_valid()
+                || argument
+                    .application
+                    .as_ref()
+                    .is_some_and(|application| contains_type(&application.arguments))
+        })
+    }
+    fn validate_types(
+        program: &TypedTrees,
+        caller: &typed_trees::machine::Machine,
+        arguments: &[StaticMachineArgument],
+        symbols: &validation::TopLevelSymbols<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        for argument in arguments {
+            if argument.type_reference.is_valid() {
+                validation::validate_static_type_argument(
+                    program,
+                    caller,
+                    argument.type_reference,
+                    symbols,
+                    diagnostics,
+                );
+            }
+            if let Some(application) = &argument.application {
+                validate_types(
+                    program,
+                    caller,
+                    &application.arguments,
+                    symbols,
+                    diagnostics,
+                );
+            }
+        }
+    }
+    let has_types = program.expression_table.iter_expressions().any(|(_, expression)| matches!(expression, ExpressionNode::Call(call) if contains_type(&call.machine_arguments)))
+        || program.machines().iter().any(|machine| program.machine_states(machine).iter().any(|state| program.statement_table.statements(state.statement_nodes).iter().any(|statement| matches!(statement, StatementNode::Call(call) if contains_type(&call.machine_arguments)))));
+    if !has_types {
+        return;
+    }
+    let symbols = validation::TopLevelSymbols::build(program, diagnostics);
+    let mut owned = Vec::new();
+    for machine in program.machines() {
+        let mut expressions = Vec::new();
+        for item in program.machine_owned_data(machine) {
+            super::selection::collect_expression_tree(
+                program,
+                item.initial_value,
+                &mut expressions,
+            );
+        }
+        for call in program
+            .proof_output_calls
+            .iter()
+            .filter(|call| call.machine_symbol == machine.symbol)
+        {
+            super::selection::collect_expression_tree(program, call.call, &mut expressions);
+        }
+        for contract in program.machine_contracts(machine) {
+            super::selection::collect_contract_facts(program, contract.facts, &mut expressions);
+        }
+        for state in program.machine_states(machine) {
+            for contract in program.state_contracts(state) {
+                super::selection::collect_contract_facts(program, contract.facts, &mut expressions);
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                super::collect_statement_expression_trees(program, statement, &mut expressions);
+                if let StatementNode::Call(call) = statement {
+                    validate_types(
+                        program,
+                        machine,
+                        &call.machine_arguments,
+                        &symbols,
+                        diagnostics,
+                    );
+                }
+            }
+        }
+        for expression in expressions {
+            if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
+                validate_types(
+                    program,
+                    machine,
+                    &call.machine_arguments,
+                    &symbols,
+                    diagnostics,
+                );
+                if !owned.contains(&expression) {
+                    owned.push(expression);
+                }
+            }
+        }
+    }
+    for (expression, node) in program.expression_table.iter_expressions() {
+        if let ExpressionNode::Call(call) = node
+            && contains_type(&call.machine_arguments)
+            && !owned.contains(&expression)
+            && resolve_callee(callees, call.target_symbol, call.target.as_str()).is_some()
+        {
+            diagnostics.push(Diagnostic::error(
+                "structural static type argument has no retained caller type/lifetime context",
+            ));
+        }
+    }
 }

@@ -48,7 +48,25 @@ fn integer_range_normalization_copies_with_remapped_constraint_expressions() {
         copied.expressions.insert(ExpressionNode::Boolean(false));
         copied.type_references.insert(TypeReferenceNode::Unit);
     }
-    let copied_owner = copied.copy_type_reference_handle(&original, owner);
+    let argument = crate::expression::StaticMachineArgument {
+        type_reference: TypeReferenceHandle::invalid(),
+        path: vec![Identifier::generated("Family")].into_boxed_slice(),
+        application: Some(Box::new(crate::expression::StaticSymbolApplication {
+            lifetime_arguments: Box::default(),
+            arguments: vec![crate::expression::StaticMachineArgument {
+                type_reference: owner,
+                path: Box::default(),
+                application: None,
+                const_literal: None,
+                evidence_projection: None,
+            }]
+            .into_boxed_slice(),
+        })),
+        const_literal: None,
+        evidence_projection: None,
+    };
+    let copied_argument = copied.copy_static_machine_argument(&original, &argument);
+    let copied_owner = copied_argument.application.as_ref().unwrap().arguments[0].type_reference;
     assert_ne!(copied_owner, owner);
     assert_eq!(
         copied
@@ -766,6 +784,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
     syntax_trees.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("Main"),
         generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: false,
@@ -823,6 +842,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: true,
@@ -970,6 +990,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: false,
@@ -1103,6 +1124,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
+        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: false,

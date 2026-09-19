@@ -108,6 +108,8 @@ fn machine_record_carries_one_public_termination_interface() {
             // Package review distinguishes a checked empty body from a
             // declaration that has no body to inspect.
             body_is_present: _,
+            // Provisional probes cannot execute an undischarged source equation.
+            structural_type_equations_pending: _,
             lifetime_parameters: _,
             type_parameters: _,
             owned_data: _,

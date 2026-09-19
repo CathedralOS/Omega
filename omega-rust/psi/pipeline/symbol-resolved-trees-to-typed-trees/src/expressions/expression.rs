@@ -69,31 +69,56 @@ pub(crate) fn lower_expression_handle_from_table_in_fact_position(
 }
 
 pub(crate) fn lower_static_machine_argument(
+    program: Option<&resolved::SymbolResolvedTrees>,
+    target: &mut typed::TypedTrees,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
     argument: &resolved::expression::StaticMachineArgument,
-) -> typed::expression::StaticMachineArgument {
-    typed::expression::StaticMachineArgument {
+) -> Result<typed::expression::StaticMachineArgument, Diagnostic> {
+    let type_reference = if argument.type_reference.is_valid() {
+        let program = program.ok_or_else(|| {
+            Diagnostic::error("structural static type argument requires its resolved program")
+        })?;
+        crate::type_reference::lower_type_reference_into_trees_with_exposure(
+            program,
+            target,
+            program.child_type_reference(argument.type_reference),
+            exposure,
+        )?
+    } else {
+        typed::types::TypeReferenceHandle::invalid()
+    };
+    Ok(typed::expression::StaticMachineArgument {
+        type_reference,
         path: argument
             .path
             .iter()
             .map(crate::lowerer::name::lower_name)
             .collect::<Vec<_>>()
             .into_boxed_slice(),
-        application: argument.application.as_ref().map(|application| {
-            Box::new(typed::expression::StaticSymbolApplication {
-                lifetime_arguments: application
-                    .lifetime_arguments
-                    .iter()
-                    .map(crate::lowerer::name::lower_name)
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
-                arguments: application
-                    .arguments
-                    .iter()
-                    .map(lower_static_machine_argument)
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
+        application: argument
+            .application
+            .as_ref()
+            .map(|application| {
+                Ok::<_, Diagnostic>(Box::new(typed::expression::StaticSymbolApplication {
+                    lifetime_arguments: application
+                        .lifetime_arguments
+                        .iter()
+                        .map(crate::lowerer::name::lower_name)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                    arguments: application
+                        .arguments
+                        .iter()
+                        .map(|argument| {
+                            lower_static_machine_argument(program, target, exposure, argument)
+                        })
+                        .collect::<Result<Vec<_>, Diagnostic>>()?
+                        .into_boxed_slice(),
+                }))
             })
-        }),
+            .transpose()?,
         const_literal: argument.const_literal.clone(),
         evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
             typed::expression::EvidenceProjection {
@@ -102,5 +127,5 @@ pub(crate) fn lower_static_machine_argument(
             }
         }),
         symbol: argument.symbol,
-    }
+    })
 }

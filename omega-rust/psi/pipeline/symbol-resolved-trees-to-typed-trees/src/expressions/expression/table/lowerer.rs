@@ -388,8 +388,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     } else {
                         call.machine_arguments
                             .iter()
-                            .map(crate::expressions::expression::lower_static_machine_argument)
-                            .collect::<Vec<_>>()
+                            .map(|argument| {
+                                crate::expressions::expression::lower_static_machine_argument(
+                                    self.program,
+                                    self.target_trees,
+                                    self.source.authored_expression_exposure(expression),
+                                    argument,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, Diagnostic>>()?
                             .into_boxed_slice()
                     };
                 Ok(self
@@ -593,7 +600,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     /// deliberately performs no quotient discovery and grants no executable
     /// lifting authority.
     fn lower_quotient_operation_request(
-        &self,
+        &mut self,
         call: &resolved::expression::TableCallExpression,
     ) -> Result<Option<typed::expression::QuotientOperationRequest>, Diagnostic> {
         let kind = match call.target.as_str() {
@@ -681,32 +688,39 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let theorem_evidence = selected_theorems
             .iter()
             .enumerate()
-            .map(
-                |(position, selected)| typed::expression::QuotientTheoremSelection {
+            .map(|(position, selected)| {
+                Ok(typed::expression::QuotientTheoremSelection {
                     role: if position == 0 {
                         typed::expression::QuotientTheoremRole::Congruence
                     } else {
                         typed::expression::QuotientTheoremRole::ForwardPreconditionTransport
                     },
                     application: crate::expressions::expression::lower_static_machine_argument(
+                        self.program,
+                        self.target_trees,
+                        None,
                         selected,
-                    ),
-                },
-            )
-            .collect::<Vec<_>>()
+                    )?,
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?
             .into_boxed_slice();
 
         Ok(Some(typed::expression::QuotientOperationRequest {
             kind,
-            representative_operation: crate::expressions::expression::lower_static_machine_argument(
-                representative_operation,
-            ),
+            representative_operation:
+                crate::expressions::expression::lower_static_machine_argument(
+                    self.program,
+                    self.target_trees,
+                    None,
+                    representative_operation,
+                )?,
             theorem_evidence,
         }))
     }
 
     fn lower_private_layout_operation_request(
-        &self,
+        &mut self,
         call: &resolved::expression::TableCallExpression,
     ) -> Result<Option<typed::expression::PrivateLayoutOperationRequest>, Diagnostic> {
         if call.target.as_str() != "place_private" || !call.receiver.is_valid() {
@@ -777,8 +791,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
 
         Ok(Some(typed::expression::PrivateLayoutOperationRequest {
             selected_slot: crate::expressions::expression::lower_static_machine_argument(
+                self.program,
+                self.target_trees,
+                None,
                 selected_slot,
-            ),
+            )?,
         }))
     }
 

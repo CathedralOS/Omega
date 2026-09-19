@@ -430,6 +430,17 @@ fn assign_contract_call_symbols(
                 child_type_references,
                 symbols,
             );
+            for argument in &call.machine_arguments {
+                crate::symbols::expressions::assign_static_argument_type_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    argument,
+                );
+            }
             if let ExpressionNode::Call(call) = expression_table.expression_mut(expression) {
                 call.target_symbol = target_symbol;
                 for argument in &mut call.machine_arguments {

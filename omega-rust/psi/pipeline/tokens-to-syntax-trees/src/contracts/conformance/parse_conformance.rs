@@ -236,42 +236,55 @@ pub(crate) fn parse_generic_conformance_bounds<'tokens, 'source>(
     let mut bounds = Vec::new();
 
     loop {
-        let (subject, rest) = input.take_identifier()?;
-        let rest = rest.take_contextual("satisfies")?;
-        let (carrier, rest) = rest.take_identifier()?;
-        let (arguments, mut rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
-        let selected_conformance = if rest.at_punctuation(PunctuationKind::ColonColon) {
-            rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-            let (name, next) = rest.take_identifier()?;
-            rest = next;
-            let application = if let Some((application, next)) =
-                crate::expressions::parse_postfix::try_parse_static_symbol_application(rest)?
-            {
-                rest = next;
-                Some(application)
-            } else {
-                None
-            };
-            Some(syntax_trees::expression::StaticMachineArgument {
-                path: vec![name].into_boxed_slice(),
-                application,
-                const_literal: None,
-                evidence_projection: None,
-            })
-        } else {
-            None
-        };
-        bounds.push(GenericConformanceBound {
-            binder: None,
-            subject,
-            carrier,
-            arguments,
-            selected_conformance,
-        });
+        let (bound, rest) = parse_generic_conformance_bound(syntax_trees, input)?;
+        bounds.push(bound);
 
         if !rest.at_punctuation(PunctuationKind::Comma) {
             return Ok((bounds, rest));
         }
         input = rest.take_punctuation(PunctuationKind::Comma, ",")?;
     }
+}
+
+pub(crate) fn parse_generic_conformance_bound<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, GenericConformanceBound> {
+    let (subject, rest) = input.take_identifier()?;
+    let rest = rest.take_contextual("satisfies")?;
+    let (carrier, rest) = rest.take_identifier()?;
+    let (arguments, mut rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
+    let selected_conformance = if rest.at_punctuation(PunctuationKind::ColonColon) {
+        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (name, next) = rest.take_identifier()?;
+        rest = next;
+        let application = if let Some((application, next)) =
+            crate::expressions::parse_postfix::try_parse_static_symbol_application(
+                syntax_trees,
+                rest,
+            )? {
+            rest = next;
+            Some(application)
+        } else {
+            None
+        };
+        Some(syntax_trees::expression::StaticMachineArgument {
+            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+            path: vec![name].into_boxed_slice(),
+            application,
+            const_literal: None,
+            evidence_projection: None,
+        })
+    } else {
+        None
+    };
+    let bound = GenericConformanceBound {
+        binder: None,
+        subject,
+        carrier,
+        arguments,
+        selected_conformance,
+    };
+
+    Ok((bound, rest))
 }

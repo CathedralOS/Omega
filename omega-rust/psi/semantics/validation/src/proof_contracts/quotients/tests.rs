@@ -25,6 +25,7 @@ fn static_argument(name: &'static str) -> StaticMachineArgument {
     StaticMachineArgument {
         path: vec![Identifier::generated_static(name)].into_boxed_slice(),
         application: None,
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol: SymbolHandle::invalid(),

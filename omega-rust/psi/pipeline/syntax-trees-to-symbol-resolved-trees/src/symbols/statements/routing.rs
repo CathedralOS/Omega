@@ -140,6 +140,17 @@ pub(super) fn assign_statement_symbols(
             let provider_selection = call.target.as_str() == "select_provider";
             let representation_selection = call.target.as_str() == "select_representation";
             let service_exclusion = call.target.as_str() == "exclude_service";
+            for argument in &call.machine_arguments {
+                crate::symbols::expressions::assign_static_argument_type_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    argument,
+                );
+            }
             for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
                 if provider_selection || service_exclusion {
                     assign_provider_selection_argument_symbol(

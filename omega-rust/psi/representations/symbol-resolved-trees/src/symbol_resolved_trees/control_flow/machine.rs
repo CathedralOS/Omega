@@ -41,6 +41,11 @@ pub struct Machine {
     /// adapters, so downstream review must not reconstruct this distinction
     /// from synthesized state rows.
     pub body_is_present: bool,
+    /// Source structural equations are not yet discharged; execution must reject this machine.
+    pub structural_type_equations_pending: bool,
+    /// Retained template obligation. Without its syntax equations, a later
+    /// extension must reject a new application rather than assume discharge.
+    pub has_structural_type_equations: bool,
     /// TPR2 (decision 23): the normalized termination plan -- the authored
     /// PUBLIC guarantee and the PRIVATE ranking witness as separate fields.
     /// Populated ONCE at the syntax->resolved lowering (bare `terminates;`

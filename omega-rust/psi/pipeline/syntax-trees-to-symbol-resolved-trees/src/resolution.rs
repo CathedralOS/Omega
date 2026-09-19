@@ -5,7 +5,9 @@
 //! let each owner settle its phase in the one order their preconditions
 //! allow. The other operations run the same route for a different product.
 //! [`resolve_const_argument_selection`] selects const arguments without
-//! synthesis or evaluation. [`prepare_const_initializer_selection`] stops at
+//! synthesis or evaluation. [`resolve_numeric_probe`] normalizes constants
+//! while retaining machine-equation execution obligations.
+//! [`prepare_const_initializer_selection`] stops at
 //! preparation evidence that grants no typing authority. [`resolve_extension`]
 //! resolves a later stratum against a retained base and returns the carrier
 //! the typed continuation rebases; see `continuations`. `lowerer` is the
@@ -57,7 +59,7 @@ pub struct ExtensionRequest<'a> {
 
 /// Resolve every name in the forest to its exact declaration.
 pub fn resolve(request: ResolutionRequest<'_>) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    let (syntax, lowerer) = begin_complete(request, None)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
@@ -68,6 +70,16 @@ pub fn resolve_const_argument_selection(
     request: ResolutionRequest<'_>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let (syntax, lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
+    drive(lowerer, &syntax).map(|(trees, _)| trees)
+}
+
+/// Normalize ordinary constants for a numeric probe while retaining machine
+/// equations as pending execution obligations. Range normalization supplies
+/// inputs to equation completion, so these two phase axes are independent.
+pub fn resolve_numeric_probe(
+    request: ResolutionRequest<'_>,
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
@@ -110,14 +122,46 @@ pub fn resolve_extension(
         sources: Some(sources),
         top_level_bindings,
     };
-    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
-    lowerer.seed_resolved_base(base)?;
+    let (syntax, lowerer) = begin_complete(request, Some(base))?;
     let (trees, _) = drive(lowerer, &syntax)?;
     Ok(SeededSymbolResolvedTrees {
         trees,
         authored_selection_frontier,
         retained_base: Box::new(retained_base),
     })
+}
+
+/// Equation completion uses ordinary selection with identical source and base
+/// custody. Its private links are discarded before the final lowering pass.
+fn begin_complete(
+    request: ResolutionRequest<'_>,
+    base: Option<SymbolResolvedTrees>,
+) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
+    let sources = request.sources.clone();
+    let bindings = request.top_level_bindings.clone();
+    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    if preparation::machine_equations::required(&syntax, base.as_ref()) {
+        let mut provisional = Lowerer::new(sources, bindings);
+        provisional.constant_selection = lowerer.constant_selection.take();
+        provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
+        provisional.equation_sources = Some(Default::default());
+        if let Some(base) = &base {
+            provisional.seed_resolved_base(base.clone())?;
+        }
+        let (trees, selection, links) = drive_recorded(provisional, &syntax)?;
+        preparation::machine_equations::complete(
+            &mut syntax,
+            &trees,
+            links.unwrap_or_default(),
+            &selection,
+        )?;
+        lowerer.constant_selection = Some(selection);
+    }
+    if let Some(base) = base {
+        lowerer.seed_resolved_base(base)?;
+    }
+    lowerer.structural_type_equations_pending = false;
+    Ok((syntax, lowerer))
 }
 
 /// Prepare the forest under its constant selector and a lowerer that owns the
@@ -132,6 +176,7 @@ fn begin(
         request.top_level_bindings.clone(),
         constants,
     )?;
+    preparation::machine_equations::validate_declarations(&prepared.syntax)?;
     let mut lowerer = Lowerer::new(request.sources, request.top_level_bindings);
     lowerer.constant_selection = Some(prepared.constant_selection);
     lowerer.const_resolution_mode = constants;
@@ -145,9 +190,23 @@ fn begin(
 /// domain homes of token-bearing machines need assigned attached symbols;
 /// duplicate machine token bindings compare settled operand identities.
 fn drive(
-    mut lowerer: Lowerer,
+    lowerer: Lowerer,
     syntax: &SyntaxTrees,
 ) -> Result<(SymbolResolvedTrees, ConstantSelection<'static>), Vec<Diagnostic>> {
+    drive_recorded(lowerer, syntax).map(|(trees, selection, _)| (trees, selection))
+}
+
+fn drive_recorded(
+    mut lowerer: Lowerer,
+    syntax: &SyntaxTrees,
+) -> Result<
+    (
+        SymbolResolvedTrees,
+        ConstantSelection<'static>,
+        Option<preparation::machine_equations::SourceLinks>,
+    ),
+    Vec<Diagnostic>,
+> {
     lowering::lower_items(&mut lowerer, syntax)?;
     // Top-level `let`/`boundary let` declarations ride their own root
     // collection (`SyntaxTreeRoots::mathematical_definitions`), outside the
@@ -166,7 +225,8 @@ fn drive(
     constant::finalize_operator_obligations(&mut lowerer)?;
     selection::finalize(&mut lowerer)?;
     lowering::machine::reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;
-    Ok((lowerer.into_trees(), constant_selection))
+    let links = lowerer.equation_sources.take();
+    Ok((lowerer.into_trees(), constant_selection, links))
 }
 
 #[cfg(test)]

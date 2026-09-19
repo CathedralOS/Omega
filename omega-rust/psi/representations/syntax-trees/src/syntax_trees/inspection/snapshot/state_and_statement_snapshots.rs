@@ -360,7 +360,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             machine_arguments: call
                 .machine_arguments
                 .iter()
-                .map(snapshot_static_argument)
+                .map(|argument| snapshot_static_argument(syntax_trees, argument))
                 .collect(),
             arguments: syntax_trees
                 .statements

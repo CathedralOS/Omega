@@ -23,6 +23,8 @@ use crate::BuildTimeValue;
 mod closure_validation;
 mod const_evaluable;
 mod selection_authority;
+#[cfg(test)]
+mod structural_equations_tests;
 
 use closure_validation::checked_closure_violation;
 use const_evaluable::require_const_evaluable_result;
@@ -151,6 +153,51 @@ impl BuildTimeAdmissionPlan {
             selection_authority,
             selected_operators: Vec::new(),
         }
+    }
+
+    /// Provisional typing retains equation obligations through specialization.
+    /// A wrapper cannot execute a pending callee merely because its own
+    /// signature has no type binders.
+    pub(crate) fn require_discharged_structural_equations(
+        &self,
+        program: &TypedTrees,
+        root: SymbolHandle,
+    ) -> Result<(), String> {
+        let mut pending = vec![root];
+        let mut visited = Vec::new();
+        while let Some(symbol) = pending.pop() {
+            if visited.contains(&symbol) {
+                continue;
+            }
+            visited.push(symbol);
+            let Some(machine) = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == symbol)
+            else {
+                continue;
+            };
+            if machine.structural_type_equations_pending {
+                return Err(format!(
+                    "machine `{}` retains an undischarged structural type equation",
+                    machine.name
+                ));
+            }
+            for edge in self
+                .call_edges
+                .iter()
+                .filter(|edge| edge.source_machine_symbol == symbol)
+            {
+                if edge.target_machine_symbol.is_valid() {
+                    pending.push(edge.target_machine_symbol);
+                } else if program.symbols.get(edge.target_state_symbol).kind
+                    == symbols::SymbolKind::Machine
+                {
+                    pending.push(edge.target_state_symbol);
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn with_selected_operators(
@@ -313,6 +360,7 @@ impl BuildTimeAdmissionPlan {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        self.require_discharged_structural_equations(program, machine.symbol)?;
         let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,

@@ -15,7 +15,7 @@ pub(super) fn is_module_constant(syntax: &SyntaxTrees, definition: &ConstDefinit
 /// Module constants deliberately stay out — their names need resolved
 /// declaration selection, which `reject_module_constant_selection` enforces on
 /// any fact spelling that could reach one.
-pub(super) fn lexical_integer_const_values(syntax: &SyntaxTrees) -> HashMap<String, i128> {
+pub(crate) fn lexical_integer_const_values(syntax: &SyntaxTrees) -> HashMap<String, i128> {
     syntax
         .root_items()
         .filter_map(|item| {
@@ -37,7 +37,7 @@ pub(super) fn lexical_integer_const_values(syntax: &SyntaxTrees) -> HashMap<Stri
         .collect()
 }
 
-pub(super) fn reject_module_constant_selection(
+pub(crate) fn reject_module_constant_selection(
     syntax: &SyntaxTrees,
     spelling: &str,
     reference: SourceSpan,
@@ -96,7 +96,7 @@ pub(super) fn reject_module_constant_selection(
     Ok(())
 }
 
-pub(super) fn module_path(syntax: &SyntaxTrees, source: SourceId) -> Option<String> {
+pub(crate) fn module_path(syntax: &SyntaxTrees, source: SourceId) -> Option<String> {
     syntax.root_items().find_map(|item| {
         let Item::Module(module) = item else {
             return None;

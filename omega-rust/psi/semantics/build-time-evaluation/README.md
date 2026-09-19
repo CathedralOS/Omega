@@ -52,7 +52,12 @@ unresolved authored operator meanings and applications requiring inference or
 type/machine/evidence binders still need their complete admission contexts.
 
 [Generic range arguments](src/const_evaluation/range_arguments.rs) expose closed integer range
-types to the same temporary typed-probe mechanism before generic-data synthesis.
+types to the same temporary typed-probe mechanism before structural equation
+completion, for data applications and explicit machine type arguments.
+`pre_resolution::resolve_numeric_probe` substitutes admitted constant values while
+retaining pending machine equations: normalization supplies their inputs but does
+not discharge them. Pending equations survive into typed invocation admission;
+ordinary wrappers cannot execute an undischarged callee transitively.
 Original lexical carrier and constant selections must agree with the probe;
 the shared numeric query supplies structured interval observations, never a
 rendered-name identity. Probing the constrained type avoids forcing an anonymous

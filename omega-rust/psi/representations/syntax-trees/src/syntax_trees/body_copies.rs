@@ -20,6 +20,23 @@ use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use arena::{Handle, HandleSpan};
 
 impl SyntaxTrees {
+    pub fn copy_static_machine_argument(
+        &mut self,
+        other: &SyntaxTrees,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> crate::expression::StaticMachineArgument {
+        let mut copied = argument.clone();
+        copied.type_reference = self.copy_type_reference_handle(other, argument.type_reference);
+        if let Some(application) = &mut copied.application {
+            application.arguments = application
+                .arguments
+                .iter()
+                .map(|nested| self.copy_static_machine_argument(other, nested))
+                .collect();
+        }
+        copied
+    }
+
     pub(crate) fn copy_state_handle_span(
         &mut self,
         other: &SyntaxTrees,
@@ -220,7 +237,11 @@ impl SyntaxTrees {
                 receiver: self.copy_statement_identifier_span(other, call.receiver),
                 receiver_starts_at_self: call.receiver_starts_at_self,
                 target: call.target.clone(),
-                machine_arguments: call.machine_arguments.clone(),
+                machine_arguments: call
+                    .machine_arguments
+                    .iter()
+                    .map(|argument| self.copy_static_machine_argument(other, argument))
+                    .collect(),
                 arguments: self.copy_statement_expression_span(other, call.arguments),
                 evidence_arguments: call.evidence_arguments.clone(),
                 operational_acknowledgement: call.operational_acknowledgement,
@@ -537,7 +558,11 @@ impl SyntaxTrees {
                 target_is_static: call.target_is_static,
                 receiver: self.copy_expression_handle(other, call.receiver),
                 target: call.target.clone(),
-                machine_arguments: call.machine_arguments.clone(),
+                machine_arguments: call
+                    .machine_arguments
+                    .iter()
+                    .map(|argument| self.copy_static_machine_argument(other, argument))
+                    .collect(),
                 arguments: self.copy_expression_handle_list(other, call.arguments),
                 evidence_arguments: call.evidence_arguments.clone(),
                 operational_acknowledgement: call.operational_acknowledgement,

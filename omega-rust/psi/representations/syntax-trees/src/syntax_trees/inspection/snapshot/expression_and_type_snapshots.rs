@@ -21,6 +21,9 @@ pub struct IdentifierSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum StaticArgumentSnapshot {
+    Type {
+        type_reference: Box<TypeReferenceSnapshot>,
+    },
     Path(Vec<IdentifierSnapshot>),
     Application {
         path: Vec<IdentifierSnapshot>,
@@ -511,7 +514,7 @@ fn snapshot_call_expression(
         machine_arguments: call
             .machine_arguments
             .iter()
-            .map(snapshot_static_argument)
+            .map(|argument| snapshot_static_argument(syntax_trees, argument))
             .collect(),
         arguments: syntax_trees
             .expressions
@@ -528,9 +531,17 @@ fn snapshot_call_expression(
 }
 
 pub(crate) fn snapshot_static_argument(
+    syntax_trees: &SyntaxTrees,
     argument: &crate::expression::StaticMachineArgument,
 ) -> StaticArgumentSnapshot {
-    if let Some(literal) = &argument.const_literal {
+    if argument.type_reference.is_valid() {
+        StaticArgumentSnapshot::Type {
+            type_reference: Box::new(snapshot_type_reference_handle(
+                syntax_trees,
+                argument.type_reference,
+            )),
+        }
+    } else if let Some(literal) = &argument.const_literal {
         StaticArgumentSnapshot::Const(literal.text().to_owned())
     } else if let Some(projection) = &argument.evidence_projection {
         StaticArgumentSnapshot::EvidenceProjection {
@@ -544,7 +555,7 @@ pub(crate) fn snapshot_static_argument(
             arguments: application
                 .arguments
                 .iter()
-                .map(snapshot_static_argument)
+                .map(|argument| snapshot_static_argument(syntax_trees, argument))
                 .collect(),
         }
     } else {

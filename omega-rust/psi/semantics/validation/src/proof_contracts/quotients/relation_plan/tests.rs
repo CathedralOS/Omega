@@ -541,6 +541,7 @@ fn static_argument(name: &'static str) -> StaticMachineArgument {
     StaticMachineArgument {
         path: vec![Identifier::generated_static(name)].into_boxed_slice(),
         application: None,
+        type_reference: Default::default(),
         const_literal: None,
         evidence_projection: None,
         symbol: SymbolHandle::invalid(),
@@ -738,6 +739,7 @@ fn push_generic_representative_application(program: &mut TypedTrees) -> Quotient
     let const_argument = StaticMachineArgument {
         path: Box::default(),
         application: None,
+        type_reference: Default::default(),
         const_literal: Some(Default::default()),
         evidence_projection: None,
         symbol: SymbolHandle::invalid(),
@@ -1486,6 +1488,7 @@ fn arithmetic_implication_fixture(
                 argument: StaticMachineArgument {
                     path: Box::default(),
                     application: None,
+                    type_reference: Default::default(),
                     const_literal: Some(IntegerLiteral::from_value(1)),
                     evidence_projection: None,
                     symbol: SymbolHandle::invalid(),
@@ -1717,6 +1720,7 @@ fn fixed_call_fixture(
                 argument: StaticMachineArgument {
                     path: Box::default(),
                     application: None,
+                    type_reference: Default::default(),
                     const_literal: Some(IntegerLiteral::from_value(1)),
                     evidence_projection: None,
                     symbol: SymbolHandle::invalid(),
