@@ -32,14 +32,16 @@
 // - `allocate` publishes the decrement as `result.strategy.remaining ==
 //   strategy.remaining - length`. Exit checking proves that nested field's
 //   exact computation, and `check_remaining` consumes the relation from the
-//   exact second allocation. Turning that equality into the next request's
-//   capacity bound still needs arithmetic entailment. Scalar and content facts
-//   remain separate proof obligations.
-// - And the next residual cannot be computed at the call site: the requires
-//   check does not propagate a subtraction's lower bound (`capacity - 16`
-//   cannot prove `>= 32`), and a param's `requires` bounds do not survive
-//   the first request's consumption of the backing — so `exercise` grants
-//   the second request a stated residual floor equal to its own demand
+//   exact first and second allocations. Turning that equality into the next
+//   request's capacity bound still needs arithmetic entailment. Scalar and
+//   content facts remain separate proof obligations.
+// - Independent scalar entry bounds survive consumption of the backing:
+//   `check_remaining` proves `16 <= capacity` after the first request. Each
+//   arithmetic obligation substitutes only the parameters it uses, so the
+//   sibling result-field argument no longer blocks that bound. The returned
+//   residual still cannot prove the next request's `>= 32` requirement from
+//   the decrement equality — so `exercise` grants the second request a
+//   stated residual floor equal to its own demand
 //   (`remaining: 32`), the minimal authority the call needs.
 // `reset` restores the residual from the recomposed range's own geometry.
 //
@@ -405,6 +407,7 @@ reaches ExtentPartition
         16,
     );
     let first_tail: Extent in Granted & Vacant = issued_first.strategy.tail;
+    check_remaining(issued_first.strategy.remaining, capacity, 16);
     let issued_second: Issued = allocate(
         partition,
         Bump { tail: first_tail, remaining: 32 },

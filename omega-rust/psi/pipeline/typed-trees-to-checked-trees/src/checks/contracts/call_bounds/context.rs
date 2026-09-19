@@ -177,8 +177,28 @@ fn prove(
             Some(binding(parameter.symbol, parameter.symbol, primitive))
         })
         .collect::<Vec<_>>();
+    if !comparison_is_supported(program, facts, callee.symbol, parameters, goal) {
+        return None;
+    }
+    // Each obligation uses only its own formal operands. An unrelated actual
+    // may be a result field or effectful computation that this arithmetic
+    // vocabulary cannot normalize; that supplies no reason to discard a live
+    // bound on another argument. Keep the complete later-argument suffix below:
+    // even an unused formal's actual can overwrite a demanded capture.
+    let mut goal_occurrences = Vec::new();
+    crate::facts::contract_occurrences::append_expression_occurrences(
+        program,
+        goal,
+        &mut goal_occurrences,
+    );
     let mut argument_bindings = Vec::new();
     for (position, (parameter, argument)) in explicit_parameters.zip(arguments).enumerate() {
+        if !goal_occurrences.iter().any(|occurrence| {
+            direct_parameter(program, parameters, *occurrence)
+                .is_some_and(|demanded| demanded.symbol == parameter.symbol)
+        }) {
+            continue;
+        }
         let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
             continue;
         };
@@ -221,9 +241,6 @@ fn prove(
             symbol: parameter.symbol,
             expression: *argument,
         });
-    }
-    if !comparison_is_supported(program, facts, callee.symbol, parameters, goal) {
-        return None;
     }
     // This exact call-entry roster contains simultaneously active overlays,
     // not alternative arrival paths. Their surviving facts are joint premises.

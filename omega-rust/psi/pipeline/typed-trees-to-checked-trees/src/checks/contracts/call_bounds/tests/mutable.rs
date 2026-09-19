@@ -101,3 +101,30 @@ fn later_operand_alias_writes_distinguish_captured_and_disjoint_scalars() {
         }
     }
 }
+
+#[test]
+fn unused_integer_actuals_still_invalidate_demanded_captures() {
+    for (aliased, accepted) in [("input", false), ("other", true)] {
+        for call in [
+            "demand(input, overwrite(alias), input);",
+            "transition { _ -> demand(input, overwrite(alias), input) }",
+        ] {
+            let source = format!(
+                r#"
+                machine overwrite(value: &mut u64) -> u64 {{ value = 0; 7 }}
+                machine demand(left: u64, ignored: u64, right: u64)
+                requires left <= right && right <= left {{}}
+                machine caller(mut input: u64, mut other: u64) {{
+                    let alias: &mut u64 = &mut {aliased};
+                    {call}
+                }}
+            "#
+            );
+            if accepted {
+                checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+            } else {
+                assert_call_requirement_rejected(&source);
+            }
+        }
+    }
+}
