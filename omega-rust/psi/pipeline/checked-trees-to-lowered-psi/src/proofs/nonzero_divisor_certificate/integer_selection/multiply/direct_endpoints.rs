@@ -11,9 +11,7 @@ use proof_admission::{
     IntegerAffineWitness, ProofNode, ProofRule, check_integer_affine_witness,
     map_integer_affine_bound,
 };
-use semantic_vocabulary::{
-    IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,
-};
+use semantic_vocabulary::{IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType};
 
 pub(crate) fn prove_direct_computed_multiply_endpoints(
     context: &PropositionContext,
@@ -54,32 +52,61 @@ pub(crate) fn prove_direct_computed_multiply_endpoints(
                 continue;
             };
             for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-                let Proposition::LessOrEqual(left, right) = fact else {
-                    continue;
+                let root_bounds: Vec<ProofNode> = match fact {
+                    Proposition::LessOrEqual(left, right)
+                        if left == predecessor || right == predecessor =>
+                    {
+                        vec![citation.proof(fact)]
+                    }
+                    // A landed literal equality on the predecessor also fixes
+                    // both oriented endpoints; map each through the witness so
+                    // `v = k` reaches `k*lit <= target` and `target <= k*lit`.
+                    Proposition::Equal(..) => {
+                        let ScalarType::Integer(predecessor_type) = predecessor.scalar_type()
+                        else {
+                            continue;
+                        };
+                        [true, false]
+                            .into_iter()
+                            .filter_map(|orientation| {
+                                oriented_landed_literal_endpoint(
+                                    predecessor_type,
+                                    predecessor,
+                                    orientation,
+                                    citation.proof(fact),
+                                )
+                            })
+                            .collect()
+                    }
+                    _ => continue,
                 };
-                if left != predecessor && right != predecessor {
-                    continue;
-                }
-                let Ok(mapped) = map_integer_affine_bound(&checked, fact) else {
-                    continue;
-                };
-                let same_oriented_target = match &mapped {
-                    Proposition::LessOrEqual(_, actual_target) if lower => actual_target == target,
-                    Proposition::LessOrEqual(actual_target, _) if !lower => actual_target == target,
-                    _ => false,
-                };
-                if same_oriented_target
-                    && !proofs
-                        .iter()
-                        .any(|proof: &ProofNode| proof.conclusion == mapped)
-                {
-                    proofs.push(ProofNode {
-                        conclusion: mapped,
-                        rule: ProofRule::IntegerAffineBound {
-                            root_bound: Box::new(citation.proof(fact)),
-                            witness: witness.clone(),
-                        },
-                    });
+                for root_bound in root_bounds {
+                    let Ok(mapped) = map_integer_affine_bound(&checked, &root_bound.conclusion)
+                    else {
+                        continue;
+                    };
+                    let same_oriented_target = match &mapped {
+                        Proposition::LessOrEqual(_, actual_target) if lower => {
+                            actual_target == target
+                        }
+                        Proposition::LessOrEqual(actual_target, _) if !lower => {
+                            actual_target == target
+                        }
+                        _ => false,
+                    };
+                    if same_oriented_target
+                        && !proofs
+                            .iter()
+                            .any(|proof: &ProofNode| proof.conclusion == mapped)
+                    {
+                        proofs.push(ProofNode {
+                            conclusion: mapped,
+                            rule: ProofRule::IntegerAffineBound {
+                                root_bound: Box::new(root_bound),
+                                witness: witness.clone(),
+                            },
+                        });
+                    }
                 }
             }
         }
@@ -100,11 +127,13 @@ pub(crate) fn direct_cited_operand_endpoints(
     // would change citation positions, and selecting a disjunction would be unsound.
     for projected in projected_facts(assumptions, semantic_axioms) {
         let fact = projected.proposition;
+        // A landed literal equality also fixes both oriented endpoints: the
+        // kernel's order substitution turns `operand = k` into `k <= operand`
+        // or `operand <= k`, so exact operands still orient their operand pair.
         if let Some(proof) =
-            oriented_landed_zero_endpoint(integer_type, operand, lower, projected.proof())
+            oriented_landed_literal_endpoint(integer_type, operand, lower, projected.proof())
         {
             proofs.push(proof);
-            continue;
         }
         let matches = match fact {
             Proposition::Equal(left, right) => {
@@ -142,7 +171,7 @@ pub(crate) fn direct_cited_operand_endpoints(
     proofs
 }
 
-fn oriented_landed_zero_endpoint(
+fn oriented_landed_literal_endpoint(
     integer_type: IntegerType,
     operand: &ScalarTerm,
     lower: bool,
@@ -158,10 +187,8 @@ fn oriented_landed_zero_endpoint(
     } else {
         return None;
     };
-    let (actual_type, value) = literal.integer_value()?;
-    if actual_type != integer_type
-        || !matches!(value, IntegerValue::Signed(0) | IntegerValue::Unsigned(0))
-    {
+    let (actual_type, _) = literal.integer_value()?;
+    if actual_type != integer_type {
         return None;
     }
     let closed =

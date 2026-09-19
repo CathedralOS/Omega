@@ -126,6 +126,93 @@ pub(super) fn two_computed_joins(sign: IntegerSign, bits: u16, lower: bool) -> F
     fixture
 }
 
+/// dice_roller shape: each roll is `remainder(dividend, 6) + 1` and the total
+/// chains them as `((r1 + r2) + r3) + r4`. Remainder-defined operands terminate
+/// the chain through their bounded image, and three nested computed joins
+/// compose the partial sums.
+pub(super) fn remainder_leaf_joins(sign: IntegerSign, bits: u16, lower: bool) -> Fixture {
+    let integer_type = IntegerType::new(sign, bits).expect("fixed integer type");
+    let values = (1..=16)
+        .map(|id| value(id, integer_type))
+        .collect::<Vec<_>>();
+    let context = PropositionContext::from_value_types((1..=16).map(|id| {
+        (
+            ValueId::new(id).expect("value id"),
+            ScalarType::Integer(integer_type),
+        )
+    }))
+    .expect("roll context");
+    let number = |magnitude: u64| match sign {
+        IntegerSign::Signed => IntegerValue::Signed(i128::from(magnitude)),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(magnitude)),
+    };
+    let add = |left: ScalarTerm, right: ScalarTerm| {
+        ScalarTerm::exact_integer_add(integer_type, left, right).expect("exact add")
+    };
+    let six = ScalarTerm::integer(integer_type, number(6)).expect("divisor literal");
+    let one = values[2].clone();
+    let mut axioms = vec![Proposition::Equal(
+        one.clone(),
+        literal(integer_type, number(1)),
+    )];
+    // rolls r1..r4 at values 4, 7, 10, 13; dividends at 1, 5, 8, 11 and
+    // remainders at 2, 6, 9, 12.
+    let dividends = [100_u64, 77, 44, 9];
+    let dividend_slots = [0_usize, 4, 7, 10];
+    let remainder_slots = [1_usize, 5, 8, 11];
+    let rolls = [3_usize, 6, 9, 12];
+    let mut roll_values = Vec::new();
+    for index in 0..dividends.len() {
+        let dividend_value = values[dividend_slots[index]].clone();
+        let remainder_value = values[remainder_slots[index]].clone();
+        let roll = rolls[index];
+        let dividend = dividends[index];
+        axioms.push(Proposition::Equal(
+            dividend_value.clone(),
+            literal(integer_type, number(dividend)),
+        ));
+        axioms.push(Proposition::Equal(
+            remainder_value.clone(),
+            ScalarTerm::exact_integer_remainder(integer_type, dividend_value, six.clone())
+                .expect("exact remainder"),
+        ));
+        let roll_value = values[roll].clone();
+        axioms.push(Proposition::Equal(
+            roll_value.clone(),
+            add(remainder_value, one.clone()),
+        ));
+        roll_values.push(roll_value);
+    }
+    // s1 = r1 + r2, s2 = s1 + r3, s3 = s2 + r4 at values 14, 15, 16.
+    let first_sum = values[13].clone();
+    axioms.push(Proposition::Equal(
+        first_sum.clone(),
+        add(roll_values[0].clone(), roll_values[1].clone()),
+    ));
+    let second_sum = values[14].clone();
+    axioms.push(Proposition::Equal(
+        second_sum.clone(),
+        add(first_sum, roll_values[2].clone()),
+    ));
+    let third_sum = values[15].clone();
+    axioms.push(Proposition::Equal(
+        third_sum.clone(),
+        add(second_sum, roll_values[3].clone()),
+    ));
+    let mut fixture = Fixture {
+        integer_type,
+        context,
+        goal: Proposition::Truth,
+        target: ScalarTerm::integer(integer_type, number(0)).expect("placeholder"),
+        left: roll_values[0].clone(),
+        right: roll_values[1].clone(),
+        axioms,
+        lower,
+    };
+    set_top(&mut fixture, third_sum, roll_values[1].clone());
+    fixture
+}
+
 fn graph(
     integer_type: IntegerType,
     leaves: [IntegerValue; 3],
