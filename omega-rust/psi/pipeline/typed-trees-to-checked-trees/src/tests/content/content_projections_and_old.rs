@@ -6,6 +6,38 @@ use language_semantics::content::{
 };
 
 #[test]
+fn scalar_and_content_guarantees_are_checked_independently() {
+    let source = retained_self_content_source("7")
+        .replace("retain(&mut self)", "retain(&mut self) -> u64")
+        .replace(
+            "== Owned::content(&self.region)",
+            "== Owned::content(&self.region); result == 7",
+        );
+    let accepted = checked(&source);
+    assert_eq!(
+        accepted
+            .facts
+            .qualifications
+            .content
+            .conservation_plans
+            .len(),
+        1
+    );
+    for invalid in [
+        source.replace("result == 7", "result == 8"),
+        source.replace("{ 7 }", "{ self.region.length = 5; 7 }"),
+    ] {
+        let diagnostics = rejected(&invalid);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn checked_facts_retain_normalized_content_projection() {
     let source = r#"
         data ByteUnit {}

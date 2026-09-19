@@ -2593,9 +2593,19 @@ Owners include
     list construct but cannot be consumed, and each record field is restated
     through an exactly typed `let` whose siblings then share custody.
     `NOMINAL-FIELD-FLOW` owns declared-field evidence; repair it there.
-  - Counted residual. `split`'s law never pins `result.taken.length`, a
-    content-carrying machine's `ensures` admits no scalar equality, and a
-    `requires` bound neither carries a subtraction's lower bound nor survives
+  - Counted residual. `split`'s law never pins `result.taken.length`.
+    Separate scalar and content-conservation guarantees are supported and
+    independently checked (`scalar_and_content_guarantees_are_checked_independently`);
+    content-bearing signatures do not restrict every `ensures` to content
+    grammar. The actual allocator probe at `b7bc4a082d` (macOS ARM64), adding
+    `ensures result.strategy.remaining == strategy.remaining - length` to
+    `allocate`, fails `cannot prove ensures contract for exit from allocate`.
+    Reproduce with `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
+    cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
+    -E 'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'`.
+    Nested result-field contract proving belongs to **NOMINAL-FIELD-FLOW**'s
+    `checks/contracts` owner, not the content-contract normalizer. A `requires`
+    bound also neither carries a subtraction's lower bound nor survives
     consumption of the backing. Each request's residual is a caller-stated
     premise, and post-reset reuse is reachable only through a runtime guard.
     A second edge surfaced in `grow`: the requires discharger does not
