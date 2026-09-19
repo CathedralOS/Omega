@@ -3761,8 +3761,6 @@ Owners include
     value-position call, wire-codec argument, transport into another binding,
     reference-typed interior write or unproven rebind still makes the summary
     opaque (`state_write_walk.rs`, `caller_aliases.rs`, `demand.rs`).
-  - `type_may_carry_write` counts every `Named`, generic, array and slice type
-    as write-capable; only state parameters get the reference-free test.
   - `permuted_cycle_frames.rs` hands statement calls a fresh summary memo
     while the prefix walk shares `complete_state_summaries`. Unifying them
     changes the solve-versus-walk route for a cyclic state calling a cached

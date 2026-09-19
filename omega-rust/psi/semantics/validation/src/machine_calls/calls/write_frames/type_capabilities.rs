@@ -7,7 +7,7 @@
 #[cfg(test)]
 mod tests;
 
-use super::isolation::type_is_caller_isolated_local;
+use super::isolation::type_is_caller_isolated_local_in;
 use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
 };
@@ -30,30 +30,25 @@ pub(super) fn type_reference_is_reference(
     }
 }
 
-/// Whether a state parameter can carry a write to a caller place.
-///
-/// `&mut T` is the only exclusive observation-and-mutation path
-/// (wiki/spec/language/ownership.md, "Borrows and aliases"); a by-value
-/// reference transfers its loan carrier, and a by-value parameter whose type
-/// contains no exclusive reference anywhere in its transitive structure --
-/// fields, case payloads, bound generic substitutions, fixed arrays -- is the
-/// state's own storage, so no write through it reaches the caller. Such a
-/// parameter is not a write-capable root of a transition cycle. Every
-/// reference-bearing, generic-unresolved, recursive-unproven, or opaque
-/// boundary type stays write-capable, exactly as before.
+/// Parameter roots use the same storage classification as call arguments and
+/// local bindings. Their position in a transition cycle adds no authority.
 pub(super) fn parameter_may_carry_write(program: &TypedTrees, parameter: &StateParameter) -> bool {
     type_may_carry_write(program, parameter.type_reference)
-        && !type_is_reference_free_value(program, parameter.type_reference)
 }
 
 /// A caller-isolated storage shape with no opaque boundary data anywhere in
-/// its reachable structure. Isolation already fails closed on references,
-/// slices, dynamic traits, unbound generic parameters, and recursive shapes;
-/// an opaque boundary data has no declared members to inspect, so it is
-/// excluded here rather than trusted.
-fn type_is_reference_free_value(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
-    type_is_caller_isolated_local(program, handle)
-        && !type_reaches_opaque_data(program, handle, &mut Vec::new(), &mut Vec::new())
+/// its reachable structure. Isolation fails closed on references, dynamic
+/// traits, unbound generic parameters and recursive runtime shapes. Opaque
+/// boundary data has no declared members to inspect, so the second walk
+/// excludes it rather than trusting an empty field roster. Slice carriers
+/// keep their conservative classification below.
+fn type_is_reference_free_value(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    type_is_caller_isolated_local_in(program, handle, bindings)
+        && !type_reaches_opaque_data(program, handle, &mut Vec::new(), &mut bindings.to_vec())
 }
 
 /// `visiting` holds the data definitions on the current path; a recursive
@@ -173,10 +168,7 @@ pub(super) fn type_may_carry_write_in(
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    type_may_carry_write(program, substituted_head(program, handle, bindings))
-}
-
-pub(super) fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    let handle = substituted_head(program, handle, bindings);
     if program.primitive_type_reference(handle).is_some() {
         return false;
     }
@@ -184,14 +176,26 @@ pub(super) fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHa
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { access, .. } if !access.is_exclusive() => false,
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_may_carry_write(program, *base_type)
+            type_may_carry_write_in(program, *base_type, bindings)
         }
         TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Named { .. }
+        // A by-value record, sum or fixed array without references owns its
+        // storage. It cannot add another possible caller referent when a
+        // boundary returns a loan from its exclusive arguments. Apply this
+        // same law at every query site, not only transition parameters.
+        // Opaque, recursive-unproven and unresolved shapes remain unknown;
+        // initializer effects and exact origins are checked by the callers.
+        TypeReferenceNode::Named { .. }
         | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::FixedArray { .. } => {
+            !type_is_reference_free_value(program, handle, bindings)
+        }
+        TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. } => true,
     }
+}
+
+pub(super) fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    type_may_carry_write_in(program, handle, &[])
 }
