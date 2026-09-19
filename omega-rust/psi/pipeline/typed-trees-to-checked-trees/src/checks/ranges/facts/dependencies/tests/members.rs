@@ -967,7 +967,12 @@ fn a_case_qualified_member_in_a_destructure_guard_reads_the_projected_place() {
     ] {
         assert_eq!(
             facts
-                .preserved_expression_labels(&program, machine, state, Some(&[write.clone()]))
+                .preserved_expression_labels(
+                    &program,
+                    machine,
+                    state,
+                    Some(std::slice::from_ref(&write)),
+                )
                 .contains(&label),
             survives,
             "write to {write:?}"
@@ -1091,7 +1096,12 @@ fn a_member_through_a_case_qualified_receiver_reads_the_projected_place() {
     ] {
         assert_eq!(
             facts
-                .preserved_expression_labels(&program, machine, state, Some(&[write.clone()]))
+                .preserved_expression_labels(
+                    &program,
+                    machine,
+                    state,
+                    Some(std::slice::from_ref(&write)),
+                )
                 .contains(&label),
             survives,
             "write to {write:?}"

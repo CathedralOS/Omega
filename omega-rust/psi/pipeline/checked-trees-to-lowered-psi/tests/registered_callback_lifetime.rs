@@ -237,7 +237,7 @@ fn interpreted_unregister_dispatch_forwards_the_live_registration() {
         path: Vec::new(),
     };
     let inputs = TerminalStructuralInputs {
-        arguments: &[registered.clone()],
+        arguments: std::slice::from_ref(&registered),
         scalar_fields: &[TerminalStructuralScalarFieldValue {
             argument_index: 0,
             path: Vec::new(),
