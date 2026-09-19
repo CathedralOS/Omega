@@ -138,6 +138,19 @@ pub(super) fn record_statement(
     if leaves.is_empty() {
         return Err(unsupported());
     }
+    // Two leaves on the same arm over one root name places the arm's edge
+    // moves independently; overlapping paths consume the same owned storage
+    // twice. Distinct arms are separate edges and may each reach the same
+    // path.
+    for (index, (_, arm, root, path, _)) in leaves.iter().enumerate() {
+        for (_, other_arm, other_root, other_path, _) in &leaves[index + 1..] {
+            if arm == other_arm && root == other_root && place_paths_overlap(path, other_path) {
+                return Err(Diagnostic::error(
+                    "owned match record fields must name disjoint moved places; overlapping paths on one arm consume the same owned storage twice",
+                ));
+            }
+        }
+    }
     // A linear join may not drop custody: every predecessor edge must agree on
     // the live ownership frontier, so every reachable arm has to move the same
     // tracked place into the result. Distinct sources, a source on only some
@@ -148,7 +161,7 @@ pub(super) fn record_statement(
         let terminals = terminal_arm_values(program, expression);
         let mut consumed: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> = Vec::new();
         let mut symbol_leaves = 0usize;
-        for (_, _, root, path) in &leaves {
+        for (_, _, root, path, _) in &leaves {
             let facts::PlaceRoot::Symbol(symbol) = root else {
                 continue;
             };
@@ -165,16 +178,15 @@ pub(super) fn record_statement(
             ));
         }
     }
-    // Every leaf carries the same result type, so one frontier serves them
-    // all: a whole affine carrier contributes its complete linear claim
-    // frontier, a linear leaf contributes itself, and a plain leaf contributes
-    // nothing.
-    let claim_templates = crate::checks::multiplicity::linear_validation::linear_claim_frontier(
-        program,
-        type_reference,
-    );
+    // Every arm-value leaf carries the result type, while a record-field leaf
+    // carries its own field type: the consumed claim frontier is per leaf. A
+    // whole affine carrier contributes its complete linear claim frontier, a
+    // linear leaf contributes itself, and a plain leaf contributes nothing.
+    let leaf_frontier = |leaf_type: TypeReferenceHandle| {
+        crate::checks::multiplicity::linear_validation::linear_claim_frontier(program, leaf_type)
+    };
     let mut sources = Vec::new();
-    for (_, _, root, _) in &leaves {
+    for (_, _, root, _, _) in &leaves {
         // A call's structural product roots its own once-evaluated custody;
         // only whole-local roots carry a roster source.
         let facts::PlaceRoot::Symbol(symbol) = *root else {
@@ -192,11 +204,11 @@ pub(super) fn record_statement(
         // overlap inside one frontier, so overlapping-but-distinct entries
         // here mean the leaf set disagrees with itself.
         let mut consumed_paths: Vec<Vec<facts::PlaceSegment>> = Vec::new();
-        for (_, _, leaf_root, leaf_path) in &leaves {
+        for (_, _, leaf_root, leaf_path, leaf_type) in &leaves {
             if *leaf_root != facts::PlaceRoot::Symbol(symbol) {
                 continue;
             }
-            for template in &claim_templates {
+            for template in &leaf_frontier(*leaf_type) {
                 let mut claim_path = leaf_path.clone();
                 claim_path.extend_from_slice(&template.path);
                 if consumed_paths.contains(&claim_path) {
@@ -349,7 +361,7 @@ pub(super) fn record_statement(
         // type is the result type. A source reached only through projected
         // leaves instead owes the exact moved path recorded on each transfer;
         // the projected leaf type was already checked against the result.
-        if leaves.iter().any(|(_, _, leaf_root, path)| {
+        if leaves.iter().any(|(_, _, leaf_root, path, _)| {
             *leaf_root == facts::PlaceRoot::Symbol(symbol) && path.is_empty()
         }) && program.normalized_type_identity(source_reference)
             != program.normalized_type_identity(type_reference)
@@ -412,7 +424,7 @@ pub(super) fn record_statement(
     });
     let sources = facts.flow.ownership.selection_sources.insert_many(sources);
     let mut transfers = Vec::new();
-    for (expression, source_arm, root, path) in leaves {
+    for (expression, source_arm, root, path, leaf_type) in leaves {
         let (source, claims) = match root {
             facts::PlaceRoot::Symbol(symbol) => {
                 let ordinal = facts
@@ -430,7 +442,7 @@ pub(super) fn record_statement(
                 // Each leaf consumes the leaf type's whole linear frontier
                 // under its own moved path: one row per claim, each naming
                 // the consumed place's exact identity and provenance.
-                let claims = claim_templates
+                let claims = leaf_frontier(leaf_type)
                     .iter()
                     .map(|template| {
                         let mut claim_path = path.clone();
@@ -852,6 +864,14 @@ fn has_owned_leaf(
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             projected_leaf_source(program, machine, state, statement_index, expression).is_some()
         }
+        // A record arm moving existing children carries its leaves inside the
+        // constructor: a projected field is the same moved-child leaf the
+        // arm-level rule admits, so the roster has to engage for it too.
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| has_owned_leaf(program, machine, state, statement_index, field.value)),
         _ => false,
     }
 }
@@ -1002,6 +1022,7 @@ fn collect_leaves(
         Handle<TableMatchArm>,
         facts::PlaceRoot,
         Vec<facts::PlaceSegment>,
+        TypeReferenceHandle,
     )>,
 ) -> Result<(), Diagnostic> {
     match program.expression_table.expression(expression) {
@@ -1016,6 +1037,7 @@ fn collect_leaves(
                         source_arm,
                         facts::PlaceRoot::Symbol(symbol),
                         Vec::new(),
+                        type_reference,
                     ));
                     Ok(())
                 }
@@ -1024,28 +1046,46 @@ fn collect_leaves(
         }
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) if source_arm.is_valid() => {
             match projected_leaf_source(program, machine, state, statement_index, expression) {
-                Some((root, path))
-                    if program.normalized_type_identity(
-                        crate::flow::canonical_place_type_reference(
-                            program,
-                            state.symbol,
-                            statement_index,
-                            &crate::flow::CanonicalPlace {
-                                root,
-                                segments: path.clone(),
-                            },
-                        )
-                        .ok_or_else(unsupported)?,
-                    ) == program.normalized_type_identity(type_reference) =>
-                {
-                    leaves.push((expression, source_arm, root, path));
+                Some((root, path)) => {
+                    let leaf_type = crate::flow::canonical_place_type_reference(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        &crate::flow::CanonicalPlace {
+                            root,
+                            segments: path.clone(),
+                        },
+                    )
+                    .ok_or_else(unsupported)?;
+                    if program.normalized_type_identity(leaf_type)
+                        != program.normalized_type_identity(type_reference)
+                    {
+                        return Err(unsupported());
+                    }
+                    leaves.push((expression, source_arm, root, path, leaf_type));
                     Ok(())
                 }
                 _ => Err(unsupported()),
             }
         }
         ExpressionNode::StructLiteral(_) if source_arm.is_valid() => {
-            fresh_leaf(program, machine, state, expression, type_reference)
+            // A record arm is fresh construction whose fields may each move
+            // an exact owned child leaf. Moved fields join the roster so the
+            // edge residual schedule names the precise complement; every
+            // other field keeps the unrestricted-operand rule.
+            let fields = fresh_leaf_shape(program, machine, state, expression, type_reference)?;
+            for field in fields {
+                collect_field_leaves(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    field,
+                    source_arm,
+                    leaves,
+                )?;
+            }
+            Ok(())
         }
         ExpressionNode::Call(call) if source_arm.is_valid() => {
             // A call's structural product is a fresh arm value: it carries no
@@ -1125,9 +1165,87 @@ fn collect_leaves(
     }
 }
 
-// A fresh arm constructs the exact result type and contributes no source and
-// no transfer; its field operands obey the same no-hidden-ownership rules as
-// selection predicates.
+/// One record field's contribution to the roster: an exact projected child
+/// moves as a leaf, while every other field shape stays on the fresh-construction
+/// operand rules. Whole names are not field leaves: a field's carrier is its
+/// declared member type, not the source root's whole-place type, so a whole
+/// name at field position cannot name the moved custody the roster records.
+fn collect_field_leaves(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    field: ExpressionHandle,
+    source_arm: Handle<TableMatchArm>,
+    leaves: &mut Vec<(
+        ExpressionHandle,
+        Handle<TableMatchArm>,
+        facts::PlaceRoot,
+        Vec<facts::PlaceSegment>,
+        TypeReferenceHandle,
+    )>,
+) -> Result<(), Diagnostic> {
+    let fresh = |field| {
+        hidden_ownership_operands(
+            program,
+            machine,
+            state,
+            &expression_nodes(program, field),
+            "owned match record field operands require unrestricted operands without hidden ownership transfers",
+        )
+    };
+    match program.expression_table.expression(field) {
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            match projected_leaf_source(program, machine, state, statement_index, field) {
+                Some((root, path)) => {
+                    let leaf_type = crate::flow::canonical_place_type_reference(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        &crate::flow::CanonicalPlace {
+                            root,
+                            segments: path.clone(),
+                        },
+                    )
+                    .ok_or_else(unsupported)?;
+                    if Some(leaf_type)
+                        != validation::expression_result_type_reference(
+                            program, machine, state, field,
+                        )
+                    {
+                        return Err(unsupported());
+                    }
+                    leaves.push((field, source_arm, root, path, leaf_type));
+                    Ok(())
+                }
+                None => fresh(field),
+            }
+        }
+        ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
+            let reference =
+                validation::expression_result_type_reference(program, machine, state, field)
+                    .ok_or_else(unsupported)?;
+            let fields = fresh_leaf_shape(program, machine, state, field, reference)?;
+            for nested in fields {
+                collect_field_leaves(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    nested,
+                    source_arm,
+                    leaves,
+                )?;
+            }
+            Ok(())
+        }
+        _ => fresh(field),
+    }
+}
+
+/// A fresh arm constructs the exact result type and contributes no source and
+/// no transfer; its field operands obey the same no-hidden-ownership rules as
+/// selection predicates.
 fn fresh_leaf(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -1135,6 +1253,31 @@ fn fresh_leaf(
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> Result<(), Diagnostic> {
+    let fields = fresh_leaf_shape(program, machine, state, expression, type_reference)?;
+    let operands = fields
+        .into_iter()
+        .flat_map(|value| expression_nodes(program, value))
+        .collect::<Vec<_>>();
+    hidden_ownership_operands(
+        program,
+        machine,
+        state,
+        &operands,
+        "owned match fresh fields require unrestricted operands without hidden ownership transfers",
+    )
+}
+
+/// The fresh-construction shape every literal or case arm must keep: the
+/// authored expression declares the exact result type, its contents satisfy
+/// the multiplicity's owned-storage walls, and the field value list is handed
+/// back for the caller's per-field disposition.
+fn fresh_leaf_shape(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+) -> Result<Vec<ExpressionHandle>, Diagnostic> {
     let (reference, fields) =
         if let Some(constructor) = validation::scalar_case_constructor(program, expression) {
             (
@@ -1175,17 +1318,7 @@ fn fresh_leaf(
     {
         return Err(unsupported());
     }
-    let operands = fields
-        .into_iter()
-        .flat_map(|value| expression_nodes(program, value))
-        .collect::<Vec<_>>();
-    hidden_ownership_operands(
-        program,
-        machine,
-        state,
-        &operands,
-        "owned match fresh fields require unrestricted operands without hidden ownership transfers",
-    )
+    Ok(fields)
 }
 
 /// A call moves no selection custody when it carries no receiver and every

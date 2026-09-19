@@ -251,6 +251,18 @@ pub(super) fn validate_receipt(
             return unsupported("selected ownership reused or substituted a transfer occurrence");
         }
         let source = ownership.selection_sources.get(transfer.source);
+        // A field leaf inside a record arm fronts its own member type rather
+        // than the result type, so the claim frontier replays from the leaf's
+        // declared type.
+        let leaf_reference = validation::expression_result_type_reference(
+            &checked.typed,
+            owner,
+            authored,
+            transfer.expression,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "selected ownership leaf has no declared type",
+        ))?;
         let authored =
             validation::affine_owned_value_source(&checked.typed, transfer.expression, reference)
                 .or_else(|| projected_local_root(checked, transfer.expression));
@@ -261,9 +273,11 @@ pub(super) fn validate_receipt(
         // under the recorded moved path, replayed independently: a whole
         // carrier names every claim its children carry, a plain leaf names
         // none, and each row's provenance must agree with the source's own
-        // establishment evidence when that evidence is known.
+        // establishment evidence when that evidence is known. A field leaf
+        // inside a record arm fronts its own member type rather than the
+        // result type, so the frontier replays from the leaf's declared type.
         let leaf_path = ownership.segments.span_or_empty(transfer.path);
-        let expected_claims = validation::linear_claim_frontier(&checked.typed, reference);
+        let expected_claims = validation::linear_claim_frontier(&checked.typed, leaf_reference);
         let claims = ownership
             .selection_transfer_claims
             .span_or_empty(transfer.claims);
@@ -564,10 +578,11 @@ pub(super) fn validate_projection(
             .ok_or(LoweringError::Unsupported(
                 "projected selection leaf has no declared type",
             ))?;
-    if checked.normalized_type_identity(leaf_reference).as_str() != type_identity
-        || checked.normalized_type_identity(leaf_reference)
-            != checked.normalized_type_identity(receipt.type_reference)
-    {
+    // The projected leaf type is the moved child's own declared carrier: the
+    // arm-value leaf's carrier is the result type, while a record-field leaf
+    // fronts its member type. Either way the retained node's type identity
+    // pins it; the receipt's result type constrains only arm-level leaves.
+    if checked.normalized_type_identity(leaf_reference).as_str() != type_identity {
         return unsupported("projected selection changed its moved child type");
     }
     let root_reference = validation::expression_result_type_reference(
