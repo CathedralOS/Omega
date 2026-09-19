@@ -672,6 +672,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "borrow/whole_place_recast_disjoint_member_compile",
     "borrows/borrow_disjoint_fixed_index_call_mut",
     "borrows/borrow_disjoint_fixed_index_mut",
+    "borrows/borrow_domain_window_write_and_call",
     "borrows/borrow_guarded_window_write_and_call",
     "borrows/borrow_premised_call_argument",
     "borrows/borrow_premised_sum_index_mut",

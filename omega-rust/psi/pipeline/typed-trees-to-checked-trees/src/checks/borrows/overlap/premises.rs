@@ -11,6 +11,9 @@
 //! judgment could not. Disequality distinguishes singleton elements without
 //! choosing an ordering; it says nothing about overlap of wider windows.
 //! No relation can form a loan, extend a lifetime, or widen access.
+//! Required domain membership uses the same decomposition with a definition
+//! scope: its reserved self binds the immutable membership subject. The
+//! definition-owned meaning reader rejects foreign self and selected operators.
 
 use checked_trees::{
     BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
@@ -23,6 +26,66 @@ use typed_trees::state::State;
 use super::indexes::{NormalizedBound, normalized_bound, selector_value};
 use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 use crate::checks::ranges::requirements::state_requires_facts;
+
+mod domains;
+
+#[derive(Clone, Copy)]
+enum PremiseScope<'program> {
+    State {
+        machine: &'program Machine,
+        state: &'program State,
+    },
+    Domain {
+        definition: &'program typed_trees::domain::DomainDefinition,
+        subject: NormalizedBound,
+    },
+}
+
+impl PremiseScope<'_> {
+    fn has_builtin_meaning(
+        self,
+        program: &typed_trees::TypedTrees,
+        expression: ExpressionHandle,
+    ) -> bool {
+        match self {
+            Self::State { machine, state } => validation::has_builtin_decomposed_guard_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ),
+            Self::Domain { definition, .. } => {
+                validation::has_builtin_domain_decomposed_guard_meaning(
+                    program, definition, expression,
+                )
+            }
+        }
+    }
+
+    fn bound(
+        self,
+        program: &typed_trees::TypedTrees,
+        expression: ExpressionHandle,
+    ) -> Option<NormalizedBound> {
+        match self {
+            Self::State { .. } => normalized_bound(program, expression),
+            Self::Domain {
+                definition,
+                subject,
+            } => {
+                if validation::exact_domain_self_type(program, definition, expression).is_some() {
+                    Some(subject)
+                } else if let ExpressionNode::Integer(literal) =
+                    program.expression_table.expression(expression)
+                {
+                    literal.value_i64().map(NormalizedBound::Integer)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
 
 /// Normalized immutable relation and its reconstructed query transport.
 /// Transport is local checking state, never serialized proof authority.
@@ -50,9 +113,10 @@ impl StatedOrderingPremise {
 
 /// Collect the ordering premises available at one formation scope.
 ///
-/// Both establishment readers are shared with range checking. Facts that do
-/// not decompose into builtin integer comparisons over immutable bounds
-/// contribute no premise; mutable storage needs version evidence first.
+/// Entry availability and incoming guards are shared with range checking.
+/// Required domain predicates additionally bind their own definition scope.
+/// Facts that do not decompose into builtin integer comparisons over immutable
+/// bounds contribute no premise; mutable storage needs version evidence first.
 pub fn stated_ordering_premises(
     program: &typed_trees::TypedTrees,
     facts: &checked_trees::CheckFacts,
@@ -68,21 +132,30 @@ pub fn stated_ordering_premises(
         if !state_requires_facts(program, machine, state).any(|candidate| candidate == row.fact) {
             continue;
         }
-        let typed_trees::domain::ProofFact::Expression(expression) =
-            program.proof_facts.get(row.fact)
-        else {
-            continue;
-        };
-        decompose_premise_expression(
-            program,
-            machine,
-            state,
-            *expression,
-            false,
-            BorrowCompatibilityPremiseSource::Requires(fact),
-            &None,
-            &mut premises,
-        );
+        match program.proof_facts.get(row.fact) {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                decompose_premise_expression(
+                    program,
+                    PremiseScope::State { machine, state },
+                    *expression,
+                    false,
+                    BorrowCompatibilityPremiseSource::Requires(fact),
+                    &None,
+                    &mut premises,
+                );
+            }
+            typed_trees::domain::ProofFact::Membership(membership) => {
+                domains::append_membership_premises(
+                    program,
+                    machine,
+                    state,
+                    fact,
+                    membership,
+                    &mut premises,
+                );
+            }
+            typed_trees::domain::ProofFact::Proposition(_) => {}
+        }
     }
     for guard in incoming_guards
         .for_machine(machine.symbol)
@@ -109,8 +182,10 @@ pub fn stated_ordering_premises(
         );
         decompose_premise_expression(
             program,
-            machine,
-            evaluation_state,
+            PremiseScope::State {
+                machine,
+                state: evaluation_state,
+            },
             guard.guard(),
             guard.is_negated(),
             BorrowCompatibilityPremiseSource::IncomingGuard {
@@ -128,27 +203,18 @@ pub fn stated_ordering_premises(
 ///
 /// Conjunctions contribute each conjunct independently; `>`/`>=` normalize to
 /// the flipped `<`/`<=` premise so stored relations stay canonical. Every
-/// node is gated by the same builtin-meaning check the range guard seeder
-/// applies, so an overloaded comparison cannot masquerade as integer
-/// ordering.
+/// node is gated by its scope's builtin-meaning reader, so an overloaded
+/// comparison cannot masquerade as integer ordering.
 fn decompose_premise_expression(
     program: &typed_trees::TypedTrees,
-    machine: &Machine,
-    state: &State,
+    scope: PremiseScope<'_>,
     expression: ExpressionHandle,
     negated: bool,
     source: BorrowCompatibilityPremiseSource,
     parameter_arguments: &Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>>,
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
-    if !expression.is_valid()
-        || !validation::has_builtin_decomposed_guard_meaning(
-            program,
-            machine,
-            Some(state),
-            expression,
-        )
-    {
+    if !expression.is_valid() || !scope.has_builtin_meaning(program, expression) {
         return;
     }
     let node = program.expression_table.expression(expression);
@@ -157,8 +223,7 @@ fn decompose_premise_expression(
     {
         decompose_premise_expression(
             program,
-            machine,
-            state,
+            scope,
             unary.operand,
             !negated,
             source,
@@ -187,8 +252,7 @@ fn decompose_premise_expression(
             let equality_negated = negated ^ (binary.operator == BinaryOperator::NotEqual);
             decompose_premise_expression(
                 program,
-                machine,
-                state,
+                scope,
                 operand,
                 equality_negated == value,
                 source,
@@ -202,8 +266,7 @@ fn decompose_premise_expression(
         (BinaryOperator::And, false) | (BinaryOperator::Or, true) => {
             decompose_premise_expression(
                 program,
-                machine,
-                state,
+                scope,
                 binary.left,
                 negated,
                 source,
@@ -212,8 +275,7 @@ fn decompose_premise_expression(
             );
             decompose_premise_expression(
                 program,
-                machine,
-                state,
+                scope,
                 binary.right,
                 negated,
                 source,
@@ -242,10 +304,8 @@ fn decompose_premise_expression(
         }
         _ => return,
     };
-    let (Some(left), Some(right)) = (
-        normalized_bound(program, left),
-        normalized_bound(program, right),
-    ) else {
+    let (Some(left), Some(right)) = (scope.bound(program, left), scope.bound(program, right))
+    else {
         return;
     };
     premises.push(StatedOrderingPremise {

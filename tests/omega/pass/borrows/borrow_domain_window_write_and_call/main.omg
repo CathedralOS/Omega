@@ -1,0 +1,18 @@
+domain u64::Upper requires self >= 2;
+
+data Main { items: [i32; 4]; }
+
+machine take(slot: &mut i32) {
+    slot = 7;
+}
+
+machine Main::main(&mut self, split_point: u64 [0..=4]) -> u64
+    requires split_point in u64::Upper;
+{
+    let held: &mut [i32] = self.items[split_point..4];
+    self.items[0] = 3;
+    take(&mut self.items[1]);
+    let outside: &mut i32 = &mut self.items[0];
+    outside = 5;
+    held.len
+}

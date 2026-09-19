@@ -82,6 +82,11 @@ pub enum BorrowCompatibilityPremiseRelation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorrowCompatibilityPremiseSource {
     Requires(Handle<crate::ContractProofFact>),
+    RequiresDomain {
+        membership: Handle<crate::ContractProofFact>,
+        domain: SymbolHandle,
+        predicate: Handle<typed_trees::domain::ProofFact>,
+    },
     IncomingGuard {
         expression: ExpressionHandle,
         negated: bool,
@@ -90,9 +95,9 @@ pub enum BorrowCompatibilityPremiseSource {
 
 /// One exact ordering premise consumed by a `Premised` derivation.
 ///
-/// `source` identifies the requires row or incoming guard the relation was
-/// decomposed from; `left`/`right` are its normalized immutable-bound
-/// operands at establishment. Replay reconstructs availability and parameter
+/// `source` identifies the requires row, its domain predicate, or incoming
+/// guard the relation was decomposed from; `left`/`right` are its normalized
+/// immutable-bound operands at establishment. Replay reconstructs availability and parameter
 /// transport from typed source and consumes recorded tokens positionally.
 /// A token the current program does not reproduce is drift, not evidence. A
 /// premise establishes only a relational fact over already-formed places: it
