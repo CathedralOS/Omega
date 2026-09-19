@@ -1,4 +1,4 @@
-use super::{BoundaryNominalIdentity, TerminalBoundaryApplicationDemands};
+use super::demands::{BoundaryNominalIdentity, TerminalBoundaryApplicationDemands};
 use semantic_vocabulary::OperationId;
 
 /// Closed semantic role selected for one exact D29 application.
