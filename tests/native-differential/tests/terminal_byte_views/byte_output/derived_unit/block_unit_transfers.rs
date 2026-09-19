@@ -1,6 +1,6 @@
 //! A checked suffix arrives by value before a real effectful Unit call.
 
-use super::super::super::{StructuralPlaceDeclaration, StructuralPlaceKind};
+use super::super::super::{StructuralPlaceDeclaration, StructuralPlaceKind, native_function};
 
 use super::{
     BlockId, EdgeId, MachineId, NativeTarget, OperationId, OperationKind, PlaceId, TerminalModule,

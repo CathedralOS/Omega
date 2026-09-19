@@ -1,7 +1,7 @@
 //! A generated Unit function invokes the real returning hosted byte-output leaf.
 use super::{
     AdmissionProfile, NativeTarget, OperationId, OperationKind, ProofBundle, TerminalModule,
-    ValueId, calls, fixtures,
+    ValueId, calls, fixtures, native_function,
 };
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,

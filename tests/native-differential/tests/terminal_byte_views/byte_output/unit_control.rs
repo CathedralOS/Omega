@@ -1,6 +1,7 @@
 //! Conditional Unit effects converge before the caller's final output.
 use super::super::{
-    OptimizationSelections, compiler_baseline_request_v1, optimize_artifact_sections,
+    OptimizationSelections, compiler_baseline_request_v1, native_function,
+    optimize_artifact_sections,
 };
 use super::{
     AdmissionProfile, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
