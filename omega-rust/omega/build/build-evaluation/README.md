@@ -2,7 +2,8 @@
 
 `src/lib.rs` admits and executes one selected companion build machine. Its
 configuration, declarations, target/root selection, optimization, observation,
-and replay modules own their respective results and checks.
+and output custody modules own their respective results and checks. The admitted
+machine executes once against its selected filesystem.
 
 ## Root-binding implementation boundary
 
@@ -20,8 +21,7 @@ Build.target remains immutable through every alias.
 The interpreter returns executed statement coordinates alongside its argument
 results, separate from host observations. This owner rejoins them to the exact
 prepared program and the occurrence's source/package before target selection.
-Replay compares the executed requests as well as argument values and host
-observations. Requests are not target-admission evidence.
+Requests are not target-admission evidence.
 
 Foreign helpers are admitted lexically: each `roots.bind` occurrence resolves
 its implementation against the product machines of its own source package, so a

@@ -1100,149 +1100,8 @@ fn filesystem_cohort_closure_admits_constrained_release_occurrence() {
 }
 
 #[test]
-fn filesystem_release_occurrence_review_binds_the_retained_record() {
-    use super::super::terminal_authority_policy::filesystem_native_handle_query_release_contracts;
-    use super::super::{
-        filesystem_host_permission_row, filesystem_release_mechanism_row,
-        terminal_authority_permission_policy::terminal_authority_permission_policy_with_rows,
-        terminal_authority_policy::terminal_authority_policy_with_rows,
-    };
-
-    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
-    let record = build_evaluation::capture_verified_build_filesystem_replay_record(
-        &build_evaluation::test_support::replayable_native_handle_query_chain_summary(&[(
-            b"pkg/main.omg",
-            7,
-        )]),
-        limits,
-    )
-    .expect("the retained query-release chain encodes")
-    .expect("the verified query-release chain keeps replay custody");
-    let contracts = filesystem_native_handle_query_release_contracts(&record, limits)
-        .expect("the retained occurrence realizes its release contract");
-    let [contract] = contracts.as_slice() else {
-        panic!("one retained occurrence derives exactly one release contract")
-    };
-
-    let requirement = "test::FilesystemHost::close_handle()";
-    let method = service_method(requirement);
-    let provider_plan = ProviderPlan {
-        name: "filesystem".to_owned(),
-        provider_type: "FilesystemProvider".to_owned(),
-        provider_type_package_identity: None,
-        target: "linux_x86_64".to_owned(),
-        schema: ServiceSchema {
-            trait_name: "test::FilesystemHost".to_owned(),
-            trait_package_identity: None,
-            methods: vec![method.clone()],
-        },
-        rows: vec![ProviderPlanRow {
-            method: method.name.clone(),
-            requirement_identity: method.requirement_identity.clone(),
-            requirement_lifetime_partition: Vec::new(),
-            binding: ProviderBinding::Syscall { number: 3 },
-        }],
-        origin_package_identity: None,
-        origin_package: "test".to_owned(),
-    };
-    let selected = SelectedProviderPlanFacts::from_selected_plans(vec![provider_plan.clone()])
-        .expect("selected filesystem close");
-    let mechanisms = vec![AdmittedTerminalMechanism {
-        boundary: BoundaryMachineId::new(1).unwrap(),
-        mechanism: SyscallTerminalMechanismIdentity::new(
-            target::TargetProfile::LinuxX64,
-            3,
-            contract.checked_argument_contract(),
-        )
-        .into(),
-    }];
-    let physical = terminal_authority_policy_with_rows(vec![
-        filesystem_release_mechanism_row(mechanisms[0].mechanism, &method, *contract)
-            .expect("the retained occurrence earns its evidence-bound empty row"),
-    ])
-    .expect("exact release policy");
-    let permitted = terminal_authority_permission_policy_with_rows(vec![
-        filesystem_host_permission_row(provider_plan.schema.identity_digest(), &method)
-            .expect("the canonical release requirement has a justified permission"),
-    ])
-    .expect("exact filesystem permission table");
-
-    let receipt = review_terminal_authority_closure(
-        [31; 32],
-        target::TargetProfile::LinuxX64,
-        &abstract_plan(
-            vec![boundary(1, requirement)],
-            Vec::new(),
-            vec![function(1, &[1])],
-        ),
-        &selected,
-        &physical,
-        Some(&permitted),
-        &mechanisms,
-        &[],
-    )
-    .expect("the constrained close leaf admits under the retained record's contract");
-    let [leaf] = receipt.leaves() else {
-        panic!("one requirement admits exactly one leaf")
-    };
-    assert_eq!(leaf.requirement_identity(), requirement);
-    assert!(leaf.exercised().is_authority_class_empty());
-    assert!(
-        leaf.permitted()
-            .expect("adjudicated leaf")
-            .is_authority_class_empty()
-    );
-    receipt.validate().expect("canonical receipt replays");
-
-    // A mechanism minted from a different record's occurrence is a stale or
-    // substituted proof for this review: it stays unclassified.
-    let foreign_record = build_evaluation::capture_verified_build_filesystem_replay_record(
-        &build_evaluation::test_support::replayable_native_handle_query_chain_summary(&[(
-            b"pkg/other.omg",
-            7,
-        )]),
-        limits,
-    )
-    .expect("the second chain encodes")
-    .expect("the second verified chain keeps custody");
-    let foreign_contracts =
-        filesystem_native_handle_query_release_contracts(&foreign_record, limits)
-            .expect("the second retained occurrence realizes its contract");
-    let [foreign_contract] = foreign_contracts.as_slice() else {
-        panic!("the second occurrence derives one contract")
-    };
-    assert_ne!(contract, foreign_contract);
-    let substituted = vec![AdmittedTerminalMechanism {
-        boundary: BoundaryMachineId::new(1).unwrap(),
-        mechanism: SyscallTerminalMechanismIdentity::new(
-            target::TargetProfile::LinuxX64,
-            3,
-            foreign_contract.checked_argument_contract(),
-        )
-        .into(),
-    }];
-    let error = review_terminal_authority_closure(
-        [31; 32],
-        target::TargetProfile::LinuxX64,
-        &abstract_plan(
-            vec![boundary(1, requirement)],
-            Vec::new(),
-            vec![function(1, &[1])],
-        ),
-        &selected,
-        &physical,
-        Some(&permitted),
-        &substituted,
-        &[],
-    )
-    .expect_err("another record's occurrence does not inherit this row");
-    assert!(error.contains("does not classify"), "{error}");
-    assert!(error.contains("close_handle"), "{error}");
-}
-
-#[test]
-fn foreign_release_occurrence_review_binds_the_retained_record() {
-    use super::super::terminal_authority_policy::filesystem_native_handle_query_release_contracts;
+fn foreign_release_review_keeps_checked_coordinate_separate_from_calling_plan() {
+    use super::super::terminal_authority_policy::filesystem_ordinary_release_contract;
     use super::super::{
         filesystem_host_permission_row, filesystem_mechanism_row, filesystem_release_mechanism_row,
         terminal_authority_permission_policy::terminal_authority_permission_policy_with_rows,
@@ -1251,21 +1110,9 @@ fn foreign_release_occurrence_review_binds_the_retained_record() {
         },
     };
 
-    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
-    let record = build_evaluation::capture_verified_build_filesystem_replay_record(
-        &build_evaluation::test_support::replayable_native_handle_query_chain_summary(&[(
-            b"pkg/main.omg",
-            7,
-        )]),
-        limits,
-    )
-    .expect("the retained query-release chain encodes")
-    .expect("the verified query-release chain keeps replay custody");
-    let contracts = filesystem_native_handle_query_release_contracts(&record, limits)
-        .expect("the retained occurrence realizes its release contract");
-    let [contract] = contracts.as_slice() else {
-        panic!("one retained occurrence derives exactly one release contract")
-    };
+    // Synthetic policy coordinates exercise admission/key separation, not an
+    // executable occurrence proof. Production must establish its own derivation.
+    let contract = filesystem_ordinary_release_contract([9; 32]);
 
     // The Windows realization of `close_handle` is a `kernel32!CloseHandle`
     // import, not a direct syscall: the constrained occurrence keeps the
@@ -1309,8 +1156,8 @@ fn foreign_release_occurrence_review_binds_the_retained_record() {
         mechanism: bound,
     }];
     let physical = terminal_authority_policy_with_rows(vec![
-        filesystem_release_mechanism_row(bound, &method, *contract)
-            .expect("the retained occurrence earns its evidence-bound empty row"),
+        filesystem_release_mechanism_row(bound, &method, contract)
+            .expect("the explicit policy rows the checked coordinate"),
     ])
     .expect("exact release policy");
     assert_eq!(
@@ -1339,7 +1186,7 @@ fn foreign_release_occurrence_review_binds_the_retained_record() {
         &mechanisms,
         &[],
     )
-    .expect("the constrained close_handle import admits under the retained record's contract");
+    .expect("the exact checked-coordinate policy admits the fixture import");
     let [leaf] = receipt.leaves() else {
         panic!("one requirement admits exactly one leaf")
     };

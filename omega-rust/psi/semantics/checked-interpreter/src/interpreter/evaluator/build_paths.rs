@@ -292,21 +292,7 @@ impl<'program> Evaluator<'program> {
             .real_fs
             .as_ref()
             .is_some_and(real_filesystem::RealFs::is_scoped);
-        let replayed_output = self
-            .filesystem_replay
-            .as_ref()
-            .and_then(|replay| {
-                replay
-                    .expected_included_sources()
-                    .get(self.build_included_sources.len())
-            })
-            .is_some_and(|expected| {
-                expected.root() == included_root
-                    && expected.relative_path() == relative_path
-                    && expected.filesystem_attempt_ordinal()
-                        == self.filesystem_operation_attempts.len()
-            });
-        if !scoped_real_output && !replayed_output {
+        if !scoped_real_output {
             return Err(Halt::Trap(
                 "generated-source handoff requires a scoped build-output grant".to_owned(),
             ));

@@ -5,7 +5,7 @@ use super::{
     RetainedStagedOutputEntryKind, commitment_for_retained_entries, empty, select_included_sources,
 };
 use crate::staged_output_tree::{MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES};
-use crate::{ReplayedBuildOutputEntry, replayed_output_tree};
+use crate::{OutputTreeEntry, from_entries};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -47,29 +47,21 @@ impl Drop for Session {
 /// top-level files, one of them a generated `.omg` source for the
 /// include-source join below.
 fn baseline_tree() -> BuildStagedOutputTree {
-    replayed_output_tree(&[
-        ReplayedBuildOutputEntry::directory(b"docs"),
-        ReplayedBuildOutputEntry::directory(b"docs/inner"),
-        ReplayedBuildOutputEntry::regular_file(b"docs/inner/a.txt", b"alpha", false),
-        ReplayedBuildOutputEntry::regular_file(
-            b"docs/inner/gen.omg",
-            b"data Generated {}\n",
-            false,
-        ),
-        ReplayedBuildOutputEntry::regular_file(b"report.txt", b"report-body", false),
-        ReplayedBuildOutputEntry::regular_file(b"z-last.bin", b"z", false),
+    from_entries(&[
+        OutputTreeEntry::directory(b"docs"),
+        OutputTreeEntry::directory(b"docs/inner"),
+        OutputTreeEntry::regular_file(b"docs/inner/a.txt", b"alpha", false),
+        OutputTreeEntry::regular_file(b"docs/inner/gen.omg", b"data Generated {}\n", false),
+        OutputTreeEntry::regular_file(b"report.txt", b"report-body", false),
+        OutputTreeEntry::regular_file(b"z-last.bin", b"z", false),
     ])
     .expect("baseline retained tree")
 }
 
 /// A different valid retained tree for foreign-commitment substitutions.
 fn foreign_tree() -> BuildStagedOutputTree {
-    replayed_output_tree(&[ReplayedBuildOutputEntry::regular_file(
-        b"other.txt",
-        b"other",
-        false,
-    )])
-    .expect("foreign retained tree")
+    from_entries(&[OutputTreeEntry::regular_file(b"other.txt", b"other", false)])
+        .expect("foreign retained tree")
 }
 
 fn file_entry(relative_path: &[u8], bytes: &[u8]) -> RetainedStagedOutputEntry {
@@ -92,7 +84,7 @@ fn tree_with(
     }
 }
 
-/// A stale-identity replay must reject inside `validate_retained_tree`,
+/// A stale-identity reconstruction must reject inside `validate_retained_tree`,
 /// before the destination is touched.
 fn assert_stale_identity_rejects(
     session: &Session,
@@ -166,7 +158,7 @@ fn staged_output_tree_rejects_every_one_field_substitution() {
     assert_eq!(baseline.entry_count(), 6);
     assert_eq!(baseline.file_bytes(), 35);
 
-    // Control: the baseline replays to its own identity.
+    // Control: the baseline retains its own identity.
     let control = session.destination("control");
     assert_eq!(
         baseline
@@ -261,11 +253,11 @@ fn staged_output_tree_rejects_every_one_field_substitution() {
     // representable fields on hosts that materialize them faithfully.
     #[cfg(unix)]
     {
-        let unix_baseline = replayed_output_tree(&[
-            ReplayedBuildOutputEntry::directory(b"bin"),
-            ReplayedBuildOutputEntry::symbolic_link(b"bin/current", b"tool"),
-            ReplayedBuildOutputEntry::regular_file(b"bin/tool", b"#!/tool\n", true),
-            ReplayedBuildOutputEntry::regular_file(b"plain.txt", b"plain", false),
+        let unix_baseline = from_entries(&[
+            OutputTreeEntry::directory(b"bin"),
+            OutputTreeEntry::symbolic_link(b"bin/current", b"tool"),
+            OutputTreeEntry::regular_file(b"bin/tool", b"#!/tool\n", true),
+            OutputTreeEntry::regular_file(b"plain.txt", b"plain", false),
         ])
         .expect("unix baseline retained tree");
         let unix_commitment = unix_baseline.commitment();
@@ -630,8 +622,8 @@ fn staged_output_tree_rejects_every_one_field_substitution() {
 
     // The retained-side entry ceiling is an encoding rejection: a record
     // that cannot be represented canonically never reaches the commitment
-    // join. The replay-side admission ceiling is already covered by
-    // `replayed_tree.rs`.
+    // join. The constructor admission ceiling is already covered by
+    // `tree_from_entries.rs`.
     let oversized: Vec<RetainedStagedOutputEntry> = (0..=MAX_STAGED_OUTPUT_ENTRIES)
         .map(|index| RetainedStagedOutputEntry {
             relative_path: format!("d{index:05}").into_bytes(),
@@ -736,44 +728,40 @@ fn staged_output_tree_rejects_every_one_field_substitution() {
     assert_ne!(forged_source, *baseline_source);
     assert_ne!(forged_source.digest(), baseline_source.digest());
 
-    // ── Replay direction: a substituted replay operand list rebuilds the
+    // ── Construction: a substituted entry list builds the
     //    honestly mutated record, never the baseline identity. ──
-    let replayed = replayed_output_tree(&[
-        ReplayedBuildOutputEntry::directory(b"docs"),
-        ReplayedBuildOutputEntry::directory(b"docs/inner"),
-        ReplayedBuildOutputEntry::regular_file(b"docs/inner/a.txt", b"substituted", false),
-        ReplayedBuildOutputEntry::regular_file(
-            b"docs/inner/gen.omg",
-            b"data Generated {}\n",
-            false,
-        ),
-        ReplayedBuildOutputEntry::regular_file(b"report.txt", b"report-body", false),
-        ReplayedBuildOutputEntry::regular_file(b"z-last.bin", b"z", false),
+    let constructed = from_entries(&[
+        OutputTreeEntry::directory(b"docs"),
+        OutputTreeEntry::directory(b"docs/inner"),
+        OutputTreeEntry::regular_file(b"docs/inner/a.txt", b"substituted", false),
+        OutputTreeEntry::regular_file(b"docs/inner/gen.omg", b"data Generated {}\n", false),
+        OutputTreeEntry::regular_file(b"report.txt", b"report-body", false),
+        OutputTreeEntry::regular_file(b"z-last.bin", b"z", false),
     ])
-    .expect("substituted replay operands");
+    .expect("substituted entries");
     let mut expected = baseline.clone();
     expected.entries[2].kind = RetainedStagedOutputEntryKind::File {
         bytes: Arc::from(b"substituted".as_slice()),
         executable: false,
     };
     expected.commitment = commitment_for_retained_entries(&expected.entries).expect("recomputed");
-    assert_eq!(replayed, expected);
-    assert_ne!(replayed.commitment(), baseline_commitment);
+    assert_eq!(constructed, expected);
+    assert_ne!(constructed.commitment(), baseline_commitment);
     assert!(
-        replayed_output_tree(&[
-            ReplayedBuildOutputEntry::directory(b"docs"),
-            ReplayedBuildOutputEntry::directory(b"docs"),
+        from_entries(&[
+            OutputTreeEntry::directory(b"docs"),
+            OutputTreeEntry::directory(b"docs"),
         ])
         .is_err(),
-        "a duplicated replay row rejects at admission"
+        "a duplicated entry rejects at admission"
     );
-    let dropped_replay = replayed_output_tree(&[
-        ReplayedBuildOutputEntry::directory(b"docs"),
-        ReplayedBuildOutputEntry::directory(b"docs/inner"),
-        ReplayedBuildOutputEntry::regular_file(b"docs/inner/a.txt", b"alpha", false),
-        ReplayedBuildOutputEntry::regular_file(b"report.txt", b"report-body", false),
-        ReplayedBuildOutputEntry::regular_file(b"z-last.bin", b"z", false),
+    let dropped_entry = from_entries(&[
+        OutputTreeEntry::directory(b"docs"),
+        OutputTreeEntry::directory(b"docs/inner"),
+        OutputTreeEntry::regular_file(b"docs/inner/a.txt", b"alpha", false),
+        OutputTreeEntry::regular_file(b"report.txt", b"report-body", false),
+        OutputTreeEntry::regular_file(b"z-last.bin", b"z", false),
     ])
-    .expect("dropped replay row still constructs");
-    assert_ne!(dropped_replay.commitment(), baseline_commitment);
+    .expect("dropped entry still constructs");
+    assert_ne!(dropped_entry.commitment(), baseline_commitment);
 }

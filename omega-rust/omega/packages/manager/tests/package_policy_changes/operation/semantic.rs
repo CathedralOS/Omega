@@ -130,7 +130,7 @@ fn scoped_build_generated_sources_reach_fresh_audit_without_expanding_consent() 
         .find(|package| package.key() == root)
         .unwrap()
         .rows();
-    // Generated-source replay adds no consent beyond the admitted build's
+    // Including generated source adds no consent beyond the admitted build's
     // retained restricted request row.
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].kind(), PackagePolicyRowKind::RestrictedBuildRequest);
@@ -158,7 +158,6 @@ fn scoped_build_generated_sources_reach_fresh_audit_without_expanding_consent() 
     // reconciled both executions with its sponsor while retaining one log.
     let usage = root_review.build_evaluation_usage().unwrap();
     assert_eq!(usage.build_log_bytes, expected_log.len() as u64);
-    assert_eq!(usage.replay_build_log_bytes, expected_log.len() as u64);
     assert!(
         root_review.policy().dangerous_capabilities().is_empty(),
         "compiler-owned logging must not introduce runtime Console authority"

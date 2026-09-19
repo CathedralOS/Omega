@@ -3,9 +3,11 @@
 use super::{
     DirectoryEntrySnapshotKind, EACCES, Path, PathBuf, RealFs, SponsorPreparation,
     canonical_grants, canonical_metadata_values, canonical_relative_path,
-    read_only_open_bypasses_sponsor, real_directory_entries, real_path, resolve_for_check,
-    resolve_parent_for_check, sponsor_preparation,
+    read_only_open_bypasses_sponsor, real_directory_entries, resolve_for_check,
+    sponsor_preparation,
 };
+#[cfg(unix)]
+use super::{real_path, resolve_parent_for_check};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(1);

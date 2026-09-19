@@ -91,8 +91,12 @@ impl Fixture {
         target: target::TargetProfile,
         generated_source: &[u8],
     ) -> PackageCompilationInputs {
-        let tree = build_output::replayed_single_ordinary_file(b"generated.omg", generated_source)
-            .expect("generated checkpoint source should form a retained output tree");
+        let tree = build_output::from_entries(&[build_output::OutputTreeEntry::regular_file(
+            b"generated.omg",
+            generated_source,
+            false,
+        )])
+        .expect("generated checkpoint source should form a retained output tree");
         let generated = build_output::select_included_sources(&tree, &[b"generated.omg".to_vec()])
             .expect("generated checkpoint source should be selected");
         let bundle = PackageGeneratedSourceBundle::from_checked(

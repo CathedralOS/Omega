@@ -130,13 +130,6 @@ impl<'program> Evaluator<'program> {
         let carrier =
             self.canonical_metadata_carrier(observation, output.capacity(), "metadata output")?;
         output.write(&carrier)?;
-        let attempt_index = *self
-            .filesystem_operation_attempt_stack
-            .last()
-            .expect("metadata observation requires an active filesystem attempt");
-        self.filesystem_operation_attempts[attempt_index]
-            .metadata_observations
-            .push(observation);
         Ok(())
     }
 

@@ -419,8 +419,7 @@ fn checked_uefi_os_handoff_invocation_retains_edge_binding() {
             .machines()
             .iter()
             .find(|machine| {
-                machine_path(machine.symbol)
-                    == format!("EfiBootServicesTable::{leaf_machine}")
+                machine_path(machine.symbol) == format!("EfiBootServicesTable::{leaf_machine}")
             })
             .expect("the target's Boot Services leaf must be retained");
         let conformance = checked
@@ -448,8 +447,7 @@ fn native_uefi_os_handoff_invocation_reports_missing_boundary_plan() {
     // Once bodied boundary machines lower as callees, this canary becomes the
     // PE32+ emission assertion.
     let canary = pass_canary(fixture_roster::BUILD_UEFI_OS_HANDOFF_INVOCATION);
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-uefi-handoff-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-uefi-handoff-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     let diagnostics = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
@@ -464,7 +462,8 @@ fn native_uefi_os_handoff_invocation_reports_missing_boundary_plan() {
         .collect();
     assert!(
         messages.iter().any(|message| {
-            message.contains("calls boundary `UefiOsHandoffLegs::acquire`, which has no boundary plan")
+            message
+                .contains("calls boundary `UefiOsHandoffLegs::acquire`, which has no boundary plan")
         }),
         "expected the pinned boundary-plan refusal, got {messages:?}"
     );

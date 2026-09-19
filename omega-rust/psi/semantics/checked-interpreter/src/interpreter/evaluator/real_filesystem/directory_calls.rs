@@ -1,8 +1,7 @@
 //! Directory enumeration: `readdir` windows and the Win32 find cursor.
 
-use super::super::{EvalResult, FIND_DATA_OUTPUT_BYTES, PreparedFilesystemCall};
+use super::super::{EvalResult, PreparedFilesystemCall};
 use super::{DirectoryEntrySnapshotKind, EBADF, ENOENT, real_directory_entries};
-use crate::FilesystemObservedByteRegionKind;
 
 impl<'program> super::super::Evaluator<'program> {
     pub(super) fn real_read_dir(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
@@ -40,25 +39,11 @@ impl<'program> super::super::Evaluator<'program> {
                     let (chunk, next_position) =
                         super::super::dirent_record_chunk(&records, start, count.host);
                     if chunk.is_empty() {
-                        self.record_observed_byte_region(
-                            1,
-                            FilesystemObservedByteRegionKind::DirectoryRecords,
-                            &buffer,
-                            0,
-                            0,
-                        )?;
                         0
                     } else {
                         let n = chunk.len();
                         buffer.write(chunk)?;
                         position.write(next_position as i64)?;
-                        self.record_observed_byte_region(
-                            1,
-                            FilesystemObservedByteRegionKind::DirectoryRecords,
-                            &buffer,
-                            0,
-                            n,
-                        )?;
                         n as i64
                     }
                 }
@@ -100,13 +85,6 @@ impl<'program> super::super::Evaluator<'program> {
                         .collect();
                     let (name, is_dir) = queue.pop_front().expect("dot entries are always present");
                     self.write_find_data(&data, &name, is_dir)?;
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::FindEntry,
-                        &data,
-                        0,
-                        FIND_DATA_OUTPUT_BYTES,
-                    )?;
                     let handle = self.virtual_next_find;
                     self.virtual_next_find += 1;
                     self.virtual_finds.insert(handle, queue);
@@ -134,25 +112,9 @@ impl<'program> super::super::Evaluator<'program> {
             {
                 Some((name, is_dir)) => {
                     self.write_find_data(&data, &name, is_dir)?;
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::FindEntry,
-                        &data,
-                        0,
-                        FIND_DATA_OUTPUT_BYTES,
-                    )?;
                     1
                 }
-                None => {
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::FindEntry,
-                        &data,
-                        0,
-                        0,
-                    )?;
-                    0
-                }
+                None => 0,
             }
         })
     }

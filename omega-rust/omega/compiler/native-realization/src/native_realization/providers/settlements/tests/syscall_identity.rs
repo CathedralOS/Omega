@@ -590,28 +590,8 @@ fn filesystem_release_syscall_plan(
         .expect("one exact filesystem release syscall plan")
 }
 
-fn retained_release_contracts(
-    occurrences: &[(&[u8], u64)],
-) -> Vec<crate::native_realization::FilesystemOrdinaryReleaseContract> {
-    let record = build_evaluation::capture_verified_build_filesystem_replay_record(
-        &build_evaluation::test_support::replayable_native_handle_query_chain_summary(occurrences),
-        build_evaluation::BuildFilesystemReplayRecordLimits::default(),
-    )
-    .expect("retained query-release chains encode")
-    .expect("verified query-release chains retain replay custody");
-    crate::native_realization::filesystem_native_handle_query_release_contracts(
-        &record,
-        build_evaluation::BuildFilesystemReplayRecordLimits::default(),
-    )
-    .expect("retained occurrences realize their contracts")
-}
-
-/// The build replay's retained release contracts mint bound mechanism keys for
-/// occurrences of a different execution. Settlement must never consult them to
-/// narrow a demanded program mechanism — the program's own checked-flow
-/// derivation, rejoined per call site, is the only admissible narrowing.
 #[test]
-fn settlement_never_narrows_a_release_cohort_from_build_replay_evidence() {
+fn settlement_never_narrows_a_release_cohort_from_unrelated_contracts() {
     let profile = target::TargetProfile::LinuxX64;
     let target = profile.native_target();
     let plan = abstract_plan();
@@ -622,13 +602,13 @@ fn settlement_never_narrows_a_release_cohort_from_build_replay_evidence() {
             profile, 1, &plan, boundary,
         )
         .expect("verified boundary supplies the conservative checked contract");
-    // Contracts derived from this compile's own build replay mint bound keys
-    // for a different execution's occurrences — no amount of that evidence may
-    // classify the program's demanded mechanism, even when the receiving
-    // policy rows every bound key.
-    let contracts = retained_release_contracts(&[(b"pkg/main.omg", 7), (b"pkg/lib.omg", 8)]);
-    let [first, second] = contracts.as_slice() else {
-        panic!("two retained occurrences derive two contracts")
+    // Synthetic coordinates test key separation only; they prove no occurrence.
+    let contracts = [
+        crate::filesystem_ordinary_release_contract([7; 32]),
+        crate::filesystem_ordinary_release_contract([8; 32]),
+    ];
+    let [first, second] = &contracts[..] else {
+        panic!("two synthetic policy coordinates")
     };
     let first_bound =
         crate::native_realization::filesystem_release_bound_mechanism(conservative, *first)
@@ -659,7 +639,7 @@ fn settlement_never_narrows_a_release_cohort_from_build_replay_evidence() {
         &[],
         &[],
     )
-    .expect_err("retained build-replay evidence cannot classify a program mechanism");
+    .expect_err("an unrelated release coordinate cannot classify a program mechanism");
     assert!(
         error[0]
             .message
@@ -698,7 +678,7 @@ fn settlement_never_narrows_a_release_cohort_from_build_replay_evidence() {
                 mechanism: conservative,
             }
         ],
-        "settlement admits the conservative key, never a build-replay bound coordinate"
+        "settlement admits the conservative key, never an unrelated bound coordinate"
     );
 }
 
@@ -716,9 +696,9 @@ fn settlement_never_binds_release_contracts_into_non_release_cohorts() {
             profile, 1, &plan, boundary,
         )
         .expect("verified boundary supplies the conservative checked contract");
-    let contracts = retained_release_contracts(&[(b"pkg/main.omg", 7)]);
-    let [contract] = contracts.as_slice() else {
-        panic!("one retained occurrence derives one contract")
+    let contracts = [crate::filesystem_ordinary_release_contract([7; 32])];
+    let [contract] = &contracts[..] else {
+        panic!("one synthetic policy coordinate")
     };
     let bound =
         crate::native_realization::filesystem_release_bound_mechanism(conservative, *contract)

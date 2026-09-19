@@ -220,10 +220,13 @@ impl PackagedFixture {
             .map(|&package| {
                 let sources = match generated.iter().find(|(owner, _)| *owner == package) {
                     Some((_, text)) => {
-                        let tree = build_output::replayed_single_ordinary_file(
-                            b"generated.omg",
-                            text.as_bytes(),
-                        )
+                        let tree = build_output::from_entries(&[
+                            build_output::OutputTreeEntry::regular_file(
+                                b"generated.omg",
+                                text.as_bytes(),
+                                false,
+                            ),
+                        ])
                         .expect("generated handoff should form a retained output tree");
                         build_output::select_included_sources(&tree, &[b"generated.omg".to_vec()])
                             .expect("generated handoff should be selected")

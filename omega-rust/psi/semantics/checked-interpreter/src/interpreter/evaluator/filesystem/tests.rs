@@ -5,27 +5,19 @@ use super::super::filesystem_preparation::{
     FilesystemLogicalHandleResultSuccess, FilesystemLogicalHandleRetirementSuccess,
     FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
     PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandlePlan,
-    PreparedFilesystemLogicalHandleRetirement, PreparedI64Output, PreparedTransferCount,
+    PreparedFilesystemLogicalHandleRetirement, PreparedTransferCount,
     checked_filesystem_transfer_count,
 };
 use super::super::{MAX_DIRECTORY_ENTRY_NAME_BYTES, MAX_DIRECTORY_SNAPSHOT_BYTES, TypedTrees};
-use crate::FilesystemObservedByteRegion;
-use crate::FilesystemObservedByteRegionKind;
-use crate::FilesystemReturnedPathCompleteness;
-use crate::FilesystemReturnedPathKind;
+use crate::BuildEvaluationSponsorLimits;
 use crate::FilesystemRootedPathOperandResolution;
-use crate::FilesystemScalarOperand;
 use crate::interpreter::evaluator::BuildEvaluationSponsor;
 use crate::interpreter::evaluator::Evaluator;
-use crate::interpreter::evaluator::FIND_DATA_OUTPUT_BYTES;
-use crate::interpreter::evaluator::FilesystemHostOperation;
 use crate::interpreter::evaluator::FilesystemLogicalHandleInput;
 use crate::interpreter::evaluator::FilesystemLogicalHandleInputResolution;
 use crate::interpreter::evaluator::FilesystemLogicalHandleKind;
 use crate::interpreter::evaluator::FilesystemObservationProvider;
 use crate::interpreter::evaluator::FilesystemOperationAttempt;
-use crate::interpreter::evaluator::FilesystemOperationAttemptOutcome;
-use crate::interpreter::evaluator::FilesystemOperationResult;
 use crate::interpreter::evaluator::Halt;
 use crate::interpreter::evaluator::MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES;
 use crate::interpreter::evaluator::PreparedByteOutput;
@@ -37,12 +29,8 @@ use crate::interpreter::evaluator::Value;
 use crate::interpreter::evaluator::checked_directory_name_snapshot_total;
 use crate::interpreter::evaluator::checked_directory_record_snapshot_total;
 use crate::interpreter::evaluator::filesystem::filesystem_calls::checked_observation_evidence_total;
-use crate::interpreter::evaluator::filesystem::replay::replay_prepared_inputs_match;
 use crate::interpreter::evaluator::pack_dirent_records;
 use crate::interpreter::evaluator::portable_directory_entry_name;
-use crate::{
-    BuildEvaluationSponsorLimits, FilesystemGrantRootIdentity, FilesystemScalarOperandValue,
-};
 
 fn evaluator_with_pending_attempt(program: &TypedTrees) -> Evaluator<'_> {
     let mut evaluator = Evaluator::new(program, &[]);
@@ -53,18 +41,6 @@ fn evaluator_with_pending_attempt(program: &TypedTrees) -> Evaluator<'_> {
             FilesystemObservationProvider::Virtual,
         ));
     evaluator
-}
-
-fn returned_attempt(operation: FilesystemHostOperation) -> FilesystemOperationAttempt {
-    let mut attempt = FilesystemOperationAttempt::pending(
-        operation.operation_tag(),
-        FilesystemObservationProvider::RealScoped,
-    );
-    attempt.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
-        result: FilesystemOperationResult::Scalar(0),
-        post_error: 0,
-    });
-    attempt
 }
 
 #[test]
@@ -278,79 +254,6 @@ fn borrowed_native_view_uses_its_descriptor_lease() {
 }
 
 #[test]
-fn replay_cursor_rejects_reordered_extra_and_missing_events() {
-    let program = TypedTrees::default();
-    let directory = crate::FilesystemOutputDirectoryReplayRecord::new(
-        FilesystemGrantRootIdentity::new(1).expect("nonzero Output root"),
-        b"generated".to_vec(),
-    )
-    .expect("canonical directory");
-    let record = crate::FilesystemInputOutputTreeReplayRecord::output_only(
-        vec![crate::FilesystemOutputTreeEntryReplayRecord::Directory(
-            directory,
-        )],
-        Vec::new(),
-    )
-    .expect("one complete Output event");
-    let replay =
-        crate::FilesystemReplay::from_input_output_tree_record(record).expect("validated replay");
-    let expected = replay.attempts()[0].clone();
-    let mut evaluator = Evaluator::new(&program, &[]);
-    evaluator.filesystem_replay = Some(replay);
-
-    assert!(matches!(
-        evaluator.expected_filesystem_replay_attempt(0, FilesystemHostOperation::CreateDir),
-        Ok(Some(actual)) if actual == expected
-    ));
-    assert!(matches!(
-        evaluator.expected_filesystem_replay_attempt(0, FilesystemHostOperation::Read),
-        Err(Halt::Trap(message)) if message.contains("changed order")
-    ));
-    assert!(matches!(
-        evaluator.expected_filesystem_replay_attempt(1, FilesystemHostOperation::CreateDir),
-        Err(Halt::Trap(message)) if message.contains("extra event")
-    ));
-    assert!(matches!(
-        evaluator.finish_filesystem_replay(),
-        Err(Halt::Trap(message)) if message.contains("record contains 1")
-    ));
-    evaluator.filesystem_operation_attempts.push(expected);
-    assert!(
-        evaluator
-            .serve_filesystem_call(PreparedFilesystemCall::CreateDir {
-                path: b"/root/1/generated".to_vec(),
-                mode: crate::FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE,
-            })
-            .is_ok(),
-        "the completed event also establishes its Output namespace"
-    );
-    assert!(evaluator.finish_filesystem_replay().is_ok());
-}
-
-#[test]
-fn replay_preparation_comparison_rejects_changed_input_lanes() {
-    let mut current = returned_attempt(FilesystemHostOperation::Open);
-    current.scalar_operands.push(FilesystemScalarOperand {
-        operand_ordinal: 1,
-        value: FilesystemScalarOperandValue::I32(0),
-    });
-    let mut changed = current.clone();
-    changed.scalar_operands[0].value = FilesystemScalarOperandValue::I32(1);
-    assert!(replay_prepared_inputs_match(&current, &current));
-    assert!(!replay_prepared_inputs_match(&current, &changed));
-
-    changed = current.clone();
-    changed
-        .rooted_path_operand_resolutions
-        .push(FilesystemRootedPathOperandResolution {
-            operand_ordinal: 0,
-            root: FilesystemGrantRootIdentity::new(1).unwrap(),
-            relative_path: b"changed.omg".to_vec(),
-        });
-    assert!(!replay_prepared_inputs_match(&current, &changed));
-}
-
-#[test]
 fn transfer_count_rejects_wrap_and_unbounded_allocation() {
     assert_eq!(
         checked_filesystem_transfer_count(-1),
@@ -366,12 +269,11 @@ fn transfer_count_rejects_wrap_and_unbounded_allocation() {
 fn transfer_count_accepts_the_closed_interval_through_the_limit() {
     assert_eq!(
         checked_filesystem_transfer_count(0),
-        Ok(PreparedTransferCount { raw: 0, host: 0 })
+        Ok(PreparedTransferCount { host: 0 })
     );
     assert_eq!(
         checked_filesystem_transfer_count(MAX_FILESYSTEM_TRANSFER_BYTES as i64),
         Ok(PreparedTransferCount {
-            raw: MAX_FILESYSTEM_TRANSFER_BYTES as u64,
             host: MAX_FILESYSTEM_TRANSFER_BYTES,
         })
     );
@@ -622,152 +524,32 @@ fn mutable_byte_output(bytes: &[u8]) -> PreparedByteOutput {
 }
 
 #[test]
-fn mutable_resolution_prefix_survives_its_own_capacity_failure() {
+fn virtual_read_preserves_result_length_and_untouched_buffer_tail() {
     let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    let output = mutable_byte_output(&[3, 1, 4]);
-
+    let mut evaluator = Evaluator::new(&program, &[]);
     evaluator
-        .record_prepared_filesystem_mutable_byte_operand_resolution(0, 5, &output)
-        .unwrap_or_else(|_| panic!("resolution fixture must be representable"));
-    evaluator.record_prepared_filesystem_mutable_i64_operand_resolution(0, 6, -9);
-    assert!(output.require_capacity(4).is_err());
-
-    let attempt = &evaluator.filesystem_operation_attempts[0];
-    assert_eq!(attempt.mutable_byte_operand_resolutions.len(), 1);
-    assert_eq!(
-        attempt.mutable_byte_operand_resolutions[0].operand_ordinal(),
-        5
-    );
-    assert_eq!(
-        attempt.mutable_byte_operand_resolutions[0].bytes(),
-        &[3, 1, 4]
-    );
-    assert_eq!(attempt.mutable_i64_operand_resolutions.len(), 1);
-    assert_eq!(
-        attempt.mutable_i64_operand_resolutions[0].operand_ordinal(),
-        6
-    );
-    assert_eq!(attempt.mutable_i64_operand_resolutions[0].value(), -9);
-    assert!(attempt.mutable_byte_operands.is_empty());
-    assert!(attempt.mutable_i64_operands.is_empty());
-    assert_eq!(evaluator.filesystem_observation_evidence_bytes, 3);
-}
-
-#[test]
-fn completed_mutable_plan_accepts_alias_drift_and_retains_all_three_byte_snapshots() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    let output = mutable_byte_output(&[1, 2]);
-    evaluator
-        .record_prepared_filesystem_mutable_byte_operand_resolution(0, 1, &output)
-        .unwrap_or_else(|_| panic!("resolution fixture must be representable"));
-
-    output
-        .write(&[8, 9])
-        .unwrap_or_else(|_| panic!("alias fixture write must fit"));
-    let call = PreparedFilesystemCall::Read {
-        fd: 3,
-        buffer: output.clone(),
-        count: PreparedTransferCount { raw: 1, host: 1 },
-    };
-    let (scalar_operands, byte_operands, path_like_operands) = call.operand_observation_plan();
-    evaluator.filesystem_operation_attempts[0].scalar_operands = scalar_operands.clone();
-    let plan = call
-        .mutable_observation_plan()
-        .unwrap_or_else(|_| panic!("mutable fixture must be representable"));
-    evaluator
-        .record_operand_observations(
-            0,
-            scalar_operands,
-            byte_operands,
-            path_like_operands,
-            &[],
-            &plan,
-        )
-        .unwrap_or_else(|_| panic!("matching resolution roles must validate"));
-
-    assert_eq!(
-        evaluator.filesystem_operation_attempts[0].mutable_byte_operand_resolutions[0].bytes(),
-        &[1, 2],
-        "resolution-time contents must not be overwritten by provider pre-state"
-    );
-    assert_eq!(
-        evaluator.filesystem_operation_attempts[0].mutable_byte_operands[0].pre_bytes(),
-        &[8, 9]
-    );
-    assert_eq!(
-        evaluator.filesystem_observation_evidence_bytes, 6,
-        "resolution, provider pre-state, and provider post-state share one sponsor"
-    );
-
-    output
-        .write(&[7])
-        .unwrap_or_else(|_| panic!("provider fixture write must fit"));
-    evaluator
-        .complete_mutable_observations(0, &plan)
-        .unwrap_or_else(|_| panic!("completed fixture must be representable"));
-    let attempt = &evaluator.filesystem_operation_attempts[0];
-    assert_eq!(attempt.mutable_byte_operand_resolutions[0].bytes(), &[1, 2]);
-    assert_eq!(attempt.mutable_byte_operands[0].pre_bytes(), &[8, 9]);
-    assert_eq!(attempt.mutable_byte_operands[0].post_bytes(), &[7, 9]);
-}
-
-#[test]
-fn completed_rooted_path_sidecar_requires_exact_portable_coordinates() {
-    let program = TypedTrees::default();
-    let root = crate::FilesystemGrantRootIdentity::new(1)
-        .unwrap_or_else(|| panic!("fixture root identity is nonzero"));
-    let resolution = FilesystemRootedPathOperandResolution {
-        operand_ordinal: 0,
-        root,
-        relative_path: b"inputs/table.txt".to_vec(),
-    };
-    let call = PreparedFilesystemCall::Remove {
-        path: b"/physical/source/inputs/table.txt".to_vec(),
-    };
-    let (scalar_operands, byte_operands, path_like_operands) = call.operand_observation_plan();
-    let mutable_plan = call
-        .mutable_observation_plan()
-        .unwrap_or_else(|_| panic!("remove has no mutable observation failure"));
-
-    let mut matching = evaluator_with_pending_attempt(&program);
-    matching
-        .record_prepared_filesystem_rooted_path_operand_resolution(0, resolution.clone())
-        .unwrap_or_else(|_| panic!("rooted fixture fits evidence sponsor"));
-    matching
-        .record_operand_observations(
-            0,
-            scalar_operands.clone(),
-            byte_operands.clone(),
-            path_like_operands.clone(),
-            std::slice::from_ref(&resolution),
-            &mutable_plan,
-        )
-        .unwrap_or_else(|_| panic!("exact rooted sidecar must validate"));
-
-    let mut mismatching = evaluator_with_pending_attempt(&program);
-    mismatching
-        .record_prepared_filesystem_rooted_path_operand_resolution(0, resolution)
-        .unwrap_or_else(|_| panic!("rooted fixture fits evidence sponsor"));
-    let wrong = FilesystemRootedPathOperandResolution {
-        operand_ordinal: 0,
-        root,
-        relative_path: b"inputs/other.txt".to_vec(),
-    };
-    assert!(
-        mismatching
-            .record_operand_observations(
-                0,
-                scalar_operands,
-                byte_operands,
-                path_like_operands,
-                &[wrong],
-                &mutable_plan,
-            )
-            .is_err(),
-        "physical provider bytes must not substitute for exact portable rooted coordinates"
-    );
+        .virtual_files
+        .insert(b"input".to_vec(), b"abc".to_vec());
+    let fd = evaluator.virtual_open(b"input".to_vec(), false, false);
+    let output = mutable_byte_output(&[9; 5]);
+    let result = evaluator
+        .serve_filesystem_call(PreparedFilesystemCall::Read {
+            fd,
+            buffer: output.clone(),
+            count: PreparedTransferCount { host: 5 },
+        })
+        .unwrap_or_else(|_| panic!("read succeeds"));
+    assert!(matches!(result, Value::Int(3)));
+    assert_eq!(output.snapshot().unwrap_or_default(), b"abc\x09\x09");
+    let result = evaluator
+        .serve_filesystem_call(PreparedFilesystemCall::Read {
+            fd,
+            buffer: output.clone(),
+            count: PreparedTransferCount { host: 5 },
+        })
+        .unwrap_or_else(|_| panic!("EOF succeeds"));
+    assert!(matches!(result, Value::Int(0)));
+    assert_eq!(output.snapshot().unwrap_or_default(), b"abc\x09\x09");
 }
 
 #[test]
@@ -799,48 +581,6 @@ fn rooted_path_resolution_budget_failure_is_atomic() {
 }
 
 #[test]
-fn returned_path_rows_retain_exact_bytes_and_completeness() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    evaluator.filesystem_operation_attempt_stack.push(0);
-    evaluator
-        .record_returned_path_observation(
-            1,
-            FilesystemReturnedPathKind::ReadLinkPayload,
-            FilesystemReturnedPathCompleteness::Complete,
-            b"ab",
-        )
-        .unwrap_or_else(|_| panic!("complete returned path fits sponsor"));
-    evaluator
-        .record_returned_path_observation(
-            1,
-            FilesystemReturnedPathKind::ReadLinkPayload,
-            FilesystemReturnedPathCompleteness::LimitReached,
-            b"prefix",
-        )
-        .unwrap_or_else(|_| panic!("limited returned path fits sponsor"));
-    let [returned, limited] = &evaluator.filesystem_operation_attempts[0].returned_paths[..] else {
-        panic!("fixture retains both returned paths")
-    };
-    assert_eq!(
-        returned.kind(),
-        crate::FilesystemReturnedPathKind::ReadLinkPayload
-    );
-    assert_eq!(returned.operand_ordinal(), 1);
-    assert_eq!(returned.bytes(), b"ab");
-    assert_eq!(
-        returned.completeness(),
-        crate::FilesystemReturnedPathCompleteness::Complete
-    );
-    assert_eq!(
-        limited.completeness(),
-        crate::FilesystemReturnedPathCompleteness::LimitReached
-    );
-    assert_eq!(limited.bytes(), b"prefix");
-    assert_eq!(evaluator.filesystem_observation_evidence_bytes, 8);
-}
-
-#[test]
 fn virtual_read_link_provider_distinguishes_exact_fit_from_truncation() {
     let program = TypedTrees::default();
     let mut evaluator = evaluator_with_pending_attempt(&program);
@@ -857,7 +597,7 @@ fn virtual_read_link_provider_distinguishes_exact_fit_from_truncation() {
         .serve_filesystem_call(PreparedFilesystemCall::ReadLink {
             path: b"exact".to_vec(),
             buffer: exact_output.clone(),
-            count: PreparedTransferCount { raw: 4, host: 4 },
+            count: PreparedTransferCount { host: 4 },
         })
         .unwrap_or_else(|_| panic!("exact-fit read_link succeeds"));
     assert!(matches!(exact_result, Value::Int(4)));
@@ -873,7 +613,7 @@ fn virtual_read_link_provider_distinguishes_exact_fit_from_truncation() {
         .serve_filesystem_call(PreparedFilesystemCall::ReadLink {
             path: b"limited".to_vec(),
             buffer: limited_output.clone(),
-            count: PreparedTransferCount { raw: 4, host: 4 },
+            count: PreparedTransferCount { host: 4 },
         })
         .unwrap_or_else(|_| panic!("truncated read_link succeeds"));
     assert!(matches!(limited_result, Value::Int(4)));
@@ -882,376 +622,6 @@ fn virtual_read_link_provider_distinguishes_exact_fit_from_truncation() {
             .snapshot()
             .unwrap_or_else(|_| panic!("limited output remains readable")),
         b"abcd\x09\x09"
-    );
-
-    let [exact, limited] = &evaluator.filesystem_operation_attempts[0].returned_paths[..] else {
-        panic!("provider records both successful writes")
-    };
-    assert_eq!(exact.bytes(), b"abcd");
-    assert_eq!(
-        exact.completeness(),
-        FilesystemReturnedPathCompleteness::Complete
-    );
-    assert_eq!(limited.bytes(), b"abcd");
-    assert_eq!(
-        limited.completeness(),
-        FilesystemReturnedPathCompleteness::LimitReached
-    );
-}
-
-#[test]
-fn returned_path_budget_failure_is_atomic() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    evaluator.filesystem_operation_attempt_stack.push(0);
-    evaluator.filesystem_observation_evidence_bytes = MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES - 1;
-
-    assert!(
-        evaluator
-            .record_returned_path_observation(
-                1,
-                FilesystemReturnedPathKind::ReadLinkPayload,
-                FilesystemReturnedPathCompleteness::Complete,
-                b"ab",
-            )
-            .is_err()
-    );
-    assert_eq!(
-        evaluator.filesystem_observation_evidence_bytes,
-        MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES - 1
-    );
-    assert!(
-        evaluator.filesystem_operation_attempts[0]
-            .returned_paths
-            .is_empty()
-    );
-}
-
-#[test]
-fn virtual_file_reads_retain_only_exact_observed_bytes() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    evaluator.filesystem_operation_attempt_stack.push(0);
-    evaluator
-        .virtual_files
-        .insert(b"input".to_vec(), b"abcdef".to_vec());
-    let descriptor = evaluator.virtual_open(b"input".to_vec(), false, false);
-
-    let sequential_output = mutable_byte_output(&[9; 8]);
-    let sequential = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::Read {
-            fd: descriptor,
-            buffer: sequential_output.clone(),
-            count: PreparedTransferCount { raw: 4, host: 4 },
-        })
-        .unwrap_or_else(|_| panic!("sequential read succeeds"));
-    assert!(matches!(sequential, Value::Int(4)));
-    assert_eq!(
-        sequential_output
-            .snapshot()
-            .unwrap_or_else(|_| panic!("sequential output remains readable")),
-        b"abcd\x09\x09\x09\x09"
-    );
-
-    let positioned_output = mutable_byte_output(&[9; 8]);
-    let positioned = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::ReadAt {
-            fd: descriptor,
-            buffer: positioned_output,
-            count: PreparedTransferCount { raw: 3, host: 3 },
-            offset: 1,
-        })
-        .unwrap_or_else(|_| panic!("positioned read succeeds"));
-    assert!(matches!(positioned, Value::Int(3)));
-
-    let tail_output = mutable_byte_output(&[9; 8]);
-    let tail = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::Read {
-            fd: descriptor,
-            buffer: tail_output,
-            count: PreparedTransferCount { raw: 8, host: 8 },
-        })
-        .unwrap_or_else(|_| panic!("tail read succeeds"));
-    assert!(matches!(tail, Value::Int(2)));
-
-    let eof_output = mutable_byte_output(&[9; 8]);
-    let eof = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::Read {
-            fd: descriptor,
-            buffer: eof_output,
-            count: PreparedTransferCount { raw: 8, host: 8 },
-        })
-        .unwrap_or_else(|_| panic!("EOF read succeeds"));
-    assert!(matches!(eof, Value::Int(0)));
-
-    let failed_output = mutable_byte_output(&[9; 8]);
-    let failed = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::Read {
-            fd: -1,
-            buffer: failed_output.clone(),
-            count: PreparedTransferCount { raw: 8, host: 8 },
-        })
-        .unwrap_or_else(|_| panic!("unknown descriptor is a provider error"));
-    assert!(matches!(failed, Value::Int(-1)));
-    assert_eq!(
-        failed_output
-            .snapshot()
-            .unwrap_or_else(|_| panic!("failed output remains readable")),
-        &[9; 8]
-    );
-
-    let rows = &evaluator.filesystem_operation_attempts[0].observed_byte_regions;
-    assert_eq!(rows.len(), 4);
-    assert!(rows.iter().all(|row| row.output_operand_ordinal() == 1));
-    assert_eq!(
-        rows[0].kind(),
-        FilesystemObservedByteRegionKind::SequentialFileRead
-    );
-    assert_eq!(
-        rows[1].kind(),
-        FilesystemObservedByteRegionKind::PositionedFileRead
-    );
-    assert_eq!(
-        rows[2].kind(),
-        FilesystemObservedByteRegionKind::SequentialFileRead
-    );
-    assert_eq!(
-        rows[3].kind(),
-        FilesystemObservedByteRegionKind::SequentialFileRead
-    );
-    assert_eq!(rows[0].offset(), 0);
-    assert_eq!(rows[0].length(), 4);
-    assert_eq!(rows[1].length(), 3);
-    assert_eq!(rows[2].length(), 2);
-    assert_eq!(rows[3].length(), 0);
-    assert_eq!(
-        evaluator.filesystem_observation_evidence_bytes, 0,
-        "semantic regions reference the already-custodied mutable post-state"
-    );
-}
-
-#[test]
-fn observed_byte_region_validation_binds_result_kind_and_post_carrier() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    evaluator.filesystem_operation_attempts[0]
-        .observed_byte_regions
-        .push(FilesystemObservedByteRegion {
-            output_operand_ordinal: 1,
-            kind: FilesystemObservedByteRegionKind::SequentialFileRead,
-            offset: 0,
-            length: 4,
-        });
-    evaluator.filesystem_operation_attempts[0]
-        .mutable_byte_operands
-        .push(crate::FilesystemMutableByteOperand {
-            operand_ordinal: 1,
-            pre_bytes: vec![9; 6],
-            post_bytes: b"abcd\x09\x09".to_vec(),
-        });
-
-    evaluator
-        .validate_observed_byte_regions(0, FilesystemHostOperation::Read, 4)
-        .unwrap_or_else(|_| panic!("exact read region validates"));
-    assert!(
-        evaluator
-            .validate_observed_byte_regions(0, FilesystemHostOperation::Read, 3)
-            .is_err(),
-        "scalar result must equal semantic region length"
-    );
-    assert!(
-        evaluator
-            .validate_observed_byte_regions(0, FilesystemHostOperation::ReadAt, 4)
-            .is_err(),
-        "positioned and sequential read regions are distinct"
-    );
-    evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].kind =
-        FilesystemObservedByteRegionKind::DirectoryRecords;
-    evaluator
-        .validate_observed_byte_regions(0, FilesystemHostOperation::ReadDir, 4)
-        .unwrap_or_else(|_| panic!("directory record region validates"));
-
-    evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].kind =
-        FilesystemObservedByteRegionKind::FindEntry;
-    evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].length =
-        FIND_DATA_OUTPUT_BYTES;
-    evaluator.filesystem_operation_attempts[0].mutable_byte_operands[0]
-        .pre_bytes
-        .resize(FIND_DATA_OUTPUT_BYTES, 9);
-    evaluator.filesystem_operation_attempts[0].mutable_byte_operands[0]
-        .post_bytes
-        .resize(FIND_DATA_OUTPUT_BYTES, 0);
-    evaluator
-        .validate_observed_byte_regions(0, FilesystemHostOperation::FindFirst, 7)
-        .unwrap_or_else(|_| panic!("find_first record region validates"));
-    evaluator
-        .validate_observed_byte_regions(0, FilesystemHostOperation::FindNext, 1)
-        .unwrap_or_else(|_| panic!("find_next record region validates"));
-    evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].length = 0;
-    evaluator
-        .validate_observed_byte_regions(0, FilesystemHostOperation::FindNext, 0)
-        .unwrap_or_else(|_| panic!("find_next empty region validates"));
-
-    evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].kind =
-        FilesystemObservedByteRegionKind::SequentialFileRead;
-    evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].length = 4;
-    evaluator.filesystem_operation_attempts[0]
-        .mutable_byte_operands
-        .clear();
-    assert!(
-        evaluator
-            .validate_observed_byte_regions(0, FilesystemHostOperation::Read, 4)
-            .is_err(),
-        "semantic region requires its retained post-carrier"
-    );
-}
-
-#[test]
-fn virtual_directory_enumeration_designates_exact_output_regions() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    evaluator.filesystem_operation_attempt_stack.push(0);
-    evaluator.virtual_dirs.insert(b"dir".to_vec());
-    evaluator
-        .virtual_files
-        .insert(b"dir/entry".to_vec(), b"payload".to_vec());
-    let descriptor = evaluator.virtual_open_flags(b"dir".to_vec(), 0);
-    assert!(descriptor >= 0);
-
-    let directory_output = mutable_byte_output(&[9; 512]);
-    let directory = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::ReadDir {
-            fd: descriptor,
-            buffer: directory_output.clone(),
-            count: PreparedTransferCount {
-                raw: 512,
-                host: 512,
-            },
-            position: PreparedI64Output::test_fixture(0),
-        })
-        .unwrap_or_else(|_| panic!("directory enumeration succeeds"));
-    let Value::Int(directory_length) = directory else {
-        panic!("read_dir returns a byte length")
-    };
-    assert!(directory_length > 0);
-    let directory_length = usize::try_from(directory_length)
-        .unwrap_or_else(|_| panic!("directory fixture length is representable"));
-    let directory_bytes = directory_output
-        .snapshot()
-        .unwrap_or_else(|_| panic!("directory output remains readable"));
-    assert!(
-        directory_bytes[directory_length..]
-            .iter()
-            .all(|byte| *byte == 9)
-    );
-
-    let eof_output = mutable_byte_output(&[9; 512]);
-    let eof = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::ReadDir {
-            fd: descriptor,
-            buffer: eof_output.clone(),
-            count: PreparedTransferCount {
-                raw: 512,
-                host: 512,
-            },
-            position: PreparedI64Output::test_fixture(i64::MAX),
-        })
-        .unwrap_or_else(|_| panic!("directory EOF succeeds"));
-    assert!(matches!(eof, Value::Int(0)));
-    assert_eq!(
-        eof_output
-            .snapshot()
-            .unwrap_or_else(|_| panic!("EOF output remains readable")),
-        &[9; 512]
-    );
-
-    let first_output = mutable_byte_output(&[9; 322]);
-    let first = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::FindFirst {
-            pattern: b"dir/*".to_vec(),
-            data: first_output.clone(),
-        })
-        .unwrap_or_else(|_| panic!("find_first succeeds"));
-    let Value::Int(find_handle) = first else {
-        panic!("find_first returns its handle")
-    };
-    assert!(find_handle >= 0);
-    assert_eq!(
-        &first_output
-            .snapshot()
-            .unwrap_or_else(|_| panic!("first find output remains readable"))
-            [FIND_DATA_OUTPUT_BYTES..],
-        &[9, 9]
-    );
-
-    let next_output = mutable_byte_output(&[9; 322]);
-    let next = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::FindNext {
-            handle: find_handle,
-            data: next_output,
-        })
-        .unwrap_or_else(|_| panic!("find_next succeeds"));
-    assert!(matches!(next, Value::Int(1)));
-
-    let empty_output = mutable_byte_output(&[9; 322]);
-    let empty = evaluator
-        .serve_filesystem_call(PreparedFilesystemCall::FindNext {
-            handle: -1,
-            data: empty_output.clone(),
-        })
-        .unwrap_or_else(|_| panic!("unknown find handle returns no entry"));
-    assert!(matches!(empty, Value::Int(0)));
-    assert_eq!(
-        empty_output
-            .snapshot()
-            .unwrap_or_else(|_| panic!("empty find output remains readable")),
-        &[9; 322]
-    );
-
-    let rows = &evaluator.filesystem_operation_attempts[0].observed_byte_regions;
-    assert_eq!(rows.len(), 5);
-    assert_eq!(
-        rows[0].kind(),
-        FilesystemObservedByteRegionKind::DirectoryRecords
-    );
-    assert_eq!(rows[0].length(), directory_length);
-    assert_eq!(
-        rows[1].kind(),
-        FilesystemObservedByteRegionKind::DirectoryRecords
-    );
-    assert_eq!(rows[1].length(), 0);
-    assert!(rows[2..].iter().all(|row| {
-        row.kind() == FilesystemObservedByteRegionKind::FindEntry
-            && row.output_operand_ordinal() == 1
-            && row.offset() == 0
-    }));
-    assert_eq!(rows[2].length(), FIND_DATA_OUTPUT_BYTES);
-    assert_eq!(rows[3].length(), FIND_DATA_OUTPUT_BYTES);
-    assert_eq!(rows[4].length(), 0);
-}
-
-#[test]
-fn observed_byte_region_rejects_out_of_bounds_without_a_row() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    evaluator.filesystem_operation_attempt_stack.push(0);
-    let output = mutable_byte_output(&[9]);
-
-    assert!(
-        evaluator
-            .record_observed_byte_region(
-                1,
-                FilesystemObservedByteRegionKind::SequentialFileRead,
-                &output,
-                0,
-                2,
-            )
-            .is_err()
-    );
-    assert!(
-        evaluator.filesystem_operation_attempts[0]
-            .observed_byte_regions
-            .is_empty()
     );
 }
 

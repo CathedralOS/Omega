@@ -56,8 +56,7 @@ crashes Abort
         .custody
         .build_observation_summary()
         .expect("selected build machine publishes build observation evidence");
-    assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
-    assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
+    assert!(!observations.filesystem_host_observed());
     let review = project_checked_package_review(&checked).expect("review projection should close");
     let encoded = review
         .canonical_review_bytes()

@@ -1,12 +1,10 @@
 use super::{
     Project, bound_build_output_session, package_inputs, set_canonical_source_tree_permissions,
-    sponsored_build_session, write_interleaved_serialized_replay_project,
-    write_mixed_interleaved_serialized_replay_project, write_serialized_replay_project,
+    sponsored_build_session, write_interleaved_build_project,
+    write_mixed_interleaved_build_project,
 };
 use checked_interpreter::FilesystemSponsor;
 use compiler::{CheckedCompileRequest, compile_to_checked};
-use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
-use semantic_vocabulary::PackageKeyIdentity;
 
 #[test]
 fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
@@ -293,8 +291,6 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
         .build_evaluation_usage()
         .expect("selected build execution retains deterministic usage");
     assert_eq!(usage.filesystem_operation_attempts, 6);
-    assert_eq!(usage.replay_filesystem_operation_attempts, 6);
-    assert_eq!(usage.fuel_units, usage.replay_fuel_units);
     assert!(usage.fuel_units > 0);
     assert_eq!(usage.sponsor_schema_version, None);
     assert_eq!(usage.session_filesystem_attempt_ceiling, None);
@@ -307,11 +303,7 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
         6,
         "open/read/close and create/write/close execute once; handoff is separate custody"
     );
-    assert_eq!(
-        observation.realized(),
-        build_evaluation::BuildObservationClass::Receipted,
-    );
-    assert!(observation.filesystem_replay_verdict().is_complete());
+    assert!(observation.filesystem_host_observed());
     assert!(observation.canonical_source_metadata_identity().is_some());
     let [handoff] = observation.included_source_handoffs() else {
         panic!("one exact generated-source handoff must remain in observation evidence")
@@ -320,7 +312,7 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
     assert_eq!(handoff.filesystem_attempt_ordinal(), 6);
     let staged = observation
         .staged_output_tree()
-        .expect("complete replay retains the staged output tree");
+        .expect("execution retains the staged output tree");
     assert_eq!(staged.entry_count(), 1);
     let expected_generated = b"data Generated { base: Main; }\npub data MachineConfig { count: u8; enabled: bool; }\npub data ConfigIndexed<const C: MachineConfig> { marker: u8; }\npub trait GeneratedOperation { machine apply(value: u64) -> u64; }\npub machine identity<'value, T>(value: &'value T) -> &'value T { value }\npub machine bounded<T [copy]>(value: &T) {}\npub machine apply<machine Selected>(value: u64) -> u64 where machine Selected(value: u64) -> u64; { Selected(value) }\npub machine apply_nominal<machine Selected>(value: u64) -> u64 where machine Selected satisfies GeneratedOperation::apply; { Selected(value) }\npub machine width<const N: u64>(value: [u8; N]) {}\npub machine configured<const C: MachineConfig>(value: ConfigIndexed<C>) {}\n";
     assert_eq!(staged.file_bytes(), expected_generated.len() as u64);
@@ -471,130 +463,82 @@ fn build_snapshot_rejects_an_omitted_required_output() {
 }
 
 #[test]
-fn serialized_replay_record_reproduces_the_full_admitted_activation() {
-    let profile = target::TargetProfile::WindowsX64;
-    let project = Project::new("serialized-replay");
-    write_serialized_replay_project(&project);
-    let (session, sponsor, build_dir) = sponsored_build_session("serialized-replay");
+fn filesystem_build_charges_the_sponsor_for_one_execution() {
+    use checked_interpreter::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+
+    let project = Project::new("single-execution-accounting");
+    write_interleaved_build_project(&project);
+    let (session, filesystem_sponsor, build_dir) =
+        sponsored_build_session("single-execution-accounting");
     set_canonical_source_tree_permissions(&project.root, true);
-    let inputs = package_inputs(&project.root);
+    // Leave room for repeated execution so equality, not exhaustion, detects it.
+    let evaluation_sponsor = BuildEvaluationSponsor::new(
+        BuildEvaluationSponsorLimits::new(
+            1_000_000, 1_000_000, 1024, 64, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
+        )
+        .expect("nonzero execution ceilings"),
+    );
     let checked = compile_to_checked(CheckedCompileRequest {
-        build_dir: Some(build_dir),
-        package_inputs: Some(inputs.clone()),
-        filesystem_sponsor: Some(sponsor),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-    })
-    .expect("admitted build activation executes and appends generated source");
-    assert!(
-        checked
-            .typed
-            .data_definitions()
-            .iter()
-            .any(|definition| definition.name.as_str() == "ReplayGenerated"),
-        "generated source joins the final checked program"
-    );
-
-    // The activation's review-only record is canonical bytes: serialize it,
-    // recover it, and replay the complete activation with no staged output or
-    // sponsor authority. The replayed run must reach the identical result.
-    let summary = checked
-        .build_observation_summary()
-        .expect("admitted activation retains observation custody");
-    assert!(
-        summary.filesystem_replay_verdict().is_complete(),
-        "primary activation must complete its internal verifier replay"
-    );
-    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
-    let record = build_evaluation::capture_verified_build_filesystem_replay_record(summary, limits)
-        .expect("capture the verified replay record")
-        .expect("a complete receipted activation issues a replay record");
-    let canonical = record.canonical_bytes().to_vec();
-    let recovered =
-        build_evaluation::recover_review_only_build_filesystem_replay_record(&canonical, limits)
-            .expect("serialized replay record recovers");
-
-    let replayed = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(inputs.clone()),
-        replay_record: Some(recovered.clone()),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-    })
-    .expect("serialized replay reproduces the full activation without host output staging");
-    assert!(
-        replayed
-            .typed
-            .data_definitions()
-            .iter()
-            .any(|definition| definition.name.as_str() == "ReplayGenerated"),
-        "replayed generated source joins the final checked program"
-    );
-    assert_eq!(
-        replayed
-            .package_generated_source_bundle()
-            .expect("replayed activation retains its generated-source bundle")
-            .sources(),
-        checked
-            .package_generated_source_bundle()
-            .expect("primary activation retains its generated-source bundle")
-            .sources(),
-    );
-    assert_eq!(
-        replayed.source_consumption_commitment(),
-        checked.source_consumption_commitment(),
-        "replayed activation consumes the identical authored and generated source"
-    );
-    assert!(
-        replayed
-            .build_observation_summary()
-            .expect("replayed activation retains observation custody")
-            .filesystem_replay_verdict()
-            .is_complete(),
-        "the replayed activation is itself a complete receipted run"
-    );
-
-    // Source drift after the record was issued must reject before the admitted
-    // build replays under a stale authority snapshot.
-    set_canonical_source_tree_permissions(&project.root, false);
-    project.write("input.txt", "drift\n");
-    set_canonical_source_tree_permissions(&project.root, true);
-    let drifted = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.clone()),
         package_inputs: Some(package_inputs(&project.root)),
-        replay_record: Some(recovered),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+        filesystem_sponsor: Some(filesystem_sponsor),
+        evaluation_sponsor: Some(evaluation_sponsor.clone()),
+        ..CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"))
     })
-    .expect_err("a stale replay record must reject drifted source custody");
-    assert!(
-        drifted.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("does not match the current canonical Source metadata identity")),
-        "unexpected drift diagnostics: {drifted:#?}"
+    .expect("the real filesystem build executes under its sponsor");
+    let observation = checked
+        .build_observation_summary()
+        .expect("filesystem execution retains observations");
+    let usage = checked
+        .build_evaluation_usage()
+        .expect("execution retains resource usage");
+    let attempt_count = u64::try_from(observation.filesystem_operation_attempts().len())
+        .expect("bounded attempt count");
+    assert_eq!(attempt_count, 10);
+    assert_eq!(usage.filesystem_operation_attempts, attempt_count);
+    assert_eq!(
+        evaluation_sponsor.consumed_filesystem_operation_attempts(),
+        attempt_count,
+        "the sponsor charges only the observed execution"
     );
+    assert!(usage.fuel_units > 0);
+    assert_eq!(
+        evaluation_sponsor.consumed_fuel_units(),
+        usage.fuel_units,
+        "compilation must not silently execute the build a second time"
+    );
+    assert_eq!(
+        std::fs::read(build_dir.join("artifact.txt")).unwrap(),
+        b"abZcd"
+    );
+    set_canonical_source_tree_permissions(&project.root, false);
     let _ = std::fs::remove_dir_all(session);
 }
 
 #[test]
-fn serialized_replay_preserves_interleaved_output_descriptor_lifetimes() {
-    assert_interleaved_serialized_replay(false);
+fn build_execution_preserves_interleaved_output_descriptor_lifetimes() {
+    assert_interleaved_build_execution(false);
 }
 
 #[test]
-fn serialized_replay_preserves_interleaved_source_and_output_descriptor_lifetimes() {
-    assert_interleaved_serialized_replay(true);
+fn build_execution_preserves_interleaved_source_and_output_descriptor_lifetimes() {
+    assert_interleaved_build_execution(true);
 }
 
-fn assert_interleaved_serialized_replay(mixed_source: bool) {
+fn assert_interleaved_build_execution(mixed_source: bool) {
     use build_evaluation::BuildFilesystemLogicalHandleInputResolution::Resolved;
 
     let profile = target::TargetProfile::WindowsX64;
     let label = if mixed_source {
-        "mixed-interleaved-serialized-replay"
+        "mixed-interleaved-build-execution"
     } else {
-        "interleaved-serialized-replay"
+        "interleaved-build-execution"
     };
     let project = Project::new(label);
     if mixed_source {
-        write_mixed_interleaved_serialized_replay_project(&project);
+        write_mixed_interleaved_build_project(&project);
     } else {
-        write_interleaved_serialized_replay_project(&project);
+        write_interleaved_build_project(&project);
     }
     let (session, sponsor, build_dir) = sponsored_build_session(label);
     set_canonical_source_tree_permissions(&project.root, true);
@@ -606,7 +550,7 @@ fn assert_interleaved_serialized_replay(mixed_source: bool) {
         ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
     })
     .expect("interleaved admitted Output files execute and append generated source");
-    let expected_generated = b"data ReplayGenerated { base: Main; }\n\n";
+    let expected_generated = b"data BuildGenerated { base: Main; }\n\n";
     let expected_operations: &[u16] = if mixed_source {
         &[2, 1, 2, 1, 4, 5, 5, 4, 5, 5, 5, 5, 8, 8, 4, 8, 8]
     } else {
@@ -662,268 +606,11 @@ fn assert_interleaved_serialized_replay(mixed_source: bool) {
     };
     assert_eq!(handoff.relative_path(), b"generated.omg");
     assert_eq!(handoff.filesystem_attempt_ordinal(), handoff_ordinal);
-    assert!(
-        summary.filesystem_replay_verdict().is_complete(),
-        "interleaved descriptor lifetimes must establish Complete replay"
-    );
     let staged = summary
         .staged_output_tree()
         .expect("complete output custody");
     assert_eq!(staged.entry_count(), 2);
     assert_eq!(staged.file_bytes(), expected_generated.len() as u64 + 5);
-    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
-    let record = build_evaluation::capture_verified_build_filesystem_replay_record(summary, limits)
-        .expect("capture interleaved replay record")
-        .expect("complete replay issues a record");
-    let recovered = build_evaluation::recover_review_only_build_filesystem_replay_record(
-        record.canonical_bytes(),
-        limits,
-    )
-    .expect("serialized interleaved record recovers");
-
-    // Remove the live output before replay; neither a sponsor nor a build directory
-    // is supplied to the provider-free activation.
-    std::fs::remove_dir_all(&session).expect("remove primary activation's host output");
-    let replayed = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(inputs),
-        replay_record: Some(recovered.clone()),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-    })
-    .expect("serialized replay reconstructs interleaved outputs without a provider");
-    assert!(
-        replayed
-            .typed
-            .data_definitions()
-            .iter()
-            .any(|definition| { definition.name.as_str() == "ReplayGenerated" })
-    );
-    let replayed_summary = replayed
-        .build_observation_summary()
-        .expect("replayed custody");
-    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
-    assert_eq!(replayed_summary.filesystem_operation_attempts(), attempts);
-    assert_eq!(
-        replayed_summary.included_source_handoffs(),
-        summary.included_source_handoffs()
-    );
-    assert_eq!(replayed_summary.staged_output_tree(), Some(staged));
-    assert_eq!(
-        replayed
-            .package_generated_source_bundle()
-            .unwrap()
-            .sources(),
-        checked.package_generated_source_bundle().unwrap().sources(),
-    );
-    assert_eq!(
-        replayed.source_consumption_commitment(),
-        checked.source_consumption_commitment()
-    );
-    if mixed_source {
-        set_canonical_source_tree_permissions(&project.root, false);
-        project.write("suffix.txt", " base: Main; } ");
-        set_canonical_source_tree_permissions(&project.root, true);
-        let drifted = compile_to_checked(CheckedCompileRequest {
-            package_inputs: Some(package_inputs(&project.root)),
-            replay_record: Some(recovered),
-            ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-        })
-        .expect_err("mixed replay must reject stale Source bytes even with no live Output");
-        assert!(
-            drifted.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("does not match the current canonical Source metadata identity")),
-            "unexpected mixed Source drift diagnostics: {drifted:#?}"
-        );
-    }
-}
-
-#[test]
-fn serialized_replay_record_rejects_activation_drift() {
-    let profile = target::TargetProfile::WindowsX64;
-    let project = Project::new("serialized-activation-drift");
-    write_serialized_replay_project(&project);
-    let (session, sponsor, build_dir) = sponsored_build_session("serialized-activation-drift");
-    set_canonical_source_tree_permissions(&project.root, true);
-    let inputs = package_inputs(&project.root);
-    let checked = compile_to_checked(CheckedCompileRequest {
-        build_dir: Some(build_dir),
-        package_inputs: Some(inputs.clone()),
-        filesystem_sponsor: Some(sponsor),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-    })
-    .expect("admitted build activation executes and appends generated source");
-    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
-    let record = build_evaluation::capture_verified_build_filesystem_replay_record(
-        checked
-            .build_observation_summary()
-            .expect("admitted activation retains observation custody"),
-        limits,
-    )
-    .expect("capture the verified replay record")
-    .expect("a complete receipted activation issues a replay record");
-    let recovered = build_evaluation::recover_review_only_build_filesystem_replay_record(
-        record.canonical_bytes(),
-        limits,
-    )
-    .expect("serialized replay record recovers");
-
-    // The record's bound target is an observable build input: replaying the
-    // same evidence under another selected target must reject rather than
-    // substitute a stale activation.
-    let drifted_target = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(inputs.clone()),
-        replay_record: Some(recovered.clone()),
-        ..CheckedCompileRequest::new(
-            &project.main(),
-            Some(target::TargetProfile::LinuxX64.target_name()),
-        )
-    })
-    .expect_err("replay evidence bound to another target must reject");
-    assert!(
-        drifted_target
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("selected target profile")),
-        "unexpected target-drift diagnostics: {drifted_target:#?}"
-    );
-
-    // Identical source bytes under a different root package occurrence are a
-    // different activation even though the canonical metadata commitment is
-    // unchanged.
-    let foreign = PackageKeyIdentity::from_digest([98; 32]).expect("foreign root identity");
-    let foreign_inputs = PackageCompilationInputs::new_package(
-        foreign,
-        vec![
-            PackageSourceBinding::new(foreign, "build-facet", project.root.clone())
-                .with_canonical_source_metadata()
-                .expect("capture canonical package source"),
-        ],
-        Vec::new(),
-    )
-    .expect("foreign package occurrence input");
-    let drifted_root = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(foreign_inputs),
-        replay_record: Some(recovered.clone()),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-    })
-    .expect_err("replay evidence bound to another root package must reject");
-    assert!(
-        drifted_root
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("root package identity")),
-        "unexpected root-drift diagnostics: {drifted_root:#?}"
-    );
-
-    // The authored declaration role is part of the activation: the same
-    // sources under the application role must not replay package evidence.
-    let application_inputs = PackageCompilationInputs::new(
-        inputs.root(),
-        package_compilation::BuildDeclarationKind::Application,
-        vec![
-            PackageSourceBinding::new(inputs.root(), "build-facet", project.root.clone())
-                .with_canonical_source_metadata()
-                .expect("capture canonical package source"),
-        ],
-        Vec::new(),
-    )
-    .expect("application-role package input");
-    let drifted_role = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(application_inputs),
-        replay_record: Some(recovered),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-    })
-    .expect_err("replay evidence bound to another declaration role must reject");
-    assert!(
-        drifted_role
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("root declaration role")),
-        "unexpected role-drift diagnostics: {drifted_role:#?}"
-    );
-    let _ = std::fs::remove_dir_all(session);
-}
-
-/// A hosted profile other than the compiler host, so the drift below changes
-/// only the admitted build execution profile.
-fn foreign_build_execution_profile() -> target::TargetProfile {
-    match target::TargetProfile::host() {
-        target::TargetProfile::LinuxX64 => target::TargetProfile::LinuxArm64,
-        _ => target::TargetProfile::LinuxX64,
-    }
-}
-
-#[test]
-fn serialized_replay_record_rejects_execution_profile_drift() {
-    let profile = target::TargetProfile::WindowsX64;
-    let project = Project::new("serialized-execution-profile-drift");
-    write_serialized_replay_project(&project);
-    let (session, sponsor, build_dir) =
-        sponsored_build_session("serialized-execution-profile-drift");
-    set_canonical_source_tree_permissions(&project.root, true);
-    let inputs = package_inputs(&project.root);
-    // A request naming no execution profile admits the compiler host; the
-    // primary activation is captured under exactly that admitted profile.
-    let checked = compile_to_checked(CheckedCompileRequest {
-        build_dir: Some(build_dir),
-        package_inputs: Some(inputs.clone()),
-        filesystem_sponsor: Some(sponsor),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-    })
-    .expect("admitted build activation executes and appends generated source");
-    let summary = checked
-        .build_observation_summary()
-        .expect("admitted activation retains observation custody");
-    assert_eq!(
-        summary.replay_activation().build_execution_profile(),
-        Some(target::TargetProfile::host()),
-        "the retained activation binds the admitted build execution profile"
-    );
-    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
-    let record = build_evaluation::capture_verified_build_filesystem_replay_record(summary, limits)
-        .expect("capture the verified replay record")
-        .expect("a complete receipted activation issues a replay record");
-    let recovered = build_evaluation::recover_review_only_build_filesystem_replay_record(
-        record.canonical_bytes(),
-        limits,
-    )
-    .expect("serialized replay record recovers");
-    assert_eq!(
-        recovered.replay_activation().build_execution_profile(),
-        Some(target::TargetProfile::host()),
-        "the serialized record carries the build execution profile"
-    );
-
-    // Same root package, declaration role, and selected product target; only
-    // the profile the build machine is admitted to execute under differs. The
-    // evidence is stale for that activation and must not substitute.
-    let foreign_execution_profile = foreign_build_execution_profile();
-    let drifted_profile = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(inputs),
-        replay_record: Some(recovered),
-        build_execution_profile: Some(foreign_execution_profile),
-        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
-    })
-    .expect_err("replay evidence bound to another build execution profile must reject");
-    let drift_message = drifted_profile
-        .iter()
-        .find(|diagnostic| {
-            diagnostic
-                .message
-                .contains("was captured for a different activation")
-        })
-        .map(|diagnostic| diagnostic.message.as_str())
-        .unwrap_or_else(|| panic!("unexpected profile-drift diagnostics: {drifted_profile:#?}"));
-    assert!(
-        drift_message.contains("build execution profile"),
-        "the rejection names the drifted execution profile: {drift_message}"
-    );
-    for equal_axis in [
-        "root package identity",
-        "root declaration role",
-        "selected target profile",
-    ] {
-        assert!(
-            !drift_message.contains(equal_axis),
-            "{equal_axis} did not drift: {drift_message}"
-        );
-    }
+    set_canonical_source_tree_permissions(&project.root, false);
     let _ = std::fs::remove_dir_all(session);
 }

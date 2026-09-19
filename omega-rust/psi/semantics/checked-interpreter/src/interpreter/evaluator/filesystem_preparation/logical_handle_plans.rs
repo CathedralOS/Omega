@@ -1,13 +1,6 @@
 //! Prepared logical handle inputs, outputs, retirements and plans.
 
-use crate::FilesystemRootedPathOperandResolution;
 use crate::interpreter::evaluator::FilesystemLogicalHandleKind;
-use crate::interpreter::evaluator::filesystem_preparation::prepared_calls::PreparedFilesystemCall;
-
-pub(crate) struct PreparedFilesystemPreparation {
-    pub(crate) call: PreparedFilesystemCall,
-    pub(crate) rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PreparedFilesystemLogicalHandleInput {

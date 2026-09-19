@@ -2,10 +2,8 @@
 //! output trees.
 
 use crate::portable_paths::validate_portable_component;
-#[cfg(unix)]
-use crate::replayed_files;
 use crate::staged_output_tree::RetainedStagedOutputEntryKind;
-use crate::{capture, empty, replayed_ordinary_files, select_included_sources};
+use crate::{capture, empty, select_included_sources};
 use checked_interpreter::FilesystemSponsor;
 use sha2::Digest;
 use sha2::Sha256;
@@ -15,41 +13,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
-
-#[test]
-fn replayed_ordinary_files_are_canonical_and_order_independent() {
-    let first = replayed_ordinary_files(&[
-        (b"z.bin", b"last"),
-        (b"a.bin", b"first"),
-        (b"m.bin", b"middle"),
-    ])
-    .unwrap();
-    let reordered = replayed_ordinary_files(&[
-        (b"m.bin", b"middle"),
-        (b"z.bin", b"last"),
-        (b"a.bin", b"first"),
-    ])
-    .unwrap();
-    assert_eq!(first, reordered);
-    assert_eq!(first.entry_count(), 3);
-    assert_eq!(first.file_bytes(), 15);
-}
-
-#[test]
-fn replayed_ordinary_files_reject_empty_duplicate_and_nested_shapes() {
-    assert!(replayed_ordinary_files(&[]).is_err());
-    assert!(replayed_ordinary_files(&[(b"same.bin", b"first"), (b"same.bin", b"second")]).is_err());
-    assert!(replayed_ordinary_files(&[(b"nested/file.bin", b"bytes")]).is_err());
-}
-
-#[cfg(unix)]
-#[test]
-fn replayed_file_commitment_binds_compiler_derived_executable_class() {
-    let ordinary = replayed_files(&[(b"tool.bin", b"tool", false)]).unwrap();
-    let executable = replayed_files(&[(b"tool.bin", b"tool", true)]).unwrap();
-    assert_ne!(ordinary.digest(), executable.digest());
-    assert_eq!(ordinary.file_bytes(), executable.file_bytes());
-}
 
 struct Fixture {
     session: PathBuf,

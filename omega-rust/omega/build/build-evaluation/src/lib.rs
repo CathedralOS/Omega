@@ -2,7 +2,7 @@
 //!
 //! [`admit_build_program`] fixes the exact entry, target inputs, and authority
 //! before issuing an opaque [`AdmittedBuildProgram`]. Its consuming execution
-//! runs that checkpoint, checks replay and output custody, and assembles one
+//! runs that checkpoint once, checks output custody, and assembles one
 //! [`ComputedBuildConfig`]. Selection and evidence operations live with their
 //! domain owners; this root retains the admission-to-result route.
 //!
@@ -47,7 +47,7 @@
 //! program declares and selects (selection, target machines, vocabulary,
 //! declarations, wire protocol, behavior exclusions, configuration), and
 //! `evidence/` owns the evaluation evidence execution consults (observations
-//! and their identity, filesystem scope, replay eligibility and records).
+//! and their identity, filesystem scope and output custody).
 //! `optimization` and `provider_settlement` own their own admissions.
 
 mod admission;
@@ -98,30 +98,15 @@ pub use evidence::filesystem_scope::{
 };
 pub use evidence::observation_identity::BuildObservationIdentity;
 pub use evidence::observations::{
-    BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION, BUILD_OBSERVATION_SCHEMA_VERSION,
-    BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory, BuildEvaluationUsage,
-    BuildFilesystemAuthorizedPath, BuildFilesystemByteOperand, BuildFilesystemGrantAccess,
-    BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
+    BUILD_OBSERVATION_SCHEMA_VERSION, BuildActivation, BuildCanonicalSourceMetadataIdentity,
+    BuildCapturedSourceInventory, BuildEvaluationUsage, BuildFilesystemAuthorizedPath,
+    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
-    BuildFilesystemMetadataObservation, BuildFilesystemMetadataObservationKind,
-    BuildFilesystemMutableByteOperand, BuildFilesystemMutableByteOperandResolution,
-    BuildFilesystemMutableI64Operand, BuildFilesystemMutableI64OperandResolution,
-    BuildFilesystemObservedByteRegion, BuildFilesystemObservedByteRegionKind,
-    BuildFilesystemOperationAttempt, BuildFilesystemOperationObservationClass,
-    BuildFilesystemOperationResult, BuildFilesystemPathLikeOperand, BuildFilesystemProvider,
-    BuildFilesystemReplayDisposition, BuildFilesystemReplayVerdict, BuildFilesystemReturnedPath,
-    BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
-    BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
-    BuildFilesystemScalarOperandValue, BuildIncludedSourceHandoff, BuildObservationClass,
-    BuildObservationSummary, BuildReplayActivation, BuildRequiredOutputSettlement,
-};
-pub use evidence::replay_record::{
-    BuildFilesystemReplayRecordError, BuildFilesystemReplayRecordLimits,
-    ReviewOnlyBuildFilesystemReplayRecord, capture_verified_build_filesystem_replay_record,
-    recover_review_only_build_filesystem_replay_record,
-    rehydrate_review_only_build_filesystem_replay_record,
+    BuildFilesystemOperationAttempt, BuildFilesystemOperationResult, BuildFilesystemProvider,
+    BuildFilesystemRoot, BuildIncludedSourceHandoff, BuildObservationSummary,
+    BuildRequiredOutputSettlement,
 };
 pub use execution::execute_admitted_build_program;
 pub use provider_settlement::{CheckedProviderSelection, settle_checked_providers};

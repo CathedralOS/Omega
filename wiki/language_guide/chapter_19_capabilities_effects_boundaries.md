@@ -491,9 +491,11 @@ filesystem facet already implements snapshot isolation.
 
 The resolver retrieves dependencies before their code runs. Its transport and
 credential authority does not pass to dependency builds. Generated source also
-inherits no build authority: ordinary runtime contracts apply to it. Release
-observations must be hermetic or replayable; volatile development inputs do not
-establish a source-rebuildable release. See [build execution](../spec/build/execution.md).
+inherits no build authority: ordinary runtime contracts apply to it. The root's
+filesystem selection governs descendants, whose delegated access cannot exceed
+their caller's. Lock mismatches and missing capabilities reject before restricted
+actions; executing the build does not require a second replay run.
+See [build execution](../spec/build/execution.md).
 
 Package acceptance is a root policy decision over compiler-derived findings,
 not proof that a human audited or understood the source. A signature identifies

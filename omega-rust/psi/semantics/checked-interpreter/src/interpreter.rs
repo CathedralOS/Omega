@@ -373,10 +373,6 @@ fn evaluate_granted_arguments(
                         "a checked-program filesystem service binding cannot enter typed build evaluation".to_owned(),
                     ));
                 }
-                let replaying = matches!(
-                    &options.filesystem,
-                    FilesystemAccess::ReplayFilesystem(_)
-                );
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
                     FilesystemAccess::RealUnscoped => {
@@ -407,9 +403,6 @@ fn evaluate_granted_arguments(
                             )?,
                         );
                     }
-                    FilesystemAccess::ReplayFilesystem(replay) => {
-                        evaluator.filesystem_replay = Some(replay);
-                    }
                 }
                 let result = match entry {
                     BuildMachineEntry::Name(machine_name) => evaluator
@@ -420,25 +413,21 @@ fn evaluate_granted_arguments(
                             arguments,
                             true,
                         ),
-                }
-                .and_then(|values| {
-                    evaluator.finish_filesystem_replay()?;
-                    Ok(values)
-                });
+                };
                 evaluator.finish_cell_usage();
                 // Build logging reaches the REAL streams (owner answer #5:
                 // "the interpreter should never just catch it") -- including
                 // on failure, where the partial log is the diagnostic.
                 use std::io::Write as _;
-                if !replaying && !evaluator.stdout.is_empty() {
+                if !evaluator.stdout.is_empty() {
                     let _ = std::io::stdout().write_all(&evaluator.stdout);
                     let _ = std::io::stdout().flush();
                 }
-                if !replaying && !evaluator.stderr.is_empty() {
+                if !evaluator.stderr.is_empty() {
                     let _ = std::io::stderr().write_all(&evaluator.stderr);
                     let _ = std::io::stderr().flush();
                 }
-                if !replaying && !evaluator.build_log.is_empty() {
+                if !evaluator.build_log.is_empty() {
                     let _ = std::io::stdout().write_all(&evaluator.build_log);
                     let _ = std::io::stdout().flush();
                 }
@@ -622,13 +611,8 @@ fn interpret_on_current_thread(
             };
             evaluator.real_fs = Some(filesystem);
         }
-        FilesystemAccess::ReplayFilesystem(replay) => {
-            evaluator.filesystem_replay = Some(replay);
-        }
     }
-    let result = evaluator
-        .run_entry(entry_machine_name)
-        .and_then(|()| evaluator.finish_filesystem_replay());
+    let result = evaluator.run_entry(entry_machine_name);
     evaluator.finish_cell_usage();
     let usage = evaluator.usage;
     match result {

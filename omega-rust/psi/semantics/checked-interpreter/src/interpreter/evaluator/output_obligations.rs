@@ -534,8 +534,8 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Update sealed-output custody from one completed filesystem attempt.
-    /// Called after the attempt's outcome is final (including replay-equality
-    /// checks) so the observed record alone drives custody.
+    /// Called after the attempt's outcome and observations are final, so only
+    /// completed operations drive custody.
     ///
     /// - A successful `create`/`open`-class call binds its new descriptor to
     ///   the rooted path it resolved and marks the path `Open`.

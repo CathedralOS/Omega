@@ -49,9 +49,8 @@ pub use terminal_authority_policy::{
     conservative_syscall_terminal_mechanism, current_compiler_intrinsic_terminal_authority_policy,
     current_terminal_authority_policy, filesystem_host_permission_row,
     filesystem_host_permission_rows, filesystem_mechanism_row,
-    filesystem_native_handle_query_release_contracts, filesystem_ordinary_release_contract,
-    filesystem_release_bound_mechanism, filesystem_release_mechanism_row,
-    filesystem_release_occurrence_mechanism_rows, normalized_foreign_terminal_mechanism,
+    filesystem_ordinary_release_contract, filesystem_release_bound_mechanism,
+    filesystem_release_mechanism_row, normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
     settled_filesystem_cohort, terminal_authority_policy_with_rows,
 };
@@ -73,77 +72,6 @@ pub fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    realize_native_artifact_with_release_contracts(artifact, request, &[])
-}
-
-/// Realize one Terminal artifact with the compile's retained occurrence-specific
-/// ordinary-release contracts.
-///
-/// `filesystem_release_contracts` carries exactly the contracts derived from
-/// this compilation's own verified build filesystem replay record through
-/// [`filesystem_native_handle_query_release_contracts`]. Each contract emits
-/// its evidence-bound explicit-empty row into the artifact's terminal-authority
-/// policy — retained proof that this compile's own constrained open/query/close
-/// occurrences happened. Settlement never consults these contracts to classify
-/// a demanded program mechanism: they describe a different execution, and the
-/// spec binds the constraint identity "to the derivation and exact
-/// occurrence". Release narrowing arrives only with the program's own
-/// checked-flow derivation, rejoined per call site; until it exists a demanded
-/// release-cohort mechanism classifies under the receiving policy's own keys
-/// or fails closed.
-pub fn realize_native_artifact_with_release_contracts(
-    artifact: terminal_codec::CanonicalTerminalArtifact,
-    request: NativeRealizationRequest<'_>,
-    filesystem_release_contracts: &[FilesystemOrdinaryReleaseContract],
-) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    let mut request = request;
-    if !filesystem_release_contracts.is_empty() {
-        let merged = (|| -> Result<TerminalAuthorityPolicy, Vec<Diagnostic>> {
-            let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
-                |error| {
-                    vec![Diagnostic::error(format!(
-                        "native-artifact release evidence could not replay canonical Terminal semantics: {error}"
-                    ))]
-                },
-            )?;
-            let demanded =
-                provider_planning::compiler_intrinsics::demanded_boundary_identities(&module)?;
-            let release_rows = filesystem_release_occurrence_mechanism_rows(
-                filesystem_release_contracts,
-                &demanded,
-                request.selected_provider_plans,
-                request.external_binding_rows,
-            )
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "native-artifact retained filesystem release evidence did not realize its mechanism rows: {error}"
-                ))]
-            })?;
-            let mut rows = request.terminal_authority_policy.explicit_rows().to_vec();
-            for row in release_rows {
-                if rows
-                    .iter()
-                    .all(|existing| existing.mechanism() != row.mechanism())
-                {
-                    rows.push(row);
-                }
-            }
-            terminal_authority_policy_with_rows(rows).map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "native-artifact retained filesystem release rows do not form one exact mechanism policy: {error:?}"
-                ))]
-            })
-        })();
-        match merged {
-            Ok(policy) => request.terminal_authority_policy = policy,
-            Err(diagnostics) => {
-                return Err(RequestedNativeArtifactError {
-                    image_request: request.image_request.clone(),
-                    diagnostics,
-                });
-            }
-        }
-    }
     realize_image(
         artifact,
         &request,

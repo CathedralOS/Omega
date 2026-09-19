@@ -14,9 +14,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 fn generated_fixture() -> Vec<(SourceId, build_output::PackageGeneratedSource)> {
-    let tree = build_output::replayed_ordinary_files(&[
-        (b"first.omg", b"data First {}"),
-        (b"second.omg", b"data Second {}"),
+    let tree = build_output::from_entries(&[
+        build_output::OutputTreeEntry::regular_file(b"first.omg", b"data First {}", false),
+        build_output::OutputTreeEntry::regular_file(b"second.omg", b"data Second {}", false),
     ])
     .expect("retained generated files");
     build_output::select_included_sources(&tree, &[b"first.omg".to_vec(), b"second.omg".to_vec()])

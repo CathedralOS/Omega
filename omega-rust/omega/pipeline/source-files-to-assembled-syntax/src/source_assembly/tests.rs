@@ -42,8 +42,10 @@ impl Drop for GeneratedSourcePackages {
 }
 
 fn generated_source(path: &[u8], bytes: &[u8]) -> build_output::PackageGeneratedSource {
-    let tree = build_output::replayed_single_ordinary_file(path, bytes)
-        .expect("canonical retained generated source");
+    let tree = build_output::from_entries(&[build_output::OutputTreeEntry::regular_file(
+        path, bytes, false,
+    )])
+    .expect("canonical retained generated source");
     build_output::select_included_sources(&tree, &[path.to_vec()])
         .expect("explicit generated source selection")
         .pop()

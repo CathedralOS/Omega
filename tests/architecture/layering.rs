@@ -1277,7 +1277,7 @@ fn build_evaluation_is_not_owned_by_the_compiler() {
     let compiler_build = root.join("omega-rust/omega/compiler/compiler/src/pipeline/build");
     assert!(
         !compiler_build.exists(),
-        "build evaluation, observations, and replay records must not return to compiler"
+        "build execution and observations must not return to compiler"
     );
 
     let owner = root.join("omega-rust/omega/build/build-evaluation/src/lib.rs");
@@ -2857,7 +2857,7 @@ fn retained_native_product_enters_only_terminal_realization() {
     for required in [
         "produce_program_entry_terminal_artifact(",
         "validate_native_program_entry_settlement(",
-        "realize_native_artifact_with_release_contracts(",
+        "realize_native_artifact(artifact, request)",
         "checked_scope: Some(&checked_boundary_operator_scope)",
         "prepared_input: Some(prepared_input)",
         "from_retained_native_artifact(",

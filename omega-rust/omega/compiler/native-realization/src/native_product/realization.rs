@@ -105,40 +105,6 @@ pub(super) fn realize(
             "signed macOS GUI image emission requires the authored Build identifier",
         )]);
     }
-    // This compile's own verified build filesystem replay record realizes one
-    // occurrence-specific ordinary-release contract per retained
-    // open/query/close chain. Realization emits each contract's evidence-bound
-    // explicit-empty row into the artifact's terminal-authority policy as
-    // retained proof of the build execution's constrained occurrences. The
-    // contracts never narrow a demanded program mechanism — they describe a
-    // different execution — so settlement classification ignores them until a
-    // program-side checked-flow derivation rejoins a contract per call site.
-    let replay_limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
-    let filesystem_release_contracts = checked
-        .build_observation_summary()
-        .map(|summary| {
-            build_evaluation::capture_verified_build_filesystem_replay_record(
-                summary,
-                replay_limits,
-            )
-        })
-        .transpose()
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "native-artifact retained filesystem replay record could not be recovered: {error}"
-            ))]
-        })?
-        .flatten()
-        .map(|record| {
-            crate::filesystem_native_handle_query_release_contracts(&record, replay_limits)
-        })
-        .transpose()
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "native-artifact retained filesystem replay record did not rehydrate its occurrences: {error}"
-            ))]
-        })?
-        .unwrap_or_default();
     let request = crate::NativeRealizationRequest {
         checked_scope: Some(&checked_boundary_operator_scope),
         prepared_input: Some(prepared_input),
@@ -159,18 +125,14 @@ pub(super) fn realize(
         native_callbacks: &[],
         callback_thunks: &[],
     };
-    crate::realize_native_artifact_with_release_contracts(
-        artifact,
-        request,
-        &filesystem_release_contracts,
-    )
-    .map_err(|error| error.into_parts().1)?
-    .into_direct()
-    .map_err(|_| {
-        vec![Diagnostic::error(
-            "direct native realization returned a different image kind",
-        )]
-    })
+    crate::realize_native_artifact(artifact, request)
+        .map_err(|error| error.into_parts().1)?
+        .into_direct()
+        .map_err(|_| {
+            vec![Diagnostic::error(
+                "direct native realization returned a different image kind",
+            )]
+        })
 }
 
 #[cfg(test)]

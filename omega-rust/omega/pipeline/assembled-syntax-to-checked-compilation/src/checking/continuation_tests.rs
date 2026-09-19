@@ -57,7 +57,6 @@ fn checked_request_preserves_targetless_and_exact_target_selection() {
     assert!(request.build_dir.is_none());
     assert!(request.filesystem_sponsor.is_none());
     assert!(request.evaluation_sponsor.is_none());
-    assert!(request.replay_record.is_none());
     let targetless = super::compile_to_checked(request).expect("targetless request checks");
     assert_eq!(targetless.selected_target_profile(), None);
     assert_eq!(targetless.selected_native_target(), None);
@@ -256,18 +255,18 @@ fn prepared_source_checkpoint_preserves_standalone_child_identity_and_siblings()
                 .expect("prepare checked source checkpoint");
             let windows = prepared
                 .clone()
-                .compile_child_with_replay(CheckedChildExecution::exact_target(
+                .compile_child(CheckedChildExecution::exact_target(
                     target::TargetProfile::WindowsX64,
                 ))
                 .expect("compile Windows child from prepared source");
             let linux = prepared
                 .clone()
-                .compile_child_with_replay(CheckedChildExecution::exact_target(
+                .compile_child(CheckedChildExecution::exact_target(
                     target::TargetProfile::LinuxX64,
                 ))
                 .expect("compile Linux child from prepared source");
             let windows_again = prepared
-                .compile_child_with_replay(CheckedChildExecution::exact_target(
+                .compile_child(CheckedChildExecution::exact_target(
                     target::TargetProfile::WindowsX64,
                 ))
                 .expect("recompile Windows child after sibling");

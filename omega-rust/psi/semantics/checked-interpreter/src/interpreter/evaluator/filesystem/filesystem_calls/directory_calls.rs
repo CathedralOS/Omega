@@ -1,9 +1,6 @@
 //! Directory enumeration: `readdir` windows and the Win32 find cursor.
 
-use crate::FilesystemObservedByteRegionKind;
-use crate::interpreter::evaluator::{
-    EvalResult, FIND_DATA_OUTPUT_BYTES, PreparedFilesystemCall, dirent_record_chunk,
-};
+use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall, dirent_record_chunk};
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     pub(super) fn serve_read_dir(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
@@ -42,25 +39,11 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     let start = position.initial.max(0) as usize;
                     let (chunk, next_position) = dirent_record_chunk(&records, start, count.host);
                     if chunk.is_empty() {
-                        self.record_observed_byte_region(
-                            1,
-                            FilesystemObservedByteRegionKind::DirectoryRecords,
-                            &buffer,
-                            0,
-                            0,
-                        )?;
                         0
                     } else {
                         let n = chunk.len();
                         buffer.write(chunk)?;
                         position.write(next_position as i64)?;
-                        self.record_observed_byte_region(
-                            1,
-                            FilesystemObservedByteRegionKind::DirectoryRecords,
-                            &buffer,
-                            0,
-                            n,
-                        )?;
                         n as i64
                     }
                 }
@@ -93,13 +76,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     let (name, is_dir) =
                         entries.pop_front().expect("dot entries are always present");
                     self.write_find_data(&data, &name, is_dir)?;
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::FindEntry,
-                        &data,
-                        0,
-                        FIND_DATA_OUTPUT_BYTES,
-                    )?;
                     let handle = self.virtual_next_find;
                     self.virtual_next_find += 1;
                     self.virtual_finds.insert(handle, entries);
@@ -127,25 +103,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             {
                 Some((name, is_dir)) => {
                     self.write_find_data(&data, &name, is_dir)?;
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::FindEntry,
-                        &data,
-                        0,
-                        FIND_DATA_OUTPUT_BYTES,
-                    )?;
                     1
                 }
-                None => {
-                    self.record_observed_byte_region(
-                        1,
-                        FilesystemObservedByteRegionKind::FindEntry,
-                        &data,
-                        0,
-                        0,
-                    )?;
-                    0
-                }
+                None => 0,
             }
         })
     }

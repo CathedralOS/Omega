@@ -1,11 +1,10 @@
 use super::{
-    BTreeSet, BuildFilesystemObservedByteRegionKind, BuildObservationClass, LocalSourceLimits,
-    PackageReviewCanonicalRowKind, PackageSourceClosureLimits, PackageTriageDisposition,
-    PackageTriageReason, REVIEWABLE_PACKAGES, ReviewOnlyCapabilityConflictLimits, SourceLineage,
-    SourceRelativePath, assemble_initial_source_review, assemble_update_source_review,
-    assert_fixture_evidence, compare_review_only_initial_capabilities,
-    compile_resolved_package_reviews, decode_ordinary_package_obligation_ledger,
-    encode_ordinary_package_obligation_ledger,
+    BTreeSet, LocalSourceLimits, PackageReviewCanonicalRowKind, PackageSourceClosureLimits,
+    PackageTriageDisposition, PackageTriageReason, REVIEWABLE_PACKAGES,
+    ReviewOnlyCapabilityConflictLimits, SourceLineage, SourceRelativePath,
+    assemble_initial_source_review, assemble_update_source_review, assert_fixture_evidence,
+    compare_review_only_initial_capabilities, compile_resolved_package_reviews,
+    decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
     resolve_workspace_package_closure_from_hardened_base, temp_root, triage_initial_install,
     triage_review_update, triage_update_without_admission_baseline, workspace_root,
 };
@@ -87,29 +86,21 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             assert!(usage.session_peak_live_cells <= 1_048_576);
             assert!(usage.session_peak_live_text_bytes <= 64 * 1024 * 1024);
             assert!(usage.peak_live_cells <= usage.session_peak_live_cells);
-            assert!(usage.replay_peak_live_cells <= usage.session_peak_live_cells);
             assert!(usage.peak_live_text_bytes <= usage.session_peak_live_text_bytes);
-            assert!(usage.replay_peak_live_text_bytes <= usage.session_peak_live_text_bytes);
-            closure_live_cell_peak = closure_live_cell_peak
-                .max(usage.peak_live_cells)
-                .max(usage.replay_peak_live_cells);
+            closure_live_cell_peak = closure_live_cell_peak.max(usage.peak_live_cells);
             reported_session_live_cell_peak =
                 reported_session_live_cell_peak.max(usage.session_peak_live_cells);
-            closure_live_text_byte_peak = closure_live_text_byte_peak
-                .max(usage.peak_live_text_bytes)
-                .max(usage.replay_peak_live_text_bytes);
+            closure_live_text_byte_peak =
+                closure_live_text_byte_peak.max(usage.peak_live_text_bytes);
             reported_session_live_text_byte_peak =
                 reported_session_live_text_byte_peak.max(usage.session_peak_live_text_bytes);
-            assert!(usage.result_cells + usage.replay_result_cells <= 1_048_576);
-            assert!(usage.result_text_bytes + usage.replay_result_text_bytes <= 64 * 1024 * 1024);
+            assert!(usage.result_cells <= 1_048_576);
+            assert!(usage.result_text_bytes <= 64 * 1024 * 1024);
             assert!(usage.fuel_units > 0);
             assert!(usage.fuel_units <= usage.invocation_fuel_ceiling);
-            assert!(usage.replay_fuel_units <= usage.invocation_fuel_ceiling);
             assert_eq!(usage.build_log_bytes, 0);
-            assert_eq!(usage.replay_build_log_bytes, 0);
             closure_build_fuel = closure_build_fuel
                 .checked_add(usage.fuel_units)
-                .and_then(|total| total.checked_add(usage.replay_fuel_units))
                 .expect("fixture closure build fuel fits u64");
             assert_ne!(
                 issued.source_consumption_commitment().digest(),
@@ -131,54 +122,16 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             );
             closure_filesystem_attempts = closure_filesystem_attempts
                 .checked_add(usage.filesystem_operation_attempts)
-                .and_then(|total| total.checked_add(usage.replay_filesystem_operation_attempts))
                 .expect("fixture closure filesystem attempts fit u64");
             assert_eq!(
-                observations.ceiling(),
-                if executes_filesystem_build {
-                    BuildObservationClass::Volatile
-                } else {
-                    BuildObservationClass::Hermetic
-                }
-            );
-            assert_eq!(
-                observations.realized(),
-                if executes_filesystem_build {
-                    BuildObservationClass::Receipted
-                } else {
-                    BuildObservationClass::Hermetic
-                }
+                observations.filesystem_host_observed(),
+                executes_filesystem_build
             );
             assert_eq!(
                 observations.filesystem_operation_attempts().len(),
                 if executes_filesystem_build { 6 } else { 0 },
                 "only generated-table executes its declared filesystem build"
             );
-            if executes_filesystem_build {
-                assert!(
-                    observations
-                        .filesystem_replay_verdict()
-                        .replays_source_inputs()
-                );
-                assert!(observations.filesystem_replay_verdict().is_complete());
-                let [_, read, _, _, _, _] = observations.filesystem_operation_attempts() else {
-                    panic!("generated-table retains its six filesystem attempts")
-                };
-                let [region] = read.observed_byte_regions() else {
-                    panic!("generated-table retains one observed source-content region")
-                };
-                assert_eq!(
-                    region.kind(),
-                    BuildFilesystemObservedByteRegionKind::SequentialFileRead
-                );
-                assert_eq!(region.output_operand_ordinal(), 1);
-                assert_eq!(region.offset(), 0);
-                assert_eq!(region.length(), 24);
-                assert_eq!(
-                    read.observed_bytes(region),
-                    Some(b"alpha=1\nbeta=2\ngamma=3\n\n".as_slice())
-                );
-            }
             let staged_output = observations
                 .staged_output_tree()
                 .expect("sponsored package review commits even an empty staged-output tree");
@@ -190,22 +143,25 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 staged_output.file_bytes(),
                 if executes_filesystem_build { 42 } else { 0 }
             );
-            let replay_root = cache.join(format!("review-output-replay-{package_index}"));
-            std::fs::create_dir(&replay_root).expect("create fresh retained-output replay root");
+            let materialization_root =
+                cache.join(format!("review-output-materialization-{package_index}"));
+            std::fs::create_dir(&materialization_root)
+                .expect("create fresh retained-output materialization root");
             assert_eq!(
                 staged_output
-                    .materialize_into(&replay_root)
-                    .expect("retained output must replay after review-session disposal"),
+                    .materialize_into(&materialization_root)
+                    .expect("retained output must materialize after review-session disposal"),
                 staged_output.commitment()
             );
             if executes_filesystem_build {
                 assert_eq!(
-                    std::fs::read_to_string(replay_root.join("table.generated.omg")).unwrap(),
+                    std::fs::read_to_string(materialization_root.join("table.generated.omg"))
+                        .unwrap(),
                     "pub machine table_size() -> u64 {\n    3\n}\n"
                 );
             }
-            std::fs::remove_dir_all(&replay_root)
-                .expect("retained-output replay root remains removable");
+            std::fs::remove_dir_all(&materialization_root)
+                .expect("retained-output materialization root remains removable");
             assert!(
                 !issued.canonical_review_bytes().is_empty(),
                 "{} review encoding must be nonempty",

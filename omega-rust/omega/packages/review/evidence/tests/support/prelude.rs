@@ -1,4 +1,3 @@
-pub(crate) use build_evaluation::BuildObservationClass;
 pub(crate) use package_compilation::{
     AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputs,
     PackageDependencyBinding, PackageSourceBinding,

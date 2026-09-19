@@ -375,7 +375,7 @@ pub(crate) enum AdmittedBuildMachine {
 /// Preparation, exact entry selection, reach inference, target admission, and
 /// authority validation all finish before this value is issued. The prepared
 /// program and its entry token never leave the carrier independently, so a
-/// caller cannot replace either half before primary or replay execution.
+/// caller cannot replace either half before execution.
 ///
 /// The custody boundary is enforced by privacy, not a convention:
 ///
@@ -493,8 +493,7 @@ impl AdmittedBuildProgram {
         )
     }
 
-    /// Consume the exact admitted program through primary evaluation and any
-    /// verifier-owned replay.
+    /// Consume the exact admitted program through one evaluation.
     pub fn execute(self) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
         execute_admitted_build_program(self)
     }
@@ -596,40 +595,6 @@ pub fn admit_build_program(
     }
     let filesystem_reachable =
         build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
-
-    // Replay evidence is bound to the activation that produced it: the
-    // build's `Build.target`, root package occurrence, authored declaration
-    // role, and admitted build execution profile are all observable inputs.
-    // A record captured under a different activation is stale evidence for
-    // this request.
-    if let Some(bound_activation) = filesystem_scope.replay_activation() {
-        let expected_activation = filesystem_scope.activation(selected_target_profile);
-        if bound_activation != expected_activation {
-            let mut drift = Vec::<&'static str>::new();
-            if bound_activation.root_package_identity()
-                != expected_activation.root_package_identity()
-            {
-                drift.push("root package identity");
-            }
-            if bound_activation.root_role() != expected_activation.root_role() {
-                drift.push("root declaration role");
-            }
-            if bound_activation.selected_target_profile()
-                != expected_activation.selected_target_profile()
-            {
-                drift.push("selected target profile");
-            }
-            if bound_activation.build_execution_profile()
-                != expected_activation.build_execution_profile()
-            {
-                drift.push("build execution profile");
-            }
-            return Err(vec![Diagnostic::error(format!(
-                "build filesystem replay record was captured for a different activation ({} drifted)",
-                drift.join(", ")
-            ))]);
-        }
-    }
 
     let mut build_fields = Vec::new();
     if let (Some(profile), Some(_)) = (selected_target_profile, target_vocabulary) {
@@ -774,9 +739,8 @@ pub fn admit_build_program(
 /// Project the admitted authority decision into normalized restricted
 /// build-host requests.
 ///
-/// Only real host reach produces a request: replay reproduces retained
-/// receipts and the virtual provider installs no host authority, so neither
-/// asks anything new of the host. Logical roots are reported by compiler
+/// Only real host reach produces a request; the virtual provider installs no
+/// host authority. Logical roots are reported by compiler
 /// vocabulary identity — the host paths the roots map to never enter the
 /// projection.
 fn restricted_build_requests(
@@ -808,8 +772,7 @@ fn restricted_build_requests(
             &[][..],
             None,
         ),
-        BuildMachineFilesystemAccess::Virtual
-        | BuildMachineFilesystemAccess::ReplayFilesystem(_) => return Vec::new(),
+        BuildMachineFilesystemAccess::Virtual => return Vec::new(),
     };
     let captured = filesystem_scope.captured_source_inventory();
     let grant = |grant_root: &BuildMachineFilesystemGrantRoot| {

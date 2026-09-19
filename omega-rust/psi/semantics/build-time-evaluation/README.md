@@ -312,7 +312,6 @@ Live cells are charged from reservation through the final alias, not estimated
 as Rust allocation size. Text backing has a separately charged lifetime.
 
 The [build observation custody note](../../../omega/build/build-evaluation/observation_custody.md)
-owns current sponsor ceilings and exact initial/replay reconciliation. The
-[replay note](../../../omega/build/build-evaluation/replay.md) owns supported
-filesystem sequences. Those bounds and schema-version histories are neither
+owns current sponsor ceilings and filesystem observation accounting.
+Those bounds and schema-version histories are neither
 semantic-evaluation laws nor host CPU/RSS containment guarantees.

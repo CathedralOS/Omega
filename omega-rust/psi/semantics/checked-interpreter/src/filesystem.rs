@@ -3,9 +3,9 @@
 //! This file owns the attempt schema version. `metadata_layout.rs`
 //! carries the metadata field layout, `canonical_metadata.rs` the canonical
 //! metadata rows and index, `grants.rs` grant roots, refusals, authorized
-//! paths and access, `operands.rs` scalar, byte, path and mutable operands,
-//! `observations.rs` returned paths, byte regions and metadata
-//! observations, `logical_handles.rs` logical handle identities, inputs and
+//! paths and access, `operands.rs` rooted output coordinates,
+//! `observations.rs` metadata carrier values,
+//! `logical_handles.rs` logical handle identities, inputs and
 //! outputs and `operation_attempts.rs` operation attempts, outcomes and
 //! service bindings.
 
@@ -41,27 +41,17 @@ pub use metadata_layout::{
 };
 pub use observations::{
     FILESYSTEM_METADATA_API_CARRIER_BYTES, FilesystemMetadataObservation,
-    FilesystemMetadataObservationKind, FilesystemObservedByteRegion,
-    FilesystemObservedByteRegionKind, FilesystemReturnedPath, FilesystemReturnedPathCompleteness,
-    FilesystemReturnedPathKind,
+    FilesystemMetadataObservationKind,
 };
-pub use operands::{
-    FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableByteOperandResolution,
-    FilesystemMutableI64Operand, FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand,
-    FilesystemRootedPathOperandResolution, FilesystemScalarOperand, FilesystemScalarOperandValue,
-};
+pub use operands::FilesystemRootedPathOperandResolution;
 pub use operation_attempts::{
     FilesystemEvaluationHaltKind, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
     FilesystemOperationResult, FilesystemServiceBinding,
 };
 
-/// Schema for the current incomplete filesystem operation-attempt evidence.
+/// Schema for filesystem operation-attempt observations.
 ///
-/// This records call-start order, exact provider, every successfully authorized
-/// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
-/// exact path-like byte operands, each successfully resolved mutable carrier
-/// and logical-handle input even when later preparation fails, and a typed
-/// returned or evaluator-halted outcome. Exact path results and successful file
-/// and directory observation regions plus canonical metadata values are
-/// designated, but replay execution is not complete yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 19;
+/// Records call-start order, provider, rooted authorizations and refusals,
+/// logical-handle lifetimes, rooted output custody, and returned or halted outcomes.
+/// Payload buffers and operand snapshots are not retained.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 20;

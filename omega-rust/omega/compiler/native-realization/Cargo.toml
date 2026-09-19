@@ -63,7 +63,6 @@ compilation-report = { path = "../compilation-report" }
 selected-dispatch = { path = "../../build/selected-dispatch" }
 
 [dev-dependencies]
-build-evaluation = { path = "../../build/build-evaluation", features = ["test-support"] }
 package-compilation = { path = "../../build/package-compilation" }
 image-emission = { path = "../../backend/images/image-emission", features = ["test-support"] }
 machine-emission = { path = "../../backend/machine-emission", features = ["test-support"] }

@@ -90,8 +90,7 @@ and payload. Do not serialize those derived facts a second time.
 An external-local canonical path in lineage is identity text only: the compiler
 never dereferences it. Ambient environment, clocks, randomness, network state,
 or a prior build-operation trace cannot replace snapshot facts. BuildOutput
-starts as a fresh activation-local tree; any later replay record describes that
-execution, not the complete input filesystem.
+starts as a fresh activation-local tree and is validated after its one execution.
 
 ### Subject field/tag table
 

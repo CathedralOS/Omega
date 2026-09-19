@@ -3701,8 +3701,7 @@ Owners include
   - The release cohort (`close`, `find_close`, `close_handle`) is blocked. Its
     evidence-bound explicit-empty row needs a retained occurrence, and no
     authored source can produce one;
-    `compiler/tests/terminal_authority/filesystem_release_witness.rs` pins
-    that stop. The customer is a program, not a compile: every build
+    The customer is a program, not a compile: every build
     activation, including a dependency's own, runs against its own package
     snapshot with no ambient host filesystem under
     [inputs and default filesystem](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem),
@@ -3722,8 +3721,8 @@ Owners include
   Resume through `target-operations-to-selected-instructions/src/legalization`;
   this is an implementation dependency, not a design block. Run
   `RUST_MIN_STACK=67108864 cargo nextest run -p omega --test package_commands --no-fail-fast -E 'test(=console_exit_permission::console_exit_permission_is_an_explicit_decision_that_the_lock_retains)'`
-  on macOS; the fixture README gives the project audit command. See the flag
-  on FILESYSTEM-RELEASE-CONTRACT before extending release-row settlement.
+  on macOS; the fixture README gives the project audit command.
+  FILESYSTEM-RELEASE-CONTRACT owns the program-side release proof.
 
   Acceptance: after ordinary package acceptance the four customers above emit
   with no receiving-policy input. The same program rejects at explicit
@@ -3734,76 +3733,29 @@ Owners include
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Implement the
   [bounded occurrence-specific release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
-  for open/query/close through checked flow and native realization replay:
-  the exact object/argument contract, handle/alias preservation through
-  intervening calls, one applicable release and no later use. Authority
-  classes alone are not preservation evidence. A build-time leg exists. The
-  checked interpreter retains a constrained `open_path_handle` /
-  `final_path_name_by_handle` / `close_handle` chain as
-  `FilesystemSourceNativeHandleQueryChainReplayRecord`
-  (`checked-interpreter/src/filesystem_replay/native_query_chains.rs`),
-  `build-evaluation` rehydrates it, and `native-realization` derives one
-  `FilesystemOrdinaryReleaseContract` per retained occurrence
-  (`terminal_authority_policy/filesystem.rs`) and merges the bound rows in
-  `native_product/realization.rs`. It establishes nothing at a customer: no
-  authored build can produce the chain, and no proof exists for a program's
-  own open/query/close occurrence.
+  for a program's own open/query/close occurrence through checked flow and native
+  realization: exact object/argument contract, handle/alias preservation through
+  intervening calls, one applicable release, and no later use. Authority classes
+  alone are not preservation evidence. Build execution observations establish
+  nothing about the shipped program's calls.
 
-  Remaining work:
+  Carry the program-side derivation as Terminal evidence and rejoin its exact
+  occurrence at native realization in
+  `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`.
+  Missing evidence must retain the conservative classification, not synthesize
+  an empty permission row.
 
-  - A producer, which is program-side. A build cannot supply one: its
-    activation holds only its own package snapshot behind root-scoped facets,
-    so a chain it issued would prove a property of that confined view rather
-    than of the shipped artifact. Adding the chain to the build vocabulary is
-    therefore a library-surface choice, not an authority grant — it requests
-    access zero and reads nothing, where the existing
-    `BuildSource::{open, read}` already opens with arbitrary flags and reads
-    contents. `compiler/tests/terminal_authority/filesystem_release_witness.rs`
-    pins the stop until the program-side leg below lands.
-  - ~~Unbind the cross-execution join the flag below records.~~ Done:
-    `classify_terminal_mechanism` now consults only the artifact's own
-    `terminal_authority_policy` rows, and the
-    `filesystem_release_contracts` parameter is gone from
-    `validate_source_evaluated_import_coverage`,
-    `admit_native_providers` and `settle_provider_executions`.
-    `realize_native_artifact_with_release_contracts` keeps its signature but
-    merges contract-derived evidence rows into the request's
-    `terminal_authority_policy` internally, so build-replay contracts stay
-    visible as evidence while settlement never reads them. Release narrowing
-    now comes only from the program's own checked-flow derivation carried as
-    policy rows, rejoined per call site at realization — which remains the
-    unbuilt program-side leg above.
-  - Program-side native acceptance through
-    `tests/omega/pass/filesystem/windows_canonicalize_exit`. It stops at
-    `structural field store: scalar field type`
-    (`typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store/`):
-    `self.unit_result = self.fs.write_all(..)` stores a structural
-    `UnitResult` field, `StructuralScalarFieldStore` covers scalar fields
-    only, and Terminal production refuses the attached Unit closure in
-    `checked-trees-to-lowered-psi/src/unit/attached_unit/call_closure.rs`.
-    The fixture's transitive closure needs nested structural sum construction
-    and extraction (`UnitResult::Error` carries `ErrorKind`), borrowed case
-    observation and whole nominal receiver replacement, including
-    match-produced field assignments. Further isolated prerequisites for this
-    fixture are paused: resume with a plan covering that closure through
-    shared state/value planning. Reuse recursive layouts and referent
-    identity. A primitive field store, a fresh call-result home or a
-    borrowed-storage snapshot cannot substitute for receiver replacement.
-    This is an implementation scope pause, not a language-design blocker.
-    `filesystem/native_close` is past the scalar call-result store; rerun it
-    before assuming a stop.
-
-  Flag: the unbound join previously narrowed the emitted program's release
-  mechanism from evidence about a different execution — the compile's own
-  build filesystem replay record, an interpreter trace of `build.omg`.
-  `classify_terminal_mechanism` preferred the bound explicit-empty key for
-  every demanded mechanism whose provider method was named `close`,
-  `find_close` or `close_handle`, whenever any contract existed. That
-  preference is removed: settlement classifies only from the artifact's own
-  policy. The spec still requires the constraint identity bound "to the
-  derivation and exact occurrence"; that derivation is the remaining
-  program-side leg — a checked-flow proof over the program's own occurrence,
-  carried as Terminal evidence and rejoined per call site at realization.
+  Native customer:
+  `tests/omega/pass/filesystem/windows_canonicalize_exit`. Its recorded stop is
+  `structural field store: scalar field type` in
+  `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store/`:
+  `self.unit_result = self.fs.write_all(..)` stores a structural `UnitResult`,
+  while that path admits scalar fields. The transitive closure also needs nested
+  structural sum construction/extraction, borrowed case observation, and whole
+  nominal receiver replacement, including match-produced assignments.
+  Further isolated prerequisites are paused: resume with a plan covering that
+  closure through shared state/value planning, preserving recursive layout and
+  referent identity. Rerun `filesystem/native_close` before assuming a stop.
 
   Acceptance: a constrained ordinary close has one evidence-bound empty row.
   Failed acquisition, escape, stale/substituted proof, invalidating calls,

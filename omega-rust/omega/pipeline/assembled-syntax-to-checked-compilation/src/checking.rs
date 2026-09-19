@@ -16,7 +16,7 @@ use source_files_to_assembled_syntax::ImmutableSourceParseCheckpoint;
 use std::path::Path;
 
 /// Inputs for checked-Psi compilation, without native publication authority.
-/// All requests use the same source identity, package admission, replay, and
+/// All requests use the same source identity, package admission, and
 /// sponsored build execution checks.
 pub struct CheckedCompileRequest<'a> {
     /// Physical source entrypoint.
@@ -38,13 +38,9 @@ pub struct CheckedCompileRequest<'a> {
     pub filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
     /// Deterministic evaluator work account, independent of filesystem custody.
     pub evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    /// Compiler-owned replay whose authored inputs and complete event stream must match.
-    /// Replaying this record grants no host filesystem authority.
-    pub replay_record: Option<build_evaluation::ReviewOnlyBuildFilesystemReplayRecord>,
     /// When present, the build occurrence executes against a captured
     /// immutable source snapshot and must complete each required output as a
-    /// sealed regular file before its result may publish. Mutually exclusive
-    /// with `replay_record`.
+    /// sealed regular file before its result may publish.
     pub build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     /// Release rollback subtracted from the authored optimization selection at
     /// each phase boundary this child executes. The authored selection remains
@@ -57,7 +53,7 @@ pub struct CheckedCompileRequest<'a> {
 }
 
 impl<'a> CheckedCompileRequest<'a> {
-    /// Select source and optional target without package, sponsor, or replay inputs.
+    /// Select source and optional target without package or sponsor inputs.
     pub fn new(root_path: &Path, target_name: Option<&str>) -> Self {
         Self {
             root_path: root_path.to_owned(),
@@ -67,7 +63,6 @@ impl<'a> CheckedCompileRequest<'a> {
             build_dir: None,
             filesystem_sponsor: None,
             evaluation_sponsor: None,
-            replay_record: None,
             build_snapshot: None,
             optimization_rollback: crate::OptimizationRollback::default(),
             prepared_source_output: None,
@@ -92,7 +87,6 @@ impl<'a> CheckedCompileRequest<'a> {
                 build_dir: self.build_dir,
                 filesystem_sponsor: self.filesystem_sponsor,
                 evaluation_sponsor: self.evaluation_sponsor,
-                replay_record: self.replay_record,
                 build_snapshot: self.build_snapshot,
                 optimization_rollback: self.optimization_rollback,
                 prepared_source_output: None,
@@ -126,7 +120,6 @@ struct CheckedChildExecution<'a> {
     build_dir: Option<&'a Path>,
     filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
     evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    replay_record: Option<&'a build_evaluation::ReviewOnlyBuildFilesystemReplayRecord>,
     build_snapshot: Option<&'a build_evaluation::BuildSnapshotRequest>,
     optimization_rollback: crate::OptimizationRollback,
 }
@@ -141,7 +134,6 @@ impl CheckedChildExecution<'_> {
             build_dir: None,
             filesystem_sponsor: None,
             evaluation_sponsor: None,
-            replay_record: None,
             build_snapshot: None,
             optimization_rollback: crate::OptimizationRollback::default(),
         }
@@ -173,7 +165,7 @@ impl PreparedCheckedSource {
             .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
             .transpose()
             .map_err(|diagnostic| vec![diagnostic])?;
-        self.compile_child_with_replay(CheckedChildExecution {
+        self.compile_child(CheckedChildExecution {
             selected_target_profile,
             build_execution_profile: request
                 .build_execution_profile
@@ -182,7 +174,6 @@ impl PreparedCheckedSource {
             build_dir: request.build_dir.as_deref(),
             filesystem_sponsor: request.filesystem_sponsor,
             evaluation_sponsor: request.evaluation_sponsor,
-            replay_record: request.replay_record.as_ref(),
             build_snapshot: request.build_snapshot.as_ref(),
             optimization_rollback: request.optimization_rollback,
         })
@@ -253,14 +244,13 @@ impl PreparedCheckedSource {
         let automatic_snapshot = package_inputs
             .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
             .map(|_| build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
-        self.compile_child_with_replay(CheckedChildExecution {
+        self.compile_child(CheckedChildExecution {
             selected_target_profile,
             build_execution_profile: target::TargetProfile::host_if_supported(),
             package_inputs,
             build_dir: Some(&build_dir),
             filesystem_sponsor: None,
             evaluation_sponsor: None,
-            replay_record: None,
             // The request narrows authority explicitly. Never replace it with
             // automatic package membership or silently fall back after failure.
             build_snapshot: build_snapshot.or(automatic_snapshot.as_ref()),
@@ -268,7 +258,7 @@ impl PreparedCheckedSource {
         })
     }
 
-    fn compile_child_with_replay(
+    fn compile_child(
         self,
         child: CheckedChildExecution<'_>,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {

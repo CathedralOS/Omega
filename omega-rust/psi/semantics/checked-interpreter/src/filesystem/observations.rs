@@ -1,52 +1,7 @@
-//! Returned paths, observed byte regions and metadata observations.
+//! Canonical metadata values used to encode provider output carriers.
 
-use crate::filesystem::FilesystemMetadataField;
+use super::FilesystemMetadataField;
 
-/// Closed semantic class for exact meaningful path bytes returned through a
-/// mutable output carrier. Terminators and unchanged carrier tails are not part
-/// of these bytes; the complete carrier remains available separately.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilesystemReturnedPathKind {
-    ReadLinkPayload,
-    CanonicalPath,
-    FinalPath,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilesystemReturnedPathCompleteness {
-    Complete,
-    LimitReached,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FilesystemReturnedPath {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) kind: FilesystemReturnedPathKind,
-    pub(crate) completeness: FilesystemReturnedPathCompleteness,
-    pub(crate) bytes: Vec<u8>,
-}
-
-/// Semantic designation of one host-derived byte region returned through an
-/// already-custodied mutable output carrier. The bytes are referenced from the
-/// matching provider post-state rather than copied a fourth time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilesystemObservedByteRegionKind {
-    SequentialFileRead,
-    PositionedFileRead,
-    DirectoryRecords,
-    FindEntry,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FilesystemObservedByteRegion {
-    pub(crate) output_operand_ordinal: u8,
-    pub(crate) kind: FilesystemObservedByteRegionKind,
-    pub(crate) offset: usize,
-    pub(crate) length: usize,
-}
-
-/// Semantic source of one successfully returned metadata record. The kind is
-/// independent of the target carrier used to return the same fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemMetadataObservationKind {
     FollowedPath,
@@ -106,48 +61,6 @@ impl FilesystemMetadataObservation {
             size,
             blocks_512: 8,
             preferred_block_size: 4096,
-        }
-    }
-
-    /// Reconstruct one canonical metadata row from compiler-owned replay
-    /// custody. This does not consult or authorize a host filesystem. The
-    /// replay executor still cross-checks every field against the selected
-    /// target carrier before admitting the returned operation.
-    #[allow(clippy::too_many_arguments)]
-    pub const fn from_replay(
-        kind: FilesystemMetadataObservationKind,
-        device: u64,
-        mode: u32,
-        link_count: u64,
-        inode: u64,
-        user: u32,
-        group: u32,
-        referenced_device: u64,
-        access_time: i64,
-        modification_time: i64,
-        change_time: i64,
-        birth_time: i64,
-        size: i64,
-        blocks_512: u64,
-        preferred_block_size: u64,
-    ) -> Self {
-        Self {
-            output_operand_ordinal: 1,
-            kind,
-            device,
-            mode,
-            link_count,
-            inode,
-            user,
-            group,
-            referenced_device,
-            access_time,
-            modification_time,
-            change_time,
-            birth_time,
-            size,
-            blocks_512,
-            preferred_block_size,
         }
     }
 
@@ -228,41 +141,5 @@ impl FilesystemMetadataObservation {
             FilesystemMetadataField::Size => Some(self.size),
             _ => None,
         }
-    }
-}
-
-impl FilesystemObservedByteRegion {
-    pub const fn output_operand_ordinal(self) -> u8 {
-        self.output_operand_ordinal
-    }
-
-    pub const fn kind(self) -> FilesystemObservedByteRegionKind {
-        self.kind
-    }
-
-    pub const fn offset(self) -> usize {
-        self.offset
-    }
-
-    pub const fn length(self) -> usize {
-        self.length
-    }
-}
-
-impl FilesystemReturnedPath {
-    pub const fn operand_ordinal(&self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn kind(&self) -> FilesystemReturnedPathKind {
-        self.kind
-    }
-
-    pub const fn completeness(&self) -> FilesystemReturnedPathCompleteness {
-        self.completeness
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
     }
 }
