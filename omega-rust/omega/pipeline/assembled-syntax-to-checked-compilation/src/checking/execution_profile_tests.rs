@@ -233,6 +233,7 @@ impl PackagedFixture {
                 PackageGeneratedSourceBundle::from_checked(
                     package,
                     product,
+                    target::TargetProfile::host_if_supported(),
                     self.inputs.dependency_closure_for(package),
                     PackageSourceConsumptionCommitment::for_test([5; 32]),
                     sources,

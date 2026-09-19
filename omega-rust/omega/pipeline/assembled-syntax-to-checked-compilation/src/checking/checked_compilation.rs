@@ -35,6 +35,7 @@ pub struct CheckedCompilation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CheckedSourceCustody {
     source_file_count: usize,
+    build_execution_profile: Option<target::TargetProfile>,
     package_subject: Option<package_compilation::PackageCompilationSubject>,
     base_source_consumption_commitment:
         Option<package_compilation::PackageSourceConsumptionCommitment>,
@@ -84,6 +85,7 @@ impl CheckedCompilation {
             execution,
             sources: CheckedSourceCustody {
                 source_file_count: sources.source_file_count,
+                build_execution_profile: sources.build_execution_profile,
                 package_subject,
                 base_source_consumption_commitment: sources.base_source_consumption_commitment,
                 exact_toolchain_sources,
@@ -354,6 +356,7 @@ impl CheckedCompilation {
             package_compilation::PackageGeneratedSourceBundle::from_checked(
                 package,
                 target,
+                self.sources.build_execution_profile,
                 dependency_closure,
                 source_consumption_commitment,
                 self.sources.own_generated_sources.clone(),

@@ -335,6 +335,63 @@ fn canonical_path_free_closure_recovery_rejects_open_unreachable_and_cyclic_grap
 }
 
 #[test]
+fn generated_source_execution_profile_is_exact_even_for_empty_bundles() {
+    let tree = TempTree::new();
+    let inputs = three_package_generated_inputs(&tree);
+    let bundle = |package, profile| {
+        PackageGeneratedSourceBundle::from_checked(
+            package,
+            target::TargetProfile::WindowsX64,
+            profile,
+            inputs.dependency_closure_for(package),
+            PackageSourceConsumptionCommitment::for_test([19; 32]),
+            Vec::new(),
+        )
+    };
+    let linux = Some(target::TargetProfile::LinuxX64);
+    let windows = Some(target::TargetProfile::WindowsX64);
+    assert_ne!(bundle(identity(2), linux), bundle(identity(2), windows));
+    assert_ne!(bundle(identity(2), linux), bundle(identity(2), None));
+    let profiled = inputs
+        .clone()
+        .with_complete_dependency_generated_sources(vec![
+            bundle(identity(2), linux),
+            bundle(identity(3), linux),
+        ])
+        .unwrap();
+    profiled
+        .validate_dependency_generated_source_target(windows)
+        .unwrap();
+    profiled
+        .validate_dependency_generated_source_execution_profile(linux)
+        .unwrap();
+    for requested in [windows, None] {
+        let errors = profiled
+            .validate_dependency_generated_source_execution_profile(requested)
+            .unwrap_err();
+        assert_eq!(errors.len(), 2);
+        assert!(errors.iter().all(|error| matches!(error,
+            PackageCompilationInputError::GeneratedSourceBundleExecutionProfileMismatch { bundle_profile, execution_profile, .. }
+            if *bundle_profile == linux && *execution_profile == requested)));
+    }
+    let unprofiled = inputs
+        .clone()
+        .with_complete_dependency_generated_sources(vec![
+            bundle(identity(2), None),
+            bundle(identity(3), None),
+        ])
+        .unwrap();
+    unprofiled
+        .validate_dependency_generated_source_execution_profile(None)
+        .unwrap();
+    assert!(
+        unprofiled
+            .validate_dependency_generated_source_execution_profile(linux)
+            .is_err()
+    );
+}
+
+#[test]
 fn complete_generated_source_bundles_bind_owner_closure_target_and_bytes() {
     let tree = TempTree::new();
     let inputs = three_package_generated_inputs(&tree);
@@ -535,6 +592,7 @@ fn generated_source_bundle_omission_duplicate_foreign_root_and_closure_substitut
     let foreign = PackageGeneratedSourceBundle::from_checked(
         identity(4),
         target::TargetProfile::WindowsX64,
+        target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(identity(3)),
         PackageSourceConsumptionCommitment::for_test([14; 32]),
         Vec::new(),
@@ -552,6 +610,7 @@ fn generated_source_bundle_omission_duplicate_foreign_root_and_closure_substitut
     let root = PackageGeneratedSourceBundle::from_checked(
         identity(1),
         target::TargetProfile::WindowsX64,
+        target::TargetProfile::host_if_supported(),
         inputs.dependency_closure(),
         PackageSourceConsumptionCommitment::for_test([11; 32]),
         Vec::new(),
@@ -569,6 +628,7 @@ fn generated_source_bundle_omission_duplicate_foreign_root_and_closure_substitut
     let wrong_closure = PackageGeneratedSourceBundle::from_checked(
         identity(2),
         target::TargetProfile::WindowsX64,
+        target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(identity(3)),
         PackageSourceConsumptionCommitment::for_test([12; 32]),
         Vec::new(),

@@ -98,6 +98,7 @@ impl Fixture {
         let bundle = PackageGeneratedSourceBundle::from_checked(
             identity(2),
             target,
+            target::TargetProfile::host_if_supported(),
             self.inputs.dependency_closure_for(identity(2)),
             PackageSourceConsumptionCommitment::for_test([3; 32]),
             generated,

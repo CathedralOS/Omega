@@ -66,6 +66,7 @@ fn generated_bundle(
     PackageGeneratedSourceBundle::from_checked(
         package,
         target,
+        target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(package),
         PackageSourceConsumptionCommitment::for_test([commitment_marker; 32]),
         sources,
