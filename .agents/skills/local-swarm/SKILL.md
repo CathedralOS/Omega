@@ -111,10 +111,22 @@ subagent tool is a detached local session an acceptable fallback — state that
 choice explicitly in the wave report, because it loses in-session visibility
 and clean death detection.
 
-Verify each spawn before counting it: a slot is not "running" until its
-subagent handle confirms live (read/status on the handle, or first observable
-activity in the worktree). Announce the real running count, not the spawn
-count.
+Verify each spawn before counting it: a spawn call returning is only a
+request, not a running slot. Rate-limit kills routinely arrive ~30–120 s after
+spawn as a completion notification carrying the limiter error — an agent can
+be dead before you finish spawning its siblings. A spawn call that errors or
+looks malformed can still have created a live handle: before reissuing, check
+whether a handle was returned — a duplicated spawn runs a second agent in the
+same worktree under the same owner string, which the claims registry cannot
+fence (two `advancer14` instances once shared one worktree and ticket; the
+work landed once, but only by luck of complementary edits). Before announcing a slot as
+running, wait ~90 s and read its subagent handle non-blockingly
+(Devin: `read_subagent` with `block=false`; Claude Code / Codex / Pi: the
+equivalent status/read on the task handle). A returned result or a completion
+notification inside that window is a spawn-death, not a completed task —
+retry it after a delay, and if several slots die in a burst spawn ONE probe
+slot first and backfill the rest only after it survives the window. Announce
+the real running count, not the spawn count.
 
 Concurrency is bounded by the org-wide message budget shared with cloud waves
 and other machines, not by this host. A burst of ~20 died in minutes; 8 held
@@ -185,9 +197,27 @@ newly added slots.
 
 Silent deaths produce no completion notification. At every checkpoint —
 completion, backfill, user ping — verify the liveness of EVERY running slot
-through its subagent handle, not just the one that reported. A slot whose
-handle is gone, whose claim is absent or expired, and whose worktree has no
-new commits, no dirty files, and no recent file mtimes is dead: run the
+through its subagent handle, not just the one that reported. Liveness is
+checked in this order:
+
+1. **Handle read** (authoritative): a non-blocking status/read on the
+   subagent handle (Devin: `read_subagent` `block=false`). A returned result
+   means the agent finished or died — read the output to tell which. Still
+   pending means alive.
+2. **Claim renewal**: a live agent renews its board claim before expiry.
+   `claims.py status` showing the slot's claim with a lease extending into
+   the future is corroborating evidence; an expired or absent claim is not.
+3. **Live processes**: `ps` for processes working inside the slot's worktree
+   (mbx/cargo/nextest/run.sh children with the worktree path) is stronger
+   than mtimes — orphaned gate scripts and detached builds keep writing
+   files long after their parent agent is dead, and shared build caches give
+   every worktree fresh mtimes it did not earn.
+
+Worktree mtimes alone are NOT evidence either way: dead agents leave orphans
+that write for hours (false positive), and a thinking agent can read for
+minutes without touching a file (false negative). A slot whose handle is
+gone, whose claim is absent or expired, and whose worktree has no new
+commits, no dirty files, and no live child processes is dead: run the
 recovery procedure on it. Do not count dead slots as running and do not
 report a tank level you have not just verified.
 

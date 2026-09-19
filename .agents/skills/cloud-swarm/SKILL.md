@@ -460,6 +460,23 @@ flight. When unfenced items run out, do NOT park the pool:
   record the lease expiry and respawn when it lapses. Foreign claims are
   renewable leases: plan as "if", never "when".
 
+## Naming
+
+Sibling titles are org-wide visible, so they must be org-wide unique — the
+session list does not disambiguate same-named children, and a restarted
+per-wave counter is how four sessions once all answered to the same number.
+
+- Title each spawn `Zergling: <n>` continuing the shared sequence: before the
+  first spawn of a wave, list existing session titles (not only your own
+  children — other coordinators' zerglings share the namespace), take the
+  highest `Zergling: <m>` match, and start at `<m>+1`. Start at 1 only when no
+  prior zergling exists at all.
+- If you cannot enumerate existing sessions, do not guess a number: suffix the
+  wave and manifest name instead (`Zergling: w9l-frame-layout`), which is
+  unique by construction.
+- Renaming a settled duplicate to fill a gap is fine; renaming a live or
+  pending sibling risks the coordinator losing track of which handle is which.
+
 ## Bookkeeping
 
 - Keep `tools/swarm/waves/wave-N.outcomes.json` append-only: each settle adds
