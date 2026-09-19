@@ -18,10 +18,11 @@ Python 3 standard library only. Usage:
   python tools/proof_advisor.py --omega target/debug/omega.exe main.omg
   python tools/proof_advisor.py --self-test
 
-Key resolution order: TYPESAFE_API_KEY env var, --key-file, then
-build/typesafe.env.txt in the cwd and in the main checkout (the latter is
-found from linked worktrees via git --git-common-dir). Without a key the
-diagnostics pass through unchanged.
+Key resolution order: TYPESAFE_API_KEY env var, --key-file,
+build/typesafe.env.txt in the cwd and in the main checkout (found from
+linked worktrees via git --git-common-dir), and finally the machine-wide
+~/.config/typesafe/typesafe.env.txt. Without a key the diagnostics pass
+through unchanged.
 """
 import argparse
 import json
@@ -234,6 +235,7 @@ def find_key(key_file):
     root = main_checkout_root()
     if root is not None:
         candidates.append(root / "build/typesafe.env.txt")
+    candidates.append(Path.home() / ".config" / "typesafe" / "typesafe.env.txt")
     for path in candidates:
         key = read_key(path)
         if key:
