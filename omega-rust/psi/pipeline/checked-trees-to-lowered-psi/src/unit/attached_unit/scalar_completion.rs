@@ -48,7 +48,18 @@ pub(super) fn validate(
             .type_reference(state.return_type),
         checked_trees::types::TypeReferenceNode::Constrained { .. }
     ) {
-        return unsupported("scalar operation completion requires result refinement evidence");
+        // A constrained numeric result is not dropped and not narrowed: the
+        // shared refinement path republishes it as an ordinary ensures
+        // obligation (`with_result_range`), and emission below still has to
+        // prove that obligation against the returned carrier. Only a single
+        // closed integer range is replayable; policy-only constraints carry no
+        // numeric evidence and pass through unchanged.
+        crate::scalar_graph::scalar_contracts::with_result_range(
+            checked,
+            machine.state,
+            0,
+            &checked_trees::ClosedScalarValueContractPlan::default(),
+        )?;
     }
     // Entry predicates and guarantees have distinct read scopes. A normal
     // guarantee names the exact result pseudo-value, never an entry snapshot

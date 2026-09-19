@@ -890,3 +890,193 @@ fn computed_boolean_guarantees_reject_changed_return_and_selected_evidence() {
         );
     }
 }
+
+#[test]
+fn ordered_qualified_scalar_result_carries_its_range_refinement() {
+    use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
+    // A constrained scalar result keeps its declared interval as replayed
+    // ensures evidence through ordered boundary completion; the returned
+    // carrier is never narrowed and the authored guarantee still applies.
+    for (body, calls) in [
+        ("Host::finish(value); value", vec![0, 1]),
+        (
+            "Host::finish(value); let observed: i32 = Host::measure(0); value",
+            vec![0, -1, 1],
+        ),
+        (
+            "let observed: i32 = Host::measure(value); value",
+            vec![-2, 1],
+        ),
+        (
+            "Host::finish(value); let observed: i32 = Host::measure(value); let _discarded: i32 = observed; value",
+            vec![0, -2, 1],
+        ),
+    ] {
+        for input in [1i128, 25, 50] {
+            let source = normal_guarantee_source(body)
+                .replace(
+                    "Scalar::measure(value: i32) -> i32",
+                    "Scalar::measure(value: i32 [1..=50]) -> i32 [1..=100]",
+                )
+                .replace("Scalar::measure(70)", &format!("Scalar::measure({input})"));
+            let published = artifact(&checked_from_source(&source));
+            let module = decode_module(&published.0).unwrap();
+            let proof = decode_proof_bundle(&published.1).unwrap();
+            let wrapper = module
+                .machines
+                .iter()
+                .find(|machine| {
+                    !machine.contract.ensures.is_empty()
+                        && !machine.contract.requires.is_empty()
+                })
+                .unwrap();
+            // The authored guarantee and the replayed range refinement share
+            // one obligation; the returned declaration still carries its
+            // declared qualification rather than a narrowed carrier.
+            assert_eq!(wrapper.contract.ensures.len(), 1);
+            let result_id = match &wrapper.result {
+                terminal_psi::TerminalMachineResult::Scalar(result) => result.id,
+                _ => panic!("qualified scalar wrapper"),
+            };
+            let Proposition::Conjunction(conjuncts) =
+                &wrapper.contract.ensures[0].proposition
+            else {
+                panic!("the refined ensures clause is a conjunction")
+            };
+            let mut authored_equality = false;
+            let mut bounds = (false, false);
+            for conjunct in conjuncts {
+                match conjunct {
+                    Proposition::Equal(
+                        ScalarTerm::Value { id: left, .. },
+                        ScalarTerm::Value { id: right, .. },
+                    ) if *right == result_id || *left == result_id => {
+                        authored_equality = true;
+                    }
+                    Proposition::LessOrEqual(
+                        ScalarTerm::Value { id, .. },
+                        ScalarTerm::Integer {
+                            value: IntegerValue::Signed(100),
+                            ..
+                        },
+                    ) if *id == result_id => bounds.0 = true,
+                    Proposition::LessOrEqual(
+                        ScalarTerm::Integer {
+                            value: IntegerValue::Signed(1),
+                            ..
+                        },
+                        ScalarTerm::Value { id, .. },
+                    ) if *id == result_id => bounds.1 = true,
+                    _ => {}
+                }
+            }
+            assert!(authored_equality && bounds.0 && bounds.1);
+            let mut missing = proof.clone();
+            missing
+                .evidence
+                .retain(|evidence| {
+                    evidence.obligation != wrapper.contract.ensures[0].obligation
+                });
+            assert!(
+                terminal_verifier::verify_module(&module, &missing, &AdmissionProfile::default())
+                    .is_err()
+            );
+            let (status, observed) = execute(&published);
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit),
+                "{body} input {input}"
+            );
+            // Ordered boundary calls fire in source order; `Host::measure`
+            // observes its own argument and `Host::finish` the passed value.
+            let expected: Vec<Vec<TerminalScalarValue>> = calls
+                .iter()
+                .map(|call| match call {
+                    -1 => vec![integer(0)],
+                    _ => vec![integer(input)],
+                })
+                .collect();
+            assert_eq!(observed.arguments, expected, "{body} input {input}");
+        }
+    }
+}
+
+#[test]
+fn ordered_qualified_scalar_result_rejects_a_tightened_refinement() {
+    use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
+    // Returning 50 honors the declared `i32 [1..=100]` refinement; silently
+    // tightening the replayed interval to `[1..=40]` must fail verification.
+    let source = normal_guarantee_source("Host::finish(value); value")
+        .replace(
+            "Scalar::measure(value: i32) -> i32",
+            "Scalar::measure(value: i32 [1..=50]) -> i32 [1..=100]",
+        )
+        .replace("Scalar::measure(70)", "Scalar::measure(50)");
+    let published = artifact(&checked_from_source(&source));
+    let mut module = decode_module(&published.0).unwrap();
+    let proof = decode_proof_bundle(&published.1).unwrap();
+    let wrapper = module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            !machine.contract.ensures.is_empty() && !machine.contract.requires.is_empty()
+        })
+        .unwrap();
+    let conjuncts = wrapper
+        .contract
+        .ensures
+        .iter_mut()
+        .find_map(|clause| match &mut clause.proposition {
+            Proposition::Conjunction(conjuncts) => Some(conjuncts),
+            _ => None,
+        })
+        .expect("the range refinement is a conjunction of inclusive bounds");
+    let mut tightened = false;
+    for conjunct in conjuncts.iter_mut() {
+        if let Proposition::LessOrEqual(_, ScalarTerm::Integer { value, .. }) = conjunct {
+            *value = IntegerValue::Signed(40);
+            tightened = true;
+        }
+    }
+    assert!(tightened);
+    assert!(
+        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err()
+    );
+}
+
+#[test]
+fn ordered_qualified_scalar_result_rejects_a_substituted_return() {
+    // A second entry input gives the mutation a provably-in-range but wrong
+    // substitution: returning `spare` still honors the declared interval yet
+    // violates the authored `result == value` guarantee.
+    let source = normal_guarantee_source("Host::finish(value); value")
+        .replace(
+            "Scalar::measure(value: i32) -> i32",
+            "Scalar::measure(value: i32 [1..=50], spare: i32) -> i32 [1..=100]",
+        )
+        .replace("Scalar::measure(70)", "Scalar::measure(40, 7)");
+    let published = artifact(&checked_from_source(&source));
+    let mut module = decode_module(&published.0).unwrap();
+    let proof = decode_proof_bundle(&published.1).unwrap();
+    let wrapper = module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            !machine.contract.ensures.is_empty() && !machine.contract.requires.is_empty()
+        })
+        .unwrap();
+    let spare = wrapper.parameters[1].id;
+    let returned = wrapper
+        .blocks
+        .iter_mut()
+        .find_map(|block| match &mut block.terminator {
+            terminal_psi::Terminator::Return { value, .. } => Some(value),
+            _ => None,
+        })
+        .expect("qualified scalar return");
+    assert_ne!(*returned, spare);
+    *returned = spare;
+    assert!(
+        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err()
+    );
+}
