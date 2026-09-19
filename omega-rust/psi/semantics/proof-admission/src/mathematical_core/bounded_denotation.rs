@@ -25,20 +25,19 @@
 //!
 //! - `Truth` denotes `Id Two zero zero` and `Falsehood` denotes
 //!   `Id Two zero one`.
-//! - `Equal(l, r)` denotes `Id S l' r'` over the proposition's scalar
-//!   carrier `S` — a `Type 0` assumption — with each operand a constant
-//!   of `S`. Closed integer terms are interned by *value*, so a bounded
-//!   `ClosedIntegerRelation` equality like `2 + 0 = 2` denotes an
-//!   identity the kernel's `refl` genuinely proves rather than an
-//!   admitted atom.
-//! - `Equal` and the `LessThan`/`LessOrEqual` relations over liftable
-//!   integer operands — fixed and `IntegerMath*` alike — instead denote
+//! - Non-integer `Equal(l, r)` denotes `Id S l' r'` over the
+//!   proposition's scalar carrier `S`, with operands constant at `S`.
+//! - `Equal` and the `LessThan`/`LessOrEqual` relations over fixed
+//!   non-address integers — including compound scalar operands — denote
 //!   into one shared mathematical-integer vocabulary: `Int : Type 0`
 //!   with each `IntegerMathTerm` interned by exact evaluated value
 //!   (open terms intern by the term itself). Closed magnitudes in the
 //!   fixed scalar literal vocabulary have shared signed binary definitions;
-//!   larger closed values and open terms retain opaque `Int` constants. `IntLt`
-//!   and `IntLe` the two relation constants `Π(_ : Int). Π(_ : Int).
+//!   larger closed mathematical values retain opaque `Int` constants.
+//!   Unevaluated exact scalar subtraction denotes a shared subtraction
+//!   function applied to its operands; other open terms stay opaque. Thus
+//!   evaluated `2 + 0 = 2` remains reflexive without a decision assumption.
+//!   `IntLt` and `IntLe` are the two relation constants `Π(_ : Int). Π(_ : Int).
 //!   Type 0`, and `IntegerMathEqual`/lifted `Equal` the `Id Int`
 //!   identity. A cited `Equal` and its `IntegerMathEqual` form share
 //!   one `Id Int`, so the citation-level `Equal`↔`IntegerMathEqual`
@@ -87,10 +86,14 @@
 //! order through shared binary definitions and five fixed numeral laws,
 //! then applies mixed transitivity to the cited inclusive bound. Its
 //! numeral laws remain explicit arithmetic assumptions, not a derivation
-//! of integer arithmetic or a claim of assumption consistency. The remaining
-//! families — subtract-order, the witness-bearing bound rules, multiple-
-//! equation or nested transports and denotation-conversion instances
-//! outside the supported `Int` vocabulary —
+//! of integer arithmetic or a claim of assumption consistency. Subtraction
+//! order applies fixed subtraction-by-zero and right-antitonicity laws to
+//! the cited premises. Evaluated scalar differences retain canonical numeral
+//! identity: binary order proves their positive-decrement case, while a
+//! contradictory positivity premise uses fixed strict irreflexivity and
+//! checked empty elimination. The remaining families — witness-bearing bound
+//! rules, multiple-equation or nested transports and denotation-conversion
+//! instances outside the supported `Int` vocabulary —
 //! denote a *rule-instance decision*: an assumption constant whose type
 //! is the checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`,
 //! applied to the denoted premise evidence (ambient axiom and
@@ -135,6 +138,7 @@ use crate::proof::{
 const MAX_ELABORATION_NODES: u64 = 1 << 16;
 
 mod binary_numerals;
+mod subtraction;
 
 /// One bounded certificate elaborated into the common mathematical core.
 ///
@@ -661,11 +665,16 @@ struct Denotation {
     integer_laws: BTreeMap<IntegerLaw, u32>,
     /// Shared fixed-width numeral definitions and their fixed arithmetic laws.
     binary_numerals: binary_numerals::BinaryNumerals,
+    subtraction: subtraction::Subtraction,
     /// Canonical mathematical term → `Int`-typed declaration position.
     /// Closed terms intern by exact evaluated value — so a decided
     /// `IntegerMathEqual` on closed operands denotes `refl`-provable
     /// `Id Int c c` — and open terms intern by the term itself.
     math_terms: BTreeMap<MathTermKey, u32>,
+    /// Sparse scalar terms whose operations have no compositional Int
+    /// denotation yet. Values/closed literals use math_terms; subtraction
+    /// applications retain child handles, not cloned prefix source trees.
+    scalar_integer_terms: BTreeMap<ScalarTerm, u32>,
     /// `Primitive` leaf statement → decision-assumption position.
     decisions: HashMap<TermHandle, u32>,
     /// Bounded rule instance → decision-assumption position. The key is
@@ -705,7 +714,9 @@ impl Denotation {
             integer_less_or_equal: None,
             integer_laws: BTreeMap::new(),
             binary_numerals: binary_numerals::BinaryNumerals::default(),
+            subtraction: subtraction::Subtraction::default(),
             math_terms: BTreeMap::new(),
+            scalar_integer_terms: BTreeMap::new(),
             decisions: HashMap::new(),
             rule_axioms: BTreeMap::new(),
             constants: HashMap::new(),
@@ -952,6 +963,82 @@ impl Denotation {
         self.declarations.push(Declaration::assumption(0, ty));
         self.math_terms.insert(key, position);
         Ok(self.constant(position))
+    }
+
+    /// Keep one carrier for fixed scalar equations and orders, including
+    /// mixed symbolic/compound endpoints. Other open operations remain opaque;
+    /// only exact subtraction gains a compositional denotation in this slice.
+    fn fixed_scalar_term(
+        &mut self,
+        term: &ScalarTerm,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let denoted = if let Some((_, value)) = term.integer_value() {
+            self.math_term(&IntegerMathTerm::literal(value))?
+        } else {
+            match term {
+                ScalarTerm::Value {
+                    id,
+                    scalar_type: ScalarType::Integer(source_type),
+                } => self.math_term(&IntegerMathTerm::MathValue {
+                    source_type: *source_type,
+                    value: *id,
+                })?,
+                ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
+                    let left = self.fixed_scalar_term(left)?;
+                    let right = self.fixed_scalar_term(right)?;
+                    self.subtract_terms(left, right)?
+                }
+                _ => {
+                    if let Some(&position) = self.scalar_integer_terms.get(term) {
+                        return Ok(self.constant(position));
+                    }
+                    let ty = self.integer_constant()?;
+                    let position = self.position()?;
+                    self.declarations.push(Declaration::assumption(0, ty));
+                    self.scalar_integer_terms.insert(term.clone(), position);
+                    self.constant(position)
+                }
+            }
+        };
+        Ok(denoted)
+    }
+
+    fn fixed_scalar_relation(
+        &mut self,
+        proposition: &Proposition,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let (left, right) = match proposition {
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => (left, right),
+            _ => return Ok(None),
+        };
+        let fixed_integer = |term: &ScalarTerm| matches!(term.scalar_type(), ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && !integer.is_address());
+        if !fixed_integer(left) || !fixed_integer(right) {
+            return Ok(None);
+        }
+        let left = self.fixed_scalar_term(left)?;
+        let right = self.fixed_scalar_term(right)?;
+        let denoted = if matches!(proposition, Proposition::Equal(..)) {
+            let ty = self.integer_constant()?;
+            self.arena.insert(Term::Id { ty, left, right })
+        } else {
+            let relation = if matches!(proposition, Proposition::LessThan(..)) {
+                self.integer_less_than()?
+            } else {
+                self.integer_less_or_equal()?
+            };
+            let relation = self.constant(relation);
+            let function = self.arena.insert(Term::Apply {
+                function: relation,
+                argument: left,
+            });
+            self.arena.insert(Term::Apply {
+                function,
+                argument: right,
+            })
+        };
+        Ok(Some(denoted))
     }
 
     /// `IntLt l r` or `IntLe l r` — the relation constant applied to the
@@ -1557,12 +1644,15 @@ impl Denotation {
                 // A relation whose integer operands both lift denotes
                 // the `Int` vocabulary — `Id Int` for `Equal`, the
                 // `IntLt`/`IntLe` application for the orders — so fixed
-                // and `IntegerMath*` forms share one type. An unliftable
-                // operand (a compound or non-integer carrier) stays in
-                // the per-scalar vocabulary: `Id S` for equality, an
-                // atom for the orders.
+                // and `IntegerMath*` forms share one type. Compound fixed
+                // scalar operands also use Int, with compositional exact
+                // subtraction and opaque other open operations. This does
+                // not broaden the bounded premise matcher's lift. Other
+                // carriers retain `Id S` equality and atomic orders.
                 if let Some(lifted) = lift_fixed_integer_relation(proposition) {
                     self.denote(&lifted)?
+                } else if let Some(denoted) = self.fixed_scalar_relation(proposition)? {
+                    denoted
                 } else if let Proposition::Equal(left, right) = proposition {
                     let ty = self.carrier(left.scalar_type())?;
                     let left = self.scalar_term(left)?;
@@ -2148,10 +2238,11 @@ impl<'a> Elaboration<'a> {
                     &proof.conclusion,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
-                self.rule_instance(
-                    AcceptedProofRule::IntegerSubtractOrder,
-                    vec![difference.conclusion.clone(), positive.conclusion.clone()],
-                    vec![difference_evidence, positive_evidence],
+                self.rules.insert(AcceptedProofRule::IntegerSubtractOrder);
+                self.denotation.subtraction_evidence(
+                    &difference.conclusion,
+                    difference_evidence,
+                    positive_evidence,
                     &proof.conclusion,
                 )
             }
@@ -3302,9 +3393,9 @@ mod tests {
             &mut budget(),
         )
         .expect("the decided equality denotes a refl-provable Id");
-        // Carrier `S` plus the single canonical literal `2 : S`; the
-        // evidence is `refl S 2`.
-        assert_eq!(denoted.certificate.signature.len(), 2);
+        // Int, zero, odd and double plus two checked numeral definitions;
+        // the evidence is `refl Int 2`, with no decision assumption.
+        assert_eq!(denoted.certificate.signature.len(), 6);
         assert!(denoted.certificate.context.is_empty());
         assert!(matches!(
             denoted.arena.get(denoted.certificate.term),
@@ -3312,7 +3403,7 @@ mod tests {
         ));
         assert_eq!(
             certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-            BTreeSet::from([0, 1]),
+            BTreeSet::from([0, 1, 2, 4]),
         );
     }
 

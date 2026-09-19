@@ -275,6 +275,128 @@ impl Denotation {
         )
     }
 
+    /// Compare arbitrary unsigned fixed-width numerals by their binary
+    /// prefixes. There are at most 128 recursive comparisons; shared prefix
+    /// lookup has the same quadratic digit cost as the adjacent carry proof.
+    fn positive_order(
+        &mut self,
+        lower: u128,
+        upper: u128,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        debug_assert!(lower < upper);
+        let lower_half = self.binary_term(false, lower / 2)?;
+        let upper_half = self.binary_term(false, upper / 2)?;
+        let evidence = if lower / 2 == upper / 2 {
+            self.numeral_law_application(Law::EvenBeforeOdd, &[lower_half])?
+        } else {
+            let prefix_order = self.positive_order(lower / 2, upper / 2)?;
+            let mut evidence = self.numeral_law_application(
+                Law::OddBeforeNextEven,
+                &[lower_half, upper_half, prefix_order],
+            )?;
+            let lower_odd = self.binary_term(false, lower / 2 * 2 + 1)?;
+            let upper_even = self.binary_term(false, upper / 2 * 2)?;
+            if lower & 1 == 0 {
+                let prefix = self.binary_integer(false, lower / 2)?;
+                let doubled = self.numeral_prefix(Constructor::Double, prefix)?;
+                let doubled = self.constant(doubled);
+                let first = self.numeral_law_application(Law::EvenBeforeOdd, &[lower_half])?;
+                evidence = self.integer_law_application(
+                    IntegerLaw::LessThanTransitivity,
+                    &[doubled, lower_odd, upper_even, first, evidence],
+                )?;
+            }
+            if upper & 1 != 0 {
+                let last = self.numeral_law_application(Law::EvenBeforeOdd, &[upper_half])?;
+                // When lower is zero this intermediate proof still starts
+                // at double(zero); the outer transport below normalizes it.
+                let lower_position = self.binary_integer(false, lower / 2)?;
+                let lower_position = self.numeral_prefix(
+                    if lower & 1 == 0 {
+                        Constructor::Double
+                    } else {
+                        Constructor::Odd
+                    },
+                    lower_position,
+                )?;
+                let lower_raw = self.constant(lower_position);
+                let upper_term = self.binary_term(false, upper)?;
+                evidence = self.integer_law_application(
+                    IntegerLaw::LessThanTransitivity,
+                    &[lower_raw, upper_even, upper_term, evidence, last],
+                )?;
+            }
+            evidence
+        };
+        if lower != 0 {
+            return Ok(evidence);
+        }
+        let zero = self.numeral_zero()?;
+        let doubled = self.numeral_prefix(Constructor::Double, zero)?;
+        let doubled = self.constant(doubled);
+        let zero = self.constant(zero);
+        let upper = self.binary_term(false, upper)?;
+        let equality = self.numeral_law_application(Law::DoubleZero, &[])?;
+        self.integer_law_application(
+            IntegerLaw::LessThanSubstituteLeft,
+            &[doubled, zero, upper, equality, evidence],
+        )
+    }
+
+    pub(super) fn literal_order(
+        &mut self,
+        lower: IntegerValue,
+        upper: IntegerValue,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let parts = |value| match value {
+            IntegerValue::Signed(value) => (value < 0, value.unsigned_abs()),
+            IntegerValue::Unsigned(value) => (false, value),
+        };
+        let (negative_lower, lower) = parts(lower);
+        let (negative_upper, upper) = parts(upper);
+        if !negative_lower {
+            debug_assert!(!negative_upper && lower < upper);
+            return self.positive_order(lower, upper);
+        }
+        if negative_upper || upper == 0 {
+            let order = self.positive_order(upper, lower)?;
+            let positive_left = self.binary_term(false, upper)?;
+            let positive_right = self.binary_term(false, lower)?;
+            let order = self.numeral_law_application(
+                Law::NegateOrder,
+                &[positive_left, positive_right, order],
+            )?;
+            if upper != 0 {
+                return Ok(order);
+            }
+            let zero = self.numeral_zero()?;
+            let negative_zero = self.numeral_prefix(Constructor::Negate, zero)?;
+            let negative_zero = self.constant(negative_zero);
+            let left = self.binary_term(true, lower)?;
+            let equality = self.numeral_law_application(Law::NegateZero, &[])?;
+            return self.integer_law_application(
+                IntegerLaw::LessThanSubstituteRight,
+                &[left, negative_zero, positive_left, equality, order],
+            );
+        }
+        // Negative to positive crosses canonical zero once.
+        let left_value = if lower == 1_u128 << 127 {
+            i128::MIN
+        } else {
+            -(lower as i128)
+        };
+        let first =
+            self.literal_order(IntegerValue::Signed(left_value), IntegerValue::Signed(0))?;
+        let second = self.positive_order(0, upper)?;
+        let left = self.binary_term(true, lower)?;
+        let zero = self.binary_term(false, 0)?;
+        let right = self.binary_term(false, upper)?;
+        self.integer_law_application(
+            IntegerLaw::LessThanTransitivity,
+            &[left, zero, right, first, second],
+        )
+    }
+
     pub(super) fn discreteness_evidence(
         &mut self,
         premise: &Proposition,
