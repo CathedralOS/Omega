@@ -366,6 +366,22 @@ fn lower(
     .unwrap()
 }
 
+fn normalized_foreign_ref<'a>(
+    plan: &'a TargetOperationPlan,
+    psi_operation: u32,
+) -> &'a TargetUnitOperation {
+    plan.functions[0]
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| block.operations.iter())
+        .find(|operation| {
+            matches!(operation, TargetUnitOperation::NormalizedForeignCall { psi_operation: id, .. }
+                if *id == OperationId::new(u64::from(psi_operation)).unwrap())
+        })
+        .expect("normalized foreign row")
+}
+
 fn normalized_foreign_mut(
     plan: &mut TargetOperationPlan,
     psi_operation: u32,
@@ -636,6 +652,194 @@ fn replay_rejects_projected_argument_identity_substitutions() {
         assert!(
             crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
             "accepted projected mutation {mutation}"
+        );
+    }
+}
+
+/// One registrar leaf: `Foreign::registrar(i32, <callback>) -> Unit` — the
+/// callback occupies a private native-only slot at authored ordinal 1.
+fn callback_fixture() -> (AbstractOperationPlan, Execution) {
+    let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let value = ValueId::new(5).unwrap();
+    let mut source = empty_plan(MachineId::new(1).unwrap());
+    source.boundary_machines.push(declaration(
+        vec![i32_type],
+        Vec::new(),
+        terminal_psi::BoundaryMachineResult::Unit,
+    ));
+    source.functions[0].operations.insert(
+        0,
+        AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(6).unwrap(),
+            result: value,
+            scalar_type: i32_type,
+            value: IntegerValue::Signed(9),
+        },
+    );
+    source.functions[0].operations.insert(
+        1,
+        AbstractOperation::BoundaryCall {
+            psi_operation: OperationId::new(7).unwrap(),
+            result: AbstractBoundaryResult::Unit,
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            arguments: vec![value],
+            structural_arguments: Vec::new(),
+            completion_claim_sources: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    );
+    (source, Execution { plan_report: 0xA1 })
+}
+
+/// The registrar binding whose entry plan carries the private
+/// materialization row beside the declared scalar parameter, joined to the
+/// binder/demand context the admission retains.
+fn materialized_binding(
+    native: NativeTarget,
+    scalar: ValueShape,
+    pointer: ValueShape,
+) -> (
+    NormalizedForeignCallBinding,
+    calling_conventions::CallbackMaterializationContext,
+    calling_conventions::NativeParameterId,
+) {
+    let mut binding = binding(
+        native,
+        CallSignature {
+            parameters: vec![scalar, pointer],
+            result: None,
+        },
+    );
+    let binder = calling_conventions::StaticMachineBinderId::new(81).unwrap();
+    let parameter = calling_conventions::NativeParameterId::new(82).unwrap();
+    let requirement = calling_conventions::CallbackRequirementId::new(83).unwrap();
+    let destination = calling_conventions::NativePlace::Parameter(parameter);
+    binding.boundary_entry_plan.call.callback_materializations =
+        vec![calling_conventions::CallbackMaterialization {
+            binder,
+            destination: destination.clone(),
+        }];
+    let context = calling_conventions::CallbackMaterializationContext {
+        binders: vec![calling_conventions::CallbackBinderRequirement {
+            binder,
+            requirement,
+        }],
+        demands: vec![calling_conventions::NativeCallbackDemand {
+            destination,
+            requirement,
+        }],
+    };
+    (binding, context, parameter)
+}
+
+#[test]
+fn registrar_callback_slot_replays_from_the_retained_roster() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let (source, execution) = callback_fixture();
+        let operation = OperationId::new(7).unwrap();
+        let scalar = ValueShape::integer(4, 4);
+        let pointer = ValueShape::integer(
+            u16::try_from(native.pointer_size).unwrap(),
+            u16::try_from(native.pointer_alignment).unwrap(),
+        );
+        let (binding, context, parameter) = materialized_binding(native, scalar, pointer);
+        let continuation = function_identity::StateKey {
+            machine: symbols::SymbolHandle::from_parts(1, 1),
+            state: symbols::SymbolHandle::from_parts(2, 1),
+            segment_index: 0,
+        };
+        let admission = crate::AdmittedNativeCallbackArgument {
+            terminal_operation: operation,
+            placement_index: 0,
+            callback_function: function_identity::MachineFunctionIdentity::callback_thunk(
+                continuation,
+                0,
+            )
+            .unwrap(),
+            application: calling_conventions::NativeParameterApplication {
+                parameter,
+                native_ordinal: 1,
+                shape: pointer,
+                placement: binding.boundary_entry_plan.call.parameters[1].clone(),
+            },
+            registrar_boundary_entry_plan: binding.boundary_entry_plan.clone(),
+            registrar_context: context,
+            registrar_application_commitment: [0x66; 32],
+        };
+        let settlements = [crate::AdmittedBoundarySettlement {
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            execution: crate::AdmittedBoundaryExecution::Provider(&execution),
+            realization: BoundarySettlementRealization::NormalizedForeignCall(binding),
+        }];
+        let target = crate::lower_to_target_operations_and_native_callbacks(
+            &source,
+            crate::TargetLoweringRequest {
+                target: native,
+                settlements: &settlements,
+                installation: None,
+                ieee_float_fma: &[],
+            },
+            &[admission],
+        )
+        .expect("admitted callback lowers");
+        // The plan retains the roster entry joined to the consuming row, and
+        // the row's scalar argument shifts past the callback's native-only
+        // ordinal into its own plan position.
+        assert_eq!(target.native_callback_arguments.len(), 1);
+        let TargetUnitOperation::NormalizedForeignCall {
+            scalar_arguments, ..
+        } = normalized_foreign_ref(&target, 7)
+        else {
+            panic!("normalized foreign row")
+        };
+        assert_eq!(scalar_arguments[0].parameter_index, 0);
+        crate::validate_abstract_to_target_translation(&source, native, &target)
+            .expect("registrar callback row replays");
+
+        // A cleared or dangling roster leaves the materialized plan without
+        // its custody carrier and fails closed; a duplicated operation key
+        // and a substituted registrar plan reject identically.
+        let mut cleared = target.clone();
+        cleared.native_callback_arguments.clear();
+        assert!(
+            crate::validate_abstract_to_target_translation(&source, native, &cleared).is_err(),
+            "accepted missing roster row"
+        );
+        let mut dangling = target.clone();
+        dangling.native_callback_arguments[0].terminal_operation = OperationId::new(42).unwrap();
+        assert!(
+            crate::validate_abstract_to_target_translation(&source, native, &dangling).is_err(),
+            "accepted dangling roster row"
+        );
+        let mut duplicated = target.clone();
+        duplicated
+            .native_callback_arguments
+            .push(duplicated.native_callback_arguments[0].clone());
+        assert!(
+            crate::validate_abstract_to_target_translation(&source, native, &duplicated).is_err(),
+            "accepted duplicated roster row"
+        );
+        let mut substituted = target.clone();
+        substituted.native_callback_arguments[0]
+            .registrar_boundary_entry_plan
+            .call
+            .parameters
+            .pop();
+        assert!(
+            crate::validate_abstract_to_target_translation(&source, native, &substituted).is_err(),
+            "accepted substituted registrar plan"
+        );
+        let mut reordered = target.clone();
+        let TargetUnitOperation::NormalizedForeignCall {
+            scalar_arguments, ..
+        } = normalized_foreign_mut(&mut reordered, 7)
+        else {
+            panic!("normalized foreign row")
+        };
+        scalar_arguments[0].parameter_index = 1;
+        assert!(
+            crate::validate_abstract_to_target_translation(&source, native, &reordered).is_err(),
+            "accepted scalar argument at the callback's private ordinal"
         );
     }
 }

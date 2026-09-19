@@ -2317,7 +2317,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !input.contains("reject_pre_terminal_selections(")
             && target_output.contains("struct NativeTargetStageResult")
             && !target_output.contains("enum NativeTargetStageResult")
-            && target_output.contains("program: Arc<TargetOperationPlanWithNativeCallbacks>")
+            && target_output.contains("program: Arc<TargetOperationPlan>")
             && target_output.contains("program: evidence.shared_program()")
             && target_output.contains("self.program != self.evidence.shared_program()")
             && target_output.contains("Ok((self.program, self.evidence))")

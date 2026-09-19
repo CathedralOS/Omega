@@ -151,8 +151,26 @@ pub(super) fn validate(
         }
         _ => return Err(invalid),
     };
+    // A retained callback occupies one native-only parameter slot in the
+    // registrar plan; the validated signature then spells every authored and
+    // private placement while the declaration still counts only semantic
+    // formals. The plan's retained roster supplies the binder/demand context
+    // the materialized signature replays against.
+    let callback = scalar_graph_input::normalized_foreign::native_callback_at(
+        native,
+        operation,
+        &call.binding.boundary_entry_plan,
+    )?;
     let signature = CallSignature {
-        parameters: if derived_structural.is_empty() {
+        parameters: if callback.is_some() {
+            call.binding
+                .boundary_entry_plan
+                .call
+                .parameters
+                .iter()
+                .map(|placement| placement.shape)
+                .collect()
+        } else if derived_structural.is_empty() {
             scalar_shapes.clone()
         } else {
             derived_structural
@@ -162,12 +180,24 @@ pub(super) fn validate(
         },
         result: expected_result.map(|(_, shape)| shape),
     };
-    let Ok(validated) = calling_conventions::validate_boundary_entry_plan(
-        call.binding.boundary_entry_plan.clone(),
-        &signature,
-    ) else {
-        return Err(invalid);
-    };
+    let validated = match callback {
+        Some(callback) => {
+            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                call.binding.boundary_entry_plan.clone(),
+                &signature,
+                &callback.registrar_context,
+            )
+        }
+        None => calling_conventions::validate_boundary_entry_plan(
+            call.binding.boundary_entry_plan.clone(),
+            &signature,
+        ),
+    }
+    .map_err(|_| invalid.clone())?;
+    let callback_ordinal = callback
+        .map(|callback| usize::try_from(callback.application.native_ordinal))
+        .transpose()
+        .map_err(|_| invalid.clone())?;
     if declarations.next().is_some()
         || *psi_operation != operation
         || *row_boundary != call.boundary
@@ -192,15 +222,9 @@ pub(super) fn validate(
         || call.binding.boundary_entry_plan.call.policy
             != CallingPolicy::native_for_target(native.target)
         || call.binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn
-        || !call
-            .binding
-            .boundary_entry_plan
-            .call
-            .callback_materializations
-            .is_empty()
         || validated.plan() != &call.binding.boundary_entry_plan
         || call.binding.boundary_entry_plan.call.parameters.len()
-            != scalar_shapes.len() + derived_structural.len()
+            != scalar_shapes.len() + derived_structural.len() + usize::from(callback.is_some())
         || call.structural_arguments.as_slice() != derived_structural.as_slice()
         || call.scalar_arguments.len() != arguments.len()
         || call
@@ -231,8 +255,15 @@ pub(super) fn validate(
                     ] => *byte_size,
                     _ => return true,
                 };
-                argument.parameter_index != index as u32
-                    || call.binding.boundary_entry_plan.call.parameters.get(index)
+                let expected_index =
+                    index + usize::from(callback_ordinal.is_some_and(|ordinal| index >= ordinal));
+                argument.parameter_index != expected_index as u32
+                    || call
+                        .binding
+                        .boundary_entry_plan
+                        .call
+                        .parameters
+                        .get(expected_index)
                         != Some(&argument.placement)
                     || argument.placement.shape != *shape
                     || shape.byte_size != placed_byte_size

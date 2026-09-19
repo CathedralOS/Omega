@@ -29,12 +29,6 @@ pub(crate) fn emit_realization_object(
     hosted_receiver: Option<&crate::ValidatedNativeProgramEntrySettlement>,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
-    if !request.callback_thunks.is_empty() || !request.native_callbacks.is_empty() {
-        return Err(realization_error(
-            "native instruction selection",
-            "callback ABI transport is not implemented in the common instruction pipeline",
-        ));
-    }
     if !request.ieee_float_fma.is_empty() {
         return Err(realization_error(
             "native instruction selection",

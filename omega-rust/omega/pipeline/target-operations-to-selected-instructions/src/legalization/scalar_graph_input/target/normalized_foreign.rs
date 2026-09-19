@@ -7,8 +7,10 @@
 //! retained structural parameters, and the ordered scalar source roster, and
 //! re-validates the claimed plan against the reconstructed signature rather
 //! than trusting the row's placements. A registrar callback materialization
-//! cannot be replayed here: the admitted registrar context is not retained in
-//! the target plan, so a non-empty materialization roster fails closed.
+//! replays against the plan's retained `native_callback_arguments`: the
+//! admitted argument must join to this row by Terminal operation and exact
+//! registrar entry plan, and its context re-validates the materialized
+//! signature in place of the ordinary plan check.
 use super::super::{ScalarType, scalar_shape};
 use super::{
     AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, TargetFunction,
@@ -17,7 +19,7 @@ use super::{
 use crate::LegalizationError;
 use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation, ValueShape};
 use target_operations::{
-    TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
+    TargetOperationPlan, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
     TargetUnitScalarHomeRequirement,
 };
 
@@ -27,7 +29,7 @@ pub(super) fn validate(
     source: &abstract_operations::AbstractOperation,
     function: &TargetFunction,
     parameters: &[TargetStructuralParameter],
-    native: ::target::NativeTarget,
+    native: &TargetOperationPlan,
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -116,7 +118,7 @@ pub(super) fn validate(
                 binding.boundary_entry_plan.call.parameters.get(index),
                 parameters,
                 optimized,
-                native,
+                native.target,
                 plan,
             )
         })
@@ -152,8 +154,25 @@ pub(super) fn validate(
         }
         _ => return Err(invalid),
     };
+    // A retained callback occupies one native-only parameter slot in the
+    // registrar plan; the validated signature then spells every authored and
+    // private placement while the declaration still counts only semantic
+    // formals.
+    let callback = super::super::normalized_foreign::native_callback_at(
+        native,
+        *psi_operation,
+        &binding.boundary_entry_plan,
+    )?;
     let signature = CallSignature {
-        parameters: if structural.is_empty() {
+        parameters: if callback.is_some() {
+            binding
+                .boundary_entry_plan
+                .call
+                .parameters
+                .iter()
+                .map(|placement| placement.shape)
+                .collect()
+        } else if structural.is_empty() {
             scalar_shapes.clone()
         } else {
             structural
@@ -163,32 +182,41 @@ pub(super) fn validate(
         },
         result: expected_result.map(|(_, shape)| shape),
     };
-    let validated = calling_conventions::validate_boundary_entry_plan(
-        binding.boundary_entry_plan.clone(),
-        &signature,
-    )
+    let validated = match callback {
+        Some(callback) => {
+            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                binding.boundary_entry_plan.clone(),
+                &signature,
+                &callback.registrar_context,
+            )
+        }
+        None => calling_conventions::validate_boundary_entry_plan(
+            binding.boundary_entry_plan.clone(),
+            &signature,
+        ),
+    }
     .map_err(|_| invalid.clone())?;
+    let callback_ordinal = callback
+        .map(|callback| usize::try_from(callback.application.native_ordinal))
+        .transpose()
+        .map_err(|_| invalid.clone())?;
     if declarations.next().is_some()
         || psi_operation != expected_operation
         || boundary != expected_boundary
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
-        || binding.locator.target().native_target() != native
+        || binding.locator.target().native_target() != native.target
         || binding
             .same_stack_contribution
             .provider_plan_report_identity()
             != provider_execution.provider_plan_report_identity().get()
         || binding.same_stack_contribution.requirement_identity() != declaration.identity
-        || binding.boundary_entry_plan.call.policy != CallingPolicy::native_for_target(native)
+        || binding.boundary_entry_plan.call.policy
+            != CallingPolicy::native_for_target(native.target)
         || binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn
-        || !binding
-            .boundary_entry_plan
-            .call
-            .callback_materializations
-            .is_empty()
         || validated.plan() != &binding.boundary_entry_plan
         || binding.boundary_entry_plan.call.parameters.len()
-            != scalar_shapes.len() + structural.len()
+            != scalar_shapes.len() + structural.len() + usize::from(callback.is_some())
         || scalar_arguments.len() != arguments.len()
         || arguments.len() != declaration.scalar_parameters.len()
         || structural_arguments.as_slice() != structural.as_slice()
@@ -219,7 +247,10 @@ pub(super) fn validate(
                     ] => *byte_size,
                     _ => return true,
                 };
-                argument.parameter_index != index as u32
+                argument.parameter_index
+                    != (index
+                        + usize::from(callback_ordinal.is_some_and(|ordinal| index >= ordinal)))
+                        as u32
                     || argument.placement.shape != *shape
                     || shape.byte_size != placed_byte_size
                     || argument.source.scalar_type() != ScalarType::Integer(*integer_type)

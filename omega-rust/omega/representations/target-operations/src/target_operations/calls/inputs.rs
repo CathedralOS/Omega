@@ -8,8 +8,7 @@ use terminal_psi::TerminalPlacedViewInput;
 /// One target-owned native-only callback argument joined to an exact
 /// Terminal boundary-call occurrence.
 ///
-/// This is deliberately kept beside the ordinary target-operation plan. The
-/// callback has no Terminal [`semantic_vocabulary::ValueId`] and therefore must not be inserted
+/// The callback has no Terminal [`semantic_vocabulary::ValueId`] and therefore must not be inserted
 /// into a boundary call's semantic scalar-argument roster. A later assignment
 /// stage must bind `application.placement` to an exact physical operand while
 /// retaining the symbolic callback-function identity.
@@ -24,14 +23,6 @@ pub struct TargetNativeCallbackArgument {
     /// Retained compiler-origin provenance. Target lowering cannot
     /// independently authenticate this commitment from the reduced tuple.
     pub registrar_application_commitment: [u8; 32],
-}
-
-/// Compatibility-preserving target plan plus the exact native-only callback
-/// arguments consumed by its normalized foreign calls.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetOperationPlanWithNativeCallbacks {
-    pub plan: TargetOperationPlan,
-    pub native_callback_arguments: Vec<TargetNativeCallbackArgument>,
 }
 
 /// One exact plan-laid input joined to its target pointer placement.

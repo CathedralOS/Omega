@@ -2,14 +2,14 @@
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use std::sync::Arc;
-use target_operations::TargetOperationPlanWithNativeCallbacks;
+use target_operations::TargetOperationPlan;
 
 /// Every completed target stage owns the same current representation.
 /// Optimized translation evidence shares that original allocation rather than
 /// storing a second copy or supplying the program through a history accessor.
 #[derive(Debug)]
 pub(crate) struct NativeTargetStageResult {
-    program: Arc<TargetOperationPlanWithNativeCallbacks>,
+    program: Arc<TargetOperationPlan>,
     evidence: ValidatedOptimizedTargetOperations,
 }
 
@@ -25,13 +25,7 @@ impl NativeTargetStageResult {
     /// Compact Terminal, entry, and target IDs do not establish plan equality.
     pub(crate) fn into_parts(
         self,
-    ) -> Result<
-        (
-            Arc<TargetOperationPlanWithNativeCallbacks>,
-            ValidatedOptimizedTargetOperations,
-        ),
-        &'static str,
-    > {
+    ) -> Result<(Arc<TargetOperationPlan>, ValidatedOptimizedTargetOperations), &'static str> {
         if self.program != self.evidence.shared_program() {
             return Err("current target program differs from its retained translation evidence");
         }

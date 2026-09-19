@@ -31,6 +31,7 @@ pub enum AbstractToTargetTranslationValidationError {
     DuplicateIeeeFloatFmaSettlement(OperationId),
     UnknownIeeeFloatFmaSettlement(OperationId),
     MissingIeeeFloatFmaSettlement(OperationId),
+    NativeCallbackRosterMismatch(OperationId),
 }
 
 impl std::fmt::Display for AbstractToTargetTranslationValidationError {

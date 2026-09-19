@@ -12,16 +12,13 @@ pub(crate) fn lower_to_target_operations_with_settlements(
     target: NativeTarget,
     settlement_bindings: &[BoundarySettlementBinding],
 ) -> Result<TargetOperationPlan, LoweringError> {
-    Ok(
-        lower_to_target_operations_with_settlements_and_installation(
-            plan,
-            target,
-            settlement_bindings,
-            None,
-            &[],
-            &[],
-        )?
-        .plan,
+    lower_to_target_operations_with_settlements_and_installation(
+        plan,
+        target,
+        settlement_bindings,
+        None,
+        &[],
+        &[],
     )
 }
 
@@ -32,7 +29,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     installation: Option<&dyn ProviderInstallationEvidence>,
     ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
-) -> Result<target_operations::TargetOperationPlanWithNativeCallbacks, LoweringError> {
+) -> Result<TargetOperationPlan, LoweringError> {
     projected_qualifications::reject_unsupported(plan)?;
     if !plan
         .functions
@@ -296,6 +293,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         psi: plan.psi,
         target,
         entry: plan.entry,
+        native_callback_arguments: native_callbacks_by_operation.values().cloned().collect(),
         functions: plan
             .functions
             .iter()
@@ -319,10 +317,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             .collect::<Result<Vec<_>, _>>()?,
     };
     validate_native_callback_target_rows(&target_plan, &native_callbacks_by_operation)?;
-    Ok(target_operations::TargetOperationPlanWithNativeCallbacks {
-        plan: target_plan,
-        native_callback_arguments: native_callbacks_by_operation.into_values().collect(),
-    })
+    Ok(target_plan)
 }
 
 pub(crate) fn bind_native_callback_arguments(
