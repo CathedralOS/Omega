@@ -123,6 +123,9 @@ pub(in crate::function_fragments) fn arrivals(
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::IntegerWiden { .. }
         | AbstractOperation::IntegerBitwiseAnd { .. }
+        | AbstractOperation::IntegerBitwiseOr { .. }
+        | AbstractOperation::IntegerBitwiseXor { .. }
+        | AbstractOperation::IntegerBitwiseNot { .. }
         | AbstractOperation::ExactIntegerAdd { .. }
         | AbstractOperation::WrappingIntegerAdd { .. }
         | AbstractOperation::ExactIntegerDivide { .. }
@@ -131,6 +134,12 @@ pub(in crate::function_fragments) fn arrivals(
         | AbstractOperation::SaturatingIntegerAdd { .. }
         | AbstractOperation::SaturatingIntegerDivide { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
+        | AbstractOperation::ExactIntegerMultiply { .. }
+        | AbstractOperation::ExactIntegerRemainder { .. }
+        | AbstractOperation::WrappingIntegerSubtract { .. }
+        | AbstractOperation::WrappingIntegerMultiply { .. }
+        | AbstractOperation::WrappingIntegerDivide { .. }
+        | AbstractOperation::SaturatingIntegerRemainder { .. }
         | AbstractOperation::Call { .. }
         | AbstractOperation::Jump { .. }
         | AbstractOperation::Conditional { .. } => true,
