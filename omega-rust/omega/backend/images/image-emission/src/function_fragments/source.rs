@@ -353,20 +353,30 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::IntegerWiden { .. }
                 | AbstractOperation::IntegerExactCast { .. }
                 | AbstractOperation::IntegerBitwiseAnd { .. }
+                | AbstractOperation::IntegerBitwiseOr { .. }
                 | AbstractOperation::IntegerBitwiseXor { .. }
+                // The i64 complement re-normalizes narrow unsigned results;
+                // replay binds that normalization to the declared carrier.
+                | AbstractOperation::IntegerBitwiseNot { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
-                // Wrapping add has no overflow obligation. Mandatory replay
-                // still checks exact operands and the low-width normalization.
-                | AbstractOperation::WrappingIntegerAdd { .. }
+                | AbstractOperation::ExactIntegerSubtract { .. }
+                | AbstractOperation::ExactIntegerMultiply { .. }
                 | AbstractOperation::ExactIntegerDivide { .. }
-                // Mandatory source/selection replay also binds the remainder's
-                // operand snapshots and accepted nonzero-divisor evidence.
+                // Wrapping add, subtract, and multiply have no overflow
+                // obligation. Mandatory replay still checks exact operands
+                // and the low-width normalization.
+                | AbstractOperation::WrappingIntegerAdd { .. }
+                | AbstractOperation::WrappingIntegerSubtract { .. }
+                | AbstractOperation::WrappingIntegerMultiply { .. }
+                // Every divide and remainder below replays its operand
+                // snapshots and accepted nonzero-divisor evidence.
+                | AbstractOperation::ExactIntegerRemainder { .. }
                 | AbstractOperation::WrappingIntegerRemainder { .. }
-        | AbstractOperation::SaturatingIntegerSubtract { .. }
-        | AbstractOperation::SaturatingIntegerAdd { .. }
-                // Saturating division also replays its accepted nonzero-divisor evidence.
+                | AbstractOperation::WrappingIntegerDivide { .. }
+                | AbstractOperation::SaturatingIntegerSubtract { .. }
+                | AbstractOperation::SaturatingIntegerAdd { .. }
                 | AbstractOperation::SaturatingIntegerDivide { .. }
-                | AbstractOperation::ExactIntegerSubtract { .. } => true,
+                | AbstractOperation::SaturatingIntegerRemainder { .. } => true,
                 AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, destination, .. } => {
                     selected.memory_accesses.iter().any(|access| {

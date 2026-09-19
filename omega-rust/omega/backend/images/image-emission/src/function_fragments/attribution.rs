@@ -30,15 +30,23 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::IntegerWiden { psi_operation, .. }
                 | AbstractOperation::IntegerExactCast { psi_operation, .. }
                 | AbstractOperation::IntegerBitwiseAnd { psi_operation, .. }
+                | AbstractOperation::IntegerBitwiseOr { psi_operation, .. }
                 | AbstractOperation::IntegerBitwiseXor { psi_operation, .. }
+                | AbstractOperation::IntegerBitwiseNot { psi_operation, .. }
                 | AbstractOperation::ExactIntegerAdd { psi_operation, .. }
                 | AbstractOperation::WrappingIntegerAdd { psi_operation, .. }
+                | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
+                | AbstractOperation::ExactIntegerMultiply { psi_operation, .. }
                 | AbstractOperation::ExactIntegerDivide { psi_operation, .. }
+                | AbstractOperation::ExactIntegerRemainder { psi_operation, .. }
+                | AbstractOperation::WrappingIntegerSubtract { psi_operation, .. }
+                | AbstractOperation::WrappingIntegerMultiply { psi_operation, .. }
+                | AbstractOperation::WrappingIntegerDivide { psi_operation, .. }
                 | AbstractOperation::WrappingIntegerRemainder { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerSubtract { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerDivide { psi_operation, .. }
-                | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
+                | AbstractOperation::SaturatingIntegerRemainder { psi_operation, .. }
                 | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
                 | AbstractOperation::ByteSequenceLength { psi_operation, .. }
                 | AbstractOperation::StructuralByteSequenceFieldLength { psi_operation, .. }

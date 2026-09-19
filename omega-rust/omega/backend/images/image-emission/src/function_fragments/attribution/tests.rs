@@ -142,6 +142,123 @@ fn wrapping_remainder_attribution_requires_a_unique_authored_operation_ordinal()
     assert!(ordinal(&source, SemanticCodeSite::Operation(operation)).is_err());
 }
 
+#[test]
+fn legalized_scalar_family_attribution_requires_unique_authored_ordinals() {
+    let operation = OperationId::new(2).unwrap();
+    let result = ValueId::new(3).unwrap();
+    let left = ValueId::new(1).unwrap();
+    let right = ValueId::new(2).unwrap();
+    let obligation = semantic_vocabulary::ObligationId::new(1).unwrap();
+    let signed64 = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    let unsigned64 = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    for (name, candidate) in [
+        (
+            "bitwise or",
+            AbstractOperation::IntegerBitwiseOr {
+                psi_operation: operation,
+                result,
+                scalar_type: unsigned64,
+                left,
+                right,
+            },
+        ),
+        (
+            "bitwise not",
+            AbstractOperation::IntegerBitwiseNot {
+                psi_operation: operation,
+                result,
+                scalar_type: unsigned64,
+                operand: left,
+            },
+        ),
+        (
+            "wrapping subtract",
+            AbstractOperation::WrappingIntegerSubtract {
+                psi_operation: operation,
+                result,
+                scalar_type: signed64,
+                left,
+                right,
+            },
+        ),
+        (
+            "wrapping multiply",
+            AbstractOperation::WrappingIntegerMultiply {
+                psi_operation: operation,
+                result,
+                scalar_type: unsigned64,
+                left,
+                right,
+            },
+        ),
+        (
+            "wrapping divide",
+            AbstractOperation::WrappingIntegerDivide {
+                psi_operation: operation,
+                obligation,
+                result,
+                scalar_type: signed64,
+                left,
+                right,
+            },
+        ),
+        (
+            "saturating remainder",
+            AbstractOperation::SaturatingIntegerRemainder {
+                psi_operation: operation,
+                obligation,
+                result,
+                scalar_type: signed64,
+                left,
+                right,
+            },
+        ),
+        (
+            "exact multiply",
+            AbstractOperation::ExactIntegerMultiply {
+                psi_operation: operation,
+                obligation,
+                result,
+                scalar_type: unsigned64,
+                left,
+                right,
+            },
+        ),
+        (
+            "exact remainder",
+            AbstractOperation::ExactIntegerRemainder {
+                psi_operation: operation,
+                obligation,
+                result,
+                scalar_type: unsigned64,
+                left,
+                right,
+            },
+        ),
+    ] {
+        let (_, mut source) = fixture();
+        source.operations[1] = candidate;
+        assert_eq!(
+            ordinal(&source, SemanticCodeSite::Operation(operation)).unwrap(),
+            1,
+            "{name}"
+        );
+        assert!(
+            ordinal(
+                &source,
+                SemanticCodeSite::Operation(OperationId::new(99).unwrap())
+            )
+            .is_err(),
+            "{name}"
+        );
+        source.operations.push(source.operations[1].clone());
+        assert!(
+            ordinal(&source, SemanticCodeSite::Operation(operation)).is_err(),
+            "{name}"
+        );
+    }
+}
+
 fn fixture() -> (FunctionFragment, AbstractFunction) {
     let first = OperationId::new(1).unwrap();
     let second = OperationId::new(2).unwrap();
