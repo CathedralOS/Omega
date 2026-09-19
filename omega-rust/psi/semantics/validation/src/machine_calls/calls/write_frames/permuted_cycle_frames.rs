@@ -314,6 +314,13 @@ fn build_permuted_cycle_frame_equation<'program>(
                 &mut inference,
                 &mut expression_writes,
                 complete_state_summaries,
+                &super::caller_aliases::CallOriginContext {
+                    parameters,
+                    isolated_locals: &isolated_local_roots,
+                    aliases: &local_alias_origins,
+                    divergent: &[],
+                    stored: &stored,
+                },
             )?;
             for relative in expression_writes
                 .iter()

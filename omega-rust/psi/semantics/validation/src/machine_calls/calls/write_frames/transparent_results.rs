@@ -361,6 +361,13 @@ pub(crate) fn transparent_callee_result_origins(
                                     inference,
                                     written,
                                     &mut Vec::new(),
+                                    &super::caller_aliases::CallOriginContext {
+                                        parameters,
+                                        isolated_locals: &isolated_local_roots,
+                                        aliases: &stable_aliases,
+                                        divergent: &[],
+                                        stored: &[],
+                                    },
                                 )
                             },
                         ) {

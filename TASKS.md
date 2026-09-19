@@ -3760,13 +3760,18 @@ Owners include
     Each has landed slices; rerun its `write_frame_*` tests in
     `typed-trees-to-checked-trees/src/tests/termination/` to find the residue.
     Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.
-  - A divergent exclusive-alias local keeps its candidate set for writes,
-    proven rebinds, and statement calls that lend the set through a direct
-    exclusive reborrow (`&mut <place>`) or the bare binding as the actual.
-    A member-read actual, nested or match-position call mention,
-    value-position call, wire-codec argument, transport into another binding,
-    reference-typed interior write or unproven rebind still makes the summary
-    opaque (`state_write_walk.rs`, `caller_aliases.rs`, `demand.rs`).
+  - Carry finite reference candidates through receiver dispatch, named-state
+    transfer and wire-codec calls; those consumers still lack contextual
+    substitution. Interior reference loads need independent load evidence,
+    not the enclosing carrier's path. Unknown rebinds must remain opaque.
+    Owners: `state_write_walk.rs`, `caller_aliases.rs`, `demand.rs`.
+    Call-argument composition alone does not establish source admission:
+    a reference-valued `match` still fails branch-custody joining, and a
+    boundary result with two inputs sharing its lifetime rejects in view
+    signature validation. Close those borrow-join dependencies before claiming
+    the source-to-checked example: choose either mutable input, write through
+    the returned alias inside a value expression, then prove a disjoint index
+    bound; the overlapping-index variant must reject.
   - `permuted_cycle_frames.rs` hands statement calls a fresh summary memo
     while the prefix walk shares `complete_state_summaries`. Unifying them
     changes the solve-versus-walk route for a cyclic state calling a cached
