@@ -334,3 +334,87 @@ fn equal_policy_source_edit_remains_visible_and_resolution_update_preserves_assu
     .unwrap();
     native_project(&project).expect("resolution-only update retains accepted assumptions");
 }
+
+#[test]
+fn receiving_permission_policy_binds_or_rejects_at_explicit_admission_replay() {
+    let project = TemporaryProject::new();
+    let target = target::TargetProfile::LinuxX64;
+    accept_project(&project, target);
+
+    // An accepted project emitting without a supplied receiving policy makes
+    // no receiver-admission claim: the artifact binds no permission-policy
+    // identity, and an explicit admission replay rejects it rather than
+    // treating absence as an implied policy.
+    let unclaimed = native_project(&project).expect("accepted project emits without a policy");
+    let artifact = unclaimed
+        .retained_native_artifact()
+        .expect("retained native artifact");
+    assert_eq!(
+        artifact.terminal_authority_permission_policy_identity(),
+        None
+    );
+    let explicit_empty =
+        native_realization::terminal_authority_permission_policy_with_rows(Vec::new())
+            .expect("an explicit empty receiving policy is valid");
+    artifact
+        .validate_for_terminal_authority_policies(
+            artifact.terminal_authority_policy_identity(),
+            explicit_empty.identity(),
+            artifact.terminal_authority_closure_review().identity(),
+        )
+        .expect_err("an unclaimed artifact cannot satisfy explicit admission replay");
+
+    // The same accepted project recompiled with a supplied receiving policy
+    // binds that policy's exact identity into the artifact: the explicit
+    // replay admits the bound policy and rejects any other.
+    let prepared = prepare_local_project(
+        &project.entry(),
+        LocalProjectPreparationOptions {
+            target,
+            offline: false,
+        },
+    )
+    .expect("prepare accepted project")
+    .expect("application project");
+    let report = compile_prepared_local_project_for_native(
+        PreparedLocalProjectNativeRequest::new(
+            prepared,
+            project.workspace.join("native-receiving"),
+            target,
+        )
+        .with_receiving_terminal_authority_permission_policy(explicit_empty.clone()),
+        |_| (),
+    )
+    .map(|(report, ())| report)
+    .expect("accepted project emits under the supplied receiving policy");
+    let artifact = report
+        .retained_native_artifact()
+        .expect("retained native artifact");
+    assert_eq!(
+        artifact.terminal_authority_permission_policy_identity(),
+        Some(explicit_empty.identity())
+    );
+    artifact
+        .validate_for_terminal_authority_policies(
+            artifact.terminal_authority_policy_identity(),
+            explicit_empty.identity(),
+            artifact.terminal_authority_closure_review().identity(),
+        )
+        .expect("the artifact admits under its bound receiving policy");
+
+    let foreign = native_realization::terminal_authority_permission_policy_with_rows(vec![
+        effects::ServiceTerminalAuthorityPermission::new(
+            effects::provider_plan::ServiceSchemaDigest::from_digest([7; 32]),
+            "Foreign::noop#exact".to_owned(),
+            effects::TerminalAuthorityDisposition::from_classes([]),
+        ),
+    ])
+    .expect("a foreign receiving policy");
+    artifact
+        .validate_for_terminal_authority_policies(
+            artifact.terminal_authority_policy_identity(),
+            foreign.identity(),
+            artifact.terminal_authority_closure_review().identity(),
+        )
+        .expect_err("a different receiving policy does not accept the artifact");
+}
