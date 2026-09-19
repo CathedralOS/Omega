@@ -3272,6 +3272,28 @@ Owners include
   and binds the supplied policy's exact identity when given one, admitting
   only under that identity and rejecting under any other.
 
+  The toolchain-settled filesystem cohort is now wired at the single provider
+  admission join: `validate_source_evaluated_import_coverage` mints the exact
+  `filesystem_mechanism_row` for each demanded leaf served by a settled
+  facet-cohort method, `admit_native_providers` merges minted rows into the
+  effective receiving policy (caller rows win; identical rows dedup; a
+  conflicting row on a cohort mechanism rejects as a duplicate mechanism, so
+  a forged classification cannot substitute), and the merged identity is what
+  the closure review and emitted artifact bind. Ordinary-release cohort
+  methods mint nothing, and unknown method names keep the fail-closed
+  classification demand. On the permission axis, package-review discovery
+  attaches `filesystem_host_permission_rows` to the root consumer's
+  `FilesystemHostService` binding proposal so the accepted policy covers the
+  demanded leaves. The remaining pipeline blocker is named: a demanded
+  canonical `FilesystemHost` leaf resolves to zero selected provider rows at
+  the closure review — provider plans derive only from `satisfies`
+  conformances, none exists for the canonical host, and a package-authored
+  `satisfies`/`select_provider` for a trait named `FilesystemHost` is refused
+  as an unknown boundary slot;
+  `compiler/tests/terminal_authority/filesystem_cohort_witness.rs` pins that
+  stop. The `cli_mvp` and `console-exit-app` READMEs no longer describe the
+  removed gate.
+
   Windows x86_64 observation at `e07e5c7a25` (2026-09-17, Windows host): the
   `cli_mvp` outer command, `--check`, `audit packages`, and the filtered
   `samples_compile` probe all stop inside the fresh review's checked
