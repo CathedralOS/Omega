@@ -3,8 +3,9 @@
 //! Source/output replay construction and exact retained-operation validation live here.
 //!
 //! `replay_records.rs` holds the typed records, `replay_validation.rs`
-//! validates a replay, and `output_attempts.rs` and `source_attempts.rs`
-//! reconstruct output and source records from retained attempts.
+//! validates a replay. `output_stream.rs` follows descriptor lifetimes in the
+//! original event order; `output_attempts.rs` checks each file's projected
+//! operations. `source_attempts.rs` owns the bounded Source prefix.
 
 #[cfg(test)]
 mod descriptor_error_state_failure_tests;
@@ -31,6 +32,7 @@ mod open_at_failures;
 mod output_attempts;
 mod output_failures;
 mod output_ownership;
+mod output_stream;
 mod output_tree;
 #[cfg(test)]
 mod output_tree_tests;
@@ -128,15 +130,14 @@ pub(crate) use open_at_failures::{
     unknown_descriptor_open_at_attempt, unknown_descriptor_open_at_attempt_is_exact,
     unknown_descriptor_open_at_from_exact_attempt,
 };
-pub(crate) use output_attempts::{
-    filesystem_output_attempt_tag, output_file_attempts, output_tree_entries_from_attempts,
-};
+pub(crate) use output_attempts::{filesystem_output_attempt_tag, output_file_attempts};
 pub(crate) use output_failures::output_absent_remove_attempt;
 pub use output_failures::{
     FilesystemInputOutputAbsentRemovesReplayRecord, FilesystemOutputAbsentRemoveKind,
     FilesystemOutputAbsentRemoveReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
 };
 pub use output_ownership::FilesystemOutputChangeFileOwnerReplayRecord;
+use output_stream::output_tree_from_attempts;
 pub(crate) use output_tree::validate_observed_output_tree_records;
 pub use output_tree::{
     FilesystemInputOutputTreeReplayRecord, FilesystemOutputTreeEntryReplayRecord,
@@ -305,8 +306,9 @@ impl FilesystemReplay {
         {
             return Vec::new();
         }
-        output_tree_entries_from_attempts(&self.attempts[output_start..])
+        output_tree_from_attempts(&self.attempts[output_start..])
             .expect("validated filesystem replay retains exact Output entries")
+            .entries
     }
 
     /// Reconstruct the exact ordered Output directories retained by this
@@ -424,6 +426,32 @@ impl FilesystemReplay {
             return Err("filesystem replay observation schema is not current".to_owned());
         }
         let attempts = observations.filesystem_operation_attempts();
+        Self::validate_input_output_attempts(attempts, observations.build_included_sources())?;
+        Ok(Self {
+            attempts: attempts.to_vec().into(),
+            expected_included_sources: observations.build_included_sources().to_vec().into(),
+        })
+    }
+
+    /// Admit a complete chronological Source/Output stream, including descriptor
+    /// lifetimes, exact operation lanes, retained-byte bounds and source handoffs.
+    /// Wire recovery and observed builds share this check; per-file projections
+    /// never determine execution order.
+    pub fn from_input_output_attempts(
+        attempts: Vec<FilesystemOperationAttempt>,
+        included_sources: Vec<BuildIncludedSource>,
+    ) -> Result<Self, String> {
+        Self::validate_input_output_attempts(&attempts, &included_sources)?;
+        Ok(Self {
+            attempts: attempts.into(),
+            expected_included_sources: included_sources.into(),
+        })
+    }
+
+    fn validate_input_output_attempts(
+        attempts: &[FilesystemOperationAttempt],
+        included_sources: &[BuildIncludedSource],
+    ) -> Result<(), String> {
         validate_filesystem_replay_size(attempts)?;
         let output_start = attempts
             .iter()
@@ -444,23 +472,17 @@ impl FilesystemReplay {
             validate_output_absent_remove_attempts(
                 &attempts[..output_start],
                 &attempts[output_start..],
-                observations.build_included_sources(),
+                included_sources,
             )?;
-            return Ok(Self {
-                attempts: attempts.to_vec().into(),
-                expected_included_sources: std::sync::Arc::from([]),
-            });
+            return Ok(());
         }
-        let output_entries = output_tree_entries_from_attempts(&attempts[output_start..])?;
+        let output = output_tree_from_attempts(&attempts[output_start..])?;
         validate_observed_output_tree_records(
             &attempts[..output_start],
-            &output_entries,
-            observations.build_included_sources(),
-        )?;
-        Ok(Self {
-            attempts: attempts.to_vec().into(),
-            expected_included_sources: observations.build_included_sources().to_vec().into(),
-        })
+            &output,
+            attempts.len() - output_start,
+            included_sources,
+        )
     }
 
     /// Construct the closed optional-Source plus failure-only Output rung from
@@ -510,27 +532,12 @@ impl FilesystemReplay {
     ) -> Result<Self, String> {
         let (source_input, output_entries, expected_included_sources) = record.into_parts();
         let mut attempts = source_input.map_or_else(Vec::new, source_input_record_attempts);
-        for entry in output_entries {
-            match entry {
-                FilesystemOutputTreeEntryReplayRecord::Directory(directory) => {
-                    attempts.push(output_directory_attempt(directory));
-                }
-                FilesystemOutputTreeEntryReplayRecord::File(file) => {
-                    attempts.extend(output_file_attempts(file));
-                }
-                FilesystemOutputTreeEntryReplayRecord::HardLink(hard_link) => {
-                    attempts.push(output_hard_link_attempt(hard_link));
-                }
-                FilesystemOutputTreeEntryReplayRecord::Symlink(symlink) => {
-                    attempts.push(output_symlink_attempt(symlink));
-                }
-            }
-        }
-        validate_filesystem_replay_size(&attempts)?;
-        Ok(Self {
-            attempts: attempts.into(),
-            expected_included_sources: expected_included_sources.into(),
-        })
+        attempts.extend(
+            output_entries
+                .into_iter()
+                .flat_map(FilesystemOutputTreeEntryReplayRecord::into_attempts),
+        );
+        Self::from_input_output_attempts(attempts, expected_included_sources)
     }
 
     /// Construct the bounded Source-input plus ordered empty Output-directory

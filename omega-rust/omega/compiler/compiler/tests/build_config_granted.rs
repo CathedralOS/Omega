@@ -148,6 +148,30 @@ fn write_serialized_replay_project(project: &Project) {
     );
 }
 
+fn write_interleaved_serialized_replay_project(project: &Project) {
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("build-facet-interleaved-replay");
+    let generated: BuildPath = builder.output.resolve("generated.omg");
+    let artifact: BuildPath = builder.output.resolve("artifact.txt");
+    let generated_descriptor: i32 = builder.output.create(generated, 438);
+    let artifact_descriptor: i32 = builder.output.create(artifact, 438);
+    let generated_prefix: i64 = builder.output.write(generated_descriptor, "data ReplayGenerated {");
+    let artifact_prefix: i64 = builder.output.write(artifact_descriptor, "ab");
+    let generated_suffix: i64 = builder.output.write(generated_descriptor, " base: Main; }\n");
+    let artifact_middle: i64 = builder.output.write(artifact_descriptor, "Z");
+    let generated_newline: i64 = builder.output.write(generated_descriptor, "\n");
+    let artifact_suffix: i64 = builder.output.write(artifact_descriptor, "cd");
+    let artifact_close: i32 = builder.output.close(artifact_descriptor);
+    let generated_close: i32 = builder.output.close(generated_descriptor);
+    builder.output.include_source(generated);
+}
+"#,
+    );
+}
+
 fn sponsored_build_session(label: &str) -> (PathBuf, FilesystemSponsor, PathBuf) {
     let session = std::env::temp_dir().join(format!(
         "omega-build-facet-{label}-session-{}",

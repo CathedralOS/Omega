@@ -165,6 +165,234 @@ fn output_only_record_rejects_handoff_before_its_attempt_zero_file_closes() {
     );
 }
 
+fn interleaved_output_summary() -> BuildObservationSummary {
+    let mut summary = output_only_summary(4);
+    let first = output_file_attempts();
+    let mut second = output_file_attempts();
+    let second_identity = identity(74);
+    second[0].result = BuildFilesystemOperationResult::LogicalHandle(second_identity);
+    second[0].logical_handle_output.as_mut().unwrap().identity = second_identity;
+    second[0].rooted_path_operand_resolutions[0].relative_path = b"other.txt".to_vec();
+    second[0].authorized_paths[0].relative_path = b"other.txt".to_vec();
+    second[1].logical_handle_inputs[0].resolution =
+        BuildFilesystemLogicalHandleInputResolution::Resolved(second_identity);
+    second[1].retired_logical_handles = vec![second_identity];
+    summary.filesystem_operation_attempts = vec![
+        first[0].clone(),
+        second[0].clone(),
+        second[1].clone(),
+        first[1].clone(),
+    ];
+    summary
+}
+
+#[test]
+fn interleaved_output_record_preserves_event_order_and_exact_close_handoff() {
+    let summary = interleaved_output_summary();
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+        .expect("interleaved files encode")
+        .expect("complete replay record");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .expect("interleaved files recover");
+    let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+        .expect("interleaved files rehydrate");
+    assert_eq!(
+        replay
+            .attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![1, 1, 8, 8]
+    );
+    assert_eq!(
+        replay.expected_included_sources()[0].filesystem_attempt_ordinal(),
+        4
+    );
+    assert_eq!(replay.output_files().len(), 2);
+
+    let mut early = summary;
+    early.included_source_handoffs[0].filesystem_attempt_ordinal = 3;
+    assert!(capture_verified_build_filesystem_replay_record(&early, limits).is_err());
+}
+
+#[test]
+fn interleaved_output_record_rejects_invalid_descriptor_lifetimes() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let mut unclosed = interleaved_output_summary();
+    unclosed.filesystem_operation_attempts.pop();
+    assert!(capture_verified_build_filesystem_replay_record(&unclosed, limits).is_err());
+
+    let mut retired = interleaved_output_summary();
+    retired
+        .filesystem_operation_attempts
+        .push(retired.filesystem_operation_attempts[2].clone());
+    assert!(capture_verified_build_filesystem_replay_record(&retired, limits).is_err());
+
+    let mut reused = interleaved_output_summary();
+    reused.filesystem_operation_attempts[1] = reused.filesystem_operation_attempts[0].clone();
+    assert!(capture_verified_build_filesystem_replay_record(&reused, limits).is_err());
+
+    let mut missing_path = interleaved_output_summary();
+    missing_path.filesystem_operation_attempts[0]
+        .rooted_path_operand_resolutions
+        .clear();
+    assert!(capture_verified_build_filesystem_replay_record(&missing_path, limits).is_err());
+}
+
+#[test]
+fn interleaved_wire_record_rejects_early_handoff_and_reused_identity() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let captured =
+        capture_verified_build_filesystem_replay_record(&interleaved_output_summary(), limits)
+            .expect("valid stream encodes")
+            .expect("complete record");
+    let mut handoff_marker = OUTPUT_PATH.to_vec();
+    handoff_marker.extend_from_slice(&4u64.to_le_bytes());
+    let offsets = captured
+        .canonical_bytes()
+        .windows(handoff_marker.len())
+        .enumerate()
+        .filter_map(|(position, bytes)| (bytes == handoff_marker).then_some(position))
+        .collect::<Vec<_>>();
+    assert_eq!(offsets.len(), 1);
+    let mut early = captured.canonical_bytes().to_vec();
+    let ordinal = offsets[0] + OUTPUT_PATH.len();
+    early[ordinal..ordinal + 8].copy_from_slice(&3u64.to_le_bytes());
+    assert!(recover_review_only_build_filesystem_replay_record(&early, limits).is_err());
+
+    // Replace every occurrence of the second descriptor's identity, retaining
+    // internally agreeing create/result/close lanes but violating global freshness.
+    let second_identity = 74u64.to_le_bytes();
+    let offsets = captured
+        .canonical_bytes()
+        .windows(8)
+        .enumerate()
+        .filter_map(|(position, bytes)| (bytes == second_identity).then_some(position))
+        .collect::<Vec<_>>();
+    assert_eq!(offsets.len(), 4);
+    let mut reused = captured.canonical_bytes().to_vec();
+    for position in offsets {
+        reused[position..position + 8].copy_from_slice(&73u64.to_le_bytes());
+    }
+    assert!(recover_review_only_build_filesystem_replay_record(&reused, limits).is_err());
+}
+
+fn encoded_attempts(attempts: &[BuildFilesystemOperationAttempt]) -> Vec<u8> {
+    use super::attempt_codec::{Encoder, encode_attempt};
+    let mut encoder = Encoder::new(BuildFilesystemReplayRecordLimits::default().maximum_bytes);
+    for attempt in attempts {
+        encode_attempt(&mut encoder, attempt).expect("test attempt encodes");
+    }
+    encoder.finish().expect("test attempts fit")
+}
+
+#[test]
+fn interleaved_wire_record_rejects_early_hard_link_and_missing_create_path() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let mut summary = interleaved_output_summary();
+    let mut link = attempt(19, BuildFilesystemOperationResult::Scalar(0));
+    for (operand_ordinal, relative_path) in [(0, OUTPUT_PATH), (1, b"alias.omg".as_slice())] {
+        link.rooted_path_operand_resolutions
+            .push(BuildFilesystemRootedPathOperandResolution {
+                operand_ordinal,
+                root: BuildFilesystemRoot::Output,
+                relative_path: relative_path.to_vec(),
+            });
+        link.authorized_paths.push(BuildFilesystemAuthorizedPath {
+            operand_ordinal,
+            access: BuildFilesystemGrantAccess::Write,
+            root: BuildFilesystemRoot::Output,
+            relative_path: relative_path.to_vec(),
+        });
+    }
+    summary.filesystem_operation_attempts.push(link);
+    let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+        .expect("closed source may be linked")
+        .expect("complete record");
+    let encoded = encoded_attempts(&summary.filesystem_operation_attempts);
+    assert!(captured.canonical_bytes().ends_with(&encoded));
+    let prefix = &captured.canonical_bytes()[..captured.canonical_bytes().len() - encoded.len()];
+
+    let mut early_link = summary.filesystem_operation_attempts.clone();
+    early_link.swap(3, 4);
+    let mut tampered = prefix.to_vec();
+    tampered.extend(encoded_attempts(&early_link));
+    assert!(recover_review_only_build_filesystem_replay_record(&tampered, limits).is_err());
+
+    let mut missing_path = summary.filesystem_operation_attempts;
+    missing_path[0].rooted_path_operand_resolutions.clear();
+    let mut tampered = prefix.to_vec();
+    tampered.extend(encoded_attempts(&missing_path));
+    assert!(recover_review_only_build_filesystem_replay_record(&tampered, limits).is_err());
+}
+
+#[test]
+fn interleaved_unrelated_events_preserve_bounded_duplicate_and_lock_pairs() {
+    for duplicate_pair in [true, false] {
+        let mut summary = interleaved_output_summary();
+        let original = summary.filesystem_operation_attempts.clone();
+        let mut first = attempt(
+            if duplicate_pair { 45 } else { 46 },
+            BuildFilesystemOperationResult::Scalar(0),
+        );
+        first.logical_handle_inputs = original[3].logical_handle_inputs.clone();
+        let second = if duplicate_pair {
+            let duplicate_identity = identity(75);
+            first.result = BuildFilesystemOperationResult::LogicalHandle(duplicate_identity);
+            first.logical_handle_output = Some(BuildFilesystemLogicalHandleOutput {
+                kind: BuildFilesystemLogicalHandleKind::Descriptor,
+                identity: duplicate_identity,
+                source: BuildFilesystemLogicalHandleOutputSource::Duplicated(identity(73)),
+            });
+            let mut close = original[3].clone();
+            close.logical_handle_inputs[0].resolution =
+                BuildFilesystemLogicalHandleInputResolution::Resolved(duplicate_identity);
+            close.retired_logical_handles = vec![duplicate_identity];
+            close
+        } else {
+            first.scalar_operands.push(BuildFilesystemScalarOperand {
+                operand_ordinal: 1,
+                value: BuildFilesystemScalarOperandValue::I32(6),
+            });
+            let mut release = first.clone();
+            release.scalar_operands[0].value = BuildFilesystemScalarOperandValue::I32(8);
+            release
+        };
+        summary.filesystem_operation_attempts = vec![
+            original[0].clone(),
+            first,
+            original[1].clone(),
+            second,
+            original[2].clone(),
+            original[3].clone(),
+        ];
+        summary.included_source_handoffs[0].filesystem_attempt_ordinal = 6;
+        let limits = BuildFilesystemReplayRecordLimits::default();
+        let captured = capture_verified_build_filesystem_replay_record(&summary, limits)
+            .expect("unrelated event may occur inside pair")
+            .expect("complete record");
+        let recovered =
+            recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+                .expect("paired record recovers");
+        let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+            .expect("paired record rehydrates");
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(|attempt| attempt.operation_tag())
+                .collect::<Vec<_>>(),
+            summary
+                .filesystem_operation_attempts
+                .iter()
+                .map(|attempt| attempt.operation_tag)
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
 #[test]
 fn output_only_record_rejects_a_non_output_prefix() {
     let mut summary = output_only_summary(3);

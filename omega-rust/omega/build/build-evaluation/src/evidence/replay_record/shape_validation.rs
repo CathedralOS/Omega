@@ -3,19 +3,19 @@
 //! and metadata lane.
 //!
 //! This file validates the first rung. `source_shapes.rs` validates
-//! included source and source write refusal shapes, `output_ranges.rs`
-//! derives output tree ranges, `output_shapes.rs` validates output file
+//! included source and source write refusal shapes, `output_stream.rs`
+//! derives chronological output membership, `output_shapes.rs` validates output file
 //! operations, `path_and_descriptor_shapes.rs` validates path metadata,
 //! open, close, read and descriptor shapes and `native_shapes.rs`
 //! validates native query, observation and handle shapes.
 
 mod native_shapes;
-mod output_ranges;
 mod output_shapes;
+mod output_stream;
 mod path_and_descriptor_shapes;
 mod source_shapes;
 
-pub(crate) use output_ranges::{OutputShapeRange, output_tree_ranges};
+pub(crate) use output_stream::{OutputEntryAttempts, output_tree_membership};
 pub(crate) use path_and_descriptor_shapes::validate_close_shape;
 pub(crate) use source_shapes::{
     validate_included_source_shapes, validate_source_write_refusal_shape,
@@ -330,15 +330,15 @@ pub(crate) fn validate_first_rung(
             validate_output_absent_remove_shapes(&shapes[cursor..])?;
             return Ok(());
         }
-        let output_ranges = output_tree_ranges(shapes, cursor)?;
-        if output_ranges.len() > checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
+        let output_stream = output_tree_membership(shapes, cursor)?;
+        if output_stream.len() > checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
             return Err(BuildFilesystemReplayRecordError::new(
                 "receipted build output exceeds the Output-tree entry ceiling",
             ));
         }
         let mut output_paths = Vec::new();
         output_paths
-            .try_reserve_exact(output_ranges.len())
+            .try_reserve_exact(output_stream.len())
             .map_err(|_| {
                 BuildFilesystemReplayRecordError::new(
                     "filesystem replay output-path allocation failed",
@@ -348,7 +348,7 @@ pub(crate) fn validate_first_rung(
         let mut aggregate_output_duplicates = 0usize;
         let mut aggregate_output_lock_pairs = 0usize;
         let mut aggregate_path_bytes = 0usize;
-        for (entry_index, range) in output_ranges.iter().copied().enumerate() {
+        for (entry_index, range) in output_stream.iter().enumerate() {
             let path = range.path(shapes);
             if path.len() > checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES {
                 return Err(BuildFilesystemReplayRecordError::new(
@@ -373,7 +373,7 @@ pub(crate) fn validate_first_rung(
             }
             if let Some(separator) = path.iter().rposition(|byte| *byte == b'/') {
                 let parent = &path[..separator];
-                if !output_ranges[..entry_index]
+                if !output_stream[..entry_index]
                     .iter()
                     .any(|prior| prior.is_directory() && prior.path(shapes) == parent)
                 {
@@ -384,14 +384,14 @@ pub(crate) fn validate_first_rung(
             }
             output_paths.push(path);
 
-            let (start, end) = match range {
-                OutputShapeRange::Directory(index) => {
-                    validate_output_directory_shape(&shapes[index])?;
+            let attempts = match range {
+                OutputEntryAttempts::Directory(index) => {
+                    validate_output_directory_shape(&shapes[*index])?;
                     continue;
                 }
-                OutputShapeRange::HardLink(index) => {
-                    validate_output_hard_link_shape(&shapes[index])?;
-                    let (existing, _) = output_hard_link_paths(&shapes[index])?;
+                OutputEntryAttempts::HardLink(index) => {
+                    validate_output_hard_link_shape(&shapes[*index])?;
+                    let (existing, _) = output_hard_link_paths(&shapes[*index])?;
                     aggregate_path_bytes = aggregate_path_bytes
                         .checked_add(existing.len())
                         .filter(|bytes| {
@@ -403,11 +403,15 @@ pub(crate) fn validate_first_rung(
                                 "receipted build output and hard-link paths exceed their aggregate ceiling",
                             )
                         })?;
-                    if !output_ranges[..entry_index].iter().any(|prior| {
+                    if !output_stream[..entry_index].iter().any(|prior| {
                         matches!(
                             prior,
-                            OutputShapeRange::File { .. } | OutputShapeRange::HardLink(_)
+                            OutputEntryAttempts::File { .. } | OutputEntryAttempts::HardLink(_)
                         ) && prior.path(shapes) == existing
+                            && prior
+                                .attempt_indices()
+                                .last()
+                                .is_some_and(|closed| closed < index)
                     }) {
                         return Err(BuildFilesystemReplayRecordError::new(
                             "filesystem replay Output hard link does not follow an existing regular-file name",
@@ -415,9 +419,9 @@ pub(crate) fn validate_first_rung(
                     }
                     continue;
                 }
-                OutputShapeRange::Symlink(index) => {
-                    validate_output_symlink_shape(&shapes[index])?;
-                    let [(_, target)] = shapes[index].path_like_operands.as_slice() else {
+                OutputEntryAttempts::Symlink(index) => {
+                    validate_output_symlink_shape(&shapes[*index])?;
+                    let [(_, target)] = shapes[*index].path_like_operands.as_slice() else {
                         unreachable!("validated Output symlink has one target spelling")
                     };
                     aggregate_path_bytes = aggregate_path_bytes
@@ -433,9 +437,12 @@ pub(crate) fn validate_first_rung(
                         })?;
                     continue;
                 }
-                OutputShapeRange::File { start, end } => (start, end),
+                OutputEntryAttempts::File { attempts } => attempts,
             };
-            let chain = &shapes[start..end];
+            let chain = attempts
+                .iter()
+                .map(|position| &shapes[*position])
+                .collect::<Vec<_>>();
             let create = &chain[0];
             let close = chain.last().expect("validated Output file has a close");
             let extent = validate_output_file(create, &chain[1..chain.len() - 1], close)?;

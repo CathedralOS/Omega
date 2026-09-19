@@ -5,8 +5,8 @@ use crate::evidence::replay_record::attempt_codec::{
     AttemptShape, ShapeRefusal, ShapeResult, ShapeScalar,
 };
 use crate::evidence::replay_record::rehydration::ShapeIncludedSource;
-use crate::evidence::replay_record::shape_validation::output_ranges::{
-    OutputShapeRange, output_tree_ranges,
+use crate::evidence::replay_record::shape_validation::output_stream::{
+    OutputEntryAttempts, output_tree_membership,
 };
 
 pub(crate) fn validate_source_write_refusal_shape(
@@ -77,7 +77,7 @@ pub(crate) fn validate_included_source_shapes(
                 "source-only filesystem replay cannot retain included-source handoffs",
             )
         })?;
-    let output_ranges = output_tree_ranges(shapes, output_start)?;
+    let output_stream = output_tree_membership(shapes, output_start)?;
     let total_attempt_count = u64::try_from(shapes.len()).map_err(|_| {
         BuildFilesystemReplayRecordError::new(
             "filesystem replay attempt count exceeds canonical u64",
@@ -103,10 +103,10 @@ pub(crate) fn validate_included_source_shapes(
                 "filesystem replay included-source path appears more than once",
             ));
         }
-        let output_index = output_ranges
+        let output_index = output_stream
             .iter()
             .position(|range| {
-                matches!(range, OutputShapeRange::File { .. })
+                matches!(range, OutputEntryAttempts::File { .. })
                     && range.path(shapes) == included.relative_path
             })
             .ok_or_else(|| {
@@ -114,10 +114,11 @@ pub(crate) fn validate_included_source_shapes(
                     "filesystem replay included-source path has no matching Output file",
                 )
             })?;
-        let OutputShapeRange::File { end, .. } = output_ranges[output_index] else {
-            unreachable!("included source matched an Output file range")
+        let OutputEntryAttempts::File { attempts } = &output_stream[output_index] else {
+            unreachable!("included source matched an Output file membership")
         };
-        let earliest_ordinal = u64::try_from(end).map_err(|_| {
+        let earliest_ordinal = u64::try_from(attempts.last().expect("validated file closes") + 1)
+            .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay included-source ordinal exceeds canonical u64",
             )

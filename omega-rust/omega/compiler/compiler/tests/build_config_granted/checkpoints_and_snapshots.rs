@@ -1,6 +1,7 @@
 use super::{
     Project, bound_build_output_session, package_inputs, set_canonical_source_tree_permissions,
-    sponsored_build_session, write_serialized_replay_project,
+    sponsored_build_session, write_interleaved_serialized_replay_project,
+    write_serialized_replay_project,
 };
 use checked_interpreter::FilesystemSponsor;
 use compiler::{CheckedCompileRequest, compile_to_checked};
@@ -568,6 +569,133 @@ fn serialized_replay_record_reproduces_the_full_admitted_activation() {
         "unexpected drift diagnostics: {drifted:#?}"
     );
     let _ = std::fs::remove_dir_all(session);
+}
+
+#[test]
+fn serialized_replay_preserves_interleaved_output_descriptor_lifetimes() {
+    use build_evaluation::BuildFilesystemLogicalHandleInputResolution::Resolved;
+
+    let profile = target::TargetProfile::WindowsX64;
+    let project = Project::new("interleaved-serialized-replay");
+    write_interleaved_serialized_replay_project(&project);
+    let (session, sponsor, build_dir) = sponsored_build_session("interleaved-serialized-replay");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let inputs = package_inputs(&project.root);
+    let checked = compile_to_checked(CheckedCompileRequest {
+        build_dir: Some(build_dir.clone()),
+        package_inputs: Some(inputs.clone()),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect("interleaved admitted Output files execute and append generated source");
+    let expected_generated = b"data ReplayGenerated { base: Main; }\n\n";
+    assert_eq!(
+        std::fs::read(build_dir.join("generated.omg")).unwrap(),
+        expected_generated
+    );
+    assert_eq!(
+        std::fs::read(build_dir.join("artifact.txt")).unwrap(),
+        b"abZcd"
+    );
+    let summary = checked
+        .build_observation_summary()
+        .expect("observation custody");
+    let attempts = summary.filesystem_operation_attempts();
+    assert_eq!(
+        attempts
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        [1, 1, 5, 5, 5, 5, 5, 5, 8, 8],
+        "retain authored operation order rather than grouping by descriptor"
+    );
+    let generated_descriptor = attempts[0].logical_handle_output().unwrap().identity();
+    let artifact_descriptor = attempts[1].logical_handle_output().unwrap().identity();
+    assert_ne!(generated_descriptor, artifact_descriptor);
+    for (attempt, descriptor) in attempts[2..].iter().zip([
+        generated_descriptor,
+        artifact_descriptor,
+        generated_descriptor,
+        artifact_descriptor,
+        generated_descriptor,
+        artifact_descriptor,
+        artifact_descriptor,
+        generated_descriptor,
+    ]) {
+        let [input] = attempt.logical_handle_inputs() else {
+            panic!("one descriptor operand per write or close")
+        };
+        assert_eq!(input.resolution(), Resolved(descriptor));
+    }
+    assert_eq!(
+        attempts[8].retired_logical_handles(),
+        &[artifact_descriptor]
+    );
+    assert_eq!(
+        attempts[9].retired_logical_handles(),
+        &[generated_descriptor]
+    );
+    let [handoff] = summary.included_source_handoffs() else {
+        panic!("only the explicitly included generated file is source")
+    };
+    assert_eq!(handoff.relative_path(), b"generated.omg");
+    assert_eq!(handoff.filesystem_attempt_ordinal(), 10);
+    assert!(
+        summary.filesystem_replay_verdict().is_complete(),
+        "interleaved descriptor lifetimes must establish Complete replay"
+    );
+    let staged = summary
+        .staged_output_tree()
+        .expect("complete output custody");
+    assert_eq!(staged.entry_count(), 2);
+    assert_eq!(staged.file_bytes(), expected_generated.len() as u64 + 5);
+    let limits = build_evaluation::BuildFilesystemReplayRecordLimits::default();
+    let record = build_evaluation::capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("capture interleaved replay record")
+        .expect("complete replay issues a record");
+    let recovered = build_evaluation::recover_review_only_build_filesystem_replay_record(
+        record.canonical_bytes(),
+        limits,
+    )
+    .expect("serialized interleaved record recovers");
+
+    // Remove the live output before replay; neither a sponsor nor a build directory
+    // is supplied to the provider-free activation.
+    std::fs::remove_dir_all(&session).expect("remove primary activation's host output");
+    let replayed = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        replay_record: Some(recovered),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect("serialized replay reconstructs interleaved outputs without a provider");
+    assert!(
+        replayed
+            .typed
+            .data_definitions()
+            .iter()
+            .any(|definition| { definition.name.as_str() == "ReplayGenerated" })
+    );
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("replayed custody");
+    assert!(replayed_summary.filesystem_replay_verdict().is_complete());
+    assert_eq!(replayed_summary.filesystem_operation_attempts(), attempts);
+    assert_eq!(
+        replayed_summary.included_source_handoffs(),
+        summary.included_source_handoffs()
+    );
+    assert_eq!(replayed_summary.staged_output_tree(), Some(staged));
+    assert_eq!(
+        replayed
+            .package_generated_source_bundle()
+            .unwrap()
+            .sources(),
+        checked.package_generated_source_bundle().unwrap().sources(),
+    );
+    assert_eq!(
+        replayed.source_consumption_commitment(),
+        checked.source_consumption_commitment()
+    );
 }
 
 #[test]

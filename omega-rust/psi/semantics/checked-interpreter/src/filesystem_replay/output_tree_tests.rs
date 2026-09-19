@@ -83,6 +83,109 @@ fn hard_link(
 }
 
 #[test]
+fn interleaved_output_lifetimes_preserve_order_and_actual_handoff_ordinals() {
+    let first = file(b"first.omg", 2, b"first").into_attempts();
+    let second = file(b"nested/second.omg", 3, b"second").into_attempts();
+    let source = FilesystemReplay::from_source_input_record(source_input()).unwrap();
+    let mut attempts = source.attempts().to_vec();
+    attempts.push(first[0].clone());
+    attempts.extend(directory(b"nested").into_attempts());
+    attempts.extend([
+        second[0].clone(),
+        first[1].clone(),
+        second[1].clone(),
+        second[2].clone(),
+        first[2].clone(),
+    ]);
+    let included = vec![
+        BuildIncludedSource::from_coordinate(root(2), b"nested/second.omg".to_vec(), 9).unwrap(),
+        BuildIncludedSource::from_coordinate(root(2), b"first.omg".to_vec(), 10).unwrap(),
+    ];
+    let observations = EvaluationObservations::from_filesystem_operation_attempts(
+        attempts.clone(),
+        included.clone(),
+    );
+    let replay = FilesystemReplay::from_input_output_observations(&observations)
+        .expect("independent Output lifetimes may overlap");
+    assert_eq!(replay.attempts(), attempts);
+    assert_eq!(replay.expected_included_sources(), included);
+    assert_eq!(
+        replay.output_entries(),
+        vec![
+            file(b"first.omg", 2, b"first"),
+            directory(b"nested"),
+            file(b"nested/second.omg", 3, b"second"),
+        ]
+    );
+    // Grouped file lengths would claim first.omg closed at six, although its
+    // actual close is attempt ten. Handoff validity follows the original stream.
+    for early_ordinal in [6, 9] {
+        let early =
+            BuildIncludedSource::from_coordinate(root(2), b"first.omg".to_vec(), early_ordinal)
+                .unwrap();
+        assert!(
+            FilesystemReplay::from_input_output_attempts(attempts.clone(), vec![early]).is_err()
+        );
+    }
+}
+
+#[test]
+fn output_lifetimes_reject_missing_close_reuse_and_access_after_retirement() {
+    let first = file(b"first", 1, b"first").into_attempts();
+    let second = file(b"second", 2, b"second").into_attempts();
+    let valid = vec![
+        first[0].clone(),
+        second[0].clone(),
+        first[1].clone(),
+        second[1].clone(),
+        second[2].clone(),
+        first[2].clone(),
+    ];
+    assert!(FilesystemReplay::from_input_output_attempts(valid.clone(), vec![]).is_ok());
+    let mut missing_close = valid.clone();
+    missing_close.pop();
+    let mut use_after_close = valid.clone();
+    use_after_close.push(first[1].clone());
+    let mut identity_reuse = valid.clone();
+    identity_reuse.extend(file(b"third", 1, b"third").into_attempts());
+    let mut unknown_descriptor = valid;
+    unknown_descriptor[2] = file(b"unknown", 99, b"bad").into_attempts()[1].clone();
+    for invalid in [
+        missing_close,
+        use_after_close,
+        identity_reuse,
+        unknown_descriptor,
+    ] {
+        assert!(FilesystemReplay::from_input_output_attempts(invalid, vec![]).is_err());
+    }
+}
+
+#[test]
+fn output_hard_link_requires_a_settled_source_even_with_interleaving() {
+    let first = file(b"first", 1, b"first").into_attempts();
+    let link = hard_link(
+        FilesystemOutputHardLinkReplayKind::Portable,
+        b"first",
+        b"alias",
+    )
+    .into_attempts();
+    let early = vec![
+        first[0].clone(),
+        first[1].clone(),
+        link[0].clone(),
+        first[2].clone(),
+    ];
+    assert!(FilesystemReplay::from_input_output_attempts(early, vec![]).is_err());
+    let settled = vec![
+        first[0].clone(),
+        first[1].clone(),
+        first[2].clone(),
+        link[0].clone(),
+    ];
+    assert!(FilesystemReplay::from_input_output_attempts(settled, vec![]).is_ok());
+}
+
+#[test]
 fn output_only_tree_round_trips_exact_mixed_entries_and_handoff() {
     let entries = vec![
         directory(b"generated"),
