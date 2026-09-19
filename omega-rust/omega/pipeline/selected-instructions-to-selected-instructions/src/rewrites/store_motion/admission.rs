@@ -21,7 +21,12 @@
 //! producer. A `Structural` slot the declaration does not charge to that
 //! operation only stages bytes that name the place (a call's staged view
 //! descriptor) under its own slot coordinates, so its write is not a place
-//! write and stays inadmissible as the moved store.
+//! write: it is the moved store of the slot's own bytes instead. Staged
+//! bytes sit under slot coordinates no place-named row reaches — reads of
+//! them would have no honest roster role, and the consuming operation sits
+//! behind the call barrier — so only a row naming that very slot can observe
+//! or rewrite them, and the staging store sinks under the same walk bounded
+//! by the first access on the slot's own range.
 //!
 //! The packed form's early-clobber scratch `Def` and declared clobbers move
 //! with the instruction, so custody is proven as the write side of the same
@@ -107,7 +112,10 @@ pub(super) struct Admission<'source> {
 /// upper bound. When that `index` itself resolves to a clean materialized
 /// constant, `admit` collapses the extent to the one byte
 /// `byte_offset + index` before the walk: the moved byte's position is then
-/// fixed, and every interference check below decides on it.
+/// fixed, and every interference check below decides on it. `place` is the
+/// place the moved row names — the place the staged bytes name when the
+/// subject is a staging slot — while `storage` settles which bytes the walk
+/// actually tracks.
 struct Moved {
     place: PlaceId,
     byte_offset: u32,
@@ -117,6 +125,20 @@ struct Moved {
     /// a byte-sequence store whose index resolved — its moved byte is the
     /// collapsed `byte_offset` then.
     sequence_index: Option<semantic_vocabulary::ValueId>,
+    storage: MovedStorage,
+}
+
+/// Which storage holds the moved bytes. `Place` is the place's own storage —
+/// the referent bytes every place-named roster route decides. `Staging` is
+/// one staging slot's own bytes: a `Structural` slot the place's declaration
+/// does not charge to the slot's operation stages bytes that name the place
+/// under slot coordinates no place-named row can reach, so only the rows
+/// naming that very slot — a `WriteLocal` rewriting them or an
+/// `AddressLocal` exposing them — decide the walk.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MovedStorage {
+    Place,
+    Staging(LocalStorageSlotId),
 }
 
 impl Moved {
@@ -224,15 +246,15 @@ pub(super) fn admit<'source>(
     };
     // The write's semantic identity: exactly one roster row, one place root,
     // and the same bytes the instruction encodes. The row's role must match
-    // the route the instruction takes to the place's storage: `WritePlace`
-    // for the referent-pointer store, or `WriteLocal` on the place's own
-    // storage slot for the local-storage routes — the direct `Store64`'s row
-    // naming the same slot the instruction encodes. An operation-owned
-    // `Structural` slot is that storage only when the place's declaration
-    // names the operation as its producer; a slot that merely stages bytes
-    // naming the place never moves the place's bytes, so a store through it
-    // is not the moved place write. The row names the store by instruction
-    // identity, so the move retains the roster unchanged.
+    // the route the instruction takes to its storage: `WritePlace`
+    // for the referent-pointer store, or `WriteLocal` on a local
+    // slot for the local-storage routes — the direct `Store64`'s row
+    // naming the same slot the instruction encodes. The slot decides
+    // which storage the row moves: the place's own storage when the
+    // place's declaration charges the slot to the place — a parameter
+    // home or the producing operation's `Structural` home — or the
+    // staging slot's own bytes when it does not. The row names the store by
+    // instruction identity, so the move retains the roster unchanged.
     let structural_places = structural_place_declarations(function);
     let mut rows = function
         .memory_accesses
@@ -251,13 +273,27 @@ pub(super) fn admit<'source>(
         SelectedMemoryAccessRole::WriteByteSequence { index, .. } => Some(index),
         _ => None,
     };
+    // The `WriteLocal` routes can also name a staging slot: when the slot is
+    // not the row place's own storage it stages bytes that merely name the
+    // place, and the write moves the slot's own bytes — the staging subject
+    // `Moved::storage` records below. `staging_slot` still requires the
+    // row's place to be the slot's staged place: a `WriteLocal` naming a
+    // different place than the slot stages is no coherent row.
+    let mut staging = None;
     let storage_route = match (write.role, direct_slot) {
         (SelectedMemoryAccessRole::WritePlace, None) => true,
         (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
-            local_slot_is_place_storage(slot, write.place, structural_places)
+            local_slot_is_place_storage(slot, write.place, structural_places) || {
+                staging = staging_slot(slot, write.place);
+                staging.is_some()
+            }
         }
         (SelectedMemoryAccessRole::WriteLocal { slot }, Some(encoded)) => {
-            slot == encoded && local_slot_is_place_storage(slot, write.place, structural_places)
+            slot == encoded
+                && (local_slot_is_place_storage(slot, write.place, structural_places) || {
+                    staging = staging_slot(slot, write.place);
+                    staging.is_some()
+                })
         }
         (SelectedMemoryAccessRole::WriteByteSequence { .. }, None) => {
             encoded_offset == 0 && encoded_size == 1 && write.byte_count == 1
@@ -276,6 +312,7 @@ pub(super) fn admit<'source>(
         byte_offset: write.byte_offset,
         byte_count: write.byte_count,
         sequence_index,
+        storage: staging.map_or(MovedStorage::Place, MovedStorage::Staging),
     };
     // A byte-sequence moved store whose own `index` resolves through the
     // carrier audit — sole `InstructionResult` carrier, clean
@@ -593,13 +630,17 @@ fn carried_surface(
 /// place can share a byte — while a resolved one interferes only at or past
 /// the moved payload base. A `WriteLocal` row names an exact
 /// range on a slot: when
-/// the slot is the moved place's own storage, range intersection decides; a
-/// slot that only stages bytes naming the place holds none of the place's
-/// bytes at any offset, so its writes never stop the walk. A materialized
-/// local address could reach the same storage by a route the roster does
-/// not bound, so it stops the walk when its slot is the place's storage; a
-/// staged slot's address reaches only the staged bytes. Outgoing-area
-/// storage never aliases a referent place.
+/// the slot is the moved bytes' storage, range intersection decides; when
+/// the slot is any other — a staging slot beside a place subject, or a
+/// different slot beside a staging subject — its bytes are disjoint, so the
+/// row never stops the walk. A materialized local address could reach the
+/// same storage by a route the roster does not bound, so it stops the walk
+/// when its slot is the moved bytes' storage; any other slot's address
+/// reaches only that slot's bytes. For a staging subject the place-named
+/// rows never interfere either: they describe the place's own extents — the
+/// staged bytes are not the place's at any offset — and no place route
+/// carries a slot's bytes. Outgoing-area storage never aliases a referent
+/// place.
 fn interferes(
     moved: &Moved,
     access: &SelectedMemoryAccess,
@@ -608,23 +649,58 @@ fn interferes(
 ) -> bool {
     match access.role {
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
-            access.place == moved.place && moved.intersects(access)
+            matches!(moved.storage, MovedStorage::Place)
+                && access.place == moved.place
+                && moved.intersects(access)
         }
         SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
-            access.place == moved.place && moved.reached_by(access, function)
+            matches!(moved.storage, MovedStorage::Place)
+                && access.place == moved.place
+                && moved.reached_by(access, function)
         }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
-            local_slot_is_place_storage(slot, moved.place, structural_places)
-                && moved.intersects(access)
+            slot_is_moved_storage(slot, moved, structural_places) && moved.intersects(access)
         }
         SelectedMemoryAccessRole::AddressLocal { slot } => {
-            local_slot_is_place_storage(slot, moved.place, structural_places)
+            slot_is_moved_storage(slot, moved, structural_places)
         }
         SelectedMemoryAccessRole::WriteOutgoing { .. }
         | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
+    }
+}
+
+/// The staging slot a `WriteLocal` row names when the slot is not the row
+/// place's own storage: a `Structural` slot staging bytes that name `place`.
+/// The row's place must be the place the slot stages — a `WriteLocal`
+/// claiming a different place than the slot's staged name is no coherent
+/// staging row — and the caller's `local_slot_is_place_storage` check has
+/// already ruled out the producer-home reading, so the slot's bytes are
+/// staging coordinates only.
+fn staging_slot(slot: LocalStorageSlotId, place: PlaceId) -> Option<LocalStorageSlotId> {
+    if matches!(slot, LocalStorageSlotId::Structural { .. })
+        && slot.structural_place() == Some(place)
+    {
+        Some(slot)
+    } else {
+        None
+    }
+}
+
+/// Whether a roster row's local slot is the moved bytes' storage: the moved
+/// place's own storage for a place subject, or the staging slot itself for
+/// a staging subject — an access into any other slot touches bytes the moved
+/// store never wrote.
+fn slot_is_moved_storage(
+    slot: LocalStorageSlotId,
+    moved: &Moved,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> bool {
+    match moved.storage {
+        MovedStorage::Place => local_slot_is_place_storage(slot, moved.place, structural_places),
+        MovedStorage::Staging(moved_slot) => slot == moved_slot,
     }
 }
 
@@ -767,15 +843,18 @@ fn reaches_visited(function: &SelectedFunction, start: usize, visited: &[bool]) 
 }
 
 /// A crossed edge must not move the carried registers or touch the moved
-/// place's storage. A transport's `parameter` slot defines a register for
+/// bytes' storage. A transport's `parameter` slot defines a register for
 /// the successor while its `argument` slot reads one on the edge: a
 /// parameter naming a carried read still stops the crossing, and either
 /// slot naming a carried write — the packed scratch — would move a use or a
 /// second definition across the moved store's own definition. Structural
 /// destinations, the case custody slot, and custody discards write or
-/// retire place storage on the edge — the same conservative structural-place
-/// test the sibling memory walks keep on edges, since an edge transport's
-/// destination role is not decided here.
+/// retire storage on the edge — the same conservative test the sibling
+/// memory walks keep on edges, since an edge transport's destination role
+/// is not decided here. For a staging subject the transport destination and
+/// custody slot decide on the slot itself — staging bytes sit under their
+/// own slot's coordinates — while a place custody discard retires the
+/// place's storage, never the operation-owned slot.
 fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -> bool {
     let writes = |register: &VirtualRegisterId| carried.writes.contains(register);
     for binding in &successor.bindings {
@@ -801,14 +880,22 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
                 destination,
             } => (argument, destination),
         };
-        if destination.structural_place() == Some(moved.place) || writes(&argument) {
+        let touches = match moved.storage {
+            MovedStorage::Place => destination.structural_place() == Some(moved.place),
+            MovedStorage::Staging(slot) => destination == slot,
+        };
+        if touches || writes(&argument) {
             return true;
         }
     }
     if let Some(case) = &successor.structural_case {
-        if case.slot.structural_place() == Some(moved.place)
-            || case.trivial_affine_discards.contains(&moved.place)
-        {
+        let slot_touches = match moved.storage {
+            MovedStorage::Place => case.slot.structural_place() == Some(moved.place),
+            MovedStorage::Staging(slot) => case.slot == slot,
+        };
+        let discard_touches = matches!(moved.storage, MovedStorage::Place)
+            && case.trivial_affine_discards.contains(&moved.place);
+        if slot_touches || discard_touches {
             return true;
         }
         for payload in &case.payloads {

@@ -506,6 +506,196 @@ fn cross_block_local_slot_store_sinks_across_the_edge() {
     );
 }
 
+/// A staging-slot store crosses the edge like a place store: the moved
+/// `Store64` writes the slot's own bytes, which only a row naming that very
+/// slot can observe, so the covering `Store64` on the same slot in the
+/// successor bounds the landing at its head. On the crossed edge a
+/// structural transport or case custody naming that very slot stops the
+/// crossing — the store lands at the crossed block's end — while a
+/// transport into a different slot, or a custody discard of the staged
+/// place that retires the place's storage and never the operation-owned
+/// slot, leaves it free to cross.
+#[test]
+fn cross_block_staging_slot_store_sinks_across_the_edge() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // No structural contract declares the operation the place's producer:
+    // the slot only stages bytes naming it.
+    let slot = LocalStorageSlotId::Structural {
+        operation: OperationId::new(9).unwrap(),
+        place: place(),
+    };
+    let staged_pair = |edit: Option<&dyn Fn(&mut selected_instructions::SelectedFunction)>| {
+        mutated_chained(target, |function, environment| {
+            let store64 = environment
+                .constraint(environment.selected_keys().store64.unwrap())
+                .unwrap();
+            function
+                .local_storage_slots
+                .push(selected_instructions::SelectedLocalStorageSlot {
+                    id: slot,
+                    byte_size: 16,
+                    alignment: 8,
+                });
+            function.blocks[0].instructions[1] = instruction(
+                STORE,
+                SelectedInstructionKind::Store64 {
+                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[VALUE],
+            );
+            function.blocks[1].instructions[0] = instruction(
+                KILLER,
+                SelectedInstructionKind::Store64 {
+                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                store64,
+                &[SCRATCH],
+            );
+            function.memory_accesses[0].role = SelectedMemoryAccessRole::WriteLocal { slot };
+            function.memory_accesses[1].role = SelectedMemoryAccessRole::WriteLocal { slot };
+            if let Some(edit) = edit {
+                edit(function);
+            }
+        })
+    };
+    let block_ids = |result: &ValidatedStoreMutationMotion, block: usize| {
+        result.transformed().functions[0].blocks[block]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>()
+    };
+    let result = sink(&staged_pair(None), &environment).unwrap();
+    assert_eq!(
+        block_ids(&result, 0),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    assert_eq!(block_ids(&result, 1), vec![STORE, KILLER]);
+    validate_store_mutation_motion(
+        &staged_pair(None),
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A structural transport writing that very slot on the crossed edge
+    // runs between the old and new positions: the store lands at the
+    // crossed block's end.
+    let transported = staged_pair(Some(&|function| {
+        crossed_edge(function)
+            .structural_bindings
+            .push(SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: PlaceId::new(2).unwrap(),
+                    argument: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                },
+                transport: SelectedStructuralTransport::WholeValue {
+                    argument: SCRATCH,
+                    destination: slot,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            });
+    }));
+    let result = sink(&transported, &environment).unwrap();
+    assert_eq!(
+        block_ids(&result, 0),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // The same transport into another staging slot of the same place moves
+    // other bytes and lets the store cross.
+    let disjoint_transport = staged_pair(Some(&|function| {
+        crossed_edge(function)
+            .structural_bindings
+            .push(SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: PlaceId::new(2).unwrap(),
+                    argument: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                },
+                transport: SelectedStructuralTransport::WholeValue {
+                    argument: SCRATCH,
+                    destination: LocalStorageSlotId::Structural {
+                        operation: OperationId::new(10).unwrap(),
+                        place: place(),
+                    },
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            });
+    }));
+    let result = sink(&disjoint_transport, &environment).unwrap();
+    assert_eq!(block_ids(&result, 1), vec![STORE, KILLER]);
+    // Case custody staged through the moved slot writes it on the edge.
+    let custody = staged_pair(Some(&|function| {
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot,
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        });
+    }));
+    let result = sink(&custody, &environment).unwrap();
+    assert_eq!(
+        block_ids(&result, 0),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // A custody discard of the staged place retires the place's storage,
+    // never the operation-owned staging slot — the bytes the slot holds are
+    // untouched, so the store still crosses.
+    let discarded = staged_pair(Some(&|function| {
+        crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
+            slot: LocalStorageSlotId::Structural {
+                operation: OperationId::new(9).unwrap(),
+                place: PlaceId::new(2).unwrap(),
+            },
+            case: StructuralCaseId::new(1).unwrap(),
+            case_tag: 0,
+            payloads: Vec::new(),
+            trivial_affine_discards: vec![place()],
+        });
+    }));
+    let result = sink(&discarded, &environment).unwrap();
+    assert_eq!(block_ids(&result, 1), vec![STORE, KILLER]);
+    // The carried value register keeps the same veto it has on a place
+    // subject: an edge transport redefining it lands the store at the
+    // crossed block's end.
+    let value_edge = staged_pair(Some(&|function| {
+        crossed_edge(function).bindings.push(SelectedValueBinding {
+            semantic: abstract_operations::ValueBinding {
+                parameter: ValueId::new(5).unwrap(),
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+            transport: SelectedValueTransport::Registers {
+                argument: SCRATCH,
+                parameter: VALUE,
+            },
+        });
+    }));
+    let result = sink(&value_edge, &environment).unwrap();
+    assert_eq!(
+        block_ids(&result, 0),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+}
+
 #[test]
 fn cross_block_byte_sequence_store_sinks_across_the_edge() {
     let target = NativeTarget::linux_x64();
