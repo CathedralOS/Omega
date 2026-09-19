@@ -177,6 +177,14 @@ impl ValidatedOptimizedNativePhysicalEvidenceScope {
     ) -> Option<&super::fragment_publication::FragmentPublicationBinding> {
         self.publication.as_ref()
     }
+
+    /// Foreign-call custody projected at publication time. Empty for scopes
+    /// that never replayed a fragment publication source.
+    pub(crate) fn foreign_call_custody(&self) -> &[image_emission::ObjectForeignCall] {
+        self.publication
+            .as_ref()
+            .map_or(&[], |publication| publication.foreign_call_custody())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

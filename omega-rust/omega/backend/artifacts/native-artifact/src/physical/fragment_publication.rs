@@ -13,6 +13,10 @@ use super::model::ValidatedOptimizedNativePhysicalEvidenceScope;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct FragmentPublicationBinding {
     object: Arc<ObjectArtifact>,
+    /// Foreign-call custody projected from the retained fragment source at
+    /// publication time; the emitted image receives it through artifact
+    /// construction, not through the sealed object roster.
+    foreign_call_custody: Vec<image_emission::ObjectForeignCall>,
     identity: [u8; 32],
 }
 
@@ -29,6 +33,10 @@ impl FragmentPublicationBinding {
     pub(super) const fn identity(&self) -> &[u8; 32] {
         &self.identity
     }
+
+    pub(super) fn foreign_call_custody(&self) -> &[image_emission::ObjectForeignCall] {
+        &self.foreign_call_custody
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -44,6 +52,8 @@ pub(crate) fn derive_scope(
 ) -> Result<ValidatedOptimizedNativePhysicalEvidenceScope, &'static str> {
     image_emission::validate_function_fragment_object_artifact(source, object)
         .map_err(|_| "fragment publication object failed independent source replay")?;
+    let foreign_call_custody = image_emission::derive_normalized_foreign_call_custody(source)
+        .map_err(|_| "fragment publication foreign call custody failed source replay")?;
     let fragments = source.source().source().source();
     let optimized = fragments.source().optimized_target().optimized();
     validate_final_plan(final_plan, optimized.plan(), terminal, object.psi())?;
@@ -72,6 +82,7 @@ pub(crate) fn derive_scope(
     // equality below checks all derived fields without a parallel serializer.
     let publication = FragmentPublicationBinding {
         object: Arc::new(object.clone()),
+        foreign_call_custody,
         identity: digest.finalize().into(),
     };
     let mut digest = Sha256::new();

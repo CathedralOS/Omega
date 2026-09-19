@@ -230,7 +230,10 @@ pub fn validate_executable_image(
         || artifact.semantic_code_attribution() != image.semantic_code_attribution()
         || artifact.port_effects() != image.port_effects()
         || artifact.boundary_settlements() != image.boundary_settlements()
-        || artifact.foreign_calls() != image.foreign_calls()
+        || !crate::object_artifact::image_foreign_calls_match_object(
+            artifact,
+            image.foreign_calls(),
+        )
     {
         return Err(Diagnostic::error(
             "terminal object and executable image have different semantic or evidence identity",
@@ -449,6 +452,66 @@ impl ExecutableImage {
 
     pub fn foreign_calls(&self) -> &[super::ObjectForeignCall] {
         &self.foreign_calls
+    }
+
+    /// Bind fragment-publication foreign-call custody onto a freshly emitted
+    /// image.
+    ///
+    /// The fragment route seals `ObjectArtifact::foreign_calls` inside its
+    /// replay surface, so normalized foreign calls projected after emission
+    /// arrive through this binder rather than the constructor's clone. Every
+    /// row must rejoin the image's own custody — an object function caller,
+    /// a semantic operation owner attributed inside that function, and a
+    /// `text_offset` inside one of that operation's attributed intervals —
+    /// and owners must stay unique across the bound roster.
+    pub fn bind_normalized_foreign_call_custody(
+        &mut self,
+        custody: Vec<super::ObjectForeignCall>,
+    ) -> Result<(), Diagnostic> {
+        for row in &custody {
+            let Some(operation) = row.owner.operation() else {
+                return Err(Diagnostic::error(
+                    "image foreign call custody row has no semantic operation owner",
+                ));
+            };
+            if !self
+                .functions
+                .iter()
+                .any(|function| function.machine == row.machine)
+            {
+                return Err(Diagnostic::error(
+                    "image foreign call custody names an absent object function",
+                ));
+            }
+            if !self.semantic_code_attribution.iter().any(|attribution| {
+                attribution.machine == row.machine
+                    && attribution.attribution.site
+                        == machine_code::SemanticCodeSite::Operation(operation)
+                    && row.text_offset >= attribution.text_offset
+                    && row.text_offset
+                        < attribution
+                            .text_offset
+                            .saturating_add(attribution.attribution.byte_count)
+            }) {
+                return Err(Diagnostic::error(
+                    "image foreign call custody does not rejoin an attributed call site",
+                ));
+            }
+            if self
+                .foreign_calls
+                .iter()
+                .chain(custody.iter())
+                .filter(|existing| existing.machine == row.machine && existing.owner == row.owner)
+                .count()
+                != 1
+            {
+                return Err(Diagnostic::error(
+                    "image foreign call custody owner is not unique",
+                ));
+            }
+        }
+        self.foreign_calls.extend(custody);
+        Ok(())
     }
 
     pub fn functions(&self) -> &[ObjectFunction] {

@@ -129,11 +129,25 @@ impl NativeArtifact {
             NativePhysicalEvidenceDerivation::Unavailable
             | NativePhysicalEvidenceDerivation::Blocked(_) => None,
         };
+        // The fragment route seals the object's foreign-call roster inside its
+        // replay surface; the emitted image receives that custody here, bound
+        // from the scope the publication derivation produced for this exact
+        // object before the artifact records it as emitted evidence.
+        let custody = parts
+            .physical_evidence_scope
+            .normalized_foreign_call_custody()
+            .to_vec();
+        let mut image = parts.image;
+        if !custody.is_empty() {
+            image
+                .bind_normalized_foreign_call_custody(custody)
+                .map_err(|_| "native artifact image rejects fragment foreign call custody")?;
+        }
         Self::from_replayed_parts(NativeArtifactParts {
             target: parts.target,
             psi_artifact: parts.psi_artifact,
             object: parts.object,
-            image: parts.image,
+            image,
             selected_provider_closure_report_identity: parts
                 .selected_provider_closure_report_identity,
             selected_provider_closure_digest: parts.selected_provider_closure_digest,
@@ -674,6 +688,15 @@ pub enum NativePhysicalEvidenceScope {
 }
 
 impl NativePhysicalEvidenceScope {
+    /// Foreign-call custody the fragment publication projected for the
+    /// emitted image; empty for scopes that did not admit one.
+    fn normalized_foreign_call_custody(&self) -> &[image_emission::ObjectForeignCall] {
+        match self {
+            Self::Unavailable | Self::UnoptimizedCompleteBoundaryEvidence => &[],
+            Self::ValidatedOptimizedProjection(scope) => scope.foreign_call_custody(),
+        }
+    }
+
     /// Admit the shared fragment/object route after replaying its exact current
     /// program and object evidence. Empty and nonempty selections use the same
     /// join; no selected-lowering completion is invented for another phase.

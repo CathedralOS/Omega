@@ -11,6 +11,7 @@ mod call_sites;
 mod carriers;
 mod construction;
 mod errors;
+mod normalized_foreign_calls;
 mod private_functions;
 pub(crate) mod replay;
 pub(crate) mod stack_demand;
@@ -28,3 +29,5 @@ pub use construction::{
     build_object_artifact, build_object_artifact_with_private_functions,
 };
 pub use errors::ObjectError;
+pub use normalized_foreign_calls::derive_normalized_foreign_call_custody;
+pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;

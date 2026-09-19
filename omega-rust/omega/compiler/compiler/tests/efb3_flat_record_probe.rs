@@ -44,7 +44,7 @@ macos_arm64 machine MoveProvider::shift(p: &Point) -> i32
 satisfies Move::shift
 via shift_binding();
 
-data Main { m: Service<Move> in Bound; p: Point; }
+data Main { m: Service<Move>; p: Point; }
 machine Main::main(&mut self) reaches Move {
     let rc: i32 = self.m.shift(&self.p);
     let keep: i32 = rc;
@@ -191,13 +191,18 @@ impl ProviderExecutionEvidence for ProbeExecution {
 /// scalar rows, and the source-rooted structural argument, and independent
 /// replay re-derives and rejoins all of it. Selection, encoding, layout, and
 /// text placement now transport the call as a per-plan normalized foreign
-/// row and emit its import relocation. The current frontier is image
-/// custody: the emitted image carries no foreign-call custody record for the
-/// call, so the artifact's admitted provider execution has no image
-/// counterpart and independent replay rejects the report set. This pins that
-/// exact failure so the probe flips when image custody lands, at which point
-/// it must be promoted to the full custody and physical-child replay
-/// assertions.
+/// row and emit its import relocation. Image custody has landed: the emitted
+/// image carries the foreign-call custody row rederived from the emitted
+/// object, so independent replay rejoins the artifact's admitted provider
+/// execution and same-stack contribution to the exact call site. This test
+/// pins that completed rejoin — the image row must record the boundary-call
+/// owner, Mach-O locator, admitted provider-execution coordinates, and
+/// same-stack contribution the settlement supplied. The remaining frontier
+/// is physical derivation of the normalized-foreign child: the fragment
+/// route seals the object's effect roster empty, so the derivation cannot
+/// yet claim the image custody row for its boundary occurrence and must
+/// report that exact gap subject, flipping this probe when the physical leg
+/// lands.
 #[test]
 fn flat_record_via_call_native_realization_probe() {
     let probe = Probe::new();
@@ -317,20 +322,117 @@ fn flat_record_via_call_native_realization_probe() {
             )],
         },
     );
-    let Err((_, diagnostics)) = outcome else {
+    let product = outcome.unwrap_or_else(|(_, diagnostics)| {
         panic!(
-            "the common physical pipeline now transports flat-record normalized \
-             foreign calls; promote this probe to custody and physical-child \
-             replay assertions"
+            "native realization should accept the emitted foreign-call custody:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+    let artifact = product
+        .as_direct()
+        .expect("the probe emits a direct image artifact");
+    let module =
+        terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode terminal module");
+    let boundary_sites = module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine.blocks.iter().flat_map(|block| {
+                block.operations.iter().filter_map(|operation| {
+                    matches!(
+                        &operation.kind,
+                        terminal_psi::OperationKind::BoundaryCall { .. }
+                    )
+                    .then_some((machine.id, operation.id))
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    let [(machine, operation)] = boundary_sites.as_slice() else {
+        panic!(
+            "expected exactly one boundary call, found {}",
+            boundary_sites.len()
         )
     };
-    let text = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
+    let foreign_calls = artifact.image().foreign_calls();
+    let [call] = foreign_calls else {
+        panic!(
+            "the image must carry exactly one foreign-call custody row, found {}",
+            foreign_calls.len()
+        )
+    };
+    assert_eq!(call.machine, *machine);
+    assert_eq!(call.owner.operation(), Some(*operation));
+    let target::ForeignLocatorCandidate::MachODylibSymbol {
+        install_name,
+        symbol,
+    } = call.locator.locator()
+    else {
+        panic!("the probe binding must retain its Mach-O dylib symbol locator")
+    };
+    assert_eq!(install_name.as_slice(), b"libm.dylib");
+    assert_eq!(symbol.as_slice(), b"shift");
+    assert_eq!(
+        call.provider_execution.provider_plan_report_identity,
+        plan_report_identity
+    );
+    assert_eq!(
+        call.provider_execution.provider_execution_report_identity,
+        0x464c_4154_0001
+    );
+    assert_eq!(
+        call.provider_execution
+            .provider_execution_report_fingerprint,
+        0x464c_4154_0002
+    );
+    assert_eq!(
+        call.provider_execution.normalized_root_report_identity,
+        0x464c_4154_0003
+    );
+    assert_eq!(
+        call.provider_execution.boundary_contract_report_fingerprint,
+        0x464c_4154_0004
+    );
+    assert_eq!(
+        call.same_stack_contribution.report_identity(),
+        same_stack.report_identity()
+    );
+    assert_eq!(
+        call.same_stack_contribution.commitment(),
+        same_stack.commitment()
+    );
+    assert_eq!(
+        call.same_stack_contribution.provider_plan_report_identity(),
+        plan_report_identity
+    );
+    assert_eq!(
+        call.same_stack_contribution.provider_plan_commitment(),
+        same_stack.provider_plan_commitment()
+    );
+    assert_eq!(
+        call.same_stack_contribution.requirement_identity(),
+        requirement.as_str()
+    );
+    assert_eq!(call.same_stack_contribution.receipt(), same_stack.receipt());
+    assert_eq!(call.same_stack_contribution.bytes(), 64);
+    assert_eq!(call.same_stack_contribution.alignment(), 16);
+    assert!(call.scalar_arguments.is_empty());
+    assert!(artifact.physical_evidence().is_none());
+    let gap = artifact
+        .physical_evidence_gap()
+        .expect("the retained artifact must name its physical derivation gap");
     assert!(
-        text.contains("native artifact provider execution reports disagree with its image"),
-        "expected the known image-custody frontier, got:\n{text}"
+        matches!(
+            gap.subject(),
+            native_artifact::NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
+                occurrence
+            } if occurrence.machine() == *machine && occurrence.operation() == *operation
+        ),
+        "the remaining frontier is the normalized-foreign physical child, got {:?}",
+        gap.subject()
     );
 }
