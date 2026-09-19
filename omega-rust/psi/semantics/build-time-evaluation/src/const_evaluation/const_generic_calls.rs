@@ -81,31 +81,11 @@ pub fn evaluate_const_generic_calls(
                 &syntax,
             ),
         );
-        // Speculative statement probes (`let` alternatives for atomic and
-        // proof forms) parse one annotated type repeatedly and abandon every
-        // attempt's arena subtree, so a single authored const expression can
-        // appear in several cloned type-reference nodes that share its source
-        // span. Only the clone still referenced from a declared const-argument
-        // position is the occurrence; the rest must not demand destinations of
-        // their own. Reachability cannot be recovered from the span alone, so
-        // a clone is dropped only when its authored span is declared elsewhere.
-        let declared_spans: Vec<source::SourceSpan> = applications
-            .iter()
-            .filter(|(type_reference, _)| {
-                const_arguments
-                    .iter()
-                    .any(|(argument, _, _)| argument == type_reference)
-            })
-            .map(|(_, expression)| syntax.expressions.source_span(*expression))
-            .collect();
         for (type_reference, expression) in &applications {
             let Some((_, destination, public)) = const_arguments
                 .iter()
                 .find(|(argument, _, _)| argument == type_reference)
             else {
-                if declared_spans.contains(&syntax.expressions.source_span(*expression)) {
-                    continue;
-                }
                 return Err(vec![Diagnostic::error(
                     "a const-generic application call must occupy a declared const argument destination",
                 )

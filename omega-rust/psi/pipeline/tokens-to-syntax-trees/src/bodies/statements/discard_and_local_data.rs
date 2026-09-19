@@ -109,10 +109,10 @@ fn copy_stable_compound_assignment_index(
     Some(syntax_trees.expressions.insert(copy))
 }
 
-pub(crate) fn parse_local_data_statement_handle<'tokens, 'source>(
+pub(crate) fn parse_local_data<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, StatementHandle> {
+) -> ParseResult<'tokens, 'source, TableLocalData> {
     // `let mut x: T` -- the mutable-local spelling (ch3/ch14). `mut` stays
     // contextual: `let mut: T` (a local literally named mut) keeps parsing
     // because the identifier arm only fires when ANOTHER identifier follows.
@@ -142,15 +142,13 @@ pub(crate) fn parse_local_data_statement_handle<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
 
     Ok((
-        syntax_trees
-            .statements
-            .insert(StatementNode::LocalData(TableLocalData {
-                name,
-                type_reference,
-                initial_value,
-                is_mutable,
-                relevance,
-            })),
+        TableLocalData {
+            name,
+            type_reference,
+            initial_value,
+            is_mutable,
+            relevance,
+        },
         input,
     ))
 }
