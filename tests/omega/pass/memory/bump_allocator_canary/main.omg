@@ -29,11 +29,11 @@
 //   content and never `result.taken.length`, so the residual left after an
 //   allocation is not derivable through `separate` and cannot be discharged
 //   against `tail.length`.
-// - The decrement cannot be published either: a machine whose signature
-//   carries `Granted` content has its `ensures` validated as a
-//   content-conservation contract, admitting only qualification clauses,
-//   exact content projections, and `separate` compositions — a scalar count
-//   equality is outside that grammar.
+// - Publishing the decrement as `result.strategy.remaining ==
+//   strategy.remaining - length` currently fails exit-contract proving.
+//   Scalar guarantees are allowed alongside content guarantees: only facts
+//   containing content operations use the closed conservation grammar. The
+//   missing step here is proving the nested result field's scalar relation.
 // - And the next residual cannot be computed at the call site: the requires
 //   check does not propagate a subtraction's lower bound (`capacity - 16`
 //   cannot prove `>= 32`), and a param's `requires` bounds do not survive
