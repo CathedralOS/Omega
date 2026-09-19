@@ -95,8 +95,19 @@ fn assert_single_computed_join_conjunction(proof: &ProofNode) {
         panic!("final add retains two ordered endpoint proofs")
     };
     assert_eq!(endpoints.len(), 2);
+    // The upper endpoint may arrive relaxed through a transitivity hop: the
+    // derived-equality closure proves the tight `join` bound first, then
+    // relaxes it to the goal endpoint. Unwrap that hop before checking the
+    // certificate shape.
+    let upper_endpoint = match &endpoints[1].rule {
+        ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            ..
+        } => left_less_or_equal_middle.as_ref(),
+        _ => &endpoints[1],
+    };
     assert!(matches!(
-        endpoints[1].rule,
+        upper_endpoint.rule,
         ProofRule::IntegerExactAddDefinitionBound {
             definition_axiom: 6,
             ..

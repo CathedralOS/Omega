@@ -103,16 +103,26 @@ pub fn map_integer_affine_bound(
                 }
                 mapped.checked_div(*value)
             }
+            // Truncating remainder keeps the dividend's sign: a dividend
+            // already bounded on one side pins the remainder to that side, so
+            // `0 <= x` maps to `0 <= x % d` and `x <= 0` maps to `x % d <= 0`.
+            // The opposite side keeps the unconditional `|d| - 1` image.
             CheckedIntegerEndpointStep::Remainder(value) => {
                 let magnitude = value
                     .checked_abs()
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
                 Some(
                     if current_is_lower && form.integer_type().sign() == IntegerSign::Signed {
-                        1_i128
-                            .checked_sub(magnitude)
-                            .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                        if mapped >= 0 {
+                            0
+                        } else {
+                            1_i128
+                                .checked_sub(magnitude)
+                                .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                        }
                     } else if current_is_lower {
+                        0
+                    } else if form.integer_type().sign() == IntegerSign::Signed && mapped <= 0 {
                         0
                     } else {
                         magnitude

@@ -12,7 +12,7 @@ use crate::proofs::nonzero_divisor_certificate::integer_selection::multiply::tar
     prove_targeted_remainder_prefix_endpoint, targeted_multiply_operand_prefix_witnesses,
     targeted_multiply_operand_witness, targeted_prefix_boundary,
 };
-use crate::proofs::nonzero_divisor_certificate::integer_selection::range;
+use crate::proofs::nonzero_divisor_certificate::integer_selection::{derived, range};
 use crate::proofs::nonzero_divisor_certificate::{cast_custody, cast_selection};
 use proof_admission::{
     IntegerAffineWitness, ProofNode, ProofRule, check_integer_affine_witness,
@@ -165,6 +165,24 @@ pub(crate) fn targeted_operand_endpoints(
         })
     {
         proofs.push(proof);
+    }
+    // The cited equality and single-definition closure is the last resort:
+    // it reaches operands whose only endpoints live on equal terms or earlier
+    // computed definitions, behind every specialized producer's own shapes.
+    for proof in derived::operand_endpoints(
+        context,
+        integer_type,
+        operand,
+        lower,
+        assumptions,
+        semantic_axioms,
+    ) {
+        if !proofs
+            .iter()
+            .any(|existing| existing.conclusion == proof.conclusion)
+        {
+            proofs.push(proof);
+        }
     }
     proofs
 }

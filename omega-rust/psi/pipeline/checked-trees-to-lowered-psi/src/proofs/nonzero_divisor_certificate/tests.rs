@@ -3,6 +3,7 @@
 mod byte_subslice;
 mod case_analysis;
 mod conjunction_endpoints;
+mod derived_endpoint_bounds;
 mod division_affine_transport;
 mod division_citation_composition;
 mod live_field_aliases;
