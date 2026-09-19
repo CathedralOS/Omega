@@ -498,7 +498,7 @@ pub(in crate::execution) fn build_call_operation(
     if !boundary && target_machine.supply_mode != MachineSupplyMode::CheckedBody {
         return None;
     }
-    let Some(structural_arguments) = structural_call_arguments(
+    let structural_arguments = structural_call_arguments(
         program,
         facts,
         scalar_callees,
@@ -515,9 +515,7 @@ pub(in crate::execution) fn build_call_operation(
         true,
         allow_field_path_projection,
         caller_structural_results,
-    ) else {
-        return None;
-    };
+    )?;
     // The callee's retained scalar positions: the same authored indices its
     // own signature plan keeps, so the erased position is absent on both
     // sides and `checked_call_scalar_arguments` pairs the caller's dense
@@ -663,7 +661,7 @@ pub(in crate::execution) fn build_call_operation(
         *retained = custody;
         return Some(operation);
     }
-    let Some(transfers) = call_claim_transfers(
+    let transfers = call_claim_transfers(
         facts,
         machine.symbol,
         state.symbol,
@@ -676,9 +674,7 @@ pub(in crate::execution) fn build_call_operation(
         } else {
             PermissionEventKind::Transfer
         },
-    ) else {
-        return None;
-    };
+    )?;
 
     if boundary {
         Some(CheckedUnitEffectOperationPlan::BoundaryCall {
@@ -699,17 +695,14 @@ pub(in crate::execution) fn build_call_operation(
         )
         .is_some()
         {
-            let Some(loan) = crate::execution::terminal_unit::reference_results::result_loan(
+            crate::execution::terminal_unit::reference_results::result_loan(
                 program,
                 facts,
                 machine.symbol,
                 state,
                 call,
                 result,
-            ) else {
-                return None;
-            };
-            loan
+            )?
         } else {
             arena::Handle::invalid()
         };
