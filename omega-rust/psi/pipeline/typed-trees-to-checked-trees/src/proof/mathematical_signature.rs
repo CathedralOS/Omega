@@ -35,6 +35,11 @@
 //!   into the shared signature prefix (the `bounded_denotation` pattern),
 //!   so later declarations can reference earlier ones through
 //!   `Term::Constant`.
+//! - Explicit generic applications follow the callee's ordered telescope:
+//!   level binders instantiate `Constant.levels`, while the remaining binders
+//!   form ordinary `Apply` terms before the ordinary argument prefix. The
+//!   kernel rechecks the level scope and instantiated dependent applications;
+//!   generalized level inference remains unsupported.
 //! - Inside a declaration, references resolve symbols first (parameters,
 //!   binders, earlier declarations) and fall back to names only for the
 //!   symbol-less nodes the mirror carries — a parameter used as a call
@@ -43,13 +48,14 @@
 //!   guessing.
 //!
 //! This leg refuses loudly rather than denoting what it cannot decide:
-//! level arguments to `Constant` references (instantiation is a later
-//! leg), references to the declaration being elaborated or a later one,
+//! inferred level arguments, references to the declaration being elaborated or a later one,
 //! machine/evidence/quotient/private-layout call payloads, borrow /
 //! constrained / dynamic-trait / array / slice / unit type references,
 //! computed level expressions other than literals, and every body
 //! expression form beyond name references and ordinary application
 //! (integer and operator denotation is the bounded-denotation leg).
+
+mod applications;
 
 use std::collections::HashMap;
 
@@ -640,7 +646,6 @@ impl<'a> Elaborator<'a> {
                 }
                 if call.static_machine_parameter.is_valid()
                     || call.static_requirement_dispatch.is_some()
-                    || !call.machine_arguments.is_empty()
                     || !call.evidence_arguments.is_empty()
                     || call.quotient_operation.is_some()
                     || call.private_layout_operation.is_some()
@@ -652,17 +657,11 @@ impl<'a> Elaborator<'a> {
                         call.target
                     )));
                 }
-                let mut function = if call.target_symbol.is_valid() {
-                    let target_symbol = call.target_symbol;
-                    let target = call.target.clone();
-                    self.named_term(target_symbol, &target)?
-                } else if let Some(term) = self.scope_term_for_name(&call.target) {
-                    term
-                } else {
-                    return Err(
-                        self.refuse(format!("unresolved mathematical callee `{}`", call.target))
-                    );
-                };
+                let target_symbol = call.target_symbol;
+                let target = call.target.clone();
+                let static_arguments = call.machine_arguments.clone();
+                let mut function =
+                    self.elaborate_callee(target_symbol, &target, &static_arguments)?;
                 for argument in self
                     .program
                     .expression_table
@@ -786,7 +785,7 @@ impl<'a> Elaborator<'a> {
 
     /// A `Constant` for an elaborated earlier authored declaration, or a
     /// refusal when the reference is self/forward or the declaration is
-    /// universe-polymorphic (instantiation is a later leg).
+    /// universe-polymorphic without an explicit application.
     fn constant_for_declaration(
         &mut self,
         symbol: SymbolHandle,
@@ -795,7 +794,7 @@ impl<'a> Elaborator<'a> {
             let declaration = &self.declarations[position as usize];
             if declaration.level_arity != 0 {
                 return Err(self.refuse(format!(
-                    "referencing mathematical declaration `{}` needs {} level arguments; instantiation is a later leg",
+                    "referencing mathematical declaration `{}` needs {} explicit level arguments",
                     self.program.symbols.name(symbol),
                     declaration.level_arity
                 )));

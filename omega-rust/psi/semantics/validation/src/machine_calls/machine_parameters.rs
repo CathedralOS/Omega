@@ -10,6 +10,7 @@ mod callable_shape;
 mod closed_types;
 pub use closed_types::closed_static_call_type_bindings;
 mod contract_facts;
+mod mathematical_occurrences;
 mod nominal_admission;
 mod type_refinement;
 
@@ -176,8 +177,15 @@ fn validate_static_machine_arguments_with_facts(
         (service_reaches, suspensions, blockings)
     };
     let invocations = crate::infer_synchronous_invocations(program);
+    let mathematical_expressions = mathematical_occurrences::expression_nodes(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
+            // These occurrences belong to mathematical declaration elaboration,
+            // whose kernel checks their level and term applications. A runtime
+            // occurrence naming the same declaration is still checked here.
+            if mathematical_expressions.contains(&handle) {
+                continue;
+            }
             // Named operators own their complete static telescope in the
             // ordinary value-call validator. MP2b governs executable machine
             // selections and must not reinterpret operator type arguments as
