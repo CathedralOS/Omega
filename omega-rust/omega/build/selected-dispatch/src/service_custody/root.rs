@@ -266,17 +266,6 @@ pub fn derive_fused_program_entry_establishments(
             )));
             continue;
         };
-        let Some(bound_domain) = checked
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == carrier.bound_domain)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` lost its Bound domain",
-                owner.name, field.name,
-            )));
-            continue;
-        };
         let carrier_base_identity = unconstrained_type_identity(checked, field.type_reference);
         let row = program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
             source.identity(),
@@ -286,7 +275,6 @@ pub fn derive_fused_program_entry_establishments(
             field_identity,
             carrier_type_identity,
             carrier_base_identity,
-            bound_domain.name.as_str().to_owned(),
             program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&schema),
             schema.identity_digest(),
             selected_plan.plan.identity_digest(),

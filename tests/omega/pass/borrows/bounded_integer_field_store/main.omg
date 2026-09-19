@@ -31,7 +31,7 @@ machine Counter::step(&mut self) {
 }
 
 data Main {
-    console: Service<Console> in Bound;
+    console: Service<Console>;
     text: [u8; 9] in Ascii;
     counter: Counter;
 }

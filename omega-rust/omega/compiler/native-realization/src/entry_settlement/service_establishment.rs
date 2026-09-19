@@ -118,7 +118,6 @@ mod tests {
             fixture_row.field_identity().into(),
             fixture_row.carrier_type_identity().into(),
             fixture_row.carrier_base_identity().into(),
-            fixture_row.bound_domain_identity().into(),
             program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&plan.schema),
             plan.schema.identity_digest(),
             plan.identity_digest(),

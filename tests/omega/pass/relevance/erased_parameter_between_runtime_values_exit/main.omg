@@ -21,7 +21,7 @@ machine second(low: i32, bound [erased]: i32, high: i32) -> i32 {
 }
 
 data Main {
-    console: Service<Console> in Bound;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

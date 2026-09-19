@@ -5,7 +5,7 @@ use assert_kit::main;
 use omega::language::core::service;
 
 data Main {
-    assert: Service<Assert> in Bound;
+    assert: Service<Assert>;
 }
 
 machine Main::main(&mut self)

@@ -9,7 +9,7 @@ use psi::parse::parser;
 use psi::syntax::syntax;
 
 pub data ParserHarness {
-    console: Service<Console> in Bound;
+    console: Service<Console>;
     lexer: Lexer;
     parser: Parser;
 }

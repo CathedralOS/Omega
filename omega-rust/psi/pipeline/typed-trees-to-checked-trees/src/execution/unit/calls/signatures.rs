@@ -119,7 +119,7 @@ pub(crate) fn free_fused_service_scalar_signature(
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
         if multiplicity != Multiplicity::Affine
             || access != CheckedStructuralAccess::Owned
-            || qualifications.len() != 1
+            || !qualifications.is_empty()
         {
             return None;
         }
@@ -315,7 +315,7 @@ fn structural_signature_with_partial_affine(
         if fused_service_erasure.is_some()
             && (multiplicity != Multiplicity::Affine
                 || access != CheckedStructuralAccess::Owned
-                || qualifications.len() != 1)
+                || !qualifications.is_empty())
         {
             return None;
         }

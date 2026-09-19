@@ -242,7 +242,6 @@ fn establishment_for_source(
         field_identity.into(),
         carrier_type_identity.into(),
         carrier_type_identity.into(),
-        "Bound".into(),
         "Evidence#test".into(),
         effects::provider_plan::ServiceSchemaDigest::from_digest([41; 32]),
         effects::provider_plan::ProviderPlanDigest::from_digest([43; 32]),

@@ -15,7 +15,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console> in Bound;
+    console: Service<Console>;
     pause: [u8; 256];
     text: [u8; 16] in Utf8;
     i: i32 [0..=16];

@@ -1,8 +1,9 @@
 // One selected attached application root receives exact Fused Service
 // establishment from its generated entry bridge under the intrinsic carrier
-// spelling: `Service<R>` alone denotes the toolchain service era, so no
-// authored `in Bound` qualification is required. A same-shaped non-root owner
-// receives no such authority merely because the provider is selected.
+// spelling: `Service<R>` alone denotes the toolchain service era, and the
+// closed carrier admits no authored qualification at all. A same-shaped
+// non-root owner receives no such authority merely because the provider is
+// selected.
 use omega::language::core::service;
 
 pub boundary trait Ping {

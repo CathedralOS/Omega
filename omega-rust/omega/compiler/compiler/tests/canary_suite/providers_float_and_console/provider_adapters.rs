@@ -597,7 +597,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         parameter.access,
         checked_trees::CheckedStructuralAccess::Owned
     );
-    assert_eq!(parameter.qualifications.len(), 1);
+    assert!(parameter.qualifications.is_empty());
     assert_eq!(scalar_parameter.source_position, 1);
     assert_eq!(
         scalar_parameter.primitive_type,
@@ -815,18 +815,13 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             })
             .expect("fixture should retain Main.service")
     };
-    let (service_base, bound_constraints) = match classifier_twins
+    let service_base = service_field_type;
+    let probe_constraints = classifier_twins
         .typed
         .type_reference_table
-        .type_reference(service_field_type)
-        .clone()
-    {
-        typed_trees::types::TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => (base_type, constraints),
-        other => panic!("Service fixture should retain its Bound shell, got {other:?}"),
-    };
+        .insert_constraints(vec![typed_trees::types::TypeConstraintNode::Named(
+            typed_trees::name::Identifier::generated_static("probe"),
+        )]);
     let reference_base = classifier_twins.typed.type_reference_table.insert(
         typed_trees::types::TypeReferenceNode::Reference {
             referee: service_base,
@@ -837,40 +832,31 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     let reference_wrapped = classifier_twins.typed.type_reference_table.insert(
         typed_trees::types::TypeReferenceNode::Constrained {
             base_type: reference_base,
-            constraints: bound_constraints,
+            constraints: probe_constraints,
         },
     );
-    let reference_error = typed_trees::service::classify_exact_bound_service_carrier(
+    let reference_verdict = typed_trees::service::classify_exact_bound_service_carrier(
         &classifier_twins.typed,
         reference_wrapped,
     )
-    .expect_err("a reference-wrapped Service false twin must reject");
-    assert!(reference_error.contains("routes only a closed `Service<R>` carrier"));
+    .expect("a reference-wrapped Service false twin has no carrier verdict");
+    assert!(
+        reference_verdict.is_none(),
+        "a reference-wrapped Service false twin is not the closed carrier"
+    );
 
-    let mut constraints = classifier_twins
-        .typed
-        .type_reference_table
-        .constraints(bound_constraints)
-        .to_vec();
-    constraints.push(typed_trees::types::TypeConstraintNode::Named(
-        typed_trees::name::Identifier::generated_static("extra"),
-    ));
-    let constraints = classifier_twins
-        .typed
-        .type_reference_table
-        .insert_constraints(constraints);
-    let extra_constraint = classifier_twins.typed.type_reference_table.insert(
+    let qualified_carrier = classifier_twins.typed.type_reference_table.insert(
         typed_trees::types::TypeReferenceNode::Constrained {
             base_type: service_base,
-            constraints,
+            constraints: probe_constraints,
         },
     );
     let constraint_error = typed_trees::service::classify_exact_bound_service_carrier(
         &classifier_twins.typed,
-        extra_constraint,
+        qualified_carrier,
     )
-    .expect_err("a Service carrier with an extra constraint must reject");
-    assert!(constraint_error.contains("may carry only the exact toolchain-owned `Bound` domain"));
+    .expect_err("a Service carrier bearing authored qualification must reject");
+    assert!(constraint_error.contains("admits no authored qualification"));
 
     let mut downgraded = baseline.clone().into_program();
     let provider_type_identity = match fused_service_field_mut(&mut downgraded) {
@@ -973,7 +959,6 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
     assert_eq!(selected.source_signature().machine_name(), "Main::main");
     assert_eq!(establishment.field_identity(), "service");
     assert!(establishment.requirement_identity().starts_with("Ping#"));
-    assert_eq!(establishment.bound_domain_identity(), "Bound");
     assert_eq!(
         establishment.source_signature_identity(),
         selected.source_signature().identity()

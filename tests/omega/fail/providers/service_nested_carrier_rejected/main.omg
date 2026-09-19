@@ -2,4 +2,4 @@ use omega::language::core::service;
 
 pub boundary trait Ping { machine ping(); }
 data Box<T> { value: T; }
-data Main { wrapped: Box<Service<Ping> in Bound>; }
+data Main { wrapped: Box<Service<Ping>>; }

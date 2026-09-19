@@ -35,7 +35,7 @@ where machine Selected satisfies Handler::call;
 }
 
 data Main {
-    console: Service<Console> in Bound;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

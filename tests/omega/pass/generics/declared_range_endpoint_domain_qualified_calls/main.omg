@@ -23,7 +23,7 @@ machine positive_argument(value: u64[0..=bounded(256)]) -> u64 { upper_bound(val
 machine nested_positive(value: u64[0..bounded(identity(257))]) -> u64 { upper_bound(value) }
 machine nested_domain(value: u64[0..=sized(512)]) -> u64 { upper_bound(value) }
 
-data Main { console: Service<Console> in Bound; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let positive: u64 = positive_argument(0);
     let nested: u64 = nested_positive(0);
