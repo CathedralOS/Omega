@@ -533,16 +533,10 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
 - **BUILD-SEMANTIC-EXCLUSIONS.** Finish
   [semantic absence admission](wiki/spec/build/behavior_exclusions.md)
   for the selected composition. Typed crash/service sets, canonical union,
-  static/bounded-dynamic closure checks, provider-body joins, and the checking/
-  no-op assertion and logger fixtures exist. Remaining:
+  static/bounded-dynamic closure checks, provider-body joins, the checking/
+  no-op assertion and logger fixtures, and exclusion selections recorded as
+  they execute against the live root Build authority exist. Remaining:
 
-  - Record actual evaluated exclusion selections under the live root Build
-    authority. `build-evaluation/src/admission/declarations.rs::harvest_behavior_exclusions`
-    instead applies selections anywhere in the static call scope unconditionally
-    and requires literal crash cases. The spec permits ordinary evaluated
-    selection; a helper or untaken branch is not itself an executed selection.
-    Reuse checked invocation/occurrence evidence, not a second interpreter or
-    syntax-pattern permission.
   - Complete absence evidence for the full admitted entry/call closure,
     including callbacks, cleanup, generated entries, and all admitted dynamic
     targets. Parameter dispatch still reports missing evidence; preserve that
